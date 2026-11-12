@@ -2,8 +2,8 @@
 
 Structured results only: no wording of the owner or the model is read. At the end of a
 Run the owner started by typing, every financial effect call of the request is checked
-(``trade_execute``, ``trade_close_positions``, ``goal_step_execute``, including a goal
-step's nested and deduplicated result and the reconciliation of the same operation).
+(``trade_execute``, ``trade_close_positions``, including a nested and deduplicated
+result and the reconciliation of the same operation).
 If an operation's latest result is still uncertain, one line in the conversation
 language says the outcome is not confirmed, is being checked and will not be resent.
 A change that is not a trade and was interrupted in the request's last calls gets its own
@@ -21,7 +21,7 @@ _STARTED_KEY = "owner_started"
 _START_KEY = "owner_request_start"
 # Runs the owner started by typing. Steering inside a wake run does not make it one.
 OWNER_TRIGGERS = frozenset({"user", "group"})
-FINANCIAL_EFFECTS = frozenset({"trade_execute", "trade_close_positions", "goal_step_execute"})
+FINANCIAL_EFFECTS = frozenset({"trade_execute", "trade_close_positions"})
 UNCERTAIN = frozenset(
     {
         "ambiguous",
@@ -54,7 +54,7 @@ def record_request_start(state: dict[str, Any], trigger: str, messages: list[Mod
 
 
 def _rows(result: dict[str, Any]) -> list[dict[str, Any]]:
-    """The operation rows of one result: itself, a goal step's nested result, a batch."""
+    """The operation rows of one result: itself, a nested result, a batch."""
     rows = [result]
     nested = result.get("result")
     if isinstance(nested, dict):
