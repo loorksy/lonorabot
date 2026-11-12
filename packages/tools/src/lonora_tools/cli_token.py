@@ -13,19 +13,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import run_scope
 
 
+# The door's own bound on the parent-run walk (``require_goal_lineage``, execution.py).
+MAXIMUM_ANCESTRY = 16
+
+
+async def full_ancestry(session: AsyncSession, run: RunRow) -> bool:
+    """The run and every ancestor are of full scope, as the door's walk requires (6.9).
+    A cycle, a missing ancestor or a chain past the door's bound is not."""
+    current, seen = run, {run.id}
+    for _ in range(MAXIMUM_ANCESTRY + 1):
+        if run_scope(current.trigger, current.model_metadata or {}) != "full":
+            return False
+        parent = current.parent_run_id
+        if not parent:
+            return True
+        if parent in seen:
+            return False
+        seen.add(parent)
+        found = await session.get(RunRow, parent)
+        if found is None:
+            return False
+        current = found
+    return False
+
+
 async def token_for_command(session: AsyncSession, key: str, run_id: str) -> str | None:
     run = await session.get(RunRow, run_id)
-    if run is None:
+    if run is None or not await full_ancestry(session, run):
         return None
-    # Every ancestor too, as the door's ancestry walk does (6.9).
-    current: RunRow | None = run
-    seen: set[str] = set()
-    while current is not None and current.id not in seen:
-        if run_scope(current.trigger, current.model_metadata or {}) != "full":
-            return None
-        seen.add(current.id)
-        parent = current.parent_run_id
-        current = await session.get(RunRow, parent) if parent else None
     agent = await session.get(AgentRow, run.agent_id)
     if agent is None:
         return None

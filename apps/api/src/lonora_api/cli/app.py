@@ -152,9 +152,12 @@ def create_cli_app(rt: ApiRuntime) -> FastAPI:
         handler = COMMANDS.get(command)
         if handler is None:
             return refused("unknown_command")
-        raw = await request.body()
-        if len(raw) > MAXIMUM_BODY_BYTES:
-            return refused("request_too_large")
+        raw = b""
+        # Bounded while it is read, chunked bodies too.
+        async for chunk in request.stream():
+            raw += chunk
+            if len(raw) > MAXIMUM_BODY_BYTES:
+                return refused("request_too_large")
         try:
             body: object = json.loads(raw) if raw else {}
         except ValueError:
