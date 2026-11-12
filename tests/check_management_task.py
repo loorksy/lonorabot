@@ -4,6 +4,7 @@ Scripted broker only; no live orders. Run on a fresh disposable *_test database.
 """
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -11,6 +12,9 @@ from uuid import uuid4
 
 from check_trading import ScriptedBroker, ScriptedManager, database
 from lonora_adapters.brokers.base import BrokerManager
+from lonora_agent.collaboration.agent_create import delete_created_agent
+from lonora_api.routes.owner_actions import undo_creation
+from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.account import Position
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import AgentUpdate, utcnow
@@ -19,7 +23,7 @@ from lonora_contracts.tasks import TaskCreate, TaskFailure
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import revoke
-from lonora_db.agent_creation import delete_agent, pause_agent
+from lonora_db.agent_creation import pause_agent
 from lonora_db.agent_permissions import change_permission
 from lonora_db.agents import update_agent
 from lonora_db.broker_sessions import BrokerSessionRepository
@@ -30,6 +34,7 @@ from lonora_db.schema import (
     AccountAuthorityRow,
     AgentRow,
     MarketWatchRow,
+    OwnerActionRow,
     OwnerRow,
     RoutineRow,
     RunRow,
@@ -53,6 +58,7 @@ from lonora_trading.execution import ExecutionService, require_task_authority
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.manual_activity import material_state
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def mode_tasks(session: Any, agent_id: str) -> int:
@@ -446,37 +452,57 @@ async def checks() -> None:
     await set_run(str(working.payload["run_id"]), status="completed")
     print("PASS a working Run leaves the task and keeps its exits")
 
-    # Lock order: a pause waits for a tool transaction of the task's Run that holds the
-    # Run and then needs the agent (an FK key share); it never deadlocks with it.
-    locked, _ = await started_task()
-    holding, release = asyncio.Event(), asyncio.Event()
+    # Lock order: the pause, the owner's Undo of a creation card and the owner's delete
+    # wait for a tool transaction of the task's Run that holds the Run and then needs the
+    # agent (an FK key share); none of them deadlocks with it.
+    async def contended(name: str, action: Callable[[AsyncSession], Awaitable[object]]) -> None:
+        locked = await live()
+        assert locked is not None
+        holding, release = asyncio.Event(), asyncio.Event()
 
-    async def tool_transaction() -> None:
+        async def tool_transaction() -> None:
+            async with db.sessions() as session, session.begin():
+                await session.execute(
+                    select(RunRow).where(RunRow.id == locked.payload["run_id"]).with_for_update()
+                )
+                holding.set()
+                await release.wait()
+                await session.execute(
+                    select(AgentRow).where(AgentRow.id == agent_id).with_for_update(key_share=True)
+                )
+
+        async def act() -> None:
+            async with db.sessions() as session, session.begin():
+                await action(session)
+
+        tool = asyncio.create_task(tool_transaction())
+        await holding.wait()
+        acting = asyncio.create_task(act())
+        await asyncio.sleep(0.3)
+        assert not acting.done(), name + " did not wait for the task's Run"
+        release.set()
+        await asyncio.wait_for(asyncio.gather(tool, acting), timeout=20)
+        assert await live() is None, name
+
+    async def resume() -> None:
         async with db.sessions() as session, session.begin():
-            await session.execute(
-                select(RunRow).where(RunRow.id == locked.payload["run_id"]).with_for_update()
-            )
-            holding.set()
-            await release.wait()
-            await session.execute(
-                select(AgentRow).where(AgentRow.id == agent_id).with_for_update(key_share=True)
-            )
+            await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
+        assert await live() is not None
 
-    async def pause() -> None:
-        async with db.sessions() as session, session.begin():
-            await pause_agent(session, owner_id, agent_id)
-
-    tool = asyncio.create_task(tool_transaction())
-    await holding.wait()
-    pausing = asyncio.create_task(pause())
-    await asyncio.sleep(0.3)
-    assert not pausing.done(), "the pause did not wait for the task's Run"
-    release.set()
-    await asyncio.wait_for(asyncio.gather(tool, pausing), timeout=20)
-    assert await live() is None
-    async with db.sessions() as session, session.begin():
-        await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
-    print("PASS a pause takes the task's Run before the agent row: no deadlock")
+    owner_identity = OwnerIdentity(id=owner_id, email="", token_hash="")
+    await started_task()
+    await contended("the pause", lambda session: pause_agent(session, owner_id, agent_id))
+    await resume()
+    await contended(
+        "the creation card's Undo",
+        lambda session: undo_creation(
+            session,
+            owner_identity,
+            OwnerActionRow(id=str(uuid4()), payload={"agent_id": agent_id}),
+        ),
+    )
+    await resume()
+    print("PASS a pause and the Undo take the task's Run before the agent row: no deadlock")
 
     # An active signed grant's own Task drives the account until the grant is revoked.
     await tap("ask", by="agent")
@@ -549,14 +575,13 @@ async def checks() -> None:
     assert await live() is not None, "deleting the connection left the Full agent without a task"
     print("PASS deleting a connection hands a Full agent over to its own task")
 
-    # Deleting the agent ends the task before the agent row goes.
+    # Deleting the agent ends the task before the agent row goes, also while a tool
+    # transaction of the task's Run holds it (the owner's delete route).
     ending = await live()
     assert ending is not None
-    async with db.sessions() as session, session.begin():
-        await delete_agent(session, owner_id, agent_id)
-        with session.no_autoflush:
-            row = await session.get(TicketRow, ending.id, populate_existing=True)
-            assert row is not None and task_state(row).status == "cancelled"
+    await contended(
+        "the owner's delete", lambda session: delete_created_agent(session, owner_id, agent_id)
+    )
     async with db.sessions() as session:
         assert await mode_tasks(session, agent_id) == 0
         queued = await session.scalar(
