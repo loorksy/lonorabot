@@ -8,7 +8,7 @@
     "trade_execute",
     "account_read"
   ],
-  "state_owner": "TradingJournal prepared/submitted/confirmed/ambiguous/rejected",
+  "state_owner": "TradingJournal reserved/submitted/confirmed/failed/ambiguous/resolved",
   "entry_conditions": [
     "owned_scope",
     "current_evidence"

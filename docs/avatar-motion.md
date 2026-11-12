@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Trading avatar integration
 
 The owner-supplied Liquid Candles v6 engine and React component replace the previous

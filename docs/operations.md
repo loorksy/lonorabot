@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Running Lonora in production
 
 ## ملخص بالعربية
@@ -174,6 +176,9 @@ routed by `lonora.yml`: `Host(\`lonora.lork.cloud\`)` → `http://127.0.0.1:1801
 `lonora-database` and `lonora-artifacts`, its networks `lonora-net` and `lonora-research`; a new
 installation under `--project lonora2` uses `lonora2_*` and `lonora2-*`, so nothing collides (the
 preflight refuses if any of its own names already exist).
+
+`/opt/lonora-mobile-build` on that server holds the Android signing keystore: never delete or modify
+it. `lonora-analysis.service` is shared by the installations and stays when one is removed.
 
 **Neither the installer nor `lonora` ever writes into `/docker/traefik/dynamic/`.** A malformed file
 there can break traefik's file provider for every host on the server, so whoever edits it should

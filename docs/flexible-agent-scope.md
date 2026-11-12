@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # General agents and flexible market defaults
 
 New Web and native agents can be created without a broker connection. The owner

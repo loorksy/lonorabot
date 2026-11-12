@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # External integration authority
 
 W15-8 adds the owner's own authority: a server the owner trusted on a card or in

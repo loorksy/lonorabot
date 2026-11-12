@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Broker-unit position sizing
 
 `market_position_size` is a read-only calculation using the existing owner-scoped

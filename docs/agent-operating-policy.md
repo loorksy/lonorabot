@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Agent operating policy
 
 ## Source and runtime

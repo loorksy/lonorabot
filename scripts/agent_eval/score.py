@@ -1,4 +1,4 @@
-"""The deterministic acceptance scorer (OWNER_BRIEF §8): no model judge, no network, no database.
+"""The deterministic acceptance scorer: no model judge, no network, no database.
 
 ``judge`` reads one recorded turn (run.py writes them) against its scenario and returns the
 checks that failed. Every scenario is held to the owner's conditions:

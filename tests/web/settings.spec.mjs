@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-/* UI phase 5 (docs/ui-reference/CAPABILITY_MAP.md, owner decisions Q46-Q57): the settings root with
+/* The settings root with
    the version line, notifications with quiet hours to the minute and per-agent rules, the app
    lock, integrations with the real dry-run tests, usage without a cap, and the auth screens. */
 function fixture(data) {

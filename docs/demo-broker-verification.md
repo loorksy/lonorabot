@@ -1,8 +1,10 @@
+Superseded by VISION.md
+
 # Demo broker verification
 
 Use a MetaApi **demo** account. These checks submit real broker orders: run them
-only on demo, with the smallest valid volume. Keep autonomous goals disabled.
-Never put account tokens, login credentials or account IDs in shared logs.
+only on demo, with the smallest valid volume. Never put account tokens, login
+credentials or account IDs in shared logs.
 
 1. Keep two charts open on different broker symbols and timeframes. Restart the
    gateway; verify account, native tickets, quotes and candles recover. Repeat
@@ -44,28 +46,13 @@ registry/wrappers with scripted transports; `tests/check_trade_approvals.py`
 exercises PostgreSQL, approval HTTP admission and the simulation adapter.
 These fixtures do not substitute for verification against an external demo broker.
 
-## Independent permission and voice correction
+## Not yet verified against a real MetaApi account (as recorded on 2026-11-08)
 
-These checks remain manual and demo-only; simulation and browser signatures do
-not certify real broker or Samsung behavior.
+These were exercised only against the simulation broker or SDK-shaped fixtures:
 
-1. Supply one exact account/symbol, explicit allowed actions, volume, slots,
-   activity, equity limits and expiry in Agent settings. Cancel signing once:
-   no permission or broker mutation should exist, and global Trading stays OFF.
-2. Review and sign with a registered device. Compare every limit with the server
-   result. Enabling demo trading remains an explicit owner decision. When enabled,
-   verify real tickets and journal receipts for distinct in-scope requests;
-   scope, expiry, device, activity and global controls still stop forbidden actions.
-3. Revoke permission. Another action must return to explicit confirmation;
-   revocation must not silently close positions. Restore original controls and
-   close only the explicitly selected demo test exposure.
-4. During a call, prepare one exact proposal, then correct the source request
-   before approving. The old proposal becomes unavailable and the revised request
-   needs its own confirmation. A spoken yes never authorizes execution.
-5. Test foreground invitations only after opt-in. Decline, expiry and quiet hours
-   persist through reconnect. Native background/killed-app delivery needs a real
-   provider and physical-device acceptance; it is not established by this flow.
-
-Dollar stop-risk sizing and daily monetary-loss limits are not implemented by the
-current independent permission. A volume ceiling, equity floor or stop cannot
-guarantee a maximum loss; metadata-dependent sizing remains in the matrix.
+- cancel and modify reconciliation through live deal history;
+- the `historyOrders` fallback;
+- the trade-session time format and `brokerTime` offset behind `market_sessions`;
+- the `state` field handling of journal reconciliation;
+- a lost acknowledgement and its reconciliation through real deal history;
+- a real stop-loss hit waking the agent that opened the position.

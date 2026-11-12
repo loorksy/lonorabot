@@ -1,12 +1,10 @@
-# Native visual responses
+Superseded by VISION.md
 
-Current repair and acceptance status: [chat runtime repair](chat-runtime-repair.md).
-Historical release evidence: [previous verification report](native-visual-acceptance.md).
+# Native visual responses
 
 Lonora's existing Agent chooses whether an ordinary answer contains text,
 interactive native components, or both. There is no presentation classifier,
 second model, secondary conversation store or alternative financial executor.
-The attached mandate is preserved at `lonora-specs/prompt 2.md`.
 
 ## Reused architecture and reference
 

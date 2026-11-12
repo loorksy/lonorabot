@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora facial geometry refinement
 
 The character keeps the original circular head, dark visor, shell shading, user-selected colors, SVG viewBox and eight-stroke animation engine. The Studio's expression IDs, Arabic labels, selection grid and confirmation flow remain compatible.

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Design tokens
 
 `@lonora/ui-tokens` is the single source of design tokens. It holds two sets:

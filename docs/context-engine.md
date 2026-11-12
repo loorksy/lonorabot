@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Context engine
 
 How a Run's model request is sized, compacted and labelled. The model decides
@@ -43,7 +45,7 @@ capacity source, the admitted limit, the transport limit and how many omission
 notices the request carried.
 
 Estimates use the verified offline tokenizer cache when present (see
-`docs/lonora-specs/CONTEXT_BUDGETING.md`) and UTF-8 bytes otherwise. Bytes
+`docs/context-budgeting.md`) and UTF-8 bytes otherwise. Bytes
 overestimate tokens, so a missing cache compacts and sheds earlier.
 
 ## Admission degrades instead of failing

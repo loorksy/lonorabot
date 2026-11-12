@@ -1,8 +1,10 @@
+Superseded by VISION.md
+
 # Lonora
 
 نظام وكلاء تداول بالذكاء الاصطناعي دائمين، بخادم Python وواجهة Web مستمدة من قالب Tampletgrok، وتطبيق Expo مرافق. المحادثة هي مساحة العمل: قائمة الوكلاء والمجموعات، محادثة مستمرة لكل وكيل، ولوحة سياق للهوية والمعرفة والعمل المجدول. تشغيل الوكلاء يبقى على الخادم عند إغلاق المتصفح أو الهاتف.
 
-بنية الملفات ووظائفها في [docs/FRONTEND_STRUCTURE.md](docs/FRONTEND_STRUCTURE.md). خطة النقل ومصادر المكونات ومعايير القبول في [docs/UI_MIGRATION_PLAN.md](docs/UI_MIGRATION_PLAN.md). إشعارات المصادر والتراخيص في [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+إشعارات المصادر والتراخيص في [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 الردود البصرية الأصلية تُركّب داخل المحادثة بواسطة الوكيل نفسه، مع نصوص ومكونات وتفاعلات محلية، وتستخدم هوية Lonora وصلاحياتها الحالية. تفاصيل العقود والتصميم والحفظ في [docs/native-visual-responses.md](docs/native-visual-responses.md). يتطلب نشرها ترحيل `0032_message_rich_content`؛ لا تتطلب نموذجًا إضافيًا أو منصة ملفات جديدة.
 

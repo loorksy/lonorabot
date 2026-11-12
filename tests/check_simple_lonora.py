@@ -1,13 +1,13 @@
 """Simple Lonora acceptance (W15-ACC) on a fresh migrated PostgreSQL database.
 
-The owner's journeys from ``VISION.md`` run end to end through the normal entry points:
+The owner's journeys of the previous vision run end to end through the normal entry points:
 Arabic owner messages go to the chat API (``POST /threads/{id}/messages``), each Run is
 claimed and executed by the gateway's agent runtime, the model is a scripted provider
 behind the real model router (``OwnerServices.router``), market and order state come from
 the simulation broker, and every owner decision is a request to the owner routes a Web or
 Mobile card sends (with a scripted passkey where the card needs one).
 
-For each journey it counts the owner's confirmations and checks them against the vision,
+For each journey it counts the owner's confirmations and checks them against that vision,
 and across all of them it checks four properties:
 
 1. Nothing trades without a grant or a tap: the broker's book changes only after the
@@ -19,8 +19,7 @@ and across all of them it checks four properties:
 4. No credential value appears in a message, an event, a card, a Run or anything the
    model was sent.
 
-No live broker, model provider, MetaApi account or real device is involved. What still
-needs one is recorded in ``docs/lonora-specs/MANDATE_EXECUTION_PLAN.md``.
+No live broker, model provider, MetaApi account or real device is involved.
 """
 
 import asyncio

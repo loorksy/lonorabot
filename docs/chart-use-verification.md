@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Chart Use integration and verification
 
 This documents the implemented chart capability, not completion of the full Agent-environment program.

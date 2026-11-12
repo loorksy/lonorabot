@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora mobile
 
 An Expo Router interface to the Lonora Python server. Native toolbar, title capsules, composer, member picker, settings groups and message/file cards follow the actual template source. Shared avatar geometry is used across Web and mobile; see `NOTICE` for source revisions and licensing. It uses the real Lonora API and never starts a separate agent runtime.
@@ -75,7 +77,7 @@ The `0.2.3` universal APK includes authenticated live chart scene events and nat
 
 ### 0.2.6 repair release
 
-Native configuration now requires versionCode26101613 or higher, above the deployed0.2.5/code26101612. Preserve the published signing identity when building an update; this workspace may contain an older, different local key. Overlay and legacy shared-storage permissions are blocked and new release verification checks the packaged manifest. The native permission change updates the runtime fingerprint and requires a new compatible APK before later matching OTA updates. Voice lifecycle and setup/teardown fixes are covered by transport tests; see `docs/mobile/voice-native-verification.md` and `docs/verification/android-security-audit-2026-10-16.md` for actual native acceptance limits.
+Native configuration now requires versionCode26101613 or higher, above the deployed0.2.5/code26101612. Preserve the published signing identity when building an update; this workspace may contain an older, different local key. Overlay and legacy shared-storage permissions are blocked and new release verification checks the packaged manifest. The native permission change updates the runtime fingerprint and requires a new compatible APK before later matching OTA updates. Voice lifecycle and setup/teardown fixes are covered by transport tests; see `docs/mobile/voice-native-verification.md` for actual native acceptance limits.
 
 
 ## Authorized Android signing rotation (2026-10-19)

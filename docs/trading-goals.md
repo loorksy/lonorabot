@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Persistent trading goals
 
 Apply database migration `0015_trading_goals` with `bash scripts/migrate.sh` before starting the updated API and worker. The existing worker hosts market streams, chart state, routines, watches and goal recovery; a second process is unnecessary.

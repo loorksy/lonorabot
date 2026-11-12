@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Thread preferences, chat lists and the owner's search
 
 The conversation list of the reference UI (phase 2) is server state per owner, shared by

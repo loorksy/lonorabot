@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Account management through one existing execution boundary
 
 An owner may sign one immutable account delegation without first authoring a
@@ -387,3 +389,11 @@ strategy equivalence, native background calls or new Goal-bound execution policy
 Goal-linked Runs retain the existing Goal/device authorization boundary. A fresh
 ordinary Task can use the account grant. No production grant or trade is activated
 by migration, deployment or these tests.
+
+## Native passkey bindings
+
+Web requires the configured HTTPS `LONORA_ALLOWED_ORIGIN` (localhost HTTP is permitted for development). Android uses `react-native-passkeys` and the OS Credential Manager; iOS uses the platform passkey implementation. New native code requires a new compatible binary once; the existing fingerprint-based OTA mechanism must not deliver it to an old binary.
+
+Set `LONORA_PASSKEY_ANDROID_FINGERPRINTS` to a JSON list of the actual installed APK signing-certificate SHA-256 fingerprints, using colon-separated hexadecimal bytes. These fingerprints are public. `LONORA_PASSKEY_ANDROID_PACKAGE` defaults to `ai.lonora.mobile`. Set `LONORA_PASSKEY_IOS_APP_IDS` to the public Apple `TEAMID.bundleIdentifier` values. The API serves `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`; Expo config declares the matching webcredentials domain. Android assertion origins are accepted only for configured certificate hashes, never values supplied by the client. Empty bindings explicitly disable native activation, while offering the secure Web flow without putting bearer tokens in URLs.
+
+Verify the metadata on the public origin, install the correctly signed new binary, and test an OS prompt on real devices before claiming native acceptance. Browser virtual-authenticator tests verify actual WebAuthn creation/assertion and server state, but cannot certify native behavior or a production domain association. Test cancellation, lockout/unsupported devices, session expiry, a changed plan, rejection, lost response, revocation and reload. No device error should grant authority.

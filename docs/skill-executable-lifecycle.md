@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Pinned executable Skill packages
 
 The existing Agent catalog, Run snapshots, revocation controls and analytical
