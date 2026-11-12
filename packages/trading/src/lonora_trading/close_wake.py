@@ -33,7 +33,7 @@ from lonora_db.runs import create_run
 from lonora_db.schema import AgentRow, ClosedTradeRow, EffectReceiptRow, RunRow, TradingJournalRow
 from lonora_db.threads import conversation_thread, create_thread
 from lonora_session.idempotency import broker_operation_tag, stable_id
-from sqlalchemy import exists, literal, select
+from sqlalchemy import exists, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Closed trades recorded this recently are woken for; older ones are history.
@@ -211,25 +211,32 @@ async def _redirect_unread(session: AsyncSession, owner_id: str) -> int:
     then locked and checked again, so a Run reading its own notice is never held up.
     """
     moved = 0
+    # This owner's unread notices whose Run no longer executes, filtered before the
+    # limit, so notices of executing Runs or of other owners never crowd them out.
     candidates = await session.scalars(
         select(EffectReceiptRow.key)
+        .join(
+            ClosedTradeRow,
+            ClosedTradeRow.id == EffectReceiptRow.result["trade_id"].as_string(),
+        )
+        .outerjoin(RunRow, RunRow.id == EffectReceiptRow.result["run_id"].as_string())
         .where(
             EffectReceiptRow.key.startswith(NOTICE_KEY),
             EffectReceiptRow.result["consumed"].as_boolean().is_(False),
+            ClosedTradeRow.owner_id == owner_id,
+            or_(RunRow.id.is_(None), RunRow.status.not_in(sorted(EXECUTING))),
         )
         .order_by(EffectReceiptRow.created_at)
-        .limit(MAXIMUM_PER_PASS * 4)
+        .limit(MAXIMUM_PER_PASS)
     )
     for key in list(candidates):
-        if moved >= MAXIMUM_PER_PASS:
-            break
         _, run_id, trade_id = key.split(":", 2)
         trade = await session.get(ClosedTradeRow, trade_id)
-        if trade is None or trade.owner_id != owner_id:
+        if trade is None:
             continue
         run = await session.get(RunRow, run_id)
         if run is not None and run.status in EXECUTING:
-            continue
+            continue  # It started executing again since the read.
         receipt = await session.get(EffectReceiptRow, key, with_for_update=True)
         if receipt is None or receipt.result.get("consumed"):
             continue  # Read meanwhile.

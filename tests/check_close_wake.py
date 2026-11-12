@@ -226,6 +226,37 @@ async def many_woken(f: Fixture, account: str) -> None:
     print("PASS woken trades never crowd out a new close")
 
 
+async def busy_notices(f: Fixture, account: str) -> None:
+    """Unread notices of a still-executing Run never crowd out one whose Run ended."""
+    agent = await f.agent("Gold notices")
+    thread = await f.conversation(agent)
+    busy = await f.run(agent, thread)
+    await f.lease(busy)  # executing
+    ended = await f.run(agent, thread)
+    async with f.runtime.db.sessions() as session, session.begin():
+        row = await session.get(RunRow, ended["id"])
+        assert row
+        row.status = "completed"
+    trades: list[str] = []
+    # More than the 200 candidates an unfiltered scan used to read.
+    for _ in range(4 * MAXIMUM_PER_PASS + 10):
+        trades.append(await closed(f, account, agent["id"], "n-" + new_id()[:8], "1"))
+    last = await closed(f, account, agent["id"], "n-last", "1")
+    async with f.runtime.db.sessions() as session, session.begin():
+        for trade, run in [*((t, busy["id"]) for t in trades), (last, ended["id"])]:
+            session.add(EffectReceiptRow(key="close-wake:" + trade, result={"notice_run_id": run}))
+            session.add(
+                EffectReceiptRow(
+                    key="run-notice:" + run + ":" + trade,
+                    result={"run_id": run, "trade_id": trade, "text": "t", "consumed": False},
+                )
+            )
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    (woken,) = await runs_of(f, agent["id"], "broker_event")
+    assert woken.model_metadata["closed_trade_id"] == last
+    print("PASS notices of an executing Run never crowd out one whose Run ended")
+
+
 async def deleted_owner(f: Fixture, account: str) -> None:
     """A trade of an agent that no longer exists wakes Lonora, which answers for it."""
     trade = await closed(f, account, new_id(), "sl-gone", "-3")
@@ -361,6 +392,7 @@ async def main() -> None:
         await paused_and_owner(f, account)
         await many_woken(f, account)
         await deleted_owner(f, account)
+        await busy_notices(f, account)
     finally:
         await f.close()
 
