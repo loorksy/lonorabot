@@ -219,9 +219,15 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             key: value for key, value in row.state.items() if key != "result_summary"
         }
     text_layer = payload.get("text_key")
-    if text_layer and confined_path(context.artifact_root, text_layer).is_file():
+    layer = (
+        confined_path(context.artifact_root, text_layer)
+        if isinstance(text_layer, str) and text_layer
+        else None
+    )
+    if layer is not None and layer.is_file():
         # A PDF's text layer, extracted on upload.
-        text = confined_path(context.artifact_root, text_layer).read_text(errors="replace")
+        check_size(layer.stat().st_size)
+        text = layer.read_text(errors="replace")
         offset, limit = args.get("offset", 0), args.get("limit", 24000)
         result["content"] = text[offset : offset + limit]
         result["total_chars"] = len(text)

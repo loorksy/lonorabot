@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 from pathlib import Path
 from typing import Any
@@ -16,7 +15,7 @@ from lonora_security.runtime_storage import confined_path
 from pydantic import Field
 
 from ..middleware.auth import require_owner, runtime
-from ..pdf_layers import is_pdf, pdf_layers
+from ..pdf_layers import extract, is_pdf
 from . import resource_router
 
 router = resource_router("/artifacts", ArtifactRepository())
@@ -31,7 +30,7 @@ def upload_type(content_type: str | None, name: str) -> str:
 
 async def pdf_sidecars(root: Path, key: str, content: bytes) -> dict[str, Any]:
     """The PDF's text layer and scanned page images, stored beside it for agents to read."""
-    layers = await asyncio.to_thread(pdf_layers, content)
+    layers = await extract(content)
     found: dict[str, Any] = {}
     if layers.text:
         text_key = key + ".text"

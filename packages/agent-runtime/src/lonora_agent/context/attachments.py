@@ -1,7 +1,9 @@
 import base64
 from pathlib import Path
+from typing import cast
 
 from lonora_adapter_kit.context_sections import escape_context_text
+from lonora_core.user_error import LonoraError
 from lonora_db.schema import ArtifactRow, MessageRow
 from lonora_security.runtime_storage import confined_path
 from sqlalchemy import select
@@ -9,6 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Scanned pages of one PDF sent as images with the owner's message.
 MAX_PAGE_IMAGES = 8
+
+
+def sidecar(root: Path, key: object) -> Path | None:
+    """A stored file the upload wrote beside a PDF; None for anything else."""
+    if not isinstance(key, str) or not key:
+        return None
+    try:
+        path = confined_path(root, key)
+    except LonoraError:
+        return None
+    return path if path.is_file() else None
 
 
 async def attachment_context(
@@ -55,13 +68,13 @@ async def attachment_parts(
         elif media.startswith("text/") or media == "application/json":
             notes.append(path.read_text(errors="replace")[:24000])
         # A PDF: the text layer extracted on upload, and the images of scanned pages.
-        if text_key := payload.get("text_key"):
-            text = confined_path(root, text_key)
-            if text.is_file():
-                notes.append(text.read_text(errors="replace")[:24000])
-        for image_key in payload.get("page_image_keys", [])[:MAX_PAGE_IMAGES]:
-            page = confined_path(root, image_key)
-            if page.is_file() and page.stat().st_size <= 5 * 1024 * 1024:
+        if text := sidecar(root, payload.get("text_key")):
+            notes.append(text.read_text(errors="replace")[:24000])
+        page_keys: object = payload.get("page_image_keys")
+        listed = cast(list[object], page_keys) if isinstance(page_keys, list) else []
+        for image_key in listed[:MAX_PAGE_IMAGES]:
+            page = sidecar(root, image_key)
+            if page is not None and page.stat().st_size <= 5 * 1024 * 1024:
                 images.append(
                     "data:image/jpeg;base64," + base64.b64encode(page.read_bytes()).decode()
                 )

@@ -102,6 +102,97 @@ def test_a_broken_file_yields_nothing_and_never_raises():
         assert layers.text == "" and layers.images == []
 
 
+def slow_pdf(pages: int) -> bytes:
+    """A few kilobytes that make text extraction work for seconds per page."""
+    content = zlib.compress(b"BT /F1 1 Tf " + b"(a) Tj " * 300_000 + b"ET")
+    kids = " ".join(f"{3 + index} 0 R" for index in range(pages)).encode()
+    page = (
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents %d 0 R "
+        b"/Resources << /Font << /F1 %d 0 R >> >> >>" % (3 + pages, 4 + pages)
+    )
+    return pdf(
+        [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [" + kids + b"] /Count %d >>" % pages,
+            *[page] * pages,
+            stream(content, b"/Filter /FlateDecode"),
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_extraction_runs_in_a_child_process_and_a_slow_file_is_cut_off(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import time
+
+    from lonora_api import pdf_layers as module
+
+    found = await module.extract(text_pdf(RULES))
+    assert all(rule in found.text for rule in RULES)
+    monkeypatch.setattr(module, "EXTRACT_SECONDS", 2)
+    started = time.monotonic()
+    slow = await module.extract(slow_pdf(40))
+    assert slow.text == "" and slow.images == []
+    assert time.monotonic() - started < 10
+
+
+def mixed_pdf() -> bytes:
+    """Page 1 has a text layer, page 2 is a scan."""
+    picture = Image.new("RGB", (40, 20), (30, 30, 200))
+    return pdf(
+        [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R "
+            b"/Resources << /Font << /F1 6 0 R >> >> >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R "
+            b"/Resources << /XObject << /Im1 8 0 R >> >> >>",
+            stream(b"BT /F1 12 Tf 72 720 Td (" + RULES[0].encode() + b") Tj ET"),
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            stream(b"q 612 0 0 792 0 0 cm /Im1 Do Q"),
+            stream(
+                zlib.compress(picture.tobytes()),
+                b"/Type /XObject /Subtype /Image /Width 40 /Height 20 /ColorSpace /DeviceRGB "
+                b"/BitsPerComponent 8 /Filter /FlateDecode",
+            ),
+        ]
+    )
+
+
+def test_an_unconvertible_image_never_loses_the_text_of_other_pages(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    both = pdf_layers(mixed_pdf())
+    assert RULES[0] in both.text and len(both.images) == 1
+
+    def broken(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("truncated image")
+
+    monkeypatch.setattr(Image.Image, "convert", broken)
+    layers = pdf_layers(mixed_pdf())
+    assert RULES[0] in layers.text and layers.images == []
+
+
+def test_only_pdf_typed_or_untyped_pdf_files_get_sidecars():
+    from lonora_api.pdf_layers import is_pdf
+
+    assert is_pdf("application/pdf", "strategy")
+    assert is_pdf("application/octet-stream", "Strategy.PDF")
+    assert not is_pdf("text/plain", "x.pdf")
+
+
+def test_readers_ignore_forged_sidecar_keys(tmp_path: Any):
+    from lonora_agent.context.attachments import sidecar
+
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "t.text").write_text("layer")
+    assert sidecar(tmp_path, "a/t.text") is not None
+    for forged in (".", "", "../etc/passwd", "/etc/passwd", 7, ["a/t.text"], None, "a/none"):
+        assert sidecar(tmp_path, forged) is None
+
+
 # --- PostgreSQL: section 16 step 3, a strategy PDF becomes the agent's method ----------
 
 
@@ -140,24 +231,23 @@ async def test_an_uploaded_strategy_pdf_ends_as_a_method_version_quoting_its_rul
         run = {"id": sent["run_ids"][0], "agent_id": agent["id"], "thread_id": thread["id"]}
         context = await fixture.lease(run)
         seen: list[str] = []
-        turns: list[Any] = [
-            lambda version: ToolCall(
-                id="method",
-                name="memory_write",
-                arguments={
-                    "version": version,
-                    "operations": [
-                        {"action": "add", "section": "OPERATING.md", "content": "- " + rule}
-                        for rule in RULES
-                    ],
-                },
-            ),
-        ]
+        write = ToolCall(
+            id="method",
+            name="memory_write",
+            arguments={
+                "version": 1,
+                "operations": [
+                    {"action": "add", "section": "OPERATING.md", "content": "- " + rule}
+                    for rule in RULES
+                ],
+            },
+        )
+        turns = [write]
 
         async def model(_: Any, messages: list[Any], *args: Any, **kwargs: Any):
             seen.append("\n".join(str(message.content) for message in messages))
             if turns:
-                return ModelReply(tool_calls=[turns.pop(0)(1)]), ModelSelection(
+                return ModelReply(tool_calls=[turns.pop(0)]), ModelSelection(
                     provider="openai", model="scripted-strategy"
                 )
             return ModelReply(text="حفظت الاستراتيجية في منهجي وسأطبقها."), ModelSelection(
