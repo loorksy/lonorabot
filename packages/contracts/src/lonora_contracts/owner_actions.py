@@ -19,7 +19,6 @@ from .domain import Contract
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
-    "lift_restriction",
     "resolve_operation",
     "set_account_limits",
     "grant_authority",
@@ -79,8 +78,6 @@ class OwnerActionProposal(Contract):
     exact effect; the card's text comes from the records it names, never from here."""
 
     kind: OwnerActionKind
-    # lift_restriction: the active or scheduled restriction to lift.
-    restriction_id: str | None = Field(default=None, min_length=1, max_length=36)
     # resolve_operation: the uncertain (ambiguous) operation the owner settles.
     operation_id: str | None = Field(default=None, min_length=1, max_length=80)
     # set_account_limits: the account and the exact limit changes.
@@ -139,8 +136,7 @@ class OwnerActionProposal(Contract):
 
     def capability_fields(self) -> "OwnerActionProposal":
         if (
-            self.restriction_id
-            or self.operation_id
+            self.operation_id
             or self.account_id
             or self.set_limits
             or self.remove_limits
@@ -176,12 +172,11 @@ class OwnerActionProposal(Contract):
         )
         grant = self.grant_fields()
         needed = {
-            "lift_restriction": ("restriction_id",),
             "resolve_operation": ("operation_id",),
             "set_account_limits": ("account_id",),
             "grant_authority": (),
         }[self.kind]
-        for name in ("restriction_id", "operation_id", "account_id"):
+        for name in ("operation_id", "account_id"):
             if self.kind == "grant_authority" and name == "account_id":
                 continue  # Optional: the server resolves the obvious account.
             if (getattr(self, name) is not None) != (name in needed):
@@ -346,15 +341,6 @@ class OwnerActionDecision(Contract):
     proof: DeviceProof | None = None
     money_limit: Literal["apply", "none"] = "apply"
     stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
-    # A resolve card answered «غير معروف»: also pause new trades on its account until the
-    # end of the trading day (an owner restriction; it only narrows). Only with "unknown".
-    pause_new_today: bool = False
-
-    @model_validator(mode="after")
-    def pause_only_when_unknown(self) -> "OwnerActionDecision":
-        if self.pause_new_today and (self.decision != "confirm" or self.outcome != "unknown"):
-            raise ValueError("owner_action_pause_unknown_only")
-        return self
 
 
 class AccountAuthorityDraft(Contract):

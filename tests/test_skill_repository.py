@@ -56,7 +56,7 @@ def test_inspection_reports_provenance_without_running_source(tmp_path: Path) ->
     ]
     skill = result["skills"][0]
     assert skill["format_compatible"]
-    assert skill["requires_isolated_execution"]
+    assert skill["requires_validation"]
     assert skill["adaptation_status"] == "review_required"
     assert skill["utilities"] == ["sample/analyze.py"]
 

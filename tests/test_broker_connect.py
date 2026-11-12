@@ -350,7 +350,7 @@ def test_the_platform_comes_from_the_server_name() -> None:
 async def test_a_run_that_read_third_party_text_cannot_raise_a_password_card() -> None:
     database()
     from check_streaming import Fixture
-    from lonora_tools.restrictions import mark_external_content
+    from lonora_tools.provenance import mark_external_content
 
     fixture = await Fixture().open()
     try:

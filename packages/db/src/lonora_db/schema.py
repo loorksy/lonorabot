@@ -720,6 +720,23 @@ class AnalyticalWorkspaceRow(Base):
     snapshot: Mapped[bytes] = mapped_column(LargeBinary, default=b"{}")
     active_operation_id: Mapped[str | None] = mapped_column(String(36))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # When the files were copied into the agent's home in the persistent workspace.
+    moved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The last copy attempt: an agent whose copy keeps failing goes to the back.
+    move_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SkillPackageFileRow(Base):
+    """A file of an agent's skill package version (skills/<id>/<version>/...): the agent's
+    private package store. Packages are the agent's own; workspace files are shared."""
+
+    __tablename__ = "ln_skill_package_files"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    path: Mapped[str] = mapped_column(String(512), primary_key=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class WorkspaceOperationRow(Base):
@@ -1129,56 +1146,6 @@ class TradingOpportunityRow(ResourceRow):
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class TradingRestrictionRow(Base):
-    """Owner restriction narrowing financial admission; enforced at the send boundary."""
-
-    __tablename__ = "ln_trading_restrictions"
-    __table_args__ = (
-        CheckConstraint(
-            "action_class IN ('no_new_entries','no_risk_increase','all_mutations')",
-            name="ln_trading_restriction_action_class",
-        ),
-        CheckConstraint(
-            "source IN ('owner_ui','owner_message','agent')", name="ln_trading_restriction_source"
-        ),
-        CheckConstraint("created_by IN ('owner','agent')", name="ln_trading_restriction_creator"),
-        CheckConstraint(
-            "valid_until IS NULL OR valid_until > valid_from",
-            name="ln_trading_restriction_window",
-        ),
-        Index("ln_trading_restriction_scope", "owner_id", "account_id", "revoked_at"),
-    )
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    owner_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
-    )
-    # Durable brake record: ids are kept as values. NULL agent means "every agent", so a
-    # deleted agent must never turn its restriction into an account-wide one.
-    account_id: Mapped[str] = mapped_column(String(36))
-    agent_id: Mapped[str | None] = mapped_column(String(36))
-    symbol: Mapped[str | None] = mapped_column(String(80))
-    # False when the broker catalog could not be read and the symbol was kept as given.
-    symbol_verified: Mapped[bool] = mapped_column(default=True)
-    action_class: Mapped[str] = mapped_column(String(24))
-    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    source: Mapped[str] = mapped_column(String(16))
-    source_message_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_messages.id", ondelete="SET NULL")
-    )
-    source_run_id: Mapped[str | None] = mapped_column(String(36))
-    reason: Mapped[str] = mapped_column(Text, default="")
-    created_by: Mapped[str] = mapped_column(String(8))
-    created_by_agent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_agents.id", ondelete="SET NULL")
-    )
-    applies_to_owner_manual: Mapped[bool] = mapped_column(default=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    revoked_reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-
 class OwnerActionRow(Base):
     """One owner-only action offered as a card in the conversation; single use, expiring.
 
@@ -1219,7 +1186,7 @@ class OwnerActionRow(Base):
     # owner: drafted by the owner (a grant card from the mandate sheet).
     source: Mapped[str] = mapped_column(String(8))
     kind: Mapped[str] = mapped_column(String(32))
-    # The record the card acts on ("trading", "restriction:<id>", "operation:<id>", ...).
+    # The record the card acts on ("trading", "operation:<id>", ...).
     subject: Mapped[str] = mapped_column(String(160))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     payload_hash: Mapped[str] = mapped_column(String(64))
@@ -1242,8 +1209,8 @@ class SupervisionGrantRow(Base):
 
     The Personal Agent holds a ``default`` grant over every agent; the owner revokes any
     grant with one tap. A grant lets the supervisor read the supervised agent's threads,
-    runs, memory and records, message it, pause or resume its work and add narrowing
-    pauses. It never trades for it, never uses its grant and never lifts a brake.
+    runs, memory and records, message it and pause or resume its work. It never trades
+    for it, never uses its grant and never lifts a brake.
     """
 
     __tablename__ = "ln_supervision_grants"

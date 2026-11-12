@@ -35,7 +35,7 @@ OWNER_PREFERENCES_NOTE = (
     "length and content of your reports to it. Reply in reply_language; reach the owner the "
     "way reach_me says. Change it with memory_write (USER.md) or owner_preferences_update; "
     "a team agent keeps what it observed of the owner in MEMORY.md. A hard limit the owner "
-    "states belongs in a restriction or account limit, and a method in OPERATING.md.\n"
+    "states belongs in an account limit, and a method in OPERATING.md.\n"
 )
 OWNER_SIGNALS_NOTE = (
     "What the owner did over the last two weeks, recorded by the server in his time zone: "

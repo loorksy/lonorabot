@@ -128,8 +128,8 @@ origin from before the reverted change); the owner's correction or deletion is h
 word. An Agent's `patch` or `remove` that touches a line of his word or an earlier
 line, without his message, gets `owner_profile_line_is_owners_word` and nothing is
 saved (8.4). A team Agent's profile write needs a
-Run that answers the owner's message (`owner_message_id`, the same rule restrictions
-use): a wake, peer or task Run, or an `observed` write, gets
+Run that answers the owner's message (`owner_message_id`): a wake, peer or task
+Run, or an `observed` write, gets
 `owner_profile_requires_owner_message` and nothing is saved; it keeps the
 observation in MEMORY.md. `owner_preferences_update` (long-tail, reached through
 `tool_call`) sets the reach-me channel, reply language, quiet hours and timezone

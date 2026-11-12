@@ -198,7 +198,7 @@ async def test_lonora_observes_only_in_untainted_runs_and_agents_see_observation
     database()
     from check_streaming import Fixture
     from lonora_agent.context.memory import read_memory_context
-    from lonora_tools.restrictions import mark_external_content
+    from lonora_tools.provenance import mark_external_content
 
     fixture = await Fixture().open()
     try:
@@ -256,7 +256,7 @@ async def test_a_routine_or_watch_a_tainted_run_made_wakes_without_observations(
     from check_streaming import Fixture
     from lonora_db.schema import OwnerProfileRow, RunRow
     from lonora_tools.profile_taint import mark_from
-    from lonora_tools.restrictions import mark_external_content
+    from lonora_tools.provenance import mark_external_content
 
     fixture = await Fixture().open()
     try:

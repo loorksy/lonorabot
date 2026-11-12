@@ -168,7 +168,7 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         category, action = "ambiguous_mutation", "reconcile_before_any_resend"
     elif code in TRANSIENT_READ_CODES:
         category, action = "temporary_unavailable", "inspect_health"
-    elif code in {"version_conflict", "stale_state", "workspace_revision_conflict"}:
+    elif code in {"version_conflict", "stale_state"}:
         category, action = "version_conflict", "reload_authoritative_state"
     elif code in {"quote_stale", "market_data_stale", "market_evidence_stale", "stale_evidence"}:
         category, action = "stale_state", "refresh_evidence"
@@ -185,13 +185,10 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "agent_trading_account_mismatch",
         "agent_trading_symbol_mismatch",
         "financial_authority_required",
-        # An owner restriction: never route around it through another symbol or account.
-        "trading_restriction_active",
         # The owner said no to this card, or the agent's level does not trade.
         "trade_approval_rejected",
         "agent_analysis_only",
         "shadow_execution_forbidden",
-        "restriction_all_mutations_requires_owner_message",
         # Supervision never silences the owner's entry point or sheds its own oversight.
         "supervision_personal_agent",
         "supervision_revoke_own_oversight",
@@ -203,7 +200,6 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "trusted_source_write_blocked",
         "ui_submit_disabled",
         "memory_disclosure_refused",
-        "restriction_owner_manual_agent_conflict",
     }:
         category, action = "permission_denied", "respect_scope"
     elif code.startswith("risk_"):

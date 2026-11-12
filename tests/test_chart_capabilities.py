@@ -25,7 +25,7 @@ async def test_capabilities_list_names_every_chart_timeframe_and_indicator(
     context = SimpleNamespace(
         db=None,
         owner_id="owner",
-        workspace_access=None,
+        workspace=None,
         searxng_url=None,
         browser_url=None,
         chart_visual=None,

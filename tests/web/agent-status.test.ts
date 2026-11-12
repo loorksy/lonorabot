@@ -344,7 +344,7 @@ test("item 21: «Mandate details» opens the signed grant card of this chat", as
   assert.match(sheet, /if \(card\) return <OwnerActionCard row=\{card\}/);
 });
 
-test("item 24: the call log and the new-trades pause have their own Arabic words", async () => {
+test("item 24: the call log has its own Arabic words", async () => {
   const { readFileSync } = await import("node:fs");
   const po = readFileSync("apps/web/src/i18n/locales/ar/messages.po", "utf8");
   const entry = (id: string, context?: string) => {
@@ -355,5 +355,4 @@ test("item 24: the call log and the new-trades pause have their own Arabic words
   };
   assert.equal(entry("Voice call", "call log"), "مكالمة صوتية");
   assert.equal(entry("Voice call"), "اتصال صوتي");
-  assert.equal(entry("Pause", "new trades pause"), "تعليق");
 });

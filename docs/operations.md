@@ -5,10 +5,10 @@ Superseded by VISION.md
 ## ملخص بالعربية
 
 - **التثبيت:** خادم جديد يحتاج Docker وgpg فقط، دون Python أو Node أو نسخة من الكود. الأمر `sudo bash install.sh --domain نطاقك` ينزّل الصورة، يثبّت بصمتها (digest)، ينشئ الأسرار ومفتاح النسخ الاحتياطي بصلاحيات 600 دون طباعتها، ويشغّل Lonora ثم ينتظر حتى تنجح `/ready`.
-- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (ما دام API وGateway متوقفين يُجاب كل طلب تعديل بـ «يجري التحديث»؛ وما إن يعمل Gateway حتى تُفتح الطلبات من جديد، فيبقى الإيقاف الطارئ وإغلاق المراكز وسحب الصلاحيات متاحًا لك دائمًا)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
+- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (ما دام API وGateway متوقفين يُجاب كل طلب تعديل بـ «يجري التحديث»؛ وما إن يعمل Gateway حتى تُفتح الطلبات من جديد، فيبقى الإيقاف المؤقت للوكلاء وإغلاق المراكز ورفض الموافقات وسحب الصلاحيات متاحًا لك دائمًا)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
 - **ماذا تفعل عند كل نتيجة:**
   - «Rolled back to …»: عاد الإصدار السابق ويعمل. لا تفعل شيئًا.
-  - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف التداول، القيود، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
+  - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف الوكلاء مؤقتًا، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
   - «ROLLBACK HELD» مع «cannot be read»: تعذّرت قراءة سجلات التحكم. أصلح قاعدة البيانات (`sudo lonora logs db`) ثم: `sudo lonora rollback`.
   - «ROLLBACK INCOMPLETE»: فشلت استعادة قاعدة البيانات. أصلح السبب (المساحة مثلًا؛ `sudo lonora status` و`sudo lonora logs db`) ثم: `sudo lonora rollback` (يعيد المحاولة).
   - «ROLLBACK did not reach /ready»: راجع `sudo lonora logs api` و`sudo lonora logs gateway`، ثم: `sudo lonora rollback` (يشغّل ويفحص من جديد).
@@ -24,7 +24,7 @@ Superseded by VISION.md
   `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
   يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت لـ Lonora، ومساحة العمل حدودها الخاصة)، وخدمات البحث والمتصفح معطلة افتراضيًا.
 - **إعادة استخدام الأسرار الحالية:** الخيار `--env-from /opt/lonora/.env` ينسخ من ملف الإعدادات القديم المفاتيح التي يعرفها الإصدار الجديد فقط (مفتاح التشفير الذي تُفك به مفاتيح المزودين والوسيط المحفوظة، وسر الـ webhook، وبصمات passkey لتطبيق أندرويد، والنطاق، وإعدادات الضبط)، ويطبع أسماءها فقط دون أي قيمة، ويُنشئ كلمة مرور جديدة لقاعدة البيانات الجديدة، ويتجاهل الباقي (LiveKit وIMAGE وARTIFACT_ROOT وغيرها) ويذكر أسماءها.
-- **مضيف مساحة التحليل:** الخدمة `lonora-analysis.service` على الخادم تبقى كما هي؛ يربطها التثبيت الجديد بالخيار `--overlay infra/analysis/compose.workspace.yml`. إن لم تكن الخدمة تعمل يبدأ Lonora رغم ذلك، وتبقى أدوات التحليل غير متاحة حتى تعمل الخدمة.
+- **مضيف مساحة التحليل القديم:** التثبيت الجديد لا يستخدم الخدمة `lonora-analysis.service` ولا ملف `infra/analysis/compose.workspace.yml`؛ فمساحة العمل صارت جزءًا من Lonora. إن كان الملف مذكورًا في `LONORA_COMPOSE_OVERLAYS` يحذفه `lonora` من `.env` في التحديث التالي ويقول ذلك. تُنسخ ملفات كل وكيل من المساحة القديمة مرة واحدة إلى `old-workspace/` في مجلده المنزلي. الخدمة نفسها تبقى ما دام Lonora القديم يعمل عليها؛ بعد حذفه يمكن إيقافها بـ `sudo systemctl disable --now lonora-analysis`.
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
@@ -38,7 +38,7 @@ Superseded by VISION.md
 |---|---|---|
 | Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), SearXNG web search and the research browser, plus a `migrate` service that runs only when asked. |
 | Mode | `infra/compose/mode-direct.yml` or `mode-proxy.yml` | Direct: Caddy owns 80/443 and gets the certificate. Proxy (`LONORA_PROXY_LISTEN` set): Caddy listens in plain HTTP on one loopback address behind an existing reverse proxy; nothing binds 80/443. |
-| Optional overlays | `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
+| Optional overlays | none bundled | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them, except retired ones, which it removes from `.env`. |
 | Source build | `infra/compose/build-from-source.sh` | Builds the image on the server into a loopback-only registry, when no published image exists. |
 | `lonora` command | `infra/compose/lonora` (linked as `/usr/local/bin/lonora`) | status, start, update, rollback, backup, restore, restore-test, logs. |
 | Installer | `infra/compose/install.sh` | Sets up a new server. |
@@ -84,7 +84,7 @@ sudo bash install.sh --domain lonora.example.com --version main
 `--version` takes a tag (`main`, `v0.3.0`), an exact `repo@sha256:…` reference, or an image built on
 the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the server»). Other options:
 `--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
-127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`, `--overlay FILE` (repeatable),
+127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`,
 `--workspace-memory` (default 4g), `--workspace-cpus` (default 2), `--workspace-disk` (default 20g),
 `--min-free-ram-mb` (default 3584 plus the workspace memory: 7680), `--min-free-disk-gb` (default 10
 plus the workspace disk plus 2: 32), `--no-systemd`. The preflight also needs 2 CPUs, no fewer than
@@ -101,9 +101,6 @@ provider API keys. The database password is always new (a fresh database). Every
 `LONORA_POSTGRES_PASSWORD`, `LONORA_IMAGE`, `LONORA_ARTIFACT_ROOT`, `LONORA_LIVEKIT_*` and any other
 key — is not copied. It prints the copied and the ignored key **names**, never a value, and the new
 `.env` is mode 600.
-
-`--overlay` adds a bundled overlay at install time (`infra/analysis/compose.workspace.yml`); the preflight warns (does not refuse) when the workspace
-host socket is missing.
 
 The preflight also reads the whole `--env-from` file before anything is written: `export ` prefixes
 and leading spaces are accepted; a Windows line ending (CRLF), a control character or a line that is
@@ -274,7 +271,7 @@ installation under `--project lonora2` uses `lonora2_*` and `lonora2-*`, so noth
 preflight refuses if any of its own names already exist).
 
 `/opt/lonora-mobile-build` on that server holds the Android signing keystore: never delete or modify
-it. `lonora-analysis.service` is shared by the installations and stays when one is removed.
+it. `lonora-analysis.service` serves only the old stack (see below).
 
 **Neither the installer nor `lonora` ever writes into `/docker/traefik/dynamic/`.** A malformed file
 there can break traefik's file provider for every host on the server, so whoever edits it should
@@ -315,25 +312,19 @@ python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' .lonora-next.ym
 the same way.) Check the entry point names (`websecure` above) against the existing files in that
 directory and use the same ones.
 
-### Analysis workspace host
+### The former analysis workspace host
 
-The analysis workspace (agents running analysis code in isolated containers) needs a trusted host
-service, `lonora-analysis.service` (a venv in `/opt/lonora-analysis`, socket
-`/run/lonora-analysis/host.sock`; `docs/analytical-workspace.md`). It is a host-level control plane
-with Docker access, so the installer neither installs nor upgrades it. On the owner's VPS it already
-runs for the old stack, and the new installation uses the same socket:
+The new installation does not use `lonora-analysis.service` or the analysis overlay: the owner's
+workspace (above, "The workspace") replaced the analytical workspace. On an update, `lonora` removes
+`infra/analysis/compose.workspace.yml` from `LONORA_COMPOSE_OVERLAYS` and says so. Each agent's files
+from the analytical workspace are copied once into `old-workspace/` in its home when the workspace is
+reachable (a snapshot that cannot be read is logged once per Gateway start and stays in the
+database); skill packages were moved into their own store by migration 0138. An update saves the
+overlays line in its rollback bundle, so a rollback to an earlier release gives it back.
 
-1. Check it runs: `systemctl status lonora-analysis` and `test -S /run/lonora-analysis/host.sock`.
-2. Install with `--overlay infra/analysis/compose.workspace.yml`, or on an existing installation add
-   `infra/analysis/compose.workspace.yml` to `LONORA_COMPOSE_OVERLAYS` in `.env` and run
-   `sudo lonora start`. The overlay mounts only the socket directory, read-only, into the API and the
-   Gateway (group 10001), with `LONORA_WORKSPACE_SOCKET` set; it never mounts the Docker socket.
-   The directory is created if it is missing, so the API and the Gateway start (and `/ready` passes)
-   even when the service is not running — after a reboot Docker may start before it, or it may be
-   stopped. Analysis tools then answer that the host is unavailable until the service starts and
-   creates its socket in that same directory (systemd reuses an existing `RuntimeDirectory`).
-3. When the old stack is deleted, leave the service running: the new installation uses it.
-   Upgrading the service itself follows `docs/analytical-workspace.md` (its reviewed venv and image ID).
+The old stack still uses the service, so leave it running while the old stack runs. Once the old
+stack is deleted: `sudo systemctl disable --now lonora-analysis`, then remove `/opt/lonora-analysis`
+and the unit file if nothing else uses them.
 
 ## Switch over later
 
@@ -432,10 +423,10 @@ before that backup, nothing the owner did before the update is lost, and nothing
 wrote (including a half-applied migration) survives.
 
 **The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
-undo something that must not be undone: an owner's pause, a new restriction, a revoked
+undo something that must not be undone: an owner's pause, a revoked
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
-on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
+on its own) of `ln_account_authorities`, `ln_supervision_grants`,
 `ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, paused
 agents, the broker connections' enabled flags, paused or cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
 voice). If any of them changed, or cannot be read, it does **not** restore. It stops API and
@@ -754,9 +745,9 @@ machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 
     would delete it: read-only (503, no Gateway) during its safety backup, file kept, older schema
     migrated up; then a restore failing after `DROP DATABASE`: the printed command resumes without a
     second safety backup while `update` refuses; `KEEP=1` keeps a held backup and `KEEP=0` is refused;
-14. a restriction written during the gate: held; `--keep-data` with the same digest stays held, a
-    bad tag changes nothing, another failing version returns to the hold, a fixed version updates
-    forward keeping the restriction;
+14. an owner-control write during the gate: held; `--keep-data` with the same digest stays held,
+    a bad tag changes nothing, another failing version returns to the hold, a fixed version
+    updates forward keeping the write;
 15. a trading-journal row written during the gate: held; backups during the hold keep its backup;
     `rollback` still holds; `rollback --force` restores;
 16. disaster recovery: a newer backup refused on an older image; `--with-config` restores the
@@ -777,7 +768,7 @@ Also: an install with no schema yet is brought up by `update` of the pinned vers
 open while the new Gateway runs (10); a sampler finds no moment with maintenance on and a Gateway
 running through `update <pinned>` and `maintenance on`, and status names the clear command (9b);
 an unfinished restore also blocks the daily backup and an unconfirmed `--abandon`; the side-by-side
-install also uses the workspace overlay with no socket (still `/ready`), refuses port 70000 and a
+install refuses port 70000 and a
 CRLF `--env-from` file, and a `lonora2` backup restored `--with-config` into a `lonora3` install
 keeps `lonora3`'s project and mode. 22 checks in all.
 

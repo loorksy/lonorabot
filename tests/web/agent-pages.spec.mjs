@@ -568,7 +568,7 @@ test("the card shows the last action: a refused close, then a modify that went t
     const body = route.request().postDataJSON();
     if (body.action === "close_position" && refuse) {
       refuse = false;
-      return route.fulfill({ status: 409, json: { code: "trading_restriction_active" } });
+      return route.fulfill({ status: 409, json: { code: "broker_observation_unavailable" } });
     }
     return route.continue();
   });

@@ -231,7 +231,7 @@ def test_trusted_identifiers_are_canonical_and_bounded() -> None:
         {"kind": "trust_source", "source_kind": "github_repo", "identifier": "a/b"},
         {"kind": "connect_credential", "target": "broker", "service": "x"},
         {"kind": "connect_credential", "target": "mcp_server", "account_id": "a"},
-        {"kind": "lift_restriction", "restriction_id": "r", "source_kind": "github_repo"},
+        {"kind": "resolve_operation", "operation_id": "op", "source_kind": "github_repo"},
     ):
         with pytest.raises(ValidationError):
             OwnerActionProposal.model_validate(bad)
@@ -482,7 +482,7 @@ async def routine(fixture: Any, agent: dict[str, Any], thread_id: str) -> Any:
 
 async def read_third_party(fixture: Any, context: Any) -> None:
     """The Run reads a web page after the owner's message: it no longer stands for him."""
-    from lonora_tools.restrictions import mark_external_content
+    from lonora_tools.provenance import mark_external_content
 
     async with fixture.runtime.db.sessions() as session, session.begin():
         await mark_external_content(session, context.lease.run_id, "web_fetch")
@@ -1152,9 +1152,9 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
         thread = await fixture.conversation(agent)
         registry = load_tools()
 
-        # No workspace host and no workspace access at all: instructions need neither.
+        # No workspace at all: instructions need none.
         def bare(leased: Any) -> Any:
-            return replace(leased, workspace_access=None, skill_access=RunSkillAccess(registry, ()))
+            return replace(leased, skill_access=RunSkillAccess(registry, ()))
 
         # A repository of its own per run: the list is the owner's and outlives the test.
         repository = "briefings-" + uuid4().hex[:8]
@@ -1166,7 +1166,6 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
             "adapted_content": DOCUMENT,
             "review": REVIEW,
             "expected_version": 0,
-            "workspace_revision": 0,
         }
         github = await default_github(fixture)
         assert github["identifier"] == "github.com" and github["added_via"] == "default"
@@ -1209,7 +1208,6 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
                 skill_id="briefing",
                 expected_version=installed["resource_version"],
                 action="activate",
-                workspace_revision=installed["workspace_revision"],
             )
             assert activated["enabled"] is True
         report = await fixture.request("GET", "/capabilities")
@@ -1433,6 +1431,9 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
         assert search["state"] == "ready" and search["via"] in {"brave", "searxng"}
         listed = await call(context, "capabilities_list")
         assert "id" not in listed["trusted_sources"][0]
+        # Workspace execution is listed ready; a helper or observe-only wake is told it is not its.
+        assert "never in a helper or an observe-only wake" in listed["guidance"]
+        assert "unavailable_now" in listed["guidance"]
         # The value never reaches a message, an event, a card or a Run.
         async with fixture.runtime.db.sessions() as session:
             for model in (MessageRow, EventRow, OwnerActionRow, RunRow):
