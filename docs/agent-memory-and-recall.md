@@ -137,7 +137,8 @@ under its own id, except a removed package, which returns only through its own i
 create. The owner restores a method or a skill, deleted or not, from chat by asking the
 agent or Lonora; a method restore records the owner's typed message (skill versions carry
 no message). Lonora reads and restores any team agent's method and skills with
-`agent_id` (its built-in lead role); the revision names Lonora as its author, and reading
+`agent_id` (its built-in lead role); a method restore's revision names Lonora as its
+author (skill versions carry no author), and reading
 another agent's text marks Lonora's run as having read third-party content. The owner's skill
 routes (`/skills/{id}/versions`, `/skills/{id}/restore`) serve existing skills only.
 
