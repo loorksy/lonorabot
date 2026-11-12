@@ -213,7 +213,7 @@ msgstr "{reads} قراءة"
 msgid "{seconds} s"
 msgstr "{seconds} ث"
 
-#: src/shell/Shell.tsx:486
+#: src/shell/Shell.tsx:499
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظر} two {أُرسلت رسالتان كانت تنتظر} few {أُرسلت # رسائل كانت تنتظر} many {أُرسلت # رسالة كانت تنتظر} other {أُرسلت # رسالة كانت تنتظر}}"
 
@@ -7653,7 +7653,7 @@ msgstr "مواصفات الوسيط غير متاحة لهذا الرمز الم
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "لم يصل تأكيد الوسيط، ولا تُعرض حالة «منفَّذ» قبل وصول الدليل."
 
-#: src/shell/Shell.tsx:385
+#: src/shell/Shell.tsx:398
 msgid "The call ended."
 msgstr "انتهت المكالمة."
 
@@ -8212,7 +8212,7 @@ msgstr "لن تُرسل هذه العملية مرة أخرى."
 msgid "This page could not be displayed"
 msgstr "تعذّر عرض هذه الصفحة"
 
-#: src/shell/Shell.tsx:335
+#: src/shell/Shell.tsx:348
 msgid "This page is available in the development build only"
 msgstr "هذه الصفحة متاحة في نسخة التطوير فقط"
 
@@ -9156,7 +9156,7 @@ msgstr "جارٍ العمل"
 msgid "Working…"
 msgstr "يعمل…"
 
-#: src/shell/Shell.tsx:892
+#: src/shell/Shell.tsx:905
 msgid "Workspace"
 msgstr "مساحة العمل"
 
