@@ -75,10 +75,9 @@ LIFETIME = {
     "supervision_stopped": timedelta(days=7),
     # A supervisor paused an agent's work: who did it, with Resume, while it holds.
     "supervision_paused": timedelta(days=31),
-    # Add a source to the trusted list, or connect an account or credential (W15-8).
+    # Add a source to the trusted list (W15-8).
     "trust_source": timedelta(days=7),
-    "connect_credential": timedelta(days=7),
-    # The Secret card: it waits as long as a credential card did.
+    # The Secret card: a credential, or a connection that needs one.
     "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
     # notice of a tightened stop (recorded settled, nothing to tap).
@@ -297,7 +296,7 @@ async def stale_reason(
         if not grants:
             return "supervision_agent_missing"
         return None if await _restorable(session, owner_id, grants) else "supervision_already_set"
-    if kind in {"trust_source", "connect_credential"}:
+    if kind == "trust_source":
         from .capability_cards import stale_reason as capability_stale
 
         return await capability_stale(session, owner_id, kind, payload)
@@ -308,7 +307,10 @@ async def stale_reason(
     if kind == "stop_tightened":
         return "nothing_to_undo"
     if kind == "secret":
-        return None  # A credential is checked when the owner saves it.
+        from .secret_cards import secret_stale_reason
+
+        # A credential is checked when the owner saves it; a second Brave key is not asked.
+        return await secret_stale_reason(session, owner_id, payload)
     if kind == "supervision_paused":
         hold = await _live_pause(session, owner_id, payload)
         if hold is None:
@@ -612,12 +614,9 @@ def proposal_payload(
         from .secret_cards import secret_card_payload
 
         return secret_card_payload(proposal)
-    if proposal.kind in {"trust_source", "connect_credential"}:
-        from .capability_cards import credential_payload, source_payload, trust_subject
+    if proposal.kind == "trust_source":
+        from .capability_cards import source_payload, trust_subject
 
-        if proposal.kind == "connect_credential":
-            assert proposal.target is not None
-            return credential_payload(proposal.target, proposal.service)
         # An MCP server's card carries the tools read from the server (``propose_capability``).
         if proposal.source_kind == "mcp_server" or proposal.identifier is None:
             raise LonoraError("owner_action_fields_invalid", 422)
@@ -737,9 +736,9 @@ async def card_facts(
         from .secret_cards import secret_facts
 
         names = await agent_names(session, owner_id, {row.agent_id})
-        facts["secret"] = secret_facts(payload, names.get(row.agent_id or ""))
+        facts["secret"] = await secret_facts(session, row, names.get(row.agent_id or ""))
         return facts, False
-    if row.kind in {"trust_source", "connect_credential"}:
+    if row.kind == "trust_source":
         from .capability_cards import card_facts as capability_facts
 
         return await capability_facts(session, row, facts), False
@@ -1291,10 +1290,6 @@ async def propose_effect(
     """An agent's card for one validated effect: deduplicated per agent, capped. The
     caller holds the owner-actions lock and has checked the card id is new."""
     reason = await stale_reason(session, owner_id, kind, payload)
-    if reason is None and kind == "connect_credential":
-        from .capability_cards import credential_not_needed
-
-        reason = await credential_not_needed(session, owner_id, payload)
     if reason is not None:
         raise LonoraError("owner_action_not_needed_" + reason, 409)
     current = await pending_effect(session, agent_id, kind, payload_hash(kind, payload))
@@ -1487,9 +1482,9 @@ async def propose_capability(
     thread_id: str | None,
     run_id: str | None,
 ) -> tuple[OwnerActionRow, bool]:
-    """A trust or credential card on an agent's behalf, with the effect built on the
-    server (an MCP server's card carries the tools read from it). Deduplicated per agent
-    and capped like every proposal; a repeated call returns the card shown."""
+    """A trust card on an agent's behalf, with the effect built on the server (an MCP
+    server's card carries the tools read from it). Deduplicated per agent and capped like
+    every proposal; a repeated call returns the card shown."""
     await lock_owner_actions(session, owner_id)
     existing = await session.get(OwnerActionRow, card_id)
     if existing is not None:
@@ -1852,11 +1847,13 @@ def confirmation_code(row: OwnerActionRow) -> str:
         if row.result.get("tier") == "read" and row.result.get("writes"):
             return "owner_action_trust_source_mcp_read"
         return "owner_action_trust_source_mcp"
-    if row.kind == "connect_credential" and row.payload.get("target") == "mcp_server":
+    if row.kind == "secret" and row.payload.get("connect") == "mcp_server":
         # Whether the trust card for the connected server follows (MCP_REVIEW_LINES).
         return MCP_REVIEW_LINES.get(
-            str(row.result.get("review", "raised")), "owner_action_connect_credential"
+            str(row.result.get("review", "raised")), "owner_action_secret_connected"
         )
+    if row.kind == "secret" and row.payload.get("connect"):
+        return "owner_action_secret_connected"
     return "owner_action_" + row.kind
 
 
@@ -1889,13 +1886,13 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
     return notes
 
 
-# What a credential card for an MCP server says once the form connected it: its trust
-# card follows; its tools could not be read; none can be trusted; or (operator deny
+# What a Secret card for an MCP server says once saving it connected the server: its
+# trust card follows; its tools could not be read; none can be trusted; or (operator deny
 # override) only declared tools run, said as a plain connection.
 MCP_REVIEW_LINES = {
-    "raised": "owner_action_connect_credential_mcp",
-    "unread": "owner_action_connect_credential_mcp_unread",
-    "nothing_to_trust": "owner_action_connect_credential_mcp_blocked",
+    "raised": "owner_action_secret_connected_mcp",
+    "unread": "owner_action_secret_connected_mcp_unread",
+    "nothing_to_trust": "owner_action_secret_connected_mcp_blocked",
 }
 
 
@@ -2042,7 +2039,7 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     )
 
 
-# The run that tells the agent behind a trust or credential card that the owner tapped it.
+# The run that tells the agent behind a trust or Secret card that the owner tapped it.
 CONTINUE_TRIGGER = "owner_card"
 
 
@@ -2053,27 +2050,6 @@ def continue_prompt(row: OwnerActionRow) -> str:
         from .secret_cards import saved_prompt
 
         return saved_prompt(row)
-    if row.kind == "connect_credential":
-        review = row.result.get("review")
-        if row.payload["target"] == "mcp_server" and review in {"unread", "nothing_to_trust"}:
-            reason = (
-                "its tools could not be read yet"
-                if review == "unread"
-                else "none of its tools can be trusted (a tool that can trade or move money "
-                "never runs)"
-            )
-            return (
-                "The owner connected an MCP server (connection_id="
-                f"{row.result.get('connection_id')}) on your card; its credential stays on "
-                f"the server. No review card followed: {reason}. Check it with mcp_tools now: "
-                "if it lists tools to review, propose trust_source for this connection_id; "
-                "otherwise tell the owner in one line what is wrong."
-            )
-        return (
-            f"The owner connected {row.payload['target']} on your card; it is configured on "
-            "the server and you never see its value. Continue the work that needed it now, "
-            "then tell the owner in one line what you did."
-        )
     kind, identifier = row.payload["source_kind"], row.payload["identifier"]
     named = (
         f"the MCP server (connection_id={identifier}) at tier {row.result.get('tier', 'read')}"

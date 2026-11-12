@@ -40,6 +40,13 @@ from test_task_runtime import task_db as task_db
 Fixture = tuple[Database, str, str, str]
 # 2026-11-12 in Riyadh (UTC+3): 07:00 local is 04:00 UTC.
 DAY = datetime(2026, 11, 12, tzinfo=UTC)
+# A waiting Secret card: an agent's own card asking for one value.
+SECRET_CARD = {
+    "label": "Exchange",
+    "connect": None,
+    "fields": [{"key": "EXCHANGE_KEY", "label": "Key", "secret": True}],
+    "destination": "workspace",
+}
 
 
 def test_the_owner_zone_is_the_stored_reach_me_zone_else_utc() -> None:
@@ -441,9 +448,9 @@ async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixtur
                 owner_id=owner,
                 agent_id=lonora,
                 source="agent",
-                kind="connect_credential",
+                kind="secret",
                 subject="old",
-                payload={},
+                payload=SECRET_CARD,
                 payload_hash="h-old",
                 expires_at=DAY - timedelta(days=1),
                 status="pending",
@@ -470,9 +477,9 @@ async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixtur
                 owner_id=owner,
                 agent_id=lonora,
                 source="agent",
-                kind="connect_credential",
+                kind="secret",
                 subject="s",
-                payload={},
+                payload=SECRET_CARD,
                 payload_hash="h",
                 expires_at=DAY + timedelta(days=30),
                 status="pending",

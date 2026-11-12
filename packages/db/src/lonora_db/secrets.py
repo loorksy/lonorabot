@@ -21,7 +21,13 @@ BROKER = "broker"
 METAAPI_TOKEN = "metaapi_token"
 SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
-CONNECTIONS = (BrokerSessionRow, IntegrationRow, McpConnectionRow)
+# Where a connection names its secrets: an MCP server saved from a Secret card also
+# names the secret that holds its address.
+REFERENCES = (
+    (BrokerSessionRow, ("secret_id",)),
+    (IntegrationRow, ("secret_id",)),
+    (McpConnectionRow, ("secret_id", "url_secret_id")),
+)
 
 
 def require_scope(name: str, scope: str) -> None:
@@ -60,15 +66,16 @@ async def secret_in_use(session: AsyncSession, owner_id: str, secret_id: str) ->
     )
     if password is not None:
         return True
-    for row_type in CONNECTIONS:
-        used = await session.scalar(
-            select(row_type.id)
-            .where(
-                row_type.owner_id == owner_id,
-                row_type.payload["secret_id"].as_string() == secret_id,
+    for row_type, keys in REFERENCES:
+        for key in keys:
+            used = await session.scalar(
+                select(row_type.id)
+                .where(
+                    row_type.owner_id == owner_id,
+                    row_type.payload[key].as_string() == secret_id,
+                )
+                .limit(1)
             )
-            .limit(1)
-        )
-        if used is not None:
-            return True
+            if used is not None:
+                return True
     return False

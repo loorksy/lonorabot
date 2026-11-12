@@ -11,8 +11,8 @@ function simulation(data) {
   );
 }
 
-// A news agent whose cards ask the owner to add a news feed (a secure form) and to trust
-// another feed's site, as the tools raise them (no model involved).
+// A news agent whose cards ask the owner to add a news feed (a Secret card for its
+// address) and to trust another feed's site, as the tools raise them (no model involved).
 function seedCards(data) {
   const script = `
 import asyncio,json,sys
@@ -21,8 +21,9 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate
 from lonora_db.agents import create_agent
-from lonora_db.capability_cards import credential_payload, source_payload, trust_subject
-from lonora_db.owner_actions import propose_capability
+from lonora_contracts.owner_actions import OwnerActionProposal
+from lonora_db.capability_cards import source_payload, trust_subject
+from lonora_db.owner_actions import propose, propose_capability
 from lonora_db.schema import SkillRow
 from lonora_db.threads import conversation_thread
 async def main():
@@ -32,8 +33,7 @@ async def main():
         async with f.runtime.db.sessions() as session, session.begin():
             agent=await create_agent(session,f.owner,AgentCreate(name=data['agent'],scope_mode='flexible'))
             thread=await conversation_thread(session,f.owner,agent.id)
-            subject,payload=credential_payload('news_feed',None)
-            credential,_=await propose_capability(session,f.owner,'connect_credential',subject,payload,card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
+            credential,_=await propose(session,f.owner,OwnerActionProposal(kind='secret',target='news_feed',name=data['feed']),card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
             domain=data['domain']
             trust,_=await propose_capability(session,f.owner,'trust_source',trust_subject('feed_domain',domain),source_payload('feed_domain',domain),card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
             skill=data['skill']
@@ -54,10 +54,9 @@ asyncio.run(main())
 const copy = {
   ar: {
     connectTitle: "إضافة موجز أخبار",
-    name: "الاسم",
     url: "عنوان الموجز",
     connect: "ربط",
-    connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
+    connected: "تم الربط. لا يرى أي وكيل ما كتبته.",
     trustTitle: "الوثوق بهذا المصدر؟",
     trust: "ثقة",
     trusted: "صار موثوقًا.",
@@ -69,10 +68,9 @@ const copy = {
   },
   en: {
     connectTitle: "Add a news feed",
-    name: "Name",
     url: "Feed URL",
     connect: "Connect",
-    connected: "Connected. Agents see only that it is configured.",
+    connected: "Connected. No agent sees what you typed.",
     trustTitle: "Trust this source?",
     trust: "Trust",
     trusted: "Trusted.",
@@ -108,12 +106,18 @@ for (const locale of ["ar", "en"])
     const site = `site-${suffix}.analyst.example`;
     const feed = `https://desk-${suffix}.news.example/rss`;
     const skill = `notes-${suffix}`;
-    const seeded = seedCards({ agent: `News ${suffix}`, domain: site, skill });
+    const seeded = seedCards({
+      agent: `News ${suffix}`,
+      domain: site,
+      skill,
+      feed: `Desk ${suffix}`,
+    });
     try {
       await page.goto(`/thread?id=${seeded.thread}`);
       const card = page.getByTestId(`owner-action-${seeded.credential}`);
       await expect(card.getByText(text.connectTitle, { exact: true })).toBeVisible();
-      await card.getByLabel(text.name, { exact: true }).fill(`Desk ${suffix}`);
+      // The feed's name came from chat; the owner types only its address.
+      await expect(card).toContainText(`⁨Desk ${suffix}⁩`);
       await card.getByLabel(text.url, { exact: true }).fill(feed);
       if (locale === "ar")
         await card.screenshot({ path: test.info().outputPath("credential-native-ar.png") });

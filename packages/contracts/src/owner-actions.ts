@@ -17,8 +17,7 @@ export type OwnerActionKind =
   | "supervision_stopped"
   | "supervision_paused"
   | "trust_source"
-  | "connect_credential"
-  /** The Secret card: fields the agent chose; values go straight to the encrypted store. */
+  /** The Secret card: the owner's values go straight to the encrypted store. */
   | "secret"
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
   | "watch_changed"
@@ -32,16 +31,31 @@ export type OwnerActionKind =
 export type GrantDelegation = "custom" | "full";
 /** trust_source: what the owner adds to the trusted list. */
 export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
-/** connect_credential: which secure form the card offers. */
+/**
+ * What a connecting Secret card connects; the server sets its field and destination.
+ * "broker" only names a card converted from the credential card (migration 0071): a
+ * trading account is connected with broker_connect's card.
+ */
 export type CredentialTarget =
   | "mcp_server"
   | "news_feed"
   | "brave_search"
   | "economic_calendar"
   | "broker";
-/** One field of a Secret card, chosen by the agent: its key names the saved value; a
- * field with secret false may be shown while typed. Every value is stored encrypted. */
-export type SecretField = { key: string; label: string; secret: boolean };
+/**
+ * One field of a Secret card: its key names the value in the card's submit. An agent's
+ * own field has its label; a connecting card's field has a role the client labels in the
+ * owner's language. A field with secret false is shown while typed; every value is
+ * stored encrypted.
+ */
+export type SecretField = {
+  key: string;
+  label: string | null;
+  secret: boolean;
+  role?: "token" | "api_key" | "server_url" | "feed_url" | null;
+  /** Omitted on older cards: required. */
+  required?: boolean;
+};
 /** Where a Secret card's values go; the server sets it, never the agent's fields. */
 export type SecretDestination = "workspace" | "broker";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
@@ -219,14 +233,22 @@ export type OwnerAction = {
       review?: boolean;
       tier?: EffectTier | null;
     };
-    /** connect_credential: the form to offer ("x" names an X MCP server). */
-    credential?: { target: CredentialTarget; service: "x" | null };
-    /** The Secret card: the agent's label and fields, where they go and who asked. */
+    /**
+     * The Secret card: the agent's label and fields, or what it connects with the details
+     * the agent gave from chat ("x" names an X MCP server); where the values go; who asked.
+     */
     secret?: {
-      label: string;
+      label: string | null;
+      connect?: CredentialTarget | null;
+      service?: "x" | null;
+      details?: { name?: string };
       fields: SecretField[];
       destination: SecretDestination;
       agent_name: string | null;
+      /** The workspace names the values are saved under; for the agent's own card also
+       * which of them replace a value already saved (read now). */
+      saves_as?: string[];
+      replaces?: string[];
       /** A broker card (raised only by the connect tool): the account the password is for. */
       account?: { login: string; server: string; platform: "mt4" | "mt5" };
       /** A broker card: connect the account, store its new password, or a new token. */
@@ -289,7 +311,7 @@ export type OwnerAction = {
     /** A broker card: how provisioning stands (9.2). */
     provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
-    /** connect_credential for an MCP server: whether its trust card followed. */
+    /** A Secret card that connected an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
     /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
     restriction_id?: string;
@@ -319,8 +341,6 @@ export type OwnerActionDecision = {
   stop_authorities?: string[];
   /** trust_source on an MCP server: what the owner trusts its tools for. */
   tier?: EffectTier;
-  /** connect_credential: what the secure form created; never the value it holds. */
-  connected?: { resource: "integration" | "mcp" | "broker"; id: string };
   /**
    * Resolve card answered "unknown" only: also pause new trades by every agent on its
    * account until the trading day ends there (an owner restriction; it only narrows).

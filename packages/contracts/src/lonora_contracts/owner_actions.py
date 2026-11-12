@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
 from .agent_secrets import WORKSPACE_SECRET_NAME
@@ -25,9 +25,8 @@ OwnerActionKind = Literal[
     "set_account_limits",
     "grant_authority",
     "trust_source",
-    "connect_credential",
-    # The Secret card (mandate 10.3, 7.2): fields the agent chooses; the owner's values go
-    # straight to the encrypted store as workspace secrets; the agent learns "saved".
+    # The Secret card (mandate 10.3, 7.2): the owner's values go straight to the encrypted
+    # store; the agent learns which keys were saved.
     "secret",
 ]
 # Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
@@ -43,8 +42,10 @@ GrantDelegation = Literal["custom", "full"]
 # trust_source: what the owner adds to the trusted list (an MCP server with the tools it
 # advertises now, a GitHub owner or repository, or a news feed's domain).
 TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
-# connect_credential: which secure form the card offers; "x" names an X MCP server.
-CredentialTarget = Literal["mcp_server", "news_feed", "brave_search", "economic_calendar", "broker"]
+# A Secret card that connects something: the server sets its fields and destination, and
+# saving it creates the connection. "x" names an X MCP server. A trading account is
+# connected with broker_connect's card instead.
+CredentialTarget = Literal["mcp_server", "news_feed", "brave_search", "economic_calendar"]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
 MoneyLimitName = Literal[
     "max_trade_risk",
@@ -70,18 +71,20 @@ class SecretField(Contract):
 
 
 class SecretCardSave(Contract):
-    """The owner's values for a Secret card's fields, by key; they go to the encrypted
-    store and are never kept on the card, in an event or in the conversation."""
+    """The owner's values for a Secret card's fields, by key (an optional field left empty
+    is left out); they go to the encrypted store and are never kept on the card, in an
+    event or in the conversation."""
 
     values: dict[
         Annotated[str, Field(pattern=WORKSPACE_SECRET_NAME)],
         Annotated[str, Field(min_length=1, max_length=16000)],
-    ] = Field(min_length=1, max_length=8)
+    ] = Field(max_length=8)
 
 
 class OwnerActionProposal(Contract):
     """Agent tool input. The server validates it against current state and stores the
-    exact effect; the card's text comes from the records it names, never from here."""
+    exact effect; the card's text comes from the records it names, never from here, but
+    for a Secret card's label, field labels and the details the agent gave from chat."""
 
     kind: OwnerActionKind
     # lift_restriction: the active or scheduled restriction to lift.
@@ -115,45 +118,81 @@ class OwnerActionProposal(Contract):
     source_kind: TrustSourceKind | None = None
     connection_id: str | None = Field(default=None, min_length=1, max_length=80)
     identifier: str | None = Field(default=None, min_length=1, max_length=300)
-    # connect_credential: the form to offer; service "x" for an X MCP server (D3).
-    target: CredentialTarget | None = None
-    service: Literal["x"] | None = None
     # secret: the card's label and its fields, in the owner's language. Each value is
     # saved under its field's key, the name agents use for it.
     label: str | None = Field(default=None, min_length=1, max_length=80)
     secret_fields: list[SecretField] | None = Field(default=None, min_length=1, max_length=8)
+    # secret with target: a card that connects it. The non-secret detail comes from the
+    # owner's words in chat: a name. The card asks for the secret and for an address (an
+    # MCP server's, a feed's), which may carry a key.
+    target: CredentialTarget | None = None
+    service: Literal["x"] | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def detail_text(cls, value: str | None) -> str | None:
+        # A detail from chat, without the spaces around it; blank is no detail.
+        if value is not None and not value.strip():
+            raise ValueError("owner_action_fields_invalid")
+        return value.strip() if value is not None else None
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
         if self.kind == "secret":
             return self.secret_card_fields()
-        if self.label is not None or self.secret_fields is not None:
-            raise ValueError("owner_action_fields_invalid")
-        if self.kind in {"trust_source", "connect_credential"}:
-            return self.capability_fields()
         if any(
             value is not None
             for value in (
-                self.source_kind,
-                self.connection_id,
-                self.identifier,
+                self.label,
+                self.secret_fields,
                 self.target,
                 self.service,
+                self.name,
             )
+        ):
+            raise ValueError("owner_action_fields_invalid")
+        if self.kind == "trust_source":
+            return self.capability_fields()
+        if any(
+            value is not None for value in (self.source_kind, self.connection_id, self.identifier)
         ):
             raise ValueError("owner_action_fields_invalid")
         return self.trading_fields()
 
     def secret_card_fields(self) -> "OwnerActionProposal":
+        own = {"kind", "label", "secret_fields", "target", "service", "name"}
+        if self.model_dump(exclude=own, exclude_defaults=True):
+            raise ValueError("owner_action_fields_invalid")
+        if self.target is None:
+            # The agent's own card: its label and fields, nothing else.
+            if (
+                self.label is None
+                or self.secret_fields is None
+                or any(v is not None for v in (self.service, self.name))
+            ):
+                raise ValueError("owner_action_fields_invalid")
+            keys = [field.key for field in self.secret_fields]
+            if len(set(keys)) != len(keys):
+                raise ValueError("owner_action_secret_fields_duplicate")
+            return self
+        # A connecting card: the server sets its fields; the agent gives the details.
+        needs: set[str] = {
+            "mcp_server": set[str]() if self.service == "x" else {"name"},
+            "brave_search": set[str](),
+            "news_feed": {"name"},
+            "economic_calendar": {"name"},
+        }[self.target]
+        optional = {"name"} if self.target in {"mcp_server", "brave_search"} else set[str]()
+        allowed = needs | optional
+        given = {"name"} if self.name is not None else set[str]()
         if (
-            self.model_dump(exclude={"kind", "label", "secret_fields"}, exclude_defaults=True)
-            or self.label is None
-            or self.secret_fields is None
+            self.label is not None
+            or self.secret_fields is not None
+            or not needs <= given <= allowed
+            or (self.service is not None and self.target != "mcp_server")
         ):
             raise ValueError("owner_action_fields_invalid")
-        keys = [field.key for field in self.secret_fields]
-        if len(set(keys)) != len(keys):
-            raise ValueError("owner_action_secret_fields_duplicate")
         return self
 
     def capability_fields(self) -> "OwnerActionProposal":
@@ -168,17 +207,7 @@ class OwnerActionProposal(Contract):
             or self.grant_fields()
         ):
             raise ValueError("owner_action_fields_invalid")
-        if self.kind == "connect_credential":
-            if (
-                self.target is None
-                or self.source_kind
-                or self.connection_id
-                or self.identifier
-                or (self.service is not None and self.target != "mcp_server")
-            ):
-                raise ValueError("owner_action_fields_invalid")
-            return self
-        if self.target is not None or self.service is not None or self.source_kind is None:
+        if self.source_kind is None:
             raise ValueError("owner_action_fields_invalid")
         if (self.source_kind == "mcp_server") != (self.connection_id is not None) or (
             self.source_kind == "mcp_server"
@@ -354,18 +383,11 @@ class OwnerActionChallenge(Contract):
     allow_manual_positions: bool | None = None
 
 
-class ConnectedResource(Contract):
-    """What the owner's secure form created; never the value it holds."""
-
-    resource: Literal["integration", "mcp", "broker"]
-    id: str = Field(min_length=1, max_length=80)
-
-
 class OwnerActionDecision(Contract):
     """The owner's tap. ``outcome`` answers a resolve card; ``proof`` is the passkey
     assertion a widening card requires (obtained from the card's challenge); ``tier`` is
-    what the owner trusts an MCP server for; ``connected`` names what a credential card's
-    form created.
+    what the owner trusts an MCP server for. A Secret card's values never come here: the
+    card has its own route.
 
     ``choose`` changes a pending grant card's own choice (``delegation``: Custom or Full
     delegation) in its stored draft and settles nothing; signing still needs the
@@ -379,7 +401,6 @@ class OwnerActionDecision(Contract):
     decision: Literal["confirm", "cancel", "choose"]
     delegation: GrantDelegation | None = None
     tier: Literal["read", "write_nonfinancial"] | None = None
-    connected: ConnectedResource | None = None
     outcome: AttestedOutcome | None = None
     note: str | None = Field(default=None, max_length=2000)
     broker_reference: str | None = Field(default=None, max_length=200)

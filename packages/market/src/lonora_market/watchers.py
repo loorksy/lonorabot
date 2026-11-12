@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -19,6 +20,7 @@ from lonora_db.agent_binding import agent_binding, assert_payload_binding, fixed
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
+from lonora_db.integrations import source_url
 from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.market_snapshots import snapshot_id
 from lonora_db.market_watches import stop_watch
@@ -205,8 +207,22 @@ async def observe_dynamic(
     )
 
 
+# Reads one stored secret of the watch's owner by id (``EncryptedSecretStore.read``).
+SecretReader = Callable[[str], Awaitable[str]]
+
+
+async def unreadable(_: str) -> str:
+    """No owner store was given: a calendar whose address is in the store cannot be read."""
+    raise LonoraError("calendar_integration_unavailable", 409)
+
+
 async def observe(
-    db: Database, brokers: BrokerManager, row: MarketWatchRow, config: Watch
+    db: Database,
+    brokers: BrokerManager,
+    row: MarketWatchRow,
+    config: Watch,
+    *,
+    read_secret: SecretReader | None = None,
 ) -> tuple[Decimal, str, dict[str, Any]]:
     bound_symbol = None
     if row.agent_id:
@@ -219,7 +235,10 @@ async def observe(
             source = await session.get(IntegrationRow, config.integration_id or "")
         if source is None or source.owner_id != row.owner_id or not source.payload.get("enabled"):
             raise LonoraError("calendar_integration_unavailable", 409)
-        events = await EconomicCalendarAdapter(source.payload["url"]).events()
+        # A calendar saved from a Secret card keeps its address in the encrypted store,
+        # read through the owner's store (never the broker layer's, 7.2.3).
+        url = await source_url(source.payload, read_secret or unreadable)
+        events = await EconomicCalendarAdapter(url).events()
         now = utcnow()
         due = [
             event
@@ -378,6 +397,7 @@ async def check_watches(
     candle_update: Candle | None = None,
     connection_id: str | None = None,
     owner_id: str | None = None,
+    read_secret: SecretReader | None = None,
 ) -> int:
     now = utcnow().isoformat()
     next_check = MarketWatchRow.state["next_check"].as_string()
@@ -431,7 +451,9 @@ async def check_watches(
 
         async def check(original: MarketWatchRow = original) -> int:
             try:
-                return await check_watch(db, brokers, original, price_update, candle_update)
+                return await check_watch(
+                    db, brokers, original, price_update, candle_update, read_secret=read_secret
+                )
             except WatchSkipped:
                 return 0
 
@@ -445,6 +467,8 @@ async def check_watch(
     original: MarketWatchRow,
     price_update: Quote | None,
     candle_update: Candle | None,
+    *,
+    read_secret: SecretReader | None = None,
 ) -> int:
     triggered = 0
     config = Watch.model_validate(original.payload)
@@ -488,7 +512,14 @@ async def check_watch(
         # unavailable observation and backs off like any other source failure.
         async with asyncio.timeout(WATCH_OBSERVATION_TIMEOUT_SECONDS):
             current, observation, metadata = await observe_watch(
-                db, brokers, original, config, now, price_update, candle_update
+                db,
+                brokers,
+                original,
+                config,
+                now,
+                price_update,
+                candle_update,
+                read_secret=read_secret,
             )
     except (LonoraError, TimeoutError) as error:
         code = error.code if isinstance(error, LonoraError) else "watch_observation_timeout"
@@ -688,6 +719,8 @@ async def observe_watch(
     now: datetime,
     price_update: Quote | None,
     candle_update: Candle | None,
+    *,
+    read_secret: SecretReader | None = None,
 ) -> tuple[Decimal, str, dict[str, Any]]:
     if config.kind == "dynamic":
         if (
@@ -724,4 +757,4 @@ async def observe_watch(
     elif candle_update:
         return await observe_stream_indicator(db, original, config)
     else:
-        return await observe(db, brokers, original, config)
+        return await observe(db, brokers, original, config, read_secret=read_secret)

@@ -2,7 +2,8 @@
 
 The card is validated against current state, deduplicated per agent and effect, and
 capped per agent. What the owner sees on it is derived on the server from the records it
-names; nothing the agent writes appears on it. No tool can confirm a card: the owner's
+names; the only agent words on a card are a Secret card's label, field labels and the
+details the agent gave from chat, each shown as the agent's. No tool can confirm a card: the owner's
 tap goes to an owner-session route that runs the existing owner function, and widening
 money authority (a grant, or raising a money limit) needs the owner's passkey there.
 """
@@ -241,8 +242,8 @@ async def card_scope(context: ToolContext, session: AsyncSession) -> tuple[RunRo
 async def propose_capability_card(
     context: ToolContext, kind: str, subject: str, payload: dict[str, Any], *, key: str = ""
 ) -> dict[str, Any]:
-    """A trust or credential card on this agent's behalf, its effect built on the server
-    (``key`` separates the cards one call may raise)."""
+    """A trust card on this agent's behalf, its effect built on the server (``key``
+    separates the cards one call may raise)."""
     from lonora_db.owner_actions import propose_capability
 
     async with context.db.sessions() as session, session.begin():
@@ -336,16 +337,20 @@ def tools() -> list[Tool]:
             "or tell the owner Custom carries it), trust_source (source_kind mcp_server "
             "with connection_id: "
             "the card lists its tools for the owner to trust; github_owner, github_repo or "
-            "feed_domain with identifier) and connect_credential (target mcp_server, "
-            "news_feed, brave_search, economic_calendar or broker; service x for an X MCP "
-            "server): a secure form whose value goes straight to the server, never to you; "
-            "secret (any other credential: label and secret_fields, each a key, the name its "
-            "value is saved under, a label, and secret false only for a value safe to show "
-            "while typed; ask non-secret details in chat): the owner's values are saved "
-            "encrypted as workspace secrets and you learn only which keys were saved. "
+            "feed_domain with identifier) and secret, the Secret card: the owner's values "
+            "go straight to the encrypted store and you learn only the names saved. Ask "
+            "non-secret details in chat first. To connect something, give target: "
+            "mcp_server (name, unless service x for an X MCP server), news_feed or "
+            "economic_calendar (name; for these three the owner types the address, which may "
+            "carry a key, and a server's optional token) or brave_search (web search key); a "
+            "trading account is broker_connect. Any other credential: label and "
+            "secret_fields, each a key (the name it is saved under), a label, and secret false "
+            "only for a value safe to show while typed; write the labels in the owner's "
+            "language. "
             "Lowering or adding a limit is one tap; a grant, raising or removing a limit, or "
             "moving the currency or trading day of set limits needs the owner's passkey. The "
-            "card shows only server facts; say in one line what it does. A repeated proposal "
+            "card shows server facts (a Secret card also your label, field labels and the "
+            "details you gave); say in one line what it does. A repeated proposal "
             "returns the card already shown; at most five of yours wait at once.",
             OwnerActionProposal,
             propose_card,

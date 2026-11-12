@@ -53,8 +53,8 @@ test("a Secret card shows the agent's label and fields and our own words", () =>
     assert.equal(spec.hint, text.secretWorkspace);
     assert.deepEqual(spec.secret, {
       fields: [
-        { key: "BINANCE_API_KEY", label: "مفتاح API", type: "password" },
-        { key: "BINANCE_USER", label: "اسم المستخدم", type: "text" },
+        { key: "BINANCE_API_KEY", label: "مفتاح API", type: "password", required: true },
+        { key: "BINANCE_USER", label: "اسم المستخدم", type: "text", required: true },
       ],
       submit: text.secretSave,
     });
@@ -63,7 +63,6 @@ test("a Secret card shows the agent's label and fields and our own words", () =>
       spec.buttons.map((button) => [button.key, button.decision]),
       [["cancel", "cancel"]],
     );
-    assert.equal(spec.credential, null);
     assert.equal(spec.outcome, null);
   }
   const broker = ownerActionCard(
@@ -103,6 +102,35 @@ test("the values go only to the card's own route", async () => {
   assert.deepEqual(answer, { id: "card/1", status: "confirmed" });
 });
 
+test("a Secret card says, in our words, where each value goes and what it replaces", () => {
+  const rotating: OwnerAction = {
+    ...card,
+    facts: {
+      ...card.facts,
+      secret: {
+        ...secret,
+        saves_as: ["BINANCE_API_KEY", "BINANCE_USER"],
+        replaces: ["BINANCE_API_KEY"],
+      },
+    },
+  };
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const lines = ownerActionCard(rotating, locale).lines;
+    const separator = locale === "ar" ? "، " : ", ";
+    assert.ok(
+      lines.includes(
+        text.secretSavesAs.replace(
+          "{names}",
+          [isolated("BINANCE_API_KEY"), isolated("BINANCE_USER")].join(separator),
+        ),
+      ),
+      lines.join(" | "),
+    );
+    assert.ok(lines.includes(text.secretReplaces.replace("{names}", isolated("BINANCE_API_KEY"))));
+  }
+});
+
 test("a broker connect card shows the account as server facts and only our own words", () => {
   const broker: OwnerAction = {
     ...card,
@@ -134,8 +162,8 @@ test("a broker connect card shows the account as server facts and only our own w
     );
     // Field labels are ours by key, never the stored English label; both are masked.
     assert.deepEqual(spec.secret?.fields, [
-      { key: "PASSWORD", label: text.brokerPassword, type: "password" },
-      { key: "METAAPI_TOKEN", label: text.brokerToken, type: "password" },
+      { key: "PASSWORD", label: text.brokerPassword, type: "password", required: true },
+      { key: "METAAPI_TOKEN", label: text.brokerToken, type: "password", required: true },
     ]);
     assert.equal(spec.hint, text.secretBroker);
     const saved = ownerActionCard({ ...broker, status: "confirmed", result: {} }, locale);
@@ -211,7 +239,7 @@ test("a new-token card labels its field as the new token, not one asked once", (
       locale,
     );
     assert.deepEqual(spec.secret?.fields, [
-      { key: "METAAPI_TOKEN", label: text.brokerTokenNew, type: "password" },
+      { key: "METAAPI_TOKEN", label: text.brokerTokenNew, type: "password", required: true },
     ]);
   }
 });

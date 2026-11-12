@@ -1374,36 +1374,15 @@ class Acceptance:
 
     # MCP (D3): the owner's secure form and the trust tap --------------------------------
 
-    async def connect_mcp(
-        self, journey: str, card_id: str, name: str, token: str | None, url: str = MCP_URL
-    ) -> str:
-        """The secure card's form posts the token and server straight to the owner API (one
-        tap: Connect); the server's tools come back on a trust card (one tap: Trust)."""
-        secret_id = None
-        if token is not None:
-            secret_id = (
-                await self.request("POST", "/integrations/secrets", {"name": name, "value": token})
-            )["id"]
-        server = await self.request(
-            "POST",
-            "/mcp",
-            {
-                "payload": {
-                    "name": name,
-                    "transport": "http",
-                    "url": url,
-                    "secret_id": secret_id,
-                    "enabled": True,
-                },
-                "agent_id": None,
-                "thread_id": None,
-            },
+    async def connect_mcp(self, journey: str, card_id: str, address: str, token: str | None) -> str:
+        """The Secret card (one tap: Connect) saves the address and token the owner typed
+        and connects the server the agent named; its tools come back on a trust card (one
+        tap: Trust)."""
+        values = {"URL": address} | ({"TOKEN": token} if token is not None else {})
+        connected = await self.request(
+            "POST", f"/owner-actions/{card_id}/secret", {"values": values}
         )
-        connected = await self.decide(
-            journey,
-            card_id,
-            {"decision": "confirm", "connected": {"resource": "mcp", "id": server["id"]}},
-        )
+        self.tap(journey)
         assert connected["status"] == "confirmed" and connected["result"]["configured"], connected
         thread = await self.request("GET", "/owner-actions?thread_id=" + self.lonora_thread)
         trust = [c for c in thread if c["kind"] == "trust_source" and c["status"] == "pending"]
@@ -1414,7 +1393,7 @@ class Acceptance:
             journey, trust[0]["id"], {"decision": "confirm", "tier": "read"}
         )
         assert trusted["status"] == "confirmed", trusted
-        return cast(str, server["id"])
+        return cast(str, connected["result"]["connection_id"])
 
     # Journey 4 -----------------------------------------------------------------------
 
@@ -1457,7 +1436,7 @@ class Acceptance:
                     (
                         "j4-connect-x",
                         "owner_action_propose",
-                        {"kind": "connect_credential", "target": "mcp_server", "service": "x"},
+                        {"kind": "secret", "target": "mcp_server", "service": "x"},
                     ),
                 ),
             ),
@@ -1529,10 +1508,8 @@ class Acceptance:
             and c["facts"]["agent"]["name"] in {"News agent", "Desk supervisor"}
         ]
         assert len(created) == 2, created  # One Undo card each, never two.
-        connect = [
-            c for c in cards if c["kind"] == "connect_credential" and c["status"] == "pending"
-        ]
-        assert len(connect) == 1 and connect[0]["facts"]["credential"]["service"] == "x", connect
+        connect = [c for c in cards if c["kind"] == "secret" and c["status"] == "pending"]
+        assert len(connect) == 1 and connect[0]["facts"]["secret"]["service"] == "x", connect
         assert (
             await self.count(
                 AccountAuthorityRow, AccountAuthorityRow.agent_id.in_([news_id, desk_id])
@@ -1543,7 +1520,7 @@ class Acceptance:
         seen: list[str] = []
         tokens: list[str | None] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, tokens)):
-            connection = await self.connect_mcp(name, connect[0]["id"], "X", MCP_TOKEN)
+            connection = await self.connect_mcp(name, connect[0]["id"], MCP_URL, MCP_TOKEN)
             # The news agent reads X on its own next sweep, and tells the gold agent.
             news_thread = await self.conversation(news_id)
             sweep = "صباح الخير، ما المهم في الأخبار و X اليوم؟"
@@ -1615,27 +1592,28 @@ class Acceptance:
     # Journey 6 -----------------------------------------------------------------------
 
     async def add_mcp_server(self) -> None:
-        """«أضف خادم MCP هذا» with its URL: one secure card for the server (and its token, if
-        any), one trust tap; then every agent uses its tools with no declaration and no
-        further card, and a tool that could trade is never trusted."""
+        """«أضف خادم MCP لملاحظاتي»: one Secret card where the owner types the server's
+        address (and its token, if any), one trust tap; then every agent uses its tools
+        with no declaration and no further card, and a tool that could trade is never
+        trusted."""
         name = "J6 add an MCP server"
-        words = "أضف خادم MCP هذا: " + NOTES_URL
+        words = "أضف خادم MCP لملاحظاتي"
         self.model.script(
             words,
             lambda t: call(
                 "j6-connect",
                 "owner_action_propose",
-                {"kind": "connect_credential", "target": "mcp_server"},
+                {"kind": "secret", "target": "mcp_server", "name": "Notes"},
             ),
             "اربط الخادم من البطاقة؛ سأعرض أدواته لتثق بها.",
         )
         run = await self.work(await self.say(self.lonora_thread, words))
         assert run.status == "completed", (run.status, run.error_code)
-        cards = await self.pending(self.lonora_thread, "connect_credential")
+        cards = await self.pending(self.lonora_thread, "secret")
         assert len(cards) == 1, cards
         seen: list[str] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, [])):
-            connection = await self.connect_mcp(name, cards[0]["id"], "Notes", None, NOTES_URL)
+            connection = await self.connect_mcp(name, cards[0]["id"], NOTES_URL, None)
             gold_id = self.created[0]
             gold_thread = await self.conversation(gold_id)
             ask = "ابحث في ملاحظات الخادم الجديد عن الذهب"

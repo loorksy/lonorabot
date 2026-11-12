@@ -96,10 +96,14 @@ def by_name(sources: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(item["name"]): item for item in sources}
 
 
+async def no_secret(secret_id: str) -> str:
+    raise AssertionError("these sources keep their address on the row")
+
+
 @pytest.mark.asyncio
 async def test_any_source_exception_stays_with_that_source() -> None:
     sources, events = await read_calendar(
-        database("down", "garbled", "broken", "ok"), "owner", source=source
+        database("down", "garbled", "broken", "ok"), "owner", read_secret=no_secret, source=source
     )
     status = by_name(sources)
     assert status["ok"]["status"] == "ok" and status["ok"]["events"] == 1
@@ -156,7 +160,7 @@ async def test_real_adapter_turns_transport_and_payload_failures_into_codes(
     monkeypatch.setattr(adapter_module, "validate_public_url", public)
     monkeypatch.setattr(adapter_module.httpx, "AsyncClient", client)
     names = ("down", "slow", "html", "malformed", "object", "error", "huge", "ok")
-    sources, events = await read_calendar(database(*names), "owner")
+    sources, events = await read_calendar(database(*names), "owner", read_secret=no_secret)
     status = by_name(sources)
     assert {name: status[name].get("reason") for name in names} == {
         "down": "calendar_source_unavailable",

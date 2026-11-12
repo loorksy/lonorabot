@@ -33,7 +33,7 @@ ATTENTION_KINDS = frozenset(
     }
 )
 # Owner-action card kinds whose pending card is an attention item, by code.
-CARD_ATTENTION: dict[str, AttentionCode] = {"connect_credential": "secret_requested"}
+CARD_ATTENTION: dict[str, AttentionCode] = {"secret": "secret_requested"}
 
 
 def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassification:

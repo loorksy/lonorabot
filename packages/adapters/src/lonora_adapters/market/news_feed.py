@@ -15,7 +15,7 @@ import html
 import re
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote_plus, urljoin, urlsplit
 from xml.etree import ElementTree
 
 import httpx
@@ -46,13 +46,31 @@ def plain(text: str | None, limit: int) -> str:
     return " ".join(value.split())[:limit]
 
 
+def key_parts(address: str) -> set[str]:
+    """What in a feed's address may be its key: each query value of 8 characters or more
+    and each path segment of 16 or more, as written and decoded."""
+    parsed = urlsplit(address)
+    raw = [item.partition("=")[2] for item in parsed.query.split("&")]
+    parts = {value for value in raw if len(value) >= 8}
+    parts |= {segment for segment in parsed.path.split("/") if len(segment) >= 16}
+    return parts | {unquote_plus(part) for part in parts}
+
+
 def safe_link(value: str | None, base: str) -> str | None:
-    if not value:
+    if not value or not value.strip():
         return None
     link = urljoin(base, value.strip())
     parsed = urlsplit(link)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or len(link) > 2048:
         return None
+    feed = urlsplit(base)
+    if (parsed.scheme, parsed.hostname, parsed.path) == (feed.scheme, feed.hostname, feed.path):
+        # A link to the feed itself (only a fragment or a query) names no item, and it
+        # would repeat the feed's address, which may carry a key.
+        return None
+    decoded = unquote_plus(link)
+    if any(part in link or part in decoded for part in key_parts(base)):
+        return None  # It repeats the feed's key: the agent never sees it.
     return parsed._replace(fragment="").geturl()
 
 

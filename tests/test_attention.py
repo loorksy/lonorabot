@@ -50,13 +50,13 @@ from pydantic import ValidationError
         ("broker.degraded", {"status": "disconnected"}, "silent", "internal_update"),
         (
             "owner_action.updated",
-            {"id": "card", "kind": "connect_credential", "status": "pending"},
+            {"id": "card", "kind": "secret", "status": "pending"},
             "action_required",
             "secret_requested",
         ),
         (
             "owner_action.updated",
-            {"id": "card", "kind": "connect_credential", "status": "cancelled"},
+            {"id": "card", "kind": "secret", "status": "cancelled"},
             "silent",
             "internal_update",
         ),

@@ -231,7 +231,9 @@ class Gateway:
         )
 
     async def watches(self) -> None:
-        await self.for_each_owner(lambda service: dispatch_market_wakes(self.db, service.brokers))
+        await self.for_each_owner(
+            lambda service: dispatch_market_wakes(self.db, service.brokers, service.secrets.read)
+        )
 
     async def voice(self) -> None:
         await self.for_each_owner(
@@ -255,7 +257,9 @@ class Gateway:
         from .attention import attention_tick
 
         await self.for_each_owner(
-            lambda service: attention_tick(self.db, service.brokers, service.owner_id)
+            lambda service: attention_tick(
+                self.db, service.brokers, service.owner_id, read_secret=service.secrets.read
+            )
         )
 
     async def incoming(self) -> None:
