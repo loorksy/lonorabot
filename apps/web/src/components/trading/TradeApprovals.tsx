@@ -14,6 +14,8 @@ const rank: Record<string, number> = {
   approved: 1,
   rejected: 1,
   expired: 1,
+  withdrawn: 1,
+  drifted: 1,
   completed: 2,
   cancelled: 2,
 };
@@ -125,9 +127,9 @@ function requestLine(request: Approval["requests"][number]) {
 
 /**
  * A trade approval in the conversation (reference cardMarkup approval, Desktop-37 3761-3775):
- * «طلب موافقة · SYMBOL», the request, «موافقة» / «رفض»; decided, it is one line. An approval
- * lives 30-60 minutes on the server (Q32); an expired one offers «طلب جديد», which asks the
- * agent again (it never creates an approvable request by itself).
+ * «طلب موافقة · SYMBOL», the request, «موافقة» / «رفض»; decided, it is one line. A card has
+ * no time limit; a stored card that expired offers «طلب جديد», which asks the agent again
+ * (it never creates an approvable request by itself).
  */
 export function TradeApprovalCard({
   row,
@@ -143,7 +145,12 @@ export function TradeApprovalCard({
   const symbol = row.requests.find((request) => request.symbol)?.symbol;
   const status = row.status as Approval["status"] | "expired";
   if (status !== "pending") {
-    const bad = status === "rejected" || status === "cancelled" || status === "expired";
+    const bad =
+      status === "rejected" ||
+      status === "cancelled" ||
+      status === "expired" ||
+      status === "withdrawn" ||
+      status === "drifted";
     return (
       <div className="mcard is-done" data-trade-approval={row.id} data-trade-status={status}>
         <div className={`oa-line ${bad ? "st-cancelled" : "st-confirmed"}`}>
@@ -286,6 +293,28 @@ export function TradeApprovalCard({
           </dl>
         </div>
       ))}
+      {row.tolerance && (
+        <dl className="oa-dl">
+          <div>
+            <dt>
+              <Trans>Valid while the price stays within</Trans>
+            </dt>
+            <dd className="ltr">
+              {row.reference_price
+                ? `${row.reference_price} ± ${row.tolerance}`
+                : `± ${row.tolerance}`}
+            </dd>
+          </div>
+        </dl>
+      )}
+      {row.reason && (
+        <div className="mcard-reason" data-trade-reason>
+          <span className="oa-line-kind">
+            <Trans>In the agent's words</Trans>
+          </span>
+          <p dir="auto">{row.reason}</p>
+        </div>
+      )}
       <div className="mcard-actions">
         <button
           type="button"

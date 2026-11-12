@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from lonora_contracts.domain import utcnow
@@ -9,29 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .owner_words import submit_provenance_of
 from .schema import AgentRow, RunRow, TradeApprovalRow
 from .transactions import owned_thread
 from .voice_provenance import carry_voice_handoff
 
-# How long an approval card can be approved (Q32): a lifetime between 30 and 60 minutes.
-# Past it a pending card settles as expired when next read or decided (no scheduler) and
-# «طلب جديد» asks the agent again; it never becomes approvable by itself.
-MINIMUM_APPROVAL_LIFETIME = timedelta(minutes=30)
-MAXIMUM_APPROVAL_LIFETIME = timedelta(minutes=60)
-APPROVAL_LIFETIME = timedelta(minutes=45)
+# A new card has no time limit (mandate 10.3.1): it ends only by a decision, drift or a
+# withdrawal. A row stored before keeps its stored expiry: past it a pending card settles
+# as expired when next read or decided, and «طلب جديد» asks the agent again.
 # The run «طلب جديد» starts: fixed server text (lonora_agent.context.routine).
 RENEW_TRIGGER = "owner_card"
-
-
-def approval_expiry(created_at: datetime, requested: datetime | None = None) -> datetime:
-    """When a new approval stops being approvable: ``requested`` when it lies inside the
-    lifetime range, clamped to it otherwise, else the default lifetime."""
-    if requested is None:
-        return created_at + APPROVAL_LIFETIME
-    return min(
-        max(requested, created_at + MINIMUM_APPROVAL_LIFETIME),
-        created_at + MAXIMUM_APPROVAL_LIFETIME,
-    )
 
 
 def overdue(row: TradeApprovalRow, now: datetime | None = None) -> bool:
@@ -56,6 +43,10 @@ def approval_data(row: TradeApprovalRow) -> dict[str, Any]:
         # Read lazily: a pending card past its expiry is shown expired before it settles.
         "status": "expired" if overdue(row) else row.status,
         "results": row.results,
+        # The agent's own words, shown labelled as the agent's; never the owner's.
+        "reason": row.reason,
+        "tolerance": row.validity.get("tolerance"),
+        "reference_price": row.validity.get("reference", {}).get("price"),
         "expires_at": row.expires_at.isoformat() if row.expires_at else None,
         "created_at": row.created_at.isoformat(),
     }
@@ -201,8 +192,128 @@ async def renew_approval(session: AsyncSession, owner_id: str, approval_id: str)
     source = await session.get(RunRow, row.run_id)
     if source is not None:
         await carry_voice_handoff(session, source, run)
+        # A card's send asked again keeps its provenance-only mark (6.10).
+        run.model_metadata = {**run.model_metadata, **submit_provenance_of(source)}
         await session.flush()
     return run
+
+
+# The run a withdrawal starts when no run waits on the card: fixed server text.
+WITHDRAWN_TRIGGER = "owner_card"
+
+
+def withdrawn_prompt(row: TradeApprovalRow, mode: str) -> str:
+    """Fixed text and the server's own identifier only: nothing a model wrote."""
+    return (
+        f"Your trading mode is now {'Full' if mode == 'full' else 'Ask'}: your pending Trade "
+        f"Approval card (approval_id={row.id}) was withdrawn. Nothing was approved or sent. "
+        "Re-check the market, the account and your reasons now with fresh data, and decide "
+        "again under your current mode."
+    )
+
+
+async def withdraw_pending(
+    session: AsyncSession, owner_id: str, agent_id: str, mode: str
+) -> list[TradeApprovalRow]:
+    """Withdraw every pending Trade Approval card of the agent (4.2.3). A withdrawn card is
+    never approved or executed; the run waiting on it continues and reads the outcome, and
+    a card no run waits on wakes its agent with fixed text. Locks are taken in the order a
+    decision takes them (``locked_approval``)."""
+    identifiers = list(
+        await session.scalars(
+            select(TradeApprovalRow.id)
+            .where(
+                TradeApprovalRow.owner_id == owner_id,
+                TradeApprovalRow.agent_id == agent_id,
+                TradeApprovalRow.status == "pending",
+            )
+            .order_by(TradeApprovalRow.id)
+        )
+    )
+    withdrawn: list[TradeApprovalRow] = []
+    for identifier in identifiers:
+        try:
+            row, run = await locked_approval(session, owner_id, identifier)
+        except LonoraError:
+            continue  # Its conversation was deleted: it can no longer be decided anyway.
+        if row.status != "pending":
+            continue
+        await end_card(session, row, run, "withdrawn", withdrawn_prompt(row, mode))
+        withdrawn.append(row)
+    return withdrawn
+
+
+async def end_card(
+    session: AsyncSession,
+    row: TradeApprovalRow,
+    run: RunRow | None,
+    status: str,
+    prompt: str,
+) -> None:
+    """End a pending card without executing it (withdrawn or drifted) and wake its agent
+    with ``prompt`` (fixed server text). The run waiting on the card continues and reads
+    the outcome; a run still working reads it itself when it next waits on the card, so
+    it is never woken twice; a card whose run has ended starts one run. The caller holds
+    the locks ``locked_approval`` takes."""
+    from lonora_contracts.runs import RunRequest
+
+    from .runs import create_run
+
+    row.status, row.updated_at = status, utcnow()
+    approval_event(session, row)
+    if run is not None and run.status == "waiting_input":
+        wake_waiting_run(session, row, run)
+        return
+    if run is not None and run.status not in {"completed", "failed", "cancelled"}:
+        return
+    run_id = stable_id(row.id, status)
+    if row.thread_id is None or await session.get(RunRow, run_id) is not None:
+        return
+    await create_run(
+        session,
+        row.owner_id,
+        RunRequest(
+            thread_id=row.thread_id,
+            agent_id=row.agent_id,
+            trigger=WITHDRAWN_TRIGGER,
+            prompt=prompt,
+            metadata={status + "_trade_approval_id": row.id},
+        ),
+        run_id,
+    )
+
+
+def drifted_prompt(row: TradeApprovalRow) -> str:
+    """Fixed text and server values only: nothing a model wrote."""
+    reference = row.validity.get("reference", {})
+    return (
+        f"Your pending Trade Approval card (approval_id={row.id}) drifted: the "
+        f"{'ask' if reference.get('side') == 'ask' else 'bid'} price of its symbol moved "
+        f"outside {reference.get('price')} ± {row.validity.get('tolerance')}. It can no "
+        "longer be approved and nothing was sent. Re-check the market with fresh data and "
+        "decide again: ask with a new card, or tell the owner in one line why not."
+    )
+
+
+async def withdraw_own(
+    session: AsyncSession, owner_id: str, agent_id: str, approval_id: str
+) -> TradeApprovalRow:
+    """The agent withdraws its own pending card when its reason no longer holds."""
+    candidate = await session.get(TradeApprovalRow, approval_id)
+    if candidate is None or candidate.owner_id != owner_id or candidate.agent_id != agent_id:
+        raise LonoraError("trade_approval_not_found", 404)
+    row, run = await locked_approval(session, owner_id, approval_id)
+    if row.status == "withdrawn":
+        return row  # A replay of the same withdrawal answers the same.
+    if row.status != "pending":
+        raise LonoraError("trade_approval_already_decided", 409)
+    # The agent itself withdrew it: no wake for what it already knows. A run of the
+    # agent still waiting on this card continues and reads the outcome.
+    row.status, row.updated_at = "withdrawn", utcnow()
+    approval_event(session, row)
+    if run is not None and run.status == "waiting_input":
+        wake_waiting_run(session, row, run)
+    return row
 
 
 async def require_approved_target_current(
