@@ -58,3 +58,9 @@ test("settings: «النماذج» is an inner settings page", () => {
   assert.equal(sectionOf(route), "settings");
   assert.deepEqual(parseRoute("/app/models/x"), { kind: "not-found" });
 });
+
+test("«ما يعمل الآن» (7.1.5) is a settings page without an item", () => {
+  assert.deepEqual(parseRoute("/app/running"), { kind: "page", page: "running" });
+  assert.equal(sectionOf(parseRoute("/app/running")), "settings");
+  assert.deepEqual(parseRoute("/app/running/x"), { kind: "not-found" });
+});

@@ -1,8 +1,11 @@
 """Durable memory: the shared owner profile and this Agent's own document.
 
-USER.md is the one owner profile every Agent reads. An Agent writes it only from
-what the owner said in the conversation the Run answers, and each write records
-that Agent and that message so the owner can see and revert it. MEMORY.md
+USER.md is the one owner profile every Agent reads. Lonora writes what it learns of
+the owner, from his words or his behavior (8.2), the latter only in a run it or the
+owner started that read nothing others wrote; a team agent writes it only from what
+the owner said in the conversation the Run answers. Each write records the Agent and the owner's message, if
+any, so the owner sees what he said and what was observed, and can revert it. The
+structured reach-me record changes only on the owner's typed message. MEMORY.md
 (knowledge) and OPERATING.md (operating notes the Agent refines itself) are the
 Agent's private document. Neither grants tools, permissions or financial authority.
 """
@@ -14,6 +17,7 @@ from lonora_contracts.domain import Contract
 from lonora_contracts.incoming_calls import IncomingCallPolicy, ReachMe
 from lonora_core.user_error import LonoraError
 from lonora_db.memory import memory_data, memory_provenance, read_memory
+from lonora_db.owner_knowledge import profile_lines
 from lonora_db.owner_profile import (
     enrolled_devices,
     owner_preferences,
@@ -24,15 +28,16 @@ from lonora_db.owner_profile import (
     save_owner_preferences,
 )
 from lonora_db.runs import require_lease
-from lonora_db.schema import EffectReceiptRow
+from lonora_db.schema import AgentRow, EffectReceiptRow
 from lonora_memory.commit import atomic_commit, atomic_edit
-from lonora_memory.edits import MemoryEdit, MemoryEditError, MemoryOverflow
+from lonora_memory.edits import MemoryEdit, MemoryEditError, MemoryOverflow, occurrences
 from lonora_memory.method import method_history, restore_method
 from lonora_memory.profile import LEGACY_USER_VIEW, agent_memory_view, profile_documents
 from pydantic import Field, model_validator
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .profile_taint import profile_tainted
 from .restrictions import owner_message_id
 
 
@@ -61,6 +66,8 @@ class MemoryWrite(Contract):
     profile_version: int = Field(default=0, ge=0)
     content: str | None = Field(default=None, max_length=30000)
     operations: list[MemoryOperation] = Field(default_factory=list[MemoryOperation], max_length=20)
+    # Lonora's USER.md lines inferred from the owner's behavior, not his words (8.2, 8.4).
+    observed: bool = False
 
     @model_validator(mode="after")
     def one_shape(self) -> Self:
@@ -95,19 +102,85 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 OWNER_MESSAGE_REQUIRED = {
     "ok": False,
     "code": "owner_profile_requires_owner_message",
-    "recovery": "Nothing was saved. The shared owner profile records only what the owner "
-    "said in the conversation this run answers; keep other observations in MEMORY.md.",
+    "recovery": "Nothing was saved. A team agent records in the owner profile only what the "
+    "owner said in the conversation this run answers; keep other observations in MEMORY.md. "
+    "Only the owner's words or Lonora's own observations enter the profile.",
 }
 
 
-async def _owner_message(context: ToolContext) -> str | None:
+OWNER_PROFILE_TAINTED = {
+    "ok": False,
+    "code": "owner_profile_tainted_run",
+    "recovery": "Nothing was saved. This run was started by someone other than you or the "
+    "owner, or read content others wrote, so what it saw may be steered. Note it in "
+    "MEMORY.md and confirm it in a routine run or with the owner.",
+}
+
+PREFERENCES_MESSAGE_REQUIRED = {
+    "ok": False,
+    "code": "owner_preferences_require_owner_message",
+    "recovery": "Nothing was changed. Reach-me, reply language, quiet hours and time zone "
+    "change only on the owner's typed message; a pattern you observed belongs in USER.md.",
+}
+
+
+OWNERS_WORD_PROTECTED = {
+    "ok": False,
+    "code": "owner_profile_line_is_owners_word",
+    "recovery": "Nothing was saved. That profile line is the owner's own word (he said or "
+    "corrected it); only his message changes it. Add your observation beside it, or ask him.",
+}
+
+
+def _touched(content: str, old_text: str) -> list[str]:
+    """The stripped lines the one match of old_text touches, as apply_edit finds them
+    (none when it is missing or ambiguous: the edit itself then fails)."""
+    old = old_text.replace("\r\n", "\n")
+    if not old.strip() or occurrences(content, old) != 1:
+        return []
+    start = content.find(old)
+    first = start + len(old) - len(old.lstrip("\n"))
+    last = start + len(old.rstrip("\n")) - 1
+    lines = content.split("\n")
+    return [
+        line.strip()
+        for line in lines[content.count("\n", 0, first) : content.count("\n", 0, last) + 1]
+    ]
+
+
+async def _changes_owners_word(context: ToolContext, edits: list[MemoryEdit]) -> bool:
+    """Whether a USER.md patch or remove touches a line whose origin is the owner's word
+    or earlier (8.4): his correction is never silently overwritten without his message."""
+    targets = [e.old_text for e in edits if e.section == "USER.md" and e.action != "add"]
+    if not targets:
+        return False
     async with context.db.sessions() as session:
-        return await owner_message_id(session, await require_lease(session, context.lease))
+        row = await read_owner_profile(session, context.owner_id)
+        known = (await profile_lines(session, context.owner_id))["lines"]
+    words = {line["text"] for line in known if line["origin"] != "observed"}
+    content = row.content if row else ""
+    return any(line in words for text in targets for line in _touched(content, text))
+
+
+async def _owner_message(context: ToolContext) -> tuple[str | None, bool, bool]:
+    """The owner's typed message this run answers, whether the caller is Lonora, and
+    whether the run is tainted for an observation without that message (6.10): another
+    agent, a script or a webhook started it, or it read content others wrote."""
+    async with context.db.sessions() as session:
+        run = await require_lease(session, context.lease)
+        message_id = await owner_message_id(session, run)
+        agent = await session.get(AgentRow, context.agent_id)
+        lead = bool(agent and agent.role == "personal")
+        tainted = False
+        if lead and message_id is None:
+            # The mark on a routine, watch or opportunity is read here only (profile_taint.py).
+            tainted = await profile_tainted(session, run)
+        return message_id, lead, tainted
 
 
 async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = MemoryWrite.model_validate(args)
-    message_id = await _owner_message(context)
+    message_id, lead, tainted = await _owner_message(context)
     try:
         if params.content is not None:
             return await atomic_commit(
@@ -121,8 +194,18 @@ async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 source_message_id=message_id,
             )
         edits = [MemoryEdit(**item.model_dump()) for item in params.operations]
-        if message_id is None and any(edit.section == "USER.md" for edit in edits):
+        profile = any(edit.section == "USER.md" for edit in edits)
+        # Lonora writes its observations of the owner without his message (8.2); a team
+        # agent records only the owner's words.
+        if profile and not lead and (message_id is None or params.observed):
             return OWNER_MESSAGE_REQUIRED
+        if profile and tainted:
+            return OWNER_PROFILE_TAINTED
+        if message_id is None and await _changes_owners_word(context, edits):
+            return OWNERS_WORD_PROTECTED
+        if params.observed:
+            # An observation is never attributed to the owner's message.
+            message_id = None
         return await atomic_edit(
             context.db,
             context.owner_id,
@@ -181,7 +264,7 @@ async def method_restore(context: ToolContext, args: dict[str, Any]) -> dict[str
         params.memory_version,
         lease=context.lease,
         effect_key=context.effect_key,
-        source_message_id=await _owner_message(context),
+        source_message_id=(await _owner_message(context))[0],
     )
 
 
@@ -235,7 +318,7 @@ async def update_preferences(context: ToolContext, args: dict[str, Any]) -> dict
             return receipt.result
         message_id = await owner_message_id(session, run)
         if message_id is None:
-            return {**OWNER_MESSAGE_REQUIRED, "code": "owner_preferences_require_owner_message"}
+            return PREFERENCES_MESSAGE_REQUIRED
         # Lock before reading, so the change applies to the settings as they are now and
         # an owner save or another Agent's change that landed meanwhile is kept.
         await reach_me_lock(session, context.owner_id)
@@ -307,11 +390,11 @@ def tools() -> list[Tool]:
         Tool(
             "memory_write",
             "Change durable memory atomically. operations apply in order, all or nothing: add "
-            "appends content to USER.md (owner profile all Agents share; only what the owner "
-            "said), MEMORY.md (your knowledge) or OPERATING.md (your working notes); patch "
-            "replaces unique old_text with content; remove deletes the lines old_text touches. "
-            "A duplicate add returns changed false; overflow returns the shortfall. content "
-            "replaces your document at version. No credentials or current prices. "
+            "appends content to USER.md (shared owner profile: his words; Lonora's inferences "
+            "with observed), MEMORY.md (your knowledge) or OPERATING.md (your method); "
+            "patch replaces unique old_text with content; remove deletes the lines old_text "
+            "touches. A duplicate add returns changed false; overflow returns the shortfall. "
+            "content replaces your document at version. No credentials or current prices. "
             "Say remembered only after success.",
             MemoryWrite,
             write,
@@ -341,7 +424,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "owner_preferences_update",
-            "Set the owner's shared preferences from what he said: reach_me (activity, notify, "
+            "Set the owner's shared preferences from what he typed: reach_me (activity, notify, "
             "message or call: how to reach him when something needs him), reply_language (ar, "
             "en, or auto: his latest message's language), quiet hours as local HH:MM "
             "(quiet_start, quiet_end), timezone. Every Agent "

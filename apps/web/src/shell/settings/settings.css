@@ -1426,3 +1426,13 @@ body.rm *::after {
 .settings-version {
   text-align: center;
 }
+/* «ما يعمل الآن»: each agent's processes under its name. */
+.running-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.running-agent .avatar {
+  width: 28px;
+  height: 28px;
+}

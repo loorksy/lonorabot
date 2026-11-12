@@ -337,6 +337,12 @@ export function SettingsRoot() {
           sub={t`Profile · shared by all your agents`}
           to="/app/owner"
         />
+        <NavRow
+          icon="cpu"
+          label={t`What is running`}
+          sub={t`Your agents' processes in the workspace`}
+          to="/app/running"
+        />
       </div>
       <div className="group">
         <PrefsRow />
