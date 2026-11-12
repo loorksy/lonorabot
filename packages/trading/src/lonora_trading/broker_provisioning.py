@@ -124,6 +124,9 @@ async def advance(
         phase, result, payload = row.result.get("provisioning"), dict(row.result), row.payload
         started = str(result.get("started_at") or row.updated_at.isoformat())
         subject = row.subject
+    if payload.get("purpose", "connect") != "connect":
+        await _change_credentials(db, brokers, secrets, owner_id, card_id, payload)
+        return
     password_id = await secrets.named(metaapi_password_name(card_id))
     token_id = await secrets.named(METAAPI_TOKEN)
     failing = Failing(db, secrets, owner_id, card_id, str(phase), result)
@@ -147,6 +150,44 @@ async def advance(
         if phase in {"pending", "deploying"} and _late(started):
             await failing("broker_provisioning_failed")
         raise
+
+
+async def _change_credentials(
+    db: Database,
+    brokers: Any,
+    secrets: BrokerSecrets,
+    owner_id: str,
+    card_id: str,
+    payload: dict[str, Any],
+) -> None:
+    """A rotation or token card (9.3): one pass does it and wakes the agent once."""
+    from .broker_manage import replace_token, rotate_password
+
+    async with db.sessions() as session:
+        card = await session.get(OwnerActionRow, card_id)
+        assert card is not None
+    change = rotate_password if payload["purpose"] == "rotate_password" else replace_token
+    try:
+        code = await change(db, brokers, secrets, owner_id, card)
+    except Exception as error:
+        # A change card always ends: the agent hears it, and the next pass leaves it.
+        log.warning(
+            "broker_credential_change_failed card=%s type=%s", card_id, type(error).__name__
+        )
+        code = "broker_credential_change_failed"
+    async with db.sessions() as session, session.begin():
+        row = await _card(session, owner_id, card_id)
+        if row.result.get("provisioning") != "pending":
+            return
+        if code is None:
+            await _record(session, row, provisioning="connected")
+        else:
+            await _record(session, row, provisioning="failed", code=code)
+    if code is not None:
+        for name in (metaapi_password_name(card_id), "metaapi_token_next:" + card_id):
+            found = await secrets.named(name)
+            if found:
+                await secrets.delete_unused(found)
 
 
 class Failing:
@@ -292,7 +333,10 @@ async def other_card_active(
             OwnerActionRow.owner_id == owner_id,
             OwnerActionRow.kind == "secret",
             OwnerActionRow.status == "confirmed",
-            OwnerActionRow.subject == subject,
+            # Cards saved before the subject named its purpose used the earlier form.
+            OwnerActionRow.subject.in_(
+                {subject, subject.replace("secret:broker:connect:", "secret:broker:", 1)}
+            ),
             OwnerActionRow.id != card_id,
         )
     ):
@@ -391,7 +435,12 @@ async def _connect(
         except LonoraError as failure:
             return failure.code
         # The password this connection was provisioned with; rotation replaces it.
-        connection.state = {**connection.state, "password_secret_id": password_id}
+        connection.state = {
+            **connection.state,
+            "password_secret_id": password_id,
+            # Disconnect removes at MetaApi only accounts Lonora itself created (Q8).
+            "provisioned_by_lonora": failing.result.get("created") is True,
+        }
         await _record(
             session,
             row,

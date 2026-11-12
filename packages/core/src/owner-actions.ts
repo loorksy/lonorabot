@@ -297,6 +297,9 @@ export const ownerActionLabels = {
     secretSave: "Save",
     secretSaved: "Saved encrypted. No agent sees the values.",
     brokerConnectTitle: "Connect trading account",
+    brokerRotateTitle: "New trading password",
+    brokerTokenNew: "New MetaApi API token",
+    brokerTokenTitle: "New MetaApi API token",
     brokerAccountLine: "Account {login} on server {server} ({platform})",
     brokerPassword: "Trading (master) password",
     brokerToken: "MetaApi API token (asked once)",
@@ -582,6 +585,9 @@ export const ownerActionLabels = {
     secretSave: "حفظ",
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
     brokerConnectTitle: "ربط حساب التداول",
+    brokerRotateTitle: "كلمة مرور تداول جديدة",
+    brokerTokenNew: "رمز MetaApi API الجديد",
+    brokerTokenTitle: "رمز MetaApi API جديد",
     brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
     brokerPassword: "كلمة مرور التداول (الرئيسية)",
     brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
@@ -1685,7 +1691,12 @@ export function ownerActionCard(
       if (secret?.destination === "broker" && secret.account) {
         // Raised only by the connect tool: every word is ours, the account is server fact.
         const account = secret.account;
-        title = text.brokerConnectTitle;
+        title =
+          secret.purpose === "rotate_password"
+            ? text.brokerRotateTitle
+            : secret.purpose === "replace_token"
+              ? text.brokerTokenTitle
+              : text.brokerConnectTitle;
         lines.push(
           fill(text.brokerAccountLine, {
             login: isolate(account.login),
@@ -1699,7 +1710,12 @@ export function ownerActionCard(
         secretForm = {
           fields: secret.fields.map((field) => ({
             key: field.key,
-            label: field.key === "METAAPI_TOKEN" ? text.brokerToken : text.brokerPassword,
+            label:
+              field.key !== "METAAPI_TOKEN"
+                ? text.brokerPassword
+                : secret.purpose === "replace_token"
+                  ? text.brokerTokenNew
+                  : text.brokerToken,
             type: "password",
           })),
           submit: text.secretSave,

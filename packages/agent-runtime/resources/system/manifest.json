@@ -99,6 +99,7 @@
     "account_history": "account",
     "list_accounts": "account",
     "account_read": "account",
+    "broker_manage": "account",
     "broker_connect": "account",
     "trade_record_history": "trading",
     "trade_record_read": "trading",

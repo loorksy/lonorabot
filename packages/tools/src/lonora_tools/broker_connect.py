@@ -1,10 +1,10 @@
 """Connect the owner's trading account from chat (VISION.md 9.2)."""
 
-from typing import Any
+from typing import Any, Literal
 
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import ToolRefusal
-from lonora_db.broker_sessions import BrokerSessionRepository
+from lonora_db.broker_sessions import BrokerSessionRepository, current_broker_identity
 from lonora_db.owner_actions import propose_effect
 from lonora_db.runs import require_lease
 from lonora_db.schema import SecretRow
@@ -100,6 +100,7 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 def tools() -> list[Tool]:
     return [
+        *manage_tools(),
         Tool(
             "broker_connect",
             "Connect the owner's MetaTrader account through MetaApi. Ask in chat for the "
@@ -112,5 +113,88 @@ def tools() -> list[Tool]:
             connect,
             search_terms="link add broker trading account metatrader exness login password "
             "ربط حساب تداول وسيط ميتاتريدر",
+        ),
+    ]
+
+
+class BrokerManageInput(Contract):
+    account_id: str = Field(min_length=1, max_length=64)
+    action: Literal["disconnect", "enable", "disable", "rotate_password", "replace_token"]
+
+
+async def manage(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """9.3 from chat. Every action is the owner's own: the run must carry their typed
+    message (Q10), so a page or a peer cannot disconnect, switch off or re-key an account."""
+    from lonora_trading.broker_manage import disconnect, refuse_unsettled, set_enabled
+
+    params = BrokerManageInput.model_validate(args)
+    async with context.db.sessions() as session:
+        run = await require_lease(session, context.lease)
+        if await owner_message_id(session, run) is None:
+            raise ToolRefusal(
+                "broker_manage_needs_owner_message",
+                403,
+                details={"hint": "Change a broker connection only when the owner asks in chat."},
+            )
+        row = await BrokerSessionRepository().get(session, context.owner_id, params.account_id)
+        identity = current_broker_identity(row) or {}
+    if params.action in {"enable", "disable"}:
+        return await set_enabled(
+            context.db,
+            context.brokers,
+            context.owner_id,
+            params.account_id,
+            params.action == "enable",
+        )
+    if params.action == "disconnect":
+        return await disconnect(context.db, context.brokers, context.owner_id, params.account_id)
+    if params.action == "rotate_password":
+        await refuse_unsettled(context.db, context.owner_id, params.account_id)
+    if not identity.get("login") or row.payload.get("provider") != "metaapi":
+        raise ToolRefusal("broker_not_metaapi", 409)
+    # A new password or token: a broker card fixed by the server, like connecting.
+    async with context.db.sessions() as session, session.begin():
+        run, thread = await card_scope(context, session)
+        subject, payload = broker_card_payload(
+            login=str(identity["login"]),
+            server=str(identity.get("server") or ""),
+            platform=str(identity.get("platform") or "mt5"),
+            token_needed=False,
+            purpose=params.action,
+            connection_id=params.account_id,
+        )
+        card, created = await propose_effect(
+            session,
+            context.owner_id,
+            "secret",
+            subject,
+            payload,
+            card_id=stable_id(context.resource_id, "broker-manage"),
+            agent_id=context.agent_id,
+            thread_id=thread.id,
+            run_id=run.id,
+        )
+        await require_lease(session, context.lease, lock=True)
+        return {
+            **card_summary(card, created, thread.id, False),
+            "asks_for": [field["key"] for field in payload["fields"]],
+        }
+
+
+def manage_tools() -> list[Tool]:
+    return [
+        Tool(
+            "broker_manage",
+            "Change one of the owner's broker connections on the owner's own request: "
+            "disconnect (an account Lonora created at MetaApi is removed there too; its open "
+            "positions and orders stay at the broker, unmanaged), enable, "
+            "disable (its positions are then not read or managed), rotate_password or "
+            "replace_token (each shows a card for the new value; you never see it). "
+            "account_id is the connection_id from list_accounts. Refused while an operation "
+            "on the account has no confirmed outcome.",
+            BrokerManageInput,
+            manage,
+            search_terms="disconnect unlink remove disable enable password token broker "
+            "فصل حذف تعطيل تفعيل كلمة مرور رمز وسيط",
         ),
     ]

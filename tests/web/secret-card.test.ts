@@ -160,3 +160,58 @@ test("a settled broker card says how connecting ended", () => {
     }
   }
 });
+
+test("a broker card for a new password or token is titled for what it changes", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    for (const [purpose, title] of [
+      ["rotate_password", text.brokerRotateTitle],
+      ["replace_token", text.brokerTokenTitle],
+    ] as const) {
+      const spec = ownerActionCard(
+        {
+          ...card,
+          facts: {
+            several_accounts: false,
+            secret: {
+              label: "70000001 @ Exness-MT5Trial16",
+              fields: [{ key: "PASSWORD", label: "Trading password", secret: true }],
+              destination: "broker",
+              agent_name: "Lonora",
+              account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+              purpose,
+            },
+          },
+        },
+        locale,
+      );
+      assert.equal(spec.title, title);
+    }
+  }
+});
+
+test("a new-token card labels its field as the new token, not one asked once", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const spec = ownerActionCard(
+      {
+        ...card,
+        facts: {
+          several_accounts: false,
+          secret: {
+            label: "70000001 @ Exness-MT5Trial16",
+            fields: [{ key: "METAAPI_TOKEN", label: "MetaApi API token", secret: true }],
+            destination: "broker",
+            agent_name: "Lonora",
+            account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+            purpose: "replace_token",
+          },
+        },
+      },
+      locale,
+    );
+    assert.deepEqual(spec.secret?.fields, [
+      { key: "METAAPI_TOKEN", label: text.brokerTokenNew, type: "password" },
+    ]);
+  }
+});

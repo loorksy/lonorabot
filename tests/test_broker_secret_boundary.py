@@ -26,6 +26,8 @@ BROKER_READERS = {
     "apps/api/src/lonora_api/routes/secret_cards.py",
     "packages/trading/src/lonora_trading/broker_provisioning.py",
     "packages/gateway/src/lonora_gateway/service.py",
+    # Rotating a password and replacing the token (9.3), run by that gateway step.
+    "packages/trading/src/lonora_trading/broker_manage.py",
 }
 
 
