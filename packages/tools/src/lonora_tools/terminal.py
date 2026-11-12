@@ -11,6 +11,7 @@ from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import RunRow
 from lonora_db.workspace_given import GivenValues
+from lonora_db.workspace_processes import started
 from lonora_security.secrets import SecretScan
 from lonora_workspace.client import WorkspaceClient, with_guard
 from pydantic import Field, StringConstraints
@@ -136,6 +137,16 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
     )
     if request.background:
         process = result["process"]
+        async with context.db.sessions() as session, session.begin():
+            await started(
+                session,
+                context.owner_id,
+                context.agent_id,
+                process["id"],
+                result["boot_id"],
+                process["pid"],
+                process["command"],
+            )
         return {"background": True, "pid": process["pid"], "log": process["log"]}
     stdout, stdout_cut = tail(result["stdout"])
     stderr, stderr_cut = tail(result["stderr"])

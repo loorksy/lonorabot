@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+from lonora_charts.capabilities import chart_capabilities
 from lonora_contracts.domain import Contract
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_db.client import Database
@@ -299,9 +300,11 @@ async def listing(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         **report,
+        # The exact timeframes and indicators the chart and market tools accept.
+        "charts": chart_capabilities(),
         "guidance": "Use any ready capability without asking. not_connected: offer one "
         "connect_credential card. not_set_up: this server lacks it; say so plainly. A "
-        "source outside trusted_sources needs one trust_source card.",
+        "source outside trusted_sources is trusted only when the owner names it in chat.",
     }
 
 
@@ -312,8 +315,8 @@ def tools() -> list[Tool]:
             "List what every agent can use now: trusted sources, installed Skills and their "
             "origin, MCP servers and their trusted tools, integrations and news feeds, and "
             "built-in capabilities marked ready, not_connected (one owner card) or "
-            "not_set_up on this server. Use it to answer what you can do or to choose a "
-            "source; it grants nothing.",
+            "not_set_up on this server, and the supported chart timeframes and indicators. "
+            "Use it to answer what you can do or to choose a source; it grants nothing.",
             CapabilitiesInput,
             listing,
             read_only=True,

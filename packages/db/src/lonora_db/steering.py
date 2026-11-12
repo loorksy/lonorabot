@@ -41,6 +41,9 @@ async def consume_steering(session: AsyncSession, lease: Lease) -> list[MessageR
             messages.append(message)
         steering.consumed = True
     messages.sort(key=lambda message: message.seq)
-    if messages:
-        run.input_seq = max(run.input_seq, messages[-1].seq)
+    # Only the run's own thread moves its history window; an owner's answer from the
+    # conversation a background run reports to has that conversation's numbering.
+    own = [message.seq for message in messages if message.thread_id == run.thread_id]
+    if own:
+        run.input_seq = max(run.input_seq, max(own))
     return messages
