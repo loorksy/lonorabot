@@ -310,8 +310,14 @@ async def main():
         blocked = await trade(volume="0.1")
         assert blocked["status"] == "failed" and blocked["code"] == "emergency_stop", blocked
         await save_controls(f.runtime.db, TradingControl(enabled=True))
-        invalid = await trade(volume="0.15")
-        assert invalid["status"] == "failed" and invalid["code"] == "volume_step_mismatch", invalid
+        # The broker's volume step is checked before anything is sent: a refusal the
+        # agent reads and corrects.
+        try:
+            await trade(volume="0.15")
+        except LonoraError as error:
+            assert error.code == "volume_step_mismatch", error.code
+        else:
+            raise AssertionError("an order off the broker's volume step was not refused")
         print("PASS full management preserves emergency control and broker volume validity")
 
         specialist = await f.request(
