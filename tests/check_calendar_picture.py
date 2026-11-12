@@ -17,7 +17,7 @@ from lonora_contracts.market import CalendarEvent
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import BrokerSessionRow, EconomicCalendarRow, IntegrationRow
 from lonora_market.economic_calendar import cache_calendar, normalized_impact
-from lonora_trading.picture import CURRENCIES_KEY
+from lonora_trading.picture import CURRENCIES_KEY, account_identity
 from sqlalchemy import select
 
 
@@ -73,7 +73,13 @@ async def main() -> None:
         async with f.runtime.db.sessions() as session, session.begin():
             row = await session.get(BrokerSessionRow, account, with_for_update=True)
             assert row
-            row.state = {**row.state, CURRENCIES_KEY: {"EURUSD": ["EUR", "USD"]}}
+            row.state = {
+                **row.state,
+                CURRENCIES_KEY: {
+                    "identity": account_identity(row),
+                    "symbols": {"EURUSD": ["EUR", "USD"]},
+                },
+            }
         assert await calendar(f, agent["id"]) == "calendar not connected"
         print("PASS without an owner source the picture says calendar not connected")
 
