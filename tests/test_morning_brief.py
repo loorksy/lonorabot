@@ -390,6 +390,54 @@ async def write_brief(db: Database) -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_mandate_card_never_waits_for_the_owner(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        lonora, _gold = await seed(session, owner)
+        offered = await session.scalar(
+            select(func.count())
+            .select_from(OwnerActionRow)
+            .where(
+                OwnerActionRow.agent_id == lonora,
+                OwnerActionRow.kind == "trading_mode",
+                OwnerActionRow.status == "pending",
+            )
+        )
+    # A Mandate card is the owner's standing switch (10.3, 4.2), with no answer that ends
+    # it: Lonora's from onboarding (4.3.1) never waits, so nothing else needs the owner.
+    assert offered == 1
+    at = DAY + timedelta(hours=4, minutes=1)
+    first = await facts_now(db, owner, at)
+    assert first["pending_owner_cards"] == 0 and first["nothing_else_needs_you"] is True
+    await write_brief(db)
+    # Nor does one an agent's run proposed: the owner may keep Ask and never tap it.
+    async with db.sessions() as session, session.begin():
+        run = RunRow(
+            thread_id=thread, agent_id=agent, trigger="user", prompt="x", status="completed"
+        )
+        session.add(run)
+        await session.flush()
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=agent,
+                run_id=run.id,
+                source="agent",
+                kind="trading_mode",
+                subject="trading_mode:" + agent,
+                payload={"agent_id": agent},
+                payload_hash="h-mode",
+                expires_at=DAY + timedelta(days=3650),
+                status="pending",
+            )
+        )
+    second = await facts_now(db, owner, at + timedelta(days=1))
+    assert second["pending_owner_cards"] == 0 and second["nothing_else_needs_you"] is True
+
+
+@pytest.mark.asyncio
 async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
@@ -510,3 +558,51 @@ async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixtur
         "attention_items": 1,
     }
     assert third["nothing_else_needs_you"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_secret_card_and_a_broker_problem_are_each_counted_once(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        lonora, _gold = await seed(session, owner)
+        connection = await session.scalar(select(BrokerSessionRow))
+        assert connection is not None
+        saved = dict(connection.state["broker_recovery"])
+        connection.state = {
+            "broker_recovery": saved | {"status": "disconnected", "reason_code": "broker_x"}
+        }
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=lonora,
+                source="agent",
+                kind="connect_credential",
+                subject="secret",
+                payload={},
+                payload_hash="h-secret",
+                expires_at=DAY + timedelta(days=30),
+                status="pending",
+            )
+        )
+        for code in ("secret_requested", "broker_connection_lost"):
+            session.add(
+                AttentionRow(
+                    owner_id=owner,
+                    agent_id=agent,
+                    thread_id=thread,
+                    logical_key=code,
+                    coalesce_key=code,
+                    importance="action_required",
+                    code=code,
+                    status="ready",
+                    due_at=DAY,
+                )
+            )
+    facts = await facts_now(db, owner, DAY + timedelta(hours=4, minutes=1))
+    # The Secret card is one pending card; the broker problem is one disconnected account.
+    assert (facts["pending_owner_cards"], facts["attention_items"]) == (1, 0)
+    assert facts["accounts"][0]["connection"] == "disconnected"
+    assert facts["nothing_else_needs_you"] is False
+    text = plain_brief(facts, "ar")
+    assert "Demo: غير متصل بالوسيط" in text
+    assert "بطاقات أخرى تنتظر قرارك: 1" in text and "تنبيهات لم ترها بعد" not in text

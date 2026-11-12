@@ -112,7 +112,7 @@ test("every function's arity equals Python's (shared fixture)", () => {
   );
 });
 
-// The shared client helpers (§8.1, §8.2 rules N and T, §8.6, §9.3).
+// The shared client helpers (docs/genui.md §7, rules N and T).
 const sendMessage = (overrides: Record<string, unknown> = {}) =>
   ({
     id: "s1",

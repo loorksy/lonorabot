@@ -26,6 +26,7 @@ from lonora_db.schema import (
     MarketSnapshotRow,
     RunRow,
     TradingAccountRow,
+    TradingJournalRow,
 )
 from lonora_gateway.attention import attention_tick, ready_attention
 from lonora_gateway.event_dispatch import dispatch_channels
@@ -105,6 +106,41 @@ async def main():
             response = await f.client.get("/api/attention")
             assert response.is_success
             return cast(list[dict[str, Any]], response.json())
+
+        async def uncertain() -> str:
+            """The owner's own order left without a broker outcome (no agent: Lonora's)."""
+            identifier = "attention-op-" + uuid4().hex
+            async with f.runtime.db.sessions() as session, session.begin():
+                session.add(
+                    TradingJournalRow(
+                        operation_id=identifier,
+                        owner_id=f.owner,
+                        account_id=account,
+                        request_hash="0" * 64,
+                        request={"action": "buy", "symbol": symbol},
+                        status="ambiguous",
+                        result={},
+                    )
+                )
+                emit(
+                    session,
+                    f.owner,
+                    "trading.operation_updated",
+                    payload={"operation_id": identifier, "status": "ambiguous"},
+                )
+            return identifier
+
+        async def settled(identifier: str) -> None:
+            async with f.runtime.db.sessions() as session, session.begin():
+                row = await session.get(TradingJournalRow, identifier, with_for_update=True)
+                assert row is not None
+                row.status = "resolved"
+                emit(
+                    session,
+                    f.owner,
+                    "trading.operation_updated",
+                    payload={"operation_id": identifier, "status": "resolved"},
+                )
 
         async def tool(name: str, arguments: dict[str, Any]):
             return await registry.execute(
@@ -229,23 +265,24 @@ async def main():
             "/attention/policy",
             {"opportunities": False, "informational": False, "locale": "ar"},
         )
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": True})
+        first_uncertain = await uncertain()
         await attention_tick(f.runtime.db, context.brokers, f.owner)
         rows = await inbox()
-        critical = [row for row in rows if row["code"] == "emergency_stop"]
+        critical = [row for row in rows if row["code"] == "operation_uncertain"]
         assert len(critical) == 1 and critical[0]["status"] == "ready"
         async with f.runtime.db.sessions() as session:
             personal = await session.get(AgentRow, critical[0]["agent_id"])
             assert personal and personal.role == "personal"
         await attention_tick(f.runtime.db, context.brokers, f.owner)
-        assert len([row for row in await inbox() if row["code"] == "emergency_stop"]) == 1
+        assert len([row for row in await inbox() if row["code"] == "operation_uncertain"]) == 1
         print(
-            "PASS mandatory critical owner notification bypasses coalescing delay and optional quiet preferences; account/global ownership is Personal"
+            "PASS a mandatory owner notification bypasses coalescing delay and optional quiet preferences; account/global ownership is Personal"
         )
         missing = await f.client.post("/api/attention/seen", json={"notification_id": str(uuid4())})
         assert missing.status_code == 404
-        controls = await f.request("GET", "/trading/controls")
-        assert controls["enabled"] is False and controls["emergency_stop"] is True
+        async with f.runtime.db.sessions() as session:
+            journal = await session.get(TradingJournalRow, first_uncertain)
+            assert journal is not None and journal.status == "ambiguous"
         async with f.runtime.db.sessions() as session:
             audits = list(
                 await session.scalars(
@@ -306,14 +343,14 @@ async def main():
             assert merged and merged.status == "ready"
             critical_row = await session.get(AttentionRow, critical[0]["id"])
             assert critical_row and await mandatory_current(session, critical_row)
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
+        await settled(first_uncertain)
         async with f.runtime.db.sessions() as session:
             critical_row = await session.get(AttentionRow, critical[0]["id"])
             assert critical_row and not await mandatory_current(session, critical_row)
         await attention_tick(f.runtime.db, context.brokers, f.owner)
-        assert not any(row["code"] == "emergency_stop" for row in await inbox())
+        assert not any(row["code"] == "operation_uncertain" for row in await inbox())
         print(
-            "PASS fixed coalescing deadline, logical replay after restart, stale-source isolation and mandatory channel revalidation against current controls"
+            "PASS fixed coalescing deadline, logical replay after restart, stale-source isolation and mandatory channel revalidation against the current journal"
         )
 
         services = f.runtime.services(f.owner)
@@ -339,24 +376,24 @@ async def main():
             return {"status": "fixture-confirmed"}
 
         with patch("lonora_gateway.event_dispatch.WebhookAdapter.send", scripted_send):
-            # The previously queued emergency has ended: do not send obsolete safety state.
+            # The previously queued uncertainty has settled: do not send obsolete safety state.
             # (Lonora's onboarding Mandate card is a real pending owner event: it is sent.)
-            stopped = "التداول الجديد متوقف"
+            stale = "صفقة بلا نتيجة مؤكدة من الوسيط"
             await dispatch_channels(f.runtime.db, services)
-            assert not [content for content in sent if stopped in content]
-            await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": True})
+            assert not [content for content in sent if stale in content]
+            await uncertain()
             await attention_tick(f.runtime.db, context.brokers, f.owner)
             await asyncio.gather(
                 dispatch_channels(f.runtime.db, services),
                 dispatch_channels(f.runtime.db, services),
             )
             await dispatch_channels(f.runtime.db, services)
-            assert len([content for content in sent if stopped in content]) == 1
+            assert len([content for content in sent if stale in content]) == 1, sent
         async with f.runtime.db.sessions() as session:
             others = set(
                 await session.scalars(
                     select(AttentionRow.id).where(
-                        AttentionRow.owner_id == f.owner, AttentionRow.code != "emergency_stop"
+                        AttentionRow.owner_id == f.owner, AttentionRow.code != "operation_uncertain"
                     )
                 )
             )

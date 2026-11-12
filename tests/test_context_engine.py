@@ -293,6 +293,8 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     monkeypatch.setattr(
         builder, "attachment_parts", AsyncMock(return_value=("Attachment " + hostile, []))
     )
+    # The owner's own note, not a file someone else wrote: the run keeps its provenance.
+    monkeypatch.setattr(builder, "third_party_attachment", AsyncMock(return_value=False))
     monkeypatch.setattr(
         builder, "history_gap", AsyncMock(return_value=HistoryGap(11, 30, 20, None, None))
     )
@@ -1295,7 +1297,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
     # tool must be placed here or classified as external in run_evidence.
     first_party = {
         "account_activity", "account_history", "account_read", "agent_control", "agent_create",
-        "artifact_create",
+        "artifact_create", "broker_connect", "broker_manage",
         "board_create", "board_list", "chart_add_indicator", "chart_annotate",
         "chart_indicator", "chart_inspect", "chart_list", "chart_open",
         "chart_read_indicator", "chart_remove_indicator", "chart_set_symbol",
@@ -1320,7 +1322,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "trade_restriction_create", "trade_restriction_list", "usage_read", "watch_cancel",
         "watch_create",
         "watch_list", "watch_pause", "watch_resume", "watch_update",
-        "workspace_export", "workspace_update",
+        "workspace_export", "workspace_file_write", "workspace_stop", "workspace_update",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:

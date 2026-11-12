@@ -31,6 +31,7 @@ from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import QUARANTINE_AFTER, ItemGuard
 from lonora_db.obligations import prepare_delete
+from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import MAX_RUN_RECOVERIES, claim_next, create_run, release_leases, require_lease
 from lonora_db.schema import (
     AccountAuthorityRow,
@@ -948,6 +949,10 @@ async def test_a_hanging_attention_event_times_out_into_the_ledger_and_never_hol
 ) -> None:
     db, owner, agent, _ = task_db
     async with db.sessions() as session, session.begin():
+        await ensure_personal_agent(session, owner)
+    # Lonora's onboarding events are decided first: these three are then the only new ones.
+    await attention.attention_tick(db, NO_BROKERS, owner)
+    async with db.sessions() as session, session.begin():
         for identifier in ("before", "hang", "after"):
             emit(
                 session,
@@ -1112,9 +1117,9 @@ async def test_quarantine_notices_coalesce_per_kind_and_never_cost_a_critical_al
         emit(
             session,
             owner,
-            "trading.controls_updated",
+            "trading.approval.updated",
             agent_id=agent,
-            payload={"emergency_stop": True, "enabled": True},
+            payload={"status": "pending"},
         )
 
     async def poisoned(*_: Any) -> Any:
@@ -1125,7 +1130,7 @@ async def test_quarantine_notices_coalesce_per_kind_and_never_cost_a_critical_al
     for _ in range(QUARANTINE_AFTER - 1):
         await expire_backoff(db, "attention_event")
         await attention.attention_tick(db, NO_BROKERS, owner)
-    # The Emergency Stop alert still reaches the owner under its own code.
-    stops = await system_items(db, owner, "emergency_stop")
+    # The approval alert still reaches the owner under its own code.
+    stops = await system_items(db, owner, "approval_required")
     assert len(stops) == 1 and stops[0].status == "ready"
-    assert stops[0].importance == "critical" and stops[0].agent_id == agent
+    assert stops[0].importance == "action_required" and stops[0].agent_id == agent

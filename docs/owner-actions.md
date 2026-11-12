@@ -12,8 +12,17 @@ supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
 W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
 `docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
 when some tool may change something, and a credential card for an MCP server says
-whether the trust card follows (or why not, waking the agent that asked). W15-10 adds
-the model cards (`agent_model`, `agent_model_changed`, `docs/provider-resilience.md`).
+whether the trust card follows (or why not, waking the agent that asked). An agent's
+model has no card: only the owner assigns it (`docs/provider-resilience.md`).
+
+The Secret card (`secret`, VISION.md 7.2 and 10.3) asks for any other credential. The
+agent chooses its label and fields (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the
+value is saved under, and a label; `secret: false` only unmasks a field while it is
+typed). The server sets the destination: an agent's card saves to the owner's
+`workspace` secrets. Its values never pass the decision route: the card's own route,
+`POST /owner-actions/{id}/secret`, stores them encrypted and settles the card in one
+transaction, and the card, its events, the conversation and the agent's next run keep
+only the keys. A second submit shows the card as it is and writes nothing.
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -24,9 +33,9 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model`, `agent_model_changed` or `trading_mode` |
+| `kind` | `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `secret` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
-| `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
+| `subject` | The record the card acts on: `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
 | `agent_id`, `thread_id`, `run_id` | Where it is shown and who raised it. Ids are kept as values; a deleted conversation sets `thread_id` to null. |
 | `status`, `status_reason` | `pending`, `confirmed`, `cancelled`, `expired` or `superseded`, with why |
@@ -34,15 +43,15 @@ tap runs the existing owner function for that effect, in the owner's session.
 | `expires_at`, `decided_at`, `decided_via` | Single use with expiry; `tap` or `passkey` |
 | `result` | What the confirmation did (the attested outcome, the stored limits) |
 
-Lifetimes: Resume, limit and grant cards 24 hours, resolve cards 7 days, Lift cards 31
+Lifetimes: limit and grant cards 24 hours, resolve cards 7 days, Lift cards 31
 days and never longer than the restriction itself, Mandate cards 3650 days. Expiry needs no scheduler: a pending
 card past `expires_at` reads as expired and is settled as expired when next touched.
 
 ## How cards appear
 
 - **An agent proposes one** with `owner_action_propose(kind, …)` (toolset `trading`,
-  long-tail, not financial). The server validates it against current state (trading is
-  stopped; the restriction is active or scheduled; the operation is `ambiguous`; the
+  long-tail, not financial). The server validates it against current state (the
+  restriction is active or scheduled; the operation is `ambiguous`; the
   account is the owner's and the limit change is valid and not a no-op), dedupes it per
   agent and exact effect (a repeat returns the card already shown, also enforced by a
   unique index on pending cards) and caps pending agent cards at five per agent. A
@@ -59,8 +68,8 @@ card past `expires_at` reads as expired and is settled as expired when next touc
     one per operation).
   - Runtime cards have ids derived from their record, so replaying an event never adds
     a second card.
-- **Cards follow their record.** A lifted or ended restriction, a settled operation and
-  resumed trading supersede the pending cards about them. Confirming a card supersedes
+- **Cards follow their record.** A lifted or ended restriction and a settled operation
+  supersede the pending cards about them. Confirming a card supersedes
   any other pending card with the same exact effect. A settled operation also withdraws
   its `operation_uncertain` item. While its resolve card waits for an answer (or its
   `operation_uncertain` item is still open), the watchdog's later `operation_unresolved`
@@ -94,7 +103,6 @@ the card says "This no longer applies" and can only be dismissed; no passkey is 
 
 | Card | Buttons | Needs |
 | --- | --- | --- |
-| Resume trading | Resume trading / Not now | one tap |
 | New entries paused (Only exits allowed, Trading frozen) | Lift pause / Keep it | one tap |
 | The broker did not confirm this trade | It executed / It did not execute / Unknown: release the hold, optional note and broker ticket | one tap |
 | Change money limits | Apply (or Confirm with passkey) / Cancel | one tap when it allows no more risk; passkey otherwise |
@@ -105,13 +113,12 @@ Any answer on a resolve card, "Unknown" included, settles the operation and rele
 the hold it puts on its market; the hint and the settled line say so. An owner who is
 not sure yet leaves the card unanswered, and the hold stays.
 
-A settled card shows one line instead of buttons ("Trading resumed.", "This pause
+A settled card shows one line instead of buttons ("Pause lifted.", "This pause
 already ended. Nothing changed."). After a confirmation the server also writes one
 line into the conversation, in the conversation's language, so the agent sees what
 changed on its next run. It is built from fixed texts (`attention_messages.json`,
 `owner_action_*`) chosen from the state after the effect (`still_holding`): after a lift
-or an answer it adds what still holds new risk there — "New trading is still stopped",
-"Other pauses still apply there" (a pause in force over the same market and agents),
+or an answer it adds what still holds new risk there — "Other pauses still apply there" (a pause in force over the same market and agents),
 "A trade without a confirmed broker result still holds new risk there" — and only when
 nothing does, "New trades are admitted again within each agent's level and your
 limits". It never contradicts the header's safety line. A card whose agent was deleted
@@ -127,10 +134,8 @@ require the owner's session; no tool reaches them. A decision:
    decision again is idempotent, a conflicting one is `owner_action_already_decided`.
 2. Settles a card past its expiry as `expired`, and re-validates the effect against
    current state: a stale card becomes `expired` with its reason
-   (`restriction_already_ended`, `operation_already_settled`, `trading_already_running`,
-   `limits_already_set`) and changes nothing.
+   (`restriction_already_ended`, `operation_already_settled`, `limits_already_set`) and changes nothing.
 3. Runs the existing owner function in the same transaction:
-   - Resume: `apply_controls` with `{enabled: true, emergency_stop: false}`.
    - Lift: `revoke_restriction`, the owner's lift.
    - Resolve: `attest_operation`, the T2 owner attestation. The note is optional; without
      one the statement reads "Owner attested via chat card; not broker confirmation."
@@ -240,8 +245,8 @@ Signed Full delegation reads as such everywhere: the confirmation line adds
 readiness line reads "Trades on its own · Full delegation · until you stop it" with the
 account's daily loss limit or "No money limit set", the safety sheet names the grant "Full
 delegation", and the permission frame marks the scope `full_delegation` (every pair, every
-action and the owner's positions until stopped; the account's limits, pauses and Stop
-still bind it). It is recognized from the signed terms (`full_delegation` in
+action and the owner's positions until stopped; the account's limits and pauses still
+bind it). It is recognized from the signed terms (`full_delegation` in
 `lonora_contracts.account_authority`), so the envelope format is unchanged. The label
 follows those terms, not the name of the choice: a grant signed from Custom with exactly
 Full's terms (every pair, every action, until stopped, the owner's own positions switched
@@ -256,7 +261,7 @@ A card is raised only when authority is missing: a draft an active grant already
 at least as long) is refused with `owner_action_not_needed_grant_already_active`. The
 card shows, from server facts: the agent, the account, the markets, the actions in plain
 words, until when, one daily loss line, the account's other money limits (or "No money
-limit set"), Stop new trading when it is in force, other agents already trading an
+limit set"), other agents already trading an
 overlapping market on that account on their own, the agent's own grant it replaces, and
 on the owner's first grant the one rule of the previous vision.
 
@@ -279,9 +284,8 @@ Its switches are the owner's choices: include my own positions (signed: it is se
 the challenge and becomes part of the envelope; while the card waits the switch is the
 only place that states it, and a settled card shows it as a line), "No money limit (my
 choice)" ("No daily loss limit (my choice)" when other limits are set) where the card
-would set a first limit, "Keep my current limit" where it would lower one, Resume
-trading too (pre-checked only when trading was never started; after the owner's own
-Stop it waits for the owner), and per conflicting agent "Stop <agent> trading on its own
+would set a first limit, "Keep my current limit" where it would lower one, and per
+conflicting agent "Stop <agent> trading on its own
 on this account" (it revokes that agent's whole grant there, every market of it;
 otherwise both keep trading and the account's limits bind them together). Lists use the
 English comma in English and the Arabic comma in Arabic (`listSeparator`).
@@ -300,7 +304,7 @@ Signing runs the existing account-authority ceremony from inside the card:
 2. `POST /owner-actions/{id}/decision` with the proof runs `finish_activation`; an
    assertion for any other proposal is refused and the transaction rolls back. Then the
    card's choices, none of which widens anything: revoke each chosen conflicting grant
-   (narrowing), Resume (widens no authority), and the daily loss limit, which the card
+   (narrowing) and the daily loss limit, which the card
    sets only when the account has none and lowers only to an amount the owner asked for
    (`daily_loss_change`; it never raises one, never tightens the owner's own limit unasked
    and never converts a currency).
@@ -308,8 +312,8 @@ Signing runs the existing account-authority ceremony from inside the card:
 
 The confirmation line says it is signed, that anything outside the grant comes back as
 an approval card, and what else changed (the daily loss limit set, no limit by choice or
-the current limit kept by choice, the other agent or agents stopped on this account,
-Resume), or that new trading is still stopped. The settled card names the agents it
+the current limit kept by choice, the other agent or agents stopped on this account).
+The settled card names the agents it
 stopped. A card for an agent that is deleted is superseded with it.
 
 ## The Mandate card (mandate 10.3, 4.2)
@@ -329,29 +333,14 @@ Switching an agent to Full withdraws its pending Trade Approval cards (status
 with fixed server text to decide again under Full. A card for an agent that is deleted
 ends with it.
 
-## Model cards (W15-10)
+## No model cards
 
-Two kinds no agent can propose with `owner_action_propose`; only `model_request` raises
-them, from server-checked state (`lonora_db.model_cards`). Neither touches money: both are
-one tap, never a passkey.
-
-| Card | Raised when | Buttons | Confirming |
-| --- | --- | --- | --- |
-| `agent_model` "Change the model of {agent}?" | The agent asked for a model outside the owner's allowed list (always, even when the owner named it), or for a change to an agent the owner fixed, to another agent (Lonora) or to its mode, that the owner's message in this run does not name | Use it (Let Lonora choose) / Not now | `apply_agent_model` in the owner's name; a model outside the list also joins the allowed list (the card says so) |
-| `agent_model_changed` "{agent} switched its model" | A switch applied (the agent's own within the list, or one the owner's message named) | Undo / Keep | Restores the choice before the switch, with who had made it, only while the record's revision is still the one the card reports |
-
-The payload is the agent, the mode and model (or none: the owner's default), and for
-Undo the record revision, the choice before it and who had made that choice; the subject
-is `agent-model:<agent>`. A request keeps the agent's mode unless it asks for another, so
-a Fixed agent's request is for another Fixed model. Facts are the agent's name, the
-catalog names of the models (never ids) and the owner's default model. Lifetimes: 24
-hours for a request, 7 days for Undo. A newer switch supersedes the older Undo card and
-the pending requests about that agent (`model_changed_again`); the owner's own change in
-settings or on a card supersedes both kinds for that agent (`owner_changed_model`; a
-choice that changes nothing ends no card); a request the record already matches settles
-as `model_already_set`. A deleted agent's
-model cards are superseded with it. The confirmation line says the model answers from
-the next reply and that memory, tasks, grants and open trades stay as they are.
+The former `agent_model` and `agent_model_changed` kinds are gone: only the owner assigns
+an agent's model, in its settings or by naming the model in chat, and nothing about a
+model waits on a card (`docs/provider-resilience.md`). Migration
+`0131_agent_model_owner_only` settled the pending ones (`superseded`,
+`model_cards_removed`) and moved every one to `ln_owner_actions_model_retired`, which
+nothing reads.
 
 ## The raw execution-policy route
 
@@ -370,12 +359,10 @@ policy, or a used challenge, is refused.
 
 ## Agent policy
 
-The permission frame says only the owner lifts a restriction, resumes trading, attests an
-uncertain outcome, changes a limit or signs a grant, and that the agent proposes the
-matching card (`owner_action_propose`) when the owner asks for one, a grant only when no
-active scope covers it. While trading is stopped the agent attempts no entry and says so
-in one line; Stop is the owner's brake, so it proposes a Resume card only when the owner
-asks to resume (the tool description says the same).
+The permission frame says only the owner lifts a restriction, attests an uncertain
+outcome, changes a limit or signs a grant, and that the agent proposes the matching card
+(`owner_action_propose`) when the owner asks for one, a grant only when no active scope
+covers it.
 
 ## Known limits
 
@@ -391,15 +378,14 @@ asks to resume (the tool description says the same).
 
 ## Verification
 
-- `tests/check_owner_actions.py` (PostgreSQL, simulation broker): Resume changes nothing
-  until the tap and is idempotent; no tool can confirm and an anonymous decision is
+- `tests/check_owner_actions.py` (PostgreSQL, simulation broker): no tool can confirm and an anonymous decision is
   refused; a restriction raises a Lift card in its conversation and the agent's reason
   never reaches it; lifting an ended restriction leaves the card expired with its reason;
   a pause lifted elsewhere supersedes its card; lowering a limit is one tap while raising
   or removing one needs a bound passkey; an uncertain trade raises `operation_uncertain`
   and a resolve card whose answer emits `trading.operation_resolved`, clears the hold and
   sends nothing; an agent's uncertain operation lands in that agent's conversation; the
-  cap, expiry and crash replay; the lift line while trading is stopped; a moved trading
+  cap, expiry and crash replay; a moved trading
   day shown on the card and refused without the passkey.
 - `tests/test_owner_actions.py`: classification, the widening matrix with a visible line
   for every differing field, proposal fields, no tool importing a decision, runtime-card
@@ -414,7 +400,7 @@ asks to resume (the tool description says the same).
   journal, and Lift from the header safety sheet.
 - Grant cards: `tests/check_grant_card.py` (PostgreSQL, simulation broker, scripted
   authenticator) covers the resolved draft, the passkey and inline enrollment, the
-  composer-identical envelope, Resume and the daily loss limit on confirm, the conflict
+  composer-identical envelope, the daily loss limit on confirm, the conflict
   note and stopping the other agent, no card for covered scope, Lonora's all-pairs
   default, withdrawal on dismiss, and the execution-policy passkey;
   `tests/test_grant_card.py` the pure rules; `tests/web/owner-actions.test.ts` the shared

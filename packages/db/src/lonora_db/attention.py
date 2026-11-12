@@ -107,10 +107,6 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         )
     if row.code == "run_quarantined":
         return True
-    if row.code == "emergency_stop":
-        return (await SettingsRepository().get(session, "trading_control")).get(
-            "emergency_stop"
-        ) is True
     if row.code == "approval_required":
         approval = await session.get(TradeApprovalRow, row.parameters.get("approval_id", ""))
         return (
@@ -812,7 +808,8 @@ async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
     undeployed account replaces a lost-connection item once ``withdraw_ended`` has
     withdrawn it; after the connection is disabled and enabled again, the outage's
     problem is raised again. An outage with open positions or unresolved operations is
-    critical. Returns how many items were raised; ``withdraw_ended`` withdraws them.
+    critical. Returns how many items were raised; ``withdraw_ended`` withdraws them, and
+    ``wake_for_alerts`` wakes Lonora for them.
     """
     await lock_attention(session, owner_id)
     now = utcnow()

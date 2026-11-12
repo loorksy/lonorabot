@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from lonora_contracts.domain import utcnow
+from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
@@ -10,7 +10,8 @@ from sqlalchemy import ColumnElement, Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
-from .schema import AgentRow, RoutineRow, ThreadRow
+from .schema import AgentRow, RoutineRow
+from .threads import background_origin, create_thread
 from .transactions import owned_agent
 
 
@@ -51,9 +52,14 @@ async def create_routine(
         existing = await session.get(RoutineRow, resource_id)
         if existing:
             return existing
-    thread = ThreadRow(owner_id=owner_id, agent_id=agent_id, title=request.prompt[:80])
-    session.add(thread)
-    await session.flush()
+    # The routine's hidden work thread is its memory; its results go to the Agent's own
+    # conversation, never into a chat of their own (VISION 11.6).
+    thread = await create_thread(
+        session,
+        owner_id,
+        ThreadCreate(agent_id=agent_id, title=request.prompt[:80]),
+        purpose="work",
+    )
     row = RoutineRow(
         owner_id=owner_id,
         agent_id=agent_id,
@@ -141,7 +147,10 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             agent_id=row.agent_id,
             trigger="routine",
             prompt=row.prompt,
-            metadata={"routine_id": row.id},
+            metadata={
+                "routine_id": row.id,
+                **await background_origin(session, row.owner_id, row.agent_id, row.thread_id),
+            },
         ),
     )
     if row.run_at is not None:

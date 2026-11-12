@@ -29,6 +29,7 @@ runs on its own copy of a disposable PostgreSQL template, dropped at the end.
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -44,10 +45,15 @@ from uuid import uuid4
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_agent.environment import classify, error_class
 from lonora_agent.executor import execute_run
+from lonora_contracts.domain import AgentCreate, ThreadCreate
+from lonora_db.agents import create_agent
 from lonora_db.market_watches import MarketWatchRepository
-from lonora_db.schema import MessageRow, RunRow, TradingJournalRow
+from lonora_db.schema import AgentRow, MessageRow, RunRow, TradingJournalRow
+from lonora_db.threads import create_thread
+from lonora_db.trading_mode import set_trading_mode
 from lonora_market.watchers import check_watches
 from lonora_tools.loader import load_tools
+from lonora_trading.manual_activity import journal_agent
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import func, select
 from sqlalchemy.engine import URL
@@ -56,7 +62,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.agent_eval import bank, broker  # noqa: E402
 from scripts.agent_eval import run as runner  # noqa: E402
-from scripts.genui_eval import run as genui  # noqa: E402
+from scripts.agent_eval import runner as harness  # noqa: E402
 
 SCENARIO = bank.FIXTURES / "acceptance.json"
 # Runs the harness drives after one induced event: the wake, and the wakes it causes.
@@ -259,14 +265,16 @@ class Stage:
                 context = self.api.runtime.services(self.api.owner).tool_context(
                     run.agent_id,
                     run.thread_id,
-                    await genui.lease(self.api, run.id),
+                    await harness.lease(self.api, run.id),
                     self.api.settings.artifact_root,
                 )
                 if self.model is not None:
                     context.router.factory = self.model.factory
                 registry = runner.RecordingRegistry(self.calls)
-                async with asyncio.timeout(genui.CASE_SECONDS):
-                    await execute_run(context, registry, genui.LEASE_SECONDS, genui.MAXIMUM_ROUNDS)
+                async with asyncio.timeout(harness.CASE_SECONDS):
+                    await execute_run(
+                        context, registry, harness.LEASE_SECONDS, harness.MAXIMUM_ROUNDS
+                    )
                 async with self.api.runtime.db.sessions() as session:
                     ended = await session.get(RunRow, run.id, populate_existing=True)
                     assert ended is not None
@@ -361,6 +369,10 @@ async def judged(stage: Stage, thread_id: str) -> list[Check]:
     ]
 
 
+# 4c's actor (a close is risk-reducing, so it needs no approval in either mode, 4.1).
+GOLD_SENT = "the gold agent, a team agent in Full, sent the close"
+
+
 async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> list[Check]:
     """4c: a connection drop during a close is reconciled without a resend.
 
@@ -372,6 +384,7 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
     given = step["given"]
     terminal = stage.terminal
     position = terminal.open_position(**given["position"])
+    await opened_by(stage, position, stage.ids["gold"])
     if stage.model is not None:
         stage.model.names.update({"$account": stage.ids["account_id"], "$ticket": position["id"]})
     async with stage.api.runtime.db.sessions() as session, session.begin():
@@ -395,7 +408,19 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
     await stage.drain()
     closes = [row for row in await stage.journal() if row.request.get("action") == "close_position"]
     sends = terminal.calls.count("close_position")
+    senders = [journal_agent(row) for row in closes]
+    async with stage.api.runtime.db.sessions() as session:
+        gold = await session.get(AgentRow, stage.ids["gold"])
     checks: list[Check] = [
+        (
+            GOLD_SENT,
+            senders == [stage.ids["gold"]]
+            and gold is not None
+            and gold.role != "personal"
+            and gold.trading_mode == "full",
+            f"sent by {[stage.handle(agent) if agent else 'the owner' for agent in senders]}"
+            f", mode {gold.trading_mode if gold else None}",
+        ),
         (
             "the agent's own watch woke it",
             (await stage.triggers())[:1] == ["watch"],
@@ -430,30 +455,67 @@ RUNNERS: dict[str, Callable[[Stage, dict[str, Any]], Awaitable[list[Check]]]] = 
 # --- One step on its own copy of the template ----------------------------------------------
 
 
-async def gold_agent(api: Any, ids: dict[str, str]) -> dict[str, str]:
-    """The gold agent of step 2 as this commit can make it.
+async def gold_agent(api: Any, ids: dict[str, str], variant: broker.Variant) -> dict[str, str]:
+    """The gold agent of step 2: a team agent bound to the account's gold, set to Full by
+    the owner's tap (4.2.1), with its own conversation."""
+    async with api.runtime.db.sessions() as session, session.begin():
+        gold = await create_agent(
+            session,
+            api.owner,
+            AgentCreate(
+                name="وكيل الذهب",
+                template="trading",
+                trading_account_id=ids["account_id"],
+                trading_symbol=broker.broker_symbol("XAUUSD", variant),
+            ),
+        )
+        await set_trading_mode(session, api.owner, gold.id, "full", by="owner_tap")
+        thread = await create_thread(session, api.owner, ThreadCreate(agent_id=gold.id))
+    return {"gold": gold.id, "gold_thread": thread.id}
 
-    Until modes land (W-AUTH), the only agent that may execute without asking is the one
-    the template's signed grant covers: Lonora. The step's actor is then Lonora, and the
-    status table says so.
-    """
-    return {"gold": ids["lonora_id"], "gold_thread": ids["thread_id"]}
+
+async def opened_by(stage: Stage, position: dict[str, Any], agent_id: str) -> None:
+    """The journal's record of the agent's own confirmed order that opened ``position``,
+    as the executor writes it, so the ticket is that agent's (3.3.4)."""
+    request = {
+        "account_id": stage.ids["account_id"],
+        "action": position["type"].removeprefix("POSITION_TYPE_").lower(),
+        "symbol": position["symbol"],
+        "volume": str(position["volume"]),
+    }
+    async with stage.api.runtime.db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id=str(uuid4()),
+                owner_id=stage.api.owner,
+                account_id=stage.ids["account_id"],
+                request_hash=hashlib.sha256(
+                    json.dumps(request, sort_keys=True).encode()
+                ).hexdigest(),
+                request=request,
+                status="confirmed",
+                result={
+                    "broker_id": position["id"],
+                    "details": {"position_id": position["id"], "execution": {"agent_id": agent_id}},
+                },
+            )
+        )
 
 
 async def run_step(
     base: URL, ids: dict[str, str], step: dict[str, Any], live: bool
 ) -> dict[str, Any]:
     clone = base.set(database=f"accept_{uuid4().hex[:12]}_test")
-    await genui.admin(base, f'CREATE DATABASE "{clone.database}" TEMPLATE "{base.database}"')
+    await harness.admin(base, f'CREATE DATABASE "{clone.database}" TEMPLATE "{base.database}"')
     terminal = AcceptanceTerminal(account_id=bank.ACCOUNT, balance=Decimal("10000"))
     checks: list[Check] = []
     error, exercised = None, True
     api: Any = None
     with broker.installed(terminal):
         try:
-            api = genui.Api(clone)
+            api = harness.Api(clone)
             await api.login()
-            names = {**ids, **await gold_agent(api, ids)}
+            names = {**ids, **await gold_agent(api, ids, terminal.variant)}
             model = None if live else ScriptedModel(turns=json.loads(json.dumps(step["script"])))
             stage = Stage(api, names, terminal, model)
             await stage.settle()
@@ -470,7 +532,9 @@ async def run_step(
                 if api is not None:
                     await api.close()
             finally:
-                await genui.admin(base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)')
+                await harness.admin(
+                    base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)'
+                )
     passed = error is None and all(ok for _, ok, _ in checks)
     return {
         "step": step["id"],
@@ -506,7 +570,7 @@ async def own_key(base: URL, model: str) -> None:
     key = os.environ.get("LONORA_ACCEPT_PROVIDER_KEY")
     if not key:
         return
-    api = genui.Api(base)
+    api = harness.Api(base)
     try:
         await api.login()
         provider = model.split("/", 1)[0]
@@ -521,7 +585,7 @@ async def main(arguments: argparse.Namespace) -> int:
     unknown = (chosen or set()) - {step["id"] for step in scenario["steps"]}
     if unknown:
         raise SystemExit(f"No such step: {', '.join(sorted(unknown))}")
-    base = genui.disposable(os.environ.get("LONORA_DATABASE_URL", ""))
+    base = harness.disposable(os.environ.get("LONORA_DATABASE_URL", ""))
     results: list[dict[str, Any]] = []
     ready = [
         step
@@ -535,7 +599,7 @@ async def main(arguments: argparse.Namespace) -> int:
         for step in ready:
             results.append(await run_step(base, ids, step, arguments.live))
     finally:
-        await genui.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
+        await harness.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
     by_step = {item["step"]: item for item in results}
     report = [
         {**row, **by_step.get(row["step"], {})}

@@ -46,7 +46,7 @@ test("recorded preference changes read as plain words and never as raw values", 
 test("profile and memory errors explain what to do in the owner's language", () => {
   assert.match(ownerProfileError("memory_user_section_moved", "en") ?? "", /profile/);
   assert.ok(arabic.test(ownerProfileError("owner_profile_too_large", "ar") ?? ""));
-  assert.equal(ownerProfileError("trading_disabled", "en"), null);
+  assert.equal(ownerProfileError("broker_disabled", "en"), null);
 });
 
 test("the notify choice promises only what happens until agents can raise alerts", () => {

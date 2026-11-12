@@ -3,7 +3,7 @@
 Exercises the grant card end to end with the simulation broker and a scripted
 authenticator: the agent tool proposes a server-resolved draft (owner decision D1
 defaults), the card's challenge builds the same envelope the permission composer does,
-the owner's passkey activates it, and the card's own choices resume trading, set the
+the owner's passkey activates it, and the card's own choices set the
 daily loss limit and stop another agent's overlapping grant. Under "On its own" a trade
 the grant does not cover becomes an approval card, never a refusal; repeating it reuses
 that approval. It also covers the new ladder defaults, the explicit-level migration and
@@ -24,7 +24,6 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import AgentCreate, utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import permission_key
 from lonora_db.agents import create_agent
@@ -40,7 +39,6 @@ from lonora_db.schema import (
 )
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from sqlalchemy import func, select
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -114,11 +112,8 @@ async def alembic(action: str, revision: str) -> None:
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     registry = load_tools()
     try:
-        # Trading starts stopped (the first-run default), so the card offers Resume.
-        await save_controls(db, TradingControl(enabled=False))
         connection = await fixture.request(
             "POST",
             "/trading/connections",
@@ -247,7 +242,6 @@ async def main() -> None:
         daily = shown["facts"]["money"]["daily_loss"]
         assert daily["proposed"] == "200.00" and daily["current"] is None, daily
         assert daily["basis"] == "requested" and daily["currency"] == "USD"
-        assert shown["facts"]["global_trading"]["state"] == "stopped"
         assert shown["facts"]["conflicts"] == [] and shown["facts"]["first_grant"] is True
         assert shown["requires_passkey"] is True
         # Another agent cannot raise a grant card for someone else.
@@ -316,14 +310,12 @@ async def main() -> None:
             {
                 "decision": "confirm",
                 "proof": device.assertion(challenge, fixture.settings.allowed_origin),
-                "resume_trading": True,
             },
         )
         assert status == 200 and decided["status"] == "confirmed", decided
-        assert decided["decided_via"] == "passkey" and decided["result"]["resumed"] is True
+        assert decided["decided_via"] == "passkey"
         assert decided["result"]["daily_loss"] == "200.00"
         assert await level(gold["id"]) == "autonomous"
-        assert (await read_controls(db)).enabled is True
         policy = await fixture.request("GET", f"/trading/accounts/{account}/execution-policy")
         assert Decimal(policy["risk"]["max_daily_loss"]) == 200
         assert policy["risk"]["currency"] == "USD"
@@ -346,7 +338,7 @@ async def main() -> None:
             assert line is not None
             assert "approval card" in line.content or "بطاقة موافقة" in line.content, line.content
         print(
-            "PASS one passkey tap activates the grant, resumes trading and sets the 2% daily loss limit; repeating the tap changes nothing"
+            "PASS one passkey tap activates the grant and sets the 2% daily loss limit; repeating the tap changes nothing"
         )
 
         # 4. Monotonic ladder: under "On its own", a trade the grant does not cover asks
@@ -707,7 +699,6 @@ async def main() -> None:
             "PASS the migration stores Lonora at Ask me and every other existing agent at No trading; it is reversible and idempotent"
         )
     finally:
-        await save_controls(db, original)
         await fixture.close()
 
 
