@@ -365,6 +365,7 @@ async def test_reads_and_outside_closes_are_signals_only_lonora_sees():
             volume=Decimal("0.10"),
             open_price=Decimal("2400"),
             stop_loss=Decimal("2390"),
+            profit=Decimal("-42.50"),
         )
         change = BrokerActivity(
             id="activity-" + uuid4().hex,
@@ -391,6 +392,7 @@ async def test_reads_and_outside_closes_are_signals_only_lonora_sees():
             close = model["signals"]["closes_outside_lonora"][0]
             assert close["symbol"] == "XAUUSD" and close["position_of"] == "owner"
             assert close["had_stop_loss"] is True and close["had_take_profit"] is False
+            assert close["volume"] == "0.10" and close["profit_before_close"] == "-42.50"
             mine = await read_memory_context(session, fixture.owner, lead["id"], lead=True)
             theirs = await read_memory_context(session, fixture.owner, team["id"])
         assert "owner_signals" in [section.name for section in mine if section.body]
