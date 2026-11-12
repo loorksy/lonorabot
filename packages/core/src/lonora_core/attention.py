@@ -74,18 +74,19 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
         if code is not None and payload.get("status") == "pending":
             result.importance, result.code = "action_required", code
     elif kind == "broker.external_activity":
-        result.importance, result.code = "important_change", "external_broker_activity"
         transition = str(payload.get("id") or transition)
-    elif kind == "watch.confirmed":
-        result.importance, result.code = "opportunity", "setup_confirmed"
+        # VISION 11.5: the agent this change woke reports it or stays silent; no item
+        # stands in beside its reply. A met watch always wakes its agent, so it is silent.
+        if payload.get("wakes_agent") is not True:
+            result.importance, result.code = "important_change", "external_broker_activity"
     elif kind in {"watch.invalidated", "watch.expired"}:
         result.importance, result.code = "important_change", "thesis_invalidated"
-    elif kind == "opportunity.transition":
+    elif kind == "opportunity.transition" and payload.get("wakes_agent") is not True:
         if payload.get("status") == "confirmed":
             result.importance, result.code = "opportunity", "setup_confirmed"
         elif payload.get("status") in {"invalidated", "degraded", "expired"}:
             result.importance, result.code = "important_change", "thesis_invalidated"
-    elif kind == "collaboration.completed":
+    elif kind == "collaboration.completed" and payload.get("result_empty") is not True:
         result.importance, result.code = "important_change", "collaboration_completed"
     elif kind == "task.failed":
         result.importance, result.code = (
@@ -100,7 +101,11 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
     elif kind == "task.degraded":
         # Monitoring keeps retrying through an outage; nothing waits on the owner.
         result.importance, result.code = "important_change", "task_degraded"
-    elif kind == "task.updated" and payload.get("status") == "completed":
+    elif (
+        kind == "task.updated"
+        and payload.get("status") == "completed"
+        and payload.get("result_empty") is not True
+    ):
         result.importance, result.code = "informational", "task_completed"
     result.transition = transition
     return result

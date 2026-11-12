@@ -65,8 +65,10 @@ manual activity).
 
 Run identities are stable (`external:<revision>` for the Personal Agent,
 `external:<revision>:<agent>` for an attributed one), so a repeated reconciliation
-creates no second wake. The owner's attention item for an attributed change opens
-the responsible Agent's conversation.
+creates no second wake. A change that wakes an agent raises no attention item: the
+woken agent's reply is the owner's news, and an agent with nothing new stays silent
+(VISION 11.5). Only a change no agent can be woken for (Lonora paused) is an attention
+item, in Lonora's conversation.
 
 An opportunity transition (`wake_opportunity` in `opportunities.py`) is the Agent's own
 work, so its wake also carries normal authority.

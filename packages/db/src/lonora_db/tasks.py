@@ -109,6 +109,10 @@ def save_task(session: AsyncSession, row: TicketRow, state: TaskState) -> None:
             "version": row.version,
             "status": state.status,
             "waiting_reason": state.waiting_reason,
+            # A Task completed with nothing to report is nothing new (VISION 11.5).
+            **(
+                {"result_empty": not row.state.get("result")} if state.status == "completed" else {}
+            ),
         },
     )
 

@@ -2,15 +2,12 @@
 
 import asyncio
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Any
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.attention import AttentionClassification
 from lonora_contracts.domain import utcnow
-from lonora_contracts.market_watch import Watch
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
-from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import (
     decide_attention,
@@ -47,67 +44,11 @@ from lonora_db.schema import (
 from lonora_db.system_alerts import wake_for_alerts
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import owned_agent
-from lonora_market.watchers import observe
 from lonora_trading.opportunities import evidence_state
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .owner_cards import CARD_EVENTS, follow_event
-
-
-async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchRow) -> datetime:
-    config = Watch.model_validate(row.payload)
-    now = utcnow()
-    expiry = row.state.get("confirmation_valid_until")
-    if (
-        not config.enabled
-        or row.state.get("lifecycle") != "confirmed"
-        or row.state.get("evaluation_status") == "suspended_health"
-        or row.state.get("health", {}).get("state", "healthy") != "healthy"
-        or (config.expires_at and config.expires_at <= now)
-        or (expiry and datetime.fromisoformat(expiry) <= now)
-    ):
-        raise LonoraError("attention_setup_not_current", 409)
-    async with asyncio.timeout(5):
-        current, _, metadata = await observe(db, brokers, row, config)
-    if config.kind == "dynamic":
-        valid = current == 1
-    elif config.condition in {"changed", "closed", "opened", "due"}:
-        valid = current == Decimal(str(row.state.get("last_value", "NaN")))
-    else:
-        valid = condition_met(
-            {"cross_above": "above", "cross_below": "below"}.get(
-                config.condition, config.condition
-            ),
-            config.level,
-            current,
-            None,
-        )
-    if not valid:
-        raise LonoraError("attention_setup_not_current", 409)
-    from lonora_market.health import assess_quote, require_healthy
-
-    broker = await brokers.get(row.owner_id, config.account_id)
-    async with asyncio.timeout(5):
-        quote = await broker.quote(config.symbol)
-    require_healthy(
-        assess_quote(
-            quote,
-            account_id=config.account_id,
-            symbol=config.symbol,
-            now=utcnow(),
-            maximum_age_seconds=30,
-        )
-    )
-    deadlines = [quote.observed_at + timedelta(seconds=30)]
-    observation_expiry = metadata.get("observation", {}).get("valid_until")
-    if observation_expiry:
-        deadlines.append(datetime.fromisoformat(observation_expiry))
-    if expiry:
-        deadlines.append(datetime.fromisoformat(expiry))
-    if config.expires_at:
-        deadlines.append(config.expires_at)
-    return min(deadlines)
 
 
 async def candidate(
@@ -302,8 +243,6 @@ async def candidate(
         thread_id = thread.id
         if thread.group_id:
             parameters["group_id"] = thread.group_id
-    if isinstance(resource, MarketWatchRow) and classification.importance == "opportunity":
-        parameters["valid_until"] = (await validate_watch(db, brokers, resource)).isoformat()
     if isinstance(resource, TradingOpportunityRow) and classification.importance == "opportunity":
         broker = await brokers.get(event.owner_id, resource.account_id)
         from lonora_market.health import assess_quote, require_healthy

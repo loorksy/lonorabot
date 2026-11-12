@@ -19,6 +19,7 @@ from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
     IntegrationRow,
+    ThreadRow,
 )
 from sqlalchemy import select
 
@@ -151,6 +152,14 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                     identity = "attention:" + notification.id
                 elif event.payload.get("role") != "assistant":
                     continue
+                else:
+                    source = (
+                        await session.get(ThreadRow, event.thread_id) if event.thread_id else None
+                    )
+                    if source is None or source.purpose == "work":
+                        # A work thread is background work's memory: its report reaches the
+                        # owner as the copy in the conversation (11.5, 11.6), never twice.
+                        continue
                 destinations = (
                     config.get("allowed_destinations", [])
                     if config["type"] == "telegram"

@@ -3,7 +3,7 @@ from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunFailure, RunRequest
-from lonora_core.run_state import assert_transition
+from lonora_core.run_state import BACKGROUND_KEY, assert_transition, is_background
 from lonora_core.runtime_failure import failure_family, retry_after_seconds
 from lonora_core.user_error import LonoraError
 from sqlalchemy import and_, exists, or_, select
@@ -104,6 +104,9 @@ def run_data(row: RunRow) -> dict[str, Any]:
         "parent_run_id": row.parent_run_id,
         "status": row.status,
         "trigger": row.trigger,
+        # VISION 11.5: no one waits on a background run's reply; clients leave its
+        # failure out of the conversation.
+        "background": is_background(row.trigger, row.model_metadata),
         "input_seq": row.input_seq,
         "error_code": row.error_code,
         "failure": failure_data(row),
@@ -151,6 +154,7 @@ async def create_run(
         group = await session.get(GroupRow, thread.group_id)
         if group is None or agent.id not in group.payload.get("member_ids", []):
             raise LonoraError("agent_not_group_member", 409)
+    parent: RunRow | None = None
     if request.parent_run_id:
         parent = await session.get(RunRow, request.parent_run_id)
         if parent is None:
@@ -181,6 +185,8 @@ async def create_run(
                 "skill_execution_image",
                 # Only ``submit_card`` marks a card submission's own Run.
                 "ui_submit_origin",
+                # Only the follow-up stamp below marks a Run as background work.
+                BACKGROUND_KEY,
             }
         },
     )
@@ -189,6 +195,13 @@ async def create_run(
     taint = await inherited_taint(session, request.metadata, request.parent_run_id)
     if taint is not None:
         row.model_metadata = {**row.model_metadata, TAINT: taint}
+    if (
+        request.trigger == "follow_up"
+        and parent is not None
+        and is_background(parent.trigger, parent.model_metadata)
+    ):
+        # A continuation of background work is background (11.5).
+        row.model_metadata = {**row.model_metadata, BACKGROUND_KEY: True}
     if run_id:
         row.id = run_id
     session.add(row)

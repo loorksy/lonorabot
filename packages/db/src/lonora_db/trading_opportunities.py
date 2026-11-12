@@ -55,7 +55,10 @@ def transition(
     reason_code: str,
     *,
     evidence: dict[str, Any] | None = None,
+    wakes_agent: bool = False,
 ) -> None:
+    """``wakes_agent``: a wake follows that reports in the agent's own conversation, so
+    no attention item stands in beside its reply (VISION 11.5)."""
     previous = row.status
     row.status, row.updated_at, row.version = status, utcnow(), row.version + 1
     row.state = {**row.state, "reason_code": reason_code}
@@ -77,6 +80,7 @@ def transition(
             "timeframe": row.timeframe,
             "definition": row.payload,
             "evidence": evidence or {},
+            **({"wakes_agent": True} if wakes_agent else {}),
         },
     )
 

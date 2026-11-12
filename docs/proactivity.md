@@ -58,3 +58,47 @@ list, a pin or a favourite), when a question in it waits for the owner's answer,
 is the agent's earliest conversation; a routine on such a thread moves to a new work
 thread of its own. A routine or watch run still in flight in a converted thread reports
 to the agent's conversation, like the runs the new code queues.
+
+## Silence when there is nothing (11.5)
+
+A scheduled or background run with nothing new posts nothing. The agent decides what is
+new; the server makes sure that an empty or failed background run leaves nothing in a
+conversation, the attention list or a channel.
+
+- **Background runs** (`is_background` in `lonora_core/run_state.py`): the triggers
+  `routine`, `watch` (opportunity wakes included), `broker_event` (Lonora's system-alert
+  wakes included), `activation`, `tickets` (Tasks with their timer, watch and broker
+  resumes, and legacy tickets), `webhook` and `workspace_wake`; and a `follow_up` (a
+  helper's returned outcome or a collaboration synthesis) whose parent is background:
+  `create_run` marks it `background`, and a caller never can. Not background: the owner's
+  messages and taps (`user`, `group`, `owner_card`, `agent_created`), peer requests and
+  subagent tasks (they owe the agent that asked an answer), the morning brief (11.1) and
+  the weekly report (5.5.6).
+- **What the agent is told.** Every background `<wake>` frame carries one fixed sentence
+  (`BACKGROUND` in `lonora_agent/context/routine.py`): with nothing new for the owner, end
+  with an empty reply, which posts nothing and notifies no one. The core policy, the
+  work-limit notice, the market-watch skill and `routine_create` say the same.
+- **An empty reply posts nothing.** A background run is not nudged with the "no answer"
+  notice, and `group_silence` accepts it. At its work limit it ends with no fallback text
+  (a Task that is not finished still asks its owner). `complete_run` posts no message and
+  `return_outcome` copies nothing, and no attention item stands in for its reply (below).
+  Once the owner writes to a background run (an answer to its question), the rest of that
+  run answers like an owner turn (`owner_spoke`).
+- **A failed run posts nothing in the conversation.** It has no result, so nothing is
+  copied. A background run streams no preview (`run.delta`), so no partial text remains
+  where it ran, even in a chat. The mobile run strip leaves failed background runs out
+  (`run.background`). A failed, cancelled or empty helper of background work that has
+  ended in a conversation posts no `<peer_outcome>` card there and starts no follow-up;
+  a background run still running is still told, and a work thread still gets every
+  outcome, as that work's memory.
+- **Attention items.** A wake's source raises no item beside the woken run: a met watch,
+  broker activity that woke an agent (`wakes_agent`), a server-detected opportunity change
+  whose wake reports in the agent's own conversation, and a collaboration synthesis or a
+  Task that completed with an empty result. Broker activity while Lonora is paused, an
+  opportunity whose wake cannot report in the agent's conversation, watch invalidation and
+  expiry, and the 11.4 items stay items.
+- **Channels.** A Telegram or webhook integration without a thread never forwards a work
+  thread's messages; the conversation copy is sent once.
+- **Kept on purpose.** A run that sent an order whose result is not verified always says
+  so (5.3.3). Explicit acts are the agent's own choice: `owner_notify`, cards, peer
+  requests, `collaboration_finish`.

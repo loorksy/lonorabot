@@ -19,10 +19,28 @@ from pydantic import ValidationError
     ("kind", "payload", "importance", "code"),
     [
         ("trading.approval.updated", {"status": "pending"}, "action_required", "approval_required"),
-        ("watch.confirmed", {"state": "confirmed"}, "opportunity", "setup_confirmed"),
+        # VISION 11.5: a met watch always wakes its agent, whose reply is the news.
+        ("watch.confirmed", {"state": "confirmed"}, "silent", "internal_update"),
+        ("watch.invalidated", {"state": "invalidated"}, "important_change", "thesis_invalidated"),
         ("watch.forming", {}, "silent", "internal_update"),
         ("collaboration.updated", {"status": "completed"}, "silent", "internal_update"),
         ("collaboration.completed", {}, "important_change", "collaboration_completed"),
+        ("collaboration.completed", {"result_empty": True}, "silent", "internal_update"),
+        ("broker.external_activity", {"id": "x"}, "important_change", "external_broker_activity"),
+        ("broker.external_activity", {"id": "x", "wakes_agent": True}, "silent", "internal_update"),
+        ("opportunity.transition", {"status": "confirmed"}, "opportunity", "setup_confirmed"),
+        (
+            "opportunity.transition",
+            {"status": "invalidated"},
+            "important_change",
+            "thesis_invalidated",
+        ),
+        (
+            "opportunity.transition",
+            {"status": "invalidated", "wakes_agent": True},
+            "silent",
+            "internal_update",
+        ),
         ("task.retry_scheduled", {}, "silent", "internal_update"),
         ("task.failed", {"recovery": "owner"}, "action_required", "task_review"),
         (
@@ -44,6 +62,12 @@ from pydantic import ValidationError
             "internal_update",
         ),
         ("task.updated", {"status": "completed"}, "informational", "task_completed"),
+        (
+            "task.updated",
+            {"status": "completed", "result_empty": True},
+            "silent",
+            "internal_update",
+        ),
         # Broker transitions raise no item of their own; health is read from stored state.
         ("broker.recovered", {"previous_status": "degraded"}, "silent", "internal_update"),
         ("broker.degraded", {"status": "disconnected"}, "silent", "internal_update"),

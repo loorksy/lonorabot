@@ -1235,7 +1235,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           (run) =>
             run.status === "waiting_input" ||
             run.status === "waiting_takeover" ||
-            run.status === "failed",
+            // 11.5: a failed background run posts nothing in the conversation.
+            (run.status === "failed" && !run.background),
         )
         .slice(0, 1)
         .map((run) => (

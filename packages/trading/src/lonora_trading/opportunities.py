@@ -14,6 +14,7 @@ from lonora_db.schema import (
     AgentRow,
     EffectReceiptRow,
     MarketWatchRow,
+    ThreadRow,
     TradingJournalRow,
     TradingOpportunityRow,
 )
@@ -141,6 +142,7 @@ async def refresh_opportunity(
         return row
     previous = row.status
     codes, facts = await evidence_state(session, row, now)
+    reports = bool(codes) and await wake_reports(session, row)
     if "thesis_expired" in codes or "thesis_watch_expired" in codes:
         transition(
             session,
@@ -148,11 +150,19 @@ async def refresh_opportunity(
             "expired",
             "thesis_horizon_elapsed" if "thesis_expired" in codes else "thesis_watch_expired",
             evidence=facts,
+            wakes_agent=reports,
         )
     elif "thesis_watch_invalidated" in codes:
-        transition(session, row, "invalidated", "thesis_watch_invalidated", evidence=facts)
+        transition(
+            session,
+            row,
+            "invalidated",
+            "thesis_watch_invalidated",
+            evidence=facts,
+            wakes_agent=reports,
+        )
     elif row.status == "confirmed" and codes:
-        transition(session, row, "degraded", codes[0], evidence=facts)
+        transition(session, row, "degraded", codes[0], evidence=facts, wakes_agent=reports)
     if row.status != previous:
         await wake_opportunity(session, row)
     return row
@@ -417,6 +427,20 @@ async def maintain_opportunity(session: AsyncSession, identifier: str) -> bool:
     return True
 
 
+async def wake_reports(session: AsyncSession, row: TradingOpportunityRow) -> bool:
+    """Whether ``wake_opportunity`` wakes the agent and its reply reaches the agent's own
+    conversation (``report_to_origin``): then that reply is the owner's news (11.5)."""
+    agent = await session.get(AgentRow, row.agent_id)
+    origin = await session.get(ThreadRow, row.thread_id) if row.thread_id else None
+    return bool(
+        agent
+        and not agent.paused
+        and origin
+        and origin.agent_id == agent.id
+        and origin.purpose == "conversation"
+    )
+
+
 async def wake_opportunity(session: AsyncSession, row: TradingOpportunityRow) -> None:
     """Meaningful durable transition only; reuse work lane, receipts and same Agent.
 
@@ -440,7 +464,7 @@ async def wake_opportunity(session: AsyncSession, row: TradingOpportunityRow) ->
             thread_id=work.id,
             agent_id=agent.id,
             trigger="watch",
-            prompt="Inspect the saved opportunity transition and its actual evidence, explain the material change and decide what to do next. Your normal authority applies; your grant, account limits and pauses decide at execution. Never resend an uncertain operation.",
+            prompt="Inspect the saved opportunity transition and its actual evidence and decide what to do next. Your normal authority applies; your grant, account limits and pauses decide at execution. Never resend an uncertain operation.",
             metadata={
                 "opportunity_id": row.id,
                 "opportunity_version": row.version,

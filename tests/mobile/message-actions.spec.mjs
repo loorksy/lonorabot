@@ -271,31 +271,43 @@ test("a failed reply offers Retry once; the retry names it and the banner settle
   }
 });
 
-test("a failed routine run shows in the banner without Retry: the server never retries it", async ({
+test("a failed background run stays out of the banner (11.5); a failed peer run shows without Retry", async ({
   page,
   context,
 }) => {
   const data = await fixture(context);
   const now = new Date().toISOString();
-  const routine = {
+  const failed = {
     id: randomUUID(),
     thread_id: data.thread.id,
     agent_id: data.agent.id,
     parent_run_id: null,
     status: "failed",
     trigger: "routine",
+    background: true,
     input_seq: null,
     model_metadata: {},
     result: null,
-    error_code: "provider_unavailable",
+    error_code: "model_credentials_rejected",
     created_at: now,
     updated_at: now,
   };
-  await page.route("**/api/runs?thread_id=*", (route) => route.fulfill({ json: [routine] }));
+  // Work another agent asked for is not background: its failure still shows.
+  const peer = {
+    ...failed,
+    id: randomUUID(),
+    trigger: "peer",
+    background: false,
+    error_code: "model_provider_unavailable",
+  };
+  await page.route("**/api/runs?thread_id=*", (route) =>
+    route.fulfill({ json: [failed, peer] }),
+  );
   try {
     await page.goto(`/thread?id=${data.thread.id}`);
-    await expect(page.getByText(data.agent.name).first()).toBeVisible();
-    await expect(page.getByText(/· Failed/).first()).toBeVisible();
+    await expect(page.getByText(/The model provider is unavailable right now/)).toBeVisible();
+    await expect(page.getByText(/The provider rejected this API key/)).toHaveCount(0);
+    await expect(page.getByText(/· Failed/)).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
   } finally {
     await data.remove();
