@@ -752,6 +752,25 @@ cmd_update() {
     fi
     if [[ "$pinned" == "$previous" ]]; then gate_pinned "$held"; return 0; fi
     say "Target $pinned: migration head $head, minimum client $minimum."
+    # The update runs as the target release's own lonora: a running script never sees the
+    # target's owner-control definition or its other fixes. Before any state change, run
+    # the target's copy (with this lock, home and command name) when it differs from this one.
+    if [[ -z "${LONORA_TARGET_TOOL:-}" ]]; then
+        local tool="$STATE/update-tool/lonora"
+        mkdir -p "$STATE/update-tool"
+        if image_file "$pinned" /app/deploy/infra/compose/lonora >"$tool.part" 2>/dev/null && [[ -s "$tool.part" ]]; then
+            mv -f "$tool.part" "$tool"
+            if ! cmp -s "$tool" "$SELF"; then
+                chmod 700 "$tool"
+                say "Continuing with $pinned's own lonora."
+                local again=("$pinned"); if "$keep_data"; then again+=(--keep-data); fi
+                export LONORA_TARGET_TOOL=1 LONORA_HOME LONORA_CMD_NAME="$CMD_NAME"
+                exec bash "$tool" update "${again[@]}"
+            fi
+        else
+            rm -f "$tool.part"
+        fi
+    fi
     local controls="$STATE/update-controls.sh.part"
     target_controls "$pinned" "$controls" || die "Cannot read the owner-control definition of $pinned; nothing was changed."
 
@@ -867,7 +886,7 @@ cmd_maintenance() {
 
 main() {
     cd "$LONORA_HOME"
-    CMD_NAME="$(command_name)"
+    CMD_NAME="${LONORA_CMD_NAME:-$(command_name)}"
     [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || die 'LONORA_BACKUP_KEEP must be a positive integer.'
     trap 'cleanup' EXIT
     trap 'cleanup; exit 130' INT TERM HUP

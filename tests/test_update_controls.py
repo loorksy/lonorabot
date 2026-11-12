@@ -90,7 +90,8 @@ def schemas() -> Iterator[tuple[str, str]]:
         INSERT INTO {full}.ln_agents VALUES ('a1', false);
         INSERT INTO {full}.ln_broker_sessions VALUES ('c1', '{{"enabled": true}}');
         INSERT INTO {full}.ln_messages VALUES ('m1', 'user', 'hello');
-        INSERT INTO {full}.ln_messages VALUES ('m2', 'assistant', 'hi')"""
+        INSERT INTO {full}.ln_messages VALUES ('m2', 'assistant', 'hi');
+        INSERT INTO {full}.ln_tickets VALUES ('k1', '{{"task": {{"status": "running"}}}}')"""
     )
     try:
         yield full, dropped
@@ -117,6 +118,10 @@ def test_a_dropped_table_never_makes_the_records_unreadable(schemas: tuple[str, 
         "UPDATE ln_broker_sessions SET payload = '{\"enabled\": false}'",
         "INSERT INTO ln_trade_approvals VALUES ('t1', 'pending')",
         "INSERT INTO ln_messages VALUES ('m3', 'user', 'close everything')",
+        # A Task's state is nested under "task" (lonora_db.tasks).
+        'UPDATE ln_tickets SET state = \'{"task": {"status": "paused"}}\'',
+        'UPDATE ln_tickets SET state = \'{"task": {"status": "running", '
+        '"control_requested": "cancel"}}\'',
     ],
 )
 def test_an_owner_control_change_changes_the_fingerprint(
@@ -212,3 +217,33 @@ def test_the_installed_definition_is_the_one_the_image_ships() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "COPY infra/compose ./deploy/infra/compose" in dockerfile
     assert CONTROLS.is_file()
+
+
+def test_the_update_continues_with_the_target_releases_own_lonora(tmp_path: Path) -> None:
+    """The running (old) script hands the update to the target's copy before any change."""
+    (tmp_path / "state").mkdir()
+    target = (
+        '#!/usr/bin/env bash\necho "target lonora $* home=$LONORA_HOME tool=$LONORA_TARGET_TOOL"\n'
+    )
+    # The block of cmd_update under test, taken from the script itself.
+    block = f"sed -n '/# The update runs as the target release/,/^    local controls=/p' '{LONORA}'"
+    script = (
+        "set -euo pipefail; keep_data=true; pinned=repo@sha256:abc; "
+        "SELF=/nonexistent/lonora; CMD_NAME=lonora; STATE=state; "
+        'say() { echo "say: $*"; }; image_file() { printf "%s" "$TARGET"; }; '
+        f"eval \"step() {{ $({block} | sed '$d'); }}\"; step"
+    )
+
+    def run(**extra: str) -> subprocess.CompletedProcess[str]:
+        env = {**os.environ, "TARGET": target, "LONORA_HOME": str(tmp_path), **extra}
+        return subprocess.run(
+            ["bash", "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True
+        )
+
+    handed = run()
+    assert handed.returncode == 0, handed.stderr
+    assert "target lonora update repo@sha256:abc --keep-data" in handed.stdout, handed.stdout
+    assert "tool=1" in handed.stdout and f"home={tmp_path}" in handed.stdout
+    # Already the target's own copy: it is not run again.
+    again = run(LONORA_TARGET_TOOL="1")
+    assert again.returncode == 0 and "target lonora" not in again.stdout, again.stdout
