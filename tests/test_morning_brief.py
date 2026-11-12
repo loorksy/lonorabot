@@ -63,9 +63,10 @@ def test_the_owner_zone_is_reach_me_then_the_device_then_utc() -> None:
     assert owner_zone({}, None).key == "UTC"
 
 
-def test_the_brief_trigger_is_server_text_and_an_empty_reply_is_not_accepted() -> None:
+def test_the_brief_wake_is_a_request_turn_and_an_empty_reply_is_not_accepted() -> None:
     # An empty turn of a conversational trigger is answered with the "no answer" notice
-    # and the silence tool refuses it: Lonora must write the brief.
+    # and the silence tool refuses it: Lonora must write the brief. The facts carry text
+    # agents wrote, so the wake stays out of the system role (6.10).
     assert is_conversational(TRIGGER)
     run = RunRow(
         thread_id="t",
@@ -73,7 +74,9 @@ def test_the_brief_trigger_is_server_text_and_an_empty_reply_is_not_accepted() -
         trigger=TRIGGER,
         prompt="Write it.\n<brief_facts>\n{}\n</brief_facts>",
     )
-    assert wake_context(run).startswith("<wake trigger='morning_brief'>\nWrite it.")
+    assert wake_context(run) == (
+        "<wake trigger='morning_brief' request='in_the_conversation_turn'/>"
+    )
 
 
 async def seed(session: Any, owner: str, *, balance: str = "1000") -> tuple[str, str]:
@@ -311,8 +314,11 @@ def test_the_plain_brief_in_english_names_the_owner_and_no_raw_values() -> None:
                 "opened_by": "owner",
             }
         ],
+        "open_position_count": 3,
         "pending_orders": [],
+        "pending_order_count": 0,
         "pending_approvals": [],
+        "pending_approval_count": 0,
         "unsettled_operations": 1,
         "nothing_else_needs_you": False,
     }
@@ -321,5 +327,24 @@ def test_the_plain_brief_in_english_names_the_owner_and_no_raw_values() -> None:
     assert "#1: no broker reading" in text
     assert "• Euro: no operations" in text
     assert "• EURUSD buy 1 @ 1.1 · floating -3 · you" in text
+    assert "• +2 more" in text
     assert "operations of unknown outcome to settle: 1" in text
+    assert "• EURUSD شراء 1 @ 1.1" in plain_brief(facts, "ar")
     assert "Nothing else needs you." not in text
+
+
+@pytest.mark.asyncio
+async def test_a_wake_too_large_for_its_prompt_still_brings_the_plain_brief(
+    task_db: Fixture,
+) -> None:
+    db, owner, _agent, _thread = task_db
+    async with db.sessions() as session, session.begin():
+        lonora, _gold = await seed(session, owner)
+        session.add_all(
+            AgentRow(owner_id=owner, name="Agent " + "x" * 70 + str(n)) for n in range(300)
+        )
+    assert await brief_tick(db, owner, now=DAY + timedelta(hours=4, minutes=1)) == "2026-11-12"
+    assert await brief_runs(db) == []
+    async with db.sessions() as session:
+        (message,) = await session.scalars(select(MessageRow))
+    assert message.agent_id == lonora and "موجز الصباح" in message.content
