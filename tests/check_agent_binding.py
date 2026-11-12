@@ -199,29 +199,6 @@ async def checks() -> None:
             },
             "agent_trading_symbol_mismatch",
         )
-        await denied(
-            "goal_create",
-            {
-                "title": "Wrong market",
-                "objective": "Explicit invalid fixture",
-                "account_id": primary,
-                "symbol": symbols[0],
-                "steps": [
-                    {
-                        "id": "entry",
-                        "title": "Wrong step",
-                        "kind": "trade",
-                        "trade": {
-                            "account_id": primary,
-                            "symbol": symbols[1],
-                            "action": "buy",
-                            "volume": "0.1",
-                        },
-                    }
-                ],
-            },
-            "tool_arguments_invalid",
-        )
         allowed = await registry.execute(
             ToolCall(
                 id="quote",
@@ -238,7 +215,7 @@ async def checks() -> None:
         assert set(catalog["symbols"]) >= set(symbols[:2])
         assert catalog["execution_scope"]["symbol"] == symbols[0]
         print(
-            "PASS generic tool boundary: related-pair reads on the bound account; cross-account reads and cross-pair chart/trade/watch/goal steps rejected"
+            "PASS generic tool boundary: related-pair reads on the bound account; cross-account reads and cross-pair chart/trade/watch steps rejected"
         )
         async with fixture.runtime.db.sessions() as session, session.begin():
             snapshot = await session.get(TradingAccountRow, primary, with_for_update=True)
@@ -362,34 +339,6 @@ async def checks() -> None:
                 response.status_code == 409
                 and response.json()["code"] == "agent_trading_symbol_mismatch"
             )
-        response = await fixture.client.post(
-            "/api/trading/goals",
-            json={
-                "agent_id": agent["id"],
-                "thread_id": thread["id"],
-                "title": "Forbidden target",
-                "objective": "Explicit invalid fixture",
-                "account_id": primary,
-                "symbol": symbols[1],
-                "steps": [
-                    {
-                        "id": "entry",
-                        "title": "Foreign entry",
-                        "kind": "trade",
-                        "trade": {
-                            "account_id": primary,
-                            "symbol": symbols[1],
-                            "action": "buy",
-                            "volume": "0.1",
-                        },
-                    }
-                ],
-            },
-        )
-        assert (
-            response.status_code == 409
-            and response.json()["code"] == "agent_trading_symbol_mismatch"
-        )
         peer_context = await fixture.lease(await fixture.run(agents[1], other_thread))
         async with fixture.runtime.db.sessions() as session, session.begin():
             peer_run = await session.get(RunRow, peer_context.lease.run_id)
@@ -409,7 +358,7 @@ async def checks() -> None:
             raise AssertionError("Peer delegated trade bypassed parent binding")
         await fixture.request("DELETE", "/charts/" + foreign_chart["id"])
         print(
-            "PASS reads open across charts and accounts; direct chart+goal APIs and peer financial ancestry cannot bypass binding"
+            "PASS reads open across charts and accounts; direct chart APIs and peer financial ancestry cannot bypass binding"
         )
         from lonora_contracts.market_watch import Watch
         from lonora_db.schema import MarketWatchRow

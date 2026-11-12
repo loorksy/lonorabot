@@ -31,6 +31,10 @@ MARKER=state/update-in-progress
 ROLLBACK_BUNDLE=state/rollback-bundle.tar.gz
 HELD_MARKER=state/held-update
 HELD_BUNDLE=state/held-rollback-bundle.tar.gz
+# The update's target release's owner-control definition (lonora-controls.sh), kept with
+# the marker; the held copy belongs to the held marker.
+UPDATE_CONTROLS=state/update-controls.sh
+HELD_CONTROLS=state/held-update-controls.sh
 RESTORE_MARKER=state/restore-in-progress
 WORKSPACE_IMAGE=workspace.img
 WORKSPACE_DISK=workspace-disk
@@ -48,10 +52,6 @@ RESTORABLE_KEY='^LONORA_[A-Z0-9_]+$'
 # Nor anything that describes this installation rather than its secrets: project name,
 # mode/port, overlays and resource limits.
 NEVER_RESTORED='^LONORA_(POSTGRES_PASSWORD|COMPOSE_OVERLAYS|IMAGE|IMAGE_REPO|DATABASE_URL|HOST_DATABASE_URL|PROJECT|PROXY_LISTEN|[A-Z]+_(MEMORY|CPUS)|WORKSPACE_[A-Z_]+)$'
-# Owner controls, authority and money records. If any of them changed while a new version
-# ran, restoring the pre-update backup could undo an owner's stop, restriction or
-# revocation, or erase the record of an order already at the broker: the rollback holds.
-CONTROL_TABLES=(ln_trading_restrictions ln_account_authorities ln_supervision_grants ln_owner_actions ln_trade_approvals ln_trading_journal)
 CLEANUP=()
 GPG_DIR=""
 WORK_DIR=""
@@ -289,32 +289,15 @@ wait_for() { # $1: path
 psql_value() { compose exec -T db psql -U lonora -d lonora -v ON_ERROR_STOP=1 -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 db_revision() { psql_value 'SELECT version_num FROM lonora_v2_alembic'; }
 database_exists() { [[ "$(compose exec -T db psql -U lonora -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='lonora'" 2>/dev/null | tr -d '[:space:]')" == 1 ]]; }
-# A digest of every owner-control, authority and money record (whole rows), the trading
-# switch and emergency stop, and the owner's own messages. Each row is hashed on its own,
-# so the aggregate stays small whatever the table size. Empty when the DB cannot be read.
-row_digest() { # $1 FROM clause
-    psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5(t::text) AS h FROM $1) r"
-}
-control_fingerprint() {
-    local table part all=""
-    for table in "${CONTROL_TABLES[@]}"; do
-        part="$(psql_value "SELECT CASE WHEN to_regclass('$table') IS NULL THEN 'absent' END")" || return 0
-        if [[ "$part" != absent ]]; then part="$(row_digest "$table t")" || return 0; fi
-        [[ -n "$part" ]] || return 0
-        all+="$table=$part;"
-    done
-    part="$(row_digest "ln_settings t WHERE key LIKE 'trading%'")" || return 0
-    [[ -n "$part" ]] || return 0
-    all+="settings=$part;"
-    part="$(psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5(t.id || ':' || coalesce(t.state->>'status', '')) AS h FROM ln_trading_goals t WHERE t.state->>'status' IN ('paused', 'cancelled')) r")" || return 0
-    [[ -n "$part" ]] || return 0
-    all+="goal_exits=$part;"
-    part="$(psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5(t.id || ':' || coalesce(t.state->>'control_requested', '') || ':' || CASE WHEN t.state->>'status' IN ('paused', 'cancelled') THEN t.state->>'status' ELSE '' END) AS h FROM ln_tickets t WHERE t.state->>'control_requested' IS NOT NULL OR t.state->>'status' IN ('paused', 'cancelled')) r")" || return 0
-    [[ -n "$part" ]] || return 0
-    all+="task_exits=$part;"
-    part="$(row_digest "ln_messages t WHERE role = 'user'")" || return 0
-    [[ -n "$part" ]] || return 0
-    printf '%s\n' "$all" "owner_messages=$part" | sha256sum | cut -d' ' -f1
+# The owner-control fingerprint (CONTROL_TABLES, control_fingerprint) lives in
+# lonora-controls.sh. While an update is unfinished or held, the target release's copy
+# ($UPDATE_CONTROLS) is the one in force: the baseline read after the migrations and the
+# comparison of a rollback use the definition of the schema the target migrated to.
+use_controls() {
+    local file=infra/compose/lonora-controls.sh
+    if [[ -f "$UPDATE_CONTROLS" ]]; then file="$UPDATE_CONTROLS"; fi
+    # shellcheck source=/dev/null
+    source "$file" || return 1
 }
 revision_known() { # $1 image, $2 revision: does that image's code know this migration?
     docker run --rm --network none --entrypoint python "$1" -c \
@@ -605,6 +588,15 @@ resolve_digest() { # $1 image reference -> repo@sha256:...
     printf '%s\n' "$digest"
 }
 image_file() { docker run --rm --network none --entrypoint cat "$1" "$2"; }
+# The target release's owner-control definition, written to $2. An image built before the
+# definition was its own file carries none: this installation's copy stands in for it.
+target_controls() { # $1 image, $2 output file
+    if image_file "$1" /app/deploy/infra/compose/lonora-controls.sh >"$2" 2>/dev/null && [[ -s "$2" ]]; then
+        return 0
+    fi
+    say "$1 carries no owner-control definition; the update reads the owner controls with this installation's."
+    cp infra/compose/lonora-controls.sh "$2"
+}
 
 # Copy the image's /app/deploy bundle over this installation. Every file goes to a temp
 # name and is renamed into place, so a running copy of this script is never rewritten in
@@ -665,6 +657,10 @@ back_to_hold() { # $1 reason
         mv -f "$HELD_BUNDLE" "$ROLLBACK_BUNDLE" || status=1
     fi
     if ((status == 0)); then mv -f "$HELD_MARKER" "$MARKER" || status=1; fi
+    if ((status == 0)); then
+        if [[ -f "$HELD_CONTROLS" ]]; then mv -f "$HELD_CONTROLS" "$UPDATE_CONTROLS" || status=1
+        else rm -f "$UPDATE_CONTROLS" || status=1; fi
+    fi
     trap 'cleanup; exit 130' INT TERM HUP
     ((status == 0)) || { say "Cannot restore the held state from $HELD_MARKER; run: sudo lonora rollback"; return 1; }
     print_held 'the forward update did not pass its health gate; the data it migrated is kept.'
@@ -688,7 +684,9 @@ rollback() { # $1 reason, $2 force (true|false)
         restoring) restore_db=true ;;
     esac
     if "$check" && [[ "$force" != true ]]; then
-        now="$(control_fingerprint)"
+        # The definition the baseline was read with: the update's target copy.
+        now=""
+        if use_controls; then now="$(control_fingerprint)"; fi
         if [[ -z "$now" ]]; then
             marker_set phase hold || { say "Cannot write $MARKER; rollback stopped before touching the database."; return 1; }
             print_held 'the owner-control and trading records cannot be read, so it is not known whether they changed.'
@@ -723,7 +721,7 @@ rollback() { # $1 reason, $2 force (true|false)
     compose up -d --wait --remove-orphans >/dev/null 2>&1 || true
     if wait_for /ready; then
         printf '%s\n' "$(date -u +%FT%TZ) rollback to $previous ok ($reason)" >>"$STATE/history.log"
-        rm -f "$MARKER" "$ROLLBACK_BUNDLE"
+        rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"
         say "Rolled back to $previous; /ready passes."
         return 0
     fi
@@ -766,7 +764,7 @@ gate_pinned() { # $1 held (true|false)
     elif ! maintenance_off || ! compose up -d --wait --remove-orphans || ! wait_for /ready; then step='/ready health gate'
     fi
     if [[ -z "$step" ]]; then
-        if "$held"; then rm -f "$MARKER" "$ROLLBACK_BUNDLE"; say 'Keeping the current data: the held update is closed.'; fi
+        if "$held"; then rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"; say 'Keeping the current data: the held update is closed.'; fi
         say "Lonora is running; /ready passes (migration $(db_revision))."
         return 0
     fi
@@ -834,12 +832,34 @@ cmd_update() {
     fi
     if [[ "$pinned" == "$previous" ]]; then gate_pinned "$held"; return 0; fi
     say "Target $pinned: migration head $head, minimum client $minimum."
+    # The update runs as the target release's own lonora: a running script never sees the
+    # target's owner-control definition or its other fixes. Before any state change, run
+    # the target's copy (with this lock, home and command name) when it differs from this one.
+    if [[ -z "${LONORA_TARGET_TOOL:-}" ]]; then
+        local tool="$STATE/update-tool/lonora"
+        mkdir -p "$STATE/update-tool"
+        if image_file "$pinned" /app/deploy/infra/compose/lonora >"$tool.part" 2>/dev/null && [[ -s "$tool.part" ]]; then
+            mv -f "$tool.part" "$tool"
+            if ! cmp -s "$tool" "$SELF"; then
+                chmod 700 "$tool"
+                say "Continuing with $pinned's own lonora."
+                local again=("$pinned"); if "$keep_data"; then again+=(--keep-data); fi
+                export LONORA_TARGET_TOOL=1 LONORA_HOME LONORA_CMD_NAME="$CMD_NAME"
+                exec bash "$tool" update "${again[@]}"
+            fi
+        else
+            rm -f "$tool.part"
+        fi
+    fi
+    local controls="$STATE/update-controls.sh.part"
+    target_controls "$pinned" "$controls" || die "Cannot read the owner-control definition of $pinned; nothing was changed."
 
     # Everything is validated; from here on the state changes.
     if "$held"; then
-        # Both renames or neither: no signal handler runs between them.
+        # All renames or none: no signal handler runs between them.
         trap '' INT TERM HUP
         mv -f "$ROLLBACK_BUNDLE" "$HELD_BUNDLE" && mv -f "$MARKER" "$HELD_MARKER" || die "Cannot set the held state aside; nothing was changed."
+        if [[ -f "$UPDATE_CONTROLS" ]]; then mv -f "$UPDATE_CONTROLS" "$HELD_CONTROLS" || die "Cannot set the held state aside; run: sudo lonora rollback"; fi
         trap 'cleanup; exit 130' INT TERM HUP
         FROM_HOLD=true
         say 'Updating forward from the held state; the current data is kept.'
@@ -848,11 +868,12 @@ cmd_update() {
     if [[ -f release.json ]]; then saved+=(release.json); fi
     tar -czf "$ROLLBACK_BUNDLE" "${saved[@]}"
     printf 'previous=%s\ntarget=%s\nstarted=%s\nphase=stopping\n' "$previous" "$pinned" "$(date -u +%FT%TZ)" >"$MARKER.part"
+    mv -f "$controls" "$UPDATE_CONTROLS"
     mv -f "$MARKER.part" "$MARKER"
     say 'Stopping API and Gateway (then writes answer "updating"), then backing up.'
     if ! quiesce; then
         if "$FROM_HOLD"; then fail_update 'stopping the services'; fi
-        rm -f "$MARKER" "$ROLLBACK_BUNDLE"
+        rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"
         compose up -d --wait >/dev/null 2>&1 || true
         die 'Nothing was changed.'
     fi
@@ -860,7 +881,7 @@ cmd_update() {
     rm -f "$STATE/last-backup"
     if ! "$SELF" backup; then
         if "$FROM_HOLD"; then fail_update 'backup'; fi
-        rm -f "$MARKER" "$ROLLBACK_BUNDLE"
+        rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"
         maintenance_off
         compose up -d --wait >/dev/null 2>&1 || true
         die 'Backup failed; nothing was changed. The previous version was started again.'
@@ -876,8 +897,10 @@ cmd_update() {
     must_mark phase migrate
     say 'Running migrations.'
     compose run --rm migrate || fail_update 'migrations'
-    # Baseline of the owner controls in the migrated schema, before anything can write.
-    local baseline; baseline="$(control_fingerprint)"
+    # Baseline of the owner controls in the migrated schema, before anything can write,
+    # read with the target release's definition (the one a rollback compares with).
+    local baseline=""
+    if use_controls; then baseline="$(control_fingerprint)"; fi
     [[ -n "$baseline" ]] || fail_update 'reading the owner-control records'
     must_mark controls "$baseline"
     # The API first, with the Gateway (trading loops) still stopped.
@@ -892,7 +915,7 @@ cmd_update() {
     say 'Starting the Gateway (writes open again) and waiting for /ready.'
     compose up -d --wait --remove-orphans || fail_update 'Gateway start'
     wait_for /ready || fail_update '/ready health gate'
-    rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$HELD_MARKER" "$HELD_BUNDLE"
+    rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$HELD_MARKER" "$HELD_BUNDLE" "$UPDATE_CONTROLS" "$HELD_CONTROLS"
     printf '%s\n' "$(date -u +%FT%TZ) update to $pinned ok" >>"$STATE/history.log"
     say "Updated to $pinned (migration $(db_revision)). Backup taken first: $backup"
 }
@@ -944,7 +967,7 @@ cmd_maintenance() {
 
 main() {
     cd "$LONORA_HOME"
-    CMD_NAME="$(command_name)"
+    CMD_NAME="${LONORA_CMD_NAME:-$(command_name)}"
     [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || die 'LONORA_BACKUP_KEEP must be a positive integer.'
     trap 'cleanup' EXIT
     trap 'cleanup; exit 130' INT TERM HUP

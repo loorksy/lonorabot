@@ -1,10 +1,35 @@
 /** Recoverable owner-scoped send intents, never an alternate conversation store. */
 import type { Message } from "@lonora/contracts";
-import { pendingVoiceRich } from "@lonora/core";
+import { isPlainOutgoing, pendingVoiceRich } from "@lonora/core";
 import { Platform } from "react-native";
+import { ApiError } from "./api-error";
 import { registerSessionTeardown } from "./session-lifecycle";
 
-export type OutgoingMessage = Message & { delivery: "sending" | "failed"; retry_nonce: string };
+export type OutgoingMessage = Message & {
+  /** queued: the API never answered it; it goes out by itself when the network returns (Q6). */
+  delivery: "sending" | "queued" | "failed";
+  retry_nonce: string;
+};
+/**
+ * Whether the API itself answered a send (Q6, as on Web). No response at all, or a proxy's
+ * bare 502/504 with no Lonora error code, means the API never saw it. Every 4xx and every
+ * 503 (the app's own maintenance and database errors) is an answer.
+ */
+export function serverAnswered(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    !((error.status === 502 || error.status === 504) && error.code === "request_failed")
+  );
+}
+/**
+ * A send that waits for the network instead of failing: plain owner text the API never
+ * answered. An input answer, an edit, a card submit or a voice note never waits, and a
+ * request the session itself cancelled (sign-out, server change) is not a network loss.
+ */
+export function waitsForNetwork(error: unknown, body: Readonly<Record<string, unknown>>) {
+  if ((error as { name?: unknown } | null)?.name === "SessionRequestCancelled") return false;
+  return !serverAnswered(error) && isPlainOutgoing(body);
+}
 export type OutgoingIntent = {
   nonce: string;
   fingerprint: string;
@@ -22,6 +47,16 @@ let generation = 0;
 export const outgoingKey = (server: string, owner: string, thread: string) =>
   JSON.stringify([server, owner, thread]);
 export const outgoingMessages = (key: string): OutgoingIntent[] => entries.get(key) ?? empty;
+/**
+ * Every outbox of this server and owner known on this device: those the chat list hydrated
+ * and those of any other conversation opened (a routine's, a task's or a chart's thread).
+ */
+export function ownerOutgoingKeys(server: string, owner: string): string[] {
+  return [...entries.keys()].filter((key) => {
+    const [keyServer, keyOwner] = JSON.parse(key) as string[];
+    return keyServer === server && keyOwner === owner;
+  });
+}
 export function subscribeOutgoing(listener: () => void) {
   listeners.add(listener);
   return () => {
@@ -102,10 +137,13 @@ export function hydrateOutgoing(key: string): Promise<void> {
           !Array.isArray(item.message.attachment_ids)
         )
           continue;
+        // Only a message the server never answered keeps waiting; one that was in flight
+        // when the app went away needs the owner's retry.
+        const queued = item.message.delivery === "queued" && isPlainOutgoing(item.body);
         restored.push({
           ...item,
           body: { ...item.body, client_nonce: item.nonce },
-          message: { ...item.message, delivery: "failed" },
+          message: { ...item.message, delivery: queued ? "queued" : "failed" },
         });
       }
       const existing = outgoingMessages(key);
@@ -184,16 +222,77 @@ export async function enqueueOutgoing(
   }
   return intent;
 }
-export function failOutgoing(key: string, nonce: string) {
+export function failOutgoing(
+  key: string,
+  nonce: string,
+  delivery: OutgoingMessage["delivery"] = "failed",
+) {
   notify(
     key,
     outgoingMessages(key).map((row) =>
-      row.nonce === nonce
-        ? { ...row, message: { ...row.message, delivery: "failed" as const } }
-        : row,
+      row.nonce === nonce ? { ...row, message: { ...row.message, delivery } } : row,
     ),
   );
   void persist(key).catch(() => undefined);
+}
+const flushedListeners = new Set<(key: string, message: Message) => void>();
+/** The open conversation hears a message the flush delivered, as if it had sent it itself. */
+export function subscribeFlushed(listener: (key: string, message: Message) => void) {
+  flushedListeners.add(listener);
+  return () => {
+    flushedListeners.delete(listener);
+  };
+}
+/** «حذف» on a failed message: it leaves the outbox (it never reached the server). */
+export function dropOutgoing(key: string, nonce: string) {
+  notify(
+    key,
+    outgoingMessages(key).filter((row) => row.nonce !== nonce),
+  );
+  void persist(key).catch(() => undefined);
+}
+let flushing = false;
+/**
+ * Q6: when the network returns, the messages that waited go out by themselves, in order,
+ * under their own client_nonce (the server deduplicates). The flush stops at the first send
+ * the API still does not answer; a send it refuses becomes «failed» with a manual retry.
+ * Returns how many were sent.
+ */
+export async function flushQueued(
+  keys: readonly string[],
+  post: (thread: string, body: Record<string, unknown>) => Promise<Message>,
+): Promise<number> {
+  if (flushing) return 0;
+  flushing = true;
+  const epoch = generation;
+  let sent = 0;
+  try {
+    for (const key of keys) {
+      const thread = JSON.parse(key)[2] as string;
+      for (const row of outgoingMessages(key).filter(
+        (item) => item.message.delivery === "queued",
+      )) {
+        if (epoch !== generation) return 0;
+        failOutgoing(key, row.nonce, "sending");
+        try {
+          const message = await post(thread, row.body);
+          // The session that queued it is gone: nothing is reported to the next one.
+          if (epoch !== generation) return 0;
+          acknowledgeOutgoing(key, [message]);
+          for (const listener of flushedListeners) listener(key, message);
+          sent += 1;
+        } catch (error) {
+          if (epoch !== generation) return 0;
+          const waits = waitsForNetwork(error, row.body);
+          failOutgoing(key, row.nonce, waits ? "queued" : "failed");
+          if (waits) return sent;
+        }
+      }
+    }
+    return sent;
+  } finally {
+    flushing = false;
+  }
 }
 export function acknowledgeOutgoing(key: string, messages: Message[]) {
   const nonces = new Set(messages.map((message) => message.client_nonce).filter(Boolean));

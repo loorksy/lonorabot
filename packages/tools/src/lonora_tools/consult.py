@@ -16,19 +16,14 @@ from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import allowed_models
 from lonora_db.runs import require_lease
-from lonora_db.schema import UsageRow
 from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from pydantic import Field
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
 
 NAME = "consult_model"
-# Consultations one Run may spend; each is a full model request.
-MAXIMUM_CONSULTS_PER_RUN = 3
 MAXIMUM_CRITIQUE_CHARS = 8000
 CONSULT_TIMEOUT_SECONDS = 180.0
 INSTRUCTIONS = (
@@ -66,53 +61,12 @@ def _same(selection: ModelSelection, other: dict[str, Any] | None) -> bool:
     )
 
 
-async def _recorded_consults(session: AsyncSession, owner_id: str, run_id: str) -> int:
-    """Consultations this Run already paid for, from the server's own usage records.
-
-    Provider tool-call ids can repeat across turns or be empty, so the transcript
-    count alone could reset; a usage row is written for every completed request.
-    """
-    count = await session.scalar(
-        select(func.count())
-        .select_from(UsageRow)
-        .where(
-            UsageRow.owner_id == owner_id,
-            UsageRow.payload["run_id"].as_string() == run_id,
-            UsageRow.payload[("context_budget", "purpose")].as_string() == NAME,
-        )
-    )
-    return int(count or 0)
-
-
-def _prior_consults(state: dict[str, Any], call_id: str) -> int:
-    """Completed consultations in this Run's transcript; the current call is not counted."""
-    messages = cast(list[dict[str, Any]], state.get("messages", []))
-    answered = {
-        message.get("tool_call_id") for message in messages if message.get("role") == "tool"
-    }
-    return sum(
-        1
-        for message in messages
-        for call in cast(list[dict[str, Any]], message.get("tool_calls", []))
-        if call.get("name") == NAME and call.get("id") != call_id and call.get("id") in answered
-    )
-
-
 async def consult(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = ConsultInput.model_validate(args)
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         state = dict(run.execution_state)
-        recorded = await _recorded_consults(session, context.owner_id, run.id)
         allowed = await allowed_models(session)
-    used = max(_prior_consults(state, context.call_id), recorded)
-    if used >= MAXIMUM_CONSULTS_PER_RUN:
-        return {
-            "ok": False,
-            "code": "consult_budget_exhausted",
-            "limit": MAXIMUM_CONSULTS_PER_RUN,
-            "recovery": {"next_action": "decide_with_current_evidence"},
-        }
     route: Any = getattr(context.router, "route", None)
     if route is None:
         raise LonoraError("consult_model_unavailable", 409)
@@ -180,7 +134,6 @@ async def consult(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "critique": critique[:MAXIMUM_CRITIQUE_CHARS],
         "critique_truncated": len(critique) > MAXIMUM_CRITIQUE_CHARS
         or bool(reply.provider_metadata.get("output_truncated")),
-        "consults_remaining": max(MAXIMUM_CONSULTS_PER_RUN - used - 1, 0),
         "authority": "none: an opinion from another model, not evidence of market or account "
         "state; you remain responsible for the decision",
     }
@@ -192,8 +145,8 @@ def tools() -> list[Tool]:
             NAME,
             "Ask another of the owner's allowed models for an independent critique of a draft "
             "decision or analysis. Send a bounded evidence pack you choose; the other model has no tools, "
-            "context or authority and its answer is advisory only. Limited per run and costs a "
-            "model request; use it when a second perspective is worth that.",
+            "context or authority and its answer is advisory only. Each call costs a model "
+            "request; use it when a second perspective is worth that.",
             ConsultInput,
             consult,
             True,

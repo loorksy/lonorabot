@@ -2,6 +2,7 @@ export * from "./account-authority";
 export type * from "./agent-permissions";
 export type * from "./agent-state";
 export type * from "./attention";
+export { isBrokerHealth } from "./attention";
 export type * from "./auth";
 export type * from "./capabilities";
 export type * from "./devices";

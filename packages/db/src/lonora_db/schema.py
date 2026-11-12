@@ -46,6 +46,30 @@ class SessionRow(Base):
     revoked: Mapped[bool] = mapped_column(default=False)
 
 
+class PushDeviceRow(Base):
+    """One phone registered for push, bound to the sign-in session that registered it:
+    signing out deletes it."""
+
+    __tablename__ = "ln_push_devices"
+    __table_args__ = (UniqueConstraint("owner_id", "device_id", name="uq_push_device"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64))
+    session_hash: Mapped[str] = mapped_column(
+        ForeignKey("ln_sessions.token_hash", ondelete="CASCADE"), index=True
+    )
+    platform: Mapped[str] = mapped_column(String(16))
+    # The token is encrypted at rest; its SHA-256 keeps one row per token.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    token_ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class DeviceCredentialRow(Base):
     __tablename__ = "ln_device_credentials"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -121,7 +145,7 @@ class SuperBotRequestRow(Base):
 
 
 class AccountAuthorityRow(Base):
-    """Immutable signed account scope, independent of any predeclared Goal."""
+    """Immutable signed account scope."""
 
     __tablename__ = "ln_account_authorities"
     __table_args__ = (
@@ -525,10 +549,6 @@ class MemoryRevisionRow(Base):
 
 
 class RoutineRow(Base):
-    goal_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_trading_goals.id", ondelete="CASCADE")
-    )
-    step_id: Mapped[str | None] = mapped_column(String(64))
     __tablename__ = "ln_routines"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
@@ -549,6 +569,28 @@ class SettingRow(Base):
     __tablename__ = "ln_settings"
     key: Mapped[str] = mapped_column(String(120), primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MorningBriefRow(Base):
+    """One per owner: when the morning brief is due and what the last one saw (11.1).
+
+    ``brief_minute`` is minutes after local midnight in the owner's time zone (07:00 until
+    app opens are recorded); ``baseline``  holds balance and equity per account at the
+    last brief; ``pending`` is the brief of ``local_date`` that Lonora is writing now.
+    """
+
+    __tablename__ = "ln_morning_briefs"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    brief_minute: Mapped[int] = mapped_column(Integer, default=420)
+    last_local_date: Mapped[str | None] = mapped_column(String(10))
+    last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    baseline: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    pending: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # The latest weekly close the agents were woken for, and whether a brief carried it.
+    weekly: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -583,13 +625,35 @@ class AttentionRow(Base):
 
 class SecretRow(Base):
     __tablename__ = "ln_secrets"
-    __table_args__ = (UniqueConstraint("scope", "name"),)
+    __table_args__ = (
+        UniqueConstraint("scope", "name"),
+        CheckConstraint(
+            "scope IN ('broker','provider','integration','workspace')", name="ln_secret_scope"
+        ),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     scope: Mapped[str] = mapped_column(String(120))
     name: Mapped[str] = mapped_column(String(80))
     ciphertext: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentCliTokenRow(Base):
+    """The agent's own `lonora` CLI token (7.3.3): one per agent, gone with the agent.
+
+    ``token_hash`` (SHA-256) is what the endpoint looks a call up by; ``ciphertext`` lets
+    the workspace inject the same token into every command the agent starts.
+    """
+
+    __tablename__ = "ln_agent_cli_tokens"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class GatewayRow(Base):
@@ -830,32 +894,6 @@ class MarketSnapshotRow(Base):
     timeframe: Mapped[str] = mapped_column(String(12))
     connection_version: Mapped[int] = mapped_column(Integer)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-
-class TradingGoalRow(ResourceRow):
-    __tablename__ = "ln_trading_goals"
-    # Durable record: deleting the agent or conversation never deletes a goal's history.
-    agent_id: Mapped[str | None] = mapped_column(String(36))
-    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
-
-
-class GoalDecisionRow(Base):
-    __tablename__ = "ln_goal_decisions"
-    __table_args__ = (UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),)
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    # Durable record: the goal id is kept as a value, never cascaded away.
-    goal_id: Mapped[str] = mapped_column(String(36), index=True)
-    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
-    step_id: Mapped[str] = mapped_column(String(64))
-    attempt: Mapped[int] = mapped_column(Integer, default=1)
-    run_id: Mapped[str | None] = mapped_column(ForeignKey("ln_runs.id", ondelete="SET NULL"))
-    operation_id: Mapped[str] = mapped_column(String(80), unique=True)
-    status: Mapped[str] = mapped_column(String(24), default="planned")
-    request: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -23,10 +23,11 @@ broken routine can no longer stop broker reconciliation.
 | `heartbeat` | 10 s | 30 s | yes |
 | `owners` | 10 s | 60 s | yes |
 | `routines`, `task_waits` | 5 s | 120 s | yes |
-| `task_retries`, `outcomes`, `goals` | 10 s | 120 s | yes |
+| `task_retries`, `outcomes` | 10 s | 120 s | yes |
 | `reconcile`, `verifications`, `account_recovery` | 10 s | 300 s | yes |
 | `market`, `watches`, `channels`, `attention` | 2 s | 120 s | yes |
 | `watchdog` | 30 s | 120 s | yes |
+| `morning_brief` ([morning-brief.md](morning-brief.md)) | 30 s | 120 s | yes |
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
@@ -41,7 +42,7 @@ watchdog report it while the supervisor restarts it. A step is stalled when its 
 iteration has run longer than `max(120 s, 12 × interval, timeout + interval)`, or when
 it has not succeeded for that long. The threshold is never shorter than one legitimate
 iteration, so a slow broker inside reconciliation's own timeout is a broker problem
-(`broker_degraded`), not a stalled service.
+(a broker health item, `docs/attention.md`), not a stalled service.
 Steps that serve several owners run each owner separately, so one owner's failure never
 skips another.
 
@@ -49,8 +50,7 @@ skips another.
 
 Inside a step, every item is isolated by `ItemGuard` (`lonora_db/item_failures.py`):
 routines, automatic task retries, activation reviews, task waits, outcome returns,
-attention events and items, watches, channel integrations, goal decisions and goal
-target reviews, and opportunities. Each item runs in its own transaction and has its
+attention events and items, watches, channel integrations and opportunities. Each item runs in its own transaction and has its
 own time limit (45 s; 100 s for a channel integration's batch of deliveries), well
 below the step's timeout. An item that raises, or hangs past its limit (code
 `timeout`), is recorded in `ln_item_failures` (kind, item, failure count, code, next
@@ -78,8 +78,7 @@ systematic fault cannot flood the inbox.
   already reaches the owner as `task_review`;
 - a task wait or outcome return stays in the ledger quarantine.
 
-Goal decisions, goal target reviews and opportunities can track a financial operation,
-so they are never quarantined: they only back off. Channel integrations only back off
+Opportunities can track a financial operation, so they are never quarantined: they only back off. Channel integrations only back off
 too, so a provider outage never silences notifications. Reconciliation already isolates
 each operation, and every broker observation on the reconciliation and watch poll paths
 has its own timeout (30 s and 20 s). A watch whose observation times out records
@@ -158,14 +157,14 @@ lease time stops the Run.
 
 ## Durable records
 
-Deleting an agent, a conversation, a Run, a goal or a broker connection never deletes a
+Deleting an agent, a conversation, a Run or a broker connection never deletes a
 financial, authority or evidence record (migration `0036_durable_records`):
 
-- contextual links become `ON DELETE SET NULL`: the conversation of a grant, approval,
-  goal or Super Bot request, and the Run of an approval;
+- contextual links become `ON DELETE SET NULL`: the conversation of a grant, approval
+  or Super Bot request, and the Run of an approval;
 - identity links keep their id as a plain value, with no cascade: the agent and account
-  of a grant, approval or restriction, the goal of a decision or Super Bot request, and
-  the agent of a goal. A NULL agent on a restriction would mean "every agent", so a
+  of a grant, approval or restriction, and the goal id a retired Super Bot request names.
+  A NULL agent on a restriction would mean "every agent", so a
   deleted agent's restriction never turns account-wide.
 
 The trading journal and trading decisions already had no such links. A downgrade is
@@ -185,14 +184,9 @@ passkey, so nothing is left looking active while it can no longer run:
   permission frame shows "autonomous stopped" and the trade path asks for approval
   again, instead of a grant that still reads active but always fails;
 - retired Super Bot requests (W15-9) are audit history only and are left as they are;
-- goals of the agent or conversation are cancelled with `goal_origin_deleted` ("This
-  goal stopped because its conversation or agent was deleted. Its history is kept.");
 - pending owner action cards the agent raised, the conversation shows or that act on
   the account are superseded (`agent_deleted`, `conversation_deleted`,
   `account_deleted`).
-
-Goals orphaned before this rule are settled the same way, once, by the `goals` step;
-a goal without its conversation or agent is never retried through the failure ledger.
 
 ## Verification
 
@@ -204,7 +198,7 @@ a goal without its conversation or agent is never retried through the failure le
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
   ended episodes after a restart; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; durable records, delete refusal and the
-  settlement of a deleted conversation's grant and goal, with its retired Super Bot
+  settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.
 - `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the
   grant list, the permission frame and the trade path agree.

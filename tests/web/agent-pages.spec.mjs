@@ -61,12 +61,13 @@ test("the trading agent's page: level, trading and safety, watches, and the on/o
     "Identity and model",
     "Knowledge",
     "Skills",
-    "Goals",
     "Scheduled tasks",
     "Files",
     "Trades",
   ])
     await expect(main.getByRole("button", { name: row, exact: true })).toBeVisible();
+  // Trading goals are removed; the light goals belong to agents that do not trade.
+  await expect(main.getByRole("button", { name: "Goals", exact: true })).toHaveCount(0);
   const patch = page.waitForRequest(
     (request) =>
       request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.trader.id}`),
@@ -714,7 +715,7 @@ test("a broker outage: the heads-up and the updates list open the recovery page"
   // The updates page's notification row opens the same page.
   await page.goto("/app/updates");
   await page
-    .locator("main [data-attention-id]", { hasText: "Broker connection needs review" })
+    .locator("main [data-attention-id]", { hasText: "The account connection has been lost" })
     .first()
     .click();
   await expect(page).toHaveURL(
@@ -740,7 +741,6 @@ test("the agent page's rows open T7's pages filtered to that agent", async ({ pa
   const rows = [
     ["Knowledge", "knowledge", `Knowledge of ${data.trader.name}`],
     ["Skills", "skills", `Skills of ${data.trader.name}`],
-    ["Goals", "goals", null],
     ["Scheduled tasks", "routines", "Schedule a task"],
     ["Files", "artifacts", `Files of ${data.trader.name}`],
   ];
