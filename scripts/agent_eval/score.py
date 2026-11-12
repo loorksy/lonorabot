@@ -422,7 +422,7 @@ def unshown_profits(record: Mapping[str, Any], text: str) -> list[str]:
     if not results:
         return []
     shown = {abs(float(value)) for value in NUMBER.findall(json.dumps(results))}
-    stated = []
+    stated: list[str] = []
     for match in PROFIT.finditer(text):
         figure = match[1].replace(",", "").replace("−", "-")
         if abs(float(figure)) not in shown:
