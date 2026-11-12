@@ -25,16 +25,8 @@ from .context import ToolContext
 from .resolve import Option, resolve, several
 
 MARKET_TOOLS = ("market_", "chart_", "watch_", "trade_", "account_")
-# Reading records and narrowing admission need no financial authority: any agent may
-# record an owner's restriction, and none can lift one.
-NONFINANCIAL_TRADE_TOOLS = frozenset(
-    {
-        "trade_record_read",
-        "trade_record_history",
-        "trade_restriction_create",
-        "trade_restriction_list",
-    }
-)
+# Reading records needs no financial authority.
+NONFINANCIAL_TRADE_TOOLS = frozenset({"trade_record_read", "trade_record_history"})
 
 
 # Reading is open: a fixed-market agent reads every owned account and symbol (quotes,
@@ -78,8 +70,6 @@ def fill_bound_fields(agent: AgentRow, args: dict[str, Any], fields: set[str]) -
         agent.trading_symbol
         and "symbol" in fields
         and not filled.get("symbol")
-        # An explicit every-symbol scope (trade_restriction_create) is not a missing symbol.
-        and not filled.get("all_symbols")
         # The focus symbol belongs to the focus account: a call naming another owned
         # account reads (or is refused) for that account as a whole, fixed agents too.
         and ("account_id" not in fields or filled.get("account_id") == agent.trading_account_id)

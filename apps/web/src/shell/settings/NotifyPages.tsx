@@ -11,16 +11,31 @@ import { useShellData } from "../data";
 import { NotFoundPage } from "../StatePage";
 import { useToast } from "../Toast";
 import { NOTIFY_DEFAULTS, type NotifyPrefs, useDevicePref } from "./device-prefs";
-import { type OwnerProfile, useOwnerProfile } from "./owner";
+import type { OwnerProfile } from "./owner";
 import { NavRow, Note, ToggleRow, useLoad } from "./ui";
 
 type Channel = IncomingCallPolicy["channel"];
 /** The reference's REACH (8368), one to one with the server's ReachMe. */
 export const reachOptions = (): [Channel, string, string, IconName][] => [
   ["activity", t`Activity log only`, t`Recorded in Updates without any alert`, "updates"],
-  ["notify", t`Notification`, t`An alert on your device`, "bell"],
-  ["message", t`Message`, t`A message in the agent's conversation with an alert`, "chat"],
-  ["call", t`Call`, t`For urgent matters: the agent calls you`, "phone"],
+  [
+    "notify",
+    t({ message: "Notification", context: "reach mode" }),
+    t`An alert on your device`,
+    "bell",
+  ],
+  [
+    "message",
+    t({ message: "Message", context: "reach mode" }),
+    t`A message in the agent's conversation with an alert`,
+    "chat",
+  ],
+  [
+    "call",
+    t({ message: "Call", context: "reach mode" }),
+    t`For urgent matters: the agent calls you`,
+    "phone",
+  ],
 ];
 export const reachLabel = (channel: Channel) =>
   reachOptions().find(([value]) => value === channel)?.[1] ?? "";
@@ -37,11 +52,11 @@ const minutes = (value: string) => {
 /* «الإشعارات والتواصل» (notifyPage 6158-6166, reachSection/deviceSection 8369-8378): how agents
    reach the owner (one choice), the in-app banner on this device, quiet hours to the minute
    (Q47, in ONE place), the device a call rings, and each agent's own rules. No browser
-   notification row until a push channel exists (Q10); Lonora is the only channel (Q53). */
+   notification row: push reaches the phone and a paired Telegram chat for the 11.4 alerts only. */
 export function NotifyPage() {
   const data = useShellData();
   const toast = useToast();
-  const [profile, setProfile] = useOwnerProfile();
+  const { ownerProfile: profile, setOwnerProfile: setProfile } = data;
   const [prefs, setPrefs] = useDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
   const rules = useLoad(
     () => api.get<Record<string, AgentDeliveryRules>>("/agents/notifications"),
@@ -226,7 +241,7 @@ export function NotifyPage() {
                   <Trans>Urgent always arrives</Trans>
                 </strong>
                 <small>
-                  <Trans>An unconfirmed operation or a restriction on your account</Trans>
+                  <Trans>An unconfirmed operation on your account</Trans>
                 </small>
               </span>
               <span className="reach-check">

@@ -80,6 +80,10 @@ class RunCommand(Request):
         Annotated[str, StringConstraints(pattern=SECRET_NAME)],
         Annotated[str, StringConstraints(min_length=1, max_length=16000)],
     ] = Field(default_factory=dict, max_length=64)
+    # The agent's own `lonora` CLI token (7.3.3): set as LONORA_AGENT_TOKEN in this
+    # command's environment only, never a file; its children inherit it, and only the
+    # agent's own Unix user can read a process's environment.
+    agent_token: str | None = Field(default=None, pattern=r"^lnr_[A-Za-z0-9_-]{20,124}$")
 
 
 AgentPath = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
@@ -449,6 +453,8 @@ class Supervisor:
                 self.release(job_id)
                 raise
         env |= request.secrets
+        if request.agent_token is not None:
+            env["LONORA_AGENT_TOKEN"] = request.agent_token
         try:
             process = await self.spawn(cwd, log_path, request.command, pipe, env, uid)
         except OSError:

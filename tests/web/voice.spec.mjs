@@ -322,7 +322,7 @@ test("the call screen survives navigation with its origin, real track mute and o
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole("button", { name: "Fold the call", exact: true }).click();
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.locator("#dialog").getByRole("button", { name: "Agent files", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Agent files" }).click();
     // «الملفات» of this agent (UI phase 4b), with the call strip under the top bar.
     await expect(page).toHaveURL(/\/app\/artifacts\?agent=[^&]+$/);
     const strip = page.locator(".call-strip");

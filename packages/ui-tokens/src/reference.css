@@ -143,7 +143,7 @@
   }
 }
 
-[data-contrast="high"] {
+body.hc {
   --muted: #c9cdd5;
   --faint: #aeb3bd;
   --line: #3a3d46;
@@ -154,7 +154,7 @@
   --glass-pop: var(--raised);
 }
 
-[data-theme="light"][data-contrast="high"] {
+[data-theme="light"] body.hc {
   --muted: #3b3f48;
   --faint: #4f535c;
   --line: #b9b5aa;

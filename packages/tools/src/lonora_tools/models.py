@@ -43,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 
 NAME = "model_request"
 LIST_NAME = "model_list"
