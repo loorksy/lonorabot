@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import { AVATAR_COLORS, AVATAR_FACES, DEFAULT_AVATAR_COLOR } from "@lonora/core";
 import { AgentAvatar } from "@lonora/ui-web";
 import { useCallback, useState } from "react";
+import { avatarFaceLabels } from "../../components/ai/AvatarStudio";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
@@ -13,28 +14,6 @@ import { scoped } from "./scope";
 /** The reference's seven swatches, taken from Lonora's palette. */
 const SWATCHES = AVATAR_COLORS.slice(0, 7);
 type Look = { avatar: string; color: string };
-
-/** Lonora's avatar shapes, named in the owner's language. */
-function avatarFaceLabels(): Record<string, string> {
-  return {
-    orb: t`Signals`,
-    "face-smile": t`Smile`,
-    "face-thoughtful": t`Thoughtful`,
-    "face-happy": t`Happy`,
-    "face-wink": t`Wink`,
-    "face-sleepy": t`Sleepy`,
-    "face-surprised": t`Surprised`,
-    "face-angry": t`Angry`,
-    "face-playful": t`Playful`,
-    "face-excited": t`Excited`,
-    "face-skeptical": t`Skeptical`,
-    "face-dreamy": t`Dreamy`,
-    "face-focused": t`Focused`,
-    "face-worried": t`Worried`,
-    "face-laugh": t`Laugh`,
-    "face-determined": t`Determined`,
-  };
-}
 
 /* «تعديل الأفتار» (Q42): the reference's sheet — live preview, the face grid with «إعادة
    تعيين», the swatches and a colour input, «تُعرض معاينة فقط حتى تضغط حفظ» — showing Lonora's

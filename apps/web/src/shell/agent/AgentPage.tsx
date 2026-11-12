@@ -6,8 +6,6 @@ import { isolate, tradingReadinessLine } from "@lonora/core";
 import { Icon, type IconName, PairIcon } from "@lonora/ui-web";
 import { type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
-import { useChatPrefs } from "../../conversation/prefs";
-import { useAgentSheet } from "../../conversation/sheets/AgentSheet";
 import { useVoice } from "../../hooks/useVoice";
 import { useAgentLiveState } from "../../lib/agent-live-state";
 import { type Agent, api, type Resource } from "../../lib/api";
@@ -116,11 +114,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   const sheets = useSheets();
   const { refresh } = useClient();
   const openAvatar = useAvatarSheet();
-  const prefs = useChatPrefs();
-  // «الحالة والأمان» opens over this page; «عرض الطلب» then opens the chat on the card.
-  const statusSheet = useAgentSheet((card) =>
-    nav.go(`/app/${agent.id}?card=${encodeURIComponent(card)}`),
-  );
   const voiceCall = useVoice();
   const trader = isTrader(agent);
   const delegated = hasDelegation(agent);
@@ -165,7 +158,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
               className="btn full primary"
               onClick={() => {
                 sheets.close();
-                nav.go("/app/provider/openai");
+                nav.go("/app/settings?tab=voice");
               }}
             >
               <Trans>Open voice settings</Trans>
@@ -327,7 +320,8 @@ function AgentPageBody({ agent }: { agent: Agent }) {
                       : t`Loading…`
                   }
                   sub={<Trans>Trading · New trades · Restrictions · Account limits</Trans>}
-                  onClick={() => statusSheet(agent, true, prefs.agentStatus)}
+                  // chat.agent-sheet is the composer's (phase 3): the conversation opens it.
+                  onClick={() => go(`/app/${agent.id}?sheet=agent`)}
                 />
                 {accounts.length > 1 && (
                   <NavRow
@@ -357,7 +351,9 @@ function AgentPageBody({ agent }: { agent: Agent }) {
                     ? t`No trading account chosen · choose an account`
                     : t`No trading account linked · link an account`
                 }
-                onClick={() => go(accounts.length ? `/app/identity/${agent.id}` : "/app/broker")}
+                onClick={() =>
+                  go(accounts.length ? `/app/identity/${agent.id}` : "/app/settings?tab=trading")
+                }
               />
             )}
           </div>

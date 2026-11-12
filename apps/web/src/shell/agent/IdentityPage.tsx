@@ -18,10 +18,10 @@ import "./agent.css";
 
 const modelKey = (item: { provider: string; model: string }) => `${item.provider}:${item.model}`;
 
-/* «الهوية والنموذج» (route identity): name, role, the agent's instructions, model and — for a
-   trading agent — its account and pair from that account's symbols. Saving is
-   PATCH /api/agents/{id} (a pair or account change is the server's scope change with its
-   revision: it never signs, moves or widens a grant) and PUT /api/agents/{id}/model. */
+/* «الهوية والنموذج» (route identity): name, role, model and — for a trading agent — its
+   account and pair from that account's symbols. Saving is PATCH /api/agents/{id} (a pair or
+   account change is the server's scope change with its revision: it never signs, moves or
+   widens a grant) and PUT /api/agents/{id}/model. */
 export function IdentityPage({ agentId }: { agentId: string }) {
   const data = useShellData();
   const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);
@@ -46,7 +46,6 @@ function IdentityForm({ agent }: { agent: Agent }) {
   const model = useRead<AgentModelSummary>(`/agents/${encodeURIComponent(agent.id)}/model/summary`);
   const [name, setName] = useState(agent.name);
   const [role, setRole] = useState(agent.description || agent.title || "");
-  const [instructions, setInstructions] = useState(agent.instructions);
   const [choice, setChoice] = useState<string | null>(null);
   const [account, setAccount] = useState(agent.trading_account_id ?? "");
   const [symbol, setSymbol] = useState(agent.trading_symbol ?? "");
@@ -94,7 +93,6 @@ function IdentityForm({ agent }: { agent: Agent }) {
   const changed =
     name.trim() !== agent.name ||
     role.trim() !== (agent.description || agent.title || "") ||
-    instructions !== agent.instructions ||
     modelValue !== savedModel ||
     marketChanged;
   useEffect(() => {
@@ -114,7 +112,6 @@ function IdentityForm({ agent }: { agent: Agent }) {
       await api.patch(`/agents/${agent.id}`, {
         name: name.trim(),
         description: role.trim(),
-        ...(instructions !== agent.instructions ? { instructions } : {}),
         ...(marketChanged
           ? {
               scope_mode: "flexible",
@@ -192,19 +189,6 @@ function IdentityForm({ agent }: { agent: Agent }) {
           onChange={(event) => setRole(event.target.value)}
         />
         {roleErr && <small className="field-err">{roleErr}</small>}
-      </label>
-      <label className="field">
-        <span>
-          <Trans>Instructions</Trans>
-        </span>
-        <textarea
-          name="instructions"
-          aria-label={t`Instructions`}
-          rows={6}
-          value={instructions}
-          placeholder={t`What should this agent know about its work?`}
-          onChange={(event) => setInstructions(event.target.value)}
-        />
       </label>
       <label className="field">
         <span>

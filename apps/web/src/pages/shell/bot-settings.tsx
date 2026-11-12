@@ -4,7 +4,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { type AgentMarketMode, agentMarketMode, marketScopeChange } from "@lonora/core";
 import { useState } from "react";
-import { AgentAvatar } from "../../components/ai/AgentAvatar";
+import { AvatarStudio } from "../../components/ai/AvatarStudio";
 import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
 import { SupervisionSettings } from "../../components/ai/SupervisionSettings";
 import { AgentModelCard } from "../../components/models/AgentModelCard";
@@ -13,7 +13,6 @@ import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
-import { useAvatarSheet } from "../../shell/agent/AvatarSheet";
 export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () => void }) {
   const { refresh } = useClient();
   const [scopeBase] = useState(agent);
@@ -26,7 +25,8 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
   const [name, setName] = useState(agent.name);
   const [title, setTitle] = useState(agent.title ?? "");
   const [description, setDescription] = useState(agent.description ?? "");
-  const openAvatar = useAvatarSheet();
+  const [avatar, setAvatar] = useState(agent.avatar);
+  const [color, setColor] = useState(agent.color);
   const [instructions, setInstructions] = useState(agent.instructions);
   const [paused, setPaused] = useState(agent.paused);
   const [error, setError] = useState<unknown>();
@@ -59,14 +59,21 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
         }
       }}
     >
-      <button
-        type="button"
-        aria-label={t`Edit avatar`}
+      <AvatarStudio
+        identity={agent.id}
+        name={name}
+        avatar={avatar}
+        color={color}
         disabled={saving}
-        onClick={() => openAvatar(agent)}
-      >
-        <AgentAvatar agent={agent} />
-      </button>
+        onSave={async (face, value) => {
+          await api.patch(`/agents/${agent.id}`, { avatar: face, color: value });
+          refresh();
+        }}
+        onChange={(face, value) => {
+          setAvatar(face);
+          setColor(value);
+        }}
+      />
       <p dir="auto">
         {agent.name}
         <PersonalAgentBadge agent={agent} />

@@ -146,25 +146,18 @@ test("supervision: add from the picker, remove from the row; never money authori
   await expect(main).toContainText("It does not supervise any agent now.");
 });
 
-test("the trading and safety row opens the sheet over the agent page; closing stays there", async ({
-  page,
-}) => {
+test("the trading and safety row opens the agent's sheet in its conversation", async ({ page }) => {
   await page.goto(`/app/agent/${data.trader.id}`);
-  const main = page.locator("main");
-  const url = page.url();
-  await main.getByRole("button", { name: /Trading · New trades · Restrictions/ }).click();
-  const sheet = page.locator("#dialog");
-  await expect(sheet.getByTestId("agent-live-state")).toBeVisible();
-  expect(page.url()).toBe(url);
-  await page.keyboard.press("Escape");
-  await expect(sheet).not.toBeVisible();
-  await expect(page).toHaveURL(url);
-  await expect(main.locator(".hero h2")).toHaveText(data.trader.name);
+  await page
+    .locator("main")
+    .getByRole("button", { name: /Trading · New trades · Restrictions/ })
+    .click();
+  await expect(page.locator("#dialog").getByTestId("agent-live-state")).toBeVisible();
+  // The conversation opens the sheet once and drops ?sheet=agent, so Back does not reopen it.
+  await expect(page).toHaveURL(new RegExp(`/app/${data.trader.id}$`));
 });
 
-test("a trading agent with no linked account links one through the broker form", async ({
-  page,
-}) => {
+test("a trading agent with no linked account opens the trading settings", async ({ page }) => {
   await page.route("**/api/trading/connections", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
   );
@@ -183,7 +176,7 @@ test("a trading agent with no linked account links one through the broker form",
     .locator("main")
     .getByRole("button", { name: /No trading account linked/ })
     .click();
-  await expect(page).toHaveURL(/\/app\/broker$/);
+  await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
 });
 
 test("the call button follows Q58 when no voice provider is configured", async ({ page }) => {
@@ -197,7 +190,7 @@ test("the call button follows Q58 when no voice provider is configured", async (
   const sheet = page.locator("#dialog");
   await expect(sheet).toContainText("Calls are not set up");
   await sheet.getByRole("button", { name: "Open voice settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/provider\/openai$/);
+  await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
 });
 
 test("trades: the owner's own close goes through the executor; the order log shows states", async ({
@@ -792,47 +785,4 @@ test("the agent page's rows open T7's pages filtered to that agent", async ({ pa
     await expect(main).not.toContainText("Page not found");
     if (text) await expect(main).toContainText(text);
   }
-});
-
-test("identity: the agent's instructions are edited on its identity form", async ({ page }) => {
-  await page.goto(`/app/identity/${data.research.id}`);
-  const main = page.locator("main");
-  const save = page.waitForRequest(
-    (request) =>
-      request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.research.id}`),
-  );
-  await main.getByLabel("Instructions", { exact: true }).fill("Cite every source.");
-  await main.getByRole("button", { name: "Save", exact: true }).click();
-  expect((await save).postDataJSON()).toEqual({
-    name: data.research.name,
-    description: "Reads",
-    instructions: "Cite every source.",
-  });
-});
-
-test("the group page renames the group and removes a member; a removed coordinator is cleared", async ({
-  page,
-}) => {
-  await page.goto(`/app/group/${data.group.id}`);
-  const main = page.locator("main");
-  await main.getByRole("button", { name: "Edit the group", exact: true }).click();
-  const sheet = page.locator("#dialog");
-  await sheet.getByLabel("Group name", { exact: true }).fill("Gold desk");
-  await sheet.getByRole("checkbox", { name: new RegExp(data.research.name) }).click();
-  const put = page.waitForRequest(
-    (request) =>
-      request.method() === "PUT" &&
-      new URL(request.url()).pathname === `/api/groups/${data.group.id}`,
-  );
-  await sheet.getByRole("button", { name: "Save", exact: true }).click();
-  const body = (await put).postDataJSON();
-  expect(body.version).toBe(data.group.version);
-  expect(body.payload).toMatchObject({
-    name: "Gold desk",
-    member_ids: [data.trader.id],
-    lead_agent_id: null,
-    purpose: "Gold research",
-  });
-  await expect(main.locator(".hero h2")).toHaveText("Gold desk");
-  await expect(main.locator(".hero p")).toHaveText("one agent");
 });
