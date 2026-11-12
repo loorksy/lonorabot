@@ -351,6 +351,24 @@ async def broker_health(fixture: Fixture) -> None:
     assert len(await alert_runs(fixture, episode[0])) == 1
     print("PASS an outage whose reason flaps between polls is one item, one ready event, one wake")
 
+    # MetaApi throttling and a lost link alternate within one outage (the throttle ends,
+    # the next sync times out): still one item, one push, one wake.
+    alternating = utcnow() - timedelta(minutes=20)
+    for poll in range(8):
+        reason = "broker_rate_limited" if poll % 2 == 0 else "broker_connection_timeout"
+        await set_recovery(fixture, account, "disconnected", reason, alternating)
+        await tick(fixture)
+    episode = [
+        row
+        for code in ("broker_rate_limited", "broker_connection_lost")
+        for row in await items(fixture, code)
+        if row.parameters["since"] == alternating.isoformat()
+    ]
+    assert [(row.code, row.status) for row in episode] == [("broker_rate_limited", "ready")]
+    assert await ready_events(fixture, episode[0].id) == 1
+    assert len(await alert_runs(fixture, episode[0])) == 1
+    print("PASS throttling and a lost link alternating in one outage are one item and one wake")
+
 
 async def failed_wake(fixture: Fixture) -> None:
     """A wake that fails never costs the owner the item."""

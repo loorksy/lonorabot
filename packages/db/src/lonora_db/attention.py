@@ -127,7 +127,9 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         # Within one outage the adapter's reason flaps between polls (a 401, then a
         # timeout): a rejected token or an undeployed account stays the outage's problem
         # while later polls show only a generic lost connection.
-        return found[0] == row.code or (row.code not in GENERIC and found[0] in GENERIC)
+        # A lost connection and MetaApi throttling alternate within one outage (the
+        # throttle ends, the next sync times out): the item raised first stays current.
+        return found[0] == row.code or found[0] in GENERIC
     if row.code == "secret_requested":
         card = await session.get(OwnerActionRow, row.parameters.get("owner_action_id", ""))
         return (

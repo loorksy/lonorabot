@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -57,6 +58,11 @@ class BrokerManager:
                 await self._secrets.read(config.secret_id),
                 connection_id,
             )
+            # A throttle MetaApi gave before a restart, or to another process, still holds.
+            recovery = cast(dict[str, Any], row.state.get("broker_recovery") or {})
+            throttled = recovery.get("throttled_until")
+            if isinstance(throttled, str):
+                broker.carry_throttle(datetime.fromisoformat(throttled).timestamp())
         self.connections[connection_id] = (version, broker)
         return broker
 

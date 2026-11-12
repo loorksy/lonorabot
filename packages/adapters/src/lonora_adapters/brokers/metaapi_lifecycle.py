@@ -81,6 +81,10 @@ def throttle_aware(original: Callable[..., Coroutine[Any, Any, Any]]) -> Any:
     for the adapter to read."""
 
     async def synchronize(self: Any, instance_index: str) -> Any:
+        # A reconnect resets the SDK's interval and synchronizes at once: still wait.
+        wait = getattr(self, "_lonora_throttled_until", 0.0) - time.time()
+        if wait > 0:
+            await asyncio.sleep(wait + jitter())
         try:
             return await original(self, instance_index)
         except Exception as error:

@@ -402,10 +402,9 @@ class MetaApiBroker:
             and (slot.task is None or slot.task.done())
         ):
             return existing
-        if self.account_throttle() is not None:
-            # One owner of synchronization while MetaApi throttles the account: the SDK
-            # retries at MetaApi's time; no Lonora caller starts or awaits another attempt.
-            raise LonoraError("broker_rate_limited", 429)
+        # One owner of synchronization while MetaApi throttles the account: the SDK
+        # retries at MetaApi's time; no Lonora caller starts or awaits another attempt.
+        self.refuse_if_throttled()
 
         async def create() -> Any:
             try:
@@ -484,7 +483,20 @@ class MetaApiBroker:
         limited.diagnostic_type = failure.diagnostic_type
         limited.diagnostic_message = failure.diagnostic_message
         self._throttled_until = max(getattr(self, "_throttled_until", 0.0), *times)
+        limited.retry_until = max(times)  # pyright: ignore[reportAttributeAccessIssue]
         return limited, max(times)
+
+    def carry_throttle(self, until: float) -> None:
+        self._throttled_until = max(getattr(self, "_throttled_until", 0.0), until)
+
+    def refuse_if_throttled(self) -> None:
+        """Before any SDK call that subscribes or asks MetaApi: while the account is
+        throttled, answer at once with the time MetaApi gave."""
+        until = self.account_throttle()
+        if until is not None:
+            limited = LonoraError("broker_rate_limited", 429)
+            limited.retry_until = until  # pyright: ignore[reportAttributeAccessIssue]
+            raise limited
 
     def account_throttle(self) -> float | None:
         """Until when MetaApi throttles this account, if that is still ahead: what a
@@ -520,6 +532,7 @@ class MetaApiBroker:
         # Never use this helper for a financial mutation.
         for attempt in range(2):
             rpc = await self.prepare()
+            self.refuse_if_throttled()
             try:
                 return await getattr(rpc, method)(*args)
             except Exception as error:
@@ -527,9 +540,11 @@ class MetaApiBroker:
                     await self.invalidate("rpc", rpc)
                     if attempt == 0:
                         continue
-                raise self.diagnose(
-                    error, "symbol" if method.startswith("get_symbol_") else "rpc"
-                ) from error
+                failure, _ = self.throttled(
+                    error,
+                    self.diagnose(error, "symbol" if method.startswith("get_symbol_") else "rpc"),
+                )
+                raise failure from error
         raise LonoraError("broker_connection_unavailable", 502)
 
     def synchronized_terminal(self) -> Any:
@@ -660,6 +675,7 @@ class MetaApiBroker:
         stream = await self.prepare_stream()
         stream.add_synchronization_listener(listener)
         try:
+            self.refuse_if_throttled()
             await stream.subscribe_to_market_data(symbol, [{"type": "quotes"}])
             yield await self.quote(symbol)
             while True:
@@ -675,6 +691,7 @@ class MetaApiBroker:
                     if not synchronized(stream, "streaming"):
                         async with asyncio.timeout(20):
                             await stream.wait_synchronized({"timeoutInSeconds": 15})
+                    self.refuse_if_throttled()
                     await stream.subscribe_to_market_data(symbol, [{"type": "quotes"}])
                     yield await self.quote(symbol)
         except asyncio.CancelledError:
@@ -736,6 +753,7 @@ class MetaApiBroker:
         stream = await self.prepare_stream()
         stream.add_synchronization_listener(listener)
         try:
+            self.refuse_if_throttled()
             await stream.subscribe_to_market_data(symbol, subscription)
             while True:
                 try:
@@ -751,6 +769,7 @@ class MetaApiBroker:
                     if not synchronized(stream, "streaming"):
                         async with asyncio.timeout(20):
                             await stream.wait_synchronized({"timeoutInSeconds": 15})
+                    self.refuse_if_throttled()
                     await stream.subscribe_to_market_data(symbol, subscription)
                     # Recovery is exact broker history, never OHLC inferred from quotes.
                     for candle in await self.candles(symbol, timeframe, 2):

@@ -1,6 +1,7 @@
 """Reconciliation-first account observations in the existing Gateway and broker ledger."""
 
 import asyncio
+from datetime import UTC, datetime
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker_activity import BrokerActivity, BrokerRecoverySnapshot
@@ -23,6 +24,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .manual_activity import detect_activity
 from .reconciliation import observe_operation, send_lock_key, settle
+
+
+def throttled_at(error: BaseException) -> datetime | None:
+    """MetaApi's retry time a ``broker_rate_limited`` failure carries, as a stored time."""
+    until = getattr(error, "retry_until", None)
+    return datetime.fromtimestamp(until, UTC) if isinstance(until, (int, float)) else None
 
 
 async def reconcile_broker_account(
@@ -117,6 +124,7 @@ async def reconcile_broker_account(
                 reason_code=error.code
                 if isinstance(error, LonoraError)
                 else "broker_recovery_unavailable",
+                throttled_until=throttled_at(error),
                 since=prior.since if prior and prior.status == "disconnected" else now,
                 observed_at=now,
                 last_success_at=prior.last_success_at if prior else None,

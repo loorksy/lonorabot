@@ -313,3 +313,124 @@ async def test_while_the_account_is_throttled_no_caller_starts_another_attempt(
         assert caught.value.code == "broker_rate_limited"
     value.get_rpc_connection.assert_not_called()
     adapter.api.metatrader_account_api.get_account.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rpc_reads_honour_the_throttle_and_a_429_of_their_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    adapter = broker(account())
+    synchronized = SimpleNamespace(
+        _closed=False,
+        _meta_api_connection=SimpleNamespace(_closed=False, is_synchronized=lambda: True),
+        get_symbols=AsyncMock(side_effect=too_many(120)),
+    )
+    adapter.rpc = synchronized
+    with pytest.raises(LonoraError) as caught:
+        await adapter.read_rpc("get_symbols")
+    assert caught.value.code == "broker_rate_limited"
+    assert getattr(caught.value, "retry_until", 0) > datetime.now(UTC).timestamp() + 100
+    with pytest.raises(LonoraError):
+        await adapter.read_rpc("get_symbols")  # inside MetaApi's window: not asked again
+    assert synchronized.get_symbols.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_a_reconnect_does_not_synchronize_before_metaapis_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lonora_adapters.brokers import metaapi_lifecycle
+
+    slept: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr(metaapi_lifecycle.asyncio, "sleep", sleep)
+    original = AsyncMock(return_value=True)
+    connection = SimpleNamespace(
+        _lonora_throttled_until=datetime.now(UTC).timestamp() + 90,
+        _get_state=lambda index: {},  # pyright: ignore[reportUnknownLambdaType]
+    )
+    assert await metaapi_lifecycle.throttle_aware(original)(connection, "0") is True
+    assert slept and 90 < slept[0] < 96 and original.await_count == 1
+
+
+def test_the_throttle_outlives_a_restart_through_the_recovery_snapshot() -> None:
+    from lonora_trading.broker_recovery import throttled_at
+
+    failure = LonoraError("broker_rate_limited", 429)
+    failure.retry_until = datetime.now(UTC).timestamp() + 300  # type: ignore[attr-defined]
+    stored = throttled_at(failure)
+    assert stored is not None and stored > datetime.now(UTC) + timedelta(seconds=290)
+    assert throttled_at(LonoraError("broker_connection_timeout", 504)) is None
+    adapter = broker(account())
+    adapter.carry_throttle(stored.timestamp())  # what BrokerManager.connect does
+    assert adapter.account_throttle() == stored.timestamp()
+
+
+@pytest.mark.asyncio
+async def test_a_new_adapter_starts_inside_a_stored_throttle() -> None:
+    from test_supervision import database
+
+    database()
+    from check_streaming import Fixture
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
+    from lonora_db.broker_sessions import BrokerSessionRepository
+    from lonora_db.schema import BrokerSessionRow
+
+    from scripts.agent_eval.broker import FakeTerminal, installed
+
+    fixture = await Fixture().open()
+    terminal = FakeTerminal(account_id="fixture-throttled-" + str(id(object())))
+    until = datetime.now(UTC) + timedelta(minutes=5)
+    row: Any = None
+    try:
+        secrets = BrokerSecrets(
+            fixture.runtime.db,
+            fixture.runtime.settings.encryption_key.get_secret_value(),
+            fixture.owner,
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            token = await secrets.write_in_session(
+                session, "throttle-" + terminal.account_id, "fixture.token"
+            )
+            row = await BrokerSessionRepository().create(
+                session,
+                fixture.owner,
+                {
+                    "provider": "metaapi",
+                    "account_id": terminal.account_id,
+                    "secret_id": token,
+                    "enabled": True,
+                },
+                broker_identity={
+                    "login": "7" + terminal.login,
+                    "server": terminal.server,
+                    "platform": "mt5",
+                },
+            )
+            row.state = {
+                **row.state,
+                "broker_recovery": {
+                    "status": "disconnected",
+                    "reason_code": "broker_rate_limited",
+                    "throttled_until": until.isoformat(),
+                },
+            }
+        with installed(terminal):
+            adapter: Any = await fixture.runtime.services(fixture.owner).brokers.get(
+                fixture.owner, row.id
+            )
+            with pytest.raises(LonoraError) as caught:
+                await adapter.read_rpc("get_account_information")
+        assert caught.value.code == "broker_rate_limited"
+        assert terminal.calls == []  # nothing reached the account
+    finally:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            if row is not None:
+                saved = await session.get(BrokerSessionRow, row.id)
+                if saved is not None:
+                    await session.delete(saved)
+        await fixture.close()
