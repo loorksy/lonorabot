@@ -204,7 +204,7 @@ def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() ->
     assert refused["hint"] == sentence and refused["recovery"]["category"]
     named: dict[str, Any] = {
         "ok": False,
-        "code": "consult_budget_exhausted",
+        "code": "consult_model_unavailable",
         "recovery": {"next_action": "decide_with_current_evidence"},
     }
     observe({}, ToolCall(id="c", name="consult_model", arguments={}), None, named)

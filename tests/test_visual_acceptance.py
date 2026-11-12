@@ -131,7 +131,7 @@ async def test_acceptance_records_real_runtime_publication_and_cleans_identity(
             await connection.execute(text("PRAGMA foreign_keys=ON"))
     router = ScriptedAcceptanceRouter(journey)
     evidence = tmp_path / "evidence"
-    # The real store: workspace output is scanned for the owner's workspace secrets.
+    # The real store: workspace output is scanned for the owner's stored secrets.
     secrets = EncryptedSecretStore(db, os.environ["LONORA_ENCRYPTION_KEY"], owner)
     summary = await acceptance.run_journey(
         db,

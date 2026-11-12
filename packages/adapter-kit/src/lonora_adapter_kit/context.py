@@ -194,8 +194,8 @@ def omission_notice(messages: int, exchanges: int, *, guidance: Sequence[str] = 
         payload["note"] = (
             "Optional first-party guidance or server record listings were left out of this "
             "request to fit the model's context window. Server-side controls are unchanged; "
-            "read what you need on demand (tool_environment for tools, goal_read for goal "
-            "plans, market_decision_history for decisions)."
+            "read what you need on demand (tool_environment for tools, "
+            "market_decision_history for decisions)."
         )
     else:
         payload["omitted_messages"] = messages

@@ -9,9 +9,6 @@ from .market_intelligence import DetectorDefinition
 
 
 class Watch(Contract):
-    goal_id: str | None = None
-    step_id: str | None = None
-    goal_plan_version: int | None = Field(default=None, ge=1)
     kind: Literal["price", "indicator", "position", "account", "calendar", "dynamic"] = "price"
     detector: DetectorDefinition | None = None
     expires_at: datetime | None = None
@@ -59,8 +56,6 @@ class Watch(Contract):
             pending.extend(node.children)
         if self.expires_at is not None and self.expires_at.tzinfo is None:
             raise ValueError("watch_expiry_timezone_required")
-        if bool(self.goal_id) != bool(self.step_id):
-            raise ValueError("goal_and_step_required_together")
         if not self.level.is_finite():
             raise ValueError("invalid_watch_level")
         if self.kind != "calendar" and not self.account_id:

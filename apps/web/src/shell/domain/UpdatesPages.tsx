@@ -1,6 +1,11 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { ActivityCode, ActivityEntry, AttentionNotification } from "@lonora/contracts";
+import {
+  type ActivityCode,
+  type ActivityEntry,
+  type AttentionNotification,
+  isBrokerHealth,
+} from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -151,7 +156,7 @@ export function UpdatesPage() {
   const routines = useLoad(() => domainApi.routines(), "routines:*");
   const feed = useLoad(() => domainApi.activity(), "activity");
   const details = useScheduleDetails(routines.reload);
-  const upcoming = (routines.data ?? []).filter((row) => row.enabled && !row.goal_id);
+  const upcoming = (routines.data ?? []).filter((row) => row.enabled);
   const ring = (agentId: string) =>
     data.inbox.some((entry) => entry.agent_id === agentId && entry.unread_count > 0) ||
     upcoming.some((row) => row.agent_id === agentId);
@@ -177,7 +182,7 @@ export function UpdatesPage() {
     // A group's notification opens the group conversation, as the inbox did.
     // A broker outage opens the recovery page for its account (recovery.page).
     nav.go(
-      item.code === "broker_degraded"
+      isBrokerHealth(item.code)
         ? recoveryPath(item.parameters.account_id)
         : item.parameters.group_id
           ? `/app/g/${item.parameters.group_id}`

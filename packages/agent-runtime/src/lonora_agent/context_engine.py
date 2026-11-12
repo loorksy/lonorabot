@@ -64,7 +64,7 @@ from lonora_tools.tool_results import store_result
 from .context.financial_result import FINANCIAL_CALLS
 from .environment import bounded_result
 from .progress import progress
-from .runtime_notices import PEER_PREFIX
+from .runtime_notices import PEER_PREFIX, peer_text
 from .skills.loader import load_prompt
 from .skills.system_policy import apply_operating_policy
 
@@ -102,8 +102,6 @@ IDENTITY_KEYS = frozenset(
         "position_id",
         "deal_id",
         "account_id",
-        "goal_id",
-        "step_id",
         "task_id",
         "watch_id",
         "decision_id",
@@ -619,7 +617,9 @@ def deterministic_summary(
                 "requesting_agent": "Requesting agent",
                 "runtime": "Runtime",
             }.get(speaker(message, delegated=delegated), "Agent")
-            text = " ".join(message.content.split())
+            text = " ".join(
+                (peer_text(message.content) if who == "Peer agent" else message.content).split()
+            )
             lines.append(f"- {who}: " + (text[:300] + "…" if len(text) > 300 else text))
     body = "\n".join(lines)
     head = (
