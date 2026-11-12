@@ -26,7 +26,6 @@ from lonora_db.owner_profile import (
     read_owner_profile,
     save_owner_preferences,
 )
-from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, EffectReceiptRow
 from lonora_memory.commit import atomic_commit, atomic_edit
@@ -37,7 +36,8 @@ from pydantic import Field, model_validator
 
 from .base import Tool, eager_for
 from .context import ToolContext
-from .restrictions import OWNER_TRIGGERS, external_content_seen, owner_message_id
+from .profile_taint import run_read_others, woken_by_marked_row
+from .restrictions import OWNER_TRIGGERS, owner_message_id
 
 
 class Empty(Contract):
@@ -137,11 +137,12 @@ async def _owner_message(context: ToolContext) -> tuple[str | None, bool, bool]:
         lead = bool(agent and agent.role == "personal")
         tainted = False
         if lead and message_id is None:
-            typed = (
-                await owner_typed_message(session, run) if run.trigger in OWNER_TRIGGERS else None
-            )
-            tainted = run.trigger not in OBSERVATION_TRIGGERS or await external_content_seen(
-                session, run, int(typed.seq) if typed else run.input_seq
+            # A routine, watch or opportunity a run that read others' content made wakes
+            # without observations too; that mark is read here only (profile_taint.py).
+            tainted = (
+                run.trigger not in OBSERVATION_TRIGGERS
+                or await run_read_others(session, run)
+                or await woken_by_marked_row(session, run)
             )
         return message_id, lead, tainted
 
