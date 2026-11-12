@@ -58,7 +58,7 @@ class ScriptedAcceptanceRouter:
         value: list[dict[str, Any]]
         if self.journey in {"visual_workspace", "visual_observed"}:
             value = [
-                {"v": 2, "kind": "receipt", "title": "حجم الملفات", "mode": "observed"},
+                {"v": 2, "kind": "summary", "title": "حجم الملفات", "mode": "observed"},
                 {"facts": {"size": {"call": "probe-2", "path": "/stdout"}}},
                 {"type": "KeyValue", "rows": [["حجم الملف الأول", "{@Fact('size')} بايت"]]},
                 CLOSE,

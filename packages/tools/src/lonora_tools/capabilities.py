@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+from lonora_charts.capabilities import chart_capabilities
 from lonora_contracts.domain import Contract
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_db.client import Database
@@ -286,11 +287,13 @@ async def listing(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         **report,
+        # The exact timeframes and indicators the chart and market tools accept.
+        "charts": chart_capabilities(),
         "guidance": "Use any ready capability without asking. not_connected: offer one "
-        "connect_credential card. A source outside trusted_sources needs one trust_source "
-        "card. Workspace commands run only in an ordinary run, never in a helper or an "
-        "observe-only wake. A ready capability your inventory lists as unavailable_now has "
-        "a service that is not answering at the moment; say so plainly.",
+        "connect_credential card. A source outside trusted_sources is trusted only when the "
+        "owner names it in chat. Workspace commands run only in an ordinary run, never in a "
+        "helper or an observe-only wake. A ready capability your inventory lists as "
+        "unavailable_now has a service that is not answering at the moment; say so plainly.",
     }
 
 
@@ -300,8 +303,9 @@ def tools() -> list[Tool]:
             "capabilities_list",
             "List what every agent can use now: trusted sources, installed Skills and their "
             "origin, MCP servers and their trusted tools, integrations and news feeds, and "
-            "built-in capabilities marked ready or not_connected (one owner card). Use it to answer what you can do or to choose a "
-            "source; it grants nothing.",
+            "built-in capabilities marked ready or not_connected (one owner card), and the "
+            "supported chart timeframes and indicators. Use it to answer what you can do or "
+            "to choose a source; it grants nothing.",
             CapabilitiesInput,
             listing,
             read_only=True,

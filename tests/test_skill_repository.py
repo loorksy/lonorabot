@@ -169,9 +169,10 @@ async def test_public_request_failure_stays_explicit(status: int, code: str) -> 
             await inspect_repository("https://github.com/owner/repository", "main", client=client)
 
 
-def test_repository_inspection_is_a_read_only_nonfinancial_tool() -> None:
+def test_repository_inspection_is_a_replay_safe_nonfinancial_tool() -> None:
+    # Not read only: a repository the owner names joins his trusted sources.
     tool = load_tools().tools["skill_repository_inspect"]
-    assert tool.read_only and not tool.financial
+    assert not tool.read_only and tool.replay_safe and not tool.financial
 
 
 @pytest.mark.asyncio

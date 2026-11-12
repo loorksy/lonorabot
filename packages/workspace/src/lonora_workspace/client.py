@@ -188,8 +188,11 @@ class WorkspaceClient:
         background: bool = False,
         timeout_seconds: float | None = None,
         secrets: dict[str, str] | None = None,
+        agent_token: str | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {"agent_id": agent_id, "command": command, "background": background}
+        if agent_token is not None:
+            body["agent_token"] = agent_token
         if timeout_seconds is not None:
             body["timeout_seconds"] = timeout_seconds
         if secrets:
@@ -203,7 +206,14 @@ class WorkspaceClient:
         return scan.data(result)
 
     async def processes(self, scan: SecretScan) -> dict[str, Any]:
-        return scan.data(await self._call("GET", "/v1/processes", None, 30))
+        listing = await self._call("GET", "/v1/processes", None, 30)
+        # The supervisor cuts a command line (4096 bytes): a secret it cut is replaced too.
+        for key in ("processes", "jobs"):
+            items: list[dict[str, Any]] = listing.get(key) or []
+            for item in items:
+                if isinstance(item.get("command"), str):
+                    item["command"] = trailing(scan, item["command"])
+        return scan.data(listing)
 
     async def stop(self, scan: SecretScan, pid: int, agent_id: str | None = None) -> dict[str, Any]:
         body: dict[str, Any] = {"pid": pid}

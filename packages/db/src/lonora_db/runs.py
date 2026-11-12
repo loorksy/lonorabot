@@ -82,6 +82,9 @@ def run_data(row: RunRow) -> dict[str, Any]:
                 "id": item["id"],
                 "run_id": row.id,
                 "message_id": item["message_id"],
+                # The thread whose message holds the question: a background run's question
+                # is copied into the conversation it reports to.
+                "thread_id": item.get("thread_id", row.thread_id),
                 "question": item["question"],
                 "choices": question_choices(item),
                 "status": "cancelled"

@@ -8,6 +8,7 @@ import {
   nearConversationBottom,
   retriedRunIds,
   stopTargets,
+  threadQuestions,
   turnActivity,
   type UiSlotRef,
 } from "@lonora/core";
@@ -267,9 +268,7 @@ export function Conversation({
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   const runsById = useMemo(() => new Map(runs.map((run) => [run.id, run])), [runs]);
   const previews = new Map(streamingRows.map((row) => [`preview:${row.run.id}`, row]));
-  const questions = new Map(
-    runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
-  );
+  const questions = threadQuestions([...thread.asking, ...runs], threadId);
   const artifactMap = useMemo(() => new Map(artifacts.map((row) => [row.id, row])), [artifacts]);
   const previousVisualIds = useMemo(
     () =>

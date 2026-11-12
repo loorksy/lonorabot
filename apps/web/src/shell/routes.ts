@@ -29,6 +29,8 @@ export const PAGES = [
   "new-agent",
   "new-group",
   "owner",
+  // «ما يعمل الآن» (7.1.5): the owner's view of every workspace process.
+  "running",
   "lab",
   // Phase 6: «المكالمة» and «مكالمة واردة» (/app/incoming/:callId).
   "call",
@@ -86,6 +88,7 @@ const ITEM_PAGES = new Set<string>([
 /** The settings pages: the settings tab stays selected under them. */
 const SETTINGS_PAGES = new Set<string>([
   "owner",
+  "running",
   "accessibility",
   "chat-prefs",
   "notify-settings",
