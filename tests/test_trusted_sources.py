@@ -1126,8 +1126,6 @@ async def test_skills_install_silently_inside_the_list_and_ask_once_outside_it()
         assert skill["repository"] == "Example/" + repository
         assert skill["agent_name"] == agent["name"] and skill["enabled"]
         assert skill["can_undo"] and not skill["undone"]
-        # An installed package changes only through its lifecycle: no version to restore.
-        assert skill["previous_version"] is None
         # Undo in Capabilities: the owner's version denial; the Skill no longer loads.
         controls = await fixture.request("GET", f"/agents/{agent['id']}/skills/revocations")
         await fixture.request(

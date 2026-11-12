@@ -22,7 +22,6 @@ from lonora_db.schema import (
     IntegrationRow,
     McpConnectionRow,
     SkillRow,
-    SkillVersionRow,
     ThreadRow,
     TrustedSourceRow,
 )
@@ -35,7 +34,7 @@ from lonora_db.trusted_sources import (
     source_names,
     write_tools,
 )
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
@@ -119,19 +118,6 @@ async def capability_report(
                 .limit(200)
             )
         )
-        # The newest saved version below each Skill's current one: what a restore returns to.
-        previous: dict[str, int] = {
-            skill: version
-            for skill, version in await session.execute(
-                select(SkillVersionRow.skill_id, func.max(SkillVersionRow.version))
-                .join(SkillRow, SkillRow.id == SkillVersionRow.skill_id)
-                .where(
-                    SkillVersionRow.owner_id == owner_id,
-                    SkillVersionRow.version < SkillRow.version,
-                )
-                .group_by(SkillVersionRow.skill_id)
-            )
-        }
         # The versions the owner undid, per agent: such a Skill no longer loads.
         revoked: set[tuple[str, str, str]] = set()
         for agent_id in sorted({row.agent_id for row in skills if row.agent_id in agents}):
@@ -192,7 +178,7 @@ async def capability_report(
         ]
     report: dict[str, Any] = {
         "trusted_sources": listed_sources,
-        "skills": [skill_entry(row, agents, revoked, previous) for row in skills],
+        "skills": [skill_entry(row, agents, revoked) for row in skills],
         "mcp_servers": [
             server_entry(row, trusted.get(row.id), infrastructure, owner_id, for_agent=for_agent)
             for row in servers
@@ -232,10 +218,7 @@ def server_entry(
 
 
 def skill_entry(
-    row: SkillRow,
-    agents: dict[str, str],
-    revoked: set[tuple[str, str, str]],
-    previous: dict[str, int],
+    row: SkillRow, agents: dict[str, str], revoked: set[tuple[str, str, str]]
 ) -> dict[str, Any]:
     manifest: dict[str, Any] = row.payload.get("manifest") or {}
     source = str(manifest.get("source") or "legacy")
@@ -249,20 +232,16 @@ def skill_entry(
     skill_id = str(manifest.get("id") or row.payload.get("name") or "")
     version = manifest.get("version")
     undone = (row.agent_id or "", skill_id, str(version)) in revoked
-    title = manifest.get("title")
     return {
         "resource_id": row.id,
         "agent_id": row.agent_id,
         "agent_name": agents.get(row.agent_id or ""),
         "skill_id": skill_id,
-        "title": title if isinstance(title, str) and title else None,
         "version": version,
         "provenance": provenance,
         "repository": urlsplit(repository).path.strip("/") if isinstance(repository, str) else None,
         "commit": latest.get("commit"),
         "enabled": bool(row.payload.get("enabled")),
-        # An installed package changes only through its own lifecycle: nothing to restore.
-        "previous_version": None if package else previous.get(row.id),
         "undone": undone,
         "can_undo": bool(
             provenance in {"external", "agent_authored"}

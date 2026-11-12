@@ -293,14 +293,6 @@ async def test_skill_versions_list_every_save_and_restore_is_a_new_version():
             "/skills",
             {"agent_id": agent["id"], "payload": {"name": "brief", "content": "First."}},
         )
-
-        async def listed() -> dict[str, Any]:
-            """The skill's row in «التكاملات», which offers the restore."""
-            report = await fixture.request("GET", "/capabilities")
-            return next(item for item in report["skills"] if item["resource_id"] == skill["id"])
-
-        # One saved version: nothing to go back to.
-        assert (await listed())["previous_version"] is None
         second = await fixture.request(
             "PUT",
             f"/skills/{skill['id']}",
@@ -308,13 +300,10 @@ async def test_skill_versions_list_every_save_and_restore_is_a_new_version():
         )
         versions = cast(list[Any], await fixture.request("GET", f"/skills/{skill['id']}/versions"))
         assert [(row["version"], row["current"]) for row in versions] == [(2, True), (1, False)]
-        assert (await listed())["previous_version"] == 1
         restored = await fixture.request(
             "POST", f"/skills/{skill['id']}/restore", {"version": 1, "expected_version": 2}
         )
         assert restored["version"] == 3 and restored["payload"]["content"] == "First."
-        # A restore is itself a saved version: the one before it is the version just left.
-        assert (await listed())["previous_version"] == 2
         # Undo is a restore of the version just left.
         undone = await fixture.request(
             "POST", f"/skills/{skill['id']}/restore", {"version": 2, "expected_version": 3}

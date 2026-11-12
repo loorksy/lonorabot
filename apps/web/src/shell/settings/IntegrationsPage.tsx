@@ -1,4 +1,3 @@
-import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type {
@@ -9,17 +8,13 @@ import type {
   Resource,
   TrustedSource,
 } from "@lonora/contracts";
-import { tradingSafetyText } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { type FormEvent, useState } from "react";
+import { TradingStatus } from "../../components/trading/TradingStatus";
 import { api } from "../../lib/api";
 import { brokerIdentity } from "../../lib/broker-identity";
-import { readControls, resumeTrading, stopNewTrading, tradingStopped } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
-import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
-import { domainApi } from "../domain/api";
-import { restoreSkillVersion } from "../domain/SkillsPages";
 import { useNavigation } from "../navigation";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
@@ -45,15 +40,13 @@ const levelText = (server: CapabilityServer) => {
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
    allow list (Q55). Telegram is an inbound channel to an agent, never a delivery channel to the
-   owner (Q53). The global brake sits under the trading accounts; «النماذج» (routing) and the
-   voice-call readiness under AI (Q57). */
+   owner (Q53). The one-tap Stop control sits under the trading accounts; «النماذج» (routing)
+   and the voice-call readiness under AI (Q57). */
 export function IntegrationsPage() {
   const data = useShellData();
   const sheets = useSheets();
   const toast = useToast();
-  const { revision, refresh } = useClient();
   const accounts = useLoad(() => api.get<BrokerConnectionRow[]>("/trading/connections"), []);
-  const controls = useLoad(readControls, [revision]);
   const providers = useLoad(() => api.get<{ id: string; configured: boolean }[]>("/providers"), []);
   const voice = useLoad(() => api.get<{ transport_configured: boolean }>("/voice/status"), []);
   const report = useLoad(() => api.get<CapabilityReport>("/capabilities"), []);
@@ -457,46 +450,6 @@ export function IntegrationsPage() {
     });
   };
 
-  /* The one brake (Q14): stops new risk for every agent and manual orders; exits stay allowed. */
-  const safety = tradingSafetyText(i18n.locale);
-  const stopped = controls.value ? tradingStopped(controls.value) : null;
-  const brakeSheet = (stop: boolean) => {
-    const title = stop ? safety.stop : safety.resume;
-    sheets.open({
-      id: "brake",
-      title,
-      label: title,
-      body: (
-        <>
-          <p>{stop ? safety.stopHint : safety.resumeHint}</p>
-          <div className="actions">
-            <button type="button" className="btn outline" onClick={() => sheets.close()}>
-              <Trans>Cancel</Trans>
-            </button>
-            <button
-              type="button"
-              className={`btn ${stop ? "danger" : "primary"}`}
-              onClick={async () => {
-                sheets.close(true);
-                try {
-                  controls.set(await (stop ? stopNewTrading() : resumeTrading()));
-                  refresh();
-                  toast(stop ? t`Trading stopped · closing is still allowed` : t`Trading resumed`, {
-                    type: "success",
-                  });
-                } catch (error) {
-                  toast(userError(error), { type: "error" });
-                }
-              }}
-            >
-              {title}
-            </button>
-          </div>
-        </>
-      ),
-    });
-  };
-
   const linked = accounts.value ?? [];
   const domains = (caps?.trusted_sources ?? []).filter(
     (item) => item.kind === "feed_domain" && item.active,
@@ -517,62 +470,41 @@ export function IntegrationsPage() {
       <h3>
         <Trans>Trading accounts</Trans>
       </h3>
-      <div className="group">
-        {linked.map((row) => {
-          const count = data.agents.filter((agent) => agent.trading_account_id === row.id).length;
-          const identity = brokerIdentity(row);
-          const demo = row.payload.provider === "simulation";
-          return (
-            <NavRow
-              key={row.id}
-              icon={
-                <span className="row-icon">
-                  <Icon name="trend" />
-                </span>
-              }
-              label={
-                <>
-                  <bdi>{identity?.broker ?? (demo ? t`Demo account` : "MetaApi")}</bdi> ·{" "}
-                  <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
-                </>
-              }
-              sub={
-                demo
-                  ? t`Demo · ${agentsCount(count)}`
-                  : identity?.broker
-                    ? `MetaApi · ${agentsCount(count)}`
-                    : agentsCount(count)
-              }
-              to={`/app/broker-account/${row.id}`}
-            />
-          );
-        })}
-        <button
-          type="button"
-          className="row"
-          data-testid="trading-brake"
-          disabled={stopped == null}
-          onClick={() => brakeSheet(!stopped)}
-        >
-          <span className="row-icon">
-            <Icon name="power" />
-          </span>
-          <span className="body">
-            <strong>{safety.title}</strong>
-            <small>
-              {stopped == null
-                ? controls.error != null
-                  ? userError(controls.error)
-                  : safety.loading
-                : stopped
-                  ? safety.stopped
-                  : safety.running}
-            </small>
-          </span>
-          <span className="chevron">
-            <Icon name="chev" />
-          </span>
-        </button>
+      {linked.length > 0 && (
+        <div className="group">
+          {linked.map((row) => {
+            const count = data.agents.filter((agent) => agent.trading_account_id === row.id).length;
+            const identity = brokerIdentity(row);
+            const demo = row.payload.provider === "simulation";
+            return (
+              <NavRow
+                key={row.id}
+                icon={
+                  <span className="row-icon">
+                    <Icon name="trend" />
+                  </span>
+                }
+                label={
+                  <>
+                    <bdi>{identity?.broker ?? (demo ? t`Demo account` : "MetaApi")}</bdi> ·{" "}
+                    <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
+                  </>
+                }
+                sub={
+                  demo
+                    ? t`Demo · ${agentsCount(count)}`
+                    : identity?.broker
+                      ? `MetaApi · ${agentsCount(count)}`
+                      : agentsCount(count)
+                }
+                to={`/app/broker-account/${row.id}`}
+              />
+            );
+          })}
+        </div>
+      )}
+      <div className="legacy-surface">
+        <TradingStatus />
       </div>
       <BrokerLinkButton first={!linked.length} />
       <h3>
@@ -743,85 +675,35 @@ export function IntegrationsPage() {
                 <Icon name="bolt" />
               </span>
               <span className="body">
-                <strong>
-                  {skill.title ? (
-                    <bdi>{skill.title}</bdi>
-                  ) : (
-                    <span className="ltr">{skill.skill_id}</span>
-                  )}
-                </strong>
+                <strong className="ltr">{skill.skill_id}</strong>
                 <small>
-                  {skill.provenance === "bundled"
-                    ? t`Built-in`
-                    : skill.provenance === "agent_authored"
-                      ? t`Created by an agent`
-                      : (skill.repository ?? t`Owner`)}
+                  {skill.provenance === "bundled" ? t`Built-in` : (skill.repository ?? t`Owner`)}
                   {skill.version ? ` · ${t`version ${skill.version}`}` : ""}
                   {skill.agent_name ? ` · ${skill.agent_name}` : ""}
                 </small>
-                {!skill.undone && (
+                {skill.can_undo && !skill.undone && skill.agent_id && skill.version && (
                   <span className="wt-acts">
-                    {/* An installed package is switched on again only through its package. */}
-                    {(skill.enabled || skill.provenance !== "external") && (
-                      <button
-                        type="button"
-                        className="btn sm outline"
-                        onClick={() =>
-                          void act(
-                            async () => {
-                              const row = await domainApi.skill(skill.resource_id);
-                              await domainApi.saveSkill(row, {
-                                ...row.payload,
-                                enabled: !skill.enabled,
-                              });
-                            },
-                            skill.enabled ? t`Skill disabled` : t`Skill enabled`,
-                          )
-                        }
-                      >
-                        {skill.enabled ? t`Disable` : t`Enable`}
-                      </button>
-                    )}
-                    {skill.previous_version != null && (
-                      <button
-                        type="button"
-                        className="btn sm outline"
-                        onClick={() => {
-                          const previous = skill.previous_version;
-                          if (previous == null) return;
-                          void domainApi
-                            .skill(skill.resource_id)
-                            .then((row) => restoreSkillVersion(row, previous, toast, report.reload))
-                            .catch((error) => toast(userError(error), { type: "error" }));
-                        }}
-                      >
-                        <Icon name="undo" />
-                        <span>
-                          <Trans>Restore to version {skill.previous_version}</Trans>
-                        </span>
-                      </button>
-                    )}
-                    {/* Blocking denies this exact version for good; it is not a restore. */}
-                    {skill.can_undo && skill.agent_id && skill.version && (
-                      <button
-                        type="button"
-                        className="btn sm outline"
-                        onClick={() =>
-                          void act(async () => {
-                            const controls = await api.get<{ revision: number }>(
-                              `/agents/${skill.agent_id}/skills/revocations`,
-                            );
-                            await api.post(`/agents/${skill.agent_id}/skills/revocations`, {
-                              skill_id: skill.skill_id,
-                              version: skill.version,
-                              expected_revision: controls.revision,
-                            });
-                          }, t`The skill version is undone`)
-                        }
-                      >
-                        <Trans>Block this version</Trans>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn sm outline"
+                      onClick={() =>
+                        void act(async () => {
+                          const controls = await api.get<{ revision: number }>(
+                            `/agents/${skill.agent_id}/skills/revocations`,
+                          );
+                          await api.post(`/agents/${skill.agent_id}/skills/revocations`, {
+                            skill_id: skill.skill_id,
+                            version: skill.version,
+                            expected_revision: controls.revision,
+                          });
+                        }, t`The skill version is undone`)
+                      }
+                    >
+                      <Icon name="undo" />
+                      <span>
+                        <Trans>Undo this version</Trans>
+                      </span>
+                    </button>
                   </span>
                 )}
               </span>

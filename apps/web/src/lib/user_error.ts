@@ -25,10 +25,6 @@ export function userError(error: unknown) {
   const supervisionMessage = supervisionError(code, i18n.locale);
   if (supervisionMessage) return supervisionMessage;
   switch (code) {
-    case "provider_in_use":
-      return t`This provider is used in Models or by an agent. Choose another model there first.`;
-    case "provider_credential_not_stored":
-      return t`This key is set on the server and cannot be deleted here.`;
     case "agent_scope_change_forbidden":
       return t`This agent’s market scope cannot be changed.`;
     case "agent_scope_change_incomplete":

@@ -38,16 +38,11 @@ export type CapabilitySkill = {
   agent_id: string | null;
   agent_name: string | null;
   skill_id: string;
-  /** The Skill's own name for people; null when its manifest has none. */
-  title: string | null;
   version: string | null;
   provenance: "bundled" | "owner" | "agent_authored" | "external" | "unverified";
   repository: string | null;
   commit: string | null;
   enabled: boolean;
-  /** The newest saved version below the current one, which a restore returns to; null when
-   * there is none or the Skill is an installed package. */
-  previous_version: number | null;
   /** The owner undid this version: it no longer loads. */
   undone: boolean;
   /** Undo can deny this version (an installed or agent-written Skill with a version). */
