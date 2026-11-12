@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0165_agent_cli_tokens"
-down_revision = "0068_end_trading_goals"
+down_revision = "0070_secret_scopes"
 branch_labels = None
 depends_on = None
 
