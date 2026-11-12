@@ -14,7 +14,13 @@ async def routine_history(db: Database, routine_id: str, owner_id: str) -> list[
         runs = (
             await session.scalars(
                 select(RunRow)
-                .where(RunRow.thread_id == row.thread_id)
+                # By routine, not by thread: a routine moved to a new work thread keeps
+                # its earlier runs.
+                .where(
+                    RunRow.agent_id == row.agent_id,
+                    RunRow.trigger == "routine",
+                    RunRow.model_metadata["routine_id"].as_string() == row.id,
+                )
                 .order_by(RunRow.created_at.desc())
                 .limit(100)
             )
