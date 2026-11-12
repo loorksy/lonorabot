@@ -2182,6 +2182,9 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                 {
                     "kind": "grant_authority",
                     "agent_id": t.result("ui-create")["agent"]["id"],
+                    # A flat agent has no bound account: the grant names the one it
+                    # was assigned, as there can be several (3.1.2).
+                    "account_id": account,
                     "symbols": [symbol],
                     "daily_loss_percent": "2",
                 },

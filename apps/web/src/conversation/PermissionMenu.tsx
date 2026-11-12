@@ -8,7 +8,6 @@ import { api } from "../lib/api";
 import { userError } from "../lib/user_error";
 import { usePopover } from "../shell/lists/Popover";
 import { useNavigation } from "../shell/navigation";
-import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
 import { useMandateSheet } from "./sheets/MandateSheet";
 
@@ -56,7 +55,6 @@ export function PermissionChip({
   onChanged: (state: PermissionState) => void;
 }) {
   const popover = usePopover();
-  const sheets = useSheets();
   const nav = useNavigation();
   if (isGroup)
     return (
@@ -82,52 +80,6 @@ export function PermissionChip({
           <Trans>No trading</Trans>
         </span>
       </span>
-    );
-  if (!agent.trading_account_id && agent.role !== "personal")
-    return (
-      <button
-        type="button"
-        className="no-trade"
-        aria-label={t`No execution: no trading account is chosen`}
-        onClick={() =>
-          sheets.open({
-            id: "no-account",
-            title: t`No execution`,
-            body: (
-              <>
-                <div className="state-hero">
-                  <Icon name="eye" />
-                </div>
-                <p className="state-lead">
-                  <Trans>
-                    {agent.name} is not linked to a trading account, so it works without execution:
-                    it analyses and follows only.
-                  </Trans>
-                </p>
-                <button
-                  type="button"
-                  className="btn full primary"
-                  onClick={() => {
-                    sheets.close();
-                    nav.go(`/app/${encodeURIComponent(agent.id)}?settings=trading`);
-                  }}
-                >
-                  <Trans>Choose the trading account</Trans>
-                </button>
-                <p className="note">
-                  <Trans>
-                    Then the permission levels appear beside the text field: no execution · execute
-                    with approval · delegated execution.
-                  </Trans>
-                </p>
-              </>
-            ),
-          })
-        }
-      >
-        <Icon name="eye" />
-        <span>{levelName("analysis")}</span>
-      </button>
     );
   // Until the level is read (or when it cannot be), the chip says so: never a guessed level.
   if (!permission)
