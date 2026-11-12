@@ -23,14 +23,13 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import BrokerSessionRow, EventRow, TradingAccountRow, TradingJournalRow
 from lonora_db.trading_journal import persist_result, release_reservation
 from lonora_tools.loader import load_tools
 from lonora_trading.broker_recovery import reconcile_broker_account
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.execution import ExecutionService
 from lonora_trading.reconciliation import (
     recheck_verifications,
@@ -177,7 +176,6 @@ def quote(symbol: str) -> dict[str, Any]:
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original_controls = await read_controls(db)
     connection_id: str | None = None
     operations: list[str] = []
     try:
@@ -199,7 +197,6 @@ async def main() -> None:
                 }
             },
         )
-        await save_controls(db, TradingControl(enabled=True))
         services = fixture.runtime.services(fixture.owner)
         service = services.trading
         broker = cast(SimulationBroker, await services.brokers.get(fixture.owner, connection_id))
@@ -379,29 +376,26 @@ async def main() -> None:
             "broker_reconciliation_required",
         )
         assert (await run(trade("buy", EURO, volume="0.1", stop_loss="95"))).status == "confirmed"
-        # Reduce-only stays admissible under Emergency Stop, even on the uncertain market.
-        await save_controls(db, TradingControl(emergency_stop=True))
+        # Reduce-only stays admissible on the uncertain market; new risk there does not.
         partial = await run(trade("close_position", position_id=opened["p1"], volume="0.4"))
         assert partial.status == "confirmed"
         assert partial.details["execution"]["risk_reducing"] is True
         tightened = await run(trade("modify_position", position_id=opened["p2"], stop_loss="97"))
         assert tightened.status == "confirmed"
         await blocked(
-            trade("modify_position", position_id=opened["p2"], stop_loss="90"), "emergency_stop"
+            trade("modify_position", position_id=opened["p2"], stop_loss="90"),
+            "broker_reconciliation_required",
         )
         await blocked(
-            trade("modify_position", position_id=opened["p2"], take_profit="120"), "emergency_stop"
+            trade("modify_position", position_id=opened["p2"], take_profit="120"),
+            "broker_reconciliation_required",
         )
         assert (await run(trade("cancel_order", order_id=opened["o1"]))).status == "confirmed"
-        await blocked(trade("buy", EURO, volume="0.1", stop_loss="95"), "emergency_stop")
-        await save_controls(db, TradingControl(enabled=False))
         assert (
             await run(trade("modify_position", position_id=opened["p1"], stop_loss="96"))
         ).status == "confirmed"
-        await blocked(trade("buy", POUND, volume="0.1", stop_loss="95"), "trading_disabled")
-        await save_controls(db, TradingControl(enabled=True))
         print(
-            "PASS an unresolved operation blocks new risk on its market only; closes, tighter stops and cancels stay admissible under Emergency Stop and Trading OFF"
+            "PASS an unresolved operation blocks new risk on its market only; closes, tighter stops and cancels stay admissible there"
         )
 
         # Degraded account observation is scoped; a disconnected one blocks new risk only.
@@ -667,11 +661,10 @@ async def main() -> None:
                 {"decision": "approve"},
             )
 
-        # 7a. Under Emergency Stop the first reviewed position is stopped out before the
-        # approved card runs: that close fails on the changed target, the others are sent.
+        # 7a. The first reviewed position is stopped out before the approved card runs:
+        # that close fails on the changed target, the others are sent.
         call, gold = await approve_close_all("batch-stopped-" + uuid4().hex)
         await decide(call)
-        await save_controls(db, TradingControl(emergency_stop=True))
         stopped_out = await run(trade("close_position", position_id=gold[0]))
         assert stopped_out.status == "confirmed", stopped_out
         sent_before = len(lossy.sent)
@@ -686,9 +679,8 @@ async def main() -> None:
         assert all(item["status"] == "confirmed" for item in results[1:]), results
         assert len(lossy.sent) == sent_before + len(gold) - 1
         assert not any(p.symbol == GOLD for p in await broker.positions())
-        await save_controls(db, TradingControl(enabled=True))
         print(
-            "PASS an approved close-all under Emergency Stop still sends every other exit after one reviewed position was stopped out"
+            "PASS an approved close-all still sends every other exit after one reviewed position was stopped out"
         )
 
         # 7b. The first close's response is lost: it stays uncertain and is never resent,
@@ -723,22 +715,15 @@ async def main() -> None:
             "PASS an approved close-all (proposed through the tool_call bridge) sends every reviewed close after an uncertain one, never resends it and never extends the reviewed set"
         )
 
-        # 8. Approved cards (the supervised agent path) under Emergency Stop and Trading OFF:
-        # exits stay admissible on the still-uncertain GOLD market, new risk never is.
+        # 8. Approved cards (the supervised agent path): exits stay admissible on the
+        # still-uncertain GOLD market, new risk there never is.
         async def approved(arguments: dict[str, Any]) -> dict[str, Any]:
             call = ToolCall(
                 id="card-" + uuid4().hex,
                 name="trade_execute",
                 arguments={"account_id": account, **arguments},
             )
-            try:
-                proposal = await registry.execute(call, context)
-            except LonoraError as error:
-                # New risk a brake holds is refused before any approval card (W15-ACC):
-                # the owner is never asked to approve what the boundary would refuse.
-                if error.code not in {"trading_disabled", "emergency_stop"}:
-                    raise
-                return {"status": "failed", "code": error.code, "before_card": True}
+            proposal = await registry.execute(call, context)
             assert proposal["_runtime_wait"], proposal
             await fixture.request(
                 "POST",
@@ -753,10 +738,6 @@ async def main() -> None:
         assert (await journal(results[0]["operation_id"])).status == "ambiguous"
         resting = await run(trade("buy_limit", POUND, volume="0.2", price="99"))
         assert resting.status == "confirmed" and resting.broker_id
-        # A protective order: a sell stop that would offset the net long EURO book.
-        assert (await run(trade("buy", EURO, volume="0.2", stop_loss="95"))).status == "confirmed"
-        guard = await run(trade("sell_stop", EURO, volume="0.2", price="96"))
-        assert guard.status == "confirmed" and guard.broker_id, guard
         await refresh()
         held = sorted(
             (p for p in await broker.positions() if p.symbol == GOLD and p.stop_loss),
@@ -764,7 +745,6 @@ async def main() -> None:
         )
         assert len(held) >= 2
         stops = [p.stop_loss or Decimal(0) for p in held]
-        await save_controls(db, TradingControl(emergency_stop=True))
         tightened = await approved(
             {
                 "action": "modify_position",
@@ -776,19 +756,6 @@ async def main() -> None:
         assert tightened["status"] == "confirmed", tightened
         assert tightened["details"]["execution"]["risk_reducing"] is True
         assert tightened["details"]["execution"]["run_id"] == context.lease.run_id
-        entry = await approved(
-            {"action": "buy", "symbol": EURO, "volume": "0.1", "stop_loss": "95"}
-        )
-        # New risk under the stop is refused before any approval card is raised.
-        assert entry["status"] == "failed" and entry["code"] == "emergency_stop", entry
-        assert entry.get("before_card") is True, entry
-        # Cancelling a protective order removes protection: new risk, not an exit.
-        unguarded = await approved(
-            {"action": "cancel_order", "symbol": EURO, "order_id": guard.broker_id}
-        )
-        assert unguarded["status"] == "failed", unguarded
-        assert unguarded["code"] == "emergency_stop", unguarded
-        assert any(o.id == guard.broker_id for o in await broker.orders())
         widened = await approved(
             {
                 "action": "modify_position",
@@ -797,8 +764,9 @@ async def main() -> None:
                 "stop_loss": str(stops[1] - Decimal("1")),
             }
         )
-        assert widened["status"] == "failed" and widened["code"] == "emergency_stop", widened
-        await save_controls(db, TradingControl(enabled=False))
+        # A wider stop on the uncertain market is new risk: approved, still never sent.
+        assert widened["status"] == "failed", widened
+        assert widened["code"] == "broker_reconciliation_required", widened
         closed = await approved(
             {"action": "close_position", "symbol": GOLD, "position_id": held[1].id}
         )
@@ -809,16 +777,14 @@ async def main() -> None:
         )
         assert cancelled["status"] == "confirmed", cancelled
         entry = await approved(
-            {"action": "buy_limit", "symbol": POUND, "volume": "0.1", "price": "99"}
+            {"action": "buy", "symbol": GOLD, "volume": "0.1", "stop_loss": "95"}
         )
-        assert entry["status"] == "failed" and entry["code"] == "trading_disabled", entry
-        assert entry.get("before_card") is True, entry
-        await save_controls(db, TradingControl(enabled=True))
+        assert entry["status"] == "failed", entry
+        assert entry["code"] == "broker_reconciliation_required", entry
         print(
-            "PASS approved agent cards close, cancel and tighten under Emergency Stop and Trading OFF on an uncertain market, while entries, wider stops and cancelling a protective order stay blocked"
+            "PASS approved agent cards close, cancel and tighten on an uncertain market, while entries and wider stops there stay blocked"
         )
     finally:
-        await save_controls(db, original_controls)
         async with db.sessions() as session, session.begin():
             await session.execute(
                 delete(TradingJournalRow).where(TradingJournalRow.operation_id.in_(operations))

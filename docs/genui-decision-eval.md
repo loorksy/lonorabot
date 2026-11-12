@@ -278,9 +278,6 @@ figures say nothing here.
 - **Run:** every case ran to its end. 88 completed and 21 stopped waiting for the owner: 20 at a
   `wait_for_input` question and one at a trade approval (I08). No model request failed or was
   retried, and no case timed out.
-- **Install state:** a fresh install starts with trading stopped until the owner resumes it, so
-  the permission frame reports `global_trading` as stopped for the whole run. This is how a new
-  install behaves; the bank does not change it.
 
 | Metric | Value | Count | G8 target |
 |---|---|---|---|

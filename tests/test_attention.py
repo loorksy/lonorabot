@@ -12,7 +12,6 @@ from pydantic import ValidationError
 @pytest.mark.parametrize(
     ("kind", "payload", "importance", "code"),
     [
-        ("trading.controls_updated", {"emergency_stop": True}, "critical", "emergency_stop"),
         ("trading.approval.updated", {"status": "pending"}, "action_required", "approval_required"),
         ("watch.confirmed", {"state": "confirmed"}, "opportunity", "setup_confirmed"),
         ("watch.forming", {}, "silent", "internal_update"),
@@ -65,6 +64,6 @@ def test_health_recurrence_has_distinct_identity():
 def test_mandatory_policy_cannot_be_disabled():
     with pytest.raises(ValidationError):
         AttentionPolicy.model_validate({"critical": False})
-    for code in ("emergency_stop", "approval_required", "broker_degraded", "task_review"):
+    for code in ("approval_required", "broker_degraded", "task_review"):
         assert attention_text(code, "ar") != attention_text(code, "en")
         assert attention_text(code, "ar") != attention_text("unknown", "ar")

@@ -37,7 +37,6 @@ from lonora_db.schema import (
     RunRow,
     VoiceSessionRow,
 )
-from lonora_db.transactions import SettingsRepository
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -324,7 +323,7 @@ async def attention(fixture: Fixture, agent: dict[str, Any], thread_id: str) -> 
                 agent_id=agent["id"],
                 thread_id=thread_id,
                 importance="critical",
-                code="emergency_stop",
+                code="run_quarantined",
                 status="ready",
                 logical_key=identifier,
                 coalesce_key=identifier,
@@ -379,8 +378,6 @@ async def message_instead_of_calling(fixture: Fixture, lonora: dict[str, Any]) -
                 revoked=False,
             )
         )
-        # A qualifying, still-current critical event: new trading is stopped.
-        await SettingsRepository().put(session, "trading_control", {"emergency_stop": True})
     # 1. "Call me if a decision is needed": the reach-me preference becomes call.
     context = await owner_run(fixture, lonora, "راقب الذهب واتصل بي إذا احتاج الأمر قراري")
     thread_id = context.thread_id

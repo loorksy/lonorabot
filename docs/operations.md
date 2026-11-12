@@ -306,7 +306,7 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
 1. **Maintenance on.** `maintenance/on` is created. While it exists, Caddy answers every write
    (anything but GET, HEAD and OPTIONS) with `503` and «يجري التحديث، حاول بعد دقائق». It is on only
    while no Gateway runs: **a Gateway never runs while maintenance is on**, so whenever anything could
-   trade, the owner's emergency stop, trading stop, close, approval reject and authority revoke are
+   trade, the owner's pause, close, approval reject and authority revoke are
    accepted.
 2. An in-progress marker (`state/update-in-progress`) is written; API and Gateway are stopped.
 3. An encrypted backup is taken **and verified** (decrypted, authenticated, every checksum and the
@@ -332,8 +332,8 @@ undo something that must not be undone: an owner's "stop trading", a new restric
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
 on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
-`ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the trading switch and emergency stop
-in `ln_settings`, and the owner's own messages in `ln_messages` (including Telegram and voice). If any of them
+`ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the `trading*` rows of
+`ln_settings`, and the owner's own messages in `ln_messages` (including Telegram and voice). If any of them
 changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
 and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits with status 2.
 

@@ -71,7 +71,7 @@ systematic fault cannot flood the inbox.
   (`attention_projection_failed`) and an attention item is suppressed; re-enabling a
   routine or watch starts fresh;
 - a critical or action-required notification is never lost to a projection bug: a
-  quarantined event still raises its own code (for example `emergency_stop`) straight
+  quarantined event still raises its own code (for example `approval_required`) straight
   to ready, without the details its failed projection would have added, and a
   quarantined pending item of that importance is delivered as it is;
 - an automatic task retry is turned into a Task failure that waits for the owner, which

@@ -401,6 +401,6 @@ surface and pre-upgrade receipts.
   like `message` plus the alerts Lonora already raises, and its label says exactly
   that.
 - The shared Arabic and English label table covers the profile, reach-me, language
-  and history words only. Status-line, ladder (No trading / Ask me / On its own) and
-  brake ("Stop new trading") words belong to W15-1, W15-3 and W15-9, which rename
-  them on Web and Mobile; they are not duplicated here.
+  and history words only. Status-line and ladder (No trading / Ask me / On its own)
+  words belong to W15-1, W15-3 and W15-9, which rename them on Web and Mobile; they
+  are not duplicated here.

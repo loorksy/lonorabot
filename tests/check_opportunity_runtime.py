@@ -188,7 +188,6 @@ async def main() -> None:
             "PASS versioned forming/confirmed/invalidated history, explicit expiry without SL, source freshness degradation and restart/API persistence"
         )
 
-        await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
         thesis = created[0]
         args = {
             "account_id": account,
@@ -435,7 +434,6 @@ async def main() -> None:
             "PASS an owner attestation settles a thesis entry link: not_executed releases it for a fresh entry, executed acts on it and blocks a duplicate; an observed-closed position completes its thesis"
         )
     finally:
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         await f.close()
 
 

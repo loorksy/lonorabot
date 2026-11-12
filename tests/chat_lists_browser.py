@@ -14,6 +14,7 @@ import sys
 from typing import Any
 from uuid import uuid4
 
+from check_attention_browser import critical_item
 from check_streaming import Fixture
 from lonora_db.events import emit
 from lonora_db.messages import message_data
@@ -101,29 +102,12 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                 fixture, data["thread"], "assistant", data["agent"], data["content"], True
             )
         if data["action"] == "attention":
-            # A fresh transition: an earlier stop (another spec) is lifted first, so the
-            # critical item raised here is new.
-            controls = await fixture.request("GET", "/trading/controls")
+            # A fresh critical item, so the one raised here is new for each spec.
             brokers = fixture.runtime.services(fixture.owner).brokers
-            if controls["emergency_stop"]:
-                await fixture.request(
-                    "PUT",
-                    "/trading/controls",
-                    {"enabled": controls["enabled"], "emergency_stop": False},
-                )
-                await attention_tick(fixture.runtime.db, brokers, fixture.owner)
-            await fixture.request(
-                "PUT", "/trading/controls", {"enabled": False, "emergency_stop": True}
-            )
+            critical = await critical_item(fixture)
             await attention_tick(fixture.runtime.db, brokers, fixture.owner)
             notifications = (await fixture.client.get("/api/attention")).json()
-            return max(
-                (row for row in notifications if row["code"] == "emergency_stop"),
-                key=lambda row: row["created_at"],
-            )
-        if data["action"] == "restore":
-            # The trading controls exactly as the spec found them.
-            return await fixture.request("PUT", "/trading/controls", data["controls"])
+            return next(row for row in notifications if row["id"] == critical)
         raise ValueError("Unknown chat list fixture action")
     finally:
         await fixture.close(cleanup=False)

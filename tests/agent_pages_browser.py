@@ -3,7 +3,7 @@
 A simulation account with imported candles, a trading agent on XAUUSD, a research agent,
 a group with a purpose and a lead, and one open position the owner opened through the
 executor. Cleanup removes them through the API (the UI itself never deletes an agent or a
-group) and restores the trading controls as they were.
+group).
 """
 
 import asyncio
@@ -159,10 +159,6 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                     "lead_agent_id": research["id"],
                 },
             )
-            controls = await fixture.request("GET", "/trading/controls")
-            await fixture.request(
-                "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
-            )
             opened = await fixture.request(
                 "POST",
                 "/trading/execute",
@@ -209,7 +205,6 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                 "trader": trader,
                 "research": research,
                 "group": group,
-                "controls": controls,
             }
         finally:
             await fixture.close(cleanup=False)
@@ -359,13 +354,7 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                         TradingJournalRow.operation_id.like("agent-pages-%")
                     )
                 )
-            await fixture.request("PUT", "/trading/controls", data["controls"])
             await fixture.client.delete(f"/api/trading/connections/{data['account']}")
-            # The brake toggled for the owner's position raised attention; settle it so the
-            # next spec starts from the controls' own state.
-            await attention_tick(
-                fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
-            )
         finally:
             await fixture.close(cleanup=False)
         return {"cleaned": True}
