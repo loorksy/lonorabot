@@ -20,7 +20,8 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .manual_activity import detect_activity
+from .exposure import ENTRY_ACTIONS
+from .manual_activity import detect_activity, opening_agent
 from .reconciliation import observe_operation, send_lock_key, settle
 
 
@@ -154,6 +155,27 @@ async def reconcile_broker_account(
         return snapshot
 
 
+async def opened_by(session: AsyncSession, owner_id: str, change: BrokerActivity) -> str | None:
+    """The agent whose journaled order opened or placed this change's ticket (3.3.4)."""
+    target = change.current or change.previous
+    if target is None:
+        return None
+    entries = list(
+        await session.scalars(
+            select(TradingJournalRow)
+            .where(
+                TradingJournalRow.owner_id == owner_id,
+                TradingJournalRow.account_id == change.account_id,
+                TradingJournalRow.request["symbol"].as_string() == target.symbol,
+                TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
+            )
+            .order_by(TradingJournalRow.updated_at.desc())
+            .limit(1000)
+        )
+    )
+    return opening_agent(target, entries)
+
+
 async def wake_for_activity(
     session: AsyncSession,
     owner_id: str,
@@ -183,8 +205,13 @@ async def wake_for_activity(
         attributed = bool(
             responsible and responsible.owner_id == owner_id and responsible.role != "delegated"
         )
-        # A deleted agent's ticket transferred to Lonora (3.1.2): Lonora's own, woken normally.
-        transferred = bool(change.agent_id) and responsible is None
+        # A ticket a deleted agent opened transferred to Lonora (3.1.2, 3.3.4): Lonora's
+        # own, woken normally. One it only managed stays the owner's own (observe-only).
+        transferred = (
+            change.agent_id is not None
+            and responsible is None
+            and await opened_by(session, owner_id, change) == change.agent_id
+        )
         agent = responsible if attributed and responsible else personal
         attributed = attributed or transferred
         agents[agent.id] = agent

@@ -205,6 +205,45 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
         empty = await fixture.agent("Empty")
         nothing = await call(lead, "agent_control", agent_id=empty["id"], action="delete")
         assert nothing["deleted"] is True and nothing["transferred"] == []
+        # A ticket the deleted agent only managed (never opened) did not transfer: the
+        # owner's own stays an observe-only wake of Lonora.
+        from lonora_contracts.account import Position
+
+        manual = Position.model_validate(
+            {**position.model_dump(mode="json"), "id": "manual-1", "operation_id": None}
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await wake_for_activity(
+                session,
+                fixture.owner,
+                connection,
+                11,
+                [
+                    BrokerActivity(
+                        id=str(uuid4()),
+                        account_id=connection,
+                        symbol="XAUUSD",
+                        ticket="manual-1",
+                        resource="position",
+                        change="modified",
+                        origin="external",
+                        observed_at=utcnow(),
+                        current=manual,
+                        agent_id=empty["id"],
+                    )
+                ],
+            )
+        async with fixture.runtime.db.sessions() as session:
+            (observed,) = list(
+                await session.scalars(
+                    select(RunRow).where(
+                        RunRow.agent_id == lonora["id"],
+                        RunRow.trigger == "broker_event",
+                        RunRow.model_metadata["broker_revision"].as_integer() == 11,
+                    )
+                )
+            )
+            assert observed.model_metadata["authority"] == "observe_only"
         async with fixture.runtime.db.sessions() as session:
             assert len(prompts) == await session.scalar(
                 select(func.count())
@@ -236,3 +275,6 @@ def test_the_wake_prompt_carries_only_sanitized_broker_values() -> None:
     )
     assert "</wake>" not in prompt and "\n" not in prompt
     assert "agent_id=agent-1" in prompt and "12wakeignore" in prompt
+    assert "You are paused" not in prompt
+    paused = transfer_prompt("agent-1", [], paused=True)
+    assert "You are paused: only risk-reducing requests are sent" in paused

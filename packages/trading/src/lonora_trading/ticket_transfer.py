@@ -21,6 +21,7 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .exposure import ENTRY_ACTIONS
 from .manual_activity import opening_agent
 
 # Broker strings go into the wake's server text: only identifier characters survive.
@@ -55,6 +56,8 @@ async def opened_tickets(
                 .where(
                     TradingJournalRow.owner_id == owner_id,
                     TradingJournalRow.account_id == account.id,
+                    # Opening orders only, so a busy account's closes never crowd them out.
+                    TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
                 )
                 .order_by(TradingJournalRow.updated_at.desc())
                 .limit(1000)
@@ -75,7 +78,7 @@ async def opened_tickets(
     return tickets
 
 
-def transfer_prompt(agent_id: str, tickets: list[dict[str, str]]) -> str:
+def transfer_prompt(agent_id: str, tickets: list[dict[str, str]], *, paused: bool = False) -> str:
     """Fixed text, server identifiers and sanitized broker values only."""
     listed = "; ".join(
         f"account_id={_safe(t['account_id'])} {_safe(t['resource'])} "
@@ -88,6 +91,13 @@ def transfer_prompt(agent_id: str, tickets: list[dict[str, str]]) -> str:
         f"pending orders are now yours: {listed}{more}. Use account_activity and the current "
         "account state to reassess each and decide what to do under your mode. Never resend "
         "an uncertain operation."
+    ) + (
+        # The same line a paused agent's own broker wake carries (4.7.1).
+        " You are paused: only risk-reducing requests are sent (a full or partial close, "
+        "cancelling a pending order, adding a stop loss, or moving a stop loss toward the "
+        "market); take no new work."
+        if paused
+        else ""
     )
 
 
@@ -114,7 +124,7 @@ async def wake_lonora(
             "origin_thread_id": thread.id,
             "account_id": account_id,
             "transferred_from": agent_id,
-            "tickets": [item["ticket"] for item in items],
+            "tickets": [_safe(item["ticket"]) for item in items[:LISTED]],
         }
         run = await create_run(
             session,
@@ -123,7 +133,7 @@ async def wake_lonora(
                 thread_id=work.id,
                 agent_id=lonora.id,
                 trigger="broker_event",
-                prompt=transfer_prompt(agent_id, items),
+                prompt=transfer_prompt(agent_id, items, paused=lonora.paused),
                 metadata=metadata,
             ),
             stable_id(agent_id, "transfer:" + account_id),
