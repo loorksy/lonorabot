@@ -18,6 +18,8 @@ export type OwnerActionKind =
   | "supervision_paused"
   | "trust_source"
   | "connect_credential"
+  /** The Secret card: fields the agent chose; values go straight to the encrypted store. */
+  | "secret"
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
   | "watch_changed"
   /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
@@ -37,6 +39,11 @@ export type CredentialTarget =
   | "brave_search"
   | "economic_calendar"
   | "broker";
+/** One field of a Secret card, chosen by the agent: its key names the saved value; a
+ * field with secret false may be shown while typed. Every value is stored encrypted. */
+export type SecretField = { key: string; label: string; secret: boolean };
+/** Where a Secret card's values go; the server sets it, never the agent's fields. */
+export type SecretDestination = "workspace" | "broker";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
 /** A creation card's agent, read on the server. */
@@ -214,6 +221,17 @@ export type OwnerAction = {
     };
     /** connect_credential: the form to offer ("x" names an X MCP server). */
     credential?: { target: CredentialTarget; service: "x" | null };
+    /** The Secret card: the agent's label and fields, where they go and who asked. */
+    secret?: {
+      label: string;
+      fields: SecretField[];
+      destination: SecretDestination;
+      agent_name: string | null;
+      /** A broker card (raised only by the connect tool): the account the password is for. */
+      account?: { login: string; server: string; platform: "mt4" | "mt5" };
+      /** A broker card: connect the account, store its new password, or a new token. */
+      purpose?: "connect" | "rotate_password" | "replace_token";
+    };
     /** watch_changed: the agent's extension; active while Undo still restores it. */
     watch?: {
       symbol: string | null;
@@ -266,6 +284,11 @@ export type OwnerAction = {
     configured?: boolean;
     connection_id?: string;
     integration_id?: string;
+    /** A saved Secret card: the keys saved and where; never a value. */
+    saved?: string[];
+    /** A broker card: how provisioning stands (9.2). */
+    provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
+    destination?: SecretDestination;
     /** connect_credential for an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
     /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */

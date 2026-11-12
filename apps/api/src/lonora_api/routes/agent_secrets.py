@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.agent_secrets import WorkspaceSecretCreate
 from lonora_db.secrets import WORKSPACE, secret_metadata
 
 from ..middleware.auth import require_owner, runtime
@@ -12,19 +11,10 @@ router = APIRouter()
 async def list_secrets(
     request: Request, owner: OwnerIdentity = Depends(require_owner)
 ) -> list[dict[str, str]]:
-    """The owner's workspace secrets by name; values never leave the store."""
+    """The owner's workspace secrets by name; values never leave the store. A secret is
+    saved only through a Secret card (``secret_cards``)."""
     async with runtime(request).db.sessions() as session:
         return await secret_metadata(session, owner.id, WORKSPACE)
-
-
-@router.post("/secrets", status_code=201)
-async def store_secret(
-    request: Request, body: WorkspaceSecretCreate, owner: OwnerIdentity = Depends(require_owner)
-) -> dict[str, str]:
-    secret_id = (
-        await runtime(request).services(owner.id).secrets.write(body.name, body.value, WORKSPACE)
-    )
-    return {"id": secret_id, "name": body.name}
 
 
 @router.delete("/secrets/{secret_id}")

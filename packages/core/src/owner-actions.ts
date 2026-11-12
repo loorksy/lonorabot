@@ -288,6 +288,24 @@ export const ownerActionLabels = {
     connect: "Connect",
     connected: "Connected. Agents see only that it is configured.",
     alreadyConnected: "This is already connected. Nothing changed.",
+    secretTitle: "Secret",
+    secretAskedBy: "Asked by {agent}",
+    secretWorkspace:
+      "Saved encrypted for your workspace. What you type never enters the chat or reaches an agent.",
+    secretBroker:
+      "Saved encrypted for your broker connection only; it never enters the workspace or reaches an agent.",
+    secretSave: "Save",
+    secretSaved: "Saved encrypted. No agent sees the values.",
+    brokerConnectTitle: "Connect trading account",
+    brokerRotateTitle: "New trading password",
+    brokerTokenNew: "New MetaApi API token",
+    brokerTokenTitle: "New MetaApi API token",
+    brokerAccountLine: "Account {login} on server {server} ({platform})",
+    brokerPassword: "Trading (master) password",
+    brokerToken: "MetaApi API token (asked once)",
+    brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
+    brokerConnected: "Connected. Lonora reported its balance in the conversation.",
+    brokerFailed: "Could not connect. Lonora said why in the conversation.",
     pauseNewToday: "Stop new trades today",
     pauseNewTodayHint: "Closing stays allowed",
     optional: "optional",
@@ -560,6 +578,22 @@ export const ownerActionLabels = {
     connect: "ربط",
     connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
+    secretTitle: "بيانات سرّية",
+    secretAskedBy: "يطلبها {agent}",
+    secretWorkspace: "تُحفظ مشفّرة لمساحة العمل. ما تكتبه لا يدخل المحادثة ولا يصل إلى أي وكيل.",
+    secretBroker: "تُحفظ مشفّرة لاتصال الوسيط فقط، ولا تدخل مساحة العمل ولا تصل إلى أي وكيل.",
+    secretSave: "حفظ",
+    secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
+    brokerConnectTitle: "ربط حساب التداول",
+    brokerRotateTitle: "كلمة مرور تداول جديدة",
+    brokerTokenNew: "رمز MetaApi API الجديد",
+    brokerTokenTitle: "رمز MetaApi API جديد",
+    brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
+    brokerPassword: "كلمة مرور التداول (الرئيسية)",
+    brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
+    brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
+    brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
+    brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
     pauseNewToday: "أوقف الصفقات الجديدة اليوم",
     pauseNewTodayHint: "الإغلاق مسموح",
     optional: "اختياري",
@@ -631,6 +665,10 @@ export type CredentialForm = {
   fields: CredentialField[];
   submit: string;
 };
+/** One field of a Secret card's form, as the agent chose it; ``password`` masks it. */
+export type SecretFormField = { key: string; label: string; type: "password" | "text" };
+/** A Secret card's form while it waits; ``submitSecret`` posts its values. */
+export type SecretForm = { fields: SecretFormField[]; submit: string };
 export type OwnerActionSpec = {
   title: string;
   /** Server facts, one per line, ready to render with dir="auto". */
@@ -644,6 +682,8 @@ export type OwnerActionSpec = {
   notes: boolean;
   /** A credential card's secure form while it waits (submitted by the client itself). */
   credential: CredentialForm | null;
+  /** A Secret card's form while it waits (submitted by the client itself). */
+  secret: SecretForm | null;
   passkey: boolean;
   /** The settled line ("Trading resumed.", "This card expired. Nothing changed."). */
   outcome: string | null;
@@ -712,6 +752,14 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
             : text.trusted;
       case "connect_credential":
         return text.connected;
+      case "secret":
+        if (card.facts.secret?.destination !== "broker") return text.secretSaved;
+        // The card's own record of how provisioning ended, read on the server.
+        return card.result.provisioning === "failed"
+          ? text.brokerFailed
+          : card.result.provisioning === "connected"
+            ? text.brokerConnected
+            : text.brokerSaved;
       case "watch_changed":
         return text.watchUndone;
       case "stop_tightened":
@@ -1322,6 +1370,18 @@ export async function submitCredential(
   return { resource: "integration", id: integration.id };
 }
 
+/**
+ * Save a Secret card: the owner's values go to the card's own route, which stores them
+ * encrypted and settles the card in one transaction; it answers with the card as saved.
+ */
+export async function submitSecret<Card>(
+  post: (path: string, body: unknown) => Promise<Card>,
+  cardId: string,
+  values: Record<string, string>,
+): Promise<Card> {
+  return post(`/owner-actions/${encodeURIComponent(cardId)}/secret`, { values });
+}
+
 /** What the agent may do with money, by its level now (a grant may be signed later). */
 function authorityHint(level: OwnerActionAgent["level"], text: OwnerActionText): string {
   if (level === "autonomous") return text.createdGrantHint;
@@ -1345,6 +1405,7 @@ export function ownerActionCard(
   let buttons: OwnerActionButton[] = [];
   let options: OwnerActionOption[] = [];
   let form: CredentialForm | null = null;
+  let secretForm: SecretForm | null = null;
   const pair = (confirm: string, cancel: string): OwnerActionButton[] => [
     { key: "confirm", label: confirm, decision: "confirm", primary: true },
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
@@ -1624,6 +1685,60 @@ export function ownerActionCard(
       buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
       break;
     }
+    case "secret": {
+      const secret = facts.secret;
+      title = text.secretTitle;
+      if (secret?.destination === "broker" && secret.account) {
+        // Raised only by the connect tool: every word is ours, the account is server fact.
+        const account = secret.account;
+        title =
+          secret.purpose === "rotate_password"
+            ? text.brokerRotateTitle
+            : secret.purpose === "replace_token"
+              ? text.brokerTokenTitle
+              : text.brokerConnectTitle;
+        lines.push(
+          fill(text.brokerAccountLine, {
+            login: isolate(account.login),
+            server: isolate(account.server),
+            platform: account.platform.toUpperCase(),
+          }),
+        );
+        if (secret.agent_name)
+          lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
+        hint = text.secretBroker;
+        secretForm = {
+          fields: secret.fields.map((field) => ({
+            key: field.key,
+            label:
+              field.key !== "METAAPI_TOKEN"
+                ? text.brokerPassword
+                : secret.purpose === "replace_token"
+                  ? text.brokerTokenNew
+                  : text.brokerToken,
+            type: "password",
+          })),
+          submit: text.secretSave,
+        };
+      } else if (secret) {
+        // The label and field labels are the agent's words; every other word is ours.
+        lines.push(isolate(secret.label));
+        if (secret.agent_name)
+          lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
+        hint = secret.destination === "broker" ? text.secretBroker : text.secretWorkspace;
+        secretForm = {
+          fields: secret.fields.map((field) => ({
+            key: field.key,
+            label: field.label,
+            type: field.secret ? "password" : "text",
+          })),
+          submit: text.secretSave,
+        };
+      }
+      // Save is the form's own submit: the values go to the card's route, never here.
+      buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
+      break;
+    }
     case "set_account_limits": {
       title = text.limitsTitle;
       const currency = facts.proposed?.currency ?? facts.current?.currency ?? null;
@@ -1658,6 +1773,7 @@ export function ownerActionCard(
     buttons: pending ? buttons : [],
     notes: pending && card.kind === "resolve_operation",
     credential: pending ? form : null,
+    secret: pending ? secretForm : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),
   };
