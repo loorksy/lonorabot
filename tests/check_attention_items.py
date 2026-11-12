@@ -508,6 +508,34 @@ async def view(fixture: Fixture) -> None:
             **row.execution_state,
             "input_requests": [{"id": "q1", "status": "pending"}],
         }
+    # A Task review whose Task is gone, and an alert quiet hours still hold: not listed.
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        for key, code, status, due, parameters in (
+            ("stale-review", "task_review", "seen", utcnow(), {"task_id": "gone"}),
+            (
+                "held-alert",
+                "agent_notification",
+                "pending",
+                utcnow() + timedelta(hours=1),
+                {"summary": "Held until the quiet hours end"},
+            ),
+        ):
+            session.add(
+                AttentionRow(
+                    id=key + "-" + uuid4().hex[:8],
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    logical_key=key + uuid4().hex[:8],
+                    coalesce_key=key + uuid4().hex[:8],
+                    importance="action_required",
+                    code=code,
+                    status=status,
+                    parameters=parameters,
+                    source_events=[],
+                    due_at=due,
+                )
+            )
     before = await fixture.request("GET", "/attention/history")
     rows = cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
     by_id = {entry["id"]: entry for entry in rows}
@@ -543,6 +571,7 @@ async def view(fixture: Fixture) -> None:
         assert entry["code"] == item.code and entry["thread_id"] == item.thread_id
         assert entry["kind"] == ATTENTION_EVENTS.get(item.code, "task_review")  # type: ignore[arg-type]
     assert not set(ended) & set(by_id)
+    assert not [key for key in by_id if key.startswith(("stale-review-", "held-alert-"))]
     # Several agents' items in one view.
     assert len({entry["agent_id"] for entry in rows}) > 1
     assert await fixture.request("GET", "/attention/history") == before

@@ -1,6 +1,6 @@
 """Durable notification decisions reuse event publication and effect receipts."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from lonora_contracts.attention import (
@@ -426,7 +426,7 @@ async def notify_owner(
     CRITICAL_LIMIT_PER_HOUR critical alerts per owner, a critical one counts as an
     important change. Under reach-me "activity
     only" a non-critical alert raises no item (``activity_only``): the Agent says it in
-    its reply, which reaches its conversation and the Activity list. Delivery is in the
+    its reply, which reaches its conversation and the activity log. Delivery is in the
     app until off-app delivery exists. The item grants nothing.
     """
     now = utcnow()
@@ -805,19 +805,32 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
     from .schema import RunRow, ThreadRow
 
     rows: list[AttentionViewRow] = []
-    items = await session.scalars(
+    query = (
         select(AttentionRow)
         .where(
             AttentionRow.owner_id == owner_id,
             AttentionRow.code.in_([*sorted(ATTENTION_EVENTS), "task_review"]),
             AttentionRow.status.in_(["pending", "ready", "seen"]),
         )
-        .order_by(AttentionRow.created_at.desc())
-        .limit(VIEW_LIMIT)
+        .order_by(AttentionRow.created_at.desc(), AttentionRow.id)
     )
-    for item in items:
-        if not await mandatory_current(session, item):
-            continue
+    # Page until the limit of current rows: ended items never push an open card out,
+    # and one fact (the same Task failing again) is one row, the newest.
+    facts: set[tuple[str, str]] = set()
+    offset = 0
+    current: list[AttentionRow] = []
+    while len(current) < VIEW_LIMIT:
+        page = list(await session.scalars(query.offset(offset).limit(VIEW_LIMIT)))
+        for item in page:
+            if (item.code, item.coalesce_key) in facts:
+                continue
+            facts.add((item.code, item.coalesce_key))
+            if await mandatory_current(session, item):
+                current.append(item)
+        if len(page) < VIEW_LIMIT:
+            break
+        offset += VIEW_LIMIT
+    for item in current[:VIEW_LIMIT]:
         code = cast(AttentionCode, item.code)
         rows.append(
             AttentionViewRow(
@@ -841,11 +854,13 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
         .order_by(AttentionRow.created_at.desc())
         .limit(VIEW_LIMIT)
     )
-    now = utcnow().isoformat()
+    now = utcnow()
     for alert in alerts:
-        if alert.status == "pending" and alert.due_at > utcnow():
+        # An alert held by quiet hours is not shown before it is due.
+        if alert.status == "pending" and alert.due_at > now:
             continue
-        if str(alert.parameters.get("valid_until") or "9999") <= now:
+        until = alert.parameters.get("valid_until")
+        if until and datetime.fromisoformat(str(until)) <= now:
             continue
         rows.append(
             AttentionViewRow(
@@ -980,9 +995,10 @@ SWEEP_BATCH = 200
 
 
 async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
-    """Withdraw every open item of the 11.4 owner events whose card ended or whose
-    problem cleared, including one the owner has already seen (which keeps its
-    ``updated_at``, so the history does not reorder).
+    """Withdraw every open item of the 11.4 owner events, and of Tasks that need review,
+    whose card ended, whose problem cleared or whose Task no longer waits, including
+    one the owner has already seen (which keeps its ``updated_at``, so the history
+    does not reorder).
 
     A card can end without an event (a Secret card's lifetime runs out), and a broker
     problem clears with a recovery that raises no item of its own, so the current
@@ -999,7 +1015,7 @@ async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
             select(AttentionRow)
             .where(
                 AttentionRow.owner_id == owner_id,
-                AttentionRow.code.in_(sorted(ATTENTION_EVENTS)),
+                AttentionRow.code.in_([*sorted(ATTENTION_EVENTS), "task_review"]),
                 AttentionRow.status.in_(["pending", "ready", "seen"]),
                 AttentionRow.id > after,
             )

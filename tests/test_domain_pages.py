@@ -416,10 +416,10 @@ async def test_updates_alerts_show_each_current_fact_once():
                     {"valid_until": (now - timedelta(minutes=1)).isoformat()},
                     0,
                 ),
-                "withdrawn": ("important_change", "goal_changed", "suppressed", "w", {}, 0),
-                "kept": ("important_change", "goal_changed", "seen", "kept", {}, 3),
+                "withdrawn": ("important_change", "collaboration_completed", "suppressed", "w", {}, 0),
+                "kept": ("important_change", "collaboration_completed", "seen", "kept", {}, 3),
                 # Another notification of the same kind in its own group is its own fact.
-                "other": ("important_change", "goal_changed", "seen", "other", {}, 4),
+                "other": ("important_change", "collaboration_completed", "seen", "other", {}, 4),
             }
             # More repeats of the stop than the cap must not push older facts out.
             for repeat in range(55):

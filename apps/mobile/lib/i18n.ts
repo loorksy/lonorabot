@@ -296,7 +296,7 @@ export const labels = {
     "انتهى طلب التفويض أو استُخدم؛ راجع طلبًا جديدًا.",
     "This authorization expired or was used. Review a new request.",
   ],
-  attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
+  attentionApproval: ["بانتظار موافقتك", "Waiting for approval"],
   attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
   attentionBrokerUndeployed: [
     "الحساب غير مُشغَّل على MetaApi",

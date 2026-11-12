@@ -179,7 +179,7 @@ export function UpdatesPage() {
             <button
               key={row.id}
               type="button"
-              className="row unread"
+              className="row"
               data-attention-id={row.id}
               data-attention-kind={row.kind}
               onClick={() => open(row)}

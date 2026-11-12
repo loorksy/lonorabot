@@ -5933,8 +5933,12 @@ msgid "Recorded from your statement, not broker confirmation"
 msgstr "Recorded from your statement, not broker confirmation"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "Recorded in Updates without any alert"
-msgstr "Recorded in Updates without any alert"
+#~ msgid "Recorded in Updates without any alert"
+#~ msgstr "Recorded in Updates without any alert"
+
+#: src/shell/settings/NotifyPages.tsx:20
+msgid "Recorded without any alert"
+msgstr "Recorded without any alert"
 
 #: src/conversation/Composer.tsx:1482
 msgid "Recording length"
@@ -9049,7 +9053,7 @@ msgstr "Working"
 msgid "Working…"
 msgstr "Working…"
 
-#: src/shell/Shell.tsx:893
+#: src/shell/Shell.tsx:895
 msgid "Workspace"
 msgstr "Workspace"
 

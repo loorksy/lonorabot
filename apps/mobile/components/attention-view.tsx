@@ -77,9 +77,6 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
           <Text style={{ color: colors.foreground, textAlign: align }}>
             {t((row.code && brokerLabels[row.code]) || labels[row.kind])}
           </Text>
-          <Text style={{ color: colors.secondary, textAlign: align }}>
-            {agents.find((agent) => agent.id === row.agent_id)?.name}
-          </Text>
           {row.summary ? (
             <Text
               testID="attention-summary"
@@ -93,9 +90,15 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
               {row.summary}
             </Text>
           ) : null}
-          {row.symbol ? (
-            <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>{row.symbol}</Text>
-          ) : null}
+          <Text style={{ color: colors.secondary, textAlign: align }}>
+            {agents.find((agent) => agent.id === row.agent_id)?.name}
+            {row.symbol ? (
+              <>
+                {" · "}
+                <Text style={{ writingDirection: "ltr" }}>{row.symbol}</Text>
+              </>
+            ) : null}
+          </Text>
           <Button
             secondary
             label={t("openConversation")}

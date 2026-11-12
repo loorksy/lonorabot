@@ -5927,8 +5927,12 @@ msgid "Recorded from your statement, not broker confirmation"
 msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسيط"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "Recorded in Updates without any alert"
-msgstr "يُسجَّل في المستجدات دون أي تنبيه"
+#~ msgid "Recorded in Updates without any alert"
+#~ msgstr "يُسجَّل في المستجدات دون أي تنبيه"
+
+#: src/shell/settings/NotifyPages.tsx:20
+msgid "Recorded without any alert"
+msgstr "يُسجَّل دون أي تنبيه"
 
 #: src/conversation/Composer.tsx:1482
 msgid "Recording length"
@@ -9043,7 +9047,7 @@ msgstr "جارٍ العمل"
 msgid "Working…"
 msgstr "يعمل…"
 
-#: src/shell/Shell.tsx:893
+#: src/shell/Shell.tsx:895
 msgid "Workspace"
 msgstr "مساحة العمل"
 

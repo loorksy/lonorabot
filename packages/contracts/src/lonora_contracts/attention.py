@@ -77,7 +77,8 @@ AttentionViewKind = Literal[
 
 
 class AttentionViewRow(Contract):
-    """One row of the attention view; a server projection, never model text.
+    """One row of the attention view, projected by the server; the only model text in
+    it is an agent alert's own summary.
 
     The row opens its conversation (``thread_id``, or the group's), where the fixed card
     or the question stands; opening it decides nothing.
