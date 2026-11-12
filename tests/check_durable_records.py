@@ -90,7 +90,9 @@ async def migration(f: Fixture) -> None:
         assert orphan
         await session.delete(orphan)
     assert await alembic(f, "downgrade", "0035_agent_tool_usage") == 0
-    assert set((await delete_actions(f)).values()) == {"c"} and len(await delete_actions(f)) == 14
+    assert set((await delete_actions(f)).values()) == {"c"} and len(await delete_actions(f)) == len(
+        LINKS
+    )
     assert await alembic(f, "upgrade", "head") == 0
     assert await delete_actions(f) == head
     print("PASS: migration 0036 removes cascades, refuses a lossy downgrade and round-trips")
