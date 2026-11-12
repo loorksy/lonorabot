@@ -52,13 +52,26 @@ def test_no_workspace_module_touches_the_memory_store():
     assert modules, "the workspace modules moved; point this test at them"
     for path in modules:
         tree = ast.parse(path.read_text())
-        names = {
-            alias.asname or alias.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            for alias in node.names
-        } | {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+        names: set[str] = set()
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                imported.add(node.module or "")
+                names.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.Name):
+                names.add(node.id)
+            elif isinstance(node, ast.Attribute):
+                names.add(node.attr)
         assert not names & MEMORY_STORE, (path, names & MEMORY_STORE)
+        store = [
+            module
+            for module in imported
+            if module.startswith("lonora_memory")
+            or module in {"lonora_db.memory", "lonora_db.owner_profile"}
+        ]
+        assert not store, (path, store)
         text = path.read_text()
         for document in ("MEMORY.md", "OPERATING.md", "USER.md"):
             assert document not in text, (path, document)
