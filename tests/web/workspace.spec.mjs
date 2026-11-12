@@ -237,7 +237,8 @@ test("task form, task page and profile creation remain usable under StrictMode a
   await expect(page).not.toHaveURL(/\/app\/new-task/);
   await page.goto(`/app/${agent.id}`);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
+  await expect(page.locator("#dialog")).toHaveAttribute("open", "");
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "New chat", exact: true }).first().click();
   await page
     .locator("#dialog")
@@ -304,8 +305,11 @@ test("tablet and Arabic phone layouts preserve navigation and unknown-route reco
   await page.setViewportSize({ width: 800, height: 900 });
   await page.goto(`/app/${agent.id}`);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
-  await page.goBack();
+  const panel = page.locator("#dialog");
+  await expect(panel).toHaveAttribute("open", "");
+  expect((await panel.boundingBox()).width).toBeGreaterThan(350);
+  await page.keyboard.press("Escape");
+  await expect(panel).not.toHaveAttribute("open", "");
   expect((await page.getByTestId("transcript").boundingBox()).width).toBeGreaterThan(350);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => localStorage.setItem("lonora.locale", "ar"));
@@ -661,8 +665,7 @@ test("agents are never deleted from the UI (Q1) and the chat header carries no r
     page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/agent\/[^/]+$/);
-  await expect(page.locator("main .hero")).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("textbox", { name: "Name" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
 
   await page.goto(`/app/${agent.id}`);
@@ -671,8 +674,7 @@ test("agents are never deleted from the UI (Q1) and the chat header carries no r
     page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/agent\/[^/]+$/);
-  await expect(page.locator("main .hero")).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("textbox", { name: "Name" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
   expect(deletes).toEqual([]);
   expect(

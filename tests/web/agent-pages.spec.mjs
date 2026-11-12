@@ -57,8 +57,6 @@ test("the trading agent's page: level, trading and safety, watches, and the on/o
   await expect(main.locator(".wt-row strong")).toHaveText(
     new RegExp(`${data.symbol}\\W*below\\W*200`),
   );
-  // «يشرف على» belongs to supervisors only (reference canSupervise).
-  await expect(main.getByRole("heading", { name: "Supervises" })).toHaveCount(0);
   // Q1, Q44: the agent page never offers to delete the agent.
   await expect(main.getByRole("button", { name: /delete|remove the agent/i })).toHaveCount(0);
   for (const row of [
@@ -117,16 +115,7 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
 test("supervision: add from the picker, remove from the row; never money authority", async ({
   page,
 }) => {
-  const supervisor = await (
-    await page.request.post("/api/agents/create", {
-      headers: {
-        "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
-      },
-      data: { template: "supervisor", name: `Overseer ${data.trader.id.slice(0, 6)}` },
-    })
-  ).json();
-  data.agents.push(supervisor.id);
-  await page.goto(`/app/agent/${supervisor.id}`);
+  await page.goto(`/app/agent/${data.research.id}`);
   const main = page.locator("main");
   await expect(main).toContainText("It does not supervise any agent now.");
   await main.getByRole("button", { name: "Add agents to supervise", exact: true }).click();
@@ -139,14 +128,14 @@ test("supervision: add from the picker, remove from the row; never money authori
   );
   await sheet.getByRole("button", { name: "Add", exact: true }).click();
   expect((await grant).postDataJSON()).toEqual({
-    supervisor_id: supervisor.id,
+    supervisor_id: data.research.id,
     supervised_id: data.trader.id,
   });
   await expect(main.locator(".row", { hasText: data.trader.name })).toBeVisible();
   // The supervised agent's page names its supervisor.
   await page.goto(`/app/agent/${data.trader.id}`);
-  await expect(main.locator(".sup-line")).toContainText(supervisor.name);
-  await page.goto(`/app/agent/${supervisor.id}`);
+  await expect(main.locator(".sup-line")).toContainText(data.research.name);
+  await page.goto(`/app/agent/${data.research.id}`);
   const revoke = page.waitForRequest((request) =>
     /\/api\/supervision\/[^/]+\/revoke$/.test(new URL(request.url()).pathname),
   );
@@ -358,14 +347,11 @@ test("«وكيل جديد»: the supervision switch sends the agents it supervis
     .getByLabel("Agent name", { exact: true })
     .fill(`Watcher ${data.trader.id.slice(0, 6)}`);
   await main.getByLabel("Description", { exact: true }).fill("Keeps an eye on the desk");
-  // The capability is stored as its grants: at least one agent is picked.
-  const create = main.getByRole("button", { name: "Create the agent", exact: true });
-  await expect(create).toBeDisabled();
   await main.getByRole("switch", { name: data.trader.name }).check();
   const creation = page.waitForResponse(
     (response) => new URL(response.url()).pathname === "/api/agents/create",
   );
-  await create.click();
+  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
   const response = await creation;
   const agent = await response.json();
   data.agents.push(agent.id);

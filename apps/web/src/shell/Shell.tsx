@@ -736,7 +736,7 @@ function ShellBody() {
       else if (agent) void voice.start(agent, new URLSearchParams(location.search).get("thread"));
     };
     const chart = () => menu.openChart();
-    const members = () => menu.openMembers();
+    const members = () => menu.openInfo();
     const clear = () => menu.confirmClear();
     window.addEventListener("lonora:start-call", call);
     window.addEventListener("lonora:open-chart", chart);
@@ -760,7 +760,7 @@ function ShellBody() {
       net={net}
       voiceActive={Boolean(voice.target)}
       onBack={nav.back}
-      onInfo={menu.openInfo}
+      onInfo={menu.openSettings}
       onCall={() => {
         if (agent) void starter.start(agent, new URLSearchParams(location.search).get("thread"));
       }}

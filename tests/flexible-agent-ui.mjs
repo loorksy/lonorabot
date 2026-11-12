@@ -89,8 +89,8 @@ export function flexibleAgentUi(mobile) {
         expect(agent.trading_symbol).toBeNull();
         expect(agent.scope_mode).toBe("flexible");
 
-        // Load an actual persisted market default, then remove it (the native settings UI,
-        // or the same PATCH on web). This exercises PATCH and explicit null semantics.
+        // Load an actual persisted market default, then remove it through the
+        // settings UI. This exercises PATCH and explicit null semantics.
         const assigned = await context.request.patch(`/api/agents/${agent.id}`, {
           headers,
           data: {
@@ -101,36 +101,27 @@ export function flexibleAgentUi(mobile) {
           },
         });
         expect(assigned.ok()).toBeTruthy();
-        if (mobile) {
-          await page.goto(`/bot-settings?botId=${agent.id}`);
+        if (mobile) await page.goto(`/bot-settings?botId=${agent.id}`);
+        else {
+          await page.goto(`/app/${agent.id}`);
+          await page
+            .getByRole("button", {
+              name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
+              exact: true,
+            })
+            .click();
+        }
+        const settings = mobile ? page : page.locator("#dialog");
+        if (mobile)
           await expect(page.getByTestId("agent-market-mode-market-native")).toContainText(
             locale === "ar" ? "نشط" : "Active",
           );
-          await page.getByTestId("agent-market-mode-general-native").click();
-          await page
-            .getByRole("button", { name: locale === "ar" ? "حفظ" : "Save", exact: true })
-            .click();
-        } else {
-          // The web agent page («الهوية والنموذج») shows a general agent's market default
-          // as its pair; the page has no "no market" choice, so the explicit null goes
-          // through the same PATCH.
-          await page.goto(`/app/identity/${agent.id}`);
-          const pair = page.getByRole("combobox", {
-            name: locale === "ar" ? "الزوج" : "Pair",
-            exact: true,
-          });
-          await expect(pair).toHaveValue(data.symbol);
-          const cleared = await context.request.patch(`/api/agents/${agent.id}`, {
-            headers,
-            data: {
-              scope_mode: "flexible",
-              trading_account_id: null,
-              trading_symbol: null,
-              expected_scope_revision: 1,
-            },
-          });
-          expect(cleared.ok()).toBeTruthy();
-        }
+        else await expect(page.getByTestId("agent-market-mode")).toHaveValue("market");
+        if (mobile) await page.getByTestId("agent-market-mode-general-native").click();
+        else await page.getByTestId("agent-market-mode").selectOption("general");
+        await settings
+          .getByRole("button", { name: locale === "ar" ? "حفظ" : "Save", exact: true })
+          .click();
         await expect.poll(async () => (await read(agent.id)).trading_symbol).toBeNull();
         expect((await read(agent.id)).scope_revision).toBe(2);
         await page.reload();
@@ -138,10 +129,6 @@ export function flexibleAgentUi(mobile) {
           await expect(page.getByTestId("agent-market-mode-general-native")).toContainText(
             locale === "ar" ? "نشط" : "Active",
           );
-        else
-          await expect(
-            page.getByRole("combobox", { name: locale === "ar" ? "الزوج" : "Pair", exact: true }),
-          ).toHaveCount(0);
         expect(errors).toEqual([]);
         expect(
           await page.evaluate(

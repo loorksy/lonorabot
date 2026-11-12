@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 /* The conversation's ⋮ menu and header (reference chat-menu, Desktop-37 9256-9257): a popover
-   beside the button, info goes to the agent or group page, «مسح المحادثة» hides the history
+   beside the button, its info goes to the agent or group page, «مسح المحادثة» hides the history
    (Q1) and nothing is ever deleted. */
 function fixture(data) {
   return JSON.parse(
@@ -92,16 +92,24 @@ test("the ⋮ menu is a popover beside its button, in the reference's order", as
   await expect(menuItems(page)).toHaveText(["Group info", "Chart", "New task", "Clear the chat"]);
 });
 
-test("info goes to the agent or group page from the avatar, the name and the menu", async ({
+test("the menu's info goes to the agent or group page; the header opens the agent's settings", async ({
   page,
 }) => {
   await page.goto(`/app/${data.trader.id}`);
-  await page.locator(".chat-head .head-avatar").click();
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${data.trader.id}$`));
-  await page.goBack();
-  await page.locator(".chat-head .chat-name").click();
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${data.trader.id}$`));
-  await page.goBack();
+  // Until phase 3 the agent's avatar and name open its settings sheet (the full permission
+  // panel among them); a group's open the group page.
+  const sheet = page.locator("#dialog");
+  for (const target of [".chat-head .head-avatar", ".chat-head .chat-name"]) {
+    await page.locator(target).click();
+    await expect(sheet).toHaveAttribute("open", "");
+    await expect(sheet).toHaveAttribute("aria-label", "Agent info");
+    await expect(sheet.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(
+      data.trader.name,
+    );
+    await page.keyboard.press("Escape");
+    await expect(sheet).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(new RegExp(`/app/${data.trader.id}$`));
+  }
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   await page.getByRole("menuitem", { name: "Agent info" }).click();
   await expect(page).toHaveURL(new RegExp(`/app/agent/${data.trader.id}$`));
@@ -196,16 +204,8 @@ test("«Clear the chat» asks, hides the history for the owner and drops the dra
   await expect(page.locator(".composer textarea")).toHaveValue("");
 });
 
-test("the group's «Members» chip lists each member's permission", async ({ page }) => {
+test("the group's «Members» chip opens the group's info", async ({ page }) => {
   await page.goto(`/app/g/${data.group.id}`);
   await page.locator(".composer .mode-chip").click();
-  const sheet = page.locator("#dialog");
-  await expect(sheet).toHaveAttribute("aria-label", "Members' permissions");
-  await expect(sheet.locator(".row", { hasText: data.research.name })).toContainText(
-    "Gathers and summarises information · no permissions",
-  );
-  const trader = sheet.locator("button.row", { hasText: data.trader.name });
-  await expect(trader).toContainText("Ask me");
-  await trader.click();
-  await expect(page).toHaveURL(new RegExp(`/app/${data.trader.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/app/group/${data.group.id}$`));
 });

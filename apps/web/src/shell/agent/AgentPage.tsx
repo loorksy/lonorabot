@@ -331,22 +331,17 @@ function AgentPageBody({ agent }: { agent: Agent }) {
           <WatchList agent={agent} onNew={() => go(newWatchPath(agent))} />
         </>
       )}
-      {/* «يشرف على» only on a supervisor (reference canSupervise): Lonora, the supervisor
-          template, or an agent that already supervises one. */}
-      {agent.role !== "delegated" &&
-        (personal ||
-          agent.template === "supervisor" ||
-          Boolean(supervision.value?.supervises.length)) && (
-          <SupervisionSection
-            agent={agent}
-            view={supervision.value}
-            error={supervision.error}
-            onChange={() => {
-              supervision.reload();
-              refresh();
-            }}
-          />
-        )}
+      {agent.role !== "delegated" && (
+        <SupervisionSection
+          agent={agent}
+          view={supervision.value}
+          error={supervision.error}
+          onChange={() => {
+            supervision.reload();
+            refresh();
+          }}
+        />
+      )}
       <p className="note">
         {delegated
           ? t`Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations.`

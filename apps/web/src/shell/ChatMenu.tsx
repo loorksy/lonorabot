@@ -1,62 +1,21 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { PermissionState } from "@lonora/contracts";
 import { showsTradingControl } from "@lonora/core";
-import { Icon } from "@lonora/ui-web";
 import { useCallback, useEffect, useRef } from "react";
-import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { useChatPrefs } from "../conversation/prefs";
 import { useAgentSheet } from "../conversation/sheets/AgentSheet";
 import { useWatchesSheet } from "../conversation/sheets/WatchesSheet";
 import type { Agent, Resource } from "../lib/api";
+import { AgentSettings } from "../pages/shell/bot-settings";
 import { useChartSheet } from "./agent/ChartSheet";
-import { hasDelegation, levelLabel, useRead } from "./agent/shared";
 import { PopItem, PopSep, usePopover } from "./lists/Popover";
 import { useLists } from "./lists/state";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
 
-/** One member in «صلاحيات الأعضاء»: a member that trades opens its chat, where its level is set. */
-function MemberRow({ agent, onOpen }: { agent: Agent; onOpen: () => void }) {
-  const delegated = hasDelegation(agent);
-  const permission = useRead<PermissionState>(
-    delegated ? `/agents/${encodeURIComponent(agent.id)}/permissions` : null,
-  );
-  const name = (
-    <strong>
-      <bdi>{agent.name}</bdi>
-    </strong>
-  );
-  if (!delegated)
-    return (
-      <div className="row">
-        <AgentAvatar agent={agent} />
-        <span className="body">
-          {name}
-          <small>
-            <Trans>Gathers and summarises information · no permissions</Trans>
-          </small>
-        </span>
-      </div>
-    );
-  const level = permission.value?.effective_level;
-  return (
-    <button type="button" className="row" onClick={onOpen}>
-      <AgentAvatar agent={agent} />
-      <span className="body">
-        {name}
-        <small>{level ? levelLabel(level) : "…"}</small>
-      </span>
-      <span className="chevron">
-        <Icon name="chev" />
-      </span>
-    </button>
-  );
-}
-
 /* The conversation's ⋮ menu (reference chat-menu): a popover beside the button, in the
-   reference's order. Info goes to the agent or group page; «مسح المحادثة» hides the history
-   for the owner (Q1): nothing is deleted. */
+   reference's order. Its info item goes to the agent or group page; «مسح المحادثة» hides the
+   history for the owner (Q1): nothing is deleted. */
 export function useChatMenu({
   agent,
   group,
@@ -107,33 +66,23 @@ export function useChatMenu({
     if (agent) nav.go(`/app/agent/${agent.id}`);
     else if (group) nav.go(`/app/group/${group.id}`);
   }, [nav, agent, group]);
-  const openMembers = useCallback(() => {
-    const title = t`Members' permissions`;
+  // The header's avatar and name open the agent's settings sheet, as before (its market, model,
+  // supervision and full permission panel), until phase 3 removes it; a group's open its page.
+  const openSettings = useCallback(() => {
+    if (!agent) return openInfo();
+    const title = t`Agent info`;
     sheets.open({
-      id: "members-permissions",
+      id: "agent-settings",
+      bar: true,
       title,
       label: title,
       body: (
-        <>
-          <p className="muted">
-            <Trans>Open the agent's chat to change its permissions.</Trans>
-          </p>
-          <div className="group">
-            {memberAgents.map((member) => (
-              <MemberRow
-                key={member.id}
-                agent={member}
-                onOpen={() => {
-                  sheets.close();
-                  nav.go(`/app/${member.id}`);
-                }}
-              />
-            ))}
-          </div>
-        </>
+        <div className="legacy-surface">
+          <AgentSettings key={agent.id} agent={agent} onClose={() => sheets.close()} />
+        </div>
       ),
     });
-  }, [sheets, nav, memberAgents]);
+  }, [sheets, agent, openInfo]);
   const confirmClear = useCallback(() => {
     const row = lists.rows.find(
       (item) => item.key === (agent ? `agent:${agent.id}` : `group:${group?.id}`),
@@ -273,5 +222,5 @@ export function useChatMenu({
     waiting.current = null;
     if (anchor.isConnected) openMenu(anchor);
   }, [openMenu, agent, group]);
-  return { openMenu, openInfo, openChart, openMembers, confirmClear };
+  return { openMenu, openInfo, openSettings, openChart, confirmClear };
 }
