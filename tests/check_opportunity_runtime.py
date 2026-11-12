@@ -236,15 +236,10 @@ async def main() -> None:
             "volume": "0.04",
             "thesis_id": thesis["id"],
         }
+        # In Ask a partial close of the agent's own position executes without a card.
         partial = await call("trade_execute", partial_args, "partial-close")
-        await f.request(
-            "POST",
-            "/trading/approvals/" + partial["approval_id"] + "/decision",
-            {"decision": "approve"},
-        )
-        assert (await call("trade_execute", partial_args, "partial-close"))["results"][0][
-            "status"
-        ] == "confirmed"
+        assert "approval_id" not in partial, partial
+        assert partial["results"][0]["status"] == "confirmed"
         partial_state = await f.request("GET", "/trading/opportunities/" + thesis["id"])
         assert (
             partial_state["status"] == "acted_on"

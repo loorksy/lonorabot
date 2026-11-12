@@ -199,6 +199,7 @@ class ExecutionService:
                     request,
                     account_authority_id,
                     reducing=planned_reducing,
+                    target=management_target(planned_snapshot, request),
                 )
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
@@ -417,6 +418,7 @@ class ExecutionService:
                         request,
                         account_authority_id,
                         reducing=reducing,
+                        target=management_target(snapshot, request),
                     )
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id

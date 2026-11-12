@@ -14,6 +14,7 @@ from lonora_db.agent_permissions import effective_permission
 from lonora_db.notice_cards import raise_stop_tightened
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
+    EffectReceiptRow,
     MessageRow,
     RunRow,
     SettingRow,
@@ -31,6 +32,7 @@ from lonora_trading.account_authority import (
     available_authority,
     grant_covers,
     provisional_voice,
+    ticket_agent,
 )
 from lonora_trading.admission import may_reduce_risk, risk_reducing
 from lonora_trading.exposure import direction
@@ -263,6 +265,25 @@ async def new_risk_requests(
     return result
 
 
+async def foreign_tickets(context: ToolContext, requests: list[TradeRequest]) -> list[TradeRequest]:
+    """The requests on a ticket the agent's own journaled order did not open: the owner's
+    own position or another agent's. A ticket the broker no longer shows is left to the
+    executor, which refuses it with its own code."""
+    managing = [request for request in requests if request.position_id or request.order_id]
+    if not managing:
+        return []
+    targets = await management_targets(context, managing)
+    result: list[TradeRequest] = []
+    async with context.db.sessions() as session:
+        for request in managing:
+            target = targets.get(target_key(request))
+            if target is not None and (
+                await ticket_agent(session, context.owner_id, request, target) != context.agent_id
+            ):
+                result.append(request)
+    return result
+
+
 async def start_trading_card(context: ToolContext) -> dict[str, Any]:
     """New trading was never started on this install (not the owner's Stop): nothing is
     sent and no approval is asked, but the owner gets the one-tap Start trading card in
@@ -417,13 +438,10 @@ async def approved_execution(
         return await direct_execution(context, authority_requests, grants)
     adding: list[TradeRequest] = []
     if previous is None and not gate_only:
-        # Full executes on its own; Ask asks only for requests that add risk (4.1).
-        adding = (
-            [request for request in requests if not may_reduce_risk(request)]
-            if mode == "full"
-            else await new_risk_requests(context, requests)
-        )
-        if mode == "full" or not adding:
+        # Full executes on its own; Ask asks only for requests that add risk (4.1). A
+        # ticket the agent's own order did not open is always the owner's exact approval.
+        adding = await new_risk_requests(context, requests)
+        if (mode == "full" or not adding) and not await foreign_tickets(context, requests):
             if adding and await never_started(context):
                 return await start_trading_card(context)
             return await direct_execution(context, requests)
@@ -794,13 +812,19 @@ async def close_positions(context: ToolContext, args: dict[str, Any]) -> dict[st
         await agent_binding(session, context.owner_id, context.agent_id)
         await require_lease(session, context.lease)
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
+    # The ticket set this call read is frozen with the call, card or not: a replay of the
+    # same call never silently extends it to positions opened later.
+    frozen_key = "trade-close-set:" + approval_id
     async with context.db.sessions() as session:
         previous = await session.get(TradeApprovalRow, approval_id)
+        frozen = await session.get(EffectReceiptRow, frozen_key)
         if previous:
             requests = [TradeRequest.model_validate(item) for item in previous.requests]
+        elif frozen:
+            requests = [TradeRequest.model_validate(item) for item in frozen.result["requests"]]
         else:
             requests = []
-    if previous is None:
+    if previous is None and frozen is None:
         broker = await context.brokers.get(context.owner_id, args["account_id"])
         positions = await broker.positions()
         symbol = args.get("symbol")
@@ -823,6 +847,19 @@ async def close_positions(context: ToolContext, args: dict[str, Any]) -> dict[st
         ]
         if not requests:
             return {"results": [], "code": "no_positions"}
+        async with context.db.sessions() as session, session.begin():
+            await require_lease(session, context.lease, lock=True)
+            stored = await session.get(EffectReceiptRow, frozen_key)
+            if stored is not None:
+                # A concurrent replay of this call froze its set first: that set stands.
+                requests = [TradeRequest.model_validate(item) for item in stored.result["requests"]]
+            else:
+                session.add(
+                    EffectReceiptRow(
+                        key=frozen_key,
+                        result={"requests": [r.model_dump(mode="json") for r in requests]},
+                    )
+                )
     return await approved_execution(context, requests)
 
 

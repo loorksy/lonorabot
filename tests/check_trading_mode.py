@@ -15,14 +15,16 @@ from lonora_contracts.account import Position
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.trading import TradeRequest, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import AgentRow, OwnerRow, RunRow, ThreadRow, TradingJournalRow
+from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_trading.controls import save_controls
 from lonora_trading.execution import ExecutionService
+from lonora_trading.idempotency import trade_fingerprint
 
 
 async def checks() -> None:
@@ -72,8 +74,50 @@ async def checks() -> None:
             side="buy",
             volume=Decimal("0.2"),
             open_price=Decimal("10"),
-        )
+        ),
+        # Opened in the broker terminal: the owner's own position.
+        Position(
+            id="owner-position",
+            symbol="FIXTURE",
+            side="buy",
+            volume=Decimal("0.1"),
+            open_price=Decimal("10"),
+        ),
     ]
+    # The agent's own journaled order opened mode-position.
+    opening = TradeRequest(
+        account_id=account_id,
+        operation_id="mode-open-" + uuid4().hex,
+        action="buy",
+        symbol="FIXTURE",
+        volume=Decimal("0.2"),
+    )
+    async with db.sessions() as session, session.begin():
+        row, _ = await reserve_operation(
+            session,
+            owner_id,
+            opening.operation_id,
+            account_id,
+            trade_fingerprint(opening),
+            opening.model_dump(mode="json"),
+        )
+        # The attribution the door writes from the leased run at reservation.
+        row.result = TradeResult(
+            operation_id=opening.operation_id,
+            status="reserved",
+            details={"execution": {"agent_id": agent_id, "run_id": lease.run_id}},
+        ).model_dump(mode="json")
+        await persist_result(
+            session,
+            opening.operation_id,
+            "confirmed",
+            TradeResult(
+                operation_id=opening.operation_id,
+                status="confirmed",
+                broker_id="mode-position",
+                details={"position_id": "mode-position"},
+            ).model_dump(mode="json"),
+        )
 
     def buy() -> TradeRequest:
         return TradeRequest(
@@ -113,6 +157,23 @@ async def checks() -> None:
     result = await service.execute(owner_id, partial, lease)
     assert result.status == "confirmed" and broker.sent == 1, result
 
+    def close_owner_position() -> TradeRequest:
+        return TradeRequest(
+            account_id=account_id,
+            operation_id="mode-" + uuid4().hex,
+            action="close_position",
+            symbol="FIXTURE",
+            position_id="owner-position",
+        )
+
+    # The owner's own position is never closed without the owner's exact approval.
+    try:
+        await service.execute(owner_id, close_owner_position(), lease)
+        raise AssertionError("Ask closed the owner's own position without approval")
+    except LonoraError as error:
+        assert error.code == "trade_approval_required"
+    assert broker.sent == 1
+
     # Only the owner's tap sets Full.
     async with db.sessions() as session, session.begin():
         try:
@@ -131,6 +192,13 @@ async def checks() -> None:
     assert result.status == "confirmed" and broker.sent == 2, result
     row = await journaled(full.operation_id)
     assert row is not None and row.status == "confirmed"
+    # Full does not reach the owner's own position either.
+    try:
+        await service.execute(owner_id, close_owner_position(), lease)
+        raise AssertionError("Full closed the owner's own position without approval")
+    except LonoraError as error:
+        assert error.code == "trade_approval_required"
+    assert broker.sent == 2
 
     # A switch to Ask that lands after planning and before send is decided under the new
     # mode: the door reads it under the authority lock at send (4.2.3).
