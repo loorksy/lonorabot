@@ -3,10 +3,11 @@ import os
 
 from dotenv import dotenv_values
 from lonora_adapter_kit.secrets import SecretStore
-from lonora_adapters.models.compatible_endpoint import compatible_endpoint
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
-from lonora_db.model_credentials import credential_id
+from lonora_db.model_credentials import ENDPOINT_SETTING, credential_id
+from lonora_db.transactions import SettingsRepository
+from lonora_security.network import compatible_endpoint
 
 from .registry import OWNER_ENDPOINT
 
@@ -35,14 +36,17 @@ class ProviderCredentials:
         raise LonoraError("model_not_configured", 409)
 
     async def endpoint(self, provider: str) -> str | None:
-        """The owner's base URL for a provider that has one, else ``None``.
+        """The owner's base URL for a provider that has one, else ``None``: the one
+        saved on its Secret card, else the deployment's.
 
         A URL that fails the check connects nothing, so the router passes over the
         provider as unconfigured instead of failing every route that lists it.
         """
         if provider not in OWNER_ENDPOINT:
             return None
-        value = _deployment("LONORA_" + provider.upper() + "_BASE_URL")
+        async with self.db.sessions() as session:
+            saved = await SettingsRepository().get(session, ENDPOINT_SETTING + provider)
+        value = saved.get("url") or _deployment("LONORA_" + provider.upper() + "_BASE_URL")
         if not value:
             return None
         try:

@@ -13,7 +13,6 @@ from typing import Any
 import httpx
 import pytest
 from lonora_adapter_kit.types import ModelMessage
-from lonora_adapters.models.compatible_endpoint import compatible_endpoint
 from lonora_contracts.model_routing import Capability, ModelSelection, ProviderId, RoutingPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -22,6 +21,7 @@ from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.default_model import choose_default_model
 from lonora_providers.registry import PROVIDERS, model_adapter
 from lonora_providers.router import GlobalModelRouter
+from lonora_security.network import compatible_endpoint
 from test_model_context import router_db as router_db
 
 KEY = "fixture-not-a-real-key"

@@ -276,6 +276,7 @@ export const ownerActionLabels = {
     connectBrave: "Connect Brave web search",
     connectCalendar: "Connect an economic calendar",
     connectBroker: "Connect a broker account",
+    connectModel: "Connect a model provider",
     connectHint:
       "What you type goes straight to the server: it never enters the chat or reaches an agent.",
     connectXHint:
@@ -560,6 +561,7 @@ export const ownerActionLabels = {
     connectBrave: "ربط بحث Brave",
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
+    connectModel: "ربط مزوّد نماذج",
     connectHint: "ما تكتبه يذهب مباشرة إلى الخادم: لا يدخل المحادثة ولا يصل إلى أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
@@ -1225,6 +1227,7 @@ function connectTitle(
     brave_search: text.connectBrave,
     economic_calendar: text.connectCalendar,
     broker: text.connectBroker,
+    model_provider: text.connectModel,
   }[target];
 }
 

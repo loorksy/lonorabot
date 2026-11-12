@@ -7,7 +7,7 @@ a money limit) also needs a verified passkey assertion bound to the card's paylo
 """
 
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, model_validator
@@ -16,6 +16,7 @@ from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
 from .agent_secrets import WORKSPACE_SECRET_NAME
 from .devices import DeviceProof
 from .domain import Contract
+from .model_routing import ProviderId
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
@@ -47,8 +48,11 @@ GrantDelegation = Literal["custom", "full"]
 # advertises now, a GitHub owner or repository, or a news feed's domain).
 TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
 # A Secret card that connects something: the server sets its fields and destination, and
-# saving it creates the connection. "x" names an X MCP server.
-CredentialTarget = Literal["mcp_server", "news_feed", "brave_search", "economic_calendar", "broker"]
+# saving it creates the connection. "x" names an X MCP server. "model_provider" takes the
+# provider's id as its name, and an OpenAI-compatible endpoint's base URL as its url.
+CredentialTarget = Literal[
+    "mcp_server", "news_feed", "brave_search", "economic_calendar", "broker", "model_provider"
+]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
 MoneyLimitName = Literal[
     "max_trade_risk",
@@ -183,6 +187,7 @@ class OwnerActionProposal(Contract):
             "news_feed": {"name"},
             "economic_calendar": {"name"},
             "broker": {"metaapi_account_id"},
+            "model_provider": {"name", "url"} if self.name == "openai_compatible" else {"name"},
         }[self.target]
         optional = {"name"} if self.target in {"mcp_server", "brave_search"} else set[str]()
         allowed = needs | optional
@@ -194,6 +199,7 @@ class OwnerActionProposal(Contract):
             or self.secret_fields is not None
             or not needs <= given <= allowed
             or (self.service is not None and self.target != "mcp_server")
+            or (self.target == "model_provider" and self.name not in get_args(ProviderId))
         ):
             raise ValueError("owner_action_fields_invalid")
         return self

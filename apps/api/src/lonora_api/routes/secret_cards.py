@@ -8,9 +8,12 @@ key, a news feed or an economic calendar (its address, which may carry a key, is
 secret), or an MCP server (its token; its tools are then read, outside the transaction,
 for the trust card that follows). A broker's MetaApi token is verified with MetaApi
 first; the card settles inside the transaction that stores the token and creates the
-connection.
+connection. A model provider's key (and an OpenAI-compatible endpoint's base URL) is
+saved in the transaction; its catalog is then read, outside it, before the agent that
+asked is woken to name the models that became available.
 """
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -23,6 +26,7 @@ from lonora_contracts.mcp import McpConnection
 from lonora_contracts.owner_actions import SecretCardSave
 from lonora_core.user_error import LonoraError
 from lonora_db.integrations import feed_host
+from lonora_db.model_credentials import ENDPOINT_SETTING, PROVIDER_KEY_NAMES
 from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
@@ -39,6 +43,9 @@ from lonora_db.owner_actions import (
 from lonora_db.schema import McpConnectionRow, OwnerActionRow
 from lonora_db.secret_cards import card_values, free_name, save_values
 from lonora_db.secrets import WORKSPACE
+from lonora_db.transactions import SettingsRepository
+from lonora_providers.credentials import ProviderCredentials
+from lonora_providers.discovery import discover_models
 from lonora_tools.mcp import advertised_tools, review_payload
 from lonora_trading.connections import connect_account
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +54,7 @@ from ..middleware.auth import require_owner, runtime
 from ..runtime import ApiRuntime
 from .integrations import OwnerIntegrationRepository
 from .mcp import McpRepository
+from .model_router import answer_unconfigured
 
 router = APIRouter(prefix="/owner-actions")
 
@@ -86,10 +94,13 @@ async def save_secret(
         else:
             values = card_values(row, body.values)
             result = await connect(session, store, owner, row, values)
-        await settle_saved(session, owner, row, result, follow=target != "mcp_server")
+        later = target in {"mcp_server", "model_provider"}
+        await settle_saved(session, owner, row, result, follow=not later)
         data = await owner_action_data(session, row)
     if target == "mcp_server":
         data = await follow_mcp(rt, owner, card_id, row.result["connection_id"])
+    elif target == "model_provider":
+        data = await follow_model(request, owner, card_id, row.payload["details"]["provider"])
     return data
 
 
@@ -141,6 +152,15 @@ async def connect(
 ) -> dict[str, Any]:
     """Store the value as a workspace secret and create the connection that uses it."""
     target, details = row.payload["connect"], row.payload["details"]
+    if target == "model_provider":
+        provider = details["provider"]
+        name = PROVIDER_KEY_NAMES[provider]
+        await store.write_in_session(session, name, values["API_KEY"], WORKSPACE)
+        if details.get("url"):
+            await SettingsRepository().put(
+                session, ENDPOINT_SETTING + provider, {"url": details["url"]}
+            )
+        return {"target": target, "provider": provider, "configured": True, "saved": [name]}
     if target == "mcp_server":
         saved: list[str] = []
         secret_id = None
@@ -246,6 +266,36 @@ async def follow_mcp(
             )
         else:
             await continue_after_card(session, row)
+        return await owner_action_data(session, row)
+
+
+# One bounded catalog read after a provider key is saved: the card never waits longer.
+CATALOG_SECONDS = 20
+
+
+async def follow_model(
+    request: Request, owner: OwnerIdentity, card_id: str, provider: str
+) -> dict[str, Any]:
+    """After the key is saved: read the provider's catalog (network, no lock held), let
+    the replies that failed for lack of a model run again, then the confirmation line
+    and the asking agent's next run, which names the models that became available."""
+    rt = runtime(request)
+    credentials = ProviderCredentials(rt.db, rt.services(owner.id).secrets)
+    catalog: int | None = None
+    try:
+        async with asyncio.timeout(CATALOG_SECONDS):
+            catalog = len(await discover_models(rt.db, credentials, provider))
+    except (LonoraError, TimeoutError):
+        # A rejected key, an unreachable endpoint or a slow one: the agent says so.
+        catalog = None
+    await answer_unconfigured(request, owner)
+    async with rt.db.sessions() as session, session.begin():
+        await lock_owner_actions(session, owner.id)
+        row = await owned_card(session, owner.id, card_id, lock=True)
+        row.result = {**row.result, "catalog": catalog}
+        await owner_action_event(session, row)
+        await confirm_in_thread(session, row)
+        await continue_after_card(session, row)
         return await owner_action_data(session, row)
 
 

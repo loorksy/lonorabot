@@ -8,7 +8,9 @@ A connecting card (``connect``): the server sets its one field and its destinati
 saving it creates the connection. The non-secret details (a name, an MCP server's URL, a
 MetaApi account id) come from the owner's words in chat through the agent's call and are
 shown on the card as facts. A broker's MetaApi token goes to the broker scope, read only
-by the execution door and provisioning; every other value is a workspace secret.
+by the execution door and provisioning; every other value is a workspace secret. A model
+provider's key is saved under the provider's usual name (``ANTHROPIC_API_KEY``), which
+the router reads on the server too.
 
 The owner's values go straight to the encrypted store in the transaction that settles
 the card; the card, its events and the conversation keep only the saved names.
@@ -18,14 +20,17 @@ import hashlib
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 from lonora_contracts.mcp import McpConnection
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
+from lonora_security.network import compatible_endpoint
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .model_credentials import PROVIDER_KEY_NAMES
 from .schema import IntegrationRow, OwnerActionRow, SecretRow
 from .secrets import WORKSPACE, WORKSPACE_NAME
 
@@ -41,6 +46,16 @@ CONNECTING: dict[str, tuple[str, str, bool, bool, str]] = {
     "news_feed": ("URL", "feed_url", True, False, WORKSPACE),
     "economic_calendar": ("URL", "feed_url", True, False, WORKSPACE),
     "broker": ("METAAPI_TOKEN", "metaapi_token", True, True, BROKER),
+    "model_provider": ("API_KEY", "api_key", True, True, WORKSPACE),
+}
+# The name the owner reads for a model provider; an OpenAI-compatible endpoint is
+# named by its host.
+PROVIDER_NAMES = {
+    "anthropic": "Anthropic",
+    "openai": "OpenAI",
+    "deepseek": "DeepSeek",
+    "openrouter": "OpenRouter",
+    "zai": "Z.ai",
 }
 # The workspace name a connecting card's value is saved under ({name}: from the details).
 SAVED_AS = {
@@ -87,6 +102,25 @@ def secret_card_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, A
     elif target == "broker":
         assert proposal.metaapi_account_id is not None
         details = {"metaapi_account_id": proposal.metaapi_account_id.strip()}
+    elif target == "model_provider":
+        assert proposal.name is not None
+        provider = proposal.name
+        if proposal.url is None:
+            details = {"name": PROVIDER_NAMES[provider], "provider": provider}
+        else:
+            url = compatible_endpoint(proposal.url)
+            host = urlsplit(url).hostname or url
+            details = {"name": host, "provider": provider, "url": url}
+        return subject_of(target, provider), {
+            "label": None,
+            "connect": target,
+            "service": None,
+            "details": details,
+            "fields": [
+                {"key": key, "label": None, "secret": masked, "role": role, "required": True}
+            ],
+            "destination": destination,
+        }
     else:
         assert proposal.name is not None
         details = {"name": proposal.name.strip()}
@@ -136,8 +170,13 @@ async def secret_facts(
         "saves_as": [],
         "replaces": [],
     }
-    if payload.get("connect") is None:
-        keys = [str(field["key"]) for field in payload["fields"]]
+    connect = payload.get("connect")
+    if connect is None or connect == "model_provider":
+        keys = (
+            [str(field["key"]) for field in payload["fields"]]
+            if connect is None
+            else [PROVIDER_KEY_NAMES[payload["details"]["provider"]]]
+        )
         saved = set(
             (
                 await session.scalars(
@@ -213,6 +252,18 @@ def saved_prompt(row: OwnerActionRow) -> str:
             "The owner saved the values on your Secret card, encrypted as workspace secrets "
             "under the keys you chose; you never see them. Tell the owner in one line what "
             "they are saved for."
+        )
+    if target == "model_provider":
+        catalog = row.result.get("catalog")
+        listed = (
+            f"Its catalog was read: {catalog} models."
+            if isinstance(catalog, int)
+            else "Its catalog could not be read yet; say so."
+        )
+        return (
+            f"The owner connected the model provider {row.payload['details']['provider']} on "
+            f"your Secret card (saved as {saved}); you never see its key. {listed} Call "
+            "model_list and tell the owner in one line which models became available."
         )
     review = row.result.get("review")
     if target == "mcp_server" and review in {"unread", "nothing_to_trust"}:

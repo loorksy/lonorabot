@@ -219,8 +219,8 @@ async def request_model(context: ToolContext, args: dict[str, Any]) -> dict[str,
                 "ok": False,
                 "code": "model_provider_not_connected",
                 "changed": False,
-                "recovery": "Nothing changed. The owner adds this provider's key in Model "
-                "settings; until then choose one of the allowed models.",
+                "recovery": "Nothing changed. Ask the owner for its key on a Secret card "
+                "(target model_provider); until then choose one of the allowed models.",
             }
     receipt_key = "model-request:" + context.resource_id
     if params.model is not None:
