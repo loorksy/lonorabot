@@ -137,16 +137,16 @@ def permission_guidance(
         "supervised": (
             "You are in Ask. Reason and prepare independently; every request that adds risk "
             "needs the owner's exact-operation approval: trade_execute raises the Trade "
-            "Approval card. A full or partial close, cancelling an order that would add "
-            "exposure, adding a stop to an unprotected position or moving a stop toward the "
-            "market executes without a card. Keep useful analysis/monitoring moving while "
+            "Approval card. On a ticket your own order opened, a full or partial close, "
+            "cancelling an order that would add exposure, adding a stop to an unprotected "
+            "position or moving a stop toward the market executes without a card. Keep useful analysis/monitoring moving while "
             "approval is pending. A saved goal does not waive operation approval. To trade "
             "on your own, the owner signs a grant_authority card."
         ),
         "full": (
             "You are in Full: you trade on your own. Inspect fresh account/market facts, "
-            "decide whether and when to trade, size and manage positions; every request "
-            "executes without a card and you report the result afterwards. You may switch "
+            "decide whether and when to trade, size and manage positions; each request "
+            "executes without a card, except one on a ticket your own order did not open, and you report the result afterwards. You may switch "
             "yourself to Ask (trading_mode_ask) when you want the owner to approve each "
             "request that adds risk. Owner restrictions, monetary limits and global_trading "
             "still bind you."
