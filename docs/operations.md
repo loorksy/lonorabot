@@ -84,7 +84,7 @@ sudo bash install.sh --domain lonora.example.com --version main
 `--version` takes a tag (`main`, `v0.3.0`), an exact `repo@sha256:…` reference, or an image built on
 the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the server»). Other options:
 `--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
-127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`, `--overlay FILE` (repeatable),
+127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`,
 `--workspace-memory` (default 4g), `--workspace-cpus` (default 2), `--workspace-disk` (default 20g),
 `--min-free-ram-mb` (default 3584 plus the workspace memory: 7680), `--min-free-disk-gb` (default 10
 plus the workspace disk plus 2: 32), `--no-systemd`. The preflight also needs 2 CPUs, no fewer than
@@ -101,8 +101,6 @@ provider API keys. The database password is always new (a fresh database). Every
 `LONORA_POSTGRES_PASSWORD`, `LONORA_IMAGE`, `LONORA_ARTIFACT_ROOT`, `LONORA_LIVEKIT_*` and any other
 key — is not copied. It prints the copied and the ignored key **names**, never a value, and the new
 `.env` is mode 600.
-
-`--overlay` adds a bundled overlay at install time; this release bundles none.
 
 The preflight also reads the whole `--env-from` file before anything is written: `export ` prefixes
 and leading spaces are accepted; a Windows line ending (CRLF), a control character or a line that is
@@ -317,10 +315,11 @@ directory and use the same ones.
 ### The former analysis workspace host
 
 The new installation does not use `lonora-analysis.service` or the analysis overlay: the owner's
-workspace (below, "The workspace") replaced the analytical workspace. On an update, `lonora` removes
+workspace (above, "The workspace") replaced the analytical workspace. On an update, `lonora` removes
 `infra/analysis/compose.workspace.yml` from `LONORA_COMPOSE_OVERLAYS` and says so. Each agent's files
 from the analytical workspace are copied once into `old-workspace/` in its home when the workspace is
-reachable; skill packages were moved into their own store by migration 0138.
+reachable; skill packages were moved into their own store by migration 0138. An update saves the
+overlays line in its rollback bundle, so a rollback to an earlier release gives it back.
 
 The old stack still uses the service, so leave it running while the old stack runs. Once the old
 stack is deleted: `sudo systemctl disable --now lonora-analysis`, then remove `/opt/lonora-analysis`
@@ -747,7 +746,7 @@ Also: an install with no schema yet is brought up by `update` of the pinned vers
 open while the new Gateway runs (10); a sampler finds no moment with maintenance on and a Gateway
 running through `update <pinned>` and `maintenance on`, and status names the clear command (9b);
 an unfinished restore also blocks the daily backup and an unconfirmed `--abandon`; the side-by-side
-install also uses the workspace overlay with no socket (still `/ready`), refuses port 70000 and a
+install refuses port 70000 and a
 CRLF `--env-from` file, and a `lonora2` backup restored `--with-config` into a `lonora3` install
 keeps `lonora3`'s project and mode. 22 checks in all.
 

@@ -140,3 +140,30 @@ def test_compose_never_merges_a_retired_overlay(tmp_path: Path) -> None:
     assert "infra/custom/compose.extra.yml" in arguments
     assert "infra/research/compose.research.yml" not in arguments
     assert "infra/analysis/compose.workspace.yml" not in arguments
+
+
+def test_a_rollback_gives_the_previous_release_its_overlays_back(tmp_path: Path) -> None:
+    """The update saves the overlays line in the rollback bundle before retiring any; a
+    rollback that restores the previous release's files restores that line with them."""
+    before = (
+        "LONORA_ENCRYPTION_KEY=secret-value\n"
+        "LONORA_COMPOSE_OVERLAYS=infra/analysis/compose.workspace.yml\n"
+    )
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state/overlays.env").write_text(
+        "LONORA_COMPOSE_OVERLAYS=infra/analysis/compose.workspace.yml\n"
+    )
+    after, _ = run_retire(tmp_path, before)
+    assert "LONORA_COMPOSE_OVERLAYS=\n" in after
+    functions = (
+        "set -euo pipefail; STATE=state; "
+        "source <(sed -n -e '/^restore_overlays() {/,/^}/p' "
+        + str(ROOT / "infra/compose/lonora")
+        + "); restore_overlays"
+    )
+    subprocess.run(["bash", "-c", functions], cwd=tmp_path, check=True)
+    assert (tmp_path / ".env").read_text().splitlines() == before.splitlines()
+    assert (tmp_path / ".env").stat().st_mode & 0o777 == 0o600
+    script = (ROOT / "infra/compose/lonora").read_text()
+    assert 'local saved=(infra "$STATE/image.env" "$STATE/overlays.env")' in script
+    assert script.count("restore_overlays") == 3

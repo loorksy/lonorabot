@@ -125,9 +125,9 @@ anything. Inside the list (github.com by default) the pinned commit installs as 
 and the agent may activate it; outside it the tool raises one `trust_source` card
 (`github_repo`) and returns `owner_trust_required` without fetching. When the owner taps
 Trust the agent is woken once to continue. `skill_repository_inspect` reports
-`source_trusted`. Instructions-only packages (no utilities) need no analysis host: their
-files go to the agent's database-backed workspace store even when no workspace access is
-configured. Packages with utilities still need sandbox validation before activation, and
+`source_trusted`. Instructions-only packages (no utilities) need no workspace: their
+files go to the agent's private package store. Packages with utilities still need a
+smoke test in the owner's workspace before activation, and
 the owner's revocation (Undo in Capabilities) is unchanged.
 
 ## News feeds (D3)
@@ -179,8 +179,9 @@ needed it. Deleting a saved MCP server removes its trust row too (kept as the re
 thing: the trusted sources, the Skills agents installed or wrote with their origin, the
 saved MCP servers with their trusted tools and tier, the integrations and feeds (domain
 only), and the built-in capabilities with an honest state: `ready`, `not_connected` (one
-card connects it) or `not_set_up` on this server (no browser service, no analysis host,
-no chart renderer, no search service). Web shows it under Settings ← «التكاملات»
+card connects it) or `not_set_up` on this server (no browser service, no workspace,
+no chart renderer, no search service). The owner's view reports the workspace as part of
+the production stack; the agents' view reports whether the Gateway has its socket. Web shows it under Settings ← «التكاملات»
 (`/app/integrations`: news domains with undo, RSS feeds, MCP servers and their review,
 skills with their undo); Mobile under Settings, Capabilities. Each entry has its Undo: remove or restore a source,
 revoke an installed Skill version, remove an integration, remove an MCP server's trust.

@@ -2,15 +2,15 @@ Superseded by VISION.md
 
 # Pinned executable Skill packages
 
-The existing Agent catalog, Run snapshots, revocation controls and analytical
-workspace now share one package lifecycle. There is no second Skill runtime or
+The existing Agent catalog, Run snapshots, revocation controls, the private package
+store and the owner's workspace share one package lifecycle. There is no second Skill runtime or
 financial permission system.
 
 ## Import and adaptation
 
 An import first checks the owner's trusted sources (`docs/trusted-sources.md`): inside
 them (github.com by default) it goes on silently; outside them it raises one owner card
-and fetches nothing. Instructions-only packages need no analysis host.
+and fetches nothing. Instructions-only packages need no workspace.
 
 `skill_repository_inspect` discovers documents, utility hashes, Python imports,
 dependency filenames and licensing without executing source. `skill_package_import`

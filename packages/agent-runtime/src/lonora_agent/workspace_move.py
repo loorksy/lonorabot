@@ -7,6 +7,7 @@ import logging
 from typing import cast
 
 from lonora_contracts.domain import utcnow
+from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import AnalyticalWorkspaceRow
 from lonora_security.secrets import SecretScan
@@ -19,20 +20,37 @@ DESTINATION = "old-workspace/"
 
 
 def read_snapshot(content: bytes) -> dict[str, bytes]:
-    """The former analytical workspace's files: a JSON object of path to base64 bytes."""
-    value: object = json.loads(bytes(content) or b"{}")
-    if not isinstance(value, dict):
-        raise ValueError("workspace_snapshot_invalid")
-    mapping = cast(dict[str, object], value)
-    files = {
-        package_path(name): base64.b64decode(str(body), validate=True)
-        for name, body in mapping.items()
-    }
+    """The former analytical workspace's files: a JSON object of path to base64 bytes,
+    checked as the old store checked an export (no duplicate path, string bodies, bounds)."""
+    if len(content) > MAX_TRANSFER_BYTES:
+        raise LonoraError("workspace_snapshot_too_large", 422)
+
+    def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in items:
+            if key in result:
+                raise LonoraError("workspace_path_duplicate", 422)
+            result[key] = value
+        return result
+
+    try:
+        value: object = json.loads(bytes(content) or b"{}", object_pairs_hook=pairs)
+        if not isinstance(value, dict):
+            raise ValueError
+        files: dict[str, bytes] = {}
+        for name, body in cast(dict[str, object], value).items():
+            if not isinstance(body, str):
+                raise ValueError
+            files[package_path(name)] = base64.b64decode(body, validate=True)
+    except (ValueError, TypeError, RecursionError):
+        raise LonoraError("workspace_snapshot_invalid", 422) from None
     check_files(files)
     return files
 
 
 PER_TICK = 5
+# The old store's bound on one exported snapshot.
+MAX_TRANSFER_BYTES = 12 * 1024 * 1024
 log = logging.getLogger("lonora.workspace.move")
 
 
@@ -60,7 +78,13 @@ async def move_snapshots(db: Database, workspace: WorkspaceClient) -> int:
     moved = 0
     for agent_id, revision, snapshot in tried:
         failed = None
-        for path, data in sorted(read_snapshot(snapshot).items()):
+        try:
+            files = read_snapshot(snapshot)
+        except LonoraError as error:
+            # A stored snapshot that cannot be read is never moved; the others go on.
+            log.warning("workspace_snapshot_unreadable agent_id=%s code=%s", agent_id, error.code)
+            continue
+        for path, data in sorted(files.items()):
             # Only the supervisor's acknowledgement comes back; there is nothing to scan.
             written = await workspace.write(SecretScan({}), agent_id, DESTINATION + path, data)
             if not written["ok"]:

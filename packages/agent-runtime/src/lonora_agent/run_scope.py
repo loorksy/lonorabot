@@ -11,12 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def scoped_run(
-    session: AsyncSession, context: ToolContext, *, mutate: bool = False, helper: bool = False
+    session: AsyncSession, context: ToolContext, *, mutate: bool = False
 ) -> RunRow:
     """The current Run of this Agent's call.
 
-    ``mutate`` writes are refused for a paused Agent and for a temporary helper (unless
-    ``helper``); an observe-only wake has no financial effects, so it keeps them.
+    ``mutate`` writes are refused for a paused Agent and for a temporary helper; an
+    observe-only wake has no financial effects, so it keeps them.
     """
     agent = await owned_agent(session, context.owner_id, context.agent_id, lock=mutate)
     run = await require_lease(session, context.lease, lock=mutate)
@@ -29,8 +29,6 @@ async def scoped_run(
         or thread.owner_id != context.owner_id
     ):
         raise LonoraError("workspace_scope_mismatch", 409)
-    if mutate and (
-        agent.paused or (run_scope(run.trigger, run.model_metadata) == "helper" and not helper)
-    ):
+    if mutate and (agent.paused or run_scope(run.trigger, run.model_metadata) == "helper"):
         raise LonoraError("tool_not_allowed", 403)
     return run

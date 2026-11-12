@@ -234,7 +234,7 @@ def caught(kind: str, sample: str, path: str = "packages/core/src/lonora_core/x.
         (ENGINE, 'exec claude --print "$PROMPT"', "infra/compose/run.sh"),
         (ENGINE, 'out=$(claude -p "$PROMPT")', "scripts/run-engine"),
         (ENGINE, 'ExecStart=/usr/local/bin/claude -p "run"', "infra/systemd/x.service"),
-        (ENGINE, "claude-agent-sdk==0.1.0", "infra/workspace/requirements.lock"),
+        (ENGINE, "claude-agent-sdk==0.1.0", "infra/compose/requirements.lock"),
     ],
 )
 def test_each_rule_catches_what_it_names(kind: str, sample: str, path: str | None) -> None:

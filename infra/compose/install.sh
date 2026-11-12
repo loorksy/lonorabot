@@ -14,8 +14,6 @@
 #   --env-from FILE Reuse settings and secrets from an earlier installation's .env: only the
 #                   keys this version knows (ENV_FROM_KEYS below) are copied; the database
 #                   password is always new. Names are listed, values are never printed.
-#   --overlay FILE  Add a Compose overlay from the bundle (repeatable). This release
-#                   bundles none.
 #   --workspace-*   Limits of the owner's workspace (7.1.3), written to .env. The memory and
 #                   disk minimums are Lonora's 3584 MB and 10 GB plus the workspace's own.
 #
@@ -28,7 +26,7 @@
 set -euo pipefail
 umask 077
 
-home=/opt/lonora domain="" version=main systemd=true project=lonora proxy_listen="" env_from="" overlays=""
+home=/opt/lonora domain="" version=main systemd=true project=lonora proxy_listen="" env_from=""
 # Keys --env-from may copy. Everything else (database password, image, artifact root, LiveKit,
 # overlays, project, ports) is set by this installer or not used by this version.
 ENV_FROM_KEYS=" LONORA_DOMAIN LONORA_ENCRYPTION_KEY LONORA_BOOTSTRAP_TOKEN LONORA_WEBHOOK_SECRET LONORA_EXPO_ACCESS_TOKEN
@@ -50,7 +48,6 @@ while (($#)); do
         --project) project="${2:?}"; shift 2 ;;
         --behind-proxy) proxy_listen="${2:?}"; shift 2 ;;
         --env-from) env_from="${2:?}"; shift 2 ;;
-        --overlay) overlays+="${overlays:+ }${2:?}"; shift 2 ;;
         --workspace-memory) workspace_memory="${2:?}"; shift 2 ;;
         --workspace-cpus) workspace_cpus="${2:?}"; shift 2 ;;
         --workspace-disk) workspace_disk="${2:?}"; shift 2 ;;
@@ -143,9 +140,6 @@ else
         if port_in_use "$port"; then check false "port $port is in use (use --behind-proxy if a reverse proxy owns it)"; else check true "port $port is free"; fi
     done
 fi
-for overlay in $overlays; do
-    check false "overlay $overlay is not one of the bundled overlays"
-done
 if [[ -n "$env_from" ]]; then
     number=0 bad=0
     while IFS= read -r raw || [[ -n "$raw" ]]; do
@@ -213,7 +207,7 @@ LONORA_ENCRYPTION_KEY=$(random 32 | tr '+/' '-_')
 LONORA_BOOTSTRAP_TOKEN=$(random 32 | tr '+/' '-_' | tr -d '=')
 LONORA_WEBHOOK_SECRET=$(random 32 | tr '+/' '-_' | tr -d '=')
 # Optional overlays, space separated.
-LONORA_COMPOSE_OVERLAYS=$overlays
+LONORA_COMPOSE_OVERLAYS=
 # Resource limits (defaults shown; about 3.4 GB in all):
 # LONORA_DB_MEMORY=512m LONORA_DB_CPUS=0.5 LONORA_API_MEMORY=896m LONORA_API_CPUS=0.75
 # LONORA_GATEWAY_MEMORY=768m LONORA_GATEWAY_CPUS=0.75 LONORA_CADDY_MEMORY=96m LONORA_CADDY_CPUS=0.25

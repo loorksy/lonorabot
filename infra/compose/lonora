@@ -664,6 +664,13 @@ retire_overlays() {
     say 'Retired overlays were removed from LONORA_COMPOSE_OVERLAYS: web search, the research browser and the workspace are now part of the stack.'
 }
 
+# A rollback gives the previous release its overlays line back (saved by the update).
+restore_overlays() {
+    [[ -f "$STATE/overlays.env" ]] || return 0
+    { grep -v '^LONORA_COMPOSE_OVERLAYS=' .env || true; cat "$STATE/overlays.env"; } >.env.part || return 1
+    chmod 600 .env.part && mv -f .env.part .env
+}
+
 marker_get() { marker_value "$MARKER" "$1"; }
 # Set one key in the marker, atomically, and confirm the write. Returns non-zero on failure.
 marker_set() {
@@ -697,7 +704,9 @@ back_to_hold() { # $1 reason
     trap '' INT TERM HUP
     local status=0
     if [[ -f "$HELD_BUNDLE" ]]; then
-        if [[ -f "$ROLLBACK_BUNDLE" ]]; then tar -xzf "$ROLLBACK_BUNDLE" || say "Cannot restore the deployment files from $ROLLBACK_BUNDLE."; fi
+        if [[ -f "$ROLLBACK_BUNDLE" ]]; then
+            tar -xzf "$ROLLBACK_BUNDLE" && restore_overlays || say "Cannot restore the deployment files from $ROLLBACK_BUNDLE."
+        fi
         mv -f "$HELD_BUNDLE" "$ROLLBACK_BUNDLE" || status=1
     fi
     if ((status == 0)); then mv -f "$HELD_MARKER" "$MARKER" || status=1; fi
@@ -744,6 +753,7 @@ rollback() { # $1 reason, $2 force (true|false)
         fi
     fi
     tar -xzf "$ROLLBACK_BUNDLE" || { say "Cannot restore the previous deployment files from $ROLLBACK_BUNDLE. Fix it (disk space?), then run: sudo lonora rollback"; return 1; }
+    restore_overlays || { say "Cannot restore LONORA_COMPOSE_OVERLAYS in .env (disk space?); run: sudo lonora rollback"; return 1; }
     if "$restore_db"; then
         [[ -n "$backup" && -f "$backup" ]] || { say "The pre-update backup ($backup) is missing; the database was not restored."; return 1; }
         marker_set phase restoring || { say "Cannot write $MARKER; rollback stopped before touching the database."; return 1; }
@@ -908,7 +918,9 @@ cmd_update() {
         FROM_HOLD=true
         say 'Updating forward from the held state; the current data is kept.'
     fi
-    local saved=(infra "$STATE/image.env")
+    # The overlays line as the previous release had it: retire_overlays may change it.
+    { grep '^LONORA_COMPOSE_OVERLAYS=' .env || true; } >"$STATE/overlays.env"
+    local saved=(infra "$STATE/image.env" "$STATE/overlays.env")
     if [[ -f release.json ]]; then saved+=(release.json); fi
     tar -czf "$ROLLBACK_BUNDLE" "${saved[@]}"
     printf 'previous=%s\ntarget=%s\nstarted=%s\nphase=stopping\n' "$previous" "$pinned" "$(date -u +%FT%TZ)" >"$MARKER.part"

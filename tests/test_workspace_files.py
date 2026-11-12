@@ -105,3 +105,35 @@ async def test_an_agent_whose_copy_fails_does_not_hold_up_the_others(task_db: An
         moved += await move_snapshots(db, client)
     assert moved == 6
     assert (stuck, DESTINATION + "a.txt") not in workspace.files
+
+
+@pytest.mark.parametrize(
+    ("content", "code"),
+    [
+        (b'{"a.txt": "YQ==", "a.txt": "Yg=="}', "workspace_path_duplicate"),
+        (b'{"a.txt": null}', "workspace_snapshot_invalid"),
+        (b'{"a.txt": "not base64!"}', "workspace_snapshot_invalid"),
+        (b"[]", "workspace_snapshot_invalid"),
+        (b'{"../a.txt": "YQ=="}', "workspace_path_unsafe"),
+        (b" " * (12 * 1024 * 1024 + 1), "workspace_snapshot_too_large"),
+    ],
+)
+def test_a_stored_snapshot_is_checked_before_it_is_copied(content: bytes, code: str) -> None:
+    from lonora_agent.workspace_move import read_snapshot
+    from lonora_core.user_error import LonoraError
+
+    with pytest.raises(LonoraError, match=code):
+        read_snapshot(content)
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_snapshot_does_not_hold_up_the_others(task_db: Any) -> None:
+    db, _, agent, _ = task_db
+    async with db.sessions() as session, session.begin():
+        session.add(AnalyticalWorkspaceRow(agent_id=agent, revision=1, snapshot=b'{"a": null}'))
+    workspace = FakeWorkspace()
+    assert await move_snapshots(db, workspace.client()) == 0
+    assert workspace.files == {}
+    async with db.sessions() as session:
+        row = await session.get(AnalyticalWorkspaceRow, agent)
+        assert row is not None and row.moved_at is None and row.move_tried_at is not None

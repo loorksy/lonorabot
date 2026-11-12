@@ -59,7 +59,7 @@ class ScriptedAcceptanceRouter:
         if self.journey in {"visual_workspace", "visual_observed"}:
             value = [
                 {"v": 2, "kind": "receipt", "title": "حجم الملفات", "mode": "observed"},
-                {"facts": {"size": {"call": "probe-2", "path": "/exit_code"}}},
+                {"facts": {"size": {"call": "probe-2", "path": "/stdout"}}},
                 {"type": "KeyValue", "rows": [["حجم الملف الأول", "{@Fact('size')} بايت"]]},
                 CLOSE,
             ]
