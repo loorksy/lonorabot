@@ -1031,7 +1031,7 @@ async def pause_facts(
         "target": hold.target_kind,
         "target_label": await pause_label(session, hold),
         "from_owner_message": hold.source_message_id is not None,
-        # The owner paused the same work too: the pause is the owner's now.
+        # The owner paused it or asked for it: only the owner resumes it.
         "owner_holds": hold.source == "owner",
     }
     return facts
