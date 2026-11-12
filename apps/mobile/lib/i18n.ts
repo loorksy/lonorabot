@@ -434,6 +434,29 @@ export const labels = {
   clearStopLoss: ["إزالة وقف الخسارة", "Remove stop loss"],
   clearTakeProfit: ["إزالة جني الربح", "Remove take profit"],
   reply: ["رد", "Reply"],
+  // «تجربة المحادثة» (Web's chat preferences), from the conversation's menu.
+  chatPrefs: ["تجربة المحادثة", "Chat experience"],
+  chatPrefsIntro: [
+    "اختر كيف تظهر الردود وكيف تكتب. تُطبّق على كل المحادثات.",
+    "Choose how replies appear and how you write. Applies to every conversation.",
+  ],
+  prefSteps: ["خطوات عمل الوكيل", "The agent's work steps"],
+  prefStepsSub: [
+    "البحث وقراءة المصادر وتشغيل المهارات داخل الرسالة",
+    "Searching, reading sources and running skills inside the message",
+  ],
+  prefStepsOpen: ["فتح الخطوات تلقائيًا", "Open the steps automatically"],
+  prefStepsOpenSub: [
+    "تبقى الخطوات مفتوحة بدل أن تُطوى في سطر واحد",
+    "The steps stay open instead of folding into one line",
+  ],
+  prefAgentStatus: ["حالة الوكيل التفصيلية", "Detailed agent status"],
+  prefAgentStatusSub: [
+    "سطر عمل الوكيل تحت الرأس. عند الإيقاف يظهر للمشكلات وما يحتاج قرارك فقط",
+    "The agent's activity line under the header. When off, only problems and what needs you",
+  ],
+  prefAssist: ["اقتراحات @", "@ suggestions"],
+  prefAssistSub: ["قائمة الوكلاء أثناء الكتابة", "The list of agents while you write"],
   newMessage: ["رسالة جديدة", "New message"],
   cancelReply: ["إلغاء الرد", "Cancel reply"],
   // The message menu (Web's conversation menu, its Arabic wording).
