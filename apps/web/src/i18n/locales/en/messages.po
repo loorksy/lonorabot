@@ -107,7 +107,7 @@ msgid "{0} will be added to it"
 msgstr "{0} will be added to it"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:197
+#: src/shell/domain/UpdatesPages.tsx:202
 msgid "{0}, has something new"
 msgstr "{0}, has something new"
 
@@ -238,7 +238,7 @@ msgstr "30 days"
 msgid "7 days"
 msgstr "7 days"
 
-#: src/components/ai/AttentionInbox.tsx:31
+#: src/components/ai/AttentionInbox.tsx:37
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
 
@@ -306,7 +306,7 @@ msgstr "A removed agent"
 msgid "A short tone when a reply arrives"
 msgstr "A short tone when a reply arrives"
 
-#: src/components/ai/AttentionInbox.tsx:33
+#: src/components/ai/AttentionInbox.tsx:39
 msgid "A trade still has no confirmed broker result"
 msgstr "A trade still has no confirmed broker result"
 
@@ -314,7 +314,7 @@ msgstr "A trade still has no confirmed broker result"
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "A watch ends on its own at its time; you can pause, extend or cancel it."
 
-#: src/shell/domain/UpdatesPages.tsx:55
+#: src/shell/domain/UpdatesPages.tsx:60
 msgid "A watch was met"
 msgstr "A watch was met"
 
@@ -386,7 +386,7 @@ msgstr "Account ID"
 msgid "Account limits"
 msgstr "Account limits"
 
-#: src/shell/domain/UpdatesPages.tsx:29
+#: src/shell/domain/UpdatesPages.tsx:34
 msgid "Account limits changed"
 msgstr "Account limits changed"
 
@@ -457,7 +457,7 @@ msgstr "Activity log"
 msgid "Activity log only"
 msgstr "Activity log only"
 
-#: src/components/ai/AttentionInbox.tsx:30
+#: src/components/ai/AttentionInbox.tsx:36
 msgid "Activity updated"
 msgstr "Activity updated"
 
@@ -644,7 +644,7 @@ msgstr "Agent calls"
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
-#: src/shell/domain/UpdatesPages.tsx:25
+#: src/shell/domain/UpdatesPages.tsx:30
 msgid "Agent created"
 msgstr "Agent created"
 
@@ -692,7 +692,7 @@ msgstr "Agent template"
 
 #: src/conversation/ChatPrefsPage.tsx:35
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:191
+#: src/shell/domain/UpdatesPages.tsx:196
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
 #: src/shell/pages.tsx:89
@@ -1103,7 +1103,7 @@ msgstr "Back to the permissions"
 #~ msgid "Back to workspace"
 #~ msgstr "Back to workspace"
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:41
 msgid "Background service is running late"
 msgstr "Background service is running late"
 
@@ -1200,7 +1200,7 @@ msgstr "Broker"
 msgid "Broker account"
 msgstr "Broker account"
 
-#: src/components/ai/AttentionInbox.tsx:20
+#: src/components/ai/AttentionInbox.tsx:26
 msgid "Broker account changed"
 msgstr "Broker account changed"
 
@@ -1225,12 +1225,12 @@ msgid "Broker candles contain invalid or mismatched data."
 msgstr "Broker candles contain invalid or mismatched data."
 
 #: src/components/ai/AttentionInbox.tsx:18
-msgid "Broker connection needs review"
-msgstr "Broker connection needs review"
+#~ msgid "Broker connection needs review"
+#~ msgstr "Broker connection needs review"
 
 #: src/components/ai/AttentionInbox.tsx:19
-msgid "Broker connection recovered"
-msgstr "Broker connection recovered"
+#~ msgid "Broker connection recovered"
+#~ msgstr "Broker connection recovered"
 
 #: src/components/ai/AgentLiveStatus.tsx:141
 msgid "Broker connection requires attention"
@@ -1850,7 +1850,7 @@ msgstr "closing is frozen too"
 msgid "Cloud chart"
 msgstr "Cloud chart"
 
-#: src/components/ai/AttentionInbox.tsx:23
+#: src/components/ai/AttentionInbox.tsx:29
 msgid "Collaboration result is ready"
 msgstr "Collaboration result is ready"
 
@@ -2362,7 +2362,7 @@ msgstr "Delegated execution"
 msgid "Delegated task"
 msgstr "Delegated task"
 
-#: src/shell/domain/UpdatesPages.tsx:27
+#: src/shell/domain/UpdatesPages.tsx:32
 msgid "Delegation changed"
 msgstr "Delegation changed"
 
@@ -3246,7 +3246,7 @@ msgstr "Go to the latest messages, {fresh} new"
 msgid "Go to the quoted message"
 msgstr "Go to the quoted message"
 
-#: src/shell/domain/UpdatesPages.tsx:57
+#: src/shell/domain/UpdatesPages.tsx:62
 msgid "Goal added"
 msgstr "Goal added"
 
@@ -3637,7 +3637,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/domain/UpdatesPages.tsx:59
+#: src/shell/domain/UpdatesPages.tsx:64
 msgid "Knowledge added"
 msgstr "Knowledge added"
 
@@ -3693,7 +3693,7 @@ msgstr "Last updated"
 msgid "Later"
 msgstr "Later"
 
-#: src/shell/domain/UpdatesPages.tsx:305
+#: src/shell/domain/UpdatesPages.tsx:310
 msgid "Latest actions"
 msgstr "Latest actions"
 
@@ -3957,7 +3957,7 @@ msgid "Margin"
 msgstr "Margin"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:215
+#: src/shell/domain/UpdatesPages.tsx:220
 msgid "Mark all as read"
 msgstr "Mark all as read"
 
@@ -3965,7 +3965,7 @@ msgstr "Mark all as read"
 msgid "Mark as completed"
 msgstr "Mark as completed"
 
-#: src/components/ai/AttentionInbox.tsx:146
+#: src/components/ai/AttentionInbox.tsx:153
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -4114,6 +4114,10 @@ msgstr "Messages cleared"
 #: src/shell/settings/IntegrationsPage.tsx:425
 msgid "Messages reach"
 msgstr "Messages reach"
+
+#: src/components/ai/AttentionInbox.tsx:23
+msgid "MetaApi rejected the access token"
+msgstr "MetaApi rejected the access token"
 
 #: src/components/trading/BrokerConnection.tsx:61
 msgid "MetaApi token"
@@ -4286,8 +4290,8 @@ msgstr "New group"
 msgid "New list"
 msgstr "New list"
 
-#: src/shell/lists/HeadsUp.tsx:140
-#: src/shell/lists/HeadsUp.tsx:174
+#: src/shell/lists/HeadsUp.tsx:141
+#: src/shell/lists/HeadsUp.tsx:175
 msgid "New message"
 msgstr "New message"
 
@@ -4334,7 +4338,7 @@ msgstr "New trades paused until 23:59"
 msgid "New trades resumed"
 msgstr "New trades resumed"
 
-#: src/components/ai/AttentionInbox.tsx:15
+#: src/components/ai/AttentionInbox.tsx:20
 msgid "New trading stopped"
 msgstr "New trading stopped"
 
@@ -4365,8 +4369,8 @@ msgstr "Next"
 msgid "Next: the chats"
 msgstr "Next: the chats"
 
-#: src/shell/domain/UpdatesPages.tsx:108
-#: src/shell/domain/UpdatesPages.tsx:324
+#: src/shell/domain/UpdatesPages.tsx:113
+#: src/shell/domain/UpdatesPages.tsx:329
 msgid "No activity yet."
 msgstr "No activity yet."
 
@@ -4431,7 +4435,7 @@ msgstr "No chats in «{0}» yet."
 msgid "No chats."
 msgstr "No chats."
 
-#: src/shell/domain/UpdatesPages.tsx:299
+#: src/shell/domain/UpdatesPages.tsx:304
 msgid "No enabled schedules."
 msgstr "No enabled schedules."
 
@@ -4516,11 +4520,11 @@ msgstr "No model is set up yet"
 msgid "No money limit"
 msgstr "No money limit"
 
-#: src/components/ai/AttentionInbox.tsx:107
+#: src/components/ai/AttentionInbox.tsx:114
 msgid "No new notifications"
 msgstr "No new notifications"
 
-#: src/shell/domain/UpdatesPages.tsx:257
+#: src/shell/domain/UpdatesPages.tsx:262
 msgid "No notifications."
 msgstr "No notifications."
 
@@ -4751,14 +4755,14 @@ msgstr "Notification"
 msgid "Notification method"
 msgstr "Notification method"
 
-#: src/components/ai/AttentionInbox.tsx:69
-#: src/components/ai/AttentionInbox.tsx:71
+#: src/components/ai/AttentionInbox.tsx:76
+#: src/components/ai/AttentionInbox.tsx:78
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
 msgstr "Notifications"
 
-#: src/shell/domain/UpdatesPages.tsx:211
+#: src/shell/domain/UpdatesPages.tsx:216
 msgctxt "updates section"
 msgid "Notifications"
 msgstr "Notifications"
@@ -4784,7 +4788,7 @@ msgstr "Notifications on"
 msgid "Notifications restored"
 msgstr "Notifications restored"
 
-#: src/components/ai/AttentionInbox.tsx:102
+#: src/components/ai/AttentionInbox.tsx:109
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
@@ -4901,7 +4905,7 @@ msgstr "Open active call"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:137
+#: src/components/ai/AttentionInbox.tsx:144
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -4992,7 +4996,7 @@ msgstr "Opens"
 msgid "Operation id"
 msgstr "Operation id"
 
-#: src/shell/domain/UpdatesPages.tsx:35
+#: src/shell/domain/UpdatesPages.tsx:40
 msgid "Operation resolved"
 msgstr "Operation resolved"
 
@@ -5038,8 +5042,8 @@ msgstr "Order price"
 #~ msgid "Organic"
 #~ msgstr "Organic"
 
-#: src/components/ai/AttentionInbox.tsx:135
-#: src/shell/lists/HeadsUp.tsx:253
+#: src/components/ai/AttentionInbox.tsx:142
+#: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
 msgstr "Outage and recovery"
@@ -5761,7 +5765,7 @@ msgid "Replies"
 msgstr "Replies"
 
 #: src/conversation/Conversation.tsx:531
-#: src/shell/lists/HeadsUp.tsx:253
+#: src/shell/lists/HeadsUp.tsx:254
 msgid "Reply"
 msgstr "Reply"
 
@@ -5783,9 +5787,9 @@ msgstr "Reply to your message"
 msgid "Reply with a message"
 msgstr "Reply with a message"
 
-#: src/components/ai/AttentionInbox.tsx:17
-#: src/components/ai/AttentionInbox.tsx:27
-#: src/components/ai/AttentionInbox.tsx:28
+#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:33
+#: src/components/ai/AttentionInbox.tsx:34
 msgid "Request updated"
 msgstr "Request updated"
 
@@ -5902,11 +5906,11 @@ msgstr "Restricted: {what}"
 msgid "Restricted: {what} until {until}"
 msgstr "Restricted: {what} until {until}"
 
-#: src/shell/domain/UpdatesPages.tsx:33
+#: src/shell/domain/UpdatesPages.tsx:38
 msgid "Restriction lifted"
 msgstr "Restriction lifted"
 
-#: src/shell/domain/UpdatesPages.tsx:31
+#: src/shell/domain/UpdatesPages.tsx:36
 msgid "Restriction set"
 msgstr "Restriction set"
 
@@ -6427,7 +6431,7 @@ msgstr "Settings"
 msgid "Setup token"
 msgstr "Setup token"
 
-#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:28
 msgid "Setup validity changed"
 msgstr "Setup validity changed"
 
@@ -6483,12 +6487,12 @@ msgid "Show as a table"
 msgstr "Show as a table"
 
 #: src/components/genui/UiCard.tsx:363
-#: src/shell/domain/UpdatesPages.tsx:130
+#: src/shell/domain/UpdatesPages.tsx:135
 #: src/shell/lists/UnifiedSearch.tsx:379
 msgid "Show more"
 msgstr "Show more"
 
-#: src/shell/domain/UpdatesPages.tsx:319
+#: src/shell/domain/UpdatesPages.tsx:324
 msgid "Show the full log"
 msgstr "Show the full log"
 
@@ -6579,7 +6583,7 @@ msgstr "Skill"
 msgid "Skill catalog"
 msgstr "Skill catalog"
 
-#: src/shell/domain/UpdatesPages.tsx:47
+#: src/shell/domain/UpdatesPages.tsx:52
 msgid "Skill created"
 msgstr "Skill created"
 
@@ -6604,7 +6608,7 @@ msgstr "Skill restored to version {version}"
 msgid "Skill saved"
 msgstr "Skill saved"
 
-#: src/shell/domain/UpdatesPages.tsx:49
+#: src/shell/domain/UpdatesPages.tsx:54
 msgid "Skill updated"
 msgstr "Skill updated"
 
@@ -6903,11 +6907,11 @@ msgstr "Supervises"
 msgid "Supervision · {0}"
 msgstr "Supervision · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:53
+#: src/shell/domain/UpdatesPages.tsx:58
 msgid "Supervision ended"
 msgstr "Supervision ended"
 
-#: src/shell/domain/UpdatesPages.tsx:51
+#: src/shell/domain/UpdatesPages.tsx:56
 msgid "Supervision started"
 msgstr "Supervision started"
 
@@ -6984,18 +6988,18 @@ msgid "Task boards"
 msgstr "Task boards"
 
 #: src/conversation/sheets/AgentSheet.tsx:429
-#: src/shell/domain/UpdatesPages.tsx:45
+#: src/shell/domain/UpdatesPages.tsx:50
 msgid "Task cancelled"
 msgstr "Task cancelled"
 
-#: src/components/ai/AttentionInbox.tsx:29
+#: src/components/ai/AttentionInbox.tsx:35
 #: src/shell/domain/TasksPages.tsx:240
-#: src/shell/domain/UpdatesPages.tsx:43
+#: src/shell/domain/UpdatesPages.tsx:48
 msgid "Task completed"
 msgstr "Task completed"
 
 #: src/conversation/Conversation.tsx:397
-#: src/shell/domain/UpdatesPages.tsx:41
+#: src/shell/domain/UpdatesPages.tsx:46
 msgid "Task created"
 msgstr "Task created"
 
@@ -7005,12 +7009,12 @@ msgstr "Task created"
 msgid "Task details"
 msgstr "Task details"
 
-#: src/components/ai/AttentionInbox.tsx:25
+#: src/components/ai/AttentionInbox.tsx:31
 msgid "Task is retrying through a model outage"
 msgstr "Task is retrying through a model outage"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/ai/AttentionInbox.tsx:24
+#: src/components/ai/AttentionInbox.tsx:30
 #: src/conversation/sheets/AgentSheet.tsx:405
 msgid "Task needs review"
 msgstr "Task needs review"
@@ -7083,9 +7087,17 @@ msgstr "That time has passed. Choose a new time."
 msgid "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgstr "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 
+#: src/components/ai/AttentionInbox.tsx:25
+msgid "The account connection has been lost"
+msgstr "The account connection has been lost"
+
 #: src/shell/settings/ConnectionPages.tsx:116
 msgid "The account is linked"
 msgstr "The account is linked"
+
+#: src/components/ai/AttentionInbox.tsx:24
+msgid "The account is not deployed on MetaApi"
+msgstr "The account is not deployed on MetaApi"
 
 #: src/conversation/sheets/MandateSheet.tsx:303
 msgid "The account's current limits stay in force."
@@ -7147,7 +7159,7 @@ msgstr "The broker connection is unavailable."
 msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 
-#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:40
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 
@@ -8110,7 +8122,7 @@ msgstr "Unmute"
 msgid "Unpin"
 msgstr "Unpin"
 
-#: src/shell/domain/UpdatesPages.tsx:252
+#: src/shell/domain/UpdatesPages.tsx:257
 msgid "Unread"
 msgstr "Unread"
 
@@ -8166,7 +8178,7 @@ msgstr "Up {pct}%"
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "Up to 6 photos and files, 8 MB each"
 
-#: src/shell/domain/UpdatesPages.tsx:263
+#: src/shell/domain/UpdatesPages.tsx:268
 msgid "Upcoming"
 msgstr "Upcoming"
 
@@ -8365,7 +8377,7 @@ msgstr "Waiting"
 #~ msgstr "Waiting for a condition"
 
 #: src/components/ai/AgentLiveStatus.tsx:50
-#: src/components/ai/AttentionInbox.tsx:16
+#: src/components/ai/AttentionInbox.tsx:21
 msgid "Waiting for approval"
 msgstr "Waiting for approval"
 
@@ -8415,11 +8427,11 @@ msgstr "Watch"
 msgid "Watch cancelled"
 msgstr "Watch cancelled"
 
-#: src/components/ai/AttentionInbox.tsx:14
+#: src/components/ai/AttentionInbox.tsx:19
 msgid "Watch condition changed"
 msgstr "Watch condition changed"
 
-#: src/components/ai/AttentionInbox.tsx:21
+#: src/components/ai/AttentionInbox.tsx:27
 msgid "Watch confirmed — review current evidence"
 msgstr "Watch confirmed — review current evidence"
 
@@ -8532,7 +8544,7 @@ msgstr "Why this interface?"
 msgid "Wink"
 msgstr "Wink"
 
-#: src/components/ai/AttentionInbox.tsx:32
+#: src/components/ai/AttentionInbox.tsx:38
 msgid "Work stopped after repeated interruptions"
 msgstr "Work stopped after repeated interruptions"
 
@@ -8615,7 +8627,7 @@ msgstr "Yesterday"
 msgid "You"
 msgstr "You"
 
-#: src/shell/domain/UpdatesPages.tsx:37
+#: src/shell/domain/UpdatesPages.tsx:42
 msgid "You approved a request"
 msgstr "You approved a request"
 
@@ -8648,7 +8660,7 @@ msgstr "You reached the name's maximum length"
 #~ msgid "You reached the usage limit"
 #~ msgstr "You reached the usage limit"
 
-#: src/shell/domain/UpdatesPages.tsx:39
+#: src/shell/domain/UpdatesPages.tsx:44
 msgid "You rejected a request"
 msgstr "You rejected a request"
 
@@ -8681,9 +8693,13 @@ msgstr "You: {0}"
 msgid "You: {text}"
 msgstr "You: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:42
 msgid "Your agent alerted you"
 msgstr "Your agent alerted you"
+
+#: src/components/ai/AttentionInbox.tsx:43
+msgid "Your agent needs a secret from you"
+msgstr "Your agent needs a secret from you"
 
 #: src/pages/ActivityList.tsx:166
 msgid "Your agents’ activity will appear here."

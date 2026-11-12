@@ -306,8 +306,13 @@ export const labels = {
   attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
-  attentionBrokerDegraded: ["اتصال الوسيط يحتاج مراجعة", "Broker connection needs review"],
-  attentionBrokerRecovered: ["استُعيد اتصال الوسيط", "Broker connection recovered"],
+  attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
+  attentionBrokerUndeployed: [
+    "الحساب غير مُشغَّل على MetaApi",
+    "The account is not deployed on MetaApi",
+  ],
+  attentionBrokerConnectionLost: ["انقطع الاتصال بالحساب", "The account connection has been lost"],
+  attentionSecretRequested: ["وكيلك ينتظر منك بيانات سرّية", "Your agent needs a secret from you"],
   attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
   attentionSetupConfirmed: [
     "تأكد شرط المراقبة — راجع الأدلة الحالية",
@@ -415,6 +420,23 @@ export const labels = {
   clearTakeProfit: ["إزالة جني الربح", "Remove take profit"],
   reply: ["رد", "Reply"],
   cancelReply: ["إلغاء الرد", "Cancel reply"],
+  // The message menu (Web's conversation menu, its Arabic wording).
+  messageOptions: ["خيارات الرسالة", "Message options"],
+  messageNotSent: ["لم تُرسل الرسالة", "The message was not sent"],
+  quickReaction: ["تفاعل سريع", "Quick reaction"],
+  reactWith: ["تفاعل {0}", "React {0}"],
+  reactionsTitle: ["التفاعلات", "Reactions"],
+  reactionYou: ["أنت", "You"],
+  tapToRemove: ["اضغط للإزالة", "Tap to remove"],
+  copyText: ["نسخ النص", "Copy text"],
+  copied: ["تم النسخ", "Copied"],
+  copyFailed: ["تعذّر النسخ", "Could not copy"],
+  editAndResend: ["تعديل وإعادة الإرسال", "Edit and resend"],
+  editTheMessage: ["تعديل الرسالة", "Edit the message"],
+  cancelEdit: ["إلغاء التعديل", "Cancel the edit"],
+  turnIntoTask: ["تحويل إلى مهمة", "Turn into a task"],
+  taskCreated: ["أُنشئت مهمة", "Task created"],
+  deleteMessage: ["حذف", "Delete"],
   activity: ["النشاط", "Activity"],
   actions: ["إجراءات الوكيل", "Agent actions"],
   charts: ["الرسوم البيانية", "Charts"],
@@ -742,6 +764,18 @@ export function chatsWord(locale: Locale, count: number): string {
   if (count === 1) return "محادثة واحدة";
   if (count === 2) return "محادثتان";
   return count <= 10 ? `${count} محادثات` : `${count} محادثة`;
+}
+/** The toast after the offline queue went out by itself (Q6), with Web's Arabic plural forms. */
+export function waitingSentText(locale: Locale, count: number): string {
+  if (locale === "en")
+    return count === 1
+      ? "One waiting message was sent"
+      : count === 2
+        ? "Two waiting messages were sent"
+        : `${count} waiting messages were sent`;
+  if (count === 1) return "أُرسلت رسالة واحدة كانت تنتظر";
+  if (count === 2) return "أُرسلت رسالتان كانت تنتظر";
+  return count <= 10 ? `أُرسلت ${count} رسائل كانت تنتظر` : `أُرسلت ${count} رسالة كانت تنتظر`;
 }
 export function agentsWord(locale: Locale, count: number): string {
   if (locale === "en")

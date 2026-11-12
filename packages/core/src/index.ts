@@ -183,6 +183,8 @@ export {
   canResume,
   isWorking,
   retriedRunIds,
+  retryableFailure,
+  runFailure,
   stopTargets,
 } from "./run-state";
 export {

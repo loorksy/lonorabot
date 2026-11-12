@@ -12,12 +12,14 @@ agent's origin record and in the ``agent.created`` event. The origin record also
 the agents it reports to: that is the peer link the directory shows. The agents it
 supervises get supervision grants with the creation's source (``lonora_db.supervision``).
 
-Limits: at most ``MAXIMUM_ACTIVE_AGENTS`` active (not paused) persistent agents per
-owner and ``MAXIMUM_CREATIONS_PER_RUN`` creations or creation cards per run. Undo
+Limits: no limit on the number of agents (mandate 3.3.2). The one rate guard against
+a runaway creation loop is ``MAXIMUM_CREATIONS_PER_RUN`` creations or creation cards per
+minute within one run; it never counts the owner's agents. Undo
 deletes an agent that has done nothing yet and pauses one that has (agent deletion
 still cascades its work in Wave 1, so it never deletes work).
 """
 
+from datetime import timedelta
 from hashlib import sha256
 from typing import Any, Literal, cast
 
@@ -47,8 +49,9 @@ from .schema import (
 )
 from .transactions import owned_agent
 
-MAXIMUM_ACTIVE_AGENTS = 20
 MAXIMUM_CREATIONS_PER_RUN = 3
+# The guard counts one run's creations per minute (3.3.2), never the owner's agents.
+CREATION_WINDOW = timedelta(minutes=1)
 MAXIMUM_DESCRIPTION_CHARS = 280
 
 UndoPlan = Literal["delete", "pause"]
@@ -90,22 +93,10 @@ async def lock_creation(session: AsyncSession, owner_id: str) -> None:
         )
 
 
-async def active_agents(session: AsyncSession, owner_id: str) -> int:
-    """Persistent agents that are not paused; temporary helpers do not count."""
-    count = await session.scalar(
-        select(func.count())
-        .select_from(AgentRow)
-        .where(
-            AgentRow.owner_id == owner_id,
-            AgentRow.role != "delegated",
-            AgentRow.paused.is_(False),
-        )
-    )
-    return int(count or 0)
-
-
 async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> int:
-    """Agents this run created plus the creation cards it raised."""
+    """Agents this run created, plus the creation cards it raised, in the last
+    ``CREATION_WINDOW``: the guard against a runaway creation loop (mandate 3.3.2)."""
+    since = utcnow() - CREATION_WINDOW
     created = await session.scalar(
         select(func.count())
         .select_from(EventRow)
@@ -113,6 +104,7 @@ async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> in
             EventRow.owner_id == owner_id,
             EventRow.run_id == run_id,
             EventRow.kind == "agent.created",
+            EventRow.created_at >= since,
         )
     )
     proposed = await session.scalar(
@@ -122,6 +114,7 @@ async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> in
             OwnerActionRow.owner_id == owner_id,
             OwnerActionRow.run_id == run_id,
             OwnerActionRow.kind == "create_agent",
+            OwnerActionRow.created_at >= since,
         )
     )
     return int(created or 0) + int(proposed or 0)
@@ -164,14 +157,9 @@ async def existing_creation(
     return None
 
 
-async def check_creation(
-    session: AsyncSession, owner_id: str, spec: dict[str, Any], *, capped: bool = True
-) -> None:
-    """Re-check a creation against current state: the cap, the agents it reports to and
-    the broker connection its focus pair was looked up on. The cap bounds what agents
-    create (a run's call or its card); the owner's own form is not capped, as it never was."""
-    if capped and await active_agents(session, owner_id) >= MAXIMUM_ACTIVE_AGENTS:
-        raise LonoraError("agent_limit_reached", 409)
+async def check_creation(session: AsyncSession, owner_id: str, spec: dict[str, Any]) -> None:
+    """Re-check a creation against current state: the agents it reports to and the
+    broker connection its focus pair was looked up on."""
     for target_id in spec.get("report_to", []):
         target = await owned_agent(session, owner_id, target_id)
         if target.role == "delegated":
@@ -220,7 +208,7 @@ async def create_root_agent(
         if existing.owner_id != owner_id or not origin:
             raise LonoraError("agent_identity_conflict", 409)
         return existing, False
-    await check_creation(session, owner_id, spec, capped=created_via != "owner_ui")
+    await check_creation(session, owner_id, spec)
     template = str(spec["template"])
     responsibility = str(spec.get("responsibility") or "").strip()
     account_id, symbol = spec.get("account_id"), spec.get("symbol")

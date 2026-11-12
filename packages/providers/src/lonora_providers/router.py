@@ -46,7 +46,7 @@ from .context import (
 )
 from .credentials import ProviderCredentials
 from .default_model import choose_default_model
-from .registry import model_adapter
+from .registry import build_adapter, model_adapter
 from .resilience import (
     MAXIMUM_INLINE_WAIT_SECONDS,
     RECOVERY,
@@ -132,7 +132,7 @@ class GlobalModelRouter:
         self,
         db: Database,
         credentials: ProviderCredentials,
-        factory: Callable[[str, str], ModelAdapter] = model_adapter,
+        factory: Callable[..., ModelAdapter] = model_adapter,
         *,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], float] = monotonic,
@@ -327,7 +327,9 @@ class GlobalModelRouter:
                     raise
                 failures.append((selection, ModelProviderError(FailureReason.NOT_CONFIGURED)))
                 continue
-            fingerprint = credential_fingerprint(secret)
+            endpoint = await self.credentials.endpoint(selection.provider)
+            # A new base URL is a new credential: its health starts fresh.
+            fingerprint = credential_fingerprint(secret + "\n" + endpoint if endpoint else secret)
             bench = self.health.benched(selection, fingerprint)
             if bench is not None:
                 state, remaining = bench
@@ -337,7 +339,7 @@ class GlobalModelRouter:
                 if RECOVERY[state.reason].transient:
                     waits.append(remaining)
                 continue
-            adapter = self.factory(selection.provider, secret)
+            adapter = build_adapter(self.factory, selection.provider, secret, endpoint)
             credentials_ms = round((monotonic() - credentials_started) * 1000, 2)
             try:
                 reply = await self._complete_with(
