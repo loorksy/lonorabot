@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 from .symbols import canonical_broker_symbol
 
 # The daily loss limit a grant card suggests when the owner named none (owner decision D1).
@@ -286,8 +286,7 @@ def tools() -> list[Tool]:
             "owner_action_propose",
             "Put a one-tap owner action card in this conversation for an action only the "
             "owner may take; nothing changes until the owner taps it. Kinds: "
-            "lift_restriction (restriction_id of an active or scheduled pause the owner asks "
-            "to lift), resolve_operation (operation_id of an ambiguous operation; the owner "
+            "resolve_operation (operation_id of an ambiguous operation; the owner "
             "answers executed / not executed / unknown, and any answer releases its hold), "
             "set_account_limits (account_id with set_limits amounts in the account "
             "currency or percentages, and/or remove_limits; currency when setting an amount "

@@ -389,22 +389,22 @@ async def test_an_interrupted_bridged_mutation_is_uncertain_and_never_resent(
 def test_bridged_trading_calls_are_planned_exactly_like_direct_ones():
     """Wave 1 integration: E2 bridge resolution happens before E1 planning.
 
-    Financial tools (T2 executor) and the T3 restriction writer stay serial
+    Financial tools (T2 executor) and a state writer (memory) stay serial
     barriers whether the model called them natively or through tool_call; the
     T4 evidence reads still form a parallel segment.
     """
     catalog = load_tools()
     account = {"account_id": "acct", "symbol": "XAUUSD"}
     trade = {"account_id": "acct", "symbol": "XAUUSD", "action": "buy", "volume": "0.1"}
-    restriction = {"action_class": "no_new_entries", "reason": "Owner asked to pause"}
+    note = {"content": "Owner prefers London session entries"}
     block = [
         ToolCall(id="quote", name="market_quote", arguments=account),
         bridge("entry", "trade_execute", trade),
         bridge("snapshot", "market_snapshot", account),
         ToolCall(id="sessions", name="market_sessions", arguments={}),
-        bridge("pause", "trade_restriction_create", restriction),
+        bridge("pause", "memory_write", note),
         bridge("flatten", "trade_close_positions", account),
-        bridge("limits", "trade_restriction_list", {}),
+        bridge("limits", "trade_record_history", {}),
         ToolCall(id="calendar", name="economic_calendar_read", arguments={}),
     ]
     resolved = catalog.resolve_calls(block)
@@ -424,7 +424,7 @@ def test_bridged_trading_calls_are_planned_exactly_like_direct_ones():
     for name in ("trade_execute", "trade_close_positions"):
         tool = catalog.tools[name]
         assert tool.financial and not tool.runs_in_parallel() and tool.dispatch_timeout() is None
-    writer = catalog.tools["trade_restriction_create"]
+    writer = catalog.tools["memory_write"]
     assert not writer.read_only and not writer.financial and not writer.runs_in_parallel()
 
 

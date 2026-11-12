@@ -188,9 +188,9 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
         side_effect=[permission_snapshot("autonomous"), permission_snapshot("analysis")]
     )
     monkeypatch.setattr("lonora_agent.context.permissions.permission_state", state)
-    # Restrictions and monetary limits are read from the database; covered elsewhere.
+    # Monetary limits are read from the database; covered elsewhere.
     monkeypatch.setattr(
-        "lonora_agent.context.permissions.trading_limits", AsyncMock(return_value=([], []))
+        "lonora_agent.context.permissions.trading_limits", AsyncMock(return_value=[])
     )
     first = await permission_context(AsyncMock(), "owner", "agent", origin())
     resumed = await permission_context(AsyncMock(), "owner", "agent", origin())

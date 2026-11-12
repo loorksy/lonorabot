@@ -1,10 +1,9 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
 import type { DeviceProof } from "./devices";
-import type { MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
+import type { MoneyLimitName, MoneyLimits } from "./trading";
 
 export type OwnerActionKind =
-  | "lift_restriction"
   | "resolve_operation"
   | "set_account_limits"
   | "grant_authority"
@@ -103,18 +102,6 @@ export type OwnerAction = {
   facts: {
     several_accounts: boolean;
     account?: OwnerActionAccount;
-    restriction?: {
-      action_class: RestrictionActionClass;
-      symbol: string | null;
-      all_agents: boolean;
-      agent_name: string | null;
-      includes_owner_manual: boolean;
-      state: "scheduled" | "active" | "expired" | "revoked";
-      valid_from: string;
-      valid_until: string | null;
-      source: "owner_ui" | "owner_message" | "agent";
-      set_by_agent_name: string | null;
-    };
     operation?: {
       operation_id: string;
       action: string | null;
@@ -259,8 +246,6 @@ export type OwnerAction = {
     /** A broker card: how provisioning stands (9.2). */
     provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
-    /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
-    restriction_id?: string;
     /** watch_changed Undo: the watch's expiry now. */
     expires_at?: string | null;
   };
@@ -285,11 +270,6 @@ export type OwnerActionDecision = {
   stop_authorities?: string[];
   /** connect_credential: what the secure form created; never the value it holds. */
   connected?: { resource: "integration" | "mcp" | "broker"; id: string };
-  /**
-   * Resolve card answered "unknown" only: also pause new trades by every agent on its
-   * account until the trading day ends there (an owner restriction; it only narrows).
-   */
-  pause_new_today?: boolean;
 };
 /**
  * The mandate sheet («تنفيذ مفوَّض»): POST /agents/{id}/account-authorities/draft. It

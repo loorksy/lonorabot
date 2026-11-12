@@ -44,7 +44,6 @@ MODULES = {
     "account": "account",
     "broker_connect": "account",
     "trade": "trading",
-    "restrictions": "trading",
     "owner_actions": "trading",
     "runtime_control": "tasks",
     "tasks": "tasks",

@@ -72,9 +72,7 @@ and closes the same way, so an exit is never the harder tool to find (offering
 a tool authorizes nothing: every call is still validated).
 `PROMOTED_SCHEMA_BUDGET` gave up the same 1,250 characters (4,100 to 2,850),
 which those three tools no longer need from it; it still holds `trade_execute`
-beside two reads for an agent that is not a market agent. Owner restrictions and monetary limits
-are shown in the permission frame on every turn, so `trade_restriction_create`
-and `trade_restriction_list` stay long-tail. A tool whose backend is not
+beside two reads for an agent that is not a market agent. A tool whose backend is not
 configured reports it through `availability`: `economic_calendar_read` without
 an enabled calendar integration, `market_candles_to_workspace` without workspace
 access.

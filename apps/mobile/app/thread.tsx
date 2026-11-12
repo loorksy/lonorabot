@@ -1158,13 +1158,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         onActions={() => setActionsVisible(true)}
         onCall={agent && thread ? () => void voice.start(agent, thread.id) : undefined}
         safety={
-          agent ? (
-            <SafetyPill
-              readiness={liveState.state?.trading_readiness ?? null}
-              agents={agents}
-              onChanged={liveState.refresh}
-            />
-          ) : undefined
+          agent ? <SafetyPill readiness={liveState.state?.trading_readiness ?? null} /> : undefined
         }
         avatar={
           agent ? (

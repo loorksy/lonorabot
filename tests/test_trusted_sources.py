@@ -231,7 +231,7 @@ def test_trusted_identifiers_are_canonical_and_bounded() -> None:
         {"kind": "trust_source", "source_kind": "github_repo", "identifier": "a/b"},
         {"kind": "connect_credential", "target": "broker", "service": "x"},
         {"kind": "connect_credential", "target": "mcp_server", "account_id": "a"},
-        {"kind": "lift_restriction", "restriction_id": "r", "source_kind": "github_repo"},
+        {"kind": "resolve_operation", "operation_id": "op", "source_kind": "github_repo"},
     ):
         with pytest.raises(ValidationError):
             OwnerActionProposal.model_validate(bad)
@@ -482,7 +482,7 @@ async def routine(fixture: Any, agent: dict[str, Any], thread_id: str) -> Any:
 
 async def read_third_party(fixture: Any, context: Any) -> None:
     """The Run reads a web page after the owner's message: it no longer stands for him."""
-    from lonora_tools.restrictions import mark_external_content
+    from lonora_tools.provenance import mark_external_content
 
     async with fixture.runtime.db.sessions() as session, session.begin():
         await mark_external_content(session, context.lease.run_id, "web_fetch")

@@ -90,8 +90,7 @@ prompt in the system role only for server-authored wakes (`broker_event`,
 `follow_up`, `activation`); for every other trigger (a subagent's task written by
 its parent model, a peer request, a Task or ticket title, a routine or watch prompt
 an agent saved, an owner prompt) it names the trigger only, and the prompt arrives
-as the user-role turn. The permission frame shows restrictions as structured fields;
-an agent-written restriction reason never enters it.
+as the user-role turn.
 
 Everything model-authored or untrusted travels in **one user-role context
 message** directly after the system messages, as labelled sections:
@@ -206,8 +205,8 @@ execution lifecycle of `lonora_contracts.trading` — unresolved ones
 their symbol or ticket), and for 24 hours the settled-but-not-plain ones
 (`confirmed` with state verification pending, and `resolved` with its
 resolution source and outcome and `broker_confirmed: false`) — pending approvals with their requested symbol/side/volume, and enabled
-watches. Grants, waits and tasks were already in `live_agent_state`. Owner
-restrictions and monetary limits are not repeated: the permission frame in the
+watches. Grants, waits and tasks were already in `live_agent_state`. Monetary
+limits are not repeated: the permission frame in the
 same routing frame re-reads them every turn. Live risk usage (daily loss, open
 risk) needs a broker snapshot and is checked at the execution boundary, not
 projected per turn. These records supersede any summary, recalled evidence or

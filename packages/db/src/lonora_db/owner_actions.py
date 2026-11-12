@@ -2,10 +2,10 @@
 
 A card stores the exact effect it performs (``payload``, hashed) and the record it acts
 on (``subject``). Agents propose cards through a tool and the runtime raises some from
-events (a new restriction, an operation that became uncertain); only the owner's session
+events (an operation that became uncertain); only the owner's session
 confirms one, through the existing owner function for that effect (see the owner
 actions API route). Everything the owner sees on a card is derived here from the records
-it names, at read time: never model text, never the restriction reason an agent wrote.
+it names, at read time: never model text.
 The one exception is a creation card's stored task, the exact standing instruction the
 tap keeps, which the card quotes labelled as the agent's task.
 
@@ -52,15 +52,12 @@ from .schema import (
     SupervisionHoldRow,
     ThreadRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from .trading_readiness import RISK_LIMIT_NAMES, risk_limit_frame
-from .trading_restrictions import restriction_state
 from .transactions import SettingsRepository, execution_policy_key, owned_thread
 
-# How long a card stays usable. A lift card never outlives its restriction.
+# How long a card stays usable.
 LIFETIME = {
-    "lift_restriction": timedelta(days=31),
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
     "grant_authority": timedelta(hours=24),
@@ -220,15 +217,6 @@ async def stale_reason(
 
     Raises when the record it names is not the owner's: such a card is never created.
     """
-    if kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
-        if restriction is None or restriction.owner_id != owner_id:
-            raise LonoraError("restriction_not_found", 404)
-        return (
-            "restriction_already_ended"
-            if restriction_state(restriction) in {"revoked", "expired"}
-            else None
-        )
     if kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None or operation.owner_id != owner_id:
@@ -591,9 +579,6 @@ def proposal_payload(
         if grant is None:
             raise LonoraError("owner_action_fields_invalid", 422)
         return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
-    if proposal.kind == "lift_restriction":
-        assert proposal.restriction_id is not None
-        return "restriction:" + proposal.restriction_id, {"restriction_id": proposal.restriction_id}
     if proposal.kind == "resolve_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
@@ -649,32 +634,6 @@ async def card_facts(
     owner's confirmation needs a passkey (widening money limits)."""
     owner_id, payload = row.owner_id, row.payload
     facts: dict[str, Any] = {"several_accounts": await several_accounts(session, owner_id)}
-    if row.kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
-        if restriction is None:
-            return facts, False
-        names = await agent_names(
-            session,
-            owner_id,
-            {value for value in (restriction.agent_id, restriction.created_by_agent_id) if value},
-        )
-        facts["account"] = account_facts(
-            await session.get(BrokerSessionRow, restriction.account_id), restriction.account_id
-        )
-        facts["restriction"] = {
-            "action_class": restriction.action_class,
-            "symbol": restriction.symbol,
-            "all_agents": restriction.agent_id is None,
-            "agent_name": names.get(restriction.agent_id or ""),
-            "includes_owner_manual": restriction.applies_to_owner_manual,
-            "state": restriction_state(restriction, now),
-            "valid_from": restriction.valid_from.isoformat(),
-            "valid_until": restriction.valid_until.isoformat() if restriction.valid_until else None,
-            # Who set it, never the reason text: an agent's reason is model prose.
-            "source": restriction.source,
-            "set_by_agent_name": names.get(restriction.created_by_agent_id or ""),
-        }
-        return facts, False
     if row.kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None:
@@ -1145,18 +1104,8 @@ async def card_thread(
     return await owned_thread(session, owner_id, thread.id, lock=True)
 
 
-def expiry(kind: str, payload_expires: datetime | None, now: datetime) -> datetime:
-    limit = now + LIFETIME[kind]
-    return min(limit, payload_expires) if payload_expires is not None else limit
-
-
-async def subject_expiry(
-    session: AsyncSession, kind: str, payload: dict[str, Any]
-) -> datetime | None:
-    if kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
-        return restriction.valid_until if restriction else None
-    return None
+def expiry(kind: str, now: datetime) -> datetime:
+    return now + LIFETIME[kind]
 
 
 async def create_card(
@@ -1190,7 +1139,7 @@ async def create_card(
         result={},
         # The card sits after everything already in the conversation, like an approval.
         timeline_seq=thread.next_seq,
-        expires_at=expiry(kind, await subject_expiry(session, kind, payload), now),
+        expires_at=expiry(kind, now),
         created_at=now,
         updated_at=now,
     )
@@ -1652,7 +1601,7 @@ async def draft_grant_card(
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo and notice cards keep their own window and never come
 # back; an agent's proposal is the agent's to make again.
-RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction"})
+RENEWABLE_KINDS = frozenset({"resolve_operation"})
 
 
 async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -1757,60 +1706,24 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
     return notes
 
 
-def _same_symbol(left: str | None, right: str | None) -> bool:
-    return left is None or right is None or left.casefold() == right.casefold()
-
-
 async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]:
-    """What still holds new risk where a lift or an answer just released it, read after
-    the effect: another pause in force over the same market and agents,
-    or another trade there without a confirmed broker outcome. One fixed clause each."""
+    """What still holds new risk where an answer just released it, read after the effect:
+    another trade there without a confirmed broker outcome. One fixed clause each."""
     if row.kind == "grant_authority":
         return await grant_notes(session, row)
-    if row.kind not in {"lift_restriction", "resolve_operation"}:
+    if row.kind != "resolve_operation":
         return []
-    agent: str | None = None
-    lifted_id = answered_id = ""
-    tickets: list[str] = []
-    if row.kind == "lift_restriction":
-        lifted = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
-        if lifted is None:
-            return []
-        account, symbol, agent, lifted_id = (
-            lifted.account_id,
-            lifted.symbol,
-            lifted.agent_id,
-            lifted.id,
-        )
-    else:
-        operation = await session.get(TradingJournalRow, row.payload["operation_id"])
-        if operation is None:
-            return []
-        account, answered_id = operation.account_id, operation.operation_id
-        symbol = cast(str | None, operation.request.get("symbol"))
-        tickets = [
-            str(operation.request[key])
-            for key in ("position_id", "order_id")
-            if operation.request.get(key)
-        ]
+    operation = await session.get(TradingJournalRow, row.payload["operation_id"])
+    if operation is None:
+        return []
+    account, answered_id = operation.account_id, operation.operation_id
+    symbol = cast(str | None, operation.request.get("symbol"))
+    tickets = [
+        str(operation.request[key])
+        for key in ("position_id", "order_id")
+        if operation.request.get(key)
+    ]
     notes: list[str] = []
-    now = utcnow()
-    pauses = await session.scalars(
-        select(TradingRestrictionRow).where(
-            TradingRestrictionRow.owner_id == row.owner_id,
-            TradingRestrictionRow.account_id == account,
-            TradingRestrictionRow.revoked_at.is_(None),
-            TradingRestrictionRow.valid_from <= now,
-            TradingRestrictionRow.id != lifted_id,
-        )
-    )
-    if any(
-        (pause.valid_until is None or pause.valid_until > now)
-        and _same_symbol(pause.symbol, symbol)
-        and (pause.agent_id is None or agent is None or pause.agent_id == agent)
-        for pause in pauses
-    ):
-        notes.append("owner_action_still_paused")
     scope: list[ColumnElement[bool]] = []
     if symbol is not None:
         scope.append(func.lower(TradingJournalRow.request["symbol"].as_string()) == symbol.lower())
@@ -1829,8 +1742,6 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
         unresolved = unresolved.where(or_(*scope))
     if await session.scalar(unresolved.limit(1)) is not None:
         notes.append("owner_action_still_unresolved")
-    if row.kind == "lift_restriction" and not notes:
-        notes.append("owner_action_admitted_again")
     return notes
 
 
@@ -1997,9 +1908,6 @@ async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None
         return cast(str, row.payload["account_id"])
     if row.kind == "create_agent":
         return cast(str | None, row.payload["spec"].get("account_id"))
-    if row.kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
-        return restriction.account_id if restriction else None
     if row.kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, row.payload["operation_id"])
         return operation.account_id if operation else None

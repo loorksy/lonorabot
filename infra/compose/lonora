@@ -675,7 +675,7 @@ must_mark() { marker_set "$1" "$2" || die "Cannot write $MARKER (disk full?). No
 print_held() { # $1: why
     cat >&2 <<HELD
 lonora: ROLLBACK HELD: $1
-lonora: The database was NOT restored, because that could undo an owner's stop, restriction or
+lonora: The database was NOT restored, because that could undo an owner's stop or
 lonora: revocation, or erase the record of an order the new version may already have sent to
 lonora: the broker. API and Gateway are stopped; writes get "updating" (maintenance) answers;
 lonora: the failed version $(current_image) stays pinned.

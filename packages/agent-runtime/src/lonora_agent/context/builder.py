@@ -20,8 +20,8 @@ from lonora_memory.semantic import retrieve_memory
 from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
+from lonora_tools.provenance import mark_external_content
 from lonora_tools.registry import ToolRegistry
-from lonora_tools.restrictions import mark_external_content
 
 from ..context_engine import resolve_limits
 from ..progress import progress

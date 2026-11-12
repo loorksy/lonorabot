@@ -30,8 +30,8 @@ from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
 from .profile_taint import mark_from
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 async def keyed_watch(

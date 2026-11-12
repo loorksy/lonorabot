@@ -12,7 +12,7 @@ A Run's tool scope comes from the Run row (`run_scope` in `lonora_tools/base.py`
 | Scope | Runs | Tools |
 | --- | --- | --- |
 | `full` | conversations, watches, routines, Tasks, a broker wake on the Agent's own positions, an opportunity wake | every registered tool |
-| `observe_only` | wakes about events the Agent did not cause: the owner's manual broker activity (Personal Agent), the activation review; Tasks and tickets such a wake starts | every non-financial tool: memory writes, watches and routines, peer messages, owner alerts, artifacts, workspace, skills, narrowing restrictions |
+| `observe_only` | wakes about events the Agent did not cause: the owner's manual broker activity (Personal Agent), the activation review; Tasks and tickets such a wake starts | every non-financial tool: memory writes, watches and routines, peer messages, owner alerts, artifacts, workspace, skills |
 | `helper` | temporary subagents (`trigger="subagent"`) | read-only tools plus `workspace_execute` and `artifact_create`; never memory writes, peer messages, new agents or financial tools |
 
 The registry applies one rule (`Tool.permitted(scope)`) to exposure, the capability

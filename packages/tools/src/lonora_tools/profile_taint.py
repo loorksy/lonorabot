@@ -19,7 +19,7 @@ from lonora_db.owner_words import owner_typed_message
 from lonora_db.schema import EffectReceiptRow, RunRow
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .restrictions import OWNER_TRIGGERS, external_content_seen
+from .provenance import OWNER_TRIGGERS, external_content_seen
 
 # Runs Lonora starts itself or the owner starts: what it observes there is its own (8.2).
 # A peer, subagent, follow-up, task, webhook or other wake carries someone else's words.

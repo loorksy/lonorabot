@@ -5,10 +5,10 @@ Superseded by VISION.md
 ## ملخص بالعربية
 
 - **التثبيت:** خادم جديد يحتاج Docker وgpg فقط، دون Python أو Node أو نسخة من الكود. الأمر `sudo bash install.sh --domain نطاقك` ينزّل الصورة، يثبّت بصمتها (digest)، ينشئ الأسرار ومفتاح النسخ الاحتياطي بصلاحيات 600 دون طباعتها، ويشغّل Lonora ثم ينتظر حتى تنجح `/ready`.
-- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (ما دام API وGateway متوقفين يُجاب كل طلب تعديل بـ «يجري التحديث»؛ وما إن يعمل Gateway حتى تُفتح الطلبات من جديد، فيبقى الإيقاف الطارئ وإغلاق المراكز وسحب الصلاحيات متاحًا لك دائمًا)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
+- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (ما دام API وGateway متوقفين يُجاب كل طلب تعديل بـ «يجري التحديث»؛ وما إن يعمل Gateway حتى تُفتح الطلبات من جديد، فيبقى الإيقاف المؤقت للوكلاء وإغلاق المراكز ورفض الموافقات وسحب الصلاحيات متاحًا لك دائمًا)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
 - **ماذا تفعل عند كل نتيجة:**
   - «Rolled back to …»: عاد الإصدار السابق ويعمل. لا تفعل شيئًا.
-  - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف التداول، القيود، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
+  - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف الوكلاء مؤقتًا، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
   - «ROLLBACK HELD» مع «cannot be read»: تعذّرت قراءة سجلات التحكم. أصلح قاعدة البيانات (`sudo lonora logs db`) ثم: `sudo lonora rollback`.
   - «ROLLBACK INCOMPLETE»: فشلت استعادة قاعدة البيانات. أصلح السبب (المساحة مثلًا؛ `sudo lonora status` و`sudo lonora logs db`) ثم: `sudo lonora rollback` (يعيد المحاولة).
   - «ROLLBACK did not reach /ready»: راجع `sudo lonora logs api` و`sudo lonora logs gateway`، ثم: `sudo lonora rollback` (يشغّل ويفحص من جديد).
@@ -432,10 +432,10 @@ before that backup, nothing the owner did before the update is lost, and nothing
 wrote (including a half-applied migration) survives.
 
 **The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
-undo something that must not be undone: an owner's pause, a new restriction, a revoked
+undo something that must not be undone: an owner's pause, a revoked
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
-on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
+on its own) of `ln_account_authorities`, `ln_supervision_grants`,
 `ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, paused
 agents, the broker connections' enabled flags, paused or cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
 voice). If any of them changed, or cannot be read, it does **not** restore. It stops API and
@@ -754,9 +754,9 @@ machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 
     would delete it: read-only (503, no Gateway) during its safety backup, file kept, older schema
     migrated up; then a restore failing after `DROP DATABASE`: the printed command resumes without a
     second safety backup while `update` refuses; `KEEP=1` keeps a held backup and `KEEP=0` is refused;
-14. a restriction written during the gate: held; `--keep-data` with the same digest stays held, a
-    bad tag changes nothing, another failing version returns to the hold, a fixed version updates
-    forward keeping the restriction;
+14. an owner-control write during the gate: held; `--keep-data` with the same digest stays held,
+    a bad tag changes nothing, another failing version returns to the hold, a fixed version
+    updates forward keeping the write;
 15. a trading-journal row written during the gate: held; backups during the hold keep its backup;
     `rollback` still holds; `rollback --force` restores;
 16. disaster recovery: a newer backup refused on an older image; `--with-config` restores the

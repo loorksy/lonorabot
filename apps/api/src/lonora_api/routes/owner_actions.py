@@ -3,8 +3,7 @@
 Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
 expired with its reason), is idempotent per card, and then runs the existing owner
-function for its effect: lifting a restriction
-(``revoke_restriction``), the owner attestation of an uncertain operation
+function for its effect: the owner attestation of an uncertain operation
 (``attest_operation``), the account's execution policy (``store_execution_policy``),
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
@@ -14,7 +13,7 @@ credential card's secure form connected (only which resource; the value went str
 the owner API); the agent that asked is woken to continue. A newly connected MCP server's
 tools run once the owner trusts it, by naming it in chat or in Capabilities.
 Raising or removing a money limit also needs a verified passkey assertion bound to the
-card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent,
+card's payload hash; lowering a limit, resuming, creating an agent,
 setting supervision, choosing a model and Undo are one tap.
 
 A grant card signs through the existing account-authority ceremony: its challenge builds
@@ -30,7 +29,6 @@ challenge names the choice the owner's card showed and is refused
 the passkey never signs a choice the owner's screen did not show.
 """
 
-from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request
@@ -82,7 +80,7 @@ from lonora_db.owner_actions import (
     thread_cards,
     widens,
 )
-from lonora_db.schema import AgentRow, OwnerActionRow, TradingJournalRow
+from lonora_db.schema import AgentRow, OwnerActionRow
 from lonora_db.supervision import (
     grant_supervision,
     owned_grant,
@@ -91,7 +89,6 @@ from lonora_db.supervision import (
 )
 from lonora_db.threads import conversation_thread
 from lonora_db.trading_readiness import risk_limit_frame
-from lonora_db.trading_restrictions import create_restriction, revoke_restriction
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import stable_id
 from lonora_trading.owner_controls import (
@@ -99,7 +96,6 @@ from lonora_trading.owner_controls import (
     require_account_currency,
     store_execution_policy,
 )
-from lonora_trading.risk_limits import trading_day_start
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..device_metadata import native_origins
@@ -262,8 +258,6 @@ async def decide(
     if body.decision == "choose":
         await choose(session, owner, row, body)
         return
-    if body.pause_new_today and row.kind != "resolve_operation":
-        raise LonoraError("owner_action_pause_unsupported", 422)
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
         # Idempotent per card: the same decision again answers from the record.
@@ -293,11 +287,7 @@ async def decide(
         raise LonoraError("owner_action_secret_values_required", 422)
     via = "tap"
     result: dict[str, Any] = {}
-    if row.kind == "lift_restriction":
-        await revoke_restriction(
-            session, owner.id, row.payload["restriction_id"], "Lifted by the owner from a card"
-        )
-    elif row.kind == "resolve_operation":
+    if row.kind == "resolve_operation":
         if body.outcome is None:
             raise LonoraError("owner_action_outcome_required", 422)
         await attest_operation(
@@ -319,10 +309,6 @@ async def decide(
             },
         )
         result = {"outcome": body.outcome}
-        if body.pause_new_today:
-            # «أوقف الصفقات الجديدة اليوم» (Q11): the owner's own pause on the account
-            # until the trading day ends there. It only narrows; one tap lifts it.
-            result["restriction_id"] = await pause_new_today(session, owner, row)
     elif row.kind == "grant_authority":
         if body.proof is None:
             raise LonoraError("owner_action_passkey_required", 403)
@@ -422,27 +408,6 @@ async def decide(
         await continue_after_card(session, row)
 
 
-async def pause_new_today(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> str:
-    """No new entries by any agent on the operation's account until the end of the
-    account's trading day (its ``trading_day_timezone``); once per card."""
-    operation = await session.get(TradingJournalRow, row.payload["operation_id"])
-    assert operation is not None  # The attestation above read it.
-    zone = (await account_policy(session, owner.id, operation.account_id)).risk
-    day_end = trading_day_start(utcnow(), zone.trading_day_timezone) + timedelta(days=1)
-    restriction = await create_restriction(
-        session,
-        owner.id,
-        account_id=operation.account_id,
-        action_class="no_new_entries",
-        source="owner_ui",
-        created_by_agent_id=None,
-        valid_until=day_end,
-        reason="Paused new trades for today from an uncertain trade's card",
-        restriction_id=stable_id(row.id, "pause-new-today"),
-    )
-    return restriction.id
-
-
 async def choose(
     session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow, body: OwnerActionDecision
 ) -> None:
@@ -482,7 +447,7 @@ async def confirm_grant(
     body: OwnerActionDecision,
 ) -> dict[str, Any]:
     """Activate the card's own proposal with the owner's assertion, then the card's
-    choices: stop other agents' grants there, resume, and the daily loss limit."""
+    choices: stop other agents' grants there and the daily loss limit."""
     assert body.proof is not None
     identifier = row.result.get("authority_id")
     if not isinstance(identifier, str):
