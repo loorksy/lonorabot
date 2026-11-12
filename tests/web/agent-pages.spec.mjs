@@ -150,7 +150,7 @@ test("the trading and safety row opens the agent's sheet in its conversation", a
   await page.goto(`/app/agent/${data.trader.id}`);
   await page
     .locator("main")
-    .getByRole("button", { name: /Trading · New trades · Restrictions/ })
+    .getByRole("button", { name: /Ask me on every order/ })
     .click();
   await expect(page.locator("#dialog").getByTestId("agent-live-state")).toBeVisible();
   // The conversation opens the sheet once and drops ?sheet=agent, so Back does not reopen it.
