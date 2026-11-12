@@ -4438,6 +4438,22 @@ h2 .oa-tag {
   margin: 0;
   flex: none;
 }
+/* the Execution Receipt's broker facts: label above value, as many per row as fit */
+.mcard-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 4px 0 0;
+}
+.mcard-facts dt {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.mcard-facts dd {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
 /* an order in the chat: one line that updates in place; tap → the full record */
 .od-chat {
   display: flex;
