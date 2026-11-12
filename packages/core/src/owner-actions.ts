@@ -52,6 +52,8 @@ export const ownerActionLabels = {
     mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
     mandateGrantStays:
       "Its signed grant still lets it trade within the grant's terms until you revoke it.",
+    mandatePreviousGrant: "Its earlier signed grant ({grant}) has ended; this card replaces it.",
+    mandatePreviousFull: "Full delegation",
     mandateGone: "This agent no longer exists.",
     resumeTitle: "Resume trading",
     resumeStopped: "New trading is stopped",
@@ -340,6 +342,8 @@ export const ownerActionLabels = {
     mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
     mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
     mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
+    mandatePreviousGrant: "انتهت صلاحيته الموقّعة السابقة ({grant})، وهذه البطاقة تحلّ محلّها.",
+    mandatePreviousFull: "تفويض كامل",
     mandateGone: "لم يعد هذا الوكيل موجودًا.",
     resumeTitle: "استئناف التداول",
     resumeStopped: "التداول الجديد متوقف",
@@ -1409,6 +1413,20 @@ export function ownerActionCard(
       lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
       lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
       if (facts.active_grant) lines.push(text.mandateGrantStays);
+      // The grants it held before the trading mode, named once by the migration.
+      if (facts.previous_grants?.length) {
+        const grants = facts.previous_grants.map((grant) =>
+          [
+            grant.full_delegation
+              ? text.mandatePreviousFull
+              : grant.symbols.map(isolate).join(listSeparator(lang)),
+            facts.several_accounts ? accountLabel(grant.account, text) : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        );
+        lines.push(fill(text.mandatePreviousGrant, { grant: grants.join(listSeparator(lang)) }));
+      }
       // One button for the other mode; the tap applies the mode this button shows.
       const other: TradingMode = mode === "full" ? "ask" : "full";
       hint = other === "full" ? text.mandateToFull : text.mandateToAsk;
