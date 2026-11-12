@@ -377,7 +377,7 @@ async def slots(data: dict[str, Any]) -> dict[str, Any]:
             '{"type":"Number","bind":"lots","label":"الحجم المقترح"}',
         ]
         lines = [
-            '{"v":2,"kind":"receipt","title":"ينتظر قرارك","sub":"طلب معلّق","icon":"check"}',
+            '{"v":2,"kind":"summary","title":"ينتظر قرارك","sub":"طلب معلّق","icon":"check"}',
             *(number[:1] if data.get("number") else []),
             '{"type":"Text","text":"الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."}',
             *(number[1:] if data.get("number") else []),
