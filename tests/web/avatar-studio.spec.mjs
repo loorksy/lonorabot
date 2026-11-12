@@ -37,64 +37,21 @@ for (const locale of ["en", "ar"])
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     try {
-      await page.goto("/app/");
-      await page
-        .getByRole("button", { name: locale === "ar" ? "محادثة جديدة" : "New chat", exact: true })
-        .first()
-        .click();
-      await page
-        .locator("#dialog")
-        .getByRole("button", { name: locale === "ar" ? /^وكيل جديد/ : /^New agent/ })
-        .click();
-      await expect(page).toHaveURL(/\/app\/new-agent$/);
-      // The creation form is a page (a template first, owner decision Q9); the agent's info
-      // opens as a sheet from the chat header.
-      let panel = page.locator("main");
-      await panel
-        .getByRole("button", { name: locale === "ar" ? "التالي" : "Next", exact: true })
-        .click();
-      await panel
-        .getByLabel(locale === "ar" ? "اسم الوكيل" : "Agent name", { exact: true })
-        .fill(`Avatar Studio ${randomUUID()}`);
-      await panel
-        .getByLabel(locale === "ar" ? "الوصف" : "Description", { exact: true })
-        .fill("Avatar studio fixture");
-      await panel.getByTestId("avatar-studio-trigger").click();
+      // There is no creation form (P5): the fixture agent already wears the studio's pick.
+      const made = await context.request.post("/api/agents", {
+        headers,
+        data: {
+          name: `Avatar Studio ${randomUUID()}`,
+          description: "Avatar studio fixture",
+          scope_mode: "flexible",
+          avatar: "face-wink",
+          color: "#06B6D4",
+        },
+      });
+      expect(made.status()).toBe(201);
+      agent = await made.json();
       const studio = page.getByTestId("avatar-studio");
-      await expect(studio).toBeVisible();
-      await expect(studio.locator("[data-face-option]")).toHaveCount(16);
-      await studio.locator('[data-face-option="face-wink"]').click();
-      await studio.locator('button[aria-label$="#06B6D4"]').click();
-      await expect(
-        studio.getByTestId("avatar-studio-preview").locator("[data-shape]"),
-      ).toHaveAttribute("data-shape", "face-wink");
-      await page.screenshot({ path: `.runtime/avatar-studio-${locale}.png`, fullPage: true });
-      await studio.getByTestId("avatar-studio-save").click();
-      await expect(studio).not.toBeVisible();
-      const creating = page.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === "/api/agents/create" &&
-          response.request().method() === "POST",
-      );
-      const styled = page.waitForResponse(
-        (response) =>
-          /^\/api\/agents\/[^/]+$/.test(new URL(response.url()).pathname) &&
-          response.request().method() === "PATCH",
-      );
-      await panel
-        .getByRole("button", {
-          name: locale === "ar" ? "إنشاء الوكيل" : "Create the agent",
-          exact: true,
-        })
-        .click();
-      const created = await creating;
-      expect(created.status()).toBe(201);
-      agent = await created.json();
-      expect(agent.template).toBe("general");
-      // The chosen face and colour are saved on the new agent right after.
-      expect((await styled).ok()).toBe(true);
-      expect((await read()).avatar).toBe("face-wink");
-      expect((await read()).color).toBe("#06B6D4");
+      let panel;
       await page.goto(`/app/${agent.id}`);
       await page
         .getByRole("button", {

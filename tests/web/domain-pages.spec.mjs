@@ -29,17 +29,16 @@ const test = base.extend({
       return response.json();
     };
     const prefix = `Domain ${randomUUID().slice(0, 8)}`;
-    const agent = await call("POST", "/agents/create", {
-      template: "general",
+    const agent = await call("POST", "/agents", {
       name: prefix,
-      responsibility: "Keeps notes",
+      description: "Keeps notes",
+      scope_mode: "flexible",
     });
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     try {
       await use({ agent, prefix, call });
     } finally {
-      // Test cleanup only (the UI never deletes agents): a run's agent creation is capped
-      // on active agents, so a fixture agent left behind would fail later specs.
+      // Test cleanup only (the UI never deletes agents): later specs start without it.
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
     }
   },

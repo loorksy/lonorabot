@@ -54,30 +54,23 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toMatch(
       /Bearer|"token"|"session"/,
     );
-    await page.getByRole("button", { name: "محادثة جديدة", exact: true }).click();
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: /^وكيل جديد/ })
-      .click();
-    // Owner decision Q9: a template first, then the agent's name and description and its pair.
-    await page.getByTestId("template-trading").click();
-    await page.getByRole("button", { name: "التالي", exact: true }).click();
-    await page.getByLabel("اسم الوكيل", { exact: true }).fill(prefix);
-    await page
-      .getByLabel("الوصف", { exact: true })
-      .fill("Monitor positions and summarize market data.");
-    await page.getByRole("button", { name: "اختر حساب الوسيط", exact: true }).click();
-    await page.getByTestId(`broker-choice-${broker.account}`).click();
-    await page.getByRole("button", { name: "اختر زوج التداول", exact: true }).click();
-    await page.getByRole("button", { name: broker.symbol, exact: true }).click();
-    const created = page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/api/agents/create") && response.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "إنشاء الوكيل", exact: true }).click();
-    const agent = await (await created).json();
+    // A new agent is asked of Lonora in chat (P5, mandate 3.1.2); the fixture makes one.
+    const made = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: prefix,
+        description: "Monitor positions and summarize market data.",
+        trading_account_id: broker.account,
+        trading_symbol: broker.symbol,
+      },
+    });
+    expect(made.status()).toBe(201);
+    const agent = await made.json();
     owned.agents.add(agent.id);
-    expect(agent.template).toBe("trading");
+    const conversation = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    await page.goto(`/thread?id=${conversation.id}`);
     await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "اتصل بالوكيل", exact: true })).toBeVisible();
     const threadUrl = page.url();

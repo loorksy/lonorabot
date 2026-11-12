@@ -22,7 +22,6 @@ const words = {
 const text = {
   composer: "اكتب رسالة…",
   send: "إرسال",
-  created: "أُنشئ وكيل",
   grantTitle: "يتداول بنفسه",
   authorize: "التفويض بمفتاح المرور",
   lift: "رفع الإيقاف",
@@ -80,17 +79,15 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap lifts 
       });
     await page.goto(`/thread?id=${thread.id}`);
 
-    // «أنشئ وكيل ذهب …»: the creation card and the grant card, the same server cards
-    // the Web shows, with the daily loss from the sentence.
+    // «أنشئ وكيل ذهب …»: the grant card, the same server card the Web shows, with the
+    // daily loss from the sentence; no creation card (Lonora says it in one line).
     await said(words.createGold);
     const created = worker({ thread: thread.id, account: data.account, symbol: data.symbol, name });
     expect(created.status).toBe("completed");
     gold = created.agent;
-    expect(raised(created, "agent_created")).toHaveLength(1);
+    expect(raised(created, "agent_created")).toHaveLength(0);
     expect(raised(created, "grant_authority")).toHaveLength(1);
     await page.reload();
-    const creation = page.getByTestId(`owner-action-${raised(created, "agent_created")[0]}`);
-    await expect(creation.getByText(text.created, { exact: false }).first()).toBeVisible();
     const grant = page.getByTestId(`owner-action-${raised(created, "grant_authority")[0]}`);
     await expect(grant.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
     await expect(grant.getByText(data.symbol, { exact: false }).first()).toBeVisible();

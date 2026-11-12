@@ -131,8 +131,8 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     expect(created.status, `creation run ${created.error_code}`).toBe("completed");
     gold = created.agent;
     expect(gold).toBeTruthy();
-    // One creation card (Undo) and one grant card; nothing else to answer.
-    expect(raised(created, "agent_created")).toHaveLength(1);
+    // One grant card and no creation card (Lonora says it in one line); nothing else.
+    expect(raised(created, "agent_created")).toHaveLength(0);
     const [grantId] = raised(created, "grant_authority");
     expect(raised(created, "grant_authority")).toHaveLength(1);
     const grantRow = (
@@ -140,10 +140,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     ).find((row) => row.id === grantId);
     expect(grantRow.facts.grant.agent_name).toBe(name);
     expect(grantRow.facts.money.daily_loss.proposed).toBe("200.00");
-    const createdCard = page
-      .locator('[data-owner-action-kind="agent_created"]')
-      .filter({ hasText: name });
-    await expect(createdCard).toBeVisible();
     const grant = page.locator(`[data-owner-action="${grantRow.id}"]`);
     await expect(grant).toHaveAttribute("data-owner-action-status", "pending");
     await expect(grant.getByText(data.symbol).first()).toBeVisible();

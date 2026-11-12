@@ -24,7 +24,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model`, `agent_model_changed` or `trading_mode` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model`, `agent_model_changed` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
@@ -81,9 +81,7 @@ request time from the records the card names: global trading, the restriction's 
 scope, window and who set it (never its reason text, which an agent may have written),
 the operation's action, volume, symbol, time and agent, and the account's current and
 proposed limits. No ids, codes or JSON are shown; the account is named only when the
-owner has several. The one stored text a card quotes is a creation card's task: it
-becomes the new agent's standing instructions, so the card shows it word for word,
-isolated and labelled as the agent's task ("Its task: …"), never as Lonora's words.
+owner has several.
 
 A limits card shows one line for every field its change touches
 (`LIMIT_CHANGE_NAMES`): each limit, the currency ("Currency: USD → EUR") and the
