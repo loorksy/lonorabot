@@ -171,7 +171,10 @@ compilers and Chromium (headless) come from the server image; agents install mor
 image: agents have no root. Running processes end when the containers are re-created (every
 update) or the host restarts; files do not. `lonora` starts the workspace after Lonora's own
 services and does not wait for it: a workspace that does not start, or a disk that cannot be
-prepared, is reported and Lonora runs without it (agents get a tool error).
+prepared, is reported and Lonora runs without it (agents get a tool error). So the Gateway
+usually starts first: until the supervisor has answered once since the Gateway started, its
+`workspace` step logs `workspace_not_reached_yet` at INFO and counts no failure; after that, an
+unreachable workspace is a step failure (`step_failed name=workspace`) as for any step.
 
 | Setting in `.env` | Default | Meaning |
 |---|---|---|

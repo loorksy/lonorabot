@@ -196,6 +196,21 @@ def configure_sdk_transport() -> None:
     http_module._lonora_transport_configured = True
 
 
+async def refused_by_broker(account: Any) -> bool:
+    """Mandate 9.4: after synchronization timed out, a fresh read of the account (not the
+    cached metadata) tells a terminal the broker refuses (a changed password, or the
+    broker's server down) apart from a lost link. A brief broker restart that has already
+    passed reads CONNECTED and keeps the timeout."""
+    try:
+        async with asyncio.timeout(10):
+            await account.reload()
+        return (
+            account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED_FROM_BROKER"
+        )
+    except Exception:
+        return False
+
+
 class MetaApiBroker:
     def __init__(
         self, account_id: str, region: str | None, token: str, connection_id: str | None = None
@@ -413,6 +428,10 @@ class MetaApiBroker:
                     if connection is not None:
                         await self._discard_locked(kind, connection)
                     failure = self.diagnose(error, kind)
+                    if failure.code == "broker_connection_timeout" and await refused_by_broker(
+                        account
+                    ):
+                        failure = LonoraError("broker_login_rejected", 409)
                     slot.failed(failure)
                     raise failure from error
 
