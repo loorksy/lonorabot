@@ -30,11 +30,15 @@ def test_metaapi_trades_only_through_the_door_and_is_unreachable_from_the_worksp
 
 
 def test_another_venue_is_traded_only_on_the_owners_word_and_named_once() -> None:
-    core, files = chapter("core"), chapter("files")
-    assert "trade it from the workspace only when the owner asks" in core
-    assert "Trade it from the workspace only when the owner asks you to" in files
+    core, files, research = chapter("core"), chapter("files"), chapter("research")
+    assert "the owner's own request in chat is the only authority to trade it" in core
+    assert "Trade it from the workspace only when the owner asks you to in chat" in files
+    assert "no mode or card exists for the venue" in files
     assert "tell the owner once that it is outside the door's guarantees" in files
-    assert "Record in MEMORY.md that you told them, and do not repeat it." in files
+    assert "no server-enforced limit or pause" in files
+    # Once per owner, not per agent: USER.md is the profile every agent reads.
+    assert "Unless USER.md already says the owner knows this about the venue" in files
     assert "from the venue's own order and trade history" in files
-    # The rule it replaces said the workspace never trades (0.4: the text matches 9.5).
+    # Rules that said the workspace or an external venue never trades are gone (0.4).
     assert "never ask analysis code to trade" not in files
+    assert "Generic external financial mutations are unsupported" not in research
