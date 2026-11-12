@@ -615,7 +615,7 @@ export type OwnerActionSpec = {
   /** A credential card's secure form while it waits (submitted by the client itself). */
   credential: CredentialForm | null;
   passkey: boolean;
-  /** The settled line ("Trading resumed.", "This card expired. Nothing changed."). */
+  /** The settled line ("Signed. It trades on its own inside this grant.", "This card expired. Nothing changed."). */
   outcome: string | null;
 };
 
