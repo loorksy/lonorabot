@@ -61,7 +61,7 @@ def upgrade() -> None:
         sa.Column("closing_deal_id", sa.String(120), nullable=False),
         sa.Column("symbol", sa.String(80), nullable=False),
         sa.Column("side", sa.String(8), nullable=False),
-        sa.Column("volume", sa.Numeric(38, 10), nullable=False),
+        sa.Column("volume", sa.Numeric(38, 10)),
         sa.Column("agent_id", sa.String(36)),
         sa.Column("opening_operation_id", sa.String(80)),
         sa.Column("currency", sa.String(16), nullable=False),

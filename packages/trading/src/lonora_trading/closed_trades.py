@@ -46,7 +46,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .exposure import ENTRY_ACTIONS
 from .manual_activity import journal_agent
-from .realized import TRADE_DEALS, deal_pnl
+from .realized import CASH_FLOW_DEALS, TRADE_DEALS, deal_pnl
 
 log = logging.getLogger("lonora.trading.closed_trades")
 
@@ -83,15 +83,22 @@ def _order(deals: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(deals, key=lambda deal: (_time(deal), str(deal["id"])))
 
 
-def trade_deal(deal: dict[str, Any]) -> bool:
-    """A buy or sell deal of a position: the deals a closed trade is made of."""
-    return (
-        _kind(deal) in TRADE_DEALS
-        and _entry(deal) in {"IN", REVERSAL, *EXITS}
-        and bool(deal.get("positionId"))
-        and bool(deal.get("id"))
-        and deal.get("time") is not None
-    )
+def _trading(deal: dict[str, Any]) -> bool:
+    return _kind(deal) in TRADE_DEALS
+
+
+def position_deal(deal: dict[str, Any]) -> bool:
+    """A deal of a position: a buy or sell with its entry type, or a charge booked on it.
+
+    A charge (commission, fee or another non-trade type carrying the position) counts in
+    the trade's P&L through ``deal_pnl``, which lets it lower and never raise it. Balance,
+    credit and bonus cash flows are not a position's.
+    """
+    if not (deal.get("positionId") and deal.get("id") and deal.get("time") is not None):
+        return False
+    if _trading(deal):
+        return _entry(deal) in {"IN", REVERSAL, *EXITS}
+    return _kind(deal) not in CASH_FLOW_DEALS
 
 
 def realized(deals: list[dict[str, Any]]) -> Decimal | None:
@@ -111,15 +118,23 @@ class Trade:
 
     A position id is the ticket of the order that opened the position from flat, so an
     entry deal with that order id is the position's opening. A trade that starts at a
-    reversal is opened by the reversing deal. A first kept deal of any other kind means
-    the ledger never read the opening (the position is older than its first read).
+    reversal is opened by the reversing deal. Otherwise the ledger never read the
+    opening (the position is older than its first read), and so is a trade that a
+    reversal closed before the ledger saw any other deal of it (``unseen``).
     """
 
-    def __init__(self, position_id: str, deals: list[dict[str, Any]], reopened: Decimal | None):
+    def __init__(
+        self,
+        position_id: str,
+        deals: list[dict[str, Any]],
+        reopened: Decimal | None,
+        *,
+        unseen: bool = False,
+    ):
         # ``reopened``: what the reversal that opened this trade left open, when known.
         self.position_id, self.deals, self.reopened = position_id, deals, reopened
-        first = deals[0]
-        self.after_reversal = _entry(first) == REVERSAL
+        first = next(deal for deal in deals if _trading(deal))
+        self.after_reversal = not unseen and _entry(first) == REVERSAL
         self.opening: dict[str, Any] | None = (
             first
             if self.after_reversal
@@ -130,7 +145,9 @@ class Trade:
     @property
     def own(self) -> list[dict[str, Any]]:
         """The trade's money: a reversal's own money closed the trade before it."""
-        return self.deals[1:] if self.after_reversal else self.deals
+        if not self.after_reversal:
+            return self.deals
+        return [deal for deal in self.deals if deal is not self.opening]
 
     @property
     def volume_known(self) -> bool:
@@ -140,32 +157,39 @@ class Trade:
         """What is still open, counted from the opening; meaningful when ``volume_known``."""
         volume = self.reopened or Decimal(0)
         for deal in self.own:
-            if _entry(deal) == "IN":
+            if _trading(deal) and _entry(deal) == "IN":
                 volume += _volume(deal)
-            elif _entry(deal) in EXITS:
+            elif _trading(deal) and _entry(deal) in EXITS:
                 volume -= _volume(deal)
         return volume
 
     def opened_volume(self) -> Decimal:
         return (self.reopened or Decimal(0)) + sum(
-            (_volume(deal) for deal in self.own if _entry(deal) == "IN"), Decimal(0)
+            (_volume(deal) for deal in self.own if _trading(deal) and _entry(deal) == "IN"),
+            Decimal(0),
         )
 
 
 def trades(position_id: str, deals: list[dict[str, Any]]) -> tuple[list[Trade], Trade | None]:
-    """The position's trades closed by a reversal, and the trade still running after them."""
+    """The position's trades closed by a reversal, and the trade still running after them.
+
+    Every reversal closes a trade: the one the kept deals hold, or, when it is the
+    position's first kept trading deal, a trade the ledger never saw open.
+    """
     closed: list[Trade] = []
     current: list[dict[str, Any]] = []
     reopened: Decimal | None = None
     for deal in _order(deals):
+        earlier = any(_trading(item) for item in current)
         current.append(deal)
-        if _entry(deal) == REVERSAL and len(current) > 1:
-            trade = Trade(position_id, current, reopened)
+        if _trading(deal) and _entry(deal) == REVERSAL:
+            trade = Trade(position_id, current, reopened, unseen=not earlier)
             closed.append(trade)
             # The reversal closed what was open; the rest of its volume opens the next.
             reopened = _volume(deal) - trade.open_volume() if trade.volume_known else None
             current = [deal]
-    return closed, Trade(position_id, current, reopened) if current else None
+    running = Trade(position_id, current, reopened) if any(map(_trading, current)) else None
+    return closed, running
 
 
 async def opening_entry(
@@ -253,10 +277,12 @@ async def write_trade(
         side = "buy" if _kind(opening) == "BUY" else "sell"
     else:
         side = "sell" if _kind(closing) == "BUY" else "buy"
+    exits = [deal for deal in trade.own if _trading(deal) and _entry(deal) in EXITS]
+    volume: Decimal | None = None
     if trade.volume_known:
         volume = trade.opened_volume()
-    else:
-        volume = sum((_volume(deal) for deal in trade.own if _entry(deal) in EXITS), Decimal(0))
+    elif exits and _entry(closing) in EXITS:
+        volume = sum((_volume(deal) for deal in exits), Decimal(0))
     written = await session.execute(
         insert(ClosedTradeRow)
         .values(
@@ -331,7 +357,7 @@ async def record_closed_trades(
     recorded = 0
     async with db.sessions() as session, session.begin():
         for deal in history:
-            if not trade_deal(deal):
+            if not position_deal(deal):
                 continue
             await session.execute(
                 insert(BrokerDealRow)
@@ -365,7 +391,11 @@ async def record_closed_trades(
                     trade.deals[-1],
                     account.currency,
                 )
-            exits = [deal for deal in running.own if _entry(deal) in EXITS] if running else []
+            exits = (
+                [deal for deal in running.own if _trading(deal) and _entry(deal) in EXITS]
+                if running
+                else []
+            )
             if (
                 running is not None
                 and exits
