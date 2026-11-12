@@ -25,14 +25,14 @@ type WatchPayload = {
   enabled?: boolean;
   expires_at?: string | null;
 };
-export type WatchRow = Resource<WatchPayload> & { state?: { code?: string; lifecycle?: string } };
+type WatchRow = Resource<WatchPayload> & { state?: { code?: string; lifecycle?: string } };
 /** A cancelled or expired watch is no longer a schedule; a paused one keeps its switch off. */
-export const listedWatch = (row: WatchRow) =>
+const listedWatch = (row: WatchRow) =>
   !!row.payload.prompt &&
   row.state?.code !== "watch_cancelled" &&
   row.state?.lifecycle !== "expired" &&
   !(row.payload.expires_at && new Date(row.payload.expires_at).getTime() <= Date.now());
-export const until = (row: WatchRow) =>
+const until = (row: WatchRow) =>
   row.payload.expires_at
     ? new Date(row.payload.expires_at).toLocaleString("en-GB", {
         day: "2-digit",
@@ -119,7 +119,7 @@ export function scheduleFacts(routine: Routine) {
 
 export const routineTitle = (routine: Routine) => routine.title || routine.prompt.slice(0, 80);
 
-export const conditionText = (payload: WatchPayload) =>
+const conditionText = (payload: WatchPayload) =>
   `${payload.symbol ?? ""} ${
     payload.condition === "below" ? t({ message: "below", context: "watch" }) : t`above`
   } ${payload.level ?? ""}`;
@@ -228,7 +228,7 @@ export function useScheduleDetails(onDeleted: () => void) {
 }
 
 /** A conditional schedule's sheet: its condition, «حتى», and «إيقاف المراقبة». */
-export function useWatchDetails(onChanged: () => void) {
+function useWatchDetails(onChanged: () => void) {
   const sheets = useSheets();
   const confirm = useConfirm();
   return (watch: WatchRow) =>

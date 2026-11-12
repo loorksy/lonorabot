@@ -375,7 +375,7 @@ test("goals: a trading agent lists its plans with their titles and a cancelled p
   }
 });
 
-test("a conditional alert is saved for a trading agent and waits in its schedules and in Updates", async ({
+test("a conditional alert is saved for a trading agent and waits in its schedules", async ({
   page,
   context,
 }) => {
@@ -427,20 +427,17 @@ test("a conditional alert is saved for a trading agent and waits in its schedule
       level: "2350",
       prompt: title,
     });
-    // It waits with the agent's schedules and under «Upcoming».
+    // It waits with the agent's schedules; «Upcoming» in Updates lists only schedules.
     await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}$`));
     await page.goto("/app/updates");
-    await expect(page.locator(".row", { hasText: title })).toContainText("above 2350");
+    await expect(page.getByText("Upcoming", { exact: true })).toBeVisible();
+    await expect(page.locator(".row", { hasText: title })).toHaveCount(0);
     await page.goto(`/app/routines?agent=${agent.id}`);
     const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
     await expect(toggle).toHaveAttribute("aria-checked", "true");
     const control = saved(page, "POST", new RegExp(`^/api/watches/${watch.id}/control$`));
     await toggle.click();
     expect((await control).request().postDataJSON()).toEqual({ action: "pause" });
-    // Switched off, it is no longer upcoming.
-    await page.goto("/app/updates");
-    await expect(page.getByText("Upcoming", { exact: true })).toBeVisible();
-    await expect(page.locator(".row", { hasText: title })).toHaveCount(0);
   } finally {
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {

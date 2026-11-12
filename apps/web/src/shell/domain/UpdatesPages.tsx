@@ -18,16 +18,7 @@ import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { domainApi } from "./api";
 import { useLoad } from "./hooks";
-import {
-  conditionText,
-  listedWatch,
-  routineTitle,
-  scheduleFacts,
-  until,
-  useScheduleDetails,
-  useWatchDetails,
-  type WatchRow,
-} from "./SchedulesPages";
+import { routineTitle, scheduleFacts, useScheduleDetails } from "./SchedulesPages";
 import { Empty, ValueRow } from "./ui";
 
 function activityTitle(code: ActivityCode): string {
@@ -163,14 +154,10 @@ export function UpdatesPage() {
     "attention-history",
   );
   const routines = useLoad(() => domainApi.routines(), "routines:*");
-  const watches = useLoad(() => api.get<WatchRow[]>("/watches"), "watches:*");
   const feed = useLoad(() => domainApi.activity(), "activity");
   const details = useScheduleDetails(routines.reload);
-  const watchDetails = useWatchDetails(watches.reload);
   if (
-    [notes, routines, watches, feed].some(
-      (load) => load.data === undefined && load.error == null,
-    ) ||
+    [notes, routines, feed].some((load) => load.data === undefined && load.error == null) ||
     (!attention.loaded && attention.error == null)
   )
     return (
@@ -182,14 +169,9 @@ export function UpdatesPage() {
       </SkPage>
     );
   const upcoming = (routines.data ?? []).filter((row) => row.enabled && !row.goal_id);
-  // A conditional alert that is switched on waits like a schedule: it is upcoming too.
-  const waiting = (watches.data ?? []).filter(
-    (row) => listedWatch(row) && row.payload.enabled !== false,
-  );
   const ring = (agentId: string) =>
     data.inbox.some((entry) => entry.agent_id === agentId && entry.unread_count > 0) ||
-    upcoming.some((row) => row.agent_id === agentId) ||
-    waiting.some((row) => row.agent_id === agentId);
+    upcoming.some((row) => row.agent_id === agentId);
   const list = notes.data ?? [];
   // The tab dot's own list: a row is unread while it is still among the open items.
   const unread = (item: AttentionNotification) =>
@@ -344,67 +326,36 @@ export function UpdatesPage() {
           <p className="pad small" role="alert">
             {userError(routines.error)}
           </p>
-        ) : upcoming.length || waiting.length ? (
-          <>
-            {upcoming.map((routine) => {
-              const agent = data.agents.find((row) => row.id === routine.agent_id);
-              const facts = scheduleFacts(routine);
-              return (
-                <button
-                  key={routine.id}
-                  type="button"
-                  className="row"
-                  onClick={() => details(routine)}
-                >
-                  {agent ? (
-                    <AgentAvatar agent={agent} />
-                  ) : (
-                    <span className="row-icon">
-                      <Icon name="clock" />
-                    </span>
-                  )}
-                  <span className="body">
-                    <strong>
-                      <bdi>{routineTitle(routine)}</bdi>
-                    </strong>
-                    <small>
-                      <bdi>{agent?.name ?? ""}</bdi> · {facts.repeat}
-                    </small>
+        ) : upcoming.length ? (
+          upcoming.map((routine) => {
+            const agent = data.agents.find((row) => row.id === routine.agent_id);
+            const facts = scheduleFacts(routine);
+            return (
+              <button
+                key={routine.id}
+                type="button"
+                className="row"
+                onClick={() => details(routine)}
+              >
+                {agent ? (
+                  <AgentAvatar agent={agent} />
+                ) : (
+                  <span className="row-icon">
+                    <Icon name="clock" />
                   </span>
-                  <span className="value ltr">{facts.time}</span>
-                </button>
-              );
-            })}
-            {waiting.map((watch) => {
-              const agent = data.agents.find((row) => row.id === watch.agent_id);
-              return (
-                <button
-                  key={watch.id}
-                  type="button"
-                  className="row"
-                  onClick={() => watchDetails(watch)}
-                >
-                  {agent ? (
-                    <AgentAvatar agent={agent} />
-                  ) : (
-                    <span className="row-icon">
-                      <Icon name="clock" />
-                    </span>
-                  )}
-                  <span className="body">
-                    <strong>
-                      <bdi>{watch.payload.prompt}</bdi>
-                    </strong>
-                    <small>
-                      <bdi>{agent?.name ?? ""}</bdi> ·{" "}
-                      <span className="ltr">{conditionText(watch.payload)}</span>
-                    </small>
-                  </span>
-                  {watch.payload.expires_at && <span className="value ltr">{until(watch)}</span>}
-                </button>
-              );
-            })}
-          </>
+                )}
+                <span className="body">
+                  <strong>
+                    <bdi>{routineTitle(routine)}</bdi>
+                  </strong>
+                  <small>
+                    <bdi>{agent?.name ?? ""}</bdi> · {facts.repeat}
+                  </small>
+                </span>
+                <span className="value ltr">{facts.time}</span>
+              </button>
+            );
+          })
         ) : (
           <p className="pad muted small">
             <Trans>No enabled schedules.</Trans>
