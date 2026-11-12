@@ -6,12 +6,18 @@ import { userError } from "../../lib/user_error";
 import { useNavigation } from "../navigation";
 import { SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
-import { domainApi } from "./api";
+import { domainApi, type TradingGoalView } from "./api";
 import { isTrader, useAgentParam, useItemParam, useLoad } from "./hooks";
 import { Area, Check, Empty, Field, FormPage, Grouped, Row, SelectField, text } from "./ui";
 
-const goalState = (done: boolean) =>
-  done ? t({ message: "Completed", context: "goal" }) : t({ message: "Active", context: "goal" });
+const goalState = (status: string) =>
+  status === "completed"
+    ? t({ message: "Completed", context: "goal" })
+    : status === "cancelled"
+      ? t({ message: "Cancelled", context: "goal" })
+      : status === "paused"
+        ? t({ message: "Paused", context: "goal" })
+        : t({ message: "Active", context: "goal" });
 
 const Missing = ({ error }: { error: unknown }) =>
   error != null ? (
@@ -29,42 +35,51 @@ export function GoalsPage() {
     agent && !trader ? () => domainApi.goals(agent.id) : null,
     `goals:${agent?.id}`,
   );
+  const plans = useLoad(
+    agent && trader ? () => domainApi.tradingGoals(agent.id) : null,
+    `trading-goals:${agent?.id}`,
+  );
   if (!agent) return null;
-  if (trader)
-    // A trading agent's plans keep their own card: pause, resume, review and cancel (Q41).
-    return (
-      <div className="domain-page">
-        <TradingGoals agentId={agent.id} />
-        <button
-          type="button"
-          className="btn full outline"
-          // A trading goal is a plan the agent drafts under its grant, in its conversation.
-          onClick={() => nav.go(`/app/${agent.id}`)}
-        >
-          <Trans>Add a goal</Trans>
-        </button>
-      </div>
-    );
-  if (light.loading && !light.data) return <SkRows count={3} />;
+  const loading = trader ? plans.loading && !plans.data : light.loading && !light.data;
+  const error = trader ? plans.error : light.error;
+  if (loading) return <SkRows count={3} />;
+  const openPlan = (goal: TradingGoalView) =>
+    nav.go(`/app/${agent.id}${goal.thread_id ? `?thread=${goal.thread_id}` : ""}`);
   return (
     <div className="domain-page">
-      {light.error != null && <p role="alert">{userError(light.error)}</p>}
+      {error != null && <p role="alert">{userError(error)}</p>}
       <Grouped empty={<Trans>No goals for this agent.</Trans>}>
-        {(light.data ?? []).map((goal) => (
-          <Row
-            key={goal.id}
-            icon={goal.payload.done ? "check" : "target"}
-            title={<bdi>{goal.payload.title}</bdi>}
-            sub={goal.payload.description ? <bdi>{goal.payload.description}</bdi> : undefined}
-            value={goalState(Boolean(goal.payload.done))}
-            onClick={() => nav.go(`/app/new-goal?agent=${agent.id}&item=${goal.id}`)}
-          />
-        ))}
+        {trader
+          ? (plans.data ?? []).map((goal) => (
+              <Row
+                key={goal.id}
+                icon={goal.state.status === "completed" ? "check" : "target"}
+                title={<bdi>{goal.payload.title ?? ""}</bdi>}
+                sub={goal.payload.objective ? <bdi>{goal.payload.objective}</bdi> : undefined}
+                value={goalState(String(goal.state.status ?? "active"))}
+                onClick={() => openPlan(goal)}
+              />
+            ))
+          : (light.data ?? []).map((goal) => (
+              <Row
+                key={goal.id}
+                icon={goal.payload.done ? "check" : "target"}
+                title={<bdi>{goal.payload.title}</bdi>}
+                sub={goal.payload.description ? <bdi>{goal.payload.description}</bdi> : undefined}
+                value={goal.payload.done ? goalState("completed") : goalState("active")}
+                onClick={() => nav.go(`/app/new-goal?agent=${agent.id}&item=${goal.id}`)}
+              />
+            ))}
       </Grouped>
+      {/* Its plans keep their controls (pause, resume, review, cancel) until goals go. */}
+      {trader && <TradingGoals agentId={agent.id} />}
       <button
         type="button"
         className="btn full outline"
-        onClick={() => nav.go(`/app/new-goal?agent=${agent.id}`)}
+        onClick={() =>
+          // A trading goal is a plan the agent drafts under its grant, in its conversation.
+          nav.go(trader ? `/app/${agent.id}` : `/app/new-goal?agent=${agent.id}`)
+        }
       >
         <Trans>Add a goal</Trans>
       </button>

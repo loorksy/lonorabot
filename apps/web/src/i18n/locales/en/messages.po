@@ -469,7 +469,7 @@ msgctxt "agent status"
 msgid "Active"
 msgstr "Active"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:14
+#: src/shell/domain/GoalsKnowledgePages.tsx:20
 msgctxt "goal"
 msgid "Active"
 msgstr "Active"
@@ -512,8 +512,7 @@ msgstr "Activity updated"
 msgid "Add"
 msgstr "Add"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:44
-#: src/shell/domain/GoalsKnowledgePages.tsx:69
+#: src/shell/domain/GoalsKnowledgePages.tsx:84
 msgid "Add a goal"
 msgstr "Add a goal"
 
@@ -587,7 +586,7 @@ msgstr "Add indicator"
 #~ msgid "Add integration"
 #~ msgstr "Add integration"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:173
+#: src/shell/domain/GoalsKnowledgePages.tsx:188
 msgid "Add knowledge"
 msgstr "Add knowledge"
 
@@ -1506,9 +1505,9 @@ msgid "Cancelled"
 msgstr "Cancelled"
 
 #: src/shell/domain/GoalsKnowledgePages.tsx:17
-#~ msgctxt "goal"
-#~ msgid "Cancelled"
-#~ msgstr "Cancelled"
+msgctxt "goal"
+msgid "Cancelled"
+msgstr "Cancelled"
 
 #: src/conversation/Cards.tsx:290
 #: src/shell/agent/TradesPage.tsx:50
@@ -2030,8 +2029,8 @@ msgstr "Complete «{label}» first"
 msgid "Completed"
 msgstr "Completed"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:14
-#: src/shell/domain/GoalsKnowledgePages.tsx:125
+#: src/shell/domain/GoalsKnowledgePages.tsx:15
+#: src/shell/domain/GoalsKnowledgePages.tsx:140
 msgctxt "goal"
 msgid "Completed"
 msgstr "Completed"
@@ -2171,7 +2170,7 @@ msgstr "Connection type"
 #: src/pages/ScratchpadSection.tsx:169
 #: src/pages/ScratchpadSection.tsx:171
 #: src/shell/domain/FilesPages.tsx:262
-#: src/shell/domain/GoalsKnowledgePages.tsx:255
+#: src/shell/domain/GoalsKnowledgePages.tsx:270
 msgid "Content"
 msgstr "Content"
 
@@ -2623,7 +2622,7 @@ msgstr "Dependency unavailable"
 #: src/pages/Board.tsx:392
 #: src/pages/shell/bot-panel.tsx:202
 #: src/pages/shell/bot-settings.tsx:105
-#: src/shell/domain/GoalsKnowledgePages.tsx:119
+#: src/shell/domain/GoalsKnowledgePages.tsx:134
 #: src/shell/domain/SkillsPages.tsx:327
 msgid "Description"
 msgstr "Description"
@@ -3430,7 +3429,7 @@ msgstr "Go to the quoted message"
 msgid "Goal added"
 msgstr "Goal added"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:112
+#: src/shell/domain/GoalsKnowledgePages.tsx:127
 msgid "Goal title"
 msgstr "Goal title"
 
@@ -3847,7 +3846,7 @@ msgid "Knowledge note"
 msgstr "Knowledge note"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/GoalsKnowledgePages.tsx:146
+#: src/shell/domain/GoalsKnowledgePages.tsx:161
 msgid "Knowledge of <0>{0}</0>"
 msgstr "Knowledge of <0>{0}</0>"
 
@@ -3938,10 +3937,10 @@ msgstr "Limit order"
 msgid "Link"
 msgstr "Link"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:161
-#: src/shell/domain/GoalsKnowledgePages.tsx:235
-#: src/shell/domain/GoalsKnowledgePages.tsx:240
-#: src/shell/domain/GoalsKnowledgePages.tsx:246
+#: src/shell/domain/GoalsKnowledgePages.tsx:176
+#: src/shell/domain/GoalsKnowledgePages.tsx:250
+#: src/shell/domain/GoalsKnowledgePages.tsx:255
+#: src/shell/domain/GoalsKnowledgePages.tsx:261
 msgctxt "knowledge"
 msgid "Link"
 msgstr "Link"
@@ -4730,7 +4729,7 @@ msgstr "No files."
 msgid "No financial executions yet."
 msgstr "No financial executions yet."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:52
+#: src/shell/domain/GoalsKnowledgePages.tsx:51
 msgid "No goals for this agent."
 msgstr "No goals for this agent."
 
@@ -4867,7 +4866,7 @@ msgstr "No skills for this agent."
 msgid "No skills."
 msgstr "No skills."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:155
+#: src/shell/domain/GoalsKnowledgePages.tsx:170
 msgid "No sources for this agent."
 msgstr "No sources for this agent."
 
@@ -5006,9 +5005,9 @@ msgid "Not set"
 msgstr "Not set"
 
 #: src/components/charts/ChartAnnotations.tsx:70
-#: src/shell/domain/GoalsKnowledgePages.tsx:161
-#: src/shell/domain/GoalsKnowledgePages.tsx:235
-#: src/shell/domain/GoalsKnowledgePages.tsx:239
+#: src/shell/domain/GoalsKnowledgePages.tsx:176
+#: src/shell/domain/GoalsKnowledgePages.tsx:250
+#: src/shell/domain/GoalsKnowledgePages.tsx:254
 msgid "Note"
 msgstr "Note"
 
@@ -5466,9 +5465,9 @@ msgid "Paused"
 msgstr "Paused"
 
 #: src/shell/domain/GoalsKnowledgePages.tsx:19
-#~ msgctxt "goal"
-#~ msgid "Paused"
-#~ msgstr "Paused"
+msgctxt "goal"
+msgid "Paused"
+msgstr "Paused"
 
 #: src/shell/domain/TasksPages.tsx:40
 msgctxt "task status"
@@ -6374,8 +6373,8 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 #: src/shell/agent/GroupPage.tsx:339
 #: src/shell/agent/IdentityPage.tsx:355
 #: src/shell/agent/TradesPage.tsx:440
-#: src/shell/domain/GoalsKnowledgePages.tsx:91
-#: src/shell/domain/GoalsKnowledgePages.tsx:199
+#: src/shell/domain/GoalsKnowledgePages.tsx:106
+#: src/shell/domain/GoalsKnowledgePages.tsx:214
 #: src/shell/settings/IntegrationsPage.tsx:453
 #: src/shell/settings/NotifyPages.tsx:471
 #: src/shell/settings/OwnerPage.tsx:244
@@ -7683,7 +7682,7 @@ msgstr "The file preview could not be displayed"
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "The grant is active, but its readiness check did not finish. No trade was sent."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:20
+#: src/shell/domain/GoalsKnowledgePages.tsx:26
 msgid "The item no longer exists."
 msgstr "The item no longer exists."
 
@@ -8219,7 +8218,7 @@ msgstr "Timeframe"
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
 #: src/pages/shell/bot-settings.tsx:101
-#: src/shell/domain/GoalsKnowledgePages.tsx:224
+#: src/shell/domain/GoalsKnowledgePages.tsx:239
 msgid "Title"
 msgstr "Title"
 
@@ -8454,7 +8453,7 @@ msgid "Two steps"
 msgstr "Two steps"
 
 #: src/pages/shell/bot-panel.tsx:214
-#: src/shell/domain/GoalsKnowledgePages.tsx:226
+#: src/shell/domain/GoalsKnowledgePages.tsx:241
 msgid "Type"
 msgstr "Type"
 
