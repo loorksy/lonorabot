@@ -482,6 +482,9 @@ async def main() -> None:
             raise AssertionError("an uncertain operation holds new risk on its market")
         status, missing = await decide(resolve["id"], {"decision": "confirm"})
         assert status == 422 and missing["code"] == "owner_action_outcome_required"
+        # Settle Uncertain Operation has exactly three answers (10.3): no dismissal.
+        status, dismissed = await decide(resolve["id"], {"decision": "cancel"})
+        assert status == 422 and dismissed["code"] == "owner_action_outcome_required"
         status, answered = await decide(
             resolve["id"], {"decision": "confirm", "outcome": "executed"}
         )

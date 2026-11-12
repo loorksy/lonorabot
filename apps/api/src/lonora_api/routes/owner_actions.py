@@ -362,6 +362,9 @@ async def decide(
         return
     if body.pause_new_today and row.kind != "settle_operation":
         raise LonoraError("owner_action_pause_unsupported", 422)
+    if row.kind == "settle_operation" and (body.decision != "confirm" or body.outcome is None):
+        # Settle Uncertain Operation: exactly Executed / Not executed / Unknown (10.3).
+        raise LonoraError("owner_action_outcome_required", 422)
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
         # Idempotent per card: the same decision again answers from the record.
