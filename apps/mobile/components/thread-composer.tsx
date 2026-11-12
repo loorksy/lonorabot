@@ -70,9 +70,9 @@ export function ThreadComposer({
   working?: boolean;
   members?: Agent[];
   mentionAll?: boolean;
-  /** A direct chat: at most two guest agents per message (MAX_DIRECT_GUESTS). */
+  /** A direct chat: other agents join as guests. */
   direct?: boolean;
-  /** A direct chat's own agent: never offered as a guest, never counted toward the cap. */
+  /** A direct chat's own agent: never offered as a guest. */
   self?: string | null;
   collaborationSessionId?: string;
   reply?: Message | null;

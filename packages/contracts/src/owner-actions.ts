@@ -1,11 +1,9 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
-import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
-import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
+import type { MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
 export type OwnerActionKind =
-  | "resume_trading"
   | "lift_restriction"
   | "resolve_operation"
   | "set_account_limits"
@@ -16,7 +14,6 @@ export type OwnerActionKind =
   | "supervision_created"
   | "supervision_stopped"
   | "supervision_paused"
-  | "trust_source"
   /** The Secret card: the owner's values go straight to the encrypted store. */
   | "secret"
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
@@ -29,8 +26,6 @@ export type OwnerActionKind =
  * action and the owner's own positions, until stopped, no daily loss limit from the card).
  */
 export type GrantDelegation = "custom" | "full";
-/** trust_source: what the owner adds to the trusted list. */
-export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
 /**
  * What a connecting Secret card connects; the server sets its field and destination.
  * "broker" only names a card converted from the credential card (migration 0071): a
@@ -121,7 +116,6 @@ export type OwnerAction = {
   timeline_seq: number | null;
   facts: {
     several_accounts: boolean;
-    global_trading?: GlobalTrading;
     account?: OwnerActionAccount;
     restriction?: {
       action_class: RestrictionActionClass;
@@ -218,22 +212,6 @@ export type OwnerAction = {
       owner_holds?: boolean;
     };
     /**
-     * trust_source: the source to trust. An MCP server's label is its saved name and its
-     * tools are the reviewed names (tools that can move money are listed as blocked;
-     * writes are the ones that may change something and run only at the write tier);
-     * review is true when the server is trusted already and its tools changed.
-     */
-    source?: {
-      kind: TrustSourceKind;
-      label: string | null;
-      subscribe: boolean;
-      tools?: string[];
-      writes?: string[];
-      blocked?: string[];
-      review?: boolean;
-      tier?: EffectTier | null;
-    };
-    /**
      * The Secret card: the agent's label and fields, or what it connects with the details
      * the agent gave from chat ("x" names an X MCP server); where the values go; who asked.
      */
@@ -275,7 +253,6 @@ export type OwnerAction = {
   requires_passkey: boolean;
   result: {
     outcome?: AttestedOutcome;
-    global_trading?: string;
     limits?: MoneyLimits;
     daily_loss?: string | null;
     /** The account's own daily loss limit, unchanged by the card. */
@@ -293,15 +270,8 @@ export type OwnerAction = {
     supervisor_id?: string;
     revoked?: number;
     restored?: number;
-    /** A grant card resumed new trading (true); supervision_paused: what was resumed. */
+    /** supervision_paused: what was resumed. */
     resumed?: boolean | "agent" | "task" | "routine" | "watch";
-    /** resume_trading: new trading had never been started, so the card started it. */
-    started?: boolean;
-    tier?: EffectTier;
-    tools?: number;
-    /** trust_source on an MCP server: how many trusted tools may change something. */
-    writes?: number;
-    subscribed?: boolean;
     target?: CredentialTarget;
     configured?: boolean;
     connection_id?: string;
@@ -311,8 +281,6 @@ export type OwnerAction = {
     /** A broker card: how provisioning stands (9.2). */
     provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
-    /** A Secret card that connected an MCP server: whether its trust card followed. */
-    review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
     /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
     restriction_id?: string;
     /** watch_changed Undo: the watch's expiry now. */
@@ -335,12 +303,8 @@ export type OwnerActionDecision = {
   proof?: DeviceProof;
   /** Grant card: "none" leaves the account's daily loss limit as it is. */
   money_limit?: "apply" | "none";
-  /** Grant card: resume new trading too (it widens no authority). */
-  resume_trading?: boolean;
   /** Grant card: stop these other agents' grants on this market (narrowing). */
   stop_authorities?: string[];
-  /** trust_source on an MCP server: what the owner trusts its tools for. */
-  tier?: EffectTier;
   /**
    * Resolve card answered "unknown" only: also pause new trades by every agent on its
    * account until the trading day ends there (an owner restriction; it only narrows).
@@ -351,7 +315,7 @@ export type OwnerActionDecision = {
  * The mandate sheet («تنفيذ مفوَّض»): POST /agents/{id}/account-authorities/draft. It
  * becomes a pending grant card; nothing is active until the owner signs that card with
  * the passkey (POST /owner-actions/{id}/challenge, then /decision with the proof and the
- * card's choices: money_limit, stop_authorities, resume_trading). "full" takes no terms:
+ * card's choices: money_limit, stop_authorities). "full" takes no terms:
  * every pair for Lonora and flexible agents; a fixed-pair agent's own pair only, every
  * action, until stopped, its owner's positions included.
  */

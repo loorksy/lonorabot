@@ -33,7 +33,7 @@ from lonora_contracts.owner_actions import (
     OwnerActionProposal,
 )
 from lonora_contracts.risk_limits import MonetaryRiskLimits
-from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
+from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError
@@ -54,13 +54,12 @@ from .schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
-from .trading_readiness import RISK_LIMIT_NAMES, global_trading, risk_limit_frame
+from .trading_readiness import RISK_LIMIT_NAMES, risk_limit_frame
 from .trading_restrictions import restriction_state
 from .transactions import SettingsRepository, execution_policy_key, owned_thread
 
 # How long a card stays usable. A lift card never outlives its restriction.
 LIFETIME = {
-    "resume_trading": timedelta(hours=24),
     "lift_restriction": timedelta(days=31),
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
@@ -75,8 +74,6 @@ LIFETIME = {
     "supervision_stopped": timedelta(days=7),
     # A supervisor paused an agent's work: who did it, with Resume, while it holds.
     "supervision_paused": timedelta(days=31),
-    # Add a source to the trusted list (W15-8).
-    "trust_source": timedelta(days=7),
     # The Secret card: a credential, or a connection that needs one.
     "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
@@ -221,12 +218,6 @@ async def stale_reason(
 
     Raises when the record it names is not the owner's: such a card is never created.
     """
-    if kind == "resume_trading":
-        return (
-            "trading_already_running"
-            if (await global_trading(session))["state"] == "running"
-            else None
-        )
     if kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
         if restriction is None or restriction.owner_id != owner_id:
@@ -296,10 +287,6 @@ async def stale_reason(
         if not grants:
             return "supervision_agent_missing"
         return None if await _restorable(session, owner_id, grants) else "supervision_already_set"
-    if kind == "trust_source":
-        from .capability_cards import stale_reason as capability_stale
-
-        return await capability_stale(session, owner_id, kind, payload)
     if kind == "watch_changed":
         from .notice_cards import watch_change_stale
 
@@ -602,8 +589,6 @@ def proposal_payload(
         if grant is None:
             raise LonoraError("owner_action_fields_invalid", 422)
         return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
-    if proposal.kind == "resume_trading":
-        return "trading", TradingControl(enabled=True, emergency_stop=False).model_dump()
     if proposal.kind == "lift_restriction":
         assert proposal.restriction_id is not None
         return "restriction:" + proposal.restriction_id, {"restriction_id": proposal.restriction_id}
@@ -614,16 +599,6 @@ def proposal_payload(
         from .secret_cards import secret_card_payload
 
         return secret_card_payload(proposal)
-    if proposal.kind == "trust_source":
-        from .capability_cards import source_payload, trust_subject
-
-        # An MCP server's card carries the tools read from the server (``propose_capability``).
-        if proposal.source_kind == "mcp_server" or proposal.identifier is None:
-            raise LonoraError("owner_action_fields_invalid", 422)
-        assert proposal.source_kind is not None
-        return trust_subject(proposal.source_kind, proposal.identifier), source_payload(
-            proposal.source_kind, proposal.identifier
-        )
     assert proposal.account_id is not None
     return "account:" + proposal.account_id, {
         "account_id": proposal.account_id,
@@ -667,9 +642,6 @@ async def card_facts(
     owner's confirmation needs a passkey (widening money limits)."""
     owner_id, payload = row.owner_id, row.payload
     facts: dict[str, Any] = {"several_accounts": await several_accounts(session, owner_id)}
-    if row.kind == "resume_trading":
-        facts["global_trading"] = await global_trading(session)
-        return facts, False
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
         if restriction is None:
@@ -738,10 +710,6 @@ async def card_facts(
         names = await agent_names(session, owner_id, {row.agent_id})
         facts["secret"] = await secret_facts(session, row, names.get(row.agent_id or ""))
         return facts, False
-    if row.kind == "trust_source":
-        from .capability_cards import card_facts as capability_facts
-
-        return await capability_facts(session, row, facts), False
     account_id = payload["account_id"]
     facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
     current = (await account_policy(session, owner_id, account_id)).risk
@@ -762,8 +730,7 @@ async def grant_facts(
     session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
 ) -> dict[str, Any]:
     """What the owner signs, read now: the agent, account, markets, actions, duration,
-    their own positions, the account's money limits and daily loss line, Stop new
-    trading, other agents already trading that market and the grant it replaces.
+    their own positions, the account's money limits and daily loss line, other agents already trading that market and the grant it replaces.
 
     Once signed the card shows what was signed, as stored at that moment
     (``signed_facts``): later limits or grants never rewrite it, it never names the
@@ -824,7 +791,6 @@ async def grant_facts(
             "requested_above": None if above is None else str(above),
         },
     }
-    facts["global_trading"] = await global_trading(session)
     facts["conflicts"] = [
         {
             "authority_id": item.id,
@@ -1470,104 +1436,6 @@ async def propose_supervision(
     )
 
 
-async def propose_capability(
-    session: AsyncSession,
-    owner_id: str,
-    kind: str,
-    subject: str,
-    payload: dict[str, Any],
-    *,
-    card_id: str,
-    agent_id: str,
-    thread_id: str | None,
-    run_id: str | None,
-) -> tuple[OwnerActionRow, bool]:
-    """A trust card on an agent's behalf, with the effect built on the server (an MCP
-    server's card carries the tools read from it). Deduplicated per agent and capped like
-    every proposal; a repeated call returns the card shown."""
-    await lock_owner_actions(session, owner_id)
-    existing = await session.get(OwnerActionRow, card_id)
-    if existing is not None:
-        if existing.owner_id != owner_id or existing.agent_id != agent_id:
-            raise LonoraError("owner_action_not_found", 404)
-        return existing, False
-    return await propose_effect(
-        session,
-        owner_id,
-        kind,
-        subject,
-        payload,
-        card_id=card_id,
-        agent_id=agent_id,
-        thread_id=thread_id,
-        run_id=run_id,
-    )
-
-
-async def raise_review_card(
-    session: AsyncSession,
-    owner_id: str,
-    subject: str,
-    payload: dict[str, Any],
-    *,
-    agent_id: str,
-    thread_id: str | None,
-    run_id: str | None,
-) -> OwnerActionRow | None:
-    """An MCP server's tools to trust, raised by the server with no model involved: a
-    trusted server whose tools changed (re-review), or one the owner just connected. The
-    same tools already shown, or declined in the last week, raise none; tools already
-    trusted exactly raise none; a newer review replaces an older one still waiting."""
-    await lock_owner_actions(session, owner_id)
-    if not await review_card_wanted(session, owner_id, payload):
-        return None
-    # One review waits per server: a server that keeps changing never stacks up cards.
-    card_id = new_id()
-    await supersede_subject(
-        session, owner_id, "trust_source", subject, "server_changed_again", by=card_id
-    )
-    thread = await card_thread(session, owner_id, agent_id, thread_id)
-    return await create_card(
-        session,
-        owner_id,
-        card_id=card_id,
-        agent_id=agent_id,
-        thread=thread,
-        run_id=run_id,
-        source="system",
-        kind="trust_source",
-        subject=subject,
-        payload=payload,
-    )
-
-
-async def review_card_wanted(session: AsyncSession, owner_id: str, payload: dict[str, Any]) -> bool:
-    """Whether ``raise_review_card`` would raise this review now: not the same tools
-    already waiting or declined in the last week, not tools already trusted exactly."""
-    digest = payload_hash("trust_source", payload)
-    shown = await session.scalar(
-        select(OwnerActionRow)
-        .where(
-            OwnerActionRow.owner_id == owner_id,
-            OwnerActionRow.kind == "trust_source",
-            OwnerActionRow.payload_hash == digest,
-            OwnerActionRow.status.in_(["pending", "cancelled"]),
-        )
-        .order_by(OwnerActionRow.created_at.desc())
-        .limit(1)
-    )
-    now = utcnow()
-    if shown is not None and (
-        (shown.status == "pending" and shown.expires_at > now)
-        or (
-            shown.status == "cancelled"
-            and (shown.decided_at or now) > now - LIFETIME["trust_source"]
-        )
-    ):
-        return False
-    return await stale_reason(session, owner_id, "trust_source", payload) is None
-
-
 async def raise_supervision_card(
     session: AsyncSession,
     owner_id: str,
@@ -1769,7 +1637,7 @@ async def draft_grant_card(
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo and notice cards keep their own window and never come
 # back; an agent's proposal is the agent's to make again.
-RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction", "resume_trading"})
+RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction"})
 
 
 async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -1842,23 +1710,17 @@ def confirmation_code(row: OwnerActionRow) -> str:
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
     if row.kind == "agent_created":
         return "owner_action_undo_" + str(row.result.get("undo", "paused"))
-    if row.kind == "trust_source" and row.payload.get("source_kind") == "mcp_server":
-        # Trusted for reading while some tools may change something: those wait.
-        if row.result.get("tier") == "read" and row.result.get("writes"):
-            return "owner_action_trust_source_mcp_read"
-        return "owner_action_trust_source_mcp"
     if row.kind == "secret" and row.payload.get("connect") == "mcp_server":
-        # Whether the trust card for the connected server follows (MCP_REVIEW_LINES).
-        return MCP_REVIEW_LINES.get(
-            str(row.result.get("review", "raised")), "owner_action_secret_connected"
-        )
+        # Its tools run once the owner trusts the server: by naming it in chat, or in
+        # Capabilities.
+        return "owner_action_secret_connected_mcp"
     if row.kind == "secret" and row.payload.get("connect"):
         return "owner_action_secret_connected"
     return "owner_action_" + row.kind
 
 
 async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
-    """The grant's one-line confirmation: what else the card did, and Stop if it holds."""
+    """The grant's one-line confirmation: what else the card did."""
     result = row.result
     notes: list[str] = []
     if result.get("delegation") == "full":
@@ -1879,21 +1741,7 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
             if len(stopped) == 1
             else "owner_action_grant_stopped_others"
         )
-    if result.get("resumed"):
-        notes.append("owner_action_grant_resumed")
-    elif (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
     return notes
-
-
-# What a Secret card for an MCP server says once saving it connected the server: its
-# trust card follows; its tools could not be read; none can be trusted; or (operator deny
-# override) only declared tools run, said as a plain connection.
-MCP_REVIEW_LINES = {
-    "raised": "owner_action_secret_connected_mcp",
-    "unread": "owner_action_secret_connected_mcp_unread",
-    "nothing_to_trust": "owner_action_secret_connected_mcp_blocked",
-}
 
 
 def _same_symbol(left: str | None, right: str | None) -> bool:
@@ -1902,7 +1750,7 @@ def _same_symbol(left: str | None, right: str | None) -> bool:
 
 async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]:
     """What still holds new risk where a lift or an answer just released it, read after
-    the effect: Stop new trading, another pause in force over the same market and agents,
+    the effect: another pause in force over the same market and agents,
     or another trade there without a confirmed broker outcome. One fixed clause each."""
     if row.kind == "grant_authority":
         return await grant_notes(session, row)
@@ -1933,8 +1781,6 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
             if operation.request.get(key)
         ]
     notes: list[str] = []
-    if (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
     now = utcnow()
     pauses = await session.scalars(
         select(TradingRestrictionRow).where(
@@ -2039,33 +1885,21 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     )
 
 
-# The run that tells the agent behind a trust or Secret card that the owner tapped it.
+# The run that tells the agent behind a Secret card that the owner saved it.
 CONTINUE_TRIGGER = "owner_card"
 
 
 def continue_prompt(row: OwnerActionRow) -> str:
-    """Fixed text and server-checked identifiers only (a repository slug, a host name,
-    a connection id, a target name): nothing the model wrote reaches the system role."""
-    if row.kind == "secret":
-        from .secret_cards import saved_prompt
+    """Fixed text and server-checked identifiers only (a connection id, a target name):
+    nothing the model wrote reaches the system role."""
+    from .secret_cards import saved_prompt
 
-        return saved_prompt(row)
-    kind, identifier = row.payload["source_kind"], row.payload["identifier"]
-    named = (
-        f"the MCP server (connection_id={identifier}) at tier {row.result.get('tier', 'read')}"
-        if kind == "mcp_server"
-        else f"{kind} {identifier}"
-    )
-    return (
-        f"The owner trusted {named} on your card; it is now in the trusted list. Continue the "
-        "work that needed it now (retry what was waiting), then tell the owner in one line "
-        "what you did."
-    )
+    return saved_prompt(row)
 
 
 async def continue_after_card(session: AsyncSession, row: OwnerActionRow) -> RunRow | None:
     """One run for the card's agent in the card's conversation, so the work that needed
-    the source or credential goes on without the owner asking again. None when the agent
+    the credential goes on without the owner asking again. None when the agent
     is gone or paused (it then waits for the owner)."""
     from lonora_contracts.runs import RunRequest
 

@@ -17,7 +17,7 @@ import { useShellData } from "../data";
 import { clockTime } from "../lists/ThreadRow";
 import { useNavigation } from "../navigation";
 import { recoveryPath } from "../routes";
-import { SkRows } from "../Skeleton";
+import { SkHead, SkPage, SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
 import { domainApi } from "./api";
 import { useLoad } from "./hooks";
@@ -106,7 +106,12 @@ export function ActivityPage() {
   const feed = useLoad(() => domainApi.activity(), "activity");
   const [more, setMore] = useState<ActivityEntry[]>([]);
   const [next, setNext] = useState<number | null | undefined>();
-  if (feed.loading && !feed.data) return <SkRows count={5} />;
+  if (feed.loading && !feed.data)
+    return (
+      <SkPage>
+        <SkRows count={9} icon group />
+      </SkPage>
+    );
   if (feed.error != null && !feed.data) return <p role="alert">{userError(feed.error)}</p>;
   const items = [...(feed.data?.items ?? []), ...more];
   const cursor = next === undefined ? feed.data?.next_before : next;
@@ -156,6 +161,15 @@ export function UpdatesPage() {
   const routines = useLoad(() => domainApi.routines(), "routines:*");
   const feed = useLoad(() => domainApi.activity(), "activity");
   const details = useScheduleDetails(routines.reload);
+  if ([notes, routines, feed].some((load) => load.data === undefined && load.error == null))
+    return (
+      <SkPage>
+        <SkHead width={24} />
+        <SkRows count={2} size={40} group />
+        <SkHead width={20} />
+        <SkRows count={5} icon group />
+      </SkPage>
+    );
   const upcoming = (routines.data ?? []).filter((row) => row.enabled);
   const ring = (agentId: string) =>
     data.inbox.some((entry) => entry.agent_id === agentId && entry.unread_count > 0) ||
@@ -222,9 +236,7 @@ export function UpdatesPage() {
         )}
       </div>
       <div className="group">
-        {notes.loading && !notes.data ? (
-          <SkRows count={2} />
-        ) : list.length ? (
+        {list.length ? (
           list.map((item) => (
             <button
               key={item.id}

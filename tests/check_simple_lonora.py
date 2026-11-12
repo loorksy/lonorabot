@@ -41,7 +41,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import run_data
@@ -59,13 +59,13 @@ from lonora_db.schema import (
     TradingAccountRow,
     TradingJournalRow,
     TradingRestrictionRow,
+    TrustedSourceRow,
 )
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.run_dispatch import run_model_choice
 from lonora_gateway.service import Gateway
 from lonora_tools import mcp
 from lonora_trading.broker_recovery import reconcile_broker_account
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import func, select
 
@@ -622,9 +622,7 @@ class Acceptance:
         )
         await self.services.brokers.get(self.owner, self.account)
         self.lonora_thread = await self.conversation(self.lonora)
-        # The first-run default: new trading has not been started yet.
-        await save_controls(self.db, TradingControl(enabled=False))
-        print("PASS setup: one simulation account, Lonora, trading not started, scripted model")
+        print("PASS setup: one simulation account, Lonora, scripted model")
 
     # Journey 1 -----------------------------------------------------------------------
 
@@ -686,19 +684,15 @@ class Acceptance:
         assert grant["allow_manual_positions"] is False  # D1: the owner's own excluded.
         daily = card["facts"]["money"]["daily_loss"]
         assert daily["proposed"] == "200.00" and daily["basis"] == "requested", daily
-        assert card["facts"]["global_trading"]["state"] == "stopped"  # "Resume too" shows.
         assert card["requires_passkey"] is True
         # Nothing trades before the signature: the agent is still Ask me.
         state = await self.state(gold.id)
-        assert state["trading_readiness"]["state"] in {"stopped", "ask_me"}, state
-        # One tap on Authorize with the passkey (the device enrolls inline the first time),
-        # with "Resume trading too" ticked.
-        decided = await self.passkey(name, card["id"], {"resume_trading": True})
-        assert decided["status"] == "confirmed" and decided["result"]["resumed"] is True, decided
+        assert state["trading_readiness"]["state"] == "ask_me", state
+        # One tap on Authorize with the passkey (the device enrolls inline the first time).
+        decided = await self.passkey(name, card["id"], {})
+        assert decided["status"] == "confirmed", decided
         assert decided["result"]["daily_loss"] == "200.00"
         assert await self.level(gold.id) == "autonomous"
-        controls = await read_controls(self.db)
-        assert controls.enabled is True and controls.emergency_stop is False
         policy = await self.request("GET", f"/trading/accounts/{self.account}/execution-policy")
         assert Decimal(policy["risk"]["max_daily_loss"]) == 200
         # The status line, the card and the records agree.
@@ -1187,25 +1181,6 @@ class Acceptance:
         assert any("\u0600" <= char <= "\u06ff" for char in line), line
         self.journey(name, 1)
 
-    # Journey 12 ----------------------------------------------------------------------
-
-    async def stop_all_from_phone(self) -> None:
-        """The safety pill's Stop new trading (Mobile sends the same request): one tap;
-        exits stay allowed; one Resume clears both stop flags."""
-        name = "J12 stop all new trading from my phone"
-        await self.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": True})
-        self.tap(name)
-        readiness = (await self.state(self.created[0]))["trading_readiness"]
-        assert readiness["state"] == "stopped" and readiness["exits_allowed"] is True, readiness
-        # An exit is still allowed: the gold agent closes its position under Stop.
-        gold_positions = [p for p in await self.positions(self.account) if p["symbol"] == GOLD]
-        assert gold_positions
-        await self.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
-        controls = await read_controls(self.db)
-        assert controls.enabled is True and controls.emergency_stop is False  # One request.
-        assert (await self.state(self.created[0]))["trading_readiness"]["state"] == "on_its_own"
-        self.journey(name, 1)
-
     # Journey 10 (end) ----------------------------------------------------------------
 
     async def stop_watching(self, watch_id: str) -> None:
@@ -1372,28 +1347,49 @@ class Acceptance:
         assert len(await self.positions(self.account)) == before + 1  # Never resent.
         self.journey(name, 1)
 
-    # MCP (D3): the owner's secure form and the trust tap --------------------------------
+    # MCP (D3): the owner's secure form, then his words trust it ------------------------
 
-    async def connect_mcp(self, journey: str, card_id: str, address: str, token: str | None) -> str:
+    async def connect_mcp(
+        self, journey: str, card_id: str, name: str, address: str, token: str | None
+    ) -> str:
         """The Secret card (one tap: Connect) saves the address and token the owner typed
-        and connects the server the agent named; its tools come back on a trust card (one
-        tap: Trust)."""
+        and connects the server the agent named; then the owner names the server in chat and
+        Lonora trusts its tools (VISION 10.3.2: no card)."""
         values = {"URL": address} | ({"TOKEN": token} if token is not None else {})
         connected = await self.request(
             "POST", f"/owner-actions/{card_id}/secret", {"values": values}
         )
         self.tap(journey)
         assert connected["status"] == "confirmed" and connected["result"]["configured"], connected
-        thread = await self.request("GET", "/owner-actions?thread_id=" + self.lonora_thread)
-        trust = [c for c in thread if c["kind"] == "trust_source" and c["status"] == "pending"]
-        assert len(trust) == 1, trust
-        source = trust[0]["facts"]["source"]
-        assert source["tools"] == ["search_posts"] and source["blocked"] == ["place_order"], source
-        trusted = await self.decide(
-            journey, trust[0]["id"], {"decision": "confirm", "tier": "read"}
+        # Lonora continues after the card (and asks the owner to name the server).
+        for queued in await self.runs(self.lonora, "owner_card"):
+            if queued.status == "queued":
+                await self.work(queued.id)
+        words = "ثق بخادم " + name
+        trusted: dict[str, Any] = {}
+
+        def done(t: Turn) -> ModelReply:
+            trusted.update(t.result("trust-" + name))
+            return ModelReply(text="وثقت بأدوات الخادم للقراءة.")
+
+        self.model.script(
+            words, lambda t: call("trust-" + name, "mcp_trust", {"server": name}), done
         )
-        assert trusted["status"] == "confirmed", trusted
-        return cast(str, connected["result"]["connection_id"])
+        run = await self.work(await self.say(self.lonora_thread, words))
+        assert run.status == "completed", (run.status, run.error_code)
+        assert trusted["trusted"] is True and trusted["tier"] == "read", trusted
+        assert trusted["tools_trusted"] == 1 and trusted["tools_blocked_moving_money"] == 1
+        server_id = cast(str, connected["result"]["connection_id"])
+        async with self.db.sessions() as session:
+            row = await session.scalar(
+                select(TrustedSourceRow).where(
+                    TrustedSourceRow.identifier == server_id,
+                    TrustedSourceRow.revoked_at.is_(None),
+                )
+            )
+            assert row is not None and row.added_via == "owner_message", row
+        assert await self.pending(self.lonora_thread, "trust_source") == []
+        return server_id
 
     # Journey 4 -----------------------------------------------------------------------
 
@@ -1520,7 +1516,7 @@ class Acceptance:
         seen: list[str] = []
         tokens: list[str | None] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, tokens)):
-            connection = await self.connect_mcp(name, connect[0]["id"], MCP_URL, MCP_TOKEN)
+            connection = await self.connect_mcp(name, connect[0]["id"], "X", MCP_URL, MCP_TOKEN)
             # The news agent reads X on its own next sweep, and tells the gold agent.
             news_thread = await self.conversation(news_id)
             sweep = "صباح الخير، ما المهم في الأخبار و X اليوم؟"
@@ -1584,18 +1580,18 @@ class Acceptance:
             r for r in await self.runs(gold_id) if "Analysts expect gold bid into CPI" in r.prompt
         ]
         assert len(peer) == 1, [r.prompt[:80] for r in await self.runs(gold_id)]
-        # Two owner steps by the vision's own rule: a new credential (one secure card) and
-        # a source outside the trusted list (one tap, remembered).
-        self.journey(name, 2, "the journey list counts the Connect X card alone (1)")
+        # One owner step: a new credential (one secure card). The source outside the
+        # trusted list is trusted by the owner's own words, no card (VISION 10.3.2).
+        self.journey(name, 1)
         return news_id, desk_id, connection
 
     # Journey 6 -----------------------------------------------------------------------
 
     async def add_mcp_server(self) -> None:
         """«أضف خادم MCP لملاحظاتي»: one Secret card where the owner types the server's
-        address (and its token, if any), one trust tap; then every agent uses its tools
-        with no declaration and no further card, and a tool that could trade is never
-        trusted."""
+        address (and its token, if any), then the owner names it in chat; every agent then
+        uses its tools with no declaration and no further card, and a tool that could trade
+        is never trusted."""
         name = "J6 add an MCP server"
         words = "أضف خادم MCP لملاحظاتي"
         self.model.script(
@@ -1613,7 +1609,7 @@ class Acceptance:
         assert len(cards) == 1, cards
         seen: list[str] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, [])):
-            connection = await self.connect_mcp(name, cards[0]["id"], NOTES_URL, None)
+            connection = await self.connect_mcp(name, cards[0]["id"], "Notes", NOTES_URL, None)
             gold_id = self.created[0]
             gold_thread = await self.conversation(gold_id)
             ask = "ابحث في ملاحظات الخادم الجديد عن الذهب"
@@ -1661,9 +1657,9 @@ class Acceptance:
             if item["kind"] == "mcp_server" and item["active"]
         ]
         assert len(trusted) >= 2, trusted  # X and the notes server, each once.
-        # Two owner steps by the vision's own rule: connecting a new server (one secure
-        # card) and trusting a source outside the list (one tap, remembered).
-        self.journey(name, 2, "the journey list counts one card for both (1)")
+        # One owner step: connecting a new server (one secure card). Trusting it is the
+        # owner's own words, no card (VISION 10.3.2).
+        self.journey(name, 1)
 
     # Journey 5 -----------------------------------------------------------------------
 
@@ -2093,14 +2089,12 @@ class Acceptance:
 async def main() -> None:
     fixture = await Fixture().open()
     acceptance = Acceptance(fixture)
-    original = await read_controls(acceptance.db)
     try:
         await acceptance.setup()
         await acceptance.gold_agent_trades_on_its_own()
         await acceptance.approve_one_trade()
         watch = await acceptance.watch_london_session()
         await acceptance.pause_today_then_resume(watch)
-        await acceptance.stop_all_from_phone()
         await acceptance.stop_watching(watch)
         await acceptance.lonora_manages_all_pairs()
         await acceptance.pause_every_account()
@@ -2117,7 +2111,6 @@ async def main() -> None:
         if acceptance.model.unscripted:
             print("unscripted triggers:", *acceptance.model.unscripted, sep="\n  ", file=sys.stderr)
     finally:
-        await save_controls(acceptance.db, original)
         async with acceptance.db.sessions() as session, session.begin():
             for row in await session.scalars(
                 select(AgentRow).where(AgentRow.id.in_(acceptance.set_aside))

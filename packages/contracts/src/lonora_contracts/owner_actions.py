@@ -19,12 +19,10 @@ from .domain import Contract
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
-    "resume_trading",
     "lift_restriction",
     "resolve_operation",
     "set_account_limits",
     "grant_authority",
-    "trust_source",
     # The Secret card (mandate 10.3, 7.2): the owner's values go straight to the encrypted
     # store; the agent learns which keys were saved.
     "secret",
@@ -39,9 +37,6 @@ GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
 # pair on the account, every action and the owner's own positions, until stopped, with
 # no daily loss limit from the card). The account's own money limits bind both.
 GrantDelegation = Literal["custom", "full"]
-# trust_source: what the owner adds to the trusted list (an MCP server with the tools it
-# advertises now, a GitHub owner or repository, or a news feed's domain).
-TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
 # A Secret card that connects something: the server sets its fields and destination, and
 # saving it creates the connection. "x" names an X MCP server. A trading account is
 # connected with broker_connect's card instead.
@@ -113,11 +108,6 @@ class OwnerActionProposal(Contract):
     # "full" preselects Full delegation when the owner's own message asked for it; the
     # other fields still shape the Custom choice the owner can switch back to.
     delegation: GrantDelegation | None = None
-    # trust_source: mcp_server takes connection_id (its tools are read from the server);
-    # the others take identifier ("owner", "owner/repository" or a feed domain).
-    source_kind: TrustSourceKind | None = None
-    connection_id: str | None = Field(default=None, min_length=1, max_length=80)
-    identifier: str | None = Field(default=None, min_length=1, max_length=300)
     # secret: the card's label and its fields, in the owner's language. Each value is
     # saved under its field's key, the name agents use for it.
     label: str | None = Field(default=None, min_length=1, max_length=80)
@@ -143,19 +133,7 @@ class OwnerActionProposal(Contract):
             return self.secret_card_fields()
         if any(
             value is not None
-            for value in (
-                self.label,
-                self.secret_fields,
-                self.target,
-                self.service,
-                self.name,
-            )
-        ):
-            raise ValueError("owner_action_fields_invalid")
-        if self.kind == "trust_source":
-            return self.capability_fields()
-        if any(
-            value is not None for value in (self.source_kind, self.connection_id, self.identifier)
+            for value in (self.label, self.secret_fields, self.target, self.service, self.name)
         ):
             raise ValueError("owner_action_fields_invalid")
         return self.trading_fields()
@@ -195,30 +173,6 @@ class OwnerActionProposal(Contract):
             raise ValueError("owner_action_fields_invalid")
         return self
 
-    def capability_fields(self) -> "OwnerActionProposal":
-        if (
-            self.restriction_id
-            or self.operation_id
-            or self.account_id
-            or self.set_limits
-            or self.remove_limits
-            or self.currency
-            or self.trading_day_timezone
-            or self.grant_fields()
-        ):
-            raise ValueError("owner_action_fields_invalid")
-        if self.source_kind is None:
-            raise ValueError("owner_action_fields_invalid")
-        if (self.source_kind == "mcp_server") != (self.connection_id is not None) or (
-            self.source_kind == "mcp_server"
-        ) == (self.identifier is not None):
-            raise ValueError("owner_action_fields_invalid")
-        if self.identifier is not None:
-            from .trusted_sources import normalize_identifier
-
-            self.identifier = normalize_identifier(self.source_kind, self.identifier)
-        return self
-
     def grant_fields(self) -> bool:
         """Whether any grant_authority draft field is set."""
         return any(
@@ -242,7 +196,6 @@ class OwnerActionProposal(Contract):
         )
         grant = self.grant_fields()
         needed = {
-            "resume_trading": (),
             "lift_restriction": ("restriction_id",),
             "resolve_operation": ("operation_id",),
             "set_account_limits": ("account_id",),
@@ -385,9 +338,8 @@ class OwnerActionChallenge(Contract):
 
 class OwnerActionDecision(Contract):
     """The owner's tap. ``outcome`` answers a resolve card; ``proof`` is the passkey
-    assertion a widening card requires (obtained from the card's challenge); ``tier`` is
-    what the owner trusts an MCP server for. A Secret card's values never come here: the
-    card has its own route.
+    assertion a widening card requires (obtained from the card's challenge). A Secret
+    card's values never come here: the card has its own route.
 
     ``choose`` changes a pending grant card's own choice (``delegation``: Custom or Full
     delegation) in its stored draft and settles nothing; signing still needs the
@@ -395,18 +347,16 @@ class OwnerActionDecision(Contract):
 
     A grant card's own choices narrow or widen nothing that needs another signature:
     leaving the account without the suggested daily loss limit (``money_limit``
-    "none"), resuming new trading, and stopping other agents' grants on that market.
+    "none") and stopping other agents' grants on that market.
     """
 
     decision: Literal["confirm", "cancel", "choose"]
     delegation: GrantDelegation | None = None
-    tier: Literal["read", "write_nonfinancial"] | None = None
     outcome: AttestedOutcome | None = None
     note: str | None = Field(default=None, max_length=2000)
     broker_reference: str | None = Field(default=None, max_length=200)
     proof: DeviceProof | None = None
     money_limit: Literal["apply", "none"] = "apply"
-    resume_trading: bool = False
     stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
     # A resolve card answered «غير معروف»: also pause new trades on its account until the
     # end of the trading day (an owner restriction; it only narrows). Only with "unknown".

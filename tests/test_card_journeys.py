@@ -18,7 +18,6 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.account import Position
 from lonora_contracts.account_authority import ALL_AUTHORITY_ACTIONS
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
 from test_proactive_wakes import call, database, retire, simulation
@@ -41,14 +40,11 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow, TradingJournalRow
     from lonora_db.trade_approvals import APPROVAL_LIFETIME
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     connection = ""
     try:
-        await save_controls(db, TradingControl(enabled=True))
         connection = await simulation(fixture, [])
         agent = await fixture.agent("Ask me", supervised=True)
         thread = await fixture.conversation(agent)
@@ -123,7 +119,6 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
             ):
                 item.status = "cancelled"
     finally:
-        await save_controls(db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -259,14 +254,11 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
     from lonora_contracts.owner_actions import GrantDraft
     from lonora_db.owner_actions import grant_proposal
     from lonora_db.schema import AccountAuthorityRow, OwnerActionRow
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     connection = ""
     try:
-        await save_controls(db, TradingControl(enabled=True))
         held = Position(
             id="held-ticket",
             symbol="XAUUSD",
@@ -447,6 +439,5 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
         status, refused = await raw(fixture, "POST", f"/owner-actions/{notice['id']}/renew")
         assert (status, refused["code"]) == (409, "owner_action_not_renewable")
     finally:
-        await save_controls(db, original)
         await retire(fixture, connection)
         await fixture.close()

@@ -1,28 +1,12 @@
-"""Shared fixtures enforce the deterministic scalar boundary on both runtimes."""
+"""The stored v1 contract: legacy text bindings and structural diagnostics (rendering only;
+the clients evaluate v1 scalars, tests/web/visual-scalars.test.ts)."""
 
-import json
 from copy import deepcopy
-from pathlib import Path
 from typing import Any
 
 import pytest
 from lonora_contracts.visual_response import VisualDocument
-from lonora_contracts.visual_values import evaluate_extended_visual_op
 from pydantic import ValidationError
-
-CASES = json.loads((Path(__file__).parent / "fixtures" / "visual-scalars.json").read_text())
-
-
-@pytest.mark.parametrize("case", CASES)
-def test_bounded_scalar_fixture(case: dict[str, Any]) -> None:
-    assert evaluate_extended_visual_op(case["op"], case["args"]) == case["expected"]
-
-
-def test_scalar_bounds_never_coerce_missing_values_or_overflow() -> None:
-    assert evaluate_extended_visual_op("concat", ["x" * 4001]) is None
-    assert evaluate_extended_visual_op("concat", ["😀" * 4000]) == "😀" * 4000
-    assert evaluate_extended_visual_op("concat", [10**1000]) is None
-    assert evaluate_extended_visual_op("sqrt", [10**1000]) is None
 
 
 def legacy() -> dict[str, Any]:
