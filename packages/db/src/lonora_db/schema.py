@@ -903,7 +903,7 @@ class ClosedTradeCursorRow(Base):
 
 
 class ClosedTradeRow(Base):
-    """One closed trade: a position whose volume reached zero at the broker (5.5.1).
+    """One closed trade: its position's volume reached zero at the broker (5.5.1).
 
     Durable record: it survives the agent, the conversation and the connection. The
     agent id is kept as a value; None means the owner's own ticket (3.3.4).
@@ -911,13 +911,22 @@ class ClosedTradeRow(Base):
 
     __tablename__ = "ln_closed_trades"
     __table_args__ = (
-        UniqueConstraint("owner_id", "account_id", "position_id", name="ln_closed_trade_position"),
+        UniqueConstraint(
+            "owner_id",
+            "account_id",
+            "position_id",
+            "closing_deal_id",
+            name="ln_closed_trade_closing_deal",
+        ),
         Index("ln_closed_trades_agent", "owner_id", "agent_id", "closed_at"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     account_id: Mapped[str] = mapped_column(String(120))
     position_id: Mapped[str] = mapped_column(String(120))
+    # The deal that closed the trade: the last exit, or a reversal that took a netting
+    # position through zero (one position can hold several trades).
+    closing_deal_id: Mapped[str] = mapped_column(String(120))
     symbol: Mapped[str] = mapped_column(String(80))
     side: Mapped[str] = mapped_column(String(8))
     volume: Mapped[Any] = mapped_column(Numeric(38, 10))
@@ -926,8 +935,9 @@ class ClosedTradeRow(Base):
     opening_operation_id: Mapped[str | None] = mapped_column(String(80))
     # Account currency; P&L is never summed across currencies.
     currency: Mapped[str] = mapped_column(String(16))
-    # Profit + commission + swap of the position's deals. None when an exit deal carried
-    # no broker-reported profit: nothing is computed in its place.
+    # Profit + commission + swap of the trade's deals. None when an exit carried no
+    # broker-reported profit, or the ledger never read the opening deal: nothing is
+    # computed in its place.
     realized_pnl: Mapped[Any | None] = mapped_column(Numeric(38, 10))
     opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
