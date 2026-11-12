@@ -45,7 +45,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .lead import personal_agent_id, reaches
+from .lead import is_lead, personal_agent_id, reaches
 from .pauses import live_hold, release_hold, work_paused
 from .schema import (
     AgentRow,
@@ -509,8 +509,9 @@ async def control_work(
     Pausing and resuming need the grant (Lonora needs none: it leads every team agent),
     and pausing passes the cycle rule. No agent ever pauses the Personal Agent
     itself. A paused agent with money standing still reduces its risk, which the result
-    says (``still_reduces_risk``). Each pause raises a card in the paused agent's
-    conversation naming the supervisor, with Resume.
+    says (``still_reduces_risk``). A supervisor's pause raises a card in the paused
+    agent's conversation naming it, with Resume; Lonora's raises none (it reports in one
+    line).
 
     Resuming on its own initiative lifts only a hold this agent set on its own. With the
     owner's message a supervisor lifts another supervisor's hold; Lonora never lifts a
@@ -594,9 +595,12 @@ async def control_work(
         )
         session.add(hold)
         await session.flush()
-        from .owner_actions import raise_supervision_pause_card
+        if not await is_lead(session, owner_id, actor_id):
+            from .owner_actions import raise_supervision_pause_card
 
-        await raise_supervision_pause_card(session, hold, run_id=run_id)
+            # Lonora's pause raises no card (only the five fixed cards, 10.3): Lonora tells
+            # the owner in one line. Other supervisors keep theirs until supervision goes.
+            await raise_supervision_pause_card(session, hold, run_id=run_id)
     else:
         if not paused:
             return {**result, "changed": False, "paused": False}

@@ -294,3 +294,19 @@ def test_no_notice_shows_a_failure_code_or_the_owners_words():
     # The notice reaches the model as written: the failure view rewrites tool results only.
     message = notice_message("conversation_check", notices[0])
     assert failure_view([message])[0].content == message.content
+
+
+def test_a_lead_action_with_an_empty_reply_continues_until_the_owner_hears_one_line():
+    # Mandate 3.1.2: Lonora "tells the owner in one line what it did and why".
+    paused = {"changed": True, "paused": True, "owner_line": "required"}
+    calls = exchange("agent_control", paused, agent_id="gold", action="pause")
+    empty = ModelMessage(role="assistant", content=" ")
+    state = started()
+    verdict = gate(state, OWNER, *calls, empty)
+    assert verdict.continue_turn and "in one line" in verdict.nudge
+    assert state[CONVERSATION_KEY]["fired"][0]["condition"] == "lead_action_unreported"
+    # One line ends the turn; so does a lead action that changed nothing.
+    line = ModelMessage(role="assistant", content="أوقفت وكيل الذهب مؤقتًا لأن السبريد اتسع.")
+    assert not gate(started(), OWNER, *calls, line).continue_turn
+    unchanged = exchange("agent_control", {"changed": False}, agent_id="gold", action="pause")
+    assert not gate(started(), OWNER, *unchanged, empty).continue_turn
