@@ -22,7 +22,7 @@ from lonora_tools.registry import ToolRegistry
 
 from ..context_engine import resolve_limits
 from ..progress import progress
-from ..runtime_notices import is_owner_message
+from ..runtime_notices import is_owner_message, peer_text
 from ..skills.loader import load_constitution, load_prompt
 from .account_symbols import account_symbols_context
 from .attachments import attachment_parts
@@ -33,7 +33,7 @@ from .governance import govern_context
 from .history import history_context, history_gap
 from .memory import read_memory_context
 from .reply import reply_context
-from .routine import wake_context
+from .routine import wake_context, workspace_wake_section
 from .run_evidence import recent_tool_evidence
 from .scratchpad import scratchpad_context
 from .skills import read_skill_context
@@ -174,7 +174,12 @@ async def build_context(
         if explicit_prompt:
             messages.append(ModelMessage(role="user", content=explicit_prompt))
         query = explicit_prompt or next(
-            (message.content for message in reversed(messages) if message.role == "user"), ""
+            (
+                peer_text(message.content)
+                for message in reversed(messages)
+                if message.role == "user"
+            ),
+            "",
         )
         semantic = ""
         if query:
@@ -262,6 +267,7 @@ async def build_context(
             ContextSection(
                 "attachments", "owner_attachments", "owner_supplied_untrusted", attachments, 92
             ),
+            *[section for section in [workspace_wake_section(run)] if section is not None],
         ]
         data = context_message(sections)
         if data is not None:

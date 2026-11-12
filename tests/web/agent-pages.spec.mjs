@@ -311,7 +311,7 @@ test("watches: pause, resume and cancel with undo, each through the watch's cont
   await expect(main.locator(".wt-row")).toHaveCount(1);
 });
 
-test("«وكيل جديد»: the supervision switch sends the agents it supervises; the model stays automatic", async ({
+test("«وكيل جديد»: the supervision switch sends the agents it supervises; no model is sent, so it starts on Lonora's", async ({
   page,
 }) => {
   await page.goto("/app/new-agent");
@@ -748,7 +748,7 @@ test("a broker outage: the heads-up and the updates list open the recovery page"
   // The updates page's notification row opens the same page.
   await page.goto("/app/updates");
   await page
-    .locator("main [data-attention-id]", { hasText: "Broker connection needs review" })
+    .locator("main [data-attention-id]", { hasText: "The account connection has been lost" })
     .first()
     .click();
   await expect(page).toHaveURL(

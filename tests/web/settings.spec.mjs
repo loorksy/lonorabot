@@ -473,7 +473,8 @@ test("Global models opens the models page; voice and trading keep their settings
     );
     await page.goto("/app/models");
     await expect(page.getByRole("heading", { name: "Global routing" })).toBeVisible();
-    await expect(page.locator("[data-allowed-models]")).toBeVisible();
+    // Only the owner assigns an agent's model (main, Q20 a): no allowed-models list.
+    await expect(page.locator("[data-allowed-models]")).toHaveCount(0);
     // One key form: the provider page. This page has none.
     await expect(page.getByText("API key")).toHaveCount(0);
     const saved = page.waitForResponse(

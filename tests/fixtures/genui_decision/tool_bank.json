@@ -4321,20 +4321,12 @@
   "model_list": {
    "result": {
     "agent_id": "{gold_agent_id}",
-    "mode": "automatic",
     "chosen_by": null,
     "answering": {
      "provider": "openai",
      "model": "gpt-5.4-mini",
      "name": "GPT-5.4 mini"
     },
-    "allowed": [
-     {
-      "provider": "openai",
-      "model": "gpt-5.4-mini",
-      "name": "GPT-5.4 mini"
-     }
-    ],
     "connected_providers": [
      "openai"
     ]
@@ -4343,20 +4335,8 @@
   "model_request": {
    "result": {
     "changed": false,
-    "owner_must_tap": true,
-    "owner_action": {
-     "id": "5b5a3c23-4716-5aec-b325-598347843bf7",
-     "kind": "agent_model",
-     "status": "pending"
-    },
-    "already_shown": false,
-    "why": "owner_choice",
-    "allowed_models": [
-     {
-      "provider": "openai",
-      "model": "gpt-5.4-mini"
-     }
-    ]
+    "code": "model_assignment_requires_owner_message",
+    "recovery": "Nothing changed. Only the owner assigns a model: ask him to name it in chat."
    }
   },
   "trade_execute": {

@@ -1,6 +1,11 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { ActivityCode, ActivityEntry, AttentionNotification } from "@lonora/contracts";
+import {
+  type ActivityCode,
+  type ActivityEntry,
+  type AttentionNotification,
+  isBrokerHealth,
+} from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -191,7 +196,7 @@ export function UpdatesPage() {
     // A group's notification opens the group conversation, as the inbox did.
     // A broker outage opens the recovery page for its account (recovery.page).
     nav.go(
-      item.code === "broker_degraded"
+      isBrokerHealth(item.code)
         ? recoveryPath(item.parameters.account_id)
         : item.parameters.group_id
           ? `/app/g/${item.parameters.group_id}`

@@ -25,6 +25,7 @@ from .schema import (
     SteeringRow,
     ThreadRow,
 )
+from .threads import conversation_thread
 from .transactions import owned_agent, owned_thread
 
 # A voice note waiting for its transcript; the receipt is removed once it settles.
@@ -726,3 +727,31 @@ async def supersede(
         )
     )
     return original
+
+
+async def post_agent_message(
+    session: AsyncSession, owner_id: str, agent_id: str, content: str
+) -> MessageRow:
+    """Post ``content`` in the agent's own conversation as that agent's message
+    (``lonora notify``, 7.3.8). It raises no attention item and sends no push (11.4)."""
+    thread = await conversation_thread(session, owner_id, agent_id)
+    thread = await owned_thread(session, owner_id, thread.id, lock=True)
+    message = MessageRow(
+        thread_id=thread.id,
+        agent_id=agent_id,
+        seq=thread.next_seq,
+        role="assistant",
+        content=content,
+    )
+    thread.next_seq += 1
+    session.add(message)
+    await session.flush()
+    emit(
+        session,
+        owner_id,
+        "message.created",
+        thread_id=thread.id,
+        agent_id=agent_id,
+        payload=message_data(message),
+    )
+    return message

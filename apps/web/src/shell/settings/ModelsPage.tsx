@@ -1,11 +1,7 @@
-import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AllowedModels } from "@lonora/contracts";
-import { agentModelText } from "@lonora/core";
-import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
-import { api, type Capability, type Model, type Routing, type Selection } from "../../lib/api";
+import type { Capability, Model, Routing, Selection } from "../../lib/api";
 import { providers, readModels } from "../../lib/model_catalog";
 import { capabilities, readRouting, saveRouting } from "../../lib/model_routing";
 import { userError } from "../../lib/user_error";
@@ -29,20 +25,15 @@ const key = (item: Selection) => `${item.provider}:${item.model}`;
 const modelKey = (model: Model) => `${model.provider}:${model.id}`;
 const modelName = (model: Model) => `${providerName(model.provider)} · ${model.name}`;
 
-/* «النماذج» (route `models`, under التكاملات › الذكاء الاصطناعي): the global routing and the models
-   agents may choose on their own (W15-10). Keys are added on the provider form. */
+/* «النماذج» (route `models`, under التكاملات › الذكاء الاصطناعي): the global routing. Keys are
+   added on the provider form; only the owner assigns an agent's model (Q20 a). */
 export function ModelsPage() {
   const load = useLoad(
-    () =>
-      Promise.all([
-        readRouting(),
-        Promise.all(providers.map(readModels)),
-        api.get<AllowedModels>("/settings/models/allowed"),
-      ]),
+    () => Promise.all([readRouting(), Promise.all(providers.map(readModels))]),
     [],
   );
   if (!load.value) return load.error != null ? <Note>{userError(load.error)}</Note> : null;
-  const [routing, catalogs, allowed] = load.value;
+  const [routing, catalogs] = load.value;
   const models = catalogs.flat();
   if (!models.length)
     return (
@@ -56,15 +47,12 @@ export function ModelsPage() {
       </>
     );
   return (
-    <>
-      <RoutingForm
-        key={JSON.stringify(routing)}
-        initial={routing}
-        models={models}
-        onSaved={load.reload}
-      />
-      <AllowedList key={JSON.stringify(allowed)} initial={allowed} models={models} />
-    </>
+    <RoutingForm
+      key={JSON.stringify(routing)}
+      initial={routing}
+      models={models}
+      onSaved={load.reload}
+    />
   );
 }
 
@@ -205,94 +193,5 @@ function RoutingForm({
         </button>
       </div>
     </form>
-  );
-}
-
-/** The models agents may choose on their own: the global routes and backups always, plus the
- * owner's additions. Any other model is a one-tap card in the chat. */
-function AllowedList({ initial, models }: { initial: AllowedModels; models: Model[] }) {
-  const text = agentModelText(i18n.locale);
-  const toast = useToast();
-  const [value, setValue] = useState(initial);
-  const [pick, setPick] = useState("");
-  const [busy, setBusy] = useState(false);
-  const included = new Set([...value.routed, ...value.added].map(key));
-  const name = (item: Selection) =>
-    `${providerName(item.provider)} · ${models.find((m) => modelKey(m) === key(item))?.name ?? item.model}`;
-  const save = async (added: Selection[]) => {
-    setBusy(true);
-    try {
-      setValue(await api.put<AllowedModels>("/settings/models/allowed", { added }));
-      toast(text.saved, { type: "success" });
-    } catch (error) {
-      toast(userError(error), { type: "error" });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section aria-label={text.allowedTitle} data-allowed-models="">
-      <h3>{text.allowedTitle}</h3>
-      {included.size > 0 && (
-        <div className="group">
-          {value.routed.map((item) => (
-            <div className="row" key={key(item)}>
-              <Icon name="cpu" />
-              <span className="body">
-                <strong>
-                  <bdi>{name(item)}</bdi>
-                </strong>
-              </span>
-            </div>
-          ))}
-          {value.added.map((item) => (
-            <div className="row" key={key(item)}>
-              <Icon name="cpu" />
-              <span className="body">
-                <strong>
-                  <bdi>{name(item)}</bdi>
-                </strong>
-              </span>
-              <button
-                type="button"
-                className="icon"
-                aria-label={t`Remove ${name(item)}`}
-                disabled={busy}
-                onClick={() => void save(value.added.filter((other) => key(other) !== key(item)))}
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <label className="field">
-        <span>{t`Model`}</span>
-        <select value={pick} onChange={(event) => setPick(event.target.value)}>
-          <option value="">{text.chooseModel}</option>
-          {models
-            .filter((m) => !included.has(modelKey(m)))
-            .map((m) => (
-              <option key={modelKey(m)} value={modelKey(m)}>
-                {modelName(m)}
-              </option>
-            ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="btn full outline"
-        disabled={busy || !pick}
-        onClick={() => {
-          const model = models.find((m) => modelKey(m) === pick);
-          if (!model) return;
-          setPick("");
-          void save([...value.added, { provider: model.provider, model: model.id }]);
-        }}
-      >
-        {text.add}
-      </button>
-      <Note>{text.allowedHint}</Note>
-    </section>
   );
 }
