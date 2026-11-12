@@ -393,6 +393,11 @@ class ModeChangedToFull(Exception):
     """The agent's mode became Full before its card was raised."""
 
 
+class ReusedCardEnded(Exception):
+    """The card this run's same request reused ended (drifted, withdrawn) before the
+    locked read: the request is decided from the start, tolerance included."""
+
+
 async def never_started(context: ToolContext) -> bool:
     """No stored control: trading was never started on this install (it starts stopped),
     unlike the owner's own Stop."""
@@ -515,7 +520,8 @@ async def approved_execution(
     adding: list[TradeRequest] = []
     on_ask_tickets: list[TradeRequest] = []
     owner_message = await run_owner_message(context)
-    if previous is None and not gate_only and not await reused_card(context, requests):
+    reusing = previous is None and not gate_only and await reused_card(context, requests)
+    if previous is None and not gate_only and not reusing:
         # Full executes on its own; Ask asks only for requests that add risk (4.1).
         # A request already journaled is answered from its record (the door's idempotency),
         # never classified again against a ticket it may itself have changed.
@@ -577,6 +583,8 @@ async def approved_execution(
                 if row is not None:
                     approval_id = row.id
             if row is None:
+                if reusing:
+                    raise ReusedCardEnded
                 if (
                     not gate_only
                     and mode != "full"
@@ -677,11 +685,12 @@ async def approved_execution(
                 ] != [trade_fingerprint(r) for r in requests]:
                     raise LonoraError("trade_approval_request_changed", 409)
                 return {"approved": True, "approval_id": row.id}
-    except ModeChangedToFull:
-        # The owner switched this agent to Full while the request was prepared: it is
-        # decided again under Full, never parked on a card the switch cannot withdraw.
+    except (ModeChangedToFull, ReusedCardEnded):
+        # The owner switched this agent to Full while the request was prepared, or the
+        # card it reused ended: it is decided again, never parked on a card the switch
+        # cannot withdraw, and never on a card without its validity.
         return await approved_execution(
-            context, requests, gate_only=gate_only, named_ticket=named_ticket
+            context, requests, gate_only=gate_only, named_ticket=named_ticket, annotation=annotation
         )
 
     results: list[dict[str, Any]] = []

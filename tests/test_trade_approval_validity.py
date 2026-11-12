@@ -167,6 +167,40 @@ async def test_approve_reads_the_quote_and_refuses_a_card_outside_its_band() -> 
 
 
 @pytest.mark.asyncio
+async def test_a_reused_card_that_ended_is_decided_again_with_its_tolerance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """10.3.1.1: the card the same request reused drifted before the locked read; the
+    request is decided from the start, so it never parks on a card without validity."""
+    database()
+    from check_streaming import Fixture
+    from lonora_tools import trade
+    from lonora_trading.controls import read_controls, save_controls
+
+    fixture = await Fixture().open()
+    original = await read_controls(fixture.runtime.db)
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
+        agent = await fixture.agent("Validity reuse", supervised=True)
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        answers = iter([True])
+        real = trade.reused_card
+
+        async def ended(context: Any, requests: Any) -> bool:
+            return next(answers, None) or await real(context, requests)
+
+        monkeypatch.setattr(trade, "reused_card", ended)
+        with pytest.raises(ToolRefusal, match="tolerance_required"):
+            await same_call(context, "reuse", **ENTRY, account_id=connection, reason="Retest")
+    finally:
+        await save_controls(fixture.runtime.db, original)
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_the_reason_never_changes_the_operation_and_the_journal_keeps_it() -> None:
     database()
     from check_streaming import Fixture
