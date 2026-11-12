@@ -535,6 +535,34 @@ async def main() -> None:
         print(
             "PASS an expired thesis completes when its position closes or is observed closed, and is never revived by an entry"
         )
+
+        # The thesis's own entry settles after the thesis expired: it is still recorded as
+        # the thesis entry (never reviving it), so closing its position completes it.
+        late = await fresh_thesis("fixture-late-entry")
+        pending_entry = journal_row(late["id"], "ambiguous")
+        linked = await sync(pending_entry)
+        assert linked["state"]["pending_operation_ids"] == [pending_entry.operation_id], linked
+        async with f.runtime.db.sessions() as session, session.begin():
+            row = await owned_opportunity(session, f.owner, late["id"], lock=True)
+            await refresh_opportunity(session, row, now=utcnow() + timedelta(hours=2))
+            assert row.status == "expired", row.status
+        pending_entry.status = "confirmed"
+        pending_entry.result = {
+            **pending_entry.result,
+            "status": "confirmed",
+            "details": {"position_id": "pos-late-entry"},
+        }
+        settled = await sync(pending_entry)
+        assert settled["status"] == "expired", settled
+        assert settled["state"]["entry_operation_id"] == pending_entry.operation_id, settled
+        assert settled["state"]["entry_position_id"] == "pos-late-entry", settled
+        assert settled["state"]["pending_operation_ids"] == [], settled
+        late_done = await sync(close_row(late["id"], "pos-late-entry", "confirmed"))
+        assert late_done["status"] == "completed", late_done
+        assert late_done["state"]["reason_code"] == "thesis_position_closed", late_done
+        print(
+            "PASS an entry that settles after its thesis expired is still its entry, and closing its position completes the thesis"
+        )
     finally:
         await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         await f.close()

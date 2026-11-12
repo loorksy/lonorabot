@@ -172,8 +172,11 @@ Consumers of `resolved`:
   an outcome not yet known is kept as the thesis's pending link, and the attestation
   settles it. `executed` acts on the thesis as a confirmed entry would; `not_executed`
   releases the pending link; an entry of `unknown` outcome still acts on the thesis. A
-  later entry on the same thesis is the agent's decision and becomes its entry. A
-  management operation of
+  later entry on the same thesis is the agent's decision and becomes its entry. An
+  entry on an expired, invalidated or completed thesis is recorded as its last
+  operation and never revives it; an expired or invalidated thesis still records it as
+  its entry and its position, so a full close or an observed close of that position
+  completes the thesis. A management operation of
   unknown outcome (owner `unknown` or any broker-state resolution) releases its
   pending link; when it is a broker-state `target_closed` on the thesis entry
   position, the position is observed closed and the thesis completes
@@ -222,8 +225,9 @@ Today every other caller (`trade_execute`) submits a single request.
 - `tests/check_account_authority.py`: a signed-grant agent closes, cancels and
   tightens under Trading OFF and Emergency Stop; entries and wider stops stay blocked.
 - `tests/check_opportunity_runtime.py`: owner attestations settle a thesis entry
-  link (`not_executed` releases it, `executed` acts on it), and an observed-closed
-  entry position completes its thesis.
+  link (`not_executed` releases it, `executed` acts on it), an observed-closed entry
+  position completes its thesis, and an expired thesis whose entry settles late or
+  whose position closes still completes without being revived.
 - `tests/check_trading.py`: concurrency, lost responses, cancellation, legacy rows and
   observer fencing.
 

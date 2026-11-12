@@ -303,11 +303,13 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
     row.state = state
     if (
         action in ENTRY_ACTIONS
-        and row.status not in TERMINAL  # An ended thesis is never revived by an entry.
+        and row.status != "completed"
         and row.state.get("entry_operation_id") != journal.operation_id
     ):
         # An entry that may have executed (attested, or of unknown outcome) acts on the
-        # thesis; a later entry is the agent's own decision and becomes its entry.
+        # thesis; a later entry is the agent's own decision and becomes its entry. An
+        # expired or invalidated thesis still records it, so closing its position
+        # completes the thesis, but is never revived by it.
         attested = journal.status == "resolved"
         row.state = {
             **state,
@@ -321,6 +323,8 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
                 else None
             ),
         }
+        if row.status in TERMINAL:
+            return
         transition(
             session,
             row,
