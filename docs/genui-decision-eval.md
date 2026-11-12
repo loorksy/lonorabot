@@ -16,7 +16,7 @@ today's system prompt). It changes no product behaviour. The G0 baseline, one li
 
 | Path | What it holds |
 |---|---|
-| `tests/fixtures/genui_decision/cases.jsonl` | The 109 labelled owner messages of §10.6: 93 Arabic and 16 English, 60 T, 35 TU and 14 U, 20 follow-ups, 17 safety cases and 30 with an "also" (11 of them cross the card/no-card line). |
+| `tests/fixtures/genui_decision/cases.jsonl` | The 109 labelled owner messages of §10.6: 93 Arabic and 16 English, 60 T, 35 TU and 14 U, 20 follow-ups, 13 safety cases and 30 with an "also" (11 of them cross the card/no-card line). |
 | `tests/fixtures/genui_decision/contexts.json` | The earlier turns of the 20 follow-ups, written as v1 history holds them: the owner's text and the assistant's stored `content`. |
 | `tests/fixtures/genui_decision/tool_bank.json` | The answers for every tool a case calls: one simulation account «تجريبي» in USD, XAUUSD 2368.40, XAGUSD 28.92, EURUSD 1.0842, an open EURUSD buy, 90 days of deals and journal rows. An answer can depend on the case's context: `watch_list` is empty except after `A01_sent` (J05, J06), where it holds the gold watch above 2400. |
 | `tests/fixtures/genui_decision/recordings/` | Full live runs, `<model>-<YYYYMMDD>.jsonl`, scrubbed. The G0 baseline is `baseline/openai-gpt-5.4-mini-20261110.jsonl`. |
@@ -246,6 +246,13 @@ calls per case), one sample per case:
 
 ## Results
 
+The figures in this section were scored on 2026-11-10, when the scorer still counted fenced
+code on a code request as a safety violation and the set held 17 safety cases. Both went
+with the code-delivery ban (H05, H06, H08 and H11 are ordinary cases now; 13 safety cases
+remain). With today's `score.py` the three recordings below report 1 (baseline), 2
+(variant P) and 1 (variant O) safety violations, the unasked trade calls; the other
+figures are as recorded.
+
 The prompt hash is the sha256 of the generative-UI block the model sees. For v1 that is
 the `<lonora_native_visual_response>` block, 6,449 characters, hash `628039c4c789…`.
 
@@ -266,7 +273,7 @@ samples. With one sample no case can tie and consistency is 100% by construction
 figures say nothing here.
 
 - **Recording:** `tests/fixtures/genui_decision/recordings/baseline/openai-gpt-5.4-mini-20261110.jsonl`
-  (109 lines, scrubbed). Running `score.py` on it reproduces every figure below, and every
+  (109 lines, scrubbed). Running the scorer of that date on it reproduces every figure below, and every
   card stored in it still compiles to the same output.
 - **Run:** every case ran to its end. 88 completed and 21 stopped waiting for the owner: 20 at a
   `wait_for_input` question and one at a trade approval (I08). No model request failed or was
@@ -393,7 +400,7 @@ examples rewritten as Lonora cards. Both share the safety lines, the format, the
 vocabulary and the alert and receipt programs. The figures are the corrected scorer's
 (routes, refusals, `card_language`) re-projecting the recorded replies with the compiler as
 of the PR #50 review fixes (type-aware rule 2, the §10.6 v2 checks applied to v2 replies):
-every figure below reproduces with `score.py` on the two recordings. Two compiler bugs found
+every figure below reproduced with the scorer of that date on the two recordings. Two compiler bugs found
 in these runs were fixed before scoring (a literal
 watch id in a receipt's send made the card fall back; `mode: observed` on a card with no fact
 made it fall back instead of dropping the mode).
