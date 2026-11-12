@@ -60,3 +60,5 @@
 #133 7c4a9440 FINDINGS 0/0/1 (+#132 medium inherited) 2026-11-12T08:53Z
 #160 f40b0258 CLEAN 2026-11-12T08:54Z
 #148 27d50582 CLEAN (merge only; #89/#116 merged in batch 5) 2026-11-12T09:16Z
+#164 ce40395e CLEAN (rebase: 0091 onto 0145, ci.yml/thread.tsx conflicts) 2026-11-12T09:29Z
+#135 f6f5eb7c FINDINGS 0/1/2 (rebase) 2026-11-12T09:29Z
