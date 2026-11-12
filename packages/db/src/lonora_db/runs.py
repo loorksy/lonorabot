@@ -132,8 +132,16 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
 
 
 async def create_run(
-    session: AsyncSession, owner_id: str, request: RunRequest, run_id: str | None = None
+    session: AsyncSession,
+    owner_id: str,
+    request: RunRequest,
+    run_id: str | None = None,
+    *,
+    held_while_paused: bool = False,
 ) -> RunRow:
+    """``held_while_paused``: a server notice that must reach the agent (a card it raised
+    ended) is queued for a paused agent and held until it is resumed, instead of
+    refused (4.7.1)."""
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
     agent = await owned_agent(session, owner_id, request.agent_id)
     if thread.agent_id and thread.agent_id != agent.id:
@@ -147,7 +155,11 @@ async def create_run(
         if parent is None:
             raise LonoraError("parent_run_not_found", 404)
         await owned_thread(session, owner_id, parent.thread_id)
-    if agent.paused and not runs_while_paused(request.trigger, request.metadata):
+    if (
+        agent.paused
+        and not held_while_paused
+        and not runs_while_paused(request.trigger, request.metadata)
+    ):
         raise LonoraError("agent_paused", 409)
     from .trading_goals import bind_goal_run
 

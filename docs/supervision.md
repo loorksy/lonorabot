@@ -219,8 +219,8 @@ profile) do not fit and are promoted after first use like any remembered tool.
   decisions, runs and memory (an injected instruction stays inside a labelled record);
   revocation closes them inside the same Run; holds, the cycle rule and the owner's
   message overriding it; a rename that keeps the switch leaves the supervisor's hold; a
-  bound agent and an Ask me agent refused a whole-agent pause on a routine wake and
-  paused from the owner's message; Lonora never paused by another agent; the pause card
+  bound agent and an Ask me agent paused whole on a routine wake (`still_reduces_risk`)
+  and from the owner's message; Lonora never paused by another agent; the pause card
   with its facts, Resume as the owner's own and its stale settle; the owner's pause
   becoming the owner's (supervisor and agent refused, the cycle rule no longer counts
   it); the owner's message lifting a supervisor's pause through the paused agent and
