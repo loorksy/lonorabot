@@ -31,7 +31,6 @@ from urllib.parse import urlsplit
 
 import pytest
 from lonora_adapters.models.base import BaseModelAdapter
-from lonora_core.model_providers import PROVIDER_URLS
 from lonora_providers.registry import PROVIDERS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -274,8 +273,7 @@ def test_lonoras_code_has_no_subscription_login_private_endpoint_or_other_engine
 
 
 def test_every_model_adapter_calls_a_public_api_host() -> None:
-    hosts = {urlsplit(url).hostname for url in PROVIDER_URLS.values()}
-    assert hosts == PUBLIC_MODEL_HOSTS
+    hosts: set[str | None] = set()
     for provider, adapter in PROVIDERS.items():
         if provider == "openai_compatible":
             continue  # the owner's own base URL, checked when it is configured
@@ -283,6 +281,8 @@ def test_every_model_adapter_calls_a_public_api_host() -> None:
         assert isinstance(instance, BaseModelAdapter), provider
         assert urlsplit(instance.base_url).hostname in PUBLIC_MODEL_HOSTS, provider
         assert urlsplit(instance.base_url).scheme == "https", provider
+        hosts.add(urlsplit(instance.base_url).hostname)
+    assert hosts == PUBLIC_MODEL_HOSTS
 
 
 def test_every_model_host_in_the_adapters_is_public() -> None:

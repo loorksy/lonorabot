@@ -1,11 +1,9 @@
 {
   "version": 2,
-  "manual_sha256": "4824f60bbbc331fd126c39c27b19f06faef47372d79d6039feec60b7d04ca8aa",
+  "manual_sha256": "1ae911f1ce8477797bb55902f7be30b834c47fb49c8bb0fcffbea133ec760fb4",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
-    "MEMORY.md": "740ebb142ee500336aa2169349f30b2ebf0fe3cee90bc281e2d8fa899877f361",
-    "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608",
-    "USER.md": "4fe9b27c7f991069bc76522f2af4bfba9c56fa9fee456e3e82c96e0423785d4f"
+    "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
   },
   "tool_policies": {
     "list_agents": "collaboration",
@@ -14,10 +12,15 @@
     "message_react": "collaboration",
     "memory_read": "memory",
     "memory_write": "memory",
+    "method_history": "memory",
+    "method_restore": "memory",
     "owner_preferences_update": "memory",
     "session_search": "memory",
     "scratchpad_read": "memory",
     "scratchpad_write": "memory",
+    "skill_save": "memory",
+    "skill_history": "memory",
+    "skill_restore": "memory",
     "skill_package_create": "memory",
     "skill_package_import": "memory",
     "skill_package_validate": "memory",
