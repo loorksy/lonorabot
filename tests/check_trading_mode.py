@@ -156,7 +156,7 @@ async def checks() -> None:
         volume=Decimal("0.1"),
     )
 
-    def read(position_id: str) -> dict[str, Any]:
+    def captured(position_id: str) -> dict[str, Any]:
         return material_state(next(p for p in broker.scripted_positions if p.id == position_id))
 
     # Without the ticket the agent read, a close is not sent: nothing proves it is still
@@ -165,7 +165,9 @@ async def checks() -> None:
     assert blind.status == "failed" and blind.code == "broker_state_changed", blind
     assert broker.sent == 0
     partial = partial.model_copy(update={"operation_id": "mode-" + uuid4().hex})
-    result = await service.execute(owner_id, partial, lease, expected_target=read("mode-position"))
+    result = await service.execute(
+        owner_id, partial, lease, expected_target=captured("mode-position")
+    )
     assert result.status == "confirmed" and broker.sent == 1, result
 
     def close_owner_position() -> TradeRequest:
@@ -216,7 +218,7 @@ async def checks() -> None:
         assert managing is not None
         managing.manages_all_positions = True
     result = await service.execute(
-        owner_id, close_owner_position(), lease, expected_target=read("owner-position")
+        owner_id, close_owner_position(), lease, expected_target=captured("owner-position")
     )
     assert result.status == "confirmed" and broker.sent == 3, result
     broker.scripted_positions = broker.scripted_positions[:1]
