@@ -7,6 +7,7 @@ the secret store, and never written to the workspace disk.
 """
 
 import hashlib
+import hmac
 from datetime import UTC, datetime, timedelta
 
 from lonora_security.secrets import SecretCipher
@@ -18,13 +19,16 @@ from .schema import WorkspaceGivenRow
 KEPT = timedelta(days=30)
 
 
-def digest(owner_id: str, name: str, value: str) -> str:
-    return hashlib.sha256("\0".join((owner_id, name, value)).encode()).hexdigest()
+def digest(key: str, owner_id: str, name: str, value: str) -> str:
+    """Keyed, so a copy of the database without the key confirms no guessed value."""
+    message = "\0".join(("workspace_given", owner_id, name, value)).encode()
+    return hmac.new(key.encode(), message, hashlib.sha256).hexdigest()
 
 
 class GivenValues:
     def __init__(self, db: Database, key: str, owner_id: str):
         self.db, self.cipher, self.owner_id = db, SecretCipher(key), owner_id
+        self.key = key
 
     async def record(self, values: dict[str, str]) -> None:
         if not values:
@@ -32,7 +36,7 @@ class GivenValues:
         now = datetime.now(UTC)
         async with self.db.sessions() as session, session.begin():
             for name, value in values.items():
-                key = digest(self.owner_id, name, value)
+                key = digest(self.key, self.owner_id, name, value)
                 row = await session.scalar(
                     select(WorkspaceGivenRow).where(
                         WorkspaceGivenRow.owner_id == self.owner_id,

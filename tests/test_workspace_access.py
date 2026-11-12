@@ -485,6 +485,11 @@ async def test_given_values_are_kept_encrypted_and_pruned(task_db: Any) -> None:
     async with db.sessions() as session:
         rows = (await session.scalars(select(WorkspaceGivenRow))).all()
     assert len(rows) == 2 and all(VALUE not in row.ciphertext for row in rows)
+    # The digest is keyed: without the key, a guessed value cannot be confirmed.
+    import hashlib
+
+    plain = hashlib.sha256("\0".join((owner, "API_KEY", VALUE)).encode()).hexdigest()
+    assert plain not in {row.digest for row in rows}
     # Another process, after a restart, reads them back.
     assert sorted(await GivenValues(db, key, owner).values()) == [
         ("API_KEY", VALUE),
