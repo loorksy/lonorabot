@@ -623,7 +623,7 @@ async def check_watch(
                     row.version += 1
                     return triggered
                 if task_run is not None:
-                    # A tainted watch resumes its Task tainted (GENUI_PLAN §8.5); a new
+                    # A tainted watch resumes its Task tainted (docs/genui.md); a new
                     # watch Run reads the watch's taint itself in ``create_run``.
                     from lonora_db.genui_taint import mark_row, row_taint
 
