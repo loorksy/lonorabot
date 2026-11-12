@@ -10,14 +10,8 @@ import { domainApi } from "./api";
 import { isTrader, useAgentParam, useItemParam, useLoad } from "./hooks";
 import { Area, Check, Empty, Field, FormPage, Grouped, Row, SelectField, text } from "./ui";
 
-const goalState = (status: string) =>
-  status === "completed"
-    ? t({ message: "Completed", context: "goal" })
-    : status === "cancelled"
-      ? t({ message: "Cancelled", context: "goal" })
-      : status === "paused"
-        ? t({ message: "Paused", context: "goal" })
-        : t({ message: "Active", context: "goal" });
+const goalState = (done: boolean) =>
+  done ? t({ message: "Completed", context: "goal" }) : t({ message: "Active", context: "goal" });
 
 const Missing = ({ error }: { error: unknown }) =>
   error != null ? (
@@ -62,7 +56,7 @@ export function GoalsPage() {
             icon={goal.payload.done ? "check" : "target"}
             title={<bdi>{goal.payload.title}</bdi>}
             sub={goal.payload.description ? <bdi>{goal.payload.description}</bdi> : undefined}
-            value={goal.payload.done ? goalState("completed") : goalState("active")}
+            value={goalState(Boolean(goal.payload.done))}
             onClick={() => nav.go(`/app/new-goal?agent=${agent.id}&item=${goal.id}`)}
           />
         ))}
