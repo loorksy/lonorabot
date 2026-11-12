@@ -458,3 +458,112 @@ async def test_an_agent_refining_an_owner_skill_keeps_his_settings():
         assert stored["payload"]["manifest"]["priority"] == 80
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot():
+    database()
+    from dataclasses import replace
+
+    from check_streaming import Fixture
+    from lonora_agent.skills.access import RunSkillAccess
+    from lonora_db.personal_agent import ensure_personal_agent
+
+    fixture = await Fixture().open()
+    registry = load_tools()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        gold = await fixture.agent("Gold team " + uuid4().hex[:6])
+        peer = await fixture.agent("Peer team " + uuid4().hex[:6])
+        own = await turn(fixture, gold)
+        memory = await call(registry, own, "memory_read")
+        first = await call(
+            registry,
+            own,
+            "memory_write",
+            version=memory["version"],
+            operations=[method_add("- Trade the London open only")],
+        )
+        await call(
+            registry,
+            own,
+            "memory_write",
+            version=first["version"],
+            operations=[method_add("- Also trade New York")],
+        )
+        skill = await call(
+            registry,
+            own,
+            "skill_save",
+            skill_id="gold-open",
+            title="Gold open",
+            description="Trade the gold open.",
+            content="Version A",
+            expected_version=0,
+        )
+        second = await call(
+            registry,
+            own,
+            "skill_save",
+            skill_id="gold-open",
+            title="Gold open",
+            description="Trade the gold open.",
+            content="Version B",
+            expected_version=skill["resource_version"],
+        )
+
+        thread = await fixture.conversation(lonora)
+        lead = replace(
+            await fixture.lease(await fixture.run(lonora, thread)),
+            skill_access=RunSkillAccess(registry, ()),
+        )
+        history = await call(registry, lead, "method_history", agent_id=gold["id"])
+        assert history["total"] == 2
+        restored = await call(
+            registry,
+            lead,
+            "method_restore",
+            agent_id=gold["id"],
+            version=first["version"],
+            memory_version=history["memory_version"],
+        )
+        assert restored["changed"] is True
+        text = (await call(registry, own, "method_history", version=first["version"]))["version"][
+            "text"
+        ]
+        current = profile_documents((await call(registry, own, "memory_read"))["content"])
+        assert current["OPERATING.md"] == text == "- Trade the London open only"
+        revisions = await fixture.request("GET", f"/agents/{gold['id']}/memory/revisions")
+        assert revisions[0]["author_agent_id"] == lonora["id"]
+        skills = await call(
+            registry, lead, "skill_history", skill_id="gold-open", agent_id=gold["id"]
+        )
+        assert len(skills["versions"]) == 2
+        back = await call(
+            registry,
+            lead,
+            "skill_restore",
+            skill_id="gold-open",
+            agent_id=gold["id"],
+            version=skill["resource_version"],
+            expected_version=second["resource_version"],
+        )
+        assert back["status"] == "restored"
+        viewed = await call(registry, await turn(fixture, gold), "skill_view", skill_id="gold-open")
+        assert "Version A" in str(viewed)
+
+        # A team agent reads and restores only its own method and skills (3.2.2).
+        other = await turn(fixture, peer)
+        for name, arguments in (
+            ("method_history", {}),
+            ("method_restore", {"version": first["version"], "memory_version": 1}),
+            ("skill_history", {"skill_id": "gold-open"}),
+            ("skill_restore", {"skill_id": "gold-open", "version": 1, "expected_version": 1}),
+        ):
+            with pytest.raises(LonoraError) as caught:
+                await call(registry, other, name, agent_id=gold["id"], **arguments)
+            assert caught.value.code == "method_lead_only", name
+    finally:
+        await fixture.close()

@@ -7,14 +7,17 @@ texts; the text of a version the owner revoked cannot be saved or restored.
 Packages from the workspace or GitHub keep their own lifecycle (skill_package_control).
 """
 
+from dataclasses import replace
 from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.skills import AgentSkill
 from lonora_core.user_error import LonoraError
+from lonora_db.lead import is_lead
 from lonora_db.schema import EffectReceiptRow, SkillRow, SkillVersionRow
 from lonora_db.skill_controls import read_skill_controls
 from lonora_db.skills import SkillRepository, record_version, skill_versions, version_payload
+from lonora_db.transactions import owned_agent
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -153,8 +156,23 @@ async def save_skill(
         return result
 
 
-async def skill_history(context: ToolContext, skill_id: str) -> dict[str, Any]:
+async def as_target(
+    session: AsyncSession, context: ToolContext, agent_id: str | None
+) -> ToolContext:
+    """The caller's own Skills, or, for Lonora only, a team agent's (3.1.2, 5.5.5)."""
+    if agent_id is None or agent_id == context.agent_id:
+        return context
+    if not await is_lead(session, context.owner_id, context.agent_id):
+        raise LonoraError("method_lead_only", 403)
+    await owned_agent(session, context.owner_id, agent_id)
+    return replace(context, agent_id=agent_id)
+
+
+async def skill_history(
+    context: ToolContext, skill_id: str, agent_id: str | None = None
+) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
+        context = await as_target(session, context, agent_id)
         row = await owned_skill(session, context, skill_id)
         if row is None:
             raise LonoraError("skill_not_found", 404)
@@ -170,6 +188,8 @@ async def restore_skill(
         await scoped_run(session, context, mutate=True)
         if receipt := await session.get(EffectReceiptRow, context.effect_key):
             return receipt.result
+        # From here on, the Skill's own agent: its catalog, revocations and graph.
+        context = await as_target(session, context, arguments.get("agent_id"))
         row = await owned_skill(session, context, skill_id)
         if row is None:
             raise LonoraError("skill_not_found", 404)

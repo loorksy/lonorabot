@@ -223,10 +223,12 @@ class RunSkillAccess:
 
         return await save_skill(context, self.registry, arguments)
 
-    async def skill_history(self, context: ToolContext, skill_id: str) -> dict[str, Any]:
+    async def skill_history(
+        self, context: ToolContext, skill_id: str, agent_id: str | None = None
+    ) -> dict[str, Any]:
         from .instructions import skill_history
 
-        return await skill_history(context, skill_id)
+        return await skill_history(context, skill_id, agent_id)
 
     async def restore_skill(
         self, context: ToolContext, arguments: dict[str, Any]

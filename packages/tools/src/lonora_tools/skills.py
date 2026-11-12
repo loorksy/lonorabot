@@ -83,12 +83,14 @@ class SkillSaveInput(Contract):
 
 class SkillHistoryInput(Contract):
     skill_id: SkillId
+    agent_id: str | None = Field(default=None, max_length=36)
 
 
 class SkillRestoreInput(Contract):
     skill_id: SkillId
     version: int = Field(ge=1)
     expected_version: int = Field(ge=1)
+    agent_id: str | None = Field(default=None, max_length=36)
 
 
 async def save(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -100,7 +102,9 @@ async def save(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any
 async def history(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     if context.skill_access is None:
         raise LonoraError("skill_runtime_unavailable", 409)
-    return await context.skill_access.skill_history(context, arguments["skill_id"])
+    return await context.skill_access.skill_history(
+        context, arguments["skill_id"], arguments.get("agent_id")
+    )
 
 
 async def restore(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -168,7 +172,8 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_history",
-            "List the saved versions of one of your Skills, newest first.",
+            "List the saved versions of one of your Skills, newest first. Lonora may pass a "
+            "team agent's agent_id.",
             SkillHistoryInput,
             history,
             read_only=True,
@@ -178,7 +183,8 @@ def tools() -> list[Tool]:
             "skill_restore",
             "Restore one of your instruction Skills to a version from skill_history; it saves "
             "that version's instructions as the next version. expected_version is its current "
-            "resource_version.",
+            "resource_version. Lonora may pass a team agent's agent_id, then tells the owner "
+            "in one line why.",
             SkillRestoreInput,
             restore,
             replay_safe=True,

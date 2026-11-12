@@ -116,6 +116,7 @@ async def restore_method(
     lease: Lease,
     effect_key: str,
     source_message_id: str | None = None,
+    author_agent_id: str | None = None,
 ) -> dict[str, Any]:
     """Save version ``version`` of the method as a new revision; MEMORY.md is untouched."""
     async with db.sessions() as session, session.begin():
@@ -149,4 +150,5 @@ async def restore_method(
             transform=transform,
             source_message_id=source_message_id,
             change="restore",
+            author_agent_id=author_agent_id,
         )
