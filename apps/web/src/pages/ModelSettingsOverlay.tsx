@@ -5,7 +5,6 @@ import { api, type Model, type Provider, type Routing } from "../lib/api";
 import { discoverModels, providers, readModels } from "../lib/model_catalog";
 import { readRouting } from "../lib/model_routing";
 import { userError } from "../lib/user_error";
-import { AllowedModelsSettings } from "./AllowedModelsSettings";
 import { ModelRoutingSettings } from "./ModelRoutingSettings";
 export function ModelSettingsOverlay() {
   const [configured, setConfigured] = useState<{ id: Provider; configured: boolean }[]>([]);
@@ -105,7 +104,6 @@ export function ModelSettingsOverlay() {
           onSaved={() => void load().catch(setError)}
         />
       )}
-      {policy && <AllowedModelsSettings key={JSON.stringify(policy)} models={models} />}
       <details className="card">
         <summary>
           <Trans>Discovered models</Trans> ({models.length})

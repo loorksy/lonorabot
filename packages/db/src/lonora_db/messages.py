@@ -23,6 +23,7 @@ from .schema import (
     SteeringRow,
     ThreadRow,
 )
+from .threads import conversation_thread
 from .transactions import owned_agent, owned_thread
 
 # A voice note waiting for its transcript; the receipt is removed once it settles.
@@ -75,7 +76,7 @@ def message_data(row: MessageRow) -> dict[str, Any]:
 
 
 def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
-    """What a client may see of a card submission (GENUI_PLAN §8.2 step 4)."""
+    """What a client may see of a card submission (docs/genui.md §7)."""
     if not submit:
         return None
     keys = ("source_message_id", "part", "intent", "lock", "card_title", "run_id")
@@ -88,7 +89,7 @@ def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
 
 async def follow_up_tap(session: AsyncSession, thread_id: str, content: str) -> bool:
     """A plain message equal to a v1 follow-up action text of a card among the thread's
-    last 20 assistant messages was a tap, not the owner's typed words (§8.4)."""
+    last 20 assistant messages was a tap, not the owner's typed words (docs/genui.md §7)."""
     rows = await session.scalars(
         select(MessageRow.rich_content)
         .where(MessageRow.thread_id == thread_id, MessageRow.role == "assistant")
@@ -271,7 +272,7 @@ async def send_message(
             "deduplicated": True,
         }
     if request.ui_submit is not None:
-        # A card's send: its own queued Run, never folded into an active one (§8.2).
+        # A card's send: its own queued Run, never folded into an active one (docs/genui.md §7).
         from .genui_submit import submit_card, submit_receipt
 
         # ``create_run`` emitted ``run.queued``.
@@ -697,3 +698,31 @@ async def supersede(
         )
     )
     return original
+
+
+async def post_agent_message(
+    session: AsyncSession, owner_id: str, agent_id: str, content: str
+) -> MessageRow:
+    """Post ``content`` in the agent's own conversation as that agent's message
+    (``lonora notify``, 7.3.8). It raises no attention item and sends no push (11.4)."""
+    thread = await conversation_thread(session, owner_id, agent_id)
+    thread = await owned_thread(session, owner_id, thread.id, lock=True)
+    message = MessageRow(
+        thread_id=thread.id,
+        agent_id=agent_id,
+        seq=thread.next_seq,
+        role="assistant",
+        content=content,
+    )
+    thread.next_seq += 1
+    session.add(message)
+    await session.flush()
+    emit(
+        session,
+        owner_id,
+        "message.created",
+        thread_id=thread.id,
+        agent_id=agent_id,
+        payload=message_data(message),
+    )
+    return message

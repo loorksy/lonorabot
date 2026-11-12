@@ -8,7 +8,7 @@ from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
 from lonora_db.trading_mode import trading_mode
-from lonora_db.trading_readiness import account_money_limits, global_trading
+from lonora_db.trading_readiness import account_money_limits
 from lonora_db.trading_restrictions import list_restrictions, relevant_to, restriction_data
 from lonora_tools.base import run_scope
 from lonora_trading.account_authority import provisional_voice
@@ -66,7 +66,6 @@ def permission_guidance(
     provisional_approval_required: bool = False,
     restrictions: list[dict[str, Any]] | None = None,
     risk_limits: list[dict[str, Any]] | None = None,
-    trading: dict[str, Any] | None = None,
     mode: str = "ask",
 ) -> str:
     """Project only verified state; a pending envelope/draft is never authority."""
@@ -125,10 +124,6 @@ def permission_guidance(
         "owner_restrictions": restrictions or [],
         # Owner monetary limits per account; not_configured limits are not enforced.
         "monetary_risk_limits": risk_limits or [],
-        # Stop new trading / Resume, for every agent and the owner's manual orders.
-        "global_trading": {
-            key: (trading or {}).get(key) for key in ("state", "since", "changed_by")
-        },
     }
     encoded = (
         json.dumps(snapshot, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -155,8 +150,7 @@ def permission_guidance(
             "decide whether and when to trade, size and manage positions; each request "
             "executes without a card and you report the result afterwards. You may switch "
             "yourself to Ask (trading_mode_ask) when you want the owner to approve each "
-            "request that adds risk. Owner restrictions, monetary limits and global_trading "
-            "still bind you."
+            "request that adds risk. Owner restrictions and monetary limits still bind you."
         ),
         "autonomous": (
             "Independently inspect fresh account/market facts, decide whether/when to trade, "
@@ -169,7 +163,7 @@ def permission_guidance(
             "numerical limits do not turn full management into supervised mode. A "
             "full_delegation scope covers every pair on its account, every action and the "
             "owner's own positions until the owner stops it; the account's monetary limits, "
-            "owner restrictions and global_trading still bind it."
+            "and owner restrictions still bind it."
         ),
     }[level]
     ownership = (
@@ -195,20 +189,14 @@ def permission_guidance(
         + " Owner restrictions below are enforced at execution, queued work included; work "
         "within them, never lift or evade one, and record an owner's new narrowing with "
         "trade_restriction_create. An unset monetary limit is not enforced. Only the owner "
-        "signs a grant, lifts a restriction, resumes trading, attests an uncertain outcome "
+        "signs a grant, lifts a restriction, attests an uncertain outcome "
         "or changes a limit; when the owner asks for one, propose the matching owner action "
         "card (owner_action_propose), a grant only when no active scope covers it, with "
         "delegation full only when the owner asked for full delegation; the owner chooses "
         "Custom or Full on the card and signs it."
-        + " A pending review, customization draft, chat agreement, task delegation or "
-        "running global_trading grants no authority. global_trading, binding, preflight, "
-        "manual intervention and reconciliation remain authoritative. While global_trading "
-        "is stopped, new risk is blocked for every agent and exits stay allowed. When the "
-        "owner stopped it (changed_by owner) it is the owner's brake: attempt no entry, say "
-        "so in one line, and propose a Resume card only when the owner asks to resume. When "
-        "it was never started (changed_by default), an entry the owner asks for returns "
-        "trading_not_started with a one-tap Start trading card already shown: say so in one "
-        "line and ask again after the owner taps it. "
+        + " A pending review, customization draft, chat agreement or task delegation "
+        "grants no authority. Binding, preflight, manual intervention and reconciliation "
+        "remain authoritative. "
         "A profit target is an objective, never a guarantee or reason to force a trade. "
         "The LLM chooses the useful next action; no fixed keyword or workflow decides it. "
         "Claim execution only after broker confirmation and independent state verification. "
@@ -237,7 +225,6 @@ async def permission_context(
         provisional_approval_required=provisional,
         restrictions=restrictions,
         risk_limits=risk_limits,
-        trading=await global_trading(session),
     )
 
 

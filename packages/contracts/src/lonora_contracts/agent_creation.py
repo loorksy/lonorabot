@@ -59,7 +59,8 @@ class AgentCreateInput(Contract):
         description="Only when the owner chose among several accounts.",
     )
     model: ModelSelection | None = Field(
-        default=None, description="Optional: one of the owner's configured models."
+        default=None,
+        description="Optional: the model the owner named; omit for Lonora's current one.",
     )
     report_to: list[str] = Field(
         default_factory=list[str],

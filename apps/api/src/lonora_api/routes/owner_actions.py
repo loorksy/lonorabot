@@ -3,10 +3,9 @@
 Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
 expired with its reason), is idempotent per card, and then runs the existing owner
-function for its effect: Stop/Resume (``apply_controls``), lifting a restriction
+function for its effect: lifting a restriction
 (``revoke_restriction``), the owner attestation of an uncertain operation
 (``attest_operation``), the account's execution policy (``store_execution_policy``),
-an agent's model choice (``apply_agent_model``, W15-10: using a model, or Undo),
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
@@ -25,7 +24,7 @@ A grant card signs through the existing account-authority ceremony: its challeng
 the full-management proposal from the card's stored draft (``propose``) and returns the
 WebAuthn options bound to that envelope (``begin_activation``); its confirmation verifies
 the assertion (``finish_activation``). The card's other choices only narrow (the daily
-loss limit, stopping another agent's grant) or widen nothing (Resume). Its one choice,
+loss limit, stopping another agent's grant). Its one choice,
 Custom or Full delegation, is a ``choose`` decision: it rewrites the stored draft the
 next challenge signs and withdraws a proposal an earlier challenge prepared; it settles
 nothing and grants nothing, and Full needs the same passkey confirmation as Custom. The
@@ -46,12 +45,11 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.mcp import McpConnection
 from lonora_contracts.owner_actions import (
     CARD_ATTESTATION,
-    MODEL_CARD_KINDS,
     GrantDraft,
     OwnerActionChallenge,
     OwnerActionDecision,
 )
-from lonora_contracts.trading import OperationResolution, TradingControl
+from lonora_contracts.trading import OperationResolution
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
 from lonora_db.agent_creation import (
@@ -63,7 +61,6 @@ from lonora_db.agent_creation import (
 from lonora_db.authority_lock import authority_lock
 from lonora_db.capability_cards import connected_result, review_writes
 from lonora_db.integrations import subscribe_feed
-from lonora_db.model_cards import confirm_model_card, supersede_agent_model_cards
 from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
     account_policy,
@@ -73,7 +70,6 @@ from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
     daily_loss_change,
-    global_trading,
     grant_conflicts,
     grant_facts,
     grant_proposal,
@@ -108,7 +104,6 @@ from lonora_db.transactions import owned_thread
 from lonora_db.trusted_sources import trust_source
 from lonora_session.idempotency import stable_id
 from lonora_tools.mcp import advertised_tools, review_payload
-from lonora_trading.controls import apply_controls
 from lonora_trading.owner_controls import (
     attest_operation,
     require_account_currency,
@@ -360,17 +355,12 @@ async def decide(
     if reason is not None:
         await settle(session, row, "expired", reason)
         return
+    if row.kind == "secret":
+        # Its values come only through the card's own submit (``secret_cards``).
+        raise LonoraError("owner_action_secret_values_required", 422)
     via = "tap"
     result: dict[str, Any] = {}
-    if row.kind == "resume_trading":
-        first = (await global_trading(session))["changed_by"] == "default"
-        controls = await apply_controls(session, TradingControl.model_validate(row.payload))
-        result = {
-            "global_trading": "running" if controls.enabled else "stopped",
-            # Trading had never been started: the card said Start, its line says so too.
-            "started": first,
-        }
-    elif row.kind == "lift_restriction":
+    if row.kind == "lift_restriction":
         await revoke_restriction(
             session, owner.id, row.payload["restriction_id"], "Lifted by the owner from a card"
         )
@@ -400,8 +390,6 @@ async def decide(
             # «أوقف الصفقات الجديدة اليوم» (Q11): the owner's own pause on the account
             # until the trading day ends there. It only narrows; one tap lifts it.
             result["restriction_id"] = await pause_new_today(session, owner, row)
-    elif row.kind in MODEL_CARD_KINDS:
-        result = await confirm_model_card(session, row)
     elif row.kind == "grant_authority":
         if body.proof is None:
             raise LonoraError("owner_action_passkey_required", 403)
@@ -496,11 +484,6 @@ async def decide(
         keep=row.id,
         effect=row.payload_hash,
     )
-    if row.kind in MODEL_CARD_KINDS:
-        # The owner chose this agent's model: other requests and Undo about it end.
-        await supersede_agent_model_cards(
-            session, owner.id, row.payload["agent_id"], "owner_changed_model", keep=row.id
-        )
     await confirm_in_thread(session, row)
     if created_agent is not None:
         # The agent that proposed it hands it its first task, after the line above.
@@ -607,10 +590,6 @@ async def confirm_grant(
         await revoke(session, owner.id, other)
         stopped.append(other)
     names = await agent_names(session, owner.id, {conflicts[item].agent_id for item in stopped})
-    resumed = False
-    if body.resume_trading and (await global_trading(session))["state"] == "stopped":
-        await apply_controls(session, TradingControl(enabled=True, emergency_stop=False))
-        resumed = True
     daily = kept = None
     # Full delegation has no daily loss line to opt out of: the account's own limits stay
     # as they are either way, and the confirmation says so once.
@@ -647,7 +626,6 @@ async def confirm_grant(
         **signed["grant"],
         "allow_manual_positions": bool(row.result.get("allow_manual_positions")),
     }
-    signed["global_trading"] = await global_trading(session)
     # Decided now: the stopped agents are named in the result, the rest stay as they were.
     signed["conflicts"] = []
     return {
@@ -655,7 +633,6 @@ async def confirm_grant(
         "authority_id": authority.id,
         "delegation": draft.delegation,
         "allow_manual_positions": row.result.get("allow_manual_positions"),
-        "resumed": resumed,
         "stopped_authorities": stopped,
         "stopped_agents": sorted(names.values()),
         "daily_loss": daily,

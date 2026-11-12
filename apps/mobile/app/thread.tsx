@@ -5,7 +5,9 @@ import type {
   Group,
   InputAnswer,
   Message,
+  MessageReaction,
   OwnerAction,
+  ReactionEmoji,
   Run,
   Thread,
   TradeApproval,
@@ -21,6 +23,7 @@ import {
   mergeOwnerAction,
   needsTimeSeparator,
   projectRunEvents,
+  retryableFailure,
   runStatusText,
   seedStream,
   stopTargets,
@@ -29,6 +32,7 @@ import {
   turnActivity,
 } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
+import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -47,11 +51,17 @@ import { AgentPermissions } from "../components/agent-permissions";
 import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
+import { CardHost, type CardHostValue } from "../components/genui/host";
 import { GroupAvatar } from "../components/group-avatar";
 import { MessageBubble } from "../components/message-bubble";
+import { type MessageMenuActions, useMessageMenu } from "../components/message-menu";
 import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
+import { Icon } from "../components/shell/icon";
+import { GroupBox, Row } from "../components/shell/kit";
+import { useSheets } from "../components/shell/sheets";
+import { useToast } from "../components/shell/toast";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
@@ -59,7 +69,7 @@ import { TradeApprovalCard } from "../components/trade-approval";
 import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
 import { useAgentLiveState } from "../lib/agent-live-state";
-import { ApiError, api, upload } from "../lib/api";
+import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
 import {
   type ComposerDraft,
   composerDraft,
@@ -67,24 +77,41 @@ import {
   editComposerDraft,
 } from "../lib/composer-drafts";
 import {
+  composerUploads,
+  handBack,
+  handOver,
+  startUpload,
+  subscribeUploads,
+  uploadsVersion,
+} from "../lib/composer-uploads";
+import {
   type ConversationSnapshot,
   conversationCache,
   type InboxSnapshot,
 } from "../lib/conversation-cache";
 import { projectConversation } from "../lib/conversation-projection";
+import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
+import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
+  cancelOutgoingUploads,
+  dropOutgoing,
   enqueueOutgoing,
   failOutgoing,
   hydrateOutgoing,
   type OutgoingIntent,
+  OutgoingUploadFailed,
   outgoingKey,
   outgoingMessages,
+  outgoingUploads,
+  settleOutgoingUploads,
+  subscribeFlushed,
   subscribeOutgoing,
+  waitsForNetwork,
 } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
-import { useShellColors } from "../lib/theme";
+import { useShellColors, useTheme } from "../lib/theme";
 import { useVoiceSession } from "../lib/voice-session";
 
 function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
@@ -120,6 +147,42 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
+  // Edit and resend (Q21): the owner's message the next send replaces.
+  const [editing, setEditing] = useState<Message | null>(null);
+  // The owner's quick reactions as the server last answered them, until a snapshot carries them.
+  const [reactions, setReactions] = useState<ReadonlyMap<string, MessageReaction[]>>(new Map());
+  const reactionTurns = useRef(new Map<string, number>());
+  const dropReactionOverrides = useCallback((rows: readonly Message[]) => {
+    setReactions((old) => {
+      if (!rows.some((row) => old.has(row.id))) return old;
+      const next = new Map(old);
+      for (const row of rows) if (!reactionTurns.current.has(row.id)) next.delete(row.id);
+      return next;
+    });
+  }, []);
+  const toast = useToast();
+  const menuActions = useRef<() => MessageMenuActions>(() => {
+    throw new Error("message_menu_unset");
+  });
+  const menu = useMessageMenu(useCallback(() => menuActions.current(), []));
+  const sheets = useSheets();
+  const editingKey = useRef<string | null>(null);
+  const closeSheet = sheets.close;
+  // A new conversation: the open menu, the edit and the reactions belong to the last one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `id` is the conversation that changed
+  useEffect(() => {
+    closeSheet();
+    setEditing(null);
+    setReactions(new Map());
+    // Leaving the conversation ends an edit: its text does not stay behind as a new message.
+    return () => {
+      if (editingKey.current) {
+        editComposerDraft(editingKey.current, { text: "" });
+        markEditing(editingKey.current, false);
+      }
+      editingKey.current = null;
+    };
+  }, [id]);
   const [attachments, setAttachments] = useState<Artifact[]>([]);
   const [files, setFiles] = useState<Artifact[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -152,6 +215,21 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     subscribeOutgoing,
     useCallback(() => outgoingMessages(outboxKey), [outboxKey]),
   );
+  const { c: shellTheme } = useTheme();
+  const uploads = useSyncExternalStore(
+    subscribeUploads,
+    useCallback(() => composerUploads(outboxKey), [outboxKey]),
+  );
+  // Every upload's progress, a sent message's ring included.
+  const uploadTick = useSyncExternalStore(
+    subscribeUploads,
+    useCallback(() => uploadsVersion(outboxKey), [outboxKey]),
+  );
+  // A finished upload has joined the stored draft: the composer shows it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `uploadTick` is the change signal
+  useEffect(() => {
+    setAttachments(composerDraft(outboxKey).attachments);
+  }, [uploadTick, outboxKey]);
   const updateDraft = (patch: Partial<Omit<ComposerDraft, "revision">>) => {
     const next = editComposerDraft(outboxKey, patch);
     setDraft(next.text);
@@ -165,7 +243,30 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const snapshotRef = useRef<() => Promise<void>>(async () => undefined);
   useEffect(() => {
     void hydrateOutgoing(outboxKey);
+    // The draft this conversation had before the app restarted.
+    let live = true;
+    void restoreDraft(outboxKey).then((restored) => {
+      if (!live || !restored) return;
+      const saved = composerDraft(outboxKey);
+      setDraft(saved.text);
+      setAttachments(saved.attachments);
+      setReply(saved.reply);
+    });
+    return () => {
+      live = false;
+    };
   }, [outboxKey]);
+  // A message that waited for the network and went out by itself (Q6) joins this transcript,
+  // and the snapshot brings the run it started.
+  useEffect(
+    () =>
+      subscribeFlushed((key, message) => {
+        if (key !== outboxKey || !conversationCache.current(scope)) return;
+        setMessages((old) => mergeMessages(old, [message]));
+        void snapshotRef.current();
+      }),
+    [outboxKey, scope],
+  );
   const reportError = useRef(errorText);
   reportError.current = errorText;
   const say = useRef(t);
@@ -187,6 +288,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           )
             return;
           setMessages((old) => mergeMessages(old, nextMessages));
+          // The server's reactions are the truth again for every message it sent.
+          dropReactionOverrides(nextMessages);
           acknowledgeOutgoing(outboxKey, nextMessages);
           setStreams((old) => {
             const next = { ...old };
@@ -264,7 +367,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           setError(reportError.current(reason));
       }
     },
-    [id, scope, outboxKey],
+    [id, scope, outboxKey, dropReactionOverrides],
   );
 
   snapshotRef.current = snapshot;
@@ -419,6 +522,32 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               acknowledgeOutgoing(outboxKey, [message]);
             }
           }
+          // An edit marks its original «مُعدّلة» on every client without a refetch.
+          if (event.kind === "message.updated") {
+            const value = event.payload;
+            if (
+              typeof value.id === "string" &&
+              value.thread_id === id &&
+              typeof value.content === "string" &&
+              typeof value.seq === "number"
+            ) {
+              const message = value as unknown as Message;
+              setMessages((old) =>
+                old.some((row) => row.id === message.id) ? mergeMessages(old, [message]) : old,
+              );
+            }
+          }
+          if (event.kind === "message.reaction_updated") {
+            const value = event.payload;
+            if (
+              value.thread_id === id &&
+              typeof value.message_id === "string" &&
+              Array.isArray(value.reactions)
+            ) {
+              const rows = value.reactions as MessageReaction[];
+              setReactions((old) => new Map(old).set(value.message_id as string, rows));
+            }
+          }
           if (
             ![
               "run.delta",
@@ -471,10 +600,124 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     runs,
     streams,
   );
-  const deliver = async (intent: OutgoingIntent, targetKey: string, targetId: string) => {
-    if (!conversationCache.current(scope) || deliveries.current.has(intent.nonce)) return;
-    deliveries.current.add(intent.nonce);
+  // A card's submission is sent at once, never through the auto-flushed outbox (docs/genui.md §7): the
+  // server writes its bubble, and a retry after a failure is the owner's tap, not ours.
+  /* A fixed card, drawn the same in its own row and in a trusted slot (mandate 10.2.3):
+     one live record, one set of server actions. */
+  const ownerActionCard = (action: OwnerAction) => (
+    <OwnerActionCard
+      row={action}
+      onChange={(updated) => {
+        setOwnerActions((old) =>
+          old.map((row) => (row.id === updated.id ? mergeOwnerAction(row, updated) : row)),
+        );
+        // A decided card changes what the header pill says (a lifted pause,
+        // Resume, a signed grant): read it now, not at the next poll.
+        void liveState.refresh();
+      }}
+    />
+  );
+  const approvalCard = (approval: TradeApproval) => (
+    <TradeApprovalCard
+      row={approval}
+      onChange={(updated) => {
+        setApprovals((old) => old.map((row) => (row.id === updated.id ? updated : row)));
+        void liveState.refresh();
+      }}
+    />
+  );
+  const cardHost: CardHostValue = {
+    slot: ({ card, record }) => {
+      if (card === "trade_approval") {
+        const approval = approvals.find((row) => row.id === record && row.thread_id === id);
+        return approval ? approvalCard(approval) : null;
+      }
+      const action = ownerActions.find(
+        (row) => row.id === record && row.thread_id === id && row.kind === "resolve_operation",
+      );
+      return action ? ownerActionCard(action) : null;
+    },
+    threadId: id,
+    messages,
+    runs,
+    agents,
+    reread: async (message) => {
+      const rows = await api.get<Message[]>(
+        `/threads/${encodeURIComponent(id)}/messages?around=${message.seq}&limit=1`,
+      );
+      const fresh = rows.filter((row) => row.id === message.id);
+      if (!fresh.length || selected.current.id !== id || selected.current.scope !== scope) return;
+      setMessages((old) => mergeMessages(old, fresh));
+    },
+    submit: async (body) => {
+      const accepted = await api.post<{ message: Message; runs?: Run[] }>(
+        `/threads/${encodeURIComponent(id)}/messages`,
+        body,
+      );
+      const cached = conversationCache.get<ConversationSnapshot>(scope, `thread:${id}`);
+      if (cached)
+        conversationCache.set(scope, `thread:${id}`, {
+          ...cached,
+          messages: mergeMessages(cached.messages, [accepted.message]),
+        });
+      if (selected.current.id !== id || selected.current.scope !== scope) return;
+      setMessages((old) => mergeMessages(old, [accepted.message]));
+      if (accepted.runs?.length)
+        setRuns((old) => {
+          const projected = new Map(old.map((run) => [run.id, run]));
+          for (const run of accepted.runs ?? []) {
+            // A Run event that arrived before this response is newer: keep it.
+            const prior = projected.get(run.id);
+            if (!prior || Date.parse(run.updated_at) >= Date.parse(prior.updated_at))
+              projected.set(run.id, run);
+          }
+          return [...projected.values()];
+        });
+      void snapshotRef.current();
+    },
+  };
+  const deliver = async (sent: OutgoingIntent, targetKey: string, targetId: string) => {
+    if (!conversationCache.current(scope) || deliveries.current.has(sent.nonce)) return;
+    deliveries.current.add(sent.nonce);
+    let intent = sent;
     try {
+      // A message sent while its files were still uploading is posted once they are up;
+      // its uploads cancelled, it is gone and nothing is posted.
+      if (outgoingUploads(sent.nonce).length) {
+        let ready: OutgoingIntent | null;
+        try {
+          ready = await settleOutgoingUploads(targetKey, sent.nonce);
+        } catch (reason) {
+          // An upload failed: the message, never posted, goes back to the composer with the
+          // files that did arrive, so the owner's text is not lost.
+          if (reason instanceof OutgoingUploadFailed) {
+            const back = reason.intent.body;
+            const typed =
+              typeof back.content === "string" && back.content !== say.current("attach")
+                ? back.content
+                : "";
+            const quoted = canonical.current.find((row) => row.id === back.reply_to) ?? null;
+            const now = composerDraft(targetKey);
+            const restored = editComposerDraft(targetKey, {
+              text: now.text || typed,
+              attachments: [...now.attachments, ...reason.finished],
+              reply: now.reply ?? quoted,
+            });
+            if (selected.current.id === targetId && selected.current.scope === scope) {
+              setDraft(restored.text);
+              setAttachments(restored.attachments);
+              setReply(restored.reply);
+              setError(reportError.current(reason.cause));
+            }
+            return;
+          }
+          if (selected.current.id === targetId && !(reason instanceof SessionRequestCancelled))
+            setError(reportError.current(reason));
+          return;
+        }
+        if (!ready) return;
+        intent = ready;
+      }
       const accepted = await api.post<{ message: Message; run_ids: string[]; runs?: Run[] }>(
         `/threads/${encodeURIComponent(targetId)}/messages`,
         intent.body,
@@ -513,6 +756,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         acknowledgeOutgoing(targetKey, [confirmed]);
         return;
       }
+      // Q6: plain text the API never answered waits for the network and goes out by itself.
+      if (waitsForNetwork(reason, intent.body)) {
+        failOutgoing(targetKey, intent.nonce, "queued");
+        return;
+      }
       failOutgoing(targetKey, intent.nonce);
       if (selected.current.id === targetId && selected.current.scope === scope)
         setError(reportError.current(reason));
@@ -524,6 +772,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const retryOutgoing = async (nonce: string) => {
     const prior = outgoingMessages(outboxKey).find((row) => row.nonce === nonce);
     if (prior?.message.delivery !== "failed" || deliveries.current.has(nonce)) return;
+    // Files that never arrived cannot be sent again: only «حذف» is left.
+    if (prior.message.uploading?.length) return;
     try {
       await deliver(
         await enqueueOutgoing(
@@ -553,6 +803,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       .then((rows) => {
         if (!live) return;
         setMessages((old) => mergeMessages(old, rows));
+        dropReactionOverrides(rows);
         if (!rows.some((row) => row.seq === around)) setError(say.current("messageGone"));
       })
       .catch((reason) => {
@@ -561,13 +812,26 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     return () => {
       live = false;
     };
-  }, [around, id]);
+  }, [around, id, dropReactionOverrides]);
+  // Messages drawn as a question's card instead of their rich content (MessageBubble
+  // `body`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
+  const undrawn = useMemo(
+    () =>
+      new Set(
+        runs
+          .flatMap((run) => run.input_requests ?? [])
+          .filter((request) => request.choices.length)
+          .map((request) => request.message_id),
+      ),
+    [runs],
+  );
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
     const index = conversationTimeline(
       visibleMessages,
       approvals.filter((row) => row.thread_id === id),
       ownerActions.filter((row) => row.thread_id === id),
+      undrawn,
     )
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
@@ -577,7 +841,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
-  }, [around, loaded, visibleMessages, approvals, ownerActions, id]);
+  }, [around, loaded, visibleMessages, approvals, ownerActions, id, undrawn]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -589,13 +853,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       sendLocks.current.has(outboxKey) ||
       uploading ||
       !thread ||
-      (!followUp?.trim() && !draft.trim() && !attachments.length)
+      (!followUp?.trim() && !draft.trim() && !attachments.length && !uploads.length) ||
+      // An edit replaces the message with new text, never with files alone.
+      (!followUp && editing && !draft.trim())
     )
       return;
     const submittedDraft = composerDraft(outboxKey);
     const content = followUp?.trim() || draft.trim() || t("attach");
     const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
-    const reply_to = followUp ? null : (reply?.id ?? null);
+    // Files still uploading go with the message, which waits for them.
+    const handed = followUp ? [] : handOver(outboxKey);
+    const edit = followUp ? null : editing;
+    const reply_to = followUp || edit ? null : (reply?.id ?? null);
     const targetKey = outboxKey,
       targetId = id;
     const body = {
@@ -605,8 +874,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       mention_agent_ids: mentions?.agent_ids ?? [],
       mention_all: mentions?.all ?? false,
       collaboration_session_id: mentions?.collaboration_session_id,
+      ...(edit ? { edited_from: edit.id } : {}),
     };
-    const fingerprint = JSON.stringify([targetId, body]);
+    const fingerprint = JSON.stringify([targetId, body, handed.map((file) => file.id)]);
     sendLocks.current.add(targetKey);
     setError(null);
     let intent: OutgoingIntent;
@@ -617,6 +887,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         fingerprint,
         body,
         Math.max(0, ...messages.map((message) => message.seq)),
+        handed,
+        followUp ? [] : attachments,
       );
       const nextDraft = followUp
         ? composerDraft(targetKey)
@@ -624,6 +896,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       if (current()) {
         following.current = true;
         setAtEnd(true);
+        if (edit) {
+          editingKey.current = null;
+          markEditing(targetKey, false);
+          setEditing(null);
+        }
         if (!followUp) {
           setDraft(nextDraft.text);
           setAttachments(nextDraft.attachments);
@@ -631,6 +908,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         }
       }
     } catch (reason) {
+      // The picked files go back to the composer with the text.
+      handBack(targetKey, handed);
       if (current()) setError(errorText(reason));
       if (followUp) throw reason;
       return;
@@ -661,8 +940,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const questions = new Map(
     runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
   );
-  const attach = async () => {
-    if (!thread || uploading || attachments.length >= 10) return;
+  // «+»: Files or Photos from the system picker (no storage or camera permission), several
+  // at once; each file uploads on its own with a ring and a cancel, as on Web.
+  const pick = async (kind: "files" | "photos") => {
+    if (!thread || uploading) return;
+    const room = 10 - attachments.length - uploads.length;
+    if (room <= 0) return;
     const targetId = id,
       targetKey = outboxKey;
     setUploading(true);
@@ -670,16 +953,26 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
-        multiple: false,
+        multiple: true,
+        ...(kind === "photos" ? { type: "image/*" } : {}),
       });
-      if (!result.canceled) {
-        if (!conversationCache.current(scope)) return;
-        const file = await upload(result.assets[0], targetId);
-        if (!conversationCache.current(scope)) return;
-        const next = editComposerDraft(targetKey, {
-          attachments: [...composerDraft(targetKey).attachments, file],
+      if (result.canceled || !conversationCache.current(scope)) return;
+      if (result.assets.length > room) setError(t("attachLimit"));
+      for (const asset of result.assets.slice(0, room)) {
+        const upload = startUpload(
+          targetKey,
+          {
+            name: asset.name,
+            size: asset.size ?? 0,
+            media_type: asset.mimeType ?? "application/octet-stream",
+          },
+          uploadTransfer(asset, targetId),
+        );
+        upload.done.catch((reason) => {
+          // A cancelled upload is the owner's choice, not an error.
+          if (reason instanceof SessionRequestCancelled || upload.sent) return;
+          if (selected.current.id === targetId) setError(reportError.current(reason));
         });
-        if (current()) setAttachments(next.attachments);
       }
     } catch (reason) {
       if (current()) setError(errorText(reason));
@@ -687,8 +980,35 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       if (current()) setUploading(false);
     }
   };
+  const attach = () =>
+    sheets.open({
+      id: "attach",
+      title: t("addToConversation"),
+      body: (
+        <GroupBox>
+          <Row
+            lead={<Icon name="file" size={22} color={shellTheme.text} />}
+            title={t("pickFiles")}
+            onPress={() => {
+              sheets.close();
+              void pick("files");
+            }}
+          />
+          <Row
+            lead={<Icon name="image" size={22} color={shellTheme.text} />}
+            title={t("pickPhotos")}
+            sub={t("attachLimit")}
+            last
+            onPress={() => {
+              sheets.close();
+              void pick("photos");
+            }}
+          />
+        </GroupBox>
+      ),
+    });
   // Stop cancels every cancellable Run of the thread, a queued card submission included,
-  // as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a).
+  // as web does (docs/genui.md §7, rule L).
   const stopActive = async () => {
     if (!id) return;
     const active = stopTargets(runs, id);
@@ -704,7 +1024,94 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       setBusy(false);
     }
   };
-  const changeRun = async (run: Run, action: "cancel" | "resume") => {
+  const react = async (message: Message, emoji: ReactionEmoji | null) => {
+    const path = `/threads/${encodeURIComponent(id)}/messages/${encodeURIComponent(message.id)}/reactions`;
+    const before = reactions.get(message.id) ?? message.reactions;
+    const turn = (reactionTurns.current.get(message.id) ?? 0) + 1;
+    reactionTurns.current.set(message.id, turn);
+    const latest = () => reactionTurns.current.get(message.id) === turn;
+    setReactions((old) =>
+      new Map(old).set(message.id, withOwnerReaction(before, emoji, new Date().toISOString())),
+    );
+    try {
+      const result = emoji
+        ? await api.put<{ reactions: MessageReaction[] }>(
+            `${path}/${encodeURIComponent(emoji)}`,
+            {},
+          )
+        : await api.delete<{ reactions: MessageReaction[] }>(path);
+      if (latest()) setReactions((old) => new Map(old).set(message.id, result.reactions));
+    } catch (reason) {
+      if (!latest()) return;
+      setReactions((old) => {
+        const next = new Map(old);
+        if (before) next.set(message.id, before);
+        else next.delete(message.id);
+        return next;
+      });
+      toast(errorText(reason), { type: "error" });
+    } finally {
+      if (latest()) reactionTurns.current.delete(message.id);
+    }
+  };
+  menuActions.current = () => ({
+    onReply: (message) => {
+      if (editing) endEdit();
+      updateDraft({ reply: message });
+    },
+    onCopy: (message) =>
+      void Clipboard.setStringAsync(message.content).then(
+        (done) =>
+          done === false
+            ? toast(t("copyFailed"), { type: "error" })
+            : toast(t("copied"), { type: "success" }),
+        () => toast(t("copyFailed"), { type: "error" }),
+      ),
+    onEdit: (message) => {
+      editingKey.current = outboxKey;
+      markEditing(outboxKey, true);
+      setEditing(message);
+      updateDraft({ text: message.content, reply: null });
+    },
+    onTask: (message) => {
+      const owner = message.agent_id ?? thread?.agent_id ?? agents[0]?.id ?? "";
+      void api
+        .post(
+          `/tasks?agent_id=${encodeURIComponent(owner)}&thread_id=${encodeURIComponent(id)}`,
+          taskFromMessage(message),
+        )
+        .then(
+          () => {
+            toast(t("taskCreated"), { type: "success" });
+            liveState.refresh();
+          },
+          (reason) => toast(errorText(reason), { type: "error" }),
+        );
+    },
+    onReact: (message, emoji) => void react(message, emoji),
+    onRetry: (nonce) => void retryOutgoing(nonce),
+    onDrop: (nonce) => dropOutgoing(outboxKey, nonce),
+    reactorName: (reactor) => agents.find((row) => row.id === reactor)?.name ?? t("system"),
+  });
+  /** An edit ends without sending: its text leaves the composer with it. */
+  function endEdit() {
+    if (editingKey.current) markEditing(editingKey.current, false);
+    editingKey.current = null;
+    setEditing(null);
+    updateDraft({ text: "" });
+  }
+  // A tap on a quote: the list rests on the quoted message (loaded around it when needed).
+  const jumpTo = (message: Message) => {
+    jumped.current = null;
+    router.setParams({ around: String(message.seq) });
+  };
+  // Q22: Retry re-asks only an owner's reply, as the server and Web's error card do; the
+  // banner shows one run, so mobile offers it for the newest such failure only.
+  const retry = retryableFailure(
+    runs.filter((run) => run.thread_id === id),
+    Date.now(),
+  );
+  const changeRun = async (run: Run, action: "cancel" | "resume" | "retry") => {
     setBusy(true);
     setError(null);
     try {
@@ -866,6 +1273,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 onPress={() => void changeRun(run, "resume")}
               />
             ) : null}
+            {retry?.run.id === run.id ? (
+              <Button
+                label={t("retry")}
+                secondary
+                disabled={busy || !retry.ready}
+                onPress={() => void changeRun(run, "retry")}
+              />
+            ) : null}
           </View>
         ))}
       {thread?.agent_id && (
@@ -884,187 +1299,177 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           {!loaded || !thread ? (
             <Loading />
           ) : (
-            <FlatList
-              ref={list}
-              testID="conversation-transcript"
-              inverted
-              data={conversationTimeline(
-                visibleMessages,
-                approvals.filter((row) => row.thread_id === id),
-                ownerActions.filter((row) => row.thread_id === id),
-              ).reverse()}
-              keyExtractor={(item) => item.id}
-              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              scrollEventThrottle={16}
-              onScroll={(event) => {
-                const near = event.nativeEvent.contentOffset.y <= 80;
-                following.current = near;
-                setAtEnd(near);
-              }}
-              onContentSizeChange={() => {
-                if (following.current) list.current?.scrollToOffset({ offset: 0, animated: false });
-              }}
-              onScrollToIndexFailed={(info) => {
-                list.current?.scrollToOffset({
-                  offset: info.averageItemLength * info.index,
-                  animated: false,
-                });
-              }}
-              contentContainerStyle={{
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                flexGrow: 1,
-                gap: 12,
-              }}
-              ListFooterComponent={
-                messages.length >= 100 && hasOlder ? (
-                  <Button
-                    label={t("older")}
-                    secondary
-                    disabled={busy}
-                    onPress={() => void older()}
-                  />
-                ) : null
-              }
-              ListEmptyComponent={
-                <Text style={{ color: shell.secondary, textAlign: "center", padding: 24 }}>
-                  {t("waitingMessage")}
-                </Text>
-              }
-              renderItem={({ item }) => {
-                if (item.kind === "owner_action")
-                  return (
-                    <OwnerActionCard
-                      row={item.action}
-                      onChange={(updated) => {
-                        setOwnerActions((old) =>
-                          old.map((row) =>
-                            row.id === updated.id ? mergeOwnerAction(row, updated) : row,
-                          ),
-                        );
-                        // A decided card changes what the header pill says (a lifted pause,
-                        // Resume, a signed grant): read it now, not at the next poll.
-                        void liveState.refresh();
-                      }}
+            <CardHost value={cardHost}>
+              <FlatList
+                ref={list}
+                testID="conversation-transcript"
+                inverted
+                data={conversationTimeline(
+                  visibleMessages,
+                  approvals.filter((row) => row.thread_id === id),
+                  ownerActions.filter((row) => row.thread_id === id),
+                  undrawn,
+                ).reverse()}
+                keyExtractor={(item) => item.id}
+                maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                scrollEventThrottle={16}
+                onScroll={(event) => {
+                  const near = event.nativeEvent.contentOffset.y <= 80;
+                  following.current = near;
+                  setAtEnd(near);
+                }}
+                onContentSizeChange={() => {
+                  if (following.current)
+                    list.current?.scrollToOffset({ offset: 0, animated: false });
+                }}
+                onScrollToIndexFailed={(info) => {
+                  list.current?.scrollToOffset({
+                    offset: info.averageItemLength * info.index,
+                    animated: false,
+                  });
+                }}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  flexGrow: 1,
+                  gap: 12,
+                }}
+                ListFooterComponent={
+                  messages.length >= 100 && hasOlder ? (
+                    <Button
+                      label={t("older")}
+                      secondary
+                      disabled={busy}
+                      onPress={() => void older()}
                     />
-                  );
-                if (item.kind === "approval")
-                  return (
-                    <TradeApprovalCard
-                      row={item.approval}
-                      onChange={(updated) => {
-                        setApprovals((old) =>
-                          old.map((row) => (row.id === updated.id ? updated : row)),
-                        );
-                        void liveState.refresh();
-                      }}
-                    />
-                  );
-                const message = item.message;
-                const question = questions.get(message.id);
-                const previous =
-                  visibleMessages[visibleMessages.findIndex((row) => row.id === message.id) - 1];
-                const responseRun = message.id.startsWith("preview:")
-                  ? runs.find((run) => `preview:${run.id}` === message.id)
-                  : undefined;
-                return (
-                  <View testID={item.seq === around ? "around-message" : undefined}>
-                    {needsTimeSeparator(message.created_at, previous?.created_at) ? (
-                      <TimeSeparator createdAt={message.created_at} />
-                    ) : null}
-                    {responseRun ? (
-                      <TurnActivity
-                        run={{
-                          ...responseRun,
-                          stream: streamForRun(responseRun, streams[responseRun.id]),
-                        }}
-                        events={events}
-                        connection={connection}
-                        agent={agents.find((value) => value.id === responseRun.agent_id)}
-                      />
-                    ) : null}
-                    <MessageBubble
-                      mark={submitMark(message)}
-                      onChartLink={(value) => {
-                        try {
-                          const url = new URL(value, server);
-                          if (url.origin !== new URL(server).origin || url.pathname !== "/charts")
-                            return false;
-                          chartSheet.open({
-                            threadId: id,
-                            ...(agent ? { botId: agent.id } : {}),
-                            chartId: url.searchParams.get("chartId") ?? undefined,
-                          });
-                          return true;
-                        } catch {
-                          return false;
-                        }
-                      }}
-                      onVisualAction={async (action) => {
-                        if (action.kind === "follow_up") await send(undefined, action.text);
-                        else if (action.kind === "open_chart")
-                          chartSheet.open({
-                            threadId: id,
-                            ...(agent ? { botId: agent.id } : {}),
-                            chartId: action.resource_id,
-                          });
-                        else
-                          router.push({
-                            pathname: "/artifact",
-                            params: { artifactId: action.resource_id },
-                          });
-                      }}
-                      message={message}
-                      body={
-                        question?.choices.length ? (
-                          <ConversationQuestion request={question} onAnswer={answerQuestion} />
-                        ) : undefined
-                      }
-                      reply={messages.find((row) => row.id === message.reply_to)}
-                      onReply={
-                        message.id.startsWith("preview:")
-                          ? undefined
-                          : (value) => updateDraft({ reply: value })
-                      }
-                      onRetry={(nonce) => void retryOutgoing(nonce)}
-                      previousVisualMessageId={(() => {
-                        const settled = runs.find(
-                          (run) =>
-                            (streams[run.id]?.message_id ?? run.stream?.message_id) === message.id,
-                        );
-                        return settled ? `preview:${settled.id}` : undefined;
-                      })()}
-                      grouped={Boolean(
-                        responseRun ||
-                          (previous &&
-                            previous.role === message.role &&
-                            previous.agent_id === message.agent_id &&
-                            new Date(message.created_at).getTime() -
-                              new Date(previous.created_at).getTime() <
-                              180000),
-                      )}
-                      agent={agents.find((value) => value.id === message.agent_id)}
-                      files={files}
-                      onArtifact={(fileId) =>
-                        router.push({ pathname: "/artifact", params: { artifactId: fileId } })
-                      }
-                    />
-                  </View>
-                );
-              }}
-              ListHeaderComponent={
-                outgoing.some((row) => row.message.delivery === "sending") ? (
-                  <Text
-                    accessibilityLiveRegion="polite"
-                    style={{ color: shell.secondary, padding: 8 }}
-                  >
-                    {t("sending")}
+                  ) : null
+                }
+                ListEmptyComponent={
+                  <Text style={{ color: shell.secondary, textAlign: "center", padding: 24 }}>
+                    {t("waitingMessage")}
                   </Text>
-                ) : null
-              }
-            />
+                }
+                renderItem={({ item }) => {
+                  if (item.kind === "owner_action") return ownerActionCard(item.action);
+                  if (item.kind === "approval") return approvalCard(item.approval);
+                  const message = item.message;
+                  const question = questions.get(message.id);
+                  const previous =
+                    visibleMessages[visibleMessages.findIndex((row) => row.id === message.id) - 1];
+                  const responseRun = message.id.startsWith("preview:")
+                    ? runs.find((run) => `preview:${run.id}` === message.id)
+                    : undefined;
+                  return (
+                    <View testID={item.seq === around ? "around-message" : undefined}>
+                      {needsTimeSeparator(message.created_at, previous?.created_at) ? (
+                        <TimeSeparator createdAt={message.created_at} />
+                      ) : null}
+                      {responseRun ? (
+                        <TurnActivity
+                          run={{
+                            ...responseRun,
+                            stream: streamForRun(responseRun, streams[responseRun.id]),
+                          }}
+                          events={events}
+                          connection={connection}
+                          agent={agents.find((value) => value.id === responseRun.agent_id)}
+                        />
+                      ) : null}
+                      <MessageBubble
+                        mark={submitMark(message)}
+                        onChartLink={(value) => {
+                          try {
+                            const url = new URL(value, server);
+                            if (url.origin !== new URL(server).origin || url.pathname !== "/charts")
+                              return false;
+                            chartSheet.open({
+                              threadId: id,
+                              ...(agent ? { botId: agent.id } : {}),
+                              chartId: url.searchParams.get("chartId") ?? undefined,
+                            });
+                            return true;
+                          } catch {
+                            return false;
+                          }
+                        }}
+                        onVisualAction={async (action) => {
+                          if (action.kind === "follow_up") await send(undefined, action.text);
+                          else if (action.kind === "open_chart")
+                            chartSheet.open({
+                              threadId: id,
+                              ...(agent ? { botId: agent.id } : {}),
+                              chartId: action.resource_id,
+                            });
+                          else
+                            router.push({
+                              pathname: "/artifact",
+                              params: { artifactId: action.resource_id },
+                            });
+                        }}
+                        message={
+                          reactions.has(message.id)
+                            ? { ...message, reactions: reactions.get(message.id) }
+                            : message
+                        }
+                        onMenu={message.id.startsWith("preview:") ? undefined : menu.open}
+                        onReactions={menu.reactions}
+                        onQuote={jumpTo}
+                        onCancelUploads={(nonce) => cancelOutgoingUploads(outboxKey, nonce)}
+                        body={
+                          question?.choices.length ? (
+                            <ConversationQuestion request={question} onAnswer={answerQuestion} />
+                          ) : undefined
+                        }
+                        reply={messages.find((row) => row.id === message.reply_to)}
+                        onReply={
+                          message.id.startsWith("preview:")
+                            ? undefined
+                            : (value) => {
+                                if (editing) endEdit();
+                                updateDraft({ reply: value });
+                              }
+                        }
+                        onRetry={(nonce) => void retryOutgoing(nonce)}
+                        previousVisualMessageId={(() => {
+                          const settled = runs.find(
+                            (run) =>
+                              (streams[run.id]?.message_id ?? run.stream?.message_id) ===
+                              message.id,
+                          );
+                          return settled ? `preview:${settled.id}` : undefined;
+                        })()}
+                        grouped={Boolean(
+                          responseRun ||
+                            (previous &&
+                              previous.role === message.role &&
+                              previous.agent_id === message.agent_id &&
+                              new Date(message.created_at).getTime() -
+                                new Date(previous.created_at).getTime() <
+                                180000),
+                        )}
+                        agent={agents.find((value) => value.id === message.agent_id)}
+                        files={files}
+                        onArtifact={(fileId) =>
+                          router.push({ pathname: "/artifact", params: { artifactId: fileId } })
+                        }
+                      />
+                    </View>
+                  );
+                }}
+                ListHeaderComponent={
+                  outgoing.some((row) => row.message.delivery === "sending") ? (
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      style={{ color: shell.secondary, padding: 8 }}
+                    >
+                      {t("sending")}
+                    </Text>
+                  ) : null
+                }
+              />
+            </CardHost>
           )}
           {!atEnd && (
             <Pressable
@@ -1115,12 +1520,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           collaborationSessionId={collaborationSessionId}
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
+          editing={editing}
+          onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}
           onRemove={(fileId) =>
             updateDraft({ attachments: attachments.filter((file) => file.id !== fileId) })
           }
-          onAttach={() => void attach()}
+          onAttach={attach}
+          uploads={uploads}
+          onCancelUpload={(uploadId) => {
+            for (const file of uploads) if (file.id === uploadId) file.cancel();
+          }}
           onSend={(mentions) => void send(mentions)}
           busy={busy}
           uploading={uploading}

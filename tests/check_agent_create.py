@@ -24,7 +24,6 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_creation import (
-    MAXIMUM_ACTIVE_AGENTS,
     agent_origin,
     first_task_run_id,
     report_targets,
@@ -309,7 +308,7 @@ async def main() -> None:
         assert entries[gold_id]["reports_to"] == []
         print("PASS a research agent reports to the gold agent: one link, notes in both")
 
-        # 5. At most three creations per run.
+        # 5. At most three creations per minute within one run (3.3.2).
         assert (
             await refused(context, "agent_create", {"template": "general", "name": "Fourth"})
             == "agent_create_run_limit"
@@ -320,7 +319,18 @@ async def main() -> None:
             {"template": "research", "name": "News agent", "report_to": [gold_id]},
         )
         assert repeat["deduplicated"] is True and repeat["agent"]["id"] == news_id
-        print("PASS at most three creations per run; a repeat still returns its agent")
+        # A minute later the same run creates again: a rate, never a count of agents.
+        async with db.sessions() as session, session.begin():
+            for row in await session.scalars(
+                select(EventRow).where(
+                    EventRow.run_id == context.lease.run_id, EventRow.kind == "agent.created"
+                )
+            ):
+                row.created_at = utcnow() - timedelta(minutes=2)
+        fourth = await call(context, "agent_create", {"template": "general", "name": "Fourth"})
+        assert fourth["created"] is True, fourth
+        created_ids.append(fourth["agent"]["id"])
+        print("PASS at most three creations per minute in a run; a repeat still returns its agent")
 
         # 6. Without an owner message the creation is a card; the tap creates it once.
         async with db.sessions() as session, session.begin():
@@ -428,7 +438,8 @@ async def main() -> None:
         )
         print("PASS two matching accounts ask one question; an unknown symbol is refused")
 
-        # 9. The per-owner cap of active agents.
+        # 9. No limit on the number of agents (mandate 3.3.2): 25 active agents and
+        # more are created; only the per-run guard above ever refuses.
         async with db.sessions() as session, session.begin():
             count = await session.scalar(
                 select(func.count())
@@ -440,25 +451,24 @@ async def main() -> None:
                 )
             )
             filler: list[str] = []
-            for index in range(MAXIMUM_ACTIVE_AGENTS - int(count or 0)):
+            for index in range(max(25 - int(count or 0), 0)):
                 row = AgentRow(owner_id=owner, name=f"Filler {index}", role="legacy")
                 session.add(row)
                 await session.flush()
                 filler.append(row.id)
         created_ids.extend(filler)
-        capped = await owner_turn("Create a research agent")
-        assert (
-            await refused(capped, "agent_create", {"template": "research", "name": "One more"})
-            == "agent_limit_reached"
-        )
-        print("PASS the per-owner cap of active agents is enforced")
-        # The owner's own «وكيل جديد» form is not capped (POST /api/agents never was).
+        uncapped = await owner_turn("Create a research agent")
+        more = await call(uncapped, "agent_create", {"template": "research", "name": "One more"})
+        assert more["created"] is True, more
+        created_ids.append(more["agent"]["id"])
+        print("PASS 25 active agents exist and another is created: no cap on agents")
+        # The owner's own «وكيل جديد» form creates too.
         mine = await fixture.request(
             "POST", "/agents/create", {"template": "general", "name": "Owner's own"}
         )
         assert mine["template"] == "general" and mine["created"] is True
         created_ids.append(mine["id"])
-        print("PASS the owner's own form creates past the cap")
+        print("PASS the owner's own form creates beside 25 agents")
 
         # 10. Steering watches: only your own; cancel, resume, move the expiry.
         async with db.sessions() as session, session.begin():
