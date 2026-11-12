@@ -187,29 +187,15 @@ async def server_address(secrets: SecretStore, config: McpConnection) -> str:
     return config.url or ""
 
 
-async def connect_to(url: str, token: str | None) -> McpConnector:
-    result = McpConnector(HttpMcpTransport(url, token))
+async def open_connector(secrets: SecretStore, config: McpConnection) -> McpConnector:
+    token = await secrets.read(config.secret_id) if config.secret_id else None
+    result = McpConnector(HttpMcpTransport(await server_address(secrets, config), token))
     try:
         await result.initialize()
     except BaseException:
         await result.close()
         raise
     return result
-
-
-async def open_connector(secrets: SecretStore, config: McpConnection) -> McpConnector:
-    token = await secrets.read(config.secret_id) if config.secret_id else None
-    return await connect_to(await server_address(secrets, config), token)
-
-
-async def tools_at(url: str, token: str | None) -> list[dict[str, Any]]:
-    """The tools the server at this address offers now: a Secret card reads them with the
-    owner's typed address and token before it saves the server."""
-    adapter = await connect_to(url, token)
-    try:
-        return await adapter.tools()
-    finally:
-        await adapter.close()
 
 
 async def connector(context: ToolContext, config: McpConnection) -> McpConnector:
