@@ -44,6 +44,8 @@ export function ThreadComposer({
   collaborationSessionId,
   reply,
   onCancelReply,
+  editing,
+  onCancelEdit,
   permissionControl,
 }: {
   draft: string;
@@ -66,6 +68,9 @@ export function ThreadComposer({
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
+  /** Edit and resend (Q21): the owner's message this send replaces. */
+  editing?: Message | null;
+  onCancelEdit?: () => void;
   permissionControl?: ReactNode;
 }) {
   const { rtl, t } = useSession();
@@ -101,7 +106,11 @@ export function ThreadComposer({
         backgroundColor: shell.background,
       }}
     >
-      {reply ? <ComposerReplyPreview message={reply} onClose={onCancelReply} /> : null}
+      {editing ? (
+        <ComposerReplyPreview message={editing} onClose={onCancelEdit} editing />
+      ) : reply ? (
+        <ComposerReplyPreview message={reply} onClose={onCancelReply} />
+      ) : null}
       {candidates.length ? (
         <View style={{ backgroundColor: shell.muted, borderRadius: 14, overflow: "hidden" }}>
           {candidates.map((agent) => (

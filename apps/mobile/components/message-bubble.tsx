@@ -9,6 +9,7 @@ import { ArtifactFileCard } from "./artifact-file-card";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
 import { Markdown } from "./markdown";
+import { ReactionChips } from "./message-menu";
 import {
   NativeRichResponse,
   type NativeVisualAction,
@@ -28,9 +29,18 @@ export function MessageBubble({
   grouped = false,
   reply,
   onReply,
+  onMenu,
+  onReactions,
+  onQuote,
   mark = null,
 }: {
-  /** Rule N on a card's send that never ran (docs/genui.md), from core `submitMark`. */
+  /** Long press: the message menu (reactions and actions). */
+  onMenu?: (message: Message) => void;
+  /** A tap on the reactions under the bubble: who reacted. */
+  onReactions?: (message: Message) => void;
+  /** A tap on the quoted message: jump to it. */
+  onQuote?: (message: Message) => void;
+  /** Rule N on a card's send that never ran (docs/genui.md §7), from core `submitMark`. */
   mark?: "superseded" | "not_run" | null;
   message: Message;
   body?: ReactNode;
@@ -71,10 +81,14 @@ export function MessageBubble({
       : null;
   return (
     <Pressable
-      onLongPress={() => onReply?.(message)}
-      accessibilityActions={[{ name: "reply", label: t("reply") }]}
+      onLongPress={() => (onMenu ? onMenu(message) : onReply?.(message))}
+      accessibilityActions={[
+        ...(onReply ? [{ name: "reply", label: t("reply") }] : []),
+        ...(onMenu ? [{ name: "menu", label: t("messageOptions") }] : []),
+      ]}
       onAccessibilityAction={(event) => {
         if (event.nativeEvent.actionName === "reply") onReply?.(message);
+        if (event.nativeEvent.actionName === "menu") onMenu?.(message);
       }}
       style={{
         alignSelf: isOwner ? (rtl ? "flex-start" : "flex-end") : "stretch",
@@ -107,7 +121,19 @@ export function MessageBubble({
           </Text>
         </View>
       ) : null}
-      {reply ? <ComposerReplyPreview message={reply} /> : null}
+      {reply ? (
+        onQuote ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t("reply")}: ${reply.content}`}
+            onPress={() => onQuote(reply)}
+          >
+            <ComposerReplyPreview message={reply} />
+          </Pressable>
+        ) : (
+          <ComposerReplyPreview message={reply} />
+        )
+      ) : null}
       {tool ? (
         <View
           style={{
@@ -172,11 +198,25 @@ export function MessageBubble({
         <Text testID="ui-submit-mark" style={{ color: shell.secondary, fontSize: 12 }}>
           {t(mark === "superseded" ? "uiSubmitEdited" : "uiSubmitNotRun")}
         </Text>
+      ) : message.superseded_by ? (
+        // Edit and resend (Q21): the replaced message says so.
+        <Text testID="message-edited" style={{ color: shell.secondary, fontSize: 12 }}>
+          {t("uiSubmitEdited")}
+        </Text>
+      ) : null}
+      {onReactions ? (
+        <ReactionChips message={message} onPress={() => onReactions(message)} />
       ) : null}
       {isOutgoingMessage(message) ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           <Text style={{ color: shell.secondary, fontSize: 12 }}>
-            {t(message.delivery === "failed" ? "sendFailed" : "sending")}
+            {t(
+              message.delivery === "failed"
+                ? "sendFailed"
+                : message.delivery === "queued"
+                  ? "sh_waitingNetwork"
+                  : "sending",
+            )}
           </Text>
           {message.delivery === "failed" && onRetry ? (
             <Pressable

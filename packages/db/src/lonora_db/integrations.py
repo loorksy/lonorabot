@@ -42,6 +42,7 @@ class IntegrationRepository(ResourceRepository):
     row_type = IntegrationRow
     payload_model = Integration
     kind = "integrations"
+    secret_scope = "integration"
 
     async def validate_references(
         self, session: AsyncSession, owner_id: str, payload: dict[str, Any]
