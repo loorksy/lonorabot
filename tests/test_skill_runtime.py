@@ -319,6 +319,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         "decision_context",
         "operational_context",
         "routing_frame",
+        "account_picture",
     ):
         monkeypatch.setattr(builder, name, AsyncMock(return_value=""))
     monkeypatch.setattr(builder, "wake_context", empty_context)
