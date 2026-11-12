@@ -458,3 +458,55 @@ async def test_an_agent_refining_an_owner_skill_keeps_his_settings():
         assert stored["payload"]["manifest"]["priority"] == 80
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_deleted_skill_keeps_its_versions_and_comes_back():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    registry = load_tools()
+    try:
+        agent = await fixture.agent("Deleted skill " + uuid4().hex[:6])
+        context = await turn(fixture, agent)
+        skill = "range-fade"
+        arguments = {"skill_id": skill, "title": "Range fade", "description": "Fade the range."}
+        one = await call(
+            registry, context, "skill_save", **arguments, content="Text one", expected_version=0
+        )
+        two = await call(
+            registry,
+            context,
+            "skill_save",
+            **arguments,
+            content="Text two",
+            expected_version=one["resource_version"],
+        )
+        # The owner deletes the skill: its versions stay (5.5.5).
+        await fixture.request("DELETE", f"/skills/{two['resource_id']}")
+        history = await call(registry, context, "skill_history", skill_id=skill)
+        assert history["deleted"] is True and history["resource_version"] == 0
+        assert [item["version"] for item in history["versions"]] == [2, 1]
+        restored = await call(
+            registry,
+            context,
+            "skill_restore",
+            skill_id=skill,
+            version=one["resource_version"],
+            expected_version=0,
+        )
+        assert restored["status"] == "restored" and restored["resource_id"] == two["resource_id"]
+        assert restored["version"] == "1.0.2"
+        viewed = await call(registry, await turn(fixture, agent), "skill_view", skill_id=skill)
+        assert "Text one" in str(viewed) and "Text two" not in str(viewed)
+        history = await call(registry, context, "skill_history", skill_id=skill)
+        assert len(history["versions"]) == 3 and "deleted" not in history
+        # A skill of the same name saved after a delete never repeats an old number.
+        await fixture.request("DELETE", f"/skills/{two['resource_id']}")
+        again = await call(
+            registry, context, "skill_save", **arguments, content="Text three", expected_version=0
+        )
+        assert again["version"] == "1.0.3"
+    finally:
+        await fixture.close()

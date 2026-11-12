@@ -88,7 +88,7 @@ class SkillHistoryInput(Contract):
 class SkillRestoreInput(Contract):
     skill_id: SkillId
     version: int = Field(ge=1)
-    expected_version: int = Field(ge=1)
+    expected_version: int = Field(ge=0)
 
 
 async def save(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -178,7 +178,7 @@ def tools() -> list[Tool]:
             "skill_restore",
             "Restore one of your instruction Skills to a version from skill_history; it saves "
             "that version's instructions as the next version. expected_version is its current "
-            "resource_version.",
+            "resource_version, or 0 to bring back a deleted Skill.",
             SkillRestoreInput,
             restore,
             replay_safe=True,

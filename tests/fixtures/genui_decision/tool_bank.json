@@ -3640,9 +3640,6 @@
     "agent_id": "{lonora_id}",
     "thread_id": "{thread_id}",
     "payload": {
-     "goal_id": null,
-     "step_id": null,
-     "goal_plan_version": null,
      "kind": "price",
      "detector": null,
      "expires_at": null,
@@ -3688,9 +3685,6 @@
        "agent_id": "{lonora_id}",
        "thread_id": "{thread_id}",
        "payload": {
-        "goal_id": null,
-        "step_id": null,
-        "goal_plan_version": null,
         "kind": "price",
         "detector": null,
         "expires_at": null,
@@ -3732,9 +3726,6 @@
     "agent_id": "{lonora_id}",
     "thread_id": "{thread_id}",
     "payload": {
-     "goal_id": null,
-     "step_id": null,
-     "goal_plan_version": null,
      "kind": "price",
      "detector": null,
      "expires_at": null,
@@ -3776,9 +3767,6 @@
     "agent_id": "{lonora_id}",
     "thread_id": "{thread_id}",
     "payload": {
-     "goal_id": null,
-     "step_id": null,
-     "goal_plan_version": null,
      "kind": "price",
      "detector": null,
      "expires_at": null,
@@ -3817,9 +3805,6 @@
     "agent_id": "{lonora_id}",
     "thread_id": "{thread_id}",
     "payload": {
-     "goal_id": null,
-     "step_id": null,
-     "goal_plan_version": null,
      "kind": "price",
      "detector": null,
      "expires_at": null,

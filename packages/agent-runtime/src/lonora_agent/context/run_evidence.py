@@ -51,7 +51,7 @@ SKIPPED_TOOLS = frozenset(
         "message_react",
     }
 )
-EFFECT_TOOLS = frozenset({"trade_execute", "trade_close_positions", "goal_step_execute"})
+EFFECT_TOOLS = frozenset({"trade_execute", "trade_close_positions"})
 # Tools whose results carry text written by third parties, another model or stored
 # files. tests/test_context_engine.py makes every catalog tool take a side.
 EXTERNAL_TOOLS = frozenset(

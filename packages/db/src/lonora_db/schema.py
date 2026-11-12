@@ -121,7 +121,7 @@ class SuperBotRequestRow(Base):
 
 
 class AccountAuthorityRow(Base):
-    """Immutable signed account scope, independent of any predeclared Goal."""
+    """Immutable signed account scope."""
 
     __tablename__ = "ln_account_authorities"
     __table_args__ = (
@@ -518,17 +518,13 @@ class MemoryRevisionRow(Base):
         ForeignKey("ln_messages.id", ondelete="SET NULL")
     )
     source_run_id: Mapped[str | None] = mapped_column(String(36))
-    # operations | document | revert | merge | preferences
+    # operations | document | revert | restore | merge | preferences
     change: Mapped[str] = mapped_column(String(16))
     reverted_revision_id: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class RoutineRow(Base):
-    goal_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_trading_goals.id", ondelete="CASCADE")
-    )
-    step_id: Mapped[str | None] = mapped_column(String(64))
     __tablename__ = "ln_routines"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
@@ -703,14 +699,17 @@ class SkillRow(ResourceRow):
 
 
 class SkillVersionRow(Base):
-    """One saved version of a skill's validated payload (its «سجل الإصدارات»)."""
+    """One saved version of a skill's validated payload (its «سجل الإصدارات»).
+
+    Versions outlive the skill (5.5.5): deleting a skill keeps them, so it can be restored.
+    """
 
     __tablename__ = "ln_skill_versions"
-    skill_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_skills.id", ondelete="CASCADE"), primary_key=True
-    )
+    __table_args__ = (Index("ix_ln_skill_versions_agent", "owner_id", "agent_id", "skill_id"),)
+    skill_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -830,32 +829,6 @@ class MarketSnapshotRow(Base):
     timeframe: Mapped[str] = mapped_column(String(12))
     connection_version: Mapped[int] = mapped_column(Integer)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-
-class TradingGoalRow(ResourceRow):
-    __tablename__ = "ln_trading_goals"
-    # Durable record: deleting the agent or conversation never deletes a goal's history.
-    agent_id: Mapped[str | None] = mapped_column(String(36))
-    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
-
-
-class GoalDecisionRow(Base):
-    __tablename__ = "ln_goal_decisions"
-    __table_args__ = (UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),)
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    # Durable record: the goal id is kept as a value, never cascaded away.
-    goal_id: Mapped[str] = mapped_column(String(36), index=True)
-    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
-    step_id: Mapped[str] = mapped_column(String(64))
-    attempt: Mapped[int] = mapped_column(Integer, default=1)
-    run_id: Mapped[str | None] = mapped_column(ForeignKey("ln_runs.id", ondelete="SET NULL"))
-    operation_id: Mapped[str] = mapped_column(String(80), unique=True)
-    status: Mapped[str] = mapped_column(String(24), default="planned")
-    request: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

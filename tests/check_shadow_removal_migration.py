@@ -2,7 +2,7 @@
 
 On a disposable PostgreSQL already at head: step down below 0053, seed Shadow-era rows
 (a Shadow agent with an active and a pending grant, its management Task, an "On its
-own"-capable stored level, Shadow goals, virtual journal entries, a virtual position and
+own"-capable stored level, virtual journal entries, a virtual position and
 a Shadow approval card) next to an ordinary live agent, then upgrade and check that
 the Shadow agent ends with no active grant and the "No trading" level, Shadow work is
 settled, and nothing of the live agent changed. The downgrade is structural (columns back
@@ -139,28 +139,6 @@ async def seed(connection: AsyncConnection) -> dict[str, str]:
                 "now": now,
             },
         )
-    goals = {
-        "goal_shadow_active": ("shadow", {"status": "active", "execution_mode": "shadow"}),
-        "goal_shadow_paused": ("live", {"status": "paused", "execution_mode": "shadow"}),
-        "goal_shadow_done": ("live", {"status": "completed", "execution_mode": "shadow"}),
-        "goal_live_active": ("live", {"status": "active", "execution_mode": "live"}),
-        "goal_legacy_live": ("shadow", {"status": "paused", "code": "execution_mode_changed"}),
-    }
-    for name, (agent, state) in goals.items():
-        ids[name] = str(uuid4())
-        await connection.execute(
-            text(
-                "INSERT INTO ln_trading_goals (id, owner_id, agent_id, payload, state, version,"
-                " created_at, updated_at) VALUES (:id, :owner, :agent, '{}', :state, 1, :now, :now)"
-            ),
-            {
-                "id": ids[name],
-                "owner": owner,
-                "agent": ids[agent],
-                "state": json.dumps(state),
-                "now": now,
-            },
-        )
     for name, mode in (("journal_shadow", "shadow"), ("journal_live", "live")):
         ids[name] = "op-" + uuid4().hex
         await connection.execute(
@@ -263,22 +241,6 @@ async def verify_upgraded(connection: AsyncConnection, ids: dict[str, str]) -> N
     assert tasks[ids["shadow_active_task"]]["task"]["status"] == "cancelled", tasks
     assert tasks[ids["live_active_task"]]["task"]["status"] == "running", tasks
     print("PASS the revoked grant's management Task is cancelled; the live one keeps running")
-
-    goals = {
-        key: as_dict(state)
-        for key, state in (
-            await connection.execute(
-                text("SELECT id, state FROM ln_trading_goals WHERE owner_id = :o"), {"o": owner}
-            )
-        ).all()
-    }
-    for name in ("goal_shadow_active", "goal_shadow_paused"):
-        state = goals[ids[name]]
-        assert state["status"] == "cancelled" and state["code"] == "shadow_trading_removed", state
-    assert goals[ids["goal_shadow_done"]]["status"] == "completed"
-    assert goals[ids["goal_live_active"]] == {"status": "active", "execution_mode": "live"}
-    assert goals[ids["goal_legacy_live"]]["status"] == "paused"
-    print("PASS Shadow goals are cancelled (finished ones stay history); live goals are untouched")
 
     journal = set(
         (
