@@ -5,8 +5,6 @@ from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
-from lonora_agent.workspace_access import RunWorkspaceAccess
-from lonora_agent.workspace_client import WorkspaceClient
 from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.model_routing import ModelSelection
@@ -16,6 +14,7 @@ from lonora_db.workspace_given import GivenValues
 from lonora_market.runtime import MarketRuntime
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
+from lonora_tools.cli_token import CommandTokens
 from lonora_tools.context import ToolContext
 from lonora_trading.execution import ExecutionService
 from lonora_workspace.client import WorkspaceClient as Workspace
@@ -35,12 +34,12 @@ class OwnerServices:
     trading: ExecutionService
     market: MarketRuntime
     chart_visual: ChartVisualRuntime | None = None
-    workspace_socket: Path | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
     searxng_url: str | None = None
     browser_url: str | None = None
     mcp_owner_trust: bool = True
     given: GivenValues | None = None
+    cli_tokens: CommandTokens | None = None
 
     @classmethod
     def create(
@@ -50,7 +49,6 @@ class OwnerServices:
         key: str,
         *,
         chart_visual: ChartVisualRuntime | None = None,
-        workspace_socket: Path | None = None,
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
         searxng_url: str | None = None,
         browser_url: str | None = None,
@@ -81,12 +79,12 @@ class OwnerServices:
             ExecutionService(db, brokers),
             market,
             chart_visual,
-            workspace_socket,
             mcp_declarations,
             searxng_url,
             browser_url,
             mcp_owner_trust,
             GivenValues(db, key, owner_id),
+            CommandTokens(db, key, owner_id),
         )
 
     def tool_context(
@@ -113,11 +111,9 @@ class OwnerServices:
             depth,
             maximum_subagents,
             chart_visual=self.chart_visual,
-            workspace_access=RunWorkspaceAccess(
-                WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
-            ),
             workspace=WORKSPACE,
             workspace_given=self.given,
+            cli_tokens=self.cli_tokens,
             mcp_declarations=self.mcp_declarations,
             mcp_owner_trust=self.mcp_owner_trust,
             searxng_url=self.searxng_url,

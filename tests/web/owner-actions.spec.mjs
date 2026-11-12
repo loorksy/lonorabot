@@ -28,8 +28,6 @@ async def main():
     try:
         async with f.runtime.db.sessions() as session, session.begin():
             fields={'kind':data['kind']}
-            if data.get('restriction'):
-                fields['restriction_id']=data['restriction']
             if data['kind']=='resolve_operation':
                 operation=str(uuid4())
                 session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
@@ -138,13 +136,10 @@ async function setup(context, locale) {
 
 const copy = {
   en: {
-    liftTitle: "New entries paused",
-    lifted: "Pause lifted.",
     resolveTitle: "The broker did not confirm this trade",
     notExecuted: "It did not execute",
     unknown: "Unknown: release the hold",
     recorded: "Recorded: it did not execute (your statement, not broker confirmation).",
-    lift: "Lift pause",
     grantTitle: "trade on its own",
     authorize: "Authorize with passkey",
     includeOwn: "Include positions I opened myself",
@@ -157,13 +152,10 @@ const copy = {
     arrow: "→",
   },
   ar: {
-    liftTitle: "الصفقات الجديدة متوقفة",
-    lifted: "رُفع الإيقاف.",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     notExecuted: "لم تُنفذ",
     unknown: "غير معروفة — ارفع التعليق",
     recorded: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
-    lift: "رفع الإيقاف",
     grantTitle: "يتداول بنفسه",
     authorize: "التفويض بمفتاح المرور",
     includeOwn: "اشمل المراكز التي فتحتها بنفسي",
@@ -444,7 +436,7 @@ for (const locale of ["en", "ar"])
       // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
       await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
       await page
-        .getByRole("button", {
+        .getByRole("menuitem", {
           name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
         })
         .click();
@@ -567,60 +559,6 @@ for (const locale of ["en", "ar"])
   });
 
 for (const locale of ["en", "ar"])
-  test(`${locale}: a Lift card in the conversation lifts the pause with one tap`, async ({
-    page,
-    context,
-  }) => {
-    test.setTimeout(60000);
-    const text = copy[locale];
-    const state = await setup(context, locale);
-    try {
-      const created = await context.request.post("/api/trading/restrictions", {
-        headers: state.headers,
-        data: { account_id: state.account, action_class: "no_new_entries" },
-      });
-      expect(created.status()).toBe(201);
-      const pause = (await created.json()).id;
-      const seeded = seedCard({
-        kind: "lift_restriction",
-        restriction: pause,
-        agent: state.agent.id,
-        thread: state.thread.id,
-      });
-      const decisions = [];
-      page.on("request", (request) => {
-        if (request.method() === "POST" && request.url().includes("/api/owner-actions/"))
-          decisions.push(request.postDataJSON());
-      });
-      await page.goto(`/app/${state.agent.id}`);
-      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      await expect(card).toHaveAttribute("data-owner-action-status", "pending");
-      await expect(card.locator(".oa-kind")).toHaveText(text.liftTitle);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        // The primary action starts the row on the reading side: right in Arabic.
-        const [lift, later] = await Promise.all([
-          card.locator('[data-owner-action-button="confirm"]').boundingBox(),
-          card.locator('[data-owner-action-button="cancel"]').boundingBox(),
-        ]);
-        expect(lift && later && lift.x > later.x).toBeTruthy();
-        await card.screenshot({ path: test.info().outputPath("owner-action-lift-ar.png") });
-      }
-      await card.getByRole("button", { name: text.lift, exact: true }).click();
-      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.getByRole("status")).toHaveText(text.lifted);
-      await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
-      expect(decisions).toEqual([{ decision: "confirm" }]);
-      const current = await (
-        await context.request.get(`/api/trading/restrictions?account_id=${state.account}`)
-      ).json();
-      expect(current.map((row) => row.id)).not.toContain(pause);
-    } finally {
-      await state.cleanup();
-    }
-  });
-
-for (const locale of ["en", "ar"])
   test(`${locale}: an uncertain trade card settles with one answer and never resends`, async ({
     page,
     context,
@@ -648,8 +586,16 @@ for (const locale of ["en", "ar"])
       // "Unknown" says that it releases the hold; it never reads as "wait".
       await expect(card.locator('[data-owner-action-button="unknown"]')).toHaveText(text.unknown);
       await expect(card.getByText(state.data.symbol)).toBeVisible();
-      if (locale === "ar")
+      if (locale === "ar") {
+        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+        // The first answer starts the row on the reading side: right in Arabic.
+        const [first, next] = await Promise.all([
+          card.locator('[data-owner-action-button="executed"]').boundingBox(),
+          card.locator('[data-owner-action-button="not_executed"]').boundingBox(),
+        ]);
+        expect(first && next && first.x > next.x).toBeTruthy();
         await card.screenshot({ path: test.info().outputPath("owner-action-resolve-ar.png") });
+      }
       await card.getByRole("button", { name: text.notExecuted, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.recorded);
@@ -665,27 +611,3 @@ for (const locale of ["en", "ar"])
       await state.cleanup();
     }
   });
-
-test("the safety sheet lifts a pause with one tap", async ({ page, context }) => {
-  test.setTimeout(60000);
-  const state = await setup(context, "en");
-  try {
-    const created = await context.request.post("/api/trading/restrictions", {
-      headers: state.headers,
-      data: { account_id: state.account, action_class: "no_new_entries" },
-    });
-    expect(created.status()).toBe(201);
-    const pause = (await created.json()).id;
-    await page.goto(`/app/${state.agent.id}`);
-    await page.getByTestId("safety-capsule").click();
-    const sheet = page.locator("#dialog");
-    await sheet.locator(`[data-lift-restriction="${pause}"]`).click();
-    await expect(sheet.locator(`[data-lift-restriction="${pause}"]`)).toHaveCount(0);
-    const current = await (
-      await context.request.get(`/api/trading/restrictions?account_id=${state.account}`)
-    ).json();
-    expect(current.map((row) => row.id)).not.toContain(pause);
-  } finally {
-    await state.cleanup();
-  }
-});

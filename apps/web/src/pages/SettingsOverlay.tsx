@@ -1,23 +1,20 @@
 import { useState } from "react";
-import { ModelSettingsOverlay } from "./ModelSettingsOverlay";
+import { useNavigation } from "../shell/navigation";
 import { SettingsSidebar, type SettingsTab } from "./settings-sidebar";
 import { TradingSettingsPanel } from "./TradingSettingsPanel";
 import { VoiceSettingsOverlay } from "./VoiceSettingsOverlay";
-export function SettingsOverlay({ initialTab = "models" }: { initialTab?: SettingsTab }) {
-  const [tab, setTab] = useState<SettingsTab>(initialTab);
+/* «Global models» is the models page (/app/models); its tab here opens it. */
+export function SettingsOverlay({ initialTab }: { initialTab: Exclude<SettingsTab, "models"> }) {
+  const nav = useNavigation();
+  const [tab, setTab] = useState(initialTab);
   return (
     <section>
       <div className="settings-layout">
-        <SettingsSidebar selected={tab} onSelect={setTab} />
-        <div>
-          {tab === "models" ? (
-            <ModelSettingsOverlay />
-          ) : tab === "voice" ? (
-            <VoiceSettingsOverlay />
-          ) : (
-            <TradingSettingsPanel />
-          )}
-        </div>
+        <SettingsSidebar
+          selected={tab}
+          onSelect={(next) => (next === "models" ? nav.go("/app/models") : setTab(next))}
+        />
+        <div>{tab === "voice" ? <VoiceSettingsOverlay /> : <TradingSettingsPanel />}</div>
       </div>
     </section>
   );

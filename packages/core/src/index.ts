@@ -76,13 +76,23 @@ export {
   selectionSummary,
 } from "./chat-rows";
 export {
+  availableCommands,
+  COMMAND_ALIAS,
+  type CommandId,
+  type CommandOption,
+  commandQuery,
+  parseCommand,
+  rankCommands,
+} from "./composer-commands";
+export {
   guestCandidates,
-  MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
+  matchesEveryone,
   mentionAddress,
   mentionCandidates,
   mentionQuery,
+  mentionSegments,
   rebaseMentions,
 } from "./composer-mentions";
 export {
@@ -127,6 +137,7 @@ export {
 } from "./inbox";
 export {
   callPart,
+  commandPart,
   pendingVoiceRich,
   validateAgentRichContent,
   voicePart,
@@ -219,6 +230,7 @@ export {
   supervisionText,
   unsupervisedAgents,
 } from "./supervision";
+export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {
@@ -226,7 +238,6 @@ export {
   listSeparator,
   moneyLimitLabel,
   moneyLimitsLine,
-  pauseClassLabel,
   readinessTime,
   type TradingSafetyText,
   tradingReadinessLine,

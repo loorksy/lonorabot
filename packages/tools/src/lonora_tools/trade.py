@@ -29,12 +29,10 @@ from lonora_trading.account_authority import (
     grant_covers,
     provisional_voice,
 )
-from lonora_trading.admission import may_reduce_risk, risk_reducing
 from lonora_trading.exposure import direction
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
-from lonora_trading.restrictions import require_unrestricted
 from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -170,8 +168,7 @@ async def reviewed_approval(
     A repeated request in another call of the same Run (identical operation ids and
     fingerprints) answers from that card instead of asking the owner again: it waits on
     the same card, or returns the owner's rejection. A result that never reached the
-    broker (a pause that has since been lifted), or a rejection the owner has spoken
-    after in the conversation, asks again.
+    broker, or a rejection the owner has spoken after in the conversation, asks again.
     """
     expected = [trade_fingerprint(request) for request in requests]
     rows = await session.scalars(
@@ -219,66 +216,6 @@ async def owner_spoke_since(session: AsyncSession, row: TradeApprovalRow) -> boo
             .limit(1)
         )
     ) is not None
-
-
-async def new_risk_requests(
-    context: ToolContext, requests: list[TradeRequest]
-) -> list[TradeRequest]:
-    """The requests that add risk on the broker's current facts.
-
-    Entries always do. A close, cancel or stop change is classified the way the executor
-    classifies it (``risk_reducing``) against the ticket the broker shows now, so a stop
-    moved further away counts as new risk. A ticket the broker no longer shows is left
-    to the executor, which refuses it with its own code.
-    """
-    result = [request for request in requests if not may_reduce_risk(request)]
-    managing = [request for request in requests if may_reduce_risk(request)]
-    if not managing:
-        return result
-    facts: dict[str, tuple[list[Position], list[Order]]] = {}
-    for account_id in sorted({request.account_id for request in managing}):
-        broker = await context.brokers.get(context.owner_id, account_id)
-        orders = (
-            await broker.orders()
-            if any(r.order_id for r in managing if r.account_id == account_id)
-            else []
-        )
-        facts[account_id] = (await broker.positions(), orders)
-    for request in managing:
-        positions, orders = facts[request.account_id]
-        target: Position | Order | None = (
-            next((item for item in positions if item.id == request.position_id), None)
-            if request.position_id
-            else next((item for item in orders if item.id == request.order_id), None)
-            if request.order_id
-            else None
-        )
-        if target is not None and not risk_reducing(request, target, positions=positions):
-            result.append(request)
-    return result
-
-
-async def refuse_braked_entries(
-    session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
-) -> None:
-    """Never ask the owner to approve new risk a brake in force would refuse at send.
-
-    A pause (``no_new_entries`` and stronger) holds every entry, so an approval card for
-    one could only fail after the owner's tap. The boundary's own code
-    (``trading_restriction_active``) comes back instead, and the agent offers the owner's
-    Lift card. ``requests`` are the
-    ones that add risk on the broker's current facts (``new_risk_requests``); a close,
-    cancel or tightening is still asked and decided by the executor against the fresh
-    broker target, which repeats every check at the moment of sending. This only
-    refuses earlier.
-    """
-    entries = requests
-    if not entries:
-        return
-    for request in entries:
-        await require_unrestricted(
-            session, context.owner_id, request, agent_id=context.agent_id, reducing=False
-        )
 
 
 def independent_exits(requests: list[TradeRequest]) -> bool:
@@ -367,9 +304,6 @@ async def approved_execution(
         return await account_authorized_execution(context, authority_requests, grants)
     initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
     contracts = await reviewed_contracts(context, requests) if previous is None else []
-    adding = (
-        await new_risk_requests(context, requests) if not gate_only and previous is None else []
-    )
     async with context.db.sessions() as session, session.begin():
         current = await require_lease(session, context.lease)
         if current.agent_id != context.agent_id:
@@ -386,8 +320,6 @@ async def approved_execution(
             if row is not None:
                 approval_id = row.id
         if row is None:
-            if not gate_only:
-                await refuse_braked_entries(session, context, adding)
             created = utcnow()
             row = TradeApprovalRow(
                 id=approval_id,

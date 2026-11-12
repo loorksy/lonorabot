@@ -67,7 +67,7 @@ async def main() -> None:
                 )
                 result = json.loads(observation.content)
                 assert result["ok"] and result["commit"] == "b" * 40
-                assert result["skills"][0]["requires_isolated_execution"]
+                assert result["skills"][0]["requires_validation"]
                 assert result["code_executed"] is result["installed"] is False
                 reply = ModelReply(text="The package needs adaptation before it can be used.")
             return reply, ModelSelection(provider="openai", model="scripted-inspection")

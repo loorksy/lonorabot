@@ -142,6 +142,7 @@ def context(seen: list[Any]) -> Any:
         agent_id=AGENT,
         owner_id="owner",
         workspace_given=None,
+        cli_tokens=None,
     )
 
 

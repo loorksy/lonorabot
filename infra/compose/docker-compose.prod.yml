@@ -196,6 +196,10 @@ services:
       # A fixed-size ext4 file (LONORA_WORKSPACE_DISK) that `lonora` mounts on the host.
       - {type: bind, source: ../../workspace-disk, target: /workspace, bind: {create_host_path: false}}
       - workspace-control:/run/lonora-workspace
+      # The `lonora` CLI endpoint's socket (7.3): the workspace's one road into Lonora. The
+      # same path as in the api service: whichever starts first, the new volume takes the
+      # image directory's owner (lonora), so the API can always create its socket.
+      - cli-socket:/app/.runtime/cli:ro
     # /run/secrets holds the values commands name (7.2.5): memory only, never the disk.
     tmpfs: ["/tmp:size=1g,mode=1777", "/var/tmp:size=256m,mode=1777", "/run/lock:size=1m,mode=1777", "/run/secrets:size=4m,mode=0750"]
     shm_size: 256m

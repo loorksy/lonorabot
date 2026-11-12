@@ -15,6 +15,7 @@ from lonora_tools.skills import SkillAdaptationReview as AdaptationReview
 from pydantic import Field, TypeAdapter, model_validator
 
 from .document import FRONTMATTER, skill_document
+from .paths import check_files, files_digest, package_path
 from .repository import (
     MAX_ARCHIVE_BYTES,
     archive_files,
@@ -28,7 +29,9 @@ from .repository import (
 class WorkspaceSource(Contract):
     agent_id: str = Field(min_length=1, max_length=80)
     run_id: str = Field(min_length=1, max_length=80)
-    workspace_revision: int = Field(ge=0)
+    # The old analytical workspace's revision; none for a package made from a directory
+    # of the owner's persistent workspace (7.1), which has no revisions.
+    workspace_revision: int | None = Field(default=None, ge=0)
     source_directory: str = Field(min_length=1, max_length=256)
     snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
@@ -68,27 +71,17 @@ class PackageVersion(Contract):
         return self
 
 
-def validation_image(entry: PackageVersion) -> str | None:
-    """Successful immutable utility receipts must describe one execution image."""
-    if not entry.utilities:
-        return None
-    images: set[str] = set()
+def require_validated(entry: PackageVersion) -> None:
+    """Every utility has a successful smoke test of exactly its current bytes. The test
+    ran in the owner's persistent workspace, which agents change themselves; no image
+    is pinned (an older receipt's image is not read)."""
     for path in entry.utilities:
         raw = (entry.validation or {}).get(path)
         if not isinstance(raw, dict):
             raise LonoraError("skill_package_validation_required", 409)
         receipt = cast(dict[str, Any], raw)
-        if (
-            receipt.get("exit_code") != 0
-            or receipt.get("source_sha256") != entry.files.get(path)
-            or not isinstance(receipt.get("image"), str)
-            or not re.fullmatch(r"sha256:[0-9a-f]{64}", receipt["image"])
-        ):
+        if receipt.get("exit_code") != 0 or receipt.get("source_sha256") != entry.files.get(path):
             raise LonoraError("skill_package_validation_required", 409)
-        images.add(receipt["image"])
-    if len(images) != 1:
-        raise LonoraError("skill_package_validation_required", 409)
-    return next(iter(images))
 
 
 class PackageState(Contract):
@@ -138,7 +131,7 @@ def package_payload(
             stability="experimental",
             activation=SkillActivation(mode="explicit"),
             risk_class="state_mutating" if utilities else "read_only",
-            required_tools=["workspace_read", "workspace_execute"] if utilities else [],
+            required_tools=["workspace_run"] if utilities else [],
             context_budget=16000,
         ),
     )
@@ -159,21 +152,21 @@ def prepare_workspace_package(
     *,
     agent_id: str,
     run_id: str,
-    workspace_revision: int,
     source_directory: str,
     version: str,
     adapted_content: str,
     review: AdaptationReview,
 ) -> tuple[PackageVersion, dict[str, str]]:
-    from ..workspace import encode_snapshot
-
     TypeAdapter(SkillVersion).validate_python(version)
     # The same lexical/file bounds used by reads and execution apply here. No
     # host path is opened and no caller-selected Agent or snapshot is accepted.
-    encode_snapshot(snapshot)
+    check_files(snapshot)
     source_path = f"{source_directory}/SKILL.md"
-    encode_snapshot({source_path: b""})
+    package_path(source_path)
     directory = PurePosixPath(source_directory)
+    # skills/ holds the run copies that validation and activation replace whole.
+    if directory.parts[0] == "skills":
+        raise LonoraError("skill_package_source_reserved", 422)
     source_files = {
         name: body
         for name, body in snapshot.items()
@@ -210,7 +203,7 @@ def prepare_workspace_package(
         f"{prefix}/{PurePosixPath(name).relative_to(directory)}": body
         for name, body in texts.items()
     }
-    encode_snapshot({name: body.encode() for name, body in selected.items()})
+    check_files({name: body.encode() for name, body in selected.items()})
     inspected = inspect_utilities(source_files)
     utilities = [
         f"{prefix}/{PurePosixPath(item['path']).relative_to(directory)}" for item in inspected
@@ -224,9 +217,8 @@ def prepare_workspace_package(
             workspace_source=WorkspaceSource(
                 agent_id=agent_id,
                 run_id=run_id,
-                workspace_revision=workspace_revision,
                 source_directory=source_directory,
-                snapshot_sha256=hashlib.sha256(encode_snapshot(source_files)).hexdigest(),
+                snapshot_sha256=files_digest(source_files),
             ),
             source_path=source_path,
             source_sha256=hashlib.sha256(source_files[source_path]).hexdigest(),
@@ -274,8 +266,6 @@ def prepare_package(
     adapted_content: str,
     review: AdaptationReview,
 ) -> tuple[PackageVersion, dict[str, str]]:
-    from ..workspace import encode_snapshot
-
     TypeAdapter(SkillVersion).validate_python(version)
     _, repository = repository_identity(repository_url)
     report = inspect_archive(archive, repository=repository, commit=commit)
@@ -313,7 +303,7 @@ def prepare_package(
         or sum(len(body.encode()) for body in selected.values()) > 1048576
     ):
         raise LonoraError("skill_package_too_large", 422)
-    encode_snapshot({path: body.encode() for path, body in selected.items()})
+    check_files({path: body.encode() for path, body in selected.items()})
     utilities = [
         f"{prefix}/{PurePosixPath(item['path']).relative_to(directory)}"
         for item in report["utilities"]

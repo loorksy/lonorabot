@@ -1,11 +1,9 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
-import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
-import type { MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
+import type { MoneyLimitName, MoneyLimits } from "./trading";
 
 export type OwnerActionKind =
-  | "lift_restriction"
   | "resolve_operation"
   | "set_account_limits"
   | "grant_authority"
@@ -15,7 +13,6 @@ export type OwnerActionKind =
   | "supervision_created"
   | "supervision_stopped"
   | "supervision_paused"
-  | "trust_source"
   | "connect_credential"
   /** The Secret card: fields the agent chose; values go straight to the encrypted store. */
   | "secret"
@@ -29,8 +26,6 @@ export type OwnerActionKind =
  * action and the owner's own positions, until stopped, no daily loss limit from the card).
  */
 export type GrantDelegation = "custom" | "full";
-/** trust_source: what the owner adds to the trusted list. */
-export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
 /** connect_credential: which secure form the card offers. */
 export type CredentialTarget =
   | "mcp_server"
@@ -107,18 +102,6 @@ export type OwnerAction = {
   facts: {
     several_accounts: boolean;
     account?: OwnerActionAccount;
-    restriction?: {
-      action_class: RestrictionActionClass;
-      symbol: string | null;
-      all_agents: boolean;
-      agent_name: string | null;
-      includes_owner_manual: boolean;
-      state: "scheduled" | "active" | "expired" | "revoked";
-      valid_from: string;
-      valid_until: string | null;
-      source: "owner_ui" | "owner_message" | "agent";
-      set_by_agent_name: string | null;
-    };
     operation?: {
       operation_id: string;
       action: string | null;
@@ -201,22 +184,6 @@ export type OwnerAction = {
       /** The owner paused it too: the pause is the owner's now. */
       owner_holds?: boolean;
     };
-    /**
-     * trust_source: the source to trust. An MCP server's label is its saved name and its
-     * tools are the reviewed names (tools that can move money are listed as blocked;
-     * writes are the ones that may change something and run only at the write tier);
-     * review is true when the server is trusted already and its tools changed.
-     */
-    source?: {
-      kind: TrustSourceKind;
-      label: string | null;
-      subscribe: boolean;
-      tools?: string[];
-      writes?: string[];
-      blocked?: string[];
-      review?: boolean;
-      tier?: EffectTier | null;
-    };
     /** connect_credential: the form to offer ("x" names an X MCP server). */
     credential?: { target: CredentialTarget; service: "x" | null };
     /** The Secret card: the agent's label and fields, where they go and who asked. */
@@ -270,11 +237,6 @@ export type OwnerAction = {
     restored?: number;
     /** supervision_paused: what was resumed. */
     resumed?: boolean | "agent" | "task" | "routine" | "watch";
-    tier?: EffectTier;
-    tools?: number;
-    /** trust_source on an MCP server: how many trusted tools may change something. */
-    writes?: number;
-    subscribed?: boolean;
     target?: CredentialTarget;
     configured?: boolean;
     connection_id?: string;
@@ -284,10 +246,6 @@ export type OwnerAction = {
     /** A broker card: how provisioning stands (9.2). */
     provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
-    /** connect_credential for an MCP server: whether its trust card followed. */
-    review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
-    /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
-    restriction_id?: string;
     /** watch_changed Undo: the watch's expiry now. */
     expires_at?: string | null;
   };
@@ -310,15 +268,8 @@ export type OwnerActionDecision = {
   money_limit?: "apply" | "none";
   /** Grant card: stop these other agents' grants on this market (narrowing). */
   stop_authorities?: string[];
-  /** trust_source on an MCP server: what the owner trusts its tools for. */
-  tier?: EffectTier;
   /** connect_credential: what the secure form created; never the value it holds. */
   connected?: { resource: "integration" | "mcp" | "broker"; id: string };
-  /**
-   * Resolve card answered "unknown" only: also pause new trades by every agent on its
-   * account until the trading day ends there (an owner restriction; it only narrows).
-   */
-  pause_new_today?: boolean;
 };
 /**
  * The mandate sheet («تنفيذ مفوَّض»): POST /agents/{id}/account-authorities/draft. It

@@ -10,6 +10,13 @@ export class ApiError extends Error {
     super(code);
   }
 }
+
+/** The API itself did not answer: a gateway error that names no reason, or a request that
+ * never completed while the device is online (offline is the network strip's state). */
+export const isServiceUnavailable = (error: unknown) =>
+  error instanceof ApiError
+    ? [502, 503, 504].includes(error.status) && error.code === "request_failed"
+    : (error as { name?: string } | null)?.name === "TypeError" && navigator.onLine;
 export class RequestCancelled extends Error {
   readonly code = "request_cancelled";
   constructor() {
@@ -50,6 +57,69 @@ export function csrfToken() {
       .join("=") ?? ""
   );
 }
+/** The error of a refused request, after telling the shell what it means for the session. */
+function refused(path: string, status: number, code?: string) {
+  if (status === 401 && !path.startsWith("/auth/"))
+    window.dispatchEvent(new CustomEvent("lonora:session-expired"));
+  // Repeated gateway errors mean maintenance (the shell decides how many), never one
+  // transient error. One that names its own reason (broker identity, voice worker…) comes
+  // from a running API and stays that feature's error.
+  const failure = new ApiError(code ?? "request_failed", status);
+  if (isServiceUnavailable(failure))
+    window.dispatchEvent(new CustomEvent("lonora:api-unavailable"));
+  return failure;
+}
+/** A file upload that reports how much has been sent and stops when `signal` aborts. */
+function send(
+  file: File,
+  threadId: string | undefined,
+  progress: (p: number) => void,
+  signal?: AbortSignal,
+): Promise<Resource> {
+  const path = "/artifacts/upload";
+  const generation = sessionGeneration;
+  const controller = new AbortController();
+  // A write: leaving the page does not stop it, a new session does.
+  active.set(controller, false);
+  const data = new FormData();
+  data.append("file", file);
+  if (threadId) data.append("thread_id", threadId);
+  return new Promise<Resource>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const stop = () => controller.abort();
+    const settle = (act: () => void) => {
+      active.delete(controller);
+      signal?.removeEventListener("abort", stop);
+      act();
+    };
+    controller.signal.addEventListener("abort", () => xhr.abort(), { once: true });
+    signal?.addEventListener("abort", stop, { once: true });
+    xhr.open("POST", `/api${path}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("X-CSRF-Token", decodeURIComponent(csrfToken()));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) progress(event.loaded / event.total);
+    };
+    xhr.onabort = () => settle(() => reject(new RequestCancelled()));
+    // No answer reached us: the same kind of failure a fetch reports.
+    xhr.onerror = () => settle(() => reject(new TypeError("upload_failed")));
+    xhr.onload = () =>
+      settle(() => {
+        if (generation !== sessionGeneration) return reject(new RequestCancelled());
+        let body: { code?: string } | null = null;
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          /* A gateway's page is not an answer of the API. */
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && body) resolve(body as Resource);
+        else reject(refused(path, xhr.status, body?.code));
+      });
+    if (signal?.aborted || generation !== sessionGeneration) stop();
+    else xhr.send(data);
+  });
+}
 async function perform<T>(path: string, init: RequestInit): Promise<T> {
   const generation = sessionGeneration;
   const controller = new AbortController();
@@ -87,14 +157,7 @@ async function perform<T>(path: string, init: RequestInit): Promise<T> {
     if (!response.ok) {
       const data = await response.json().catch(() => ({ code: "request_failed" }));
       current();
-      if (response.status === 401 && !path.startsWith("/auth/"))
-        window.dispatchEvent(new CustomEvent("lonora:session-expired"));
-      // Repeated 503s mean maintenance (the shell decides how many), never one transient error.
-      // A 503 that names its own reason (broker identity, voice worker…) comes from a running
-      // API and stays that feature's error; only an unnamed one counts toward maintenance.
-      if (response.status === 503 && (data.code ?? "request_failed") === "request_failed")
-        window.dispatchEvent(new CustomEvent("lonora:api-unavailable"));
-      throw new ApiError(data.code ?? "request_failed", response.status);
+      throw refused(path, response.status, data.code);
     }
     const data = await response.json();
     current();
@@ -128,7 +191,9 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
-  upload: (file: File, threadId?: string) => {
+  /** With `progress`, the upload reports how much was sent (0 to 1) and `signal` cancels it. */
+  upload: (file: File, threadId?: string, progress?: (p: number) => void, signal?: AbortSignal) => {
+    if (progress) return send(file, threadId, progress, signal);
     const data = new FormData();
     data.append("file", file);
     if (threadId) data.append("thread_id", threadId);

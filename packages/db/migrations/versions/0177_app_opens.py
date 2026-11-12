@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0177_app_opens"
-down_revision = "0110_closed_trades"
+down_revision = "0138_skill_package_files"
 branch_labels = None
 depends_on = None
 

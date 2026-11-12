@@ -1,7 +1,9 @@
+import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { Component, type ReactNode } from "react";
+import { Component, type ReactNode, useEffect, useRef } from "react";
 import { useNavigation } from "./navigation";
+import { useToast } from "./Toast";
 
 /* Full states: 404, a page that throws, whole-app maintenance. */
 export function StatePage({
@@ -104,7 +106,30 @@ export class PageErrorBoundary extends Component<
   }
 }
 
-export function MaintenanceOverlay({ retry }: { retry: () => void }) {
+/** The API and its database answer (`/health`); a stalled gateway alone does not hide the app. */
+const serverAnswers = () =>
+  fetch("/health", { credentials: "include" }).then(
+    (response) => response.ok,
+    () => false,
+  );
+
+/* «Lonora قيد الصيانة»: over the whole app while the server does not answer. It leaves by
+   itself once the server is back, and «إعادة المحاولة» asks at once. */
+export function MaintenanceOverlay({ onReady }: { onReady: () => void }) {
+  const toast = useToast();
+  const ready = useRef(onReady);
+  ready.current = onReady;
+  useEffect(() => {
+    const timer = window.setInterval(async () => {
+      if (document.visibilityState === "visible" && (await serverAnswers())) ready.current();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const retry = async () => {
+    if (await serverAnswers()) return onReady();
+    navigator.vibrate?.([10, 50, 10]);
+    toast(t`Maintenance is still in progress. Try again shortly`, { type: "warn" });
+  };
   return (
     <div id="app-state">
       <StatePage
@@ -117,7 +142,7 @@ export function MaintenanceOverlay({ retry }: { retry: () => void }) {
           </Trans>
         }
         actions={
-          <button type="button" className="btn primary" onClick={retry}>
+          <button type="button" className="btn primary" onClick={() => void retry()}>
             <Trans>Try again</Trans>
           </button>
         }
