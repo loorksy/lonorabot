@@ -716,15 +716,35 @@ function TelegramPairing({ id }: { id: string }) {
   const [code, setCode] = useState<string | null>(null);
   const toast = useToast();
   useEffect(() => {
-    void api
-      .get<{ paired: boolean }>(`/integrations/${id}/telegram`)
-      .then((status) => setPaired(status.paired))
-      .catch(() => setPaired(null));
-  }, [id]);
+    let live = true;
+    const read = () =>
+      void api
+        .get<{ paired: boolean }>(`/integrations/${id}/telegram`)
+        .then((status) => {
+          if (!live) return;
+          setPaired(status.paired);
+          // The chat sent the code: the code is spent.
+          if (status.paired && code) setCode(null);
+        })
+        .catch(() => undefined);
+    read();
+    // While a code is shown, follow the pairing until it happens or the code expires.
+    if (!code) return;
+    const timer = window.setInterval(read, 3000);
+    const expiry = window.setTimeout(() => setCode(null), 10 * 60 * 1000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+      window.clearTimeout(expiry);
+    };
+  }, [id, code]);
   const pair = () =>
     void api
       .post<{ code: string }>(`/integrations/${id}/telegram/pairing`, {})
-      .then((result) => setCode(result.code))
+      .then((result) => {
+        setPaired(false);
+        setCode(result.code);
+      })
       .catch((error: unknown) => toast(userError(error), { type: "warn" }));
   return (
     <div>
@@ -746,7 +766,11 @@ function TelegramPairing({ id }: { id: string }) {
         </p>
       ) : null}
       <button type="button" className="btn full" onClick={pair}>
-        {paired ? <Trans>Pair another chat</Trans> : <Trans>Pair a chat</Trans>}
+        {paired ? (
+          <Trans>Pair a different chat (it replaces this one)</Trans>
+        ) : (
+          <Trans>Pair a chat</Trans>
+        )}
       </button>
     </div>
   );

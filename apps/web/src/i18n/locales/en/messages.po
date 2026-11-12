@@ -721,7 +721,7 @@ msgstr "Agents read news from these domains only, and name the source and the ti
 msgid "Alert channel"
 msgstr "Alert channel"
 
-#: src/shell/settings/IntegrationsPage.tsx:733
+#: src/shell/settings/IntegrationsPage.tsx:753
 msgid "Alerts that need you also reach your Telegram chat."
 msgstr "Alerts that need you also reach your Telegram chat."
 
@@ -5094,15 +5094,15 @@ msgstr "Page not found"
 msgid "Pair"
 msgstr "Pair"
 
-#: src/shell/settings/IntegrationsPage.tsx:749
+#: src/shell/settings/IntegrationsPage.tsx:772
 msgid "Pair a chat"
 msgstr "Pair a chat"
 
-#: src/shell/settings/IntegrationsPage.tsx:749
-msgid "Pair another chat"
-msgstr "Pair another chat"
+#: src/shell/settings/IntegrationsPage.tsx:770
+msgid "Pair a different chat (it replaces this one)"
+msgstr "Pair a different chat (it replaces this one)"
 
-#: src/shell/settings/IntegrationsPage.tsx:735
+#: src/shell/settings/IntegrationsPage.tsx:755
 msgid "Pair your Telegram chat to receive the alerts that need you there."
 msgstr "Pair your Telegram chat to receive the alerts that need you there."
 
@@ -6368,7 +6368,7 @@ msgstr "Send the message"
 msgid "Send the voice message"
 msgstr "Send the voice message"
 
-#: src/shell/settings/IntegrationsPage.tsx:741
+#: src/shell/settings/IntegrationsPage.tsx:761
 msgid "Send this to your bot within ten minutes:"
 msgstr "Send this to your bot within ten minutes:"
 

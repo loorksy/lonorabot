@@ -17,13 +17,14 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import publish_ready
 from lonora_db.client import Database
-from lonora_db.events import publish_committed
+from lonora_db.events import emit, publish_committed
 from lonora_db.schema import (
     AgentRow,
     AttentionRow,
     EffectReceiptRow,
     IntegrationRow,
     MessageRow,
+    ThreadRow,
     TradeApprovalRow,
 )
 from lonora_db.telegram_pairing import pairing_status, start_pairing
@@ -115,20 +116,30 @@ async def pair(db: Database, owner_id: str, integration_id: str) -> None:
     await tick(db, owner_id, integration_id)
 
 
-async def approval(db: Database, owner_id: str, agent_id: str, thread_id: str, code: str) -> str:
-    record = str(uuid4())
+async def approval(
+    db: Database,
+    owner_id: str,
+    agent_id: str,
+    thread_id: str,
+    code: str,
+    record: str | None = None,
+) -> str:
+    """A ready attention item for a pending approval (a new one unless ``record`` names one)."""
+    existing = record
+    record = record or str(uuid4())
     async with db.sessions() as session, session.begin():
-        session.add(
-            TradeApprovalRow(
-                id=record,
-                owner_id=owner_id,
-                thread_id=thread_id,
-                agent_id=agent_id,
-                call_id="call-" + record,
-                requests=[{"symbol": "XAUUSD", "action": "buy", "volume": "0.1"}],
-                status="pending",
+        if existing is None:
+            session.add(
+                TradeApprovalRow(
+                    id=record,
+                    owner_id=owner_id,
+                    thread_id=thread_id,
+                    agent_id=agent_id,
+                    call_id="call-" + record,
+                    requests=[{"symbol": "XAUUSD", "action": "buy", "volume": "0.1"}],
+                    status="pending",
+                )
             )
-        )
         item = AttentionRow(
             owner_id=owner_id,
             agent_id=agent_id,
@@ -172,12 +183,15 @@ async def test_the_chat_is_paired_once_by_its_code_and_nothing_else(task_db: Fix
     update("/start " + code, "999")
     await tick(db, owner_id, integration)
     assert (await payload(db, integration))["allowed_destinations"] == [CHAT]
+    # A /start the paired chat sends (a typo, an old code) never reaches the agent.
+    update("/start " + code)
+    update("/start@LonoraBot TYPOCODE")
+    await tick(db, owner_id, integration)
     async with db.sessions() as session:
         row = await session.get(IntegrationRow, integration)
         assert row and pairing_status(row) == {"paired": True}
-        # Neither the pairing nor the refused attempts reached the agent as messages.
         texts = [m.content for m in await session.scalars(select(MessageRow))]
-    assert all(code not in str(text) for text in texts)
+    assert not any("/start" in str(text) for text in texts)
 
 
 @pytest.mark.asyncio
@@ -208,9 +222,23 @@ async def test_telegram_carries_the_push_events_once_and_nothing_else(task_db: F
         assert agent
         agent.name = "ذهب"
     integration = await linked(db, owner_id, agent_id, thread_id)
+    # A card waiting before the chat was paired is not sent: delivery starts at pairing.
+    await approval(db, owner_id, agent_id, thread_id, "approval_required")
     await pair(db, owner_id, integration)
     await approval(db, owner_id, agent_id, thread_id, "task_review")
-    await approval(db, owner_id, agent_id, thread_id, "approval_required")
+    record = await approval(db, owner_id, agent_id, thread_id, "approval_required")
+    # The same card under a second item is the same record: one message.
+    await approval(db, owner_id, agent_id, thread_id, "approval_required", record)
+    # An agent's reply is not an alert: it stays in the app.
+    async with db.sessions() as session, session.begin():
+        emit(
+            session,
+            owner_id,
+            "message.created",
+            thread_id=thread_id,
+            agent_id=agent_id,
+            payload={"role": "assistant", "content": "Bought 0.1 XAUUSD at 2410"},
+        )
     await tick(db, owner_id, integration)
     await tick(db, owner_id, integration)
     assert FakeTelegram.sent == [(CHAT, "ذهب: " + attention_text("approval_required", "ar"))]
@@ -226,6 +254,11 @@ async def test_an_unconfirmed_telegram_send_is_never_repeated(task_db: Fixture) 
     await approval(db, owner_id, agent_id, thread_id, "approval_required")
     await tick(db, owner_id, integration)
     FakeTelegram.fail = False
+    # With the cursor moved back, only the receipt keeps the message from going again.
+    async with db.sessions() as session, session.begin():
+        row = await session.get(IntegrationRow, integration)
+        assert row
+        row.state = {**row.state, "event_cursor": 0}
     await tick(db, owner_id, integration)
     assert len(FakeTelegram.sent) == 1
     async with db.sessions() as session:
@@ -267,3 +300,22 @@ async def test_only_a_telegram_integration_of_the_owner_pairs(task_db: Fixture) 
         with pytest.raises(LonoraError) as refused:
             await start_pairing(session, owner_id, feed.id)
     assert refused.value.code == "integration_not_found"
+
+
+@pytest.mark.asyncio
+async def test_cards_of_every_conversation_reach_the_chat(task_db: Fixture) -> None:
+    # The bot delivers owner messages to one agent, but carries every agent's alerts.
+    db, owner_id, agent_id, thread_id = task_db
+    async with db.sessions() as session, session.begin():
+        other = AgentRow(owner_id=owner_id, name="يورو")
+        session.add(other)
+        await session.flush()
+        conversation = ThreadRow(owner_id=owner_id, agent_id=other.id)
+        session.add(conversation)
+        await session.flush()
+        other_id, other_thread = other.id, conversation.id
+    integration = await linked(db, owner_id, agent_id, thread_id)
+    await pair(db, owner_id, integration)
+    await approval(db, owner_id, other_id, other_thread, "approval_required")
+    await tick(db, owner_id, integration)
+    assert FakeTelegram.sent == [(CHAT, "يورو: " + attention_text("approval_required", "ar"))]

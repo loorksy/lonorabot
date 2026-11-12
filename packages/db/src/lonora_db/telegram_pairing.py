@@ -8,7 +8,7 @@ once; a message from any other chat is ignored. Pairing again replaces the chat.
 
 import hashlib
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from lonora_contracts.domain import utcnow
@@ -27,9 +27,9 @@ def code_hash(code: str) -> str:
 
 
 async def telegram_integration(
-    session: AsyncSession, owner_id: str, integration_id: str
+    session: AsyncSession, owner_id: str, integration_id: str, *, lock: bool = True
 ) -> IntegrationRow:
-    row = await session.get(IntegrationRow, integration_id, with_for_update=True)
+    row = await session.get(IntegrationRow, integration_id, with_for_update=lock)
     if row is None or row.owner_id != owner_id or row.payload.get("type") != "telegram":
         raise LonoraError("integration_not_found", 404)
     return row
@@ -62,7 +62,7 @@ def paired_chat(row: IntegrationRow, text: str, chat_id: str, chat_type: str) ->
         or len(parts) != 2
         or parts[0] != "/start"
         or not pairing.get("hash")
-        or str(pairing.get("expires_at", "")) <= utcnow().isoformat()
+        or datetime.fromisoformat(str(pairing.get("expires_at"))) <= utcnow()
         or not secrets.compare_digest(code_hash(parts[1]), str(pairing["hash"]))
     ):
         return False

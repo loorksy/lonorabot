@@ -109,5 +109,7 @@ async def telegram_pairing(
 async def telegram_status(
     request: Request, integration_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, object]:
-    async with runtime(request).db.sessions() as session, session.begin():
-        return pairing_status(await telegram_integration(session, owner.id, integration_id))
+    async with runtime(request).db.sessions() as session:
+        return pairing_status(
+            await telegram_integration(session, owner.id, integration_id, lock=False)
+        )

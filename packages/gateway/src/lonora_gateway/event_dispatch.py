@@ -24,7 +24,7 @@ from lonora_db.schema import (
     IntegrationRow,
 )
 from lonora_db.telegram_pairing import paired_chat
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from .push import PUSH_CODES, push_record
 from .runtime import OwnerServices
@@ -83,11 +83,21 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                 for update in updates:
                     message: dict[str, Any] = update.get("message") or {}
                     chat: dict[str, Any] = message.get("chat") or {}
-                    if isinstance(message.get("text"), str) and paired_chat(
-                        locked, message["text"], str(chat.get("id", "")), str(chat.get("type", ""))
-                    ):
-                        # The pairing message binds the chat; it is not a message to an agent.
-                        config = locked.payload
+                    text = message.get("text")
+                    if isinstance(text, str) and text.strip().startswith("/start"):
+                        # A pairing message binds the chat, or does nothing; it never reaches
+                        # an agent. Delivery starts at the end of the stream: a newly paired
+                        # chat gets new alerts, never the backlog.
+                        if paired_chat(
+                            locked, text, str(chat.get("id", "")), str(chat.get("type", ""))
+                        ):
+                            config = locked.payload
+                            latest = await session.scalar(
+                                select(
+                                    func.max(EventRow.payload[PUBLIC_CURSOR].as_integer())
+                                ).where(EventRow.owner_id == services.owner_id)
+                            )
+                            locked.state = {**locked.state, "event_cursor": int(latest or 0)}
                     elif config.get("thread_id"):
                         incoming = decode_update(update, config["thread_id"])
                         if incoming and incoming.destination in config.get(
@@ -116,9 +126,15 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                 EventRow.owner_id == services.owner_id,
                 EventRow.payload[PUBLIC_CURSOR].as_integer()
                 > int(locked.state.get("event_cursor", 0)),
-                EventRow.kind.in_(["message.created", "attention.ready"]),
+                # Telegram carries the alerts that push (11.4), from every conversation, and
+                # no agent replies; a webhook also carries its conversation's replies.
+                EventRow.kind.in_(
+                    ["attention.ready"]
+                    if config["type"] == "telegram"
+                    else ["message.created", "attention.ready"]
+                ),
             )
-            if config.get("thread_id"):
+            if config.get("thread_id") and config["type"] != "telegram":
                 query = query.where(EventRow.thread_id == config["thread_id"])
             events = (
                 await session.scalars(
