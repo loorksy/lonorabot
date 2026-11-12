@@ -149,3 +149,17 @@ async def test_the_brief_time_is_learned_from_the_opens_in_the_device_zone(
     assert await planned(db, owner) == DEFAULT_MINUTE - 120
     await brief_tick(db, owner, now=datetime(2026, 11, 15, 1, 0, tzinfo=UTC))
     assert await planned(db, owner) == 4 * 60 + 45
+
+
+@pytest.mark.asyncio
+async def test_a_trip_keeps_the_habit_of_the_local_clock(task_db: Fixture) -> None:
+    db, owner, _agent, _thread = task_db
+    # Ten mornings at 07:00 in New York, then one at 07:00 in London.
+    new_york = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+    await opened(db, owner, [("America/New_York", new_york + timedelta(days=n)) for n in range(10)])
+    await opened(db, owner, [("Europe/London", datetime(2026, 11, 12, 7, 0, tzinfo=UTC))])
+    async with db.sessions() as session, session.begin():
+        session.add(MorningBriefRow(owner_id=owner, brief_minute=6 * 60 + 45, baseline={}))
+    await brief_tick(db, owner, now=datetime(2026, 11, 13, 1, 0, tzinfo=UTC))
+    # The owner's zone is now London's, and the habit is still 07:00, so 06:45.
+    assert await planned(db, owner) == 6 * 60 + 45

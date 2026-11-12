@@ -31,11 +31,11 @@ async def record_open(
 
 
 async def recorded_opens(session: AsyncSession, owner_id: str) -> list[AppOpenRow]:
-    """The last recorded days' first opens, oldest first."""
+    """The last recorded days' first opens, oldest first (the last is the latest open)."""
     rows = await session.scalars(
         select(AppOpenRow)
         .where(AppOpenRow.owner_id == owner_id)
-        .order_by(AppOpenRow.local_date.desc())
+        .order_by(AppOpenRow.opened_at.desc())
         .limit(RECORDED_DAYS)
     )
     return list(reversed(list(rows)))

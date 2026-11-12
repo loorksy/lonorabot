@@ -165,7 +165,8 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
         if (!disposed) timer = setTimeout(() => void tick(), 5000);
       }
     };
-    reportAppOpen();
+    // Only an app in the front counts: a launch in the background is not an open.
+    if (AppState.currentState === "active") reportAppOpen();
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") reportAppOpen();
       if (state === "active" && !disposed) {

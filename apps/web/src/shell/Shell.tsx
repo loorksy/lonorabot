@@ -88,10 +88,11 @@ const reportAppOpen = appOpenReporter((body) => api.post("/app-opens", body));
 export function Shell({ onLogout }: { onLogout: () => void }) {
   const { owner } = useClient();
   useEffect(() => {
-    reportAppOpen();
+    // Only an app the owner sees counts: a tab restored in the background is not an open.
     const visible = () => {
       if (document.visibilityState === "visible") reportAppOpen();
     };
+    visible();
     document.addEventListener("visibilitychange", visible);
     return () => document.removeEventListener("visibilitychange", visible);
   }, []);

@@ -184,7 +184,7 @@ msgstr "{reads} read"
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/shell/Shell.tsx:433
+#: src/shell/Shell.tsx:446
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
@@ -3920,7 +3920,7 @@ msgstr "Lonora's model"
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/shell/Shell.tsx:537
+#: src/shell/Shell.tsx:550
 msgid "Maintenance is still in progress. Try again shortly"
 msgstr "Maintenance is still in progress. Try again shortly"
 
@@ -7196,7 +7196,7 @@ msgstr "The broker specifications are unavailable for this exact symbol."
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 
-#: src/shell/Shell.tsx:363
+#: src/shell/Shell.tsx:376
 msgid "The call ended."
 msgstr "The call ended."
 
@@ -7700,7 +7700,7 @@ msgstr "This operation will not be sent again."
 msgid "This page could not be displayed"
 msgstr "This page could not be displayed"
 
-#: src/shell/Shell.tsx:313
+#: src/shell/Shell.tsx:326
 msgid "This page is available in the development build only"
 msgstr "This page is available in the development build only"
 
@@ -8560,7 +8560,7 @@ msgstr "Working"
 msgid "Working…"
 msgstr "Working…"
 
-#: src/shell/Shell.tsx:871
+#: src/shell/Shell.tsx:884
 msgid "Workspace"
 msgstr "Workspace"
 

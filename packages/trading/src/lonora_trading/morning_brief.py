@@ -745,10 +745,13 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         local = now.astimezone(zone)
         today = local.date().isoformat()
         if record.planned_date != today:
-            # Each recorded day's first open, in the owner's zone, minutes after midnight.
+            # Each recorded day's first open, minutes after midnight on the device's clock
+            # where it was opened: a habit of 07:00 stays 07:00 when the owner travels.
             minutes = [
                 stamp.hour * 60 + stamp.minute
-                for stamp in (_aware(row.opened_at).astimezone(zone) for row in opens)
+                for stamp in (
+                    _aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens
+                )
             ]
             target = learned_minute(minutes)
             record.brief_minute = moved_minute(
