@@ -11,6 +11,7 @@ from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
+from lonora_db.workspace_given import GivenValues
 from lonora_market.runtime import MarketRuntime
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
@@ -38,6 +39,7 @@ class OwnerServices:
     searxng_url: str | None = None
     browser_url: str | None = None
     mcp_owner_trust: bool = True
+    given: GivenValues | None = None
 
     @classmethod
     def create(
@@ -83,6 +85,7 @@ class OwnerServices:
             searxng_url,
             browser_url,
             mcp_owner_trust,
+            GivenValues(db, key, owner_id),
         )
 
     def tool_context(
@@ -113,6 +116,7 @@ class OwnerServices:
                 WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
             ),
             workspace=WORKSPACE,
+            workspace_given=self.given,
             mcp_declarations=self.mcp_declarations,
             mcp_owner_trust=self.mcp_owner_trust,
             searxng_url=self.searxng_url,

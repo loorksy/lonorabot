@@ -18,7 +18,6 @@ import signal
 import socket
 import time
 import uuid
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any
@@ -39,7 +38,6 @@ SECRETS = Path("/run/secrets")
 FILE_LIMIT = 2 * 1024 * 1024
 OUTPUT_LIMIT = 1024 * 1024
 ENDED_KEPT = 500
-GIVEN_KEPT = 1000
 PROTECTED_ENV = {
     "HOME",
     "USER",
@@ -345,9 +343,8 @@ class Supervisor:
         self.boot_id = str(uuid.uuid4())
         self.jobs: dict[str, Job] = {}
         # job id -> the secrets (name -> value) that job was started with, while any of
-        # its processes runs; and every (name, value) given since start, newest last.
+        # its processes runs (its /run/secrets files stay until then).
         self.job_secrets: dict[str, dict[str, str]] = {}
-        self.given: OrderedDict[tuple[str, str], None] = OrderedDict()
         self.lock = asyncio.Lock()
 
     def environment(self, uid: int, extra: dict[str, str]) -> dict[str, str]:
@@ -395,19 +392,6 @@ class Supervisor:
         still = {name for values in self.job_secrets.values() for name in values}
         for name in set(named) - still:
             (SECRETS / name).unlink(missing_ok=True)
-
-    def remember(self, secrets: dict[str, str]) -> None:
-        for pair in secrets.items():
-            self.given.pop(pair, None)
-            self.given[pair] = None
-        while len(self.given) > GIVEN_KEPT:
-            self.given.popitem(last=False)
-
-    def guard(self) -> list[list[str]]:
-        """Every value given to a command since the workspace started (rotated and deleted
-        ones too: a log or an escaped child may still hold them), for the Gateway to add to
-        its scan. The Gateway alone rewrites what the model sees."""
-        return [[name, value] for name, value in self.given]
 
     async def release_when_gone(self, job_id: str) -> None:
         """A job's secret files stay while any process carrying its marker runs."""
@@ -459,7 +443,6 @@ class Supervisor:
         async with self.lock:
             if request.secrets:
                 self.job_secrets[job_id] = dict(request.secrets)
-                self.remember(request.secrets)
             try:
                 self.place_secrets(request.secrets)
             except OSError:
@@ -550,7 +533,6 @@ class Supervisor:
             "stderr": streams["stderr"].decode("utf-8", "replace"),
             "stdout_dropped_bytes": dropped["stdout"],
             "stderr_dropped_bytes": dropped["stderr"],
-            "guard": self.guard(),
         }
 
     async def background(self, request: RunCommand) -> dict[str, Any]:
@@ -558,7 +540,7 @@ class Supervisor:
             raise ValueError("workspace_background_has_no_timeout")
         job, process = await self.start(request)
         asyncio.get_running_loop().create_task(self.watch(job, process))
-        return {"boot_id": self.boot_id, "process": job.view(), "guard": self.guard()}
+        return {"boot_id": self.boot_id, "process": job.view()}
 
     async def as_agent(
         self, agent_id: uuid.UUID, script: str, *args: str, data: bytes = b""
@@ -606,13 +588,11 @@ class Supervisor:
                 "boot_id": self.boot_id,
                 "ok": False,
                 "error": err.decode("utf-8", "replace")[-2000:],
-                "guard": self.guard(),
             }
         size_line, _, body = out.partition(b"\n")
         size = int(size_line)
         return {
             "boot_id": self.boot_id,
-            "guard": self.guard(),
             "ok": True,
             "size": size,
             "offset": request.offset,
@@ -639,7 +619,6 @@ class Supervisor:
                 "boot_id": self.boot_id,
                 "ok": False,
                 "error": err.decode("utf-8", "replace")[-2000:],
-                "guard": self.guard(),
             }
         return {"boot_id": self.boot_id, "ok": True, "written": len(data)}
 
@@ -647,7 +626,6 @@ class Supervisor:
         jobs = sorted(self.jobs.values(), key=lambda job: job.started_at)
         return {
             "boot_id": self.boot_id,
-            "guard": self.guard(),
             "jobs": [job.view() for job in jobs],
             "processes": live_processes(self.users),
         }

@@ -659,6 +659,21 @@ class WorkspaceOperationRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class WorkspaceGivenRow(Base):
+    """A secret value once given to a workspace command, encrypted (workspace_given.py)."""
+
+    __tablename__ = "ln_workspace_given"
+    __table_args__ = (UniqueConstraint("owner_id", "digest", name="ln_workspace_given_digest"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(80))
+    digest: Mapped[str] = mapped_column(String(64))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    given_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ResourceRow(Base):
     __abstract__ = True
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
