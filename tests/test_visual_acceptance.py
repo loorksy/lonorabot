@@ -23,8 +23,12 @@ acceptance = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(acceptance)
 
 
-def frame(document: dict[str, Any]) -> str:
-    return "الشرح المختصر.\n```lonora-ui\n" + json.dumps(document) + "\n```\nخلاصة المثال."
+def frame(lines: list[dict[str, Any]]) -> str:
+    body = "\n".join(json.dumps(line, ensure_ascii=False) for line in lines)
+    return "الشرح المختصر.\n```lonora-ui\n" + body + "\n```\nخلاصة المثال."
+
+
+CLOSE = {"why": "أوضح من فقرة.", "fallback": "الخلاصة نصًا."}
 
 
 class ScriptedAcceptanceRouter:
@@ -48,65 +52,31 @@ class ScriptedAcceptanceRouter:
             return ModelReply(
                 tool_calls=[ToolCall(id="probe-" + str(self.calls), name=name, arguments=arguments)]
             ), ModelSelection(provider="openai", model="scripted-acceptance")
-        value: dict[str, Any] = {"version": 1, "mode": "example", "root": {}}
+        value: list[dict[str, Any]]
         if self.journey in {"visual_workspace", "visual_observed"}:
-            value["mode"] = "observed"
-            value["root"] = {
-                "id": "size",
-                "type": "metric",
-                "label": "حجم الملف الأول",
-                "value": {"fact": {"call_id": "probe-2", "path": "/files/0/size"}},
-                "unit": "bytes",
-            }
+            value = [
+                {"v": 2, "kind": "receipt", "title": "حجم الملفات", "mode": "observed"},
+                {"facts": {"size": {"call": "probe-2", "path": "/files/0/size"}}},
+                {"type": "KeyValue", "rows": [["حجم الملف الأول", "{@Fact('size')} بايت"]]},
+                CLOSE,
+            ]
         elif self.journey == "visual_diagram":
-            value["root"] = {
-                "id": "flow",
-                "type": "diagram",
-                "vertices": [
-                    {"id": "request", "label": "الطلب"},
-                    {"id": "analysis", "label": "التحليل"},
-                    {"id": "result", "label": "النتيجة"},
-                ],
-                "edges": [
-                    {"source": "request", "target": "analysis"},
-                    {"source": "analysis", "target": "result"},
-                ],
-            }
+            value = [
+                {"v": 2, "kind": "diagram", "title": "مسار الرسالة", "icon": "branch"},
+                {"type": "Title", "text": "الطلب"},
+                {"type": "Text", "text": "ثم التحليل"},
+                {"type": "Text", "text": "ثم النتيجة"},
+                CLOSE,
+            ]
         elif self.journey == "visual_calculator":
-            value["state"] = {"risk": 100, "distance": 20}
-            value["root"] = {
-                "id": "calculator",
-                "type": "column",
-                "children": [
-                    {
-                        "id": "risk-input",
-                        "type": "input",
-                        "label": "المخاطرة الافتراضية",
-                        "input_kind": "number",
-                        "state_key": "risk",
-                        "minimum": 1,
-                        "maximum": 1000,
-                    },
-                    {
-                        "id": "distance-input",
-                        "type": "input",
-                        "label": "المسافة الافتراضية",
-                        "input_kind": "number",
-                        "state_key": "distance",
-                        "minimum": 1,
-                        "maximum": 100,
-                    },
-                    {
-                        "id": "units",
-                        "type": "metric",
-                        "label": "عدد الوحدات الافتراضية",
-                        "value": {
-                            "op": "div",
-                            "args": [{"state": "risk"}, {"state": "distance"}],
-                        },
-                    },
-                ],
-            }
+            value = [
+                {"v": 2, "kind": "calculator", "title": "حاسبة الوحدات", "mode": "example"},
+                {"state": {"risk": 100, "distance": 20}, "calc": {"units": "$risk/$distance"}},
+                {"type": "Number", "bind": "risk", "label": "المخاطرة"},
+                {"type": "Number", "bind": "distance", "label": "المسافة"},
+                {"type": "Text", "text": "الوحدات: {@Fmt($units,2)}"},
+                CLOSE,
+            ]
         else:
             return ModelReply(text="حقوق الحساب هي الرصيد مضافاً إليه الربح أو الخسارة العائمة."), (
                 ModelSelection(provider="openai", model="scripted-acceptance")

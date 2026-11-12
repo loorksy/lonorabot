@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "80b27a870df1bec9293d4131ca02cfe94b56430c0b7811738d7ef61ad1bc10dd",
+  "manual_sha256": "8b33ebb3bf9c596e1f5a9ea856951dd896b18976250fadfa84ebee4b2894004f",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -33,6 +33,11 @@
     "workspace_read": "files",
     "workspace_update": "files",
     "workspace_execute": "files",
+    "workspace_run": "files",
+    "workspace_processes": "files",
+    "workspace_stop": "files",
+    "workspace_file_read": "files",
+    "workspace_file_write": "files",
     "routine_create": "tasks",
     "routine_list": "tasks",
     "routine_toggle": "tasks",

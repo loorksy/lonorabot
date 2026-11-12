@@ -157,3 +157,53 @@ async def test_wake_refusals_send_nothing() -> None:
             assert await session.scalar(select(func.count()).select_from(RunRow)) == before
     finally:
         await setup.close()
+
+
+@pytest.mark.asyncio
+async def test_notify_and_wake_text_pass_the_secret_scan() -> None:
+    """7.2.6: every byte from the workspace to chat or the model is scanned."""
+    database()
+    import base64
+    from uuid import uuid4
+
+    from lonora_agent.context.routine import workspace_wake_section
+    from lonora_db.schema import MessageRow, RunRow
+    from lonora_db.secrets import WORKSPACE
+
+    setup = await Setup().open()
+    name = "CLI_SCAN_" + uuid4().hex[:8].upper()
+    value = "sk-cli-" + uuid4().hex
+    services = setup.fixture.runtime.services(setup.fixture.owner)
+    secret_id = await services.secrets.write(name, value, WORKSPACE)
+    try:
+        runtime = setup.fixture.runtime
+        token = await setup.token()
+        encoded = base64.b64encode(value.encode()).decode()
+        other = await setup.token((await setup.fixture.agent("other-token"))["id"])
+        leaked = f"key {value} and {encoded}"
+        code, output = await setup.call("notify", token, text=leaked)
+        assert code == 0, output
+        target = await setup.fixture.agent("scan")
+        code, woken = await setup.call("wake", token, handle="@" + target["name"], text=leaked)
+        assert code == 0, woken
+        async with runtime.db.sessions() as session:
+            message = await session.get(MessageRow, output["message_id"])
+            run = await session.get(RunRow, woken["run_id"])
+            assert message is not None and run is not None
+            section = workspace_wake_section(run)
+        assert section is not None
+        for stored in (message.content, section.body, str(run.model_metadata)):
+            assert value not in stored and encoded not in stored, stored
+        marker = "[secret:" + name + "]"
+        assert message.content == f"key {marker} and {marker}"
+        assert section.body == f"key {marker} and {marker}"
+        # Its own token and another agent's are scanned the same way.
+        code, output = await setup.call("notify", token, text=f"mine {token} theirs {other}")
+        async with runtime.db.sessions() as session:
+            message = await session.get(MessageRow, output["message_id"])
+        assert message is not None
+        hidden = "[secret:LONORA_AGENT_TOKEN]"
+        assert message.content == f"mine {hidden} theirs {hidden}"
+    finally:
+        await services.secrets.delete(secret_id)
+        await setup.close()

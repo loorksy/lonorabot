@@ -380,7 +380,6 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
 }) => {
   test.setTimeout(90000);
   const state = await setup(context);
-  const originalControls = await (await context.request.get("/api/trading/controls")).json();
   const devices = await (await context.request.get("/api/auth/devices")).json();
   for (const device of devices)
     expect(
@@ -504,9 +503,6 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
       "supervised",
     );
     await observer.close();
-    expect(await (await context.request.get("/api/trading/controls")).json()).toEqual(
-      originalControls,
-    );
     const other = await state.createAgent();
     await state.open(page, other);
     await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "analysis");

@@ -39,7 +39,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             run.model_metadata.get("origin_thread_id") or context.thread_id,
             OpportunityCreate.model_validate(args),
         )
-        # An opportunity tainted work saved wakes tainted (GENUI_PLAN §8.5, review round 4).
+        # An opportunity tainted work saved wakes tainted (docs/genui.md, review round 4).
         await taint_row_from(session, run, "opportunity", row.id)
         await mark_from(session, run, "opportunity", row.id)
         return opportunity_data(row)
