@@ -165,10 +165,15 @@ class MetaApiProvisioning:
     def _failure(self, error: Exception, stage: str, secrets: Iterable[str] = ()) -> LonoraError:
         failure = provisioning_error(error)
         failure.diagnostic_type = type(error).__name__
-        # The SDK message and URL only: validation details can echo request fields.
-        failure.diagnostic_message = safe_exception_message(
-            error, (*self._redactions, *(value for value in secrets if value))
-        )
+        if stage in {"create", "update"}:
+            # These requests carry the password: MetaApi's answer could echo it escaped or
+            # encoded, which exact-value redaction misses. Code and status only.
+            failure.diagnostic_message = "status=" + str(getattr(error, "status_code", None))
+        else:
+            # The SDK message and URL only: validation details can echo request fields.
+            failure.diagnostic_message = safe_exception_message(
+                error, (*self._redactions, *(value for value in secrets if value))
+            )
         log.warning(
             "broker_provisioning_%s_failed code=%s type=%s message=%s",
             stage,
