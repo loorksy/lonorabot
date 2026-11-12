@@ -13,7 +13,7 @@ import sys
 from typing import Any
 
 from check_streaming import Fixture
-from lonora_db.model_credentials import credential_id
+from lonora_db.model_credentials import saved_key
 from lonora_db.schema import SecretRow
 from lonora_db.transactions import SettingsRepository
 from sqlalchemy import delete
@@ -51,9 +51,7 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             restore = {
                 "settings": {key: await SettingsRepository().get(session, key) for key in SETTINGS},
                 "added_keys": [
-                    provider
-                    for provider in CATALOGS
-                    if await credential_id(session, provider) is None
+                    provider for provider in CATALOGS if await saved_key(session, provider) is None
                 ],
             }
         cookies = [

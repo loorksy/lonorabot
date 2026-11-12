@@ -9,6 +9,17 @@ from .domain import Contract
 # "openai_compatible" is an endpoint the owner names by its base URL (vLLM, Ollama, a
 # gateway): an API key and that URL, through the OpenAI-compatible adapter.
 ProviderId = Literal["openai", "anthropic", "deepseek", "zai", "openrouter", "openai_compatible"]
+# A model provider's key is the owner's workspace secret under the provider's usual
+# environment-variable name (lead decision Q14 (b)), the name a command-line tool
+# expects (12.2). The router reads it on the server.
+PROVIDER_KEY_NAMES: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "zai": "ZAI_API_KEY",
+    "openai_compatible": "OPENAI_COMPATIBLE_API_KEY",
+}
 
 
 class Capability(StrEnum):

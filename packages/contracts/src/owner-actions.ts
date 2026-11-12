@@ -37,7 +37,8 @@ export type CredentialTarget =
   | "news_feed"
   | "brave_search"
   | "economic_calendar"
-  | "broker";
+  | "broker"
+  | "model_provider";
 /**
  * One field of a Secret card: its key names the value in the card's submit. An agent's
  * own field has its label; a connecting card's field has a role the client labels in the
@@ -237,7 +238,7 @@ export type OwnerAction = {
       label: string | null;
       connect?: CredentialTarget | null;
       service?: "x" | null;
-      details?: { name?: string; metaapi_account_id?: string };
+      details?: { name?: string; metaapi_account_id?: string; provider?: string };
       fields: SecretField[];
       destination: SecretDestination;
       agent_name: string | null;

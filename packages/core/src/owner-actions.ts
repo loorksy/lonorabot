@@ -274,6 +274,10 @@ export const ownerActionLabels = {
     connectBrave: "Connect Brave web search",
     connectCalendar: "Connect an economic calendar",
     connectBroker: "Connect a broker account",
+    connectModel: "Connect a model provider",
+    modelHint:
+      "The key is stored encrypted on your Lonora server and never enters the chat. Your models use it.",
+    modelEndpointHint: "It is sent to the address you type, with every request.",
     connectHint:
       "What you type is saved encrypted on the server. It never enters the chat, and no agent sees it.",
     connectXHint:
@@ -558,6 +562,9 @@ export const ownerActionLabels = {
     connectBrave: "ربط بحث Brave",
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
+    connectModel: "ربط مزوّد نماذج",
+    modelHint: "يُحفظ المفتاح مشفّراً على خادم Lonora ولا يدخل المحادثة. تستخدمه نماذجك.",
+    modelEndpointHint: "ويُرسَل إلى العنوان الذي تكتبه مع كل طلب.",
     connectHint: "ما تكتبه يُحفظ مشفّرًا على الخادم. لا يدخل المحادثة، ولا يراه أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
@@ -1225,6 +1232,7 @@ function connectTitle(
     brave_search: text.connectBrave,
     economic_calendar: text.connectCalendar,
     broker: text.connectBroker,
+    model_provider: text.connectModel,
   }[target];
 }
 
@@ -1580,13 +1588,17 @@ export function ownerActionCard(
         if (secret.replaces?.length)
           lines.push(fill(text.secretReplaces, { names: nameList(secret.replaces, lang) }));
         hint =
-          secret.destination === "broker"
-            ? text.secretBroker
-            : !secret.connect
-              ? text.secretWorkspace
-              : secret.service === "x"
-                ? `${text.connectHint} ${text.connectXHint}`
-                : text.connectHint;
+          secret.connect === "model_provider"
+            ? secret.fields.some((field) => field.role === "server_url")
+              ? `${text.modelHint} ${text.modelEndpointHint}`
+              : text.modelHint
+            : secret.destination === "broker"
+              ? text.secretBroker
+              : !secret.connect
+                ? text.secretWorkspace
+                : secret.service === "x"
+                  ? `${text.connectHint} ${text.connectXHint}`
+                  : text.connectHint;
         form = secretForm(secret, text);
       }
       // Save is the form's own submit: the values go to the card's route, never here.
