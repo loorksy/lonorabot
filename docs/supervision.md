@@ -115,9 +115,9 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
   it; Keep paused dismisses the card. Once the pause ends anywhere the card stops
   offering Resume, and a tap only settles it (`supervision_pause_ended`); a watch past
   its expiry is resumed from the watch list after moving its expiry (`watch_expired`).
-- **Cycle rule.** An agent cannot narrow with a restriction an agent that holds an
-  active pause over it (`supervision_cycle`); the owner's message in the Run wins over
-  the rule. Only the owner pauses Lonora, so no team agent holds a pause over it.
+- **No cycle rule.** Only Lonora pauses another agent, and only the owner pauses Lonora,
+  so no pause can block a pause back. A pause an earlier team supervisor left over
+  Lonora's work never blocks Lonora's pause of that agent (`supervision_cycle` is gone).
 - Every pause, resume and narrowing of another agent is a `supervision.intervention`
   event recorded for both agents.
 - Lock order: cards, then the work (agent, routine or watch row), then its hold, then
@@ -129,7 +129,7 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
 
 `trade_restriction_create` for another agent, or for all agents, needs the owner's
 message in the Run (`restriction_supervision_required`, 403); there is no grant to stand
-in for it, also not for Lonora. It also passes the cycle rule. Narrowing itself stays
+in for it, also not for Lonora. Narrowing itself stays
 free, `all_mutations` on others still needs the owner's message, a restriction on others
 is still time-boxed, and only the owner lifts one. Restrictions are removed with W-REMOVE.
 

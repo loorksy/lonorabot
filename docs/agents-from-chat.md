@@ -144,8 +144,8 @@ refused (`agent_control_lead_only`), and Lonora is never deleted. Both paths run
   watch is also not evidence for an opportunity thesis (`thesis_watch_unconfirmed`).
 - The owner cancels, pauses or resumes any watch with `POST /api/watches/{id}/control`
   (`{"action": "cancel" | "pause" | "resume"}`), from the status line's watch list.
-- `routine_toggle` pauses or resumes the agent's own routines, and the routines of an
-  agent it supervises under the supervision hold rules (`docs/supervision.md`).
+- `routine_toggle` pauses or resumes the agent's own routines, and, for Lonora, the
+  routines of a team agent under the hold rules (`docs/supervision.md`).
 
 ## The status line
 

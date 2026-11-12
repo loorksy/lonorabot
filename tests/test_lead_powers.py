@@ -216,3 +216,55 @@ async def test_lonora_cancels_a_run_switches_to_ask_and_pauses_without_a_card():
         )
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_pause_an_earlier_supervisor_left_never_blocks_lonora_and_stays_its_own():
+    """A hold a team supervisor made before grants were deleted (0127) stays until the
+    owner lifts it, and never blocks Lonora's own pause of that agent (3.1.2)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.routines import create_routine
+    from lonora_db.schema import RoutineRow, SupervisionHoldRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        desk = await fixture.agent("Desk")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            routine = await create_routine(
+                session,
+                fixture.owner,
+                lonora["id"],
+                RoutineCreate(prompt="Scan", interval_seconds=3600),
+            )
+            routine.enabled = False
+            session.add(
+                SupervisionHoldRow(
+                    owner_id=fixture.owner,
+                    holder_agent_id=desk["id"],
+                    agent_id=lonora["id"],
+                    target_kind="routine",
+                    target_id=routine.id,
+                    source="agent",
+                )
+            )
+            routine_id = routine.id
+        lead = await wake(fixture, lonora)
+
+        # The old supervisor's pause over Lonora's work never blocks Lonora's pause of it.
+        paused = await call(lead, "agent_control", agent_id=desk["id"], action="pause")
+        assert paused["changed"] is True and paused["paused"] is True
+
+        # Lonora never lifts another agent's pause on its own (4.7.2): the routine stays.
+        code = await refused(lead, "routine_toggle", routine_id=routine_id, enabled=True)
+        assert code in {"work_paused_by_supervisor", "supervision_resume_not_yours"}, code
+        async with fixture.runtime.db.sessions() as session:
+            kept = await session.get(RoutineRow, routine_id)
+            assert kept is not None and kept.enabled is False
+    finally:
+        await fixture.close()

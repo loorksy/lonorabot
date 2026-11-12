@@ -6,8 +6,7 @@ that message as its source. Revocation is an owner-session action (API), deliber
 absent here.
 
 Narrowing another agent needs a run that answers the owner's message (no agent holds a
-supervision grant, 3.3.3), and passes the cycle rule: an agent never narrows one that holds an active pause over it
-unless the owner asks. ``all_mutations`` on another agent or on all agents always needs
+supervision grant, 3.3.3). ``all_mutations`` on another agent or on all agents always needs
 the owner's message: on its own initiative an agent may freeze only itself. Whatever its class, a restriction an agent
 records never blocks a risk-reducing exit (``lonora_trading.restrictions``): its scope
 and reason are model-authored and may come from injected content.
@@ -28,14 +27,13 @@ from lonora_db.agent_binding import agent_binding, fixed_market
 from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
-    AgentRow,
     EffectReceiptRow,
     MessageRow,
     RunRow,
     TradingJournalRow,
     TradingRestrictionRow,
 )
-from lonora_db.supervision import check_cycle, record_intervention
+from lonora_db.supervision import record_intervention
 from lonora_db.trading_restrictions import (
     create_restriction,
     list_restrictions,
@@ -115,16 +113,6 @@ async def owner_message_id(session: AsyncSession, run: RunRow) -> str | None:
     return str(found.id)
 
 
-async def other_agents(session: AsyncSession, context: ToolContext) -> list[str]:
-    return list(
-        await session.scalars(
-            select(AgentRow.id).where(
-                AgentRow.owner_id == context.owner_id, AgentRow.id != context.agent_id
-            )
-        )
-    )
-
-
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = AgentRestrictionRequest.model_validate(args)
     async with context.db.sessions() as session:
@@ -159,17 +147,9 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             raise LonoraError("restriction_all_mutations_requires_owner_message", 403)
         if not replayed and scoped_agent != context.agent_id:
             # Narrowing another agent needs the owner's message in this run (supervision
-            # grants are gone, 3.3.3); and an agent never narrows one that holds an active
-            # pause over it, unless the owner asks.
+            # grants are gone, 3.3.3).
             if message_id is None:
                 raise LonoraError("restriction_supervision_required", 403)
-            await check_cycle(
-                session,
-                context.owner_id,
-                context.agent_id,
-                [scoped_agent] if scoped_agent else await other_agents(session, context),
-                owner_message=message_id is not None,
-            )
             # Binding other agents is a time-boxed pause, never an open-ended freeze.
             if params.valid_until is None:
                 raise LonoraError("restriction_valid_until_required", 422)

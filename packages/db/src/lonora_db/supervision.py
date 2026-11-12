@@ -24,7 +24,7 @@ from typing import Any, Literal
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
@@ -37,7 +37,6 @@ from .schema import (
     SupervisionHoldRow,
     TicketRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from .transactions import owned_agent
 
@@ -76,63 +75,6 @@ async def agent_names(
 
 # Holds: pauses a supervisor put on another agent's work (the hold primitives are in
 # ``pauses.py``).
-
-
-async def holds_over(session: AsyncSession, owner_id: str, holder_id: str, agent_id: str) -> bool:
-    """Whether ``holder_id`` holds an active pause over ``agent_id``: a live hold on that
-    agent or its work, or a pause the holder recorded on its own initiative that still
-    binds that agent (an owner-message pause is the owner's)."""
-    holds = list(
-        await session.scalars(
-            select(SupervisionHoldRow).where(
-                SupervisionHoldRow.owner_id == owner_id,
-                SupervisionHoldRow.holder_agent_id == holder_id,
-                SupervisionHoldRow.agent_id == agent_id,
-                # A pause the owner took over is the owner's, not the holder's.
-                SupervisionHoldRow.source != "owner",
-                SupervisionHoldRow.released_at.is_(None),
-            )
-        )
-    )
-    for hold in holds:
-        if await work_paused(session, hold.target_kind, hold.target_id):
-            return True
-    now = utcnow()
-    restriction = await session.scalar(
-        select(TradingRestrictionRow.id)
-        .where(
-            TradingRestrictionRow.owner_id == owner_id,
-            TradingRestrictionRow.created_by_agent_id == holder_id,
-            TradingRestrictionRow.source == "agent",
-            TradingRestrictionRow.revoked_at.is_(None),
-            or_(
-                TradingRestrictionRow.agent_id == agent_id, TradingRestrictionRow.agent_id.is_(None)
-            ),
-            or_(
-                TradingRestrictionRow.valid_until.is_(None),
-                TradingRestrictionRow.valid_until > now,
-            ),
-        )
-        .limit(1)
-    )
-    return restriction is not None
-
-
-async def check_cycle(
-    session: AsyncSession,
-    owner_id: str,
-    actor_id: str,
-    targets: list[str],
-    *,
-    owner_message: bool,
-) -> None:
-    """Refuse a pause or a narrowing on an agent that holds an active pause over the
-    actor; the owner's message in the actor's run wins over the rule."""
-    if owner_message:
-        return
-    for target_id in targets:
-        if target_id != actor_id and await holds_over(session, owner_id, target_id, actor_id):
-            raise LonoraError("supervision_cycle", 409)
 
 
 def record_intervention(
@@ -366,7 +308,8 @@ async def control_work(
             # supervisor still pauses only an agent's routines, watches or Tasks on its own.
             # Lonora's pause of a trading agent stands (its exits continue, 4.7.1).
             raise LonoraError("supervision_pause_trading_agent", 403)
-        await check_cycle(session, owner_id, actor_id, [agent.id], owner_message=owner_message)
+        # No cycle rule: only the lead pauses another agent, and only the owner pauses the
+        # lead (3.1.2, 3.3.1). A pause an earlier team supervisor left never blocks it.
         await _apply(session, owner_id, agent.id, kind, item, "pause")
         hold = SupervisionHoldRow(
             owner_id=owner_id,

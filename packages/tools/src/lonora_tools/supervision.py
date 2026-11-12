@@ -15,7 +15,7 @@ watches, messages it, cancels its current run, switches it to Ask or deletes it.
 restriction, trades or edits the agent's memory or instructions; its trading is
 narrowed with ``trade_restriction_create``. A paused agent still reduces the risk of its
 own positions and orders; the Personal Agent is paused only by the owner. The hold
-rules and the cycle rule are in ``lonora_db.supervision``.
+rules are in ``lonora_db.supervision`` and ``lonora_db.pauses``.
 """
 
 from typing import Any, cast
@@ -564,7 +564,7 @@ def tools() -> list[Tool]:
             "agent_control",
             "Lonora only: steer a team agent. Pause or resume it, or one of its Tasks, "
             "routines or watches (target, target_id), or message it. resume lifts a pause "
-            "you made on your own, or one the owner tells you to lift. A paused agent still "
+            "you made on your own, or one the owner tells you to lift; never another agent's. A paused agent still "
             "wakes for its own positions and orders and only reduces their risk. Only the "
             "owner pauses Lonora itself. Also cancel_run (end its current run), set_ask (as "
             "trading_mode_ask: Ask, except within an active signed grant's own terms until "

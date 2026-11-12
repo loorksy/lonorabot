@@ -314,7 +314,7 @@ async def migration_drops_grants_and_keeps_pauses(
             )
             for kind in GRANT_KINDS:
                 await connection.execute(
-                    insert(OwnerActionRow.__table__).values(
+                    insert(OwnerActionRow).values(
                         **{**template, "id": str(uuid4()), "kind": kind, "payload": {}}
                     )
                 )

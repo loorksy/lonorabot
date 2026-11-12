@@ -11,8 +11,8 @@ function simulation(data) {
   );
 }
 
-// Lonora and a gold agent; Lonora paused one of Gold's routines on its own (no model
-// involved), which raises the pause card in Gold's conversation.
+// Lonora and a gold agent; one of Gold's routines is paused, held by a team supervisor
+// from before grants were deleted, whose pause card still shows in Gold's conversation.
 function seedSupervision(data) {
   const script = `
 import asyncio,json,sys
@@ -23,7 +23,8 @@ from lonora_db.agents import create_agent
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_contracts.routines import RoutineCreate
 from lonora_db.routines import create_routine
-from lonora_db.schema import OwnerActionRow
+from lonora_db.schema import OwnerActionRow, SupervisionHoldRow
+from lonora_db.owner_actions import raise_supervision_pause_card
 from lonora_db.supervision import control_work
 from sqlalchemy import select
 from lonora_db.threads import conversation_thread
@@ -36,9 +37,16 @@ async def main():
             gold=await create_agent(session,f.owner,AgentCreate(name=data['gold'],scope_mode='flexible'))
             routine=await create_routine(session,f.owner,gold.id,RoutineCreate(prompt=data['routine'],interval_seconds=3600))
             await control_work(session,f.owner,actor_id=lonora.id,agent_id=gold.id,kind='routine',target_id=routine.id,action='pause',owner_message_id=None,run_id=None)
+            # Lonora's pause raises no card: the card is a pause a team supervisor made
+            # before grants were deleted (0127), which still renders with Resume.
+            desk=await create_agent(session,f.owner,AgentCreate(name=data['gold']+' desk'))
+            hold=await session.scalar(select(SupervisionHoldRow).where(SupervisionHoldRow.target_id==routine.id,SupervisionHoldRow.released_at.is_(None)))
+            hold.holder_agent_id=desk.id
+            await session.flush()
+            await raise_supervision_pause_card(session,hold,run_id=None)
             pause=await session.scalar(select(OwnerActionRow.id).where(OwnerActionRow.kind=='supervision_paused',OwnerActionRow.agent_id==gold.id))
             gold_thread=await conversation_thread(session,f.owner,gold.id)
-            print(json.dumps({'lonora_name':lonora.name,'gold':gold.id,'pause':pause,'gold_thread':gold_thread.id}))
+            print(json.dumps({'lonora_name':desk.name,'desk':desk.id,'gold':gold.id,'pause':pause,'gold_thread':gold_thread.id}))
     finally:
         await f.close(cleanup=False)
 asyncio.run(main())
@@ -57,7 +65,7 @@ const copy = {
 };
 
 for (const locale of ["ar", "en"])
-  test(`Expo ${locale}: Lonora's pause card names who paused what, with one-tap Resume`, async ({
+  test(`Expo ${locale}: an earlier supervisor's pause card names who paused what, with one-tap Resume`, async ({
     page,
     context,
   }) => {
@@ -92,6 +100,7 @@ for (const locale of ["ar", "en"])
       await expect(pause.getByText(text.resumed, { exact: true })).toBeVisible();
     } finally {
       await context.request.delete(`/api/agents/${seeded.gold}`, { headers });
+      await context.request.delete(`/api/agents/${seeded.desk}`, { headers });
       simulation({ ...data, action: "cleanup" });
     }
   });

@@ -192,7 +192,7 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "agent_analysis_only",
         "shadow_execution_forbidden",
         "restriction_all_mutations_requires_owner_message",
-        # Supervision never silences the owner's entry point or sheds its own oversight.
+        # No agent pauses the owner's entry point, Lonora.
         "supervision_personal_agent",
         # The owner or a supervisor paused this agent.
         "agent_paused",

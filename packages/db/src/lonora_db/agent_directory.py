@@ -22,7 +22,7 @@ async def agent_directory(
     # (3.3.1: two levels); no team agent leads another.
     supervised = set(await reached_ids(session, owner_id, agent_id))
     lead = await personal_agent_id(session, owner_id)
-    supervisors = {lead} if lead is not None and lead != agent_id else set()
+    supervisors: set[str] = {lead} if lead is not None and lead != agent_id else set()
     return [
         {
             "id": row.id,
