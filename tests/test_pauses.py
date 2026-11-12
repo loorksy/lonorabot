@@ -909,3 +909,64 @@ async def test_a_pause_the_owner_asked_for_stays_the_owners():
         )
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_pausing_an_agent_ends_its_full_task_and_resuming_starts_it_again():
+    """4.5.2: pausing a Full agent ends its continuous account-management task, through
+    every pause entry point (Lonora's agent_control here; the owner's switch and Undo in
+    check_management_task.py). 4.7.1: a paused agent's task is not restarted and its
+    Runs are held. Resuming it, by Lonora or by the owner's Resume on the pause card,
+    starts the task again (4.5.1)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.management_task import ensure_management_task, live_management_task
+    from lonora_db.pauses import owner_resumes, runs_while_paused
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.schema import RunRow
+    from lonora_db.trading_mode import set_trading_mode
+
+    fixture = await Fixture().open()
+    gold: dict[str, Any] = {}
+    try:
+        gold = await fixture.agent("Full gold task")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora = {"id": (await ensure_personal_agent(session, fixture.owner)).id}
+            await set_trading_mode(session, fixture.owner, gold["id"], "full", by="owner_tap")
+
+        async def live_task() -> Any:
+            async with fixture.runtime.db.sessions() as session:
+                return await live_management_task(session, fixture.owner, gold["id"])
+
+        assert await live_task() is not None
+        # Lonora holds its default grant over the new agent.
+        lonora_woke = await wake(fixture, lonora, await fixture.conversation(lonora))
+        paused = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="pause")
+        assert paused["changed"] is True
+        assert await live_task() is None
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            # A paused agent's task is never started again while it is paused (4.7.1).
+            assert await ensure_management_task(session, fixture.owner, gold["id"]) is None
+            queued = list(
+                await session.scalars(
+                    select(RunRow).where(RunRow.agent_id == gold["id"], RunRow.status == "queued")
+                )
+            )
+            assert all(not runs_while_paused(r.trigger, r.model_metadata) for r in queued)
+
+        resumed = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="resume")
+        assert resumed["changed"] is True
+        assert await live_task() is not None
+
+        # Paused again; the owner's Resume on the pause card starts the task again.
+        await call(lonora_woke, "agent_control", agent_id=gold["id"], action="pause")
+        assert await live_task() is None
+        hold = await held(fixture, gold["id"])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            assert await owner_resumes(session, fixture.owner, hold.id) == "agent"
+        assert await live_task() is not None
+    finally:
+        if gold:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await set_trading_mode(session, fixture.owner, gold["id"], "ask", by="agent")
+        await fixture.close()

@@ -179,26 +179,44 @@ def agent(mode: str = "ask", role: str = "specialist") -> AgentRow:
 async def test_only_the_owner_tap_sets_full(monkeypatch: pytest.MonkeyPatch):
     row = agent()
     monkeypatch.setattr(mode_store, "authority_lock", AsyncMock())
+    ensure, end = management_task(monkeypatch)
     session = AsyncMock()
     session.add = MagicMock()
     session.get.return_value = row
     with pytest.raises(LonoraError, match="trading_mode_full_owner_only"):
         await mode_store.set_trading_mode(session, "owner", "agent", "full", by="agent")
     assert row.trading_mode == "ask"
+    ensure.assert_not_awaited()
     await mode_store.set_trading_mode(session, "owner", "agent", "full", by="owner_tap")
     assert row.trading_mode == "full"
     mode_store.authority_lock.assert_awaited_with(session, "agent")  # type: ignore[attr-defined]
+    # Full starts the agent's continuous account-management task (4.5.1).
+    ensure.assert_awaited_once_with(session, "owner", "agent")
+    end.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_any_agent_may_switch_itself_to_ask(monkeypatch: pytest.MonkeyPatch):
     row = agent("full")
     monkeypatch.setattr(mode_store, "authority_lock", AsyncMock())
+    ensure, end = management_task(monkeypatch)
     session = AsyncMock()
     session.add = MagicMock()
     session.get.return_value = row
     assert await mode_store.set_trading_mode(session, "owner", "agent", "ask", by="agent") == "ask"
     assert row.trading_mode == "ask"
+    # Ask ends it (4.5.2).
+    end.assert_awaited_once_with(session, "owner", "agent")
+    ensure.assert_not_awaited()
+
+
+def management_task(monkeypatch: pytest.MonkeyPatch) -> tuple[AsyncMock, AsyncMock]:
+    from lonora_db import management_task as task_store
+
+    ensure, end = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(task_store, "ensure_management_task", ensure)
+    monkeypatch.setattr(task_store, "end_management_task", end)
+    return ensure, end
 
 
 @pytest.mark.asyncio

@@ -466,10 +466,15 @@ async def _apply(
     (holds are settled by the caller, so the item's own hold checks pass)."""
     if kind == "agent":
         from .agents import agent_data
+        from .management_task import ensure_management_task
 
         agent = await owned_agent(session, owner_id, agent_id, lock=True)
         agent.paused = action == "pause"
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
+        # Pausing ended the Full-mode task in control_work; resuming starts it again.
+        if action == "resume":
+            await session.flush()
+            await ensure_management_task(session, owner_id, agent_id)
     elif kind == "routine":
         from .routines import owned_routine
 
@@ -523,6 +528,18 @@ async def control_work(
     agent cancelled itself while held stays cancelled; the resume only ends the hold.
     """
     owner_message = owner_message_id is not None
+    if kind == "agent":
+        from .authority_lock import authority_lock
+
+        # Taken before the agent's row lock, in the order a mode change takes them.
+        await authority_lock(session, agent_id)
+        if action == "pause":
+            from .management_task import end_management_task
+
+            # Pausing ends the Full-mode task (4.5.2), before the agent's row lock: the
+            # task's Runs are locked first, as their own work does. A refusal below rolls
+            # the whole transaction back.
+            await end_management_task(session, owner_id, agent_id)
     # A pause asked for in the owner's words is the owner's (4.7.2). Only an untainted
     # owner message stands for them (6.10): injected text never speaks as the owner.
     asked_by_owner = owner_message_id

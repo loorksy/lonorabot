@@ -198,7 +198,10 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
     kind, target_id = hold.target_kind, hold.target_id
     if kind == "agent":
         from .agents import agent_data
+        from .authority_lock import authority_lock
+        from .management_task import ensure_management_task
 
+        await authority_lock(session, target_id)
         agent = await owned_agent(session, owner_id, target_id, lock=True)
         await owner_takes_over(
             session, owner_id, kind, target_id, paused=False, agent_id=hold.agent_id
@@ -206,6 +209,9 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
         if agent.paused:
             agent.paused = False
             emit(session, owner_id, "agent.updated", agent_id=agent.id, payload=agent_data(agent))
+            await session.flush()
+            # Resuming a Full agent starts its continuous task again (4.5.1).
+            await ensure_management_task(session, owner_id, agent.id)
     elif kind == "routine":
         from .routines import owned_routine
 

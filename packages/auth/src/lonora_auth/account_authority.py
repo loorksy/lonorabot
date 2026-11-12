@@ -171,6 +171,11 @@ async def finish_activation(
             "account_management_id": row.id,
             "reply_locale": locale,
         }
+        from lonora_db.management_task import end_management_task
+
+        # The grant's Task drives the account until the grant is revoked; the agent's
+        # Full-mode task does not run beside it.
+        await end_management_task(session, owner.id, row.agent_id)
     changed(session, row)
     await bump_permission(session, owner.id, row.agent_id)
     return row
