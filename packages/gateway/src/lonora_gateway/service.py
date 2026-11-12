@@ -10,7 +10,6 @@ from lonora_charts.runtime import chart_runtime_tick
 from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.domain import utcnow
 from lonora_contracts.mcp import McpToolDeclaration
-from lonora_db.activation_review import dispatch_activation_reviews
 from lonora_db.client import Database
 from lonora_db.item_failures import failure_code
 from lonora_db.owner import get_owner
@@ -42,7 +41,6 @@ STEPS = (
     StepSpec("owners", 10, 60),
     StepSpec("routines", 5, 120),
     StepSpec("task_retries", 10, 120),
-    StepSpec("activation_reviews", 10, 120, critical=False),
     StepSpec("task_waits", 5, 120),
     StepSpec("outcomes", 10, 120),
     StepSpec("reconcile", 10, 300),
@@ -313,7 +311,6 @@ class Gateway:
             "owners": self.owners,
             "routines": lambda: dispatch_routines(self.db),
             "task_retries": lambda: retry_due_tasks(self.db),
-            "activation_reviews": lambda: dispatch_activation_reviews(self.db),
             "task_waits": lambda: resume_ready_waits(self.db),
             "outcomes": lambda: return_pending_outcomes(self.db),
             "reconcile": self.reconcile,

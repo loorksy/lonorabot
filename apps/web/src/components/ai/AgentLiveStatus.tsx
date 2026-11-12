@@ -80,13 +80,6 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
           <Trans>Waiting for device authorization</Trans>
         </p>
       )}
-      {(state.account_authorities ?? []).some((grant) => grant.review_status === "failed") && (
-        <p>
-          <Trans>
-            The readiness check after you signed did not finish; that check sent nothing.
-          </Trans>
-        </p>
-      )}
       {state.tasks.map((task) => (
         <div key={task.id}>
           <p dir="auto">{task.title}</p>

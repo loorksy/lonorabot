@@ -20,10 +20,8 @@ grant, the money limits and the pauses.
   change, so the downgrade restores exactly those rows. Nothing reads a retired row.
 - Trading goals are removed (mandate 14.2.4); the light agent goals («الأهداف») stay.
   (Shadow trading is removed, Q57.)
-- The readiness review and the confirmation line after signing are keyed on grants
-  (`account-authority.md`). The avatar crown is "trades on its own"
-  (`trades_on_its_own`), shown while the agent is not paused and holds a grant in
-  force.
+- The avatar crown is "trades on its own" (`trades_on_its_own`), shown while the
+  agent is not paused and holds a grant in force (`account-authority.md`).
 - The attention codes `super_bot_authorization` and `super_bot_changed` stay valid for
   stored rows and read "Request updated"; nothing raises them any more.
 
@@ -90,8 +88,7 @@ say what happened and that the conversation is kept.
 - `tests/web/one-vocabulary.test.ts`: no owner-visible catalog text (Web, Mobile,
   attention messages, core label tables) names Super Bot or a Stop control; the shared
   label tables; activity labels; the trading-control rule; the peer wrapper.
-- `tests/check_device_authority.py`: the retired surface, the composer confirmation
-  line, the marker, device revocation and the migration round trip.
-- `tests/check_activation_review.py`,
-  `tests/check_conversational_setup.py` and
+- `tests/check_device_authority.py`: the retired surface, the marker, device
+  revocation and the migration round trip.
+- `tests/check_conversational_setup.py` and
   `tests/check_unified_permissions.py` on fresh databases.

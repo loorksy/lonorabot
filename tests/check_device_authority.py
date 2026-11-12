@@ -3,14 +3,13 @@
 Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
 
 1. No Super Bot tool or route remains.
-2. A grant signed from the trading-level controls is confirmed by one line in the
-   conversation (a lost-response replay adds none), and the agent shows "trades on its
-   own" only while that grant is in force: pausing the agent or revoking the passkey
-   device ends it, and replaying the old proof never restores it.
+2. A grant signed from the trading-level controls returns the same grant on a
+   lost-response replay, and the agent shows "trades on its own" only while that grant
+   is in force: pausing the agent or revoking the passkey device ends it, and replaying
+   the old proof never restores it.
 3. Migration 0040_retire_super_bot_requests marks pending and activated requests
-   retired, withdraws their open inbox items and gives grants signed before the readiness review a skipped review; the
-   downgrade restores exactly those rows and the upgrade is repeatable. A retired
-   request grants nothing.
+   retired and withdraws their open inbox items; the downgrade restores exactly those
+   rows and the upgrade is repeatable. A retired request grants nothing.
 """
 
 import asyncio
@@ -22,16 +21,8 @@ from typing import Any, cast
 
 from check_streaming import Fixture
 from device_fixture import Device
-from lonora_bus.attention import attention_text
 from lonora_contracts.domain import utcnow
-from lonora_db.activation_review import dispatch_activation_reviews
-from lonora_db.schema import (
-    AgentRow,
-    AttentionRow,
-    EffectReceiptRow,
-    MessageRow,
-    SuperBotRequestRow,
-)
+from lonora_db.schema import AgentRow, AttentionRow, SuperBotRequestRow
 from lonora_tools.loader import load_tools
 from sqlalchemy import select
 
@@ -100,18 +91,6 @@ def bounded_grant(thread_id: str, account: str) -> dict[str, Any]:
     }
 
 
-async def assistant_lines(f: Fixture, thread_id: str) -> list[str]:
-    async with f.runtime.db.sessions() as session:
-        return [
-            row.content
-            for row in await session.scalars(
-                select(MessageRow)
-                .where(MessageRow.thread_id == thread_id, MessageRow.role == "assistant")
-                .order_by(MessageRow.seq)
-            )
-        ]
-
-
 async def on_its_own(f: Fixture, agent_id: str) -> bool:
     return bool((await f.request("GET", f"/agents/{agent_id}"))["trades_on_its_own"])
 
@@ -142,11 +121,7 @@ async def signed_grant_and_devices(f: Fixture, device: Device) -> None:
     proof = device.assertion(challenge, f.settings.allowed_origin)
     grant = await f.request("POST", "/account-authorities/verify", proof)
     assert grant["status"] == "active"
-    # The conversation has no owner text yet, so the line is in Arabic, Lonora's default.
-    confirmation = attention_text("grant_activated", "ar")
-    assert await assistant_lines(f, thread["id"]) == [confirmation]
     assert (await f.request("POST", "/account-authorities/verify", proof))["id"] == grant["id"]
-    assert await assistant_lines(f, thread["id"]) == [confirmation]
     assert await on_its_own(f, agent["id"])
     roster = cast(list[dict[str, Any]], await f.request("GET", "/agents"))
     assert next(item for item in roster if item["id"] == agent["id"])["trades_on_its_own"]
@@ -163,9 +138,8 @@ async def signed_grant_and_devices(f: Fixture, device: Device) -> None:
         row.paused = False
     assert await on_its_own(f, agent["id"])
     print(
-        "PASS a grant signed from the trading-level controls is confirmed by one line in the "
-        "conversation, a lost-response replay adds none, and the agent trades on its own only "
-        "while it is not paused"
+        "PASS a grant signed from the trading-level controls returns the same grant on a "
+        "lost-response replay, and the agent trades on its own only while it is not paused"
     )
 
     devices = cast(list[dict[str, Any]], await f.request("GET", "/auth/devices"))
@@ -188,19 +162,7 @@ async def migration_round_trip(f: Fixture) -> None:
     owner = f.owner
     agent = await f.agent("Retired request", supervised=True)
     thread = await f.conversation(agent)
-    signer = await f.agent("Signed before review", supervised=True)
-    signer_thread = await f.conversation(signer)
     account = await simulated_account(f, "retire-migration")
-    device = await Device.enroll(f)
-    grant = await device.sign_grant(
-        f,
-        await f.request(
-            "POST",
-            f"/agents/{signer['id']}/account-authorities",
-            bounded_grant(signer_thread["id"], account),
-        ),
-    )
-    review = "activation-review:" + grant["id"]
     await alembic("downgrade", BEFORE)
     now = utcnow()
     statuses = {"sb-pending": "pending", "sb-activated": "activated", "sb-paused": "paused"}
@@ -238,7 +200,7 @@ async def migration_round_trip(f: Fixture) -> None:
             )
         )
 
-    async def observed() -> tuple[dict[str, str], str, dict[str, Any] | None]:
+    async def observed() -> tuple[dict[str, str], str]:
         async with f.runtime.db.sessions() as session:
             rows = {
                 row.id.rsplit("-", 1)[0]: row.status
@@ -251,34 +213,25 @@ async def migration_round_trip(f: Fixture) -> None:
             item = await session.get(
                 AttentionRow, "sb-attention-" + owner[:8], populate_existing=True
             )
-            receipt = await session.get(EffectReceiptRow, review, populate_existing=True)
             assert item
-            return rows, item.status, receipt.result if receipt else None
+            return rows, item.status
 
     retired = {"sb-pending": "retired", "sb-activated": "retired", "sb-paused": "paused"}
     for attempt in range(2):
         await alembic("upgrade", "head")
-        rows, item, receipt = await observed()
-        assert rows == retired, rows
-        # The first pass skips the review of the grant signed before it. On the second the
-        # grant is already revoked (0063, mandate 14.3.18.3): there is nothing to review.
-        expected = {"skipped": "granted_before_review"} if attempt == 0 else None
-        assert item == "suppressed" and receipt == expected, receipt
-        # No agent is woken for a grant signed before the review existed.
-        assert await dispatch_activation_reviews(f.runtime.db) == 0
+        rows, item = await observed()
+        assert rows == retired and item == "suppressed", (rows, item)
         if attempt == 0:
             await alembic("downgrade", BEFORE)
-            rows, item, receipt = await observed()
-            assert rows == statuses and item == "ready" and receipt is None, (rows, receipt)
+            rows, item = await observed()
+            assert rows == statuses and item == "ready", (rows, item)
     assert not await on_its_own(f, agent["id"])
     live = await f.request("GET", f"/agents/{agent['id']}/state")
     assert live["pending_authorization_count"] == 0 and "super_bot" not in live
     print(
         "PASS migration 0040 retires pending and activated Super Bot requests and withdraws "
-        "their inbox items without deleting a row, "
-        "skips the review for grants signed before "
-        "it, restores exactly those rows on downgrade and repeats cleanly; a retired request "
-        "grants nothing"
+        "their inbox items without deleting a row, restores exactly those rows on downgrade "
+        "and repeats cleanly; a retired request grants nothing"
     )
 
 

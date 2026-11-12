@@ -87,7 +87,7 @@ wake details) and the routing frame.
 
 Two refinements keep model-written text out of it. `wake_context` keeps a Run's
 prompt in the system role only for server-authored wakes (`broker_event`,
-`follow_up`, `activation`); for every other trigger (a subagent's task written by
+`follow_up`); for every other trigger (a subagent's task written by
 its parent model, a peer request, a Task or ticket title, a routine or watch prompt
 an agent saved, an owner prompt) it names the trigger only, and the prompt arrives
 as the user-role turn. The permission frame shows restrictions as structured fields;

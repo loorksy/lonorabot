@@ -8,8 +8,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.run_state import is_conversational
 from lonora_core.runtime_failure import MODEL_RETRY_REASON
 from lonora_core.user_error import LonoraError
-from lonora_session.idempotency import stable_id
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import fixed_market
@@ -449,28 +448,6 @@ async def agent_live_state(
             except LonoraError:
                 continue
         envelope = account_grant.envelope
-        review = (
-            await session.get(RunRow, stable_id(account_grant.id, "activation-review"))
-            if account_grant.status == "active"
-            else None
-        )
-        review_status = review.status if review else None
-        if (
-            review is not None
-            and review_status == "failed"
-            and await session.scalar(
-                select(
-                    exists().where(
-                        RunRow.agent_id == agent.id,
-                        RunRow.status == "completed",
-                        RunRow.created_at > review.created_at,
-                    )
-                )
-            )
-        ):
-            # The review is observe-only and gates nothing; once later work of this agent
-            # completed, its failure is history (Activity), not a status line.
-            review_status = "superseded"
         account_authorities.append(
             {
                 "id": account_grant.id,
@@ -490,7 +467,6 @@ async def agent_live_state(
                 "maximum_actions": envelope.get("maximum_actions"),
                 "minimum_equity": envelope.get("minimum_equity"),
                 "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
-                "review_status": review_status,
                 # The owner's view adds the account's money limits; the agent reads
                 # them in its permission frame instead of twice per turn.
                 **(

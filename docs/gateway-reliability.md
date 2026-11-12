@@ -28,7 +28,7 @@ broken routine can no longer stop broker reconciliation.
 | `market`, `watches`, `channels`, `attention` | 2 s | 120 s | yes |
 | `watchdog` | 30 s | 120 s | yes |
 | `morning_brief` ([morning-brief.md](morning-brief.md)) | 30 s | 120 s | yes |
-| `activation_reviews`, `opportunities` | 10 s | 120 s | no |
+| `opportunities` | 10 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
 | `closed_trades` (the closed-trade ledger from broker deal history) | 30 s | 300 s | no |
@@ -50,7 +50,7 @@ skips another.
 ## Per-item isolation
 
 Inside a step, every item is isolated by `ItemGuard` (`lonora_db/item_failures.py`):
-routines, automatic task retries, activation reviews, task waits, outcome returns,
+routines, automatic task retries, task waits, outcome returns,
 attention events and items, watches, channel integrations and opportunities. Each item runs in its own transaction and has its
 own time limit (45 s; 100 s for a channel integration's batch of deliveries), well
 below the step's timeout. An item that raises, or hangs past its limit (code
@@ -68,9 +68,8 @@ further quarantine of the same kind adds to its `count` instead of a new item, s
 systematic fault cannot flood the inbox.
 
 - a routine is disabled, a watch is disabled (`state.code: watch_quarantined`), an
-  activation review is recorded as skipped, an attention event is recorded as decided
-  (`attention_projection_failed`) and an attention item is suppressed; re-enabling a
-  routine or watch starts fresh;
+  attention event is recorded as decided (`attention_projection_failed`) and an
+  attention item is suppressed; re-enabling a routine or watch starts fresh;
 - a critical or action-required notification is never lost to a projection bug: a
   quarantined event still raises its own code (for example `approval_required`) straight
   to ready, without the details its failed projection would have added, and a

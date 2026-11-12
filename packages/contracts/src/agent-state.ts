@@ -60,8 +60,6 @@ export type AgentLiveState = {
       id: string;
       status: "pending" | "active";
       money_limits?: MoneyLimits;
-      /** The readiness review after a bounded grant is signed (full grants start a Task). */
-      review_status?: string | null;
     }
   >;
   tasks: Array<{

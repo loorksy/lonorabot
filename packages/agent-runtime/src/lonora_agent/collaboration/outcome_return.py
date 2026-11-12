@@ -17,7 +17,7 @@ from lonora_db.schema import (
     ThreadRow,
     TicketRow,
 )
-from lonora_db.threads import origin_read_threads, wake_origin
+from lonora_db.threads import wake_origin
 from sqlalchemy import String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -271,53 +271,26 @@ async def report_to_origin(
     session: AsyncSession, child: RunRow, rich_content: dict[str, Any] | None
 ) -> None:
     """Copy a wake's non-empty result into the conversation its work thread reports to."""
-    activation_ack = (
-        await session.get(
-            EffectReceiptRow,
-            "activation-ack:" + str(child.model_metadata.get("account_authority_id", "")),
-        )
-        if child.trigger == "activation"
-        else None
-    )
-    quiet_activation = activation_ack is not None and child.status != "failed"
     if (
         # A wake that works in a hidden work thread reports to its origin conversation;
         # a routine's or watch's origin is its Agent's own conversation (VISION 11.6).
-        child.trigger in {"broker_event", "activation", "routine", "watch", "follow_up"}
+        child.trigger in {"broker_event", "routine", "watch", "follow_up"}
         and child.model_metadata.get("origin_thread_id")
-        and not quiet_activation
     ):
         origin = await session.get(
             ThreadRow, child.model_metadata["origin_thread_id"], with_for_update=True
         )
-        if (
-            origin
-            and (child.result or rich_content)
-            and (
-                origin.agent_id == child.agent_id
-                or (
-                    child.trigger == "activation"
-                    and origin.id in await origin_read_threads(session, child)
-                )
-            )
-        ):
+        if origin and (child.result or rich_content) and origin.agent_id == child.agent_id:
             source = await session.get(ThreadRow, child.thread_id)
             if source is None or source.owner_id != origin.owner_id:
                 raise ValueError("broker_event_owner_mismatch")
-            public_result = child.result or ""
-            if activation_ack is not None:
-                from lonora_bus.attention import attention_text
-
-                public_result = attention_text(
-                    "grant_review_unavailable", activation_ack.result.get("locale", "ar")
-                )
             final = MessageRow(
                 thread_id=origin.id,
                 agent_id=child.agent_id,
                 role="assistant",
                 seq=origin.next_seq,
-                content=public_result,
-                rich_content=rich_content if activation_ack is None else None,
+                content=child.result or "",
+                rich_content=rich_content,
             )
             origin.next_seq += 1
             session.add(final)
@@ -345,7 +318,7 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                     RunRow.status.in_(["completed", "failed", "cancelled"]),
                     or_(
                         RunRow.parent_run_id.is_not(None),
-                        RunRow.trigger.in_(["tickets", "broker_event", "activation"]),
+                        RunRow.trigger.in_(["tickets", "broker_event"]),
                         RunRow.model_metadata["opportunity_id"].as_string().is_not(None),
                         RunRow.model_metadata["origin_thread_id"].as_string().is_not(None),
                     ),
