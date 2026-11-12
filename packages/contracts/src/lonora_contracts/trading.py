@@ -151,20 +151,18 @@ OWNER_ATTESTATION = "Owner attested; not broker confirmation."
 
 
 class OperationResolution(Contract):
-    """Owner attestation for an operation whose outcome broker evidence cannot establish.
+    """The owner's answer on the Settle card for an operation broker evidence cannot settle.
 
-    ``outcome`` is the owner's statement of fact (for example after checking the broker
-    terminal), recorded with the actor and time. It settles the block; it never becomes
-    broker confirmation and never triggers a resend.
+    ``outcome`` is recorded with the actor and time. Executed or Not executed settles the
+    operation; Unknown leaves it held. It never becomes broker confirmation and never
+    triggers a resend.
     """
 
     outcome: Literal["executed", "not_executed", "unknown"]
     # Optional: without a note the record states that it is the owner's attestation.
     statement: str = Field(default="", max_length=2000)
-    broker_reference: str | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def substantive(self) -> "OperationResolution":
         self.statement = self.statement.strip() or OWNER_ATTESTATION
-        self.broker_reference = (self.broker_reference or "").strip() or None
         return self

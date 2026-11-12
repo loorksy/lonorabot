@@ -213,7 +213,7 @@ Today every other caller (`trade_execute`) submits a single request.
   real child processes): crash before send, interruption after submission before
   acknowledgement (Owner addendum §6 step 7: blocked new risk, traceable operation,
   no resend), scoped blocking versus reduce-only admission on the uncertain market,
-  degraded and disconnected recovery, owner attestation through the API,
+  degraded and disconnected recovery, owner attestation on the Settle card,
   a crashed submission whose broker observation keeps failing (held send lock, then
   ambiguous and owner-resolvable), a sibling that waits for a definitive rejection
   under the send lock, modify/cancel target-state reconciliation, verification

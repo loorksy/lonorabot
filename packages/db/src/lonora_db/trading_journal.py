@@ -227,7 +227,6 @@ async def resolve_operation(
                 "source": "owner",
                 "outcome": resolution.outcome,
                 "statement": resolution.statement,
-                "broker_reference": resolution.broker_reference,
                 "actor": actor,
                 "resolved_at": now.isoformat(),
                 "broker_confirmed": False,

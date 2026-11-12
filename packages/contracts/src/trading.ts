@@ -100,7 +100,6 @@ export type OperationResolutionRecord = {
   basis?: string;
   outcome?: "executed" | "not_executed" | "unknown";
   statement?: string;
-  broker_reference?: string | null;
   resolved_at?: string;
   broker_confirmed?: false;
 };

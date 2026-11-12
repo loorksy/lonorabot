@@ -31,6 +31,7 @@ from lonora_db.schema import (
     AgentRow,
     BrokerSessionRow,
     EventRow,
+    OwnerActionRow,
     TradingAccountRow,
     TradingJournalRow,
 )
@@ -541,6 +542,19 @@ async def main() -> None:
         await blocked(
             trade("buy", EURO, volume="0.1", stop_loss="95"), "broker_reconciliation_required"
         )
+        # Deleting the conversation that shows the card never strands the operation (6.8):
+        # while it is uncertain, its card moves to Lonora's conversation, still pending.
+        shown = await settle_card(fixture, unobservable.operation_id)
+        async with db.sessions() as session:
+            card_row = await session.get(OwnerActionRow, shown)
+            assert card_row is not None and card_row.thread_id is not None
+            first_thread = card_row.thread_id
+        deleted = await fixture.client.delete("/api/threads/" + first_thread)
+        assert deleted.status_code == 200, deleted.text
+        async with db.sessions() as session:
+            card_row = await session.get(OwnerActionRow, shown)
+            assert card_row is not None and card_row.status == "pending", card_row
+            assert card_row.thread_id not in {None, first_thread}
         await settle_by_card(fixture, unobservable.operation_id, "not_executed")
         assert (await journal(unobservable.operation_id)).status == "resolved"
         assert (await run(trade("buy", EURO, volume="0.1", stop_loss="95"))).status == "confirmed"

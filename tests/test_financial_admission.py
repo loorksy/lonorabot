@@ -340,15 +340,16 @@ def test_only_full_closes_of_distinct_positions_form_an_independent_batch() -> N
 
 
 def test_owner_resolution_statement_is_optional_and_never_claims_broker_evidence() -> None:
-    resolution = OperationResolution(
-        outcome="not_executed", statement="  Checked MT5: no order  ", broker_reference=" "
-    )
-    assert resolution.statement == "Checked MT5: no order" and resolution.broker_reference is None
+    resolution = OperationResolution(outcome="not_executed", statement="  Checked MT5: no order  ")
+    assert resolution.statement == "Checked MT5: no order"
     # Without a note the record still says whose statement it is and what it is not.
     assert OperationResolution(outcome="executed", statement="   ").statement == (OWNER_ATTESTATION)
     assert OperationResolution(outcome="unknown").statement == OWNER_ATTESTATION
     with pytest.raises(ValidationError):
         OperationResolution.model_validate({"outcome": "confirmed", "statement": "x"})
+    # The Settle card asks for the outcome only: no broker reference is taken from the owner.
+    with pytest.raises(ValidationError):
+        OperationResolution.model_validate({"outcome": "executed", "broker_reference": "T1"})
 
 
 def test_agent_history_keeps_lifecycle_facts_without_the_owner_session_reference() -> None:

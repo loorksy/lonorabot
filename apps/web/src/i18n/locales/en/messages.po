@@ -6443,6 +6443,10 @@ msgstr "Set up the voice provider"
 msgid "Settings"
 msgstr "Settings"
 
+#: src/components/trading/TradingJournal.tsx:38
+msgid "Settle this operation on its card in the conversation."
+msgstr "Settle this operation on its card in the conversation."
+
 #: src/shell/settings/AuthFlow.tsx:272
 msgid "Setup token"
 msgstr "Setup token"
@@ -7055,7 +7059,7 @@ msgstr "Task when triggered"
 msgid "Tasks"
 msgstr "Tasks"
 
-#: src/components/trading/TradingJournal.tsx:40
+#: src/components/trading/TradingJournal.tsx:44
 #: src/conversation/Cards.tsx:455
 msgid "Technical details"
 msgstr "Technical details"

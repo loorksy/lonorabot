@@ -25,7 +25,7 @@ from lonora_contracts.account_authority import (
     AuthorityAction,
     full_delegation,
 )
-from lonora_contracts.domain import new_id, utcnow
+from lonora_contracts.domain import ThreadCreate, new_id, utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import (
     GrantDelegation,
@@ -2240,4 +2240,50 @@ async def settle_for_delete(
     for row in rows:
         if account_id is not None and await card_account(session, row) != account_id:
             continue
+        if row.kind == "settle_operation" and await still_uncertain(session, row):
+            # The operation is still held and the card is the owner's only way to settle it
+            # (6.8): it moves to Lonora's conversation instead of ending with this one.
+            await move_to_lonora(session, row, deleted_thread=thread_id, deleted_agent=agent_id)
+            continue
         await settle(session, row, "superseded", reason)
+
+
+async def still_uncertain(session: AsyncSession, row: OwnerActionRow) -> bool:
+    operation = await session.get(TradingJournalRow, row.payload.get("operation_id", ""))
+    return operation is not None and operation.status in UNRESOLVED_STATUSES
+
+
+async def move_to_lonora(
+    session: AsyncSession,
+    row: OwnerActionRow,
+    *,
+    deleted_thread: str | None,
+    deleted_agent: str | None,
+) -> None:
+    """A pending Settle card leaves a conversation or agent being deleted for Lonora's
+    conversation (a new one when that is the conversation being deleted)."""
+    from .personal_agent import ensure_personal_agent
+    from .threads import create_thread
+
+    lonora = await ensure_personal_agent(session, row.owner_id)
+    thread = await session.scalar(
+        select(ThreadRow)
+        .where(
+            ThreadRow.owner_id == row.owner_id,
+            ThreadRow.agent_id == lonora.id,
+            ThreadRow.group_id.is_(None),
+            ThreadRow.purpose == "conversation",
+            ThreadRow.id != (deleted_thread or ""),
+        )
+        .order_by(ThreadRow.created_at, ThreadRow.id)
+        .limit(1)
+    )
+    if thread is None:
+        thread = await create_thread(
+            session, row.owner_id, ThreadCreate(agent_id=lonora.id, title="")
+        )
+    if deleted_agent is not None and row.agent_id == deleted_agent:
+        row.agent_id = lonora.id
+    row.thread_id, row.timeline_seq, row.updated_at = thread.id, thread.next_seq, utcnow()
+    await session.flush()
+    await owner_action_event(session, row)

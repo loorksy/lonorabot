@@ -33,7 +33,11 @@ export function TradingJournal({ entries }: { entries: Journal[] }) {
               {brokerTicketLabel(i18n.locale)}: <bdi dir="ltr">{e.result.broker_id}</bdi>
             </p>
           )}
-          {/* An uncertain operation is settled on its Settle card in the conversation (6.8). */}
+          {e.status === "ambiguous" && (
+            <p className="muted">
+              <Trans>Settle this operation on its card in the conversation.</Trans>
+            </p>
+          )}
           {/* Identifiers and raw records are for support, never the normal view. */}
           <details className="technical-details">
             <summary>

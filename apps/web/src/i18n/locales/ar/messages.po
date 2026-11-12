@@ -6437,6 +6437,10 @@ msgstr "إعداد مزود الصوت"
 msgid "Settings"
 msgstr "الإعدادات"
 
+#: src/components/trading/TradingJournal.tsx:38
+msgid "Settle this operation on its card in the conversation."
+msgstr "احسم هذه العملية من بطاقتها في المحادثة."
+
 #: src/shell/settings/AuthFlow.tsx:272
 msgid "Setup token"
 msgstr "رمز الإعداد"
@@ -7049,7 +7053,7 @@ msgstr "المهمة عند تحقق الشرط"
 msgid "Tasks"
 msgstr "المهام"
 
-#: src/components/trading/TradingJournal.tsx:40
+#: src/components/trading/TradingJournal.tsx:44
 #: src/conversation/Cards.tsx:455
 msgid "Technical details"
 msgstr "التفاصيل التقنية"
