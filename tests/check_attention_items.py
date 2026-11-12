@@ -427,7 +427,7 @@ async def migration(fixture: Fixture) -> None:
     await asyncio.to_thread(alembic, "downgrade", "0068_end_trading_goals")
     rows = {
         code + status: uuid4().hex[:32]
-        for code in ("broker_degraded", "broker_recovered")
+        for code in ("broker_degraded", "broker_recovered", "goal_changed")
         for status in ("ready", "seen")
     }
     async with fixture.runtime.db.sessions() as session, session.begin():
@@ -471,7 +471,12 @@ async def migration(fixture: Fixture) -> None:
     async with fixture.runtime.db.sessions() as session:
         codes = set(await session.scalars(select(AttentionRow.code).distinct()))
     assert codes <= set(get_args(AttentionCode)), codes
-    print("PASS migration 0170 rewrites broker_degraded rows and deletes broker_recovered rows")
+    # 0171: the removed trading goals' items go too (their code left the contract).
+    assert rows["goal_changedready"] not in stored and rows["goal_changedseen"] not in stored
+    print(
+        "PASS migrations 0170 and 0171 rewrite broker_degraded rows and delete "
+        "broker_recovered and goal_changed rows; every stored code reads through the contract"
+    )
 
 
 async def main() -> None:
