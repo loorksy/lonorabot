@@ -942,7 +942,13 @@ async def test_pausing_an_agent_ends_its_full_task_and_resuming_starts_it_again(
 
         task = await live_task()
         assert task is not None
-        task_id = task.id
+        # The task's kickoff Run waits on the owner (an open question): it goes on outside
+        # the task when the task ends, and must stay held while the agent is paused.
+        kickoff_id = str(task.payload["run_id"])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            kickoff = await session.get(RunRow, kickoff_id)
+            assert kickoff is not None
+            kickoff.status = "waiting_input"
         # Lonora holds its default grant over the new agent.
         lonora_woke = await wake(fixture, lonora, await fixture.conversation(lonora))
         paused = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="pause")
@@ -951,31 +957,25 @@ async def test_pausing_an_agent_ends_its_full_task_and_resuming_starts_it_again(
         async with fixture.runtime.db.sessions() as session, session.begin():
             # A paused agent's task is never started again while it is paused (4.7.1).
             assert await ensure_management_task(session, fixture.owner, gold["id"]) is None
-            # The ended task's Runs: each is ended, or held (never claimed while paused).
-            task_runs = list(
-                await session.scalars(
-                    select(RunRow).where(RunRow.model_metadata["task_id"].as_string() == task_id)
+            kept = await session.get(RunRow, kickoff_id, populate_existing=True)
+            assert kept is not None and kept.status == "waiting_input"
+            assert "task_id" not in kept.model_metadata  # Detached: it left the task.
+            # Answered, it would be queued: it is not claimable while the agent is paused.
+            kept.status = "queued"
+            await session.flush()
+            assert (
+                await session.scalar(
+                    select(RunRow.id).where(RunRow.id == kickoff_id, claimable_while_paused())
                 )
+                is None
             )
-            assert task_runs, "the task had no Runs to check"
-            assert all(
-                run.status in {"cancelled", "completed", "failed", "queued"} for run in task_runs
-            )
-            claimable = await session.scalar(
-                select(RunRow.id).where(
-                    RunRow.agent_id == gold["id"],
-                    RunRow.status == "queued",
-                    claimable_while_paused(),
-                )
-            )
-            assert claimable is None
             # A new Run of its work while it is paused is refused (it takes no new work).
             with pytest.raises(LonoraError, match="agent_paused"):
                 await create_run(
                     session,
                     fixture.owner,
                     RunRequest(
-                        thread_id=task_runs[0].thread_id,
+                        thread_id=kept.thread_id,
                         agent_id=gold["id"],
                         trigger="tickets",
                         prompt="x",
@@ -997,4 +997,64 @@ async def test_pausing_an_agent_ends_its_full_task_and_resuming_starts_it_again(
         if gold:
             async with fixture.runtime.db.sessions() as session, session.begin():
                 await set_trading_mode(session, fixture.owner, gold["id"], "ask", by="agent")
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_owners_creation_undo_never_deadlocks_with_the_tasks_run():
+    """Lock order: the Undo on an agent_created card ends the Full task (the task's Runs)
+    before it locks the agent row, as every pause does. A tool transaction of the task's
+    Run holds the Run and then needs the agent (an FK key share): the Undo waits for it
+    and never deadlocks."""
+    database()
+    import asyncio
+
+    from check_streaming import Fixture
+    from lonora_api.routes.owner_actions import undo_creation
+    from lonora_auth.identity import OwnerIdentity
+    from lonora_db.management_task import live_management_task
+    from lonora_db.schema import AgentRow, OwnerActionRow, RunRow
+    from lonora_db.trading_mode import set_trading_mode
+
+    fixture = await Fixture().open()
+    try:
+        gold = await fixture.agent("Undo gold")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, gold["id"], "full", by="owner_tap")
+            task = await live_management_task(session, fixture.owner, gold["id"])
+            assert task is not None
+            run_id = str(task.payload["run_id"])
+        holding, release = asyncio.Event(), asyncio.Event()
+
+        async def tool_transaction() -> None:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await session.execute(select(RunRow).where(RunRow.id == run_id).with_for_update())
+                holding.set()
+                await release.wait()
+                await session.execute(
+                    select(AgentRow)
+                    .where(AgentRow.id == gold["id"])
+                    .with_for_update(key_share=True)
+                )
+
+        async def undo() -> Any:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                owner = OwnerIdentity(id=fixture.owner, email="", token_hash="")
+                card = OwnerActionRow(payload={"agent_id": gold["id"]})
+                return await undo_creation(session, owner, card)
+
+        tool = asyncio.create_task(tool_transaction())
+        await holding.wait()
+        undoing = asyncio.create_task(undo())
+        await asyncio.sleep(0.3)
+        assert not undoing.done(), "the Undo did not wait for the task's Run"
+        release.set()
+        _, undone = await asyncio.wait_for(asyncio.gather(tool, undoing), timeout=20)
+        assert undone is not None and undone["undo"] in {"paused", "deleted"}
+        if undone["undo"] == "deleted":
+            fixture.agents.remove(gold["id"])
+        else:
+            async with fixture.runtime.db.sessions() as session:
+                assert await live_management_task(session, fixture.owner, gold["id"]) is None
+    finally:
         await fixture.close()

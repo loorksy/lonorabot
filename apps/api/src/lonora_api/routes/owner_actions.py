@@ -825,6 +825,11 @@ async def undo_creation(
     # Lock it first: a run or watch that starts now waits on this lock, so the plan below
     # never deletes work begun meanwhile.
     await authority_lock(session, agent_id)
+    from lonora_db.management_task import end_management_task
+
+    # Either outcome ends the Full-mode task (4.5.2): end it before the agent's row lock,
+    # since the task's Runs are locked first, as their own work does (no deadlock).
+    await end_management_task(session, owner.id, agent_id)
     agent = await session.get(AgentRow, agent_id, with_for_update=True, populate_existing=True)
     if agent is None or agent.owner_id != owner.id:
         return None
