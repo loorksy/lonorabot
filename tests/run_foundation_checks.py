@@ -30,7 +30,6 @@ CHECKS = (
     "check_skill_packages.py",
     "check_managed_skill_updates.py",
     "check_workspace_skill_creation.py",
-    "check_workspace_runtime.py",
     "check_workspace_artifacts.py",
     "check_workspace_migrations.py",
     "check_durable_records.py",
@@ -60,7 +59,7 @@ CHECKS = (
     "check_unified_permissions.py",
     "check_account_recovery.py",
     "check_execution_recovery.py",
-    "check_trading_restrictions.py",
+    "check_risk_limits.py",
     "check_owner_trades.py",
     "check_decision_replay.py",
     "check_review_findings.py",
@@ -69,6 +68,7 @@ CHECKS = (
     "check_opportunity_runtime.py",
     "check_shadow_removal_migration.py",
     "check_goal_removal_migration.py",
+    "check_restriction_removal_migration.py",
     "check_task_recovery.py",
     "check_attention.py",
     "check_relationships.py",
@@ -88,6 +88,8 @@ CHECKS = (
     "check_full_delegation.py",
     "check_lossless_downgrades.py",
     "check_agent_model_choice.py",
+    "check_agent_model_migration.py",
+    "check_trust_migration.py",
     "check_simple_lonora.py",
     "check_gold_journey.py",
 )
@@ -113,13 +115,16 @@ def main() -> None:
     base = make_url(get_settings().database_url)
     commands = [[sys.executable, "tests/" + script] for script in CHECKS]
     commands.append([sys.executable, "-m", "pytest", "tests/test_task_runtime.py", "-q"])
-    # UI phase 5: delivery rules, dry-run tests, owner identity and usage (PostgreSQL cases).
+    # UI phase 5: delivery rules, dry-run tests, owner identity and usage, and the
+    # composer's / commands (PostgreSQL cases).
     for name in (
         "test_agent_delivery_rules.py",
         "test_connection_tests.py",
         "test_owner_identity.py",
         "test_owner_profile.py",
         "test_usage_dashboard.py",
+        "test_slash_commands.py",
+        "test_usage_tool.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:

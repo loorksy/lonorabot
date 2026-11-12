@@ -170,6 +170,22 @@ async def events_of(fixture: Any, kind: str, thread_id: str | None = None) -> li
         return list(await session.scalars(query.order_by(EventRow.cursor)))
 
 
+async def unpublished(fixture: Any) -> int:
+    from lonora_db.events import public_cursor_expression
+    from lonora_db.schema import EventRow
+    from sqlalchemy import func, select
+
+    async with fixture.runtime.db.sessions() as session:
+        return int(
+            await session.scalar(
+                select(func.count())
+                .select_from(EventRow)
+                .where(public_cursor_expression().is_(None))
+            )
+            or 0
+        )
+
+
 async def tick(fixture: Any) -> int:
     from lonora_gateway.thread_prefs import thread_prefs_tick
 
@@ -303,10 +319,11 @@ async def test_keep_archived_off_returns_an_archived_chat_on_a_new_message():
 
     fixture = await Fixture().open()
     try:
-        # The tick applies a bounded batch; drain what earlier tests in this shared
-        # database left, so each tick below reads only this test's own events.
+        # The tick publishes and applies bounded batches; drain what earlier tests in this
+        # shared database left (published or not), so each tick below reads only this
+        # test's own events.
         for _ in range(100):
-            if not await tick(fixture):
+            if not await tick(fixture) and not await unpublished(fixture):
                 break
         agent = await fixture.agent("Archive")
         thread = await fixture.conversation(agent)

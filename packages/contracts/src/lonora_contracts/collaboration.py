@@ -6,16 +6,21 @@ from pydantic import Field
 
 from .domain import Contract
 
+# A runaway guard inside one collaboration session, never a cap on agents (mandate P1,
+# 3.3.2): a session takes at most this many rounds, so each participant at most this many
+# runs. The owner's next mention opens a new session when one is full.
+MAXIMUM_ROUNDS = 8
+
 
 class CollaborationCreate(Contract):
     subject: str = Field(min_length=1, max_length=8000)
-    participant_ids: list[str] = Field(min_length=1, max_length=16)
+    participant_ids: list[str] = Field(min_length=1)
     session_id: str | None = None
 
 
 class CollaborationParticipant(Contract):
     agent_id: str
-    run_ids: list[str] = Field(default_factory=list, max_length=64)
+    run_ids: list[str] = Field(default_factory=list)
     status: Literal["invited", "working", "completed", "failed", "cancelled"] = "invited"
     result: str = Field(default="", max_length=30000)
     error_code: str | None = None
@@ -29,16 +34,18 @@ class CollaborationRound(Contract):
     request_id: str
     host_run_id: str
     subject: str = Field(max_length=8000)
-    participant_run_ids: list[str] = Field(default_factory=list[str], max_length=16)
+    participant_run_ids: list[str] = Field(default_factory=list[str])
     synthesis_run_id: str | None = None
 
 
 class CollaborationState(Contract):
     status: Literal["collaborating", "synthesizing", "completed", "cancelled"] = "collaborating"
     participants: list[CollaborationParticipant] = Field(
-        default_factory=list[CollaborationParticipant], max_length=16
+        default_factory=list[CollaborationParticipant]
     )
-    rounds: list[CollaborationRound] = Field(default_factory=list[CollaborationRound], max_length=8)
+    rounds: list[CollaborationRound] = Field(
+        default_factory=list[CollaborationRound], max_length=MAXIMUM_ROUNDS
+    )
     conflicts: list[str] = Field(default_factory=list, max_length=16)
     final_result: str = Field(default="", max_length=16000)
 

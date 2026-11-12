@@ -67,7 +67,8 @@ reference patterns; their runtimes and permission models were not imported.
 
 `tests/test_skill_repository.py` covers non-execution, immutable revision
 resolution, archive/source limits, traversal, symlinks, invalid metadata/source,
-URL restrictions, redirects, explicit network errors and read-only registration.
+URL restrictions, redirects, explicit network errors and its registration (replay-safe,
+not read-only: a repository the owner names joins his trusted sources).
 `tests/check_skill_repository.py` exercises the real AgentRuntime/ToolLoop and
 PostgreSQL result path with scripted public HTTP responses. It verifies that no
 Skill activation or financial journal entry occurs. The latter is included in

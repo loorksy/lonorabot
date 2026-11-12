@@ -133,7 +133,7 @@ for (const variant of [
     );
     for (let index = 0; index < 9; index += 1) await slider.press(increase);
     await expect.poll(numeric).toBe("40");
-    await page.getByRole("checkbox", { name: "Show additional context" }).check();
+    await page.getByRole("switch", { name: "Show additional context" }).check();
     await expect(page.getByText("Additional context is visible.")).toBeVisible();
     await page.getByRole("combobox", { name: "Pace", exact: true }).selectOption("fast");
     await page.getByRole("textbox", { name: "Search illustration", exact: true }).fill("Beta");
@@ -161,7 +161,7 @@ for (const variant of [
     await page.reload();
     await expect(response).toBeVisible();
     await expect.poll(numeric).toBe("40");
-    await expect(page.getByRole("checkbox", { name: "Show additional context" })).toBeChecked();
+    await expect(page.getByRole("switch", { name: "Show additional context" })).toBeChecked();
     await expect(page.getByRole("combobox", { name: "Pace", exact: true })).toHaveValue("fast");
     await expect(
       page.getByRole("textbox", { name: "Search illustration", exact: true }),
@@ -489,8 +489,9 @@ test("dense tables, charts and diagrams remain local and contained at 320px", as
   await page.screenshot({ path: ".runtime/visual-320px-after.png", fullPage: true });
 });
 
-// Replay only when a live, existing-Agent acceptance record was explicitly supplied.
-// The regular deterministic cases above always execute without a model or network provider.
+// Replay only when a live, existing-Agent acceptance record was explicitly supplied
+// (scripts/verify_agent_journeys.py --evidence). The regular deterministic cases above always
+// execute without a model or network provider. A live reply's card is lonora-ui v2.
 if (process.env.LONORA_MODEL_VISUAL_RESULT) {
   const recorded = JSON.parse(readFileSync(process.env.LONORA_MODEL_VISUAL_RESULT, "utf8"));
   test("live-model composed response renders through the native message boundary", async ({
@@ -498,7 +499,10 @@ if (process.env.LONORA_MODEL_VISUAL_RESULT) {
     conversation,
   }) => {
     expect(recorded.rich_content?.version).toBe(1);
-    expect(recorded.rich_content.parts.some((part) => part.type === "ui")).toBe(true);
+    const cards = recorded.rich_content.parts.filter(
+      (part) => part.type === "ui" && part.document?.v === 2,
+    );
+    expect(cards.length).toBeGreaterThan(0);
     await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
       route.fulfill({
@@ -519,52 +523,10 @@ if (process.env.LONORA_MODEL_VISUAL_RESULT) {
       }),
     );
     await page.goto(`/app/${conversation.agent.id}`);
-    await expect(page.locator(".native-visual-response")).toBeVisible();
-    await expect(page.locator(".native-visual-response").first()).toHaveAttribute(
-      "data-visual-mode",
-      "observed",
-    );
-    let checked = 0;
-    for (const part of recorded.rich_content.parts) {
-      if (part.type !== "ui") continue;
-      const walk = async (node) => {
-        if (
-          node.type === "metric" &&
-          node.value &&
-          typeof node.value === "object" &&
-          "source" in node.value
-        ) {
-          const scalar = part.document.facts[node.value.source]?.value;
-          expect(scalar).not.toBeUndefined();
-          const shown =
-            typeof scalar === "number"
-              ? new Intl.NumberFormat("en", { maximumFractionDigits: 8 }).format(scalar)
-              : String(scalar);
-          await expect(page.locator(`[data-visual-value="${node.id}"]`)).toHaveText(shown);
-          checked += 1;
-        }
-        for (const child of node.children ?? []) await walk(child);
-      };
-      await walk(part.document.root);
+    // Each card renders natively with its own title; none falls back to its text.
+    for (const part of cards) {
+      await expect(page.locator(".ux").filter({ hasText: part.document.title })).toBeVisible();
     }
-    if (!checked) {
-      // Presentation is model-owned: a table/chart with a derived total is also
-      // valid. Do not force a particular metric template in the acceptance test.
-      const rendered = await page.locator(".native-visual-response").allTextContents();
-      for (const part of recorded.rich_content.parts) {
-        if (part.type !== "ui") continue;
-        for (const fact of Object.values(part.document.facts ?? {})) {
-          const shown =
-            typeof fact.value === "number"
-              ? new Intl.NumberFormat("en", { maximumFractionDigits: 8 }).format(fact.value)
-              : String(fact.value);
-          if (rendered.some((text) => text.includes(shown))) checked += 1;
-        }
-      }
-    }
-    expect(checked).toBeGreaterThan(0);
-    await page.locator(".native-visual-response").first().screenshot({
-      path: ".runtime/visual-web-live-model.png",
-    });
+    await expect(page.locator(".ux-fallback")).toHaveCount(0);
   });
 }

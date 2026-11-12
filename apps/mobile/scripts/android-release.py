@@ -48,6 +48,21 @@ elif any(os.environ.get(variable) for variable in variables):
     )
 else:
     credentials = signing.load_or_create()
+# Push (VISION 11.4) needs the owner's own Expo project id and the Firebase file of that
+# project; a release built without both has no push (docs/operations.md).
+push_inputs = [
+    os.environ.get("LONORA_EXPO_PROJECT_ID", ""),
+    os.environ.get("LONORA_ANDROID_GOOGLE_SERVICES_FILE", ""),
+]
+if any(push_inputs) and not all(push_inputs):
+    raise SystemExit(
+        "Push needs both LONORA_EXPO_PROJECT_ID and LONORA_ANDROID_GOOGLE_SERVICES_FILE."
+    )
+push = all(push_inputs)
+if push and not Path(push_inputs[1]).is_file():
+    raise SystemExit("LONORA_ANDROID_GOOGLE_SERVICES_FILE is not a file.")
+if push:
+    os.environ["LONORA_ANDROID_GOOGLE_SERVICES_FILE"] = str(Path(push_inputs[1]).resolve())
 env = os.environ.copy()
 env.update(
     {
@@ -100,3 +115,4 @@ destination.parent.chmod(0o755)
 destination.chmod(0o644)
 destination.with_suffix(".json").chmod(0o644)
 print(f"Signed universal release APK: {destination}")
+print("Push: built in." if push else "Push: not configured (no LONORA_EXPO_PROJECT_ID).")

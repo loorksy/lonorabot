@@ -1,4 +1,4 @@
-/** The lonora-ui v2 expression language (GENUI_PLAN §2.2, §7.3), the reference grammar
+/** The lonora-ui v2 expression language (docs/genui.md), the reference grammar
  * (Desktop-37 6287-6356). Mirrors `lonora_contracts/genui_expr.py` for values; the shared
  * vectors in `tests/fixtures/genui/expr-vectors.json` hold the two equal. Nothing here is
  * executed as JavaScript: expressions are parsed into a small AST and walked.

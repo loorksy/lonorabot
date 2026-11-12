@@ -4,6 +4,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import type { Event, Message, Run } from "@lonora/contracts";
 import ts from "typescript";
+import { ApiError } from "../../apps/mobile/lib/api-error";
 import {
   composerDraft,
   consumeComposerDraft,
@@ -11,6 +12,7 @@ import {
 } from "../../apps/mobile/lib/composer-drafts";
 import { projectConversation } from "../../apps/mobile/lib/conversation-projection";
 import { closeSessionResources } from "../../apps/mobile/lib/session-lifecycle";
+import { isPlainOutgoing } from "../../packages/core/src/chat-rows";
 import { pendingVoiceRich } from "../../packages/core/src/message-parts";
 
 function moduleFixture<T>(name: string, dependencies: Record<string, unknown>, globals = {}) {
@@ -48,7 +50,8 @@ function outboxFixture(storage = browserStorage()) {
     "outgoing-messages",
     {
       "react-native": { Platform: { OS: "web" } },
-      "@lonora/core": { pendingVoiceRich },
+      "@lonora/core": { pendingVoiceRich, isPlainOutgoing },
+      "./api-error": { ApiError },
       "./session-lifecycle": {
         registerSessionTeardown: (fn: () => Promise<void>) => teardown.push(fn),
       },

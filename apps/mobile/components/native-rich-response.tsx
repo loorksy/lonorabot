@@ -34,6 +34,7 @@ import {
 import { isImage, useArtifact } from "../lib/artifacts";
 import { useSession } from "../lib/session";
 import { loadVisualState, saveVisualState } from "../lib/visual-state";
+import { NativeUiCard } from "./genui/card";
 import { Markdown } from "./markdown";
 import { NativeVisualInput, NativeVisualSlider } from "./native-rich-controls";
 import { NativeVisualChart, NativeVisualDiagram } from "./native-rich-graphics";
@@ -51,11 +52,8 @@ type Props = {
 };
 
 function validatedParts(content: RichContent) {
-  // R1: a lonora-ui v2 card shows as text on mobile (its fallback), as older builds do
-  // (GENUI_PLAN §9.7); the native card renderer arrives with mobile parity (G6).
-  return (validateRichContent(content)?.parts ?? []).map((part) =>
-    isUiPart(part) ? { type: "text" as const, text: part.document.fallback } : part,
-  );
+  // Indices stay the stored part numbers: a v2 card's submission names its part.
+  return validateRichContent(content)?.parts ?? [];
 }
 
 /** Only already compiled native documents can suppress duplicate file previews. */
@@ -63,7 +61,7 @@ export function nativeRichImageIds(content?: RichContent | null): Set<string> {
   const ids = new Set<string>();
   if (!content) return ids;
   for (const part of validatedParts(content)) {
-    if (part.type !== "ui") continue;
+    if (part.type !== "ui" || isUiPart(part)) continue;
     const walk = (node: VisualNode) => {
       if (node.type === "image" && node.artifact_id) ids.add(node.artifact_id);
       for (const child of node.children ?? []) walk(child);
@@ -96,6 +94,14 @@ export function NativeRichResponse({
           <View key={`text:${index}`} style={{ minWidth: 0 }}>
             <Markdown content={part.text} palette={palette} onChartLink={onChartLink} />
           </View>
+        ) : isUiPart(part) ? (
+          <NativeUiCard
+            key={`ui2:${index}`}
+            part={part}
+            index={index}
+            messageId={messageId}
+            threadId={threadId}
+          />
         ) : part.type === "ui" ? (
           <NativeVisualDocument
             key={`ui:${index}:${part.document.root.id}`}
