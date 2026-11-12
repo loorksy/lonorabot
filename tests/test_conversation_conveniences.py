@@ -571,13 +571,20 @@ async def test_a_mention_in_a_direct_chat_invites_guests_into_one_session():
         host = await fixture.agent("Host")
         guests = [await fixture.agent(f"Guest {index}") for index in range(3)]
         thread = await fixture.conversation(host)
-        too_many = await send(
+        # Mandate P1 / 3.2.5: no cap on the agents the owner names. A second host's chat
+        # takes all three guests in one message, in one session.
+        other_host = await fixture.agent("Other host")
+        other_thread = await fixture.conversation(other_host)
+        everyone = await send(
             fixture,
-            thread["id"],
+            other_thread["id"],
             {"content": "رأيكم؟", "mention_agent_ids": [g["id"] for g in guests]},
         )
-        assert too_many.status_code == 422
-        assert too_many.json()["code"] == "collaboration_guest_limit"
+        assert everyone.status_code == 202, everyone.text
+        async with fixture.runtime.db.sessions() as session:
+            joined = await current_session(session, fixture.owner, other_thread["id"])
+            assert joined is not None
+            assert len(joined.state["participants"]) == 3
 
         first = await send(
             fixture, thread["id"], {"content": "رأيك؟", "mention_agent_ids": [guests[0]["id"]]}
@@ -641,5 +648,83 @@ async def test_message_react_defaults_to_the_owner_message_being_answered():
         assert [(row["emoji"], row["reactor"]) for row in owner["reactions"]] == [
             ("👍", agent["id"])
         ]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_no_cap_on_agents_and_a_full_session_never_refuses_the_owner():
+    """Mandate P1 / 3.3.2: the owner names any number of agents, a group holds any number,
+    and the round guard of a full collaboration never refuses the owner's @all."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.collaboration import MAXIMUM_ROUNDS
+    from lonora_db.collaboration import current_session
+    from lonora_db.schema import CollaborationSessionRow
+
+    fixture = await Fixture().open()
+    try:
+        host = await fixture.agent("Host")
+        guests = [await fixture.agent(f"Guest {index}") for index in range(17)]
+        thread = await fixture.conversation(host)
+        many = await send(
+            fixture,
+            thread["id"],
+            {"content": "رأيكم جميعًا؟", "mention_agent_ids": [g["id"] for g in guests]},
+        )
+        assert many.status_code == 202, many.text
+        async with fixture.runtime.db.sessions() as session:
+            first = await current_session(session, fixture.owner, thread["id"])
+            assert first is not None and len(first.state["participants"]) == 17
+            first_id = first.id
+        # Fill the session to its runaway guard, then mention @all: a new session starts
+        # with the same participants instead of a refusal.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(CollaborationSessionRow, first_id, with_for_update=True)
+            assert row is not None
+            rounds = row.state["rounds"]
+            row.state = {**row.state, "rounds": [rounds[0]] * MAXIMUM_ROUNDS}
+        # The guard itself stays: an agent that names the full session gets the honest code.
+        from lonora_core.user_error import LonoraError
+        from lonora_db.collaboration import invite
+        from lonora_db.schema import RunRow, ThreadRow
+        from sqlalchemy import select
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread_row = await session.get(ThreadRow, thread["id"])
+            host_run = await session.scalar(
+                select(RunRow).where(
+                    RunRow.thread_id == thread["id"], RunRow.agent_id == host["id"]
+                )
+            )
+            assert thread_row is not None and host_run is not None
+            with pytest.raises(LonoraError) as hit:
+                await invite(
+                    session,
+                    fixture.owner,
+                    thread_row,
+                    host_run,
+                    [guests[0]["id"]],
+                    "A ninth round",
+                    session_id=first_id,
+                    message_id="ninth-round",
+                )
+            assert hit.value.code == "collaboration_round_limit"
+        everyone = await send(
+            fixture,
+            thread["id"],
+            {"content": "@الكل تابعوا", "mention_all": True, "collaboration_session_id": first_id},
+        )
+        assert everyone.status_code == 202, everyone.text
+        async with fixture.runtime.db.sessions() as session:
+            latest = await current_session(session, fixture.owner, thread["id"])
+            assert latest is not None and latest.id != first_id
+            assert len(latest.state["participants"]) == 17
+
+        group = await fixture.client.post(
+            "/api/groups/create",
+            json={"name": "كل الفريق", "member_ids": [host["id"]] + [g["id"] for g in guests]},
+        )
+        assert group.is_success, group.text
     finally:
         await fixture.close()

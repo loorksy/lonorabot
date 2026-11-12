@@ -45,10 +45,6 @@ async def voice_artifact(
     return artifact
 
 
-# A direct chat's @mention invites at most this many guests per message (Q29).
-MAX_DIRECT_GUESTS = 2
-
-
 def message_data(row: MessageRow) -> dict[str, Any]:
     """One message as clients read it. ``reactions`` and ``superseded_by`` are empty here
     (a new message has neither); ``messages_data`` fills them for a page."""
@@ -348,8 +344,6 @@ async def send_message(
         if thread.agent_id
         else []
     )
-    if len(guest_ids) > MAX_DIRECT_GUESTS:
-        raise LonoraError("collaboration_guest_limit", 422)
     collaboration = None
     if request.mention_all or request.collaboration_session_id:
         from .collaboration import CollaborationRepository, current_session
@@ -371,7 +365,7 @@ async def send_message(
         # Guests join the chat's open session while it has room for another round;
         # otherwise the invitation starts a new one.
         current = await current_session(session, owner_id, thread_id)
-        if current is not None and len(current.state.get("rounds", [])) < 8:
+        if current is not None and has_room(current):
             collaboration = current
     reply = None
     if request.reply_to:
@@ -414,7 +408,7 @@ async def send_message(
         mentions={
             "agent_ids": list(dict.fromkeys(request.mention_agent_ids)),
             "all": request.mention_all,
-            "session_id": collaboration.id if collaboration else None,
+            "session_id": collaboration.id if collaboration and has_room(collaboration) else None,
         },
         client_nonce=request.client_nonce,
     )
@@ -638,9 +632,18 @@ async def admit_runs(
                 participant_ids,
                 request.content,
                 message_id=message.id,
-                session_id=collaboration.id if collaboration else None,
+                # A session with no room left for a round (the runaway guard) never refuses
+                # the owner: its participants are invited into a new session instead.
+                session_id=collaboration.id if collaboration and has_room(collaboration) else None,
             )
     return run_ids
+
+
+def has_room(collaboration: Any) -> bool:
+    """Whether a collaboration session can take another round (MAXIMUM_ROUNDS)."""
+    from lonora_contracts.collaboration import MAXIMUM_ROUNDS
+
+    return len(collaboration.state.get("rounds", [])) < MAXIMUM_ROUNDS
 
 
 async def supersede(
