@@ -827,11 +827,6 @@
   font-weight: 600;
   color: var(--ux-slot-frame);
 }
-.ux-slot-mark svg {
-  width: 14px;
-  height: 14px;
-  flex: none;
-}
 .ux-slot-gone {
   margin: 0;
   padding: 4px;

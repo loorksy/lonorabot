@@ -535,7 +535,7 @@ function Slot({ block, common }: NodeProps) {
       aria-label={t`Fixed card from Lonora`}
     >
       <div className="ux-slot-mark" aria-hidden="true">
-        <Icon name="shield" />
+        <Icon name="shield" width={14} height={14} style={{ flex: "none" }} />
         <span>{t`Fixed card from Lonora`}</span>
       </div>
       {inner ?? <p className="ux-slot-gone">{t`This card is not available here.`}</p>}

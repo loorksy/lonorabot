@@ -862,9 +862,7 @@ function Slot({ block, ctx }: NodeProps) {
         </Text>
       </View>
       {inner ?? (
-        <Text
-          style={{ color: ctx.p.muted, fontSize: 13, textAlign: ctx.rtl ? "right" : "left" }}
-        >
+        <Text style={{ color: ctx.p.muted, fontSize: 13, textAlign: ctx.rtl ? "right" : "left" }}>
           {ctx.t("uiSlotGone")}
         </Text>
       )}

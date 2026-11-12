@@ -37,9 +37,7 @@ export function TradeApprovalCard({
       // record as the server holds it now (mandate 10.2.3).
       if (row.thread_id) {
         const rows = await api
-          .get<TradeApproval[]>(
-            `/trading/approvals?thread_id=${encodeURIComponent(row.thread_id)}`,
-          )
+          .get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(row.thread_id)}`)
           .catch(() => []);
         const current = rows.find((item) => item.id === row.id);
         if (current) onChange(current);
