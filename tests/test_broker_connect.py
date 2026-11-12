@@ -654,3 +654,74 @@ async def test_a_leftover_account_a_new_connect_takes_over_is_removed_when_it_fa
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_alias_of_a_legacy_connections_broker_account_is_refused() -> None:
+    """The identity check that moved from the old link-by-id route (step 6): a MetaApi
+    connection saved before identities were recorded is read from MetaApi before a new
+    MetaApi account for the same broker login is accepted."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import BrokerSessionRow
+    from lonora_db.secrets import METAAPI_TOKEN
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    account = login()
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    world = World(fixture, api)
+    legacy_id = "fixture-legacy-" + uuid4().hex[:8]
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Legacy")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            # The owner's account, linked long ago by its MetaApi id under another token's
+            # list (so find() does not see it), with no identity on record.
+            FakeMetaApiBroker.terminals[legacy_id] = FakeTerminal(
+                account_id=legacy_id, login=account, server=SERVER
+            )
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                from lonora_db.schema import SecretRow
+
+                token_id = await session.scalar(
+                    select(SecretRow.id).where(
+                        SecretRow.owner_id == fixture.owner, SecretRow.name == METAAPI_TOKEN
+                    )
+                )
+                legacy = BrokerSessionRow(
+                    owner_id=fixture.owner,
+                    payload={
+                        "provider": "metaapi",
+                        "account_id": legacy_id,
+                        "secret_id": token_id,
+                        "enabled": True,
+                    },
+                )
+                session.add(legacy)
+            await world.gateway()
+        row = await world.card(card_id)
+        assert row.result["provisioning"] == "failed"
+        assert row.result["code"] == "broker_account_already_connected"
+        async with fixture.runtime.db.sessions() as session:
+            saved = await session.get(BrokerSessionRow, legacy.id)
+            assert saved is not None
+            assert saved.state["broker_identity"]["login"] == account
+            rows = (
+                await session.scalars(
+                    select(BrokerSessionRow).where(BrokerSessionRow.owner_id == fixture.owner)
+                )
+            ).all()
+        assert [
+            r.id for r in rows if (r.state.get("broker_identity") or {}).get("login") == account
+        ] == [legacy.id]
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(BrokerSessionRow, legacy.id)
+            if row is not None:
+                await session.delete(row)
+        await remove_token(fixture)
+        await fixture.close()
