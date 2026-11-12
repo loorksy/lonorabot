@@ -571,13 +571,20 @@ async def test_a_mention_in_a_direct_chat_invites_guests_into_one_session():
         host = await fixture.agent("Host")
         guests = [await fixture.agent(f"Guest {index}") for index in range(3)]
         thread = await fixture.conversation(host)
-        too_many = await send(
+        # Mandate P1 / 3.2.5: no cap on the agents the owner names. A second host's chat
+        # takes all three guests in one message, in one session.
+        other_host = await fixture.agent("Other host")
+        other_thread = await fixture.conversation(other_host)
+        everyone = await send(
             fixture,
-            thread["id"],
+            other_thread["id"],
             {"content": "رأيكم؟", "mention_agent_ids": [g["id"] for g in guests]},
         )
-        assert too_many.status_code == 422
-        assert too_many.json()["code"] == "collaboration_guest_limit"
+        assert everyone.status_code == 202, everyone.text
+        async with fixture.runtime.db.sessions() as session:
+            joined = await current_session(session, fixture.owner, other_thread["id"])
+            assert joined is not None
+            assert len(joined.state["participants"]) == 3
 
         first = await send(
             fixture, thread["id"], {"content": "رأيك؟", "mention_agent_ids": [guests[0]["id"]]}

@@ -45,10 +45,6 @@ async def voice_artifact(
     return artifact
 
 
-# A direct chat's @mention invites at most this many guests per message (Q29).
-MAX_DIRECT_GUESTS = 2
-
-
 def message_data(row: MessageRow) -> dict[str, Any]:
     """One message as clients read it. ``reactions`` and ``superseded_by`` are empty here
     (a new message has neither); ``messages_data`` fills them for a page."""
@@ -348,8 +344,6 @@ async def send_message(
         if thread.agent_id
         else []
     )
-    if len(guest_ids) > MAX_DIRECT_GUESTS:
-        raise LonoraError("collaboration_guest_limit", 422)
     collaboration = None
     if request.mention_all or request.collaboration_session_id:
         from .collaboration import CollaborationRepository, current_session
@@ -366,12 +360,14 @@ async def send_message(
         if collaboration is None:
             raise LonoraError("collaboration_session_required", 409)
     elif guest_ids:
+        from lonora_contracts.collaboration import MAXIMUM_ROUNDS
+
         from .collaboration import current_session
 
         # Guests join the chat's open session while it has room for another round;
         # otherwise the invitation starts a new one.
         current = await current_session(session, owner_id, thread_id)
-        if current is not None and len(current.state.get("rounds", [])) < 8:
+        if current is not None and len(current.state.get("rounds", [])) < MAXIMUM_ROUNDS:
             collaboration = current
     reply = None
     if request.reply_to:
