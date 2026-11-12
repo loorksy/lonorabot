@@ -40,7 +40,7 @@ export function CreateSkill({ agentId, onChanged }: { agentId: string; onChanged
                   description: purpose.trim(),
                   source: "owner",
                   stability: "stable",
-                  activation: { mode: "explicit", intents: [], triggers: [] },
+                  activation: { mode: "explicit", triggers: [] },
                   risk_class: "read_only",
                   required_tools: [],
                   required_capabilities: [],

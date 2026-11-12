@@ -1,15 +1,12 @@
 {
   "id": "position-management",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "title": "Position Management",
   "description": "Lonora position-management workflow.",
   "source": "builtin",
   "stability": "stable",
   "activation": {
-    "mode": "automatic",
-    "intents": [
-      "position_management"
-    ],
+    "mode": "explicit",
     "triggers": []
   },
   "risk_class": "financial",

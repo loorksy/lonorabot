@@ -47,7 +47,6 @@ class SkillRevokeRequest(SkillVersionRef):
 
 class SkillActivation(Contract):
     mode: Literal["automatic", "explicit", "trigger_based"] = "automatic"
-    intents: list[str] = Field(default_factory=list, max_length=32)
     triggers: list[str] = Field(default_factory=list, max_length=32)
 
 
