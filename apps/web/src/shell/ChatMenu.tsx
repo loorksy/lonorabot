@@ -3,7 +3,6 @@ import { Trans } from "@lingui/react/macro";
 import { showsTradingControl } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback } from "react";
-import { TradingGoals } from "../components/goals/TradingGoals";
 import { useChatPrefs } from "../conversation/prefs";
 import { useAgentSheet } from "../conversation/sheets/AgentSheet";
 import { useWatchesSheet } from "../conversation/sheets/WatchesSheet";
@@ -15,13 +14,14 @@ import { AgentSettings } from "../pages/shell/bot-settings";
 import { useClient } from "../providers/ClientProvider";
 import { useChartSheet } from "./agent/ChartSheet";
 import { useShellData } from "./data";
+import { isTrader } from "./domain/hooks";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
 
 /* The conversation's ⋮ menu as a bar sheet whose rows open their content as in-sheet pages
    (← back to the menu, the sheet's height morphs). The pages mount the existing panels until
    phases 3 and 4 give them the reference's own layouts. */
-type MenuPage = "menu" | "info" | "knowledge" | "goals";
+type MenuPage = "menu" | "info" | "knowledge";
 
 function MenuRow({
   icon,
@@ -118,9 +118,7 @@ export function useChatMenu({
             ? group
               ? t`Group info`
               : t`Agent info`
-            : page === "knowledge"
-              ? t`Knowledge`
-              : t`Goals`;
+            : t`Knowledge`;
       let body: ReactNode;
       if (page === "menu")
         body = (
@@ -151,11 +149,14 @@ export function useChatMenu({
                 label={<Trans>Knowledge</Trans>}
                 onClick={() => openPage("knowledge", "fwd")}
               />
-              {agent && (
+              {agent && !isTrader(agent) && (
                 <MenuRow
                   icon="target"
                   label={<Trans>Goals</Trans>}
-                  onClick={() => openPage("goals", "fwd")}
+                  onClick={() => {
+                    sheets.close();
+                    nav.go(`/app/goals?agent=${agent.id}`);
+                  }}
                 />
               )}
               {/* «المهام المجدولة» of this agent (or the group's first member): the page. */}
@@ -199,7 +200,7 @@ export function useChatMenu({
             }}
           />
         ) : null;
-      else if (page === "knowledge")
+      else
         body = (
           <Knowledge
             key={agent?.id ?? group?.id}
@@ -207,7 +208,6 @@ export function useChatMenu({
             initialAgent={agent?.id ?? memberAgents[0]?.id ?? ""}
           />
         );
-      else body = agent ? <TradingGoals agentId={agent.id} /> : null;
       sheets.open(
         {
           id: "chat-menu",

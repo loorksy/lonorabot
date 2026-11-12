@@ -12,8 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .events import emit
 from .schema import IntegrationRow, MarketWatchRow, TicketRow
 from .threads import create_thread
-from .trading_goals import owned_goal, planned_step
-from .transactions import ResourceRepository, ResourceRow, owned_agent, owned_thread
+from .transactions import ResourceRepository, ResourceRow, owned_agent
 
 
 class MarketWatchRepository(ResourceRepository):
@@ -37,7 +36,7 @@ class MarketWatchRepository(ResourceRepository):
     async def stored_payload(
         self, session: AsyncSession, owner_id: str, agent_id: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        """The payload as it is stored: the focus symbol and a Goal's plan version filled.
+        """The payload as it is stored: the focus symbol filled.
 
         Re-arming a watch compares this, so a repeated identical request matches.
         """
@@ -48,9 +47,6 @@ class MarketWatchRepository(ResourceRepository):
             and payload.get("account_id", agent.trading_account_id) == agent.trading_account_id
         ):
             payload = {**payload, "symbol": agent.trading_symbol}
-        if payload.get("goal_id"):
-            goal = await owned_goal(session, owner_id, str(payload["goal_id"]))
-            payload = {**payload, "goal_plan_version": int(goal.state.get("plan_version", 1))}
         return self.validate(payload)
 
     async def create(
@@ -66,13 +62,6 @@ class MarketWatchRepository(ResourceRepository):
         if not agent_id:
             raise LonoraError("watch_agent_required", 422)
         payload = await self.stored_payload(session, owner_id, agent_id, payload)
-        if payload.get("goal_id"):
-            goal = await owned_goal(session, owner_id, str(payload["goal_id"]))
-            if thread_id and thread_id != goal.thread_id or agent_id != goal.agent_id:
-                raise LonoraError("goal_run_mismatch", 409)
-            thread_id = goal.thread_id
-            await owned_thread(session, owner_id, thread_id or "", lock=True)
-            planned_step(goal, payload.get("step_id"))
         if not thread_id:
             thread = await create_thread(
                 session,

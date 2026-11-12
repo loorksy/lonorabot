@@ -6,30 +6,19 @@ from .domain import Contract
 
 
 class RoutineCreate(Contract):
-    goal_id: str | None = None
-    step_id: str | None = None
     title: str | None = Field(default=None, max_length=160)
     prompt: str = Field(min_length=1, max_length=8000)
     interval_seconds: int | None = Field(default=None, ge=60, le=31536000)
     cron: str | None = None
     run_at: datetime | None = Field(
         default=None,
-        description=(
-            "One-shot schedule: fire once at this time, then switch the routine off. A one-shot"
-            " linked to a goal step fires at this time if its step is current; if the step is"
-            " not current yet (an earlier step is pending, or its trade is executing) or the goal"
-            " is paused or blocked, it retries every 5 minutes and fires when the step becomes"
-            " current. It switches off once it can no longer run: its step is completed, passed"
-            " or removed, or the goal has ended."
-        ),
+        description="One-shot schedule: fire once at this time, then switch the routine off.",
     )
     timezone: str = "UTC"
     enabled: bool = True
 
     @model_validator(mode="after")
     def validate_schedule(self, info: ValidationInfo) -> "RoutineCreate":
-        if bool(self.goal_id) != bool(self.step_id):
-            raise ValueError("goal_and_step_required_together")
         schedules = [self.interval_seconds, self.cron, self.run_at]
         if sum(value is not None for value in schedules) != 1:
             raise ValueError("one_schedule_required")
