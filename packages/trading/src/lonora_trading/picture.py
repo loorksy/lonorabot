@@ -7,13 +7,18 @@ model only: nothing in preflight, the stale-target check or the expected-target
 capture reads it, so a snapshot seconds old can never decide an order.
 """
 
+import asyncio
+import re
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any, cast
 
+from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.account import Order, Position
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.schema import TradingJournalRow
+from lonora_db.client import Database
+from lonora_db.schema import BrokerSessionRow, TradingJournalRow
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +29,10 @@ from .manual_activity import journal_agent
 
 # The same bound as ticket_agent: the newest confirmed entries per symbol.
 JOURNAL_ENTRIES_PER_SYMBOL = 1000
+# Instrument currencies the broker reported, per symbol, kept on the connection row.
+CURRENCIES_KEY = "instrument_currencies"
+CURRENCY_CODE = re.compile(r"^[A-Z]{3}$")
+MAX_LEARNED_PER_PASS = 20
 
 
 @dataclass(frozen=True)
@@ -37,6 +46,9 @@ class AccountBook:
     account_id: str
     snapshot: BrokerRecoverySnapshot | None
     owners: dict[tuple[str, str], str | None]
+    # The currencies of each held symbol: both legs of a pair, else the quote
+    # currency; absent while the broker has not reported the instrument yet.
+    currencies: dict[str, list[str]]
 
 
 async def ticket_owners(
@@ -92,8 +104,75 @@ async def account_books(session: AsyncSession, owner_id: str) -> list[AccountBoo
             if snapshot
             else {}
         )
-        books.append(AccountBook(row.id, snapshot, owners))
+        books.append(AccountBook(row.id, snapshot, owners, symbol_currencies(row)))
     return books
+
+
+def instrument_legs(base: str | None, profit: str | None) -> list[str]:
+    """Each leg of a pair (two different currency codes), else the quote currency."""
+    legs = [code.strip().upper() for code in (base, profit) if code and code.strip()]
+    if len(legs) == 2 and legs[0] != legs[1] and all(CURRENCY_CODE.match(c) for c in legs):
+        return legs
+    return [profit.strip().upper()] if profit and profit.strip() else []
+
+
+def symbol_currencies(row: BrokerSessionRow) -> dict[str, list[str]]:
+    stored: Any = row.state.get(CURRENCIES_KEY)
+    if not isinstance(stored, dict):
+        return {}
+    return {
+        str(symbol): [str(code) for code in cast(list[Any], legs)]
+        for symbol, legs in cast(dict[str, Any], stored).items()
+        if isinstance(legs, list)
+    }
+
+
+async def learn_currencies(db: Database, brokers: BrokerManager, owner_id: str) -> int:
+    """Keep the currencies of every held symbol the connection row does not know yet.
+
+    Instrument metadata is static, so each symbol is read from the broker once; a read
+    that fails is tried again on the next pass. Returns how many symbols were learned.
+    """
+    async with db.sessions() as session:
+        rows = await BrokerSessionRepository().all_connections(session, owner_id)
+        wanted: dict[str, list[str]] = {}
+        for row in rows:
+            raw = row.state.get("broker_recovery")
+            if not row.payload.get("enabled") or not raw:
+                continue
+            try:
+                snapshot = BrokerRecoverySnapshot.model_validate(raw)
+            except ValidationError:
+                continue
+            known = symbol_currencies(row)
+            held = {item.symbol for item in [*snapshot.positions, *snapshot.orders]}
+            missing = sorted(held - set(known))[:MAX_LEARNED_PER_PASS]
+            if missing:
+                wanted[row.id] = missing
+    learned = 0
+    for account_id, symbols in wanted.items():
+        found: dict[str, list[str]] = {}
+        try:
+            broker = await brokers.get(owner_id, account_id)
+            for symbol in symbols:
+                async with asyncio.timeout(20):
+                    instrument = await broker.instrument(symbol)
+                found[symbol] = instrument_legs(
+                    instrument.base_currency, instrument.profit_currency
+                )
+        except Exception:
+            pass  # Kept what was read; the rest is read again on the next pass.
+        if not found:
+            continue
+        async with db.sessions() as session, session.begin():
+            row = await session.get(
+                BrokerSessionRow, account_id, with_for_update=True, populate_existing=True
+            )
+            if row is None or row.owner_id != owner_id:
+                continue
+            row.state = {**row.state, CURRENCIES_KEY: {**symbol_currencies(row), **found}}
+        learned += len(found)
+    return learned
 
 
 def net_volume(positions: list[Position]) -> Decimal:
