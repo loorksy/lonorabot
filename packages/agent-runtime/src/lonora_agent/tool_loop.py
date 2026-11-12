@@ -612,8 +612,11 @@ async def execute_tool_loop(
         await save()
         if pending:
             continue
-        if await merge_run_notices(context, state, messages):
-            # A trade this Run closed was recorded: answer it before the final reply.
+        if final_limit - int(state.get("rounds", 0)) - 1 > 0 and await merge_run_notices(
+            context, state, messages
+        ):
+            # A trade this Run closed was recorded: answer it before the final reply. With
+            # no round left to act on it, the notice stays unread and its own Run follows.
             continue
         if await merge_steering(context, state, messages):
             await refresh_after_steering()
