@@ -14,7 +14,7 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.account import Position
 from lonora_contracts.trading import TradingControl
 from lonora_tools.loader import load_tools
-from test_proactive_wakes import call, database, retire, set_positions, simulation
+from test_proactive_wakes import call, database, retire, simulation
 
 
 async def same_call(context: Any, identity: str, name: str, **arguments: Any) -> dict[str, Any]:
@@ -80,11 +80,18 @@ async def test_full_closes_its_own_positions_without_a_card_and_never_extends_a_
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["full", "ask"])
-async def test_the_owners_own_ticket_waits_for_the_owners_card_in_either_mode(mode: str) -> None:
+async def test_the_owners_own_ticket_is_not_the_agents_unless_an_exception_holds(
+    mode: str,
+) -> None:
+    """3.3.4: ticket_not_owned in either mode, never a card; the owner's standing
+    instruction and Lonora are exceptions."""
     database()
     from check_streaming import Fixture
+    from lonora_core.user_error import LonoraError
+    from lonora_db.schema import AgentRow
     from lonora_db.trading_mode import set_trading_mode
     from lonora_trading.controls import read_controls, save_controls
+    from sqlalchemy import select
 
     fixture = await Fixture().open()
     original = await read_controls(fixture.runtime.db)
@@ -94,7 +101,7 @@ async def test_the_owners_own_ticket_waits_for_the_owners_card_in_either_mode(mo
             id="owner-terminal-ticket",
             symbol="XAUUSD",
             side="buy",
-            volume=Decimal("0.1"),
+            volume=Decimal("0.2"),
             open_price=Decimal(100),
             stop_loss=Decimal(90),
         )
@@ -109,14 +116,52 @@ async def test_the_owners_own_ticket_waits_for_the_owners_card_in_either_mode(mo
             {"action": "close_position", "position_id": manual.id},
             {"action": "modify_position", "position_id": manual.id, "stop_loss": "95"},
         ):
-            asked = await call(
-                context, "trade_execute", account_id=connection, symbol="XAUUSD", **arguments
-            )
-            assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
-        # A batch with the owner's ticket in it is the owner's card as a whole.
-        await set_positions(fixture, connection, [manual])
+            with pytest.raises(LonoraError, match="ticket_not_owned"):
+                await call(
+                    context, "trade_execute", account_id=connection, symbol="XAUUSD", **arguments
+                )
+        # A close-all reaches only the agent's own tickets: the owner's is refused alone.
         batch = await call(context, "trade_close_positions", account_id=connection)
-        assert batch.get("_runtime_wait") and batch.get("approval_id"), batch
+        assert "approval_id" not in batch, batch
+        assert [item["code"] for item in batch["results"]] == ["ticket_not_owned"]
+        # The standing instruction is recorded only from the owner's typed words.
+        with pytest.raises(LonoraError, match="owner_message_required"):
+            await call(context, "positions_manage_all", enabled=True)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AgentRow, agent["id"])
+            assert row is not None
+            row.manages_all_positions = True
+        partial = await call(
+            context,
+            "trade_execute",
+            account_id=connection,
+            symbol="XAUUSD",
+            action="close_position",
+            position_id=manual.id,
+            volume="0.1",
+        )
+        assert partial.get("status") == "confirmed" and "approval_id" not in partial, partial
+        # Lonora acts on any ticket.
+        async with fixture.runtime.db.sessions() as session:
+            lonora = await session.scalar(
+                select(AgentRow).where(
+                    AgentRow.owner_id == fixture.owner, AgentRow.role == "personal"
+                )
+            )
+        assert lonora is not None
+        personal = {"id": lonora.id}
+        lead = await fixture.lease(
+            await fixture.run(personal, await fixture.conversation(personal))
+        )
+        closed = await call(
+            lead,
+            "trade_execute",
+            account_id=connection,
+            symbol="XAUUSD",
+            action="close_position",
+            position_id=manual.id,
+        )
+        assert closed.get("status") == "confirmed", closed
     finally:
         await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)

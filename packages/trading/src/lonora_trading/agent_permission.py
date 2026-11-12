@@ -1,23 +1,49 @@
-"""The agent's trading mode at the execution door (mandate 4.1, 4.2.3, 6.7).
+"""The execution door's authority check (mandate 4.1, 4.2.3, 3.3.4, 3.1.3, 6.7).
 
-Full sends on its own. Ask lets a risk-reducing request through and sends a
-risk-increasing one only when it is the exact request of an approved Trade Approval
-(``operation_id`` plus ``trade_fingerprint``). Read-only analysis has no dependency on this
-gate. Broker reconciliation and committed receipts do not pass through it.
+- An agent in Full sends on its own; an agent in Ask sends a risk-increasing request only
+  when it is the exact request of an approved Trade Approval (``operation_id`` plus
+  ``trade_fingerprint``). Risk-reducing is the door's own classification
+  (``lonora_trading.admission.risk_reducing``) against the broker's current ticket.
+- A request on a ticket the agent does not own is refused (``ticket_not_owned``) unless
+  the agent is Lonora, the run carries the owner's typed message asking for it, or the
+  owner gave the agent a standing instruction to manage every position.
+- A risk-increasing request Lonora sends on a ticket owned by an agent in Ask needs the
+  exact approval, even when Lonora is in Full.
+
+Until grants and the permission ladder are deleted (0.4, 14.1.1), their old checks run
+here unchanged: a signed grant's path, and "No trading" refusing every mutation.
+Read-only analysis has no dependency on this gate; reconciliation and committed receipts
+do not pass through it.
 """
 
 from lonora_contracts.account import Order, Position
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import effective_permission
-from lonora_db.schema import RunRow, TradeApprovalRow
-from lonora_db.trading_mode import trading_mode
+from lonora_db.owner_words import owner_typed_message
+from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import provisional_voice, ticket_agent
 from .admission import may_reduce_risk
 from .idempotency import trade_fingerprint
+
+
+async def acting_agent(session: AsyncSession, owner_id: str, agent_id: str) -> AgentRow:
+    """The agent row read fresh: its mode and standing instruction as they are now."""
+    agent = await session.get(AgentRow, agent_id, populate_existing=True)
+    if agent is None or agent.owner_id != owner_id:
+        raise LonoraError("agent_not_found", 404)
+    return agent
+
+
+async def owner_asked(session: AsyncSession, run: RunRow, owner_message_id: str | None) -> bool:
+    """Whether ``owner_message_id`` is the owner's typed message this run answers."""
+    if owner_message_id is None:
+        return False
+    message = await owner_typed_message(session, run)
+    return message is not None and str(message.id) == owner_message_id
 
 
 async def require_operation_permission(
@@ -29,40 +55,51 @@ async def require_operation_permission(
     *,
     reducing: bool | None = None,
     target: Position | Order | None = None,
+    owner_message_id: str | None = None,
 ) -> None:
-    """Recheck the agent's current mode and the actual stored approval.
-
-    The caller takes the per-agent authority lock before the final send check, the lock
-    every mode change takes. ``reducing`` is the door's own classification of the request
-    against the broker's current ticket (``lonora_trading.admission.risk_reducing``);
-    None before the ticket is read, when the decisive check at send still follows.
-    ``target`` is that ticket (None: the broker no longer shows it).
-
-    A request on a ticket the agent's own journaled order did not open (the owner's own
-    position, or another agent's) needs the owner's exact approval in either mode. Under
-    an active grant the grant's own terms decide instead, until grants are removed.
-    """
-    foreign = bool(request.position_id or request.order_id) and reducing is not None
-    if foreign:
-        foreign = target is None or (
-            await ticket_agent(session, owner_id, request, target) != run.agent_id
-        )
-    if await trading_mode(session, owner_id, run.agent_id) == "full":
-        if not foreign:
-            return
-    elif (level := await effective_permission(session, owner_id, run.agent_id)) == "analysis":
-        # Until the permission ladder is removed, "No trading" still refuses in Ask.
+    """The caller takes the per-agent authority lock before the final send check, the lock
+    every mode change takes. ``reducing`` and ``target`` are the door's classification and
+    the broker's current ticket; both are None before the ticket is read, when the
+    decisive check at send still follows."""
+    level = await effective_permission(session, owner_id, run.agent_id)
+    if level == "analysis":
         raise LonoraError("agent_analysis_only", 403)
-    elif account_authority_id:
+    if account_authority_id:
+        # A signed grant's old path, unchanged until grants are deleted.
         if level != "autonomous":
             raise LonoraError("trade_approval_required", 403)
         if not await provisional_voice(session, run):
             return
-        # Provisional speech retains the existing exact-operation confirmation
-        # boundary as well as the current signed account scope.
-    elif not foreign and (reducing or (reducing is None and may_reduce_risk(request))):
-        # Ask: a risk-reducing request on the agent's own ticket needs no approval (4.1).
+        await require_exact_approval(session, owner_id, run, request)
         return
+    agent = await acting_agent(session, owner_id, run.agent_id)
+    on_ask_agents_ticket = False
+    if (request.position_id or request.order_id) and reducing is not None:
+        holder = await ticket_agent(session, owner_id, request, target) if target else None
+        if target is None or holder != run.agent_id:
+            if agent.role == "personal":
+                # Lonora's lead exception; an Ask agent's ticket still asks for new risk.
+                if holder is not None:
+                    owner_agent = await session.get(AgentRow, holder, populate_existing=True)
+                    on_ask_agents_ticket = (
+                        owner_agent is not None and owner_agent.trading_mode != "full"
+                    )
+            elif not (
+                agent.manages_all_positions or await owner_asked(session, run, owner_message_id)
+            ):
+                raise LonoraError("ticket_not_owned", 403)
+    if reducing or (reducing is None and may_reduce_risk(request)):
+        return  # Risk-reducing needs no approval in either mode (4.1).
+    if agent.trading_mode == "full" and not on_ask_agents_ticket:
+        return
+    await require_exact_approval(session, owner_id, run, request)
+
+
+async def require_exact_approval(
+    session: AsyncSession, owner_id: str, run: RunRow, request: TradeRequest
+) -> None:
+    """The exact-approval match (6.7): ``operation_id`` plus ``trade_fingerprint`` against
+    an approved Trade Approval of this run."""
     approvals = await session.scalars(
         select(TradeApprovalRow)
         .where(

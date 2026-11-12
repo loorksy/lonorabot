@@ -9,7 +9,7 @@ from lonora_contracts.account import Position
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db import trading_mode as mode_store
-from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow
+from lonora_db.schema import AgentRow, MessageRow, RunRow, TradeApprovalRow
 from lonora_trading import agent_permission
 
 
@@ -38,26 +38,44 @@ TICKET = Position(id="1", symbol="XAUUSD", side="buy", volume=Decimal("0.1"), op
 
 
 def gate(
-    monkeypatch: pytest.MonkeyPatch, mode: str, level: str = "supervised", owner: str = "agent"
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    level: str = "supervised",
+    owner: str | None = "agent",
+    role: str = "specialist",
+    manages_all: bool = False,
+    holder_mode: str = "ask",
 ) -> AsyncMock:
-    monkeypatch.setattr(agent_permission, "trading_mode", AsyncMock(return_value=mode))
+    acting = AgentRow(
+        id="agent",
+        owner_id="owner",
+        role=role,
+        trading_mode=mode,
+        manages_all_positions=manages_all,
+    )
+    monkeypatch.setattr(agent_permission, "acting_agent", AsyncMock(return_value=acting))
     # Whose journaled order opened the ticket: this agent's own by default.
     monkeypatch.setattr(agent_permission, "ticket_agent", AsyncMock(return_value=owner))
     monkeypatch.setattr(agent_permission, "effective_permission", AsyncMock(return_value=level))
+    monkeypatch.setattr(agent_permission, "owner_typed_message", AsyncMock(return_value=None))
     session = AsyncMock()
     session.scalars.return_value = []
+    session.get.return_value = AgentRow(id=owner or "x", owner_id="owner", trading_mode=holder_mode)
     return session
 
 
+async def door(session: AsyncMock, item: TradeRequest, **flags: Any) -> None:
+    await agent_permission.require_operation_permission(
+        session, "owner", origin(), item, None, **flags
+    )
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("level", ["analysis", "supervised", "autonomous"])
-async def test_full_mode_sends_without_any_approval(monkeypatch: pytest.MonkeyPatch, level: str):
-    session = gate(monkeypatch, "full", level)
+async def test_full_mode_sends_without_any_approval(monkeypatch: pytest.MonkeyPatch):
+    session = gate(monkeypatch, "full")
     for item in (request(), close()):
         for reducing in (None, False, True):
-            await agent_permission.require_operation_permission(
-                session, "owner", origin(), item, None, reducing=reducing, target=TICKET
-            )
+            await door(session, item, reducing=reducing, target=TICKET)
     session.scalars.assert_not_called()
 
 
@@ -68,70 +86,89 @@ async def test_ask_mode_needs_the_exact_approved_request_for_new_risk(
     session = gate(monkeypatch, "ask")
     for reducing in (None, False):
         with pytest.raises(LonoraError, match="trade_approval_required"):
-            await agent_permission.require_operation_permission(
-                session, "owner", origin(), request(), None, reducing=reducing
-            )
+            await door(session, request(), reducing=reducing)
     session.scalars.return_value = [TradeApprovalRow(requests=[request().model_dump(mode="json")])]
-    await agent_permission.require_operation_permission(
-        session, "owner", origin(), request(), None, reducing=False
-    )
+    await door(session, request(), reducing=False)
     # The exact match is unchanged: another id or another fingerprint is not approved.
     for changed in (request(operation_id="retry"), request(volume="0.3")):
         with pytest.raises(LonoraError, match="trade_approval_required"):
-            await agent_permission.require_operation_permission(
-                session, "owner", origin(), changed, None, reducing=False
-            )
+            await door(session, changed, reducing=False)
 
 
 @pytest.mark.asyncio
 async def test_ask_mode_lets_a_risk_reducing_request_through(monkeypatch: pytest.MonkeyPatch):
     session = gate(monkeypatch, "ask")
-    await agent_permission.require_operation_permission(
-        session, "owner", origin(), close(), None, reducing=True, target=TICKET
-    )
+    await door(session, close(), reducing=True, target=TICKET)
     # Before the broker target is read, a request that may reduce risk is left to the
     # decisive check at send, which classifies it against the fresh ticket.
-    await agent_permission.require_operation_permission(
-        session, "owner", origin(), close(), None, reducing=None
-    )
+    await door(session, close(), reducing=None)
     # Classified as adding risk on the fresh ticket: it needs the exact approval.
     with pytest.raises(LonoraError, match="trade_approval_required"):
-        await agent_permission.require_operation_permission(
-            session, "owner", origin(), close(), None, reducing=False, target=TICKET
-        )
+        await door(session, close(), reducing=False, target=TICKET)
     # Only the door's own classification counts: an entry is never risk-reducing.
     with pytest.raises(LonoraError, match="trade_approval_required"):
-        await agent_permission.require_operation_permission(
-            session, "owner", origin(), request(), None, reducing=None
-        )
+        await door(session, request(), reducing=None)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["full", "ask"])
-@pytest.mark.parametrize("owner", [None, "another-agent"])
-async def test_a_ticket_the_agent_did_not_open_needs_the_exact_approval(
-    monkeypatch: pytest.MonkeyPatch, mode: str, owner: str | None
+@pytest.mark.parametrize("holder", [None, "another-agent"])
+async def test_a_ticket_the_agent_does_not_own_is_refused(
+    monkeypatch: pytest.MonkeyPatch, mode: str, holder: str | None
 ):
-    """The owner's own position, or another agent's: never without the owner's card."""
-    session = gate(monkeypatch, mode, owner=owner)  # type: ignore[arg-type]
-    for target in (TICKET, None):
-        with pytest.raises(LonoraError, match="trade_approval_required"):
-            await agent_permission.require_operation_permission(
-                session, "owner", origin(), close(), None, reducing=True, target=target
-            )
+    """3.3.4: the owner's own ticket, or another agent's, is ticket_not_owned, even with an
+    approved card for it."""
+    session = gate(monkeypatch, mode, owner=holder)
     session.scalars.return_value = [TradeApprovalRow(requests=[close().model_dump(mode="json")])]
-    await agent_permission.require_operation_permission(
-        session, "owner", origin(), close(), None, reducing=True, target=TICKET
-    )
+    for target in (TICKET, None):
+        with pytest.raises(LonoraError, match="ticket_not_owned"):
+            await door(session, close(), reducing=True, target=target)
 
 
 @pytest.mark.asyncio
-async def test_ask_mode_keeps_the_ladder_until_it_is_removed(monkeypatch: pytest.MonkeyPatch):
-    session = gate(monkeypatch, "ask", "analysis")
+@pytest.mark.parametrize("mode", ["full", "ask"])
+async def test_the_three_exceptions_of_ticket_ownership(monkeypatch: pytest.MonkeyPatch, mode: str):
+    # The owner's standing instruction to manage every position.
+    session = gate(monkeypatch, mode, owner=None, manages_all=True)
+    await door(session, close(), reducing=True, target=TICKET)
+    # The run carries the owner's typed message asking for it.
+    session = gate(monkeypatch, mode, owner=None)
+    monkeypatch.setattr(
+        agent_permission, "owner_typed_message", AsyncMock(return_value=MessageRow(id="m1"))
+    )
+    await door(session, close(), reducing=True, target=TICKET, owner_message_id="m1")
+    with pytest.raises(LonoraError, match="ticket_not_owned"):
+        await door(session, close(), reducing=True, target=TICKET, owner_message_id="other")
+    # Lonora acts on any ticket.
+    session = gate(monkeypatch, mode, owner=None, role="personal")
+    await door(session, close(), reducing=True, target=TICKET)
+
+
+@pytest.mark.asyncio
+async def test_lonora_asks_for_new_risk_on_an_ask_agents_ticket_even_in_full(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """3.1.3: a risk-increasing request Lonora sends on a ticket owned by an agent in Ask
+    becomes a Trade Approval card, even when Lonora is in Full."""
+    widen = request(action="modify_position", position_id="1", volume=None, stop_loss="0.5")
+    session = gate(monkeypatch, "full", owner="team-agent", role="personal", holder_mode="ask")
+    with pytest.raises(LonoraError, match="trade_approval_required"):
+        await door(session, widen, reducing=False, target=TICKET)
+    await door(session, close(), reducing=True, target=TICKET)
+    # The same request on a team agent in Full: Lonora's own mode governs it.
+    session = gate(monkeypatch, "full", owner="team-agent", role="personal", holder_mode="full")
+    await door(session, widen, reducing=False, target=TICKET)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["full", "ask"])
+async def test_the_ladder_keeps_refusing_until_it_is_deleted(
+    monkeypatch: pytest.MonkeyPatch, mode: str
+):
+    """0.4, 14.1.1: "No trading" is the old path, unchanged until its deletion step."""
+    session = gate(monkeypatch, mode, "analysis")
     with pytest.raises(LonoraError, match="agent_analysis_only"):
-        await agent_permission.require_operation_permission(
-            session, "owner", origin(), close(), None, reducing=True, target=TICKET
-        )
+        await door(session, close(), reducing=True, target=TICKET)
 
 
 def agent(mode: str = "ask", role: str = "specialist") -> AgentRow:

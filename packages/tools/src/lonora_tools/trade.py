@@ -11,9 +11,11 @@ from lonora_db.agent_binding import (
     require_financial_agent,
 )
 from lonora_db.agent_permissions import effective_permission
+from lonora_db.authority_lock import authority_lock
 from lonora_db.notice_cards import raise_stop_tightened
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
+    AgentRow,
     EffectReceiptRow,
     MessageRow,
     RunRow,
@@ -35,6 +37,7 @@ from lonora_trading.account_authority import (
     ticket_agent,
 )
 from lonora_trading.admission import may_reduce_risk, risk_reducing
+from lonora_trading.agent_permission import acting_agent
 from lonora_trading.exposure import direction
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
@@ -67,8 +70,6 @@ async def trading_permission_available(context: ToolContext) -> str | None:
     """
     async with context.db.sessions() as session:
         await agent_binding(session, context.owner_id, context.agent_id)
-        if await trading_mode(session, context.owner_id, context.agent_id) == "full":
-            return None
         level = await effective_permission(session, context.owner_id, context.agent_id)
     return "agent_analysis_only" if level == "analysis" else None
 
@@ -284,23 +285,43 @@ async def unjournaled(context: ToolContext, requests: list[TradeRequest]) -> lis
     return [request for request in requests if request.operation_id not in recorded]
 
 
-async def foreign_tickets(context: ToolContext, requests: list[TradeRequest]) -> list[TradeRequest]:
-    """The requests on a ticket the agent's own journaled order did not open: the owner's
-    own position or another agent's. A ticket the broker no longer shows is left to the
-    executor, which refuses it with its own code."""
+async def run_owner_message(context: ToolContext) -> str | None:
+    """The owner's typed message this run answers (None once others' content reached it)."""
+    from .restrictions import owner_message_id
+
+    async with context.db.sessions() as session:
+        return await owner_message_id(session, await require_lease(session, context.lease))
+
+
+async def ticket_holders(
+    context: ToolContext, requests: list[TradeRequest], owner_message: str | None
+) -> tuple[list[TradeRequest], list[TradeRequest]]:
+    """The door's ownership rule read early (3.3.4, 3.1.3): the requests on a ticket this
+    agent may not act on, and Lonora's requests on a ticket an agent in Ask owns. A ticket
+    the broker no longer shows is left to the executor, which refuses it with its own
+    code."""
     managing = [request for request in requests if request.position_id or request.order_id]
     if not managing:
-        return []
+        return [], []
     targets = await management_targets(context, managing)
-    result: list[TradeRequest] = []
+    not_owned: list[TradeRequest] = []
+    on_ask: list[TradeRequest] = []
     async with context.db.sessions() as session:
+        agent = await acting_agent(session, context.owner_id, context.agent_id)
         for request in managing:
             target = targets.get(target_key(request))
-            if target is not None and (
-                await ticket_agent(session, context.owner_id, request, target) != context.agent_id
-            ):
-                result.append(request)
-    return result
+            if target is None:
+                continue
+            holder = await ticket_agent(session, context.owner_id, request, target)
+            if holder == context.agent_id:
+                continue
+            if agent.role == "personal":
+                owner_agent = await session.get(AgentRow, holder) if holder else None
+                if owner_agent is not None and owner_agent.trading_mode != "full":
+                    on_ask.append(request)
+            elif not (agent.manages_all_positions or owner_message):
+                not_owned.append(request)
+    return not_owned, on_ask
 
 
 async def start_trading_card(context: ToolContext) -> dict[str, Any]:
@@ -425,7 +446,7 @@ async def approved_execution(
         await require_financial_agent(reader, context.owner_id, context.agent_id)
         previous = await reader.get(TradeApprovalRow, approval_id)
         mode = await trading_mode(reader, context.owner_id, context.agent_id)
-        if mode != "full" and (previous is None or previous.status != "completed"):
+        if previous is None or previous.status != "completed":
             level = await effective_permission(reader, context.owner_id, context.agent_id)
             if level == "analysis":
                 raise LonoraError("agent_analysis_only", 403)
@@ -456,17 +477,22 @@ async def approved_execution(
     if grants:
         return await direct_execution(context, authority_requests, grants)
     adding: list[TradeRequest] = []
+    owner_message = await run_owner_message(context)
     if previous is None and not gate_only and not await reused_card(context, requests):
-        # Full executes on its own; Ask asks only for requests that add risk (4.1). A
-        # ticket the agent's own order did not open is always the owner's exact approval.
+        # Full executes on its own; Ask asks only for requests that add risk (4.1).
         # A request already journaled is answered from its record (the door's idempotency),
         # never classified again against a ticket it may itself have changed.
         unrecorded = await unjournaled(context, requests)
         adding = await new_risk_requests(context, unrecorded)
-        if (mode == "full" or not adding) and not await foreign_tickets(context, unrecorded):
+        not_owned, on_ask_tickets = await ticket_holders(context, unrecorded, owner_message)
+        if any(request in not_owned for request in adding) or (not_owned and named_ticket):
+            # Never a card for what the door refuses (3.3.4); a close-all's other tickets
+            # still go, each refused on its own if it is not the agent's.
+            raise LonoraError("ticket_not_owned", 403)
+        if not adding or (mode == "full" and not any(r in on_ask_tickets for r in adding)):
             if adding and await never_started(context):
                 return await start_trading_card(context)
-            return await direct_execution(context, requests)
+            return await direct_execution(context, requests, owner_message_id=owner_message)
     initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
     contracts = await reviewed_contracts(context, requests) if previous is None else []
     if adding:
@@ -586,6 +612,7 @@ async def approved_execution(
                 authorization=authorize,
                 account_authority_id=grants[index] if grants else None,
                 expected_target=expected_snapshot.get(target_key(request)),
+                owner_message_id=owner_message,
             )
         except LonoraError as error:
             result = TradeResult(
@@ -701,7 +728,11 @@ async def stop_notice(
 
 
 async def direct_execution(
-    context: ToolContext, requests: list[TradeRequest], grants: list[str | None] | None = None
+    context: ToolContext,
+    requests: list[TradeRequest],
+    grants: list[str | None] | None = None,
+    *,
+    owner_message_id: str | None = None,
 ) -> dict[str, Any]:
     """Execution without a card: an agent in Full, a risk-reducing request in Ask, or a
     standing grant (``grants``, until grants are removed). The same executor, journal and
@@ -727,6 +758,7 @@ async def direct_execution(
                 authorization=current,
                 account_authority_id=identifier,
                 expected_target=expected.get(target_key(request)),
+                owner_message_id=owner_message_id,
             )
         except LonoraError as error:
             result = TradeResult(
@@ -949,6 +981,28 @@ async def record_history(context: ToolContext, args: dict[str, Any]) -> dict[str
         }
 
 
+class ManageAllPositions(Contract):
+    enabled: bool
+
+
+async def manage_all_positions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """The owner's standing instruction in chat to manage every position (3.3.4): stored
+    as this agent's setting, and revoked the same way. Only the owner's typed words in
+    this run set or revoke it."""
+    enabled = ManageAllPositions.model_validate(args).enabled
+    async with context.db.sessions() as session, session.begin():
+        from .restrictions import owner_message_id
+
+        run = await require_lease(session, context.lease)
+        if await owner_message_id(session, run) is None:
+            raise LonoraError("owner_message_required", 403)
+        await authority_lock(session, context.agent_id)
+        agent = await acting_agent(session, context.owner_id, context.agent_id)
+        agent.manages_all_positions = enabled
+        await require_lease(session, context.lease, lock=True)
+    return {"agent_id": context.agent_id, "manages_all_positions": enabled}
+
+
 class TradingModeAsk(Contract):
     agent_id: str | None = Field(default=None, min_length=1, max_length=36)
 
@@ -1021,6 +1075,15 @@ def tools() -> list[Tool]:
             legacy_replay_safe=True,
             eager=eager_for("market"),
             availability=trading_permission_available,
+        ),
+        Tool(
+            "positions_manage_all",
+            "Record the owner's standing instruction, typed in this conversation, that you "
+            "manage all of the owner's positions (enabled true), or its revocation (false). "
+            "Without it you act only on tickets your own orders opened.",
+            ManageAllPositions,
+            manage_all_positions,
+            replay_safe=True,
         ),
         Tool(
             "trading_mode_ask",

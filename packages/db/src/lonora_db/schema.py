@@ -200,6 +200,9 @@ class AgentRow(Base):
     role: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
     # Full or Ask (mandate 4.1). Only the owner's tap on the Mandate card sets Full.
     trading_mode: Mapped[str] = mapped_column(String(8), default="ask", server_default="ask")
+    # The owner's standing instruction in chat to manage every position (mandate 3.3.4):
+    # the agent may act on tickets it does not own. Set and revoked from the owner's words.
+    manages_all_positions: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     # The creation template (trading, general, research, supervisor). None for the
     # personal agent and delegated helpers, whose role is their type.
     template: Mapped[str | None] = mapped_column(String(16))

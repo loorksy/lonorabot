@@ -155,6 +155,7 @@ class ExecutionService:
         authorization: Callable[[], Awaitable[None]] | None = None,
         account_authority_id: str | None = None,
         expected_target: dict[str, Any] | None = None,
+        owner_message_id: str | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
@@ -200,6 +201,7 @@ class ExecutionService:
                     account_authority_id,
                     reducing=planned_reducing,
                     target=management_target(planned_snapshot, request),
+                    owner_message_id=owner_message_id,
                 )
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
@@ -419,6 +421,7 @@ class ExecutionService:
                         account_authority_id,
                         reducing=reducing,
                         target=management_target(snapshot, request),
+                        owner_message_id=owner_message_id,
                     )
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id
