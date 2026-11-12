@@ -18,7 +18,7 @@ import pytest
 from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradingControl
-from lonora_trading.closed_trades import realized, trade_deal
+from lonora_trading.closed_trades import realized, trade_deal, trades
 from test_proactive_wakes import call, database, journal, retire, set_positions, simulation
 
 
@@ -37,7 +37,8 @@ def deal(
     value: dict[str, Any] = {
         "id": "deal-" + uuid4().hex[:10],
         "positionId": position,
-        "orderId": order or "order-" + uuid4().hex[:8],
+        # A position id is the ticket of the order that opened it.
+        "orderId": order or (position if entry == "IN" else "order-" + uuid4().hex[:8]),
         "symbol": "XAUUSD",
         "type": "DEAL_TYPE_" + kind,
         "entryType": "DEAL_ENTRY_" + entry,
@@ -64,6 +65,10 @@ def test_realized_pnl_is_profit_commission_and_swap_of_the_deals() -> None:
     assert trade_deal(deal("P", "OUT", "SELL"))
     assert not trade_deal({**deal("P", "IN", "BUY"), "type": "DEAL_TYPE_BALANCE"})
     assert not trade_deal({**deal("P", "IN", "BUY"), "positionId": None})
+    # A broker time without a zone is UTC, so mixed times still sort.
+    naive = {**deal("P", "OUT", "SELL"), "time": "2099-01-01T00:00:00"}
+    closed, running = trades("P", [deal("P", "IN", "BUY"), naive])
+    assert closed == [] and running is not None and running.opening is not None
 
 
 TICKS = {"profit_tick_value": "1", "loss_tick_value": "1"}
@@ -352,6 +357,115 @@ async def test_a_full_page_of_history_is_paged_from_its_last_deal(monkeypatch: A
             )
             assert cursor is not None and cursor.complete
         assert [row.position_id for row in await ledger(fixture, connection)] == ["p-1", "p-2"]
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+async def journaled(fixture: Any, connection: str, agent: str, action: str, order: str) -> str:
+    identity = action + "-" + uuid4().hex[:8]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = journal(identity, {"action": action, "symbol": "XAUUSD"}, agent_id=agent)
+        row.owner_id, row.account_id = fixture.owner, connection
+        row.request = {**row.request, "account_id": connection}
+        row.result = {**row.result, "details": {**row.result["details"], "order_id": order}}
+        session.add(row)
+    return identity
+
+
+def held(ticket: str, side: str = "buy", volume: str = "0.1") -> Position:
+    return Position(
+        id=ticket, symbol="XAUUSD", side=side, volume=Decimal(volume), open_price=Decimal(100)
+    )
+
+
+@pytest.mark.asyncio
+async def test_reversals_partial_reads_and_positions_older_than_the_ledger() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import BrokerDealRow
+    from sqlalchemy import func, select
+    from sqlalchemy.dialects.postgresql import insert
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        gold = await fixture.agent("Opens", supervised=True)
+        euro = await fixture.agent("Reverses", supervised=True)
+        connection = await simulation(fixture, [held("net-1"), held("half-1", volume="0.2")])
+        opened = await journaled(fixture, connection, gold["id"], "buy", "net-1")
+        reversing = await journaled(fixture, connection, euro["id"], "sell", "rev-9")
+        old = await journaled(fixture, connection, gold["id"], "buy", "old-1")
+        await add_history(
+            fixture,
+            connection,
+            # A netting position reversed through zero: 0.1 long, then a 0.3 sell.
+            deal("net-1", "IN", "BUY", minutes=30),
+            deal("net-1", "INOUT", "SELL", volume="0.3", minutes=25, order="rev-9", profit="5"),
+            # Half closed; the position read below is missing it although 0.1 is open.
+            deal("half-1", "IN", "BUY", volume="0.2", minutes=24),
+            deal("half-1", "OUT", "SELL", minutes=23, profit="1"),
+            # Opened before the ledger's first read: only its exit is in history.
+            deal("old-1", "OUT", "SELL", minutes=22, profit="9"),
+        )
+        await set_positions(fixture, connection, [held("net-1", side="sell", volume="0.2")])
+        assert await record(fixture, connection) == 2
+        rows = {
+            (row.position_id, row.closing_deal_id): row for row in await ledger(fixture, connection)
+        }
+        first = next(row for (ticket, _), row in rows.items() if ticket == "net-1")
+        # The reversal closed the first trade: its opener's, 0.1 long, the reversal's money.
+        assert first.agent_id == gold["id"] and first.opening_operation_id == opened
+        assert first.side == "buy" and Decimal(first.volume) == Decimal("0.1")
+        assert Decimal(first.realized_pnl) == 5
+        # A position the broker does not list whose exits do not cover its entries is
+        # not closed; one older than the ledger is closed with an unknown P&L.
+        assert not any(ticket == "half-1" for ticket, _ in rows)
+        older = next(row for (ticket, _), row in rows.items() if ticket == "old-1")
+        assert older.agent_id == gold["id"] and older.opening_operation_id == old
+        assert older.realized_pnl is None
+        # The reversed trade closes; the rest of the half-closed one closes too.
+        await add_history(
+            fixture,
+            connection,
+            deal("net-1", "OUT", "BUY", volume="0.2", minutes=5, profit="-3", commission="-1"),
+            deal("half-1", "OUT", "SELL", minutes=4, profit="2"),
+        )
+        await set_positions(fixture, connection, [])
+        assert await record(fixture, connection) == 2
+        rows = {
+            (row.position_id, row.closing_deal_id): row for row in await ledger(fixture, connection)
+        }
+        second = [
+            row for (ticket, _), row in rows.items() if ticket == "net-1" and row.id != first.id
+        ]
+        assert len(second) == 1 and second[0].id != first.id
+        assert second[0].agent_id == euro["id"] and second[0].opening_operation_id == reversing
+        assert second[0].side == "sell" and Decimal(second[0].volume) == Decimal("0.2")
+        assert Decimal(second[0].realized_pnl) == -4
+        half = next(row for (ticket, _), row in rows.items() if ticket == "half-1")
+        assert Decimal(half.realized_pnl) == 3 and Decimal(half.volume) == Decimal("0.2")
+        # A deal another process re-read after its trade was recorded is dropped.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            stale = half.deals[0]
+            await session.execute(
+                insert(BrokerDealRow).values(
+                    owner_id=fixture.owner,
+                    account_id=connection,
+                    deal_id=stale["id"],
+                    position_id="half-1",
+                    time=utcnow(),
+                    payload=stale,
+                )
+            )
+        assert await record(fixture, connection) == 0
+        async with fixture.runtime.db.sessions() as session:
+            kept = await session.scalar(
+                select(func.count())
+                .select_from(BrokerDealRow)
+                .where(BrokerDealRow.account_id == connection)
+            )
+        assert kept == 0 and len(await ledger(fixture, connection)) == 4
     finally:
         await retire(fixture, connection)
         await fixture.close()

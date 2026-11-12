@@ -1,7 +1,7 @@
 """The closed-trade ledger (mandate 5.5.1).
 
-``ln_closed_trades`` holds one row per position whose volume reached zero at the
-broker, with its owner (3.3.4) and the realized P&L of its broker deals in the account
+``ln_closed_trades`` holds one row per trade whose position volume reached zero at the
+broker (keyed by the deal that closed it), with its owner (3.3.4) and the realized P&L of its broker deals in the account
 currency. ``ln_broker_deals`` keeps the deals of positions still open, read from broker
 history since the cursor in ``ln_closed_trade_cursors``. New tables only: no stored
 payload, request, fingerprint or operation id changes. The downgrade drops them.
@@ -58,6 +58,7 @@ def upgrade() -> None:
         ),
         sa.Column("account_id", sa.String(120), nullable=False),
         sa.Column("position_id", sa.String(120), nullable=False),
+        sa.Column("closing_deal_id", sa.String(120), nullable=False),
         sa.Column("symbol", sa.String(80), nullable=False),
         sa.Column("side", sa.String(8), nullable=False),
         sa.Column("volume", sa.Numeric(38, 10), nullable=False),
@@ -70,7 +71,11 @@ def upgrade() -> None:
         sa.Column("deals", sa.JSON(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint(
-            "owner_id", "account_id", "position_id", name="ln_closed_trade_position"
+            "owner_id",
+            "account_id",
+            "position_id",
+            "closing_deal_id",
+            name="ln_closed_trade_closing_deal",
         ),
     )
     op.create_index(
