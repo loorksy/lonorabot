@@ -4,6 +4,7 @@
 - Head: ab84ede6. Previous review: 458373e3 (`PR-118-458373e3.md`).
 - Reviewed: 458373e3..ab84ede6 only.
 - Verdict: **CLEAN**
+- Scope: #118's own commit only; #95's two commits are reviewed in `PR-95-0a49110e.md`.
 
 ## Previous findings
 - **M1 fixed.** `retryableFailure` (`packages/core/src/run-state.ts`) now takes the newest `user`/`group` run with no `parent_run_id`. My earlier probe on the head gives:
