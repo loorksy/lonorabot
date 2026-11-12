@@ -112,6 +112,12 @@ async def main():
             )
             before = await broker.snapshot()
             wait = await registry.execute(call, context)
+            if "_runtime_wait" not in wait:
+                # Ask: a risk-reducing request on the agent's own ticket needs no card.
+                assert "approval_id" not in wait and wait["status"] == "confirmed", wait
+                assert wait["details"]["verification"]["financial_retry_allowed"] is False
+                assert await registry.execute(call, context) == wait
+                return wait
             assert wait["_runtime_retry"] and await broker.snapshot() == before
             approval = wait["approval_id"]
             clarification = await registry.execute(
