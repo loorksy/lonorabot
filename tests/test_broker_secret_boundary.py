@@ -95,8 +95,8 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
         context = services.tool_context(
             agent["id"],
             agent["id"],
-            None,
-            Path("/tmp"),  # type: ignore[arg-type]
+            None,  # pyright: ignore[reportArgumentType]  (the store is read, no run)
+            Path("/tmp"),
         )
         for store in (services.secrets, context.secrets):
             with pytest.raises(LonoraError) as refused:
