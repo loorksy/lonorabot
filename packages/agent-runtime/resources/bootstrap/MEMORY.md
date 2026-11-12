@@ -8,7 +8,7 @@ This document stores important information that should persist across conversati
 
 ## Preferences
 
-(User preferences learned over time belong in USER.md; a team agent sends them to Lonora.)
+(User preferences learned over time belong in USER.md.)
 
 ## Trading Context
 

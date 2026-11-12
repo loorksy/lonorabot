@@ -7,6 +7,7 @@ appended to the owner-signals record, and only Lonora's context carries their su
 PostgreSQL cases (LONORA_DATABASE_URL) use the real tool registry and owner API.
 """
 
+import json
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -17,8 +18,8 @@ from lonora_tools.loader import load_tools
 from test_owner_profile import call, database, owner_turn, reset_profile
 
 
-async def routine_run(fixture: Any, agent_id: str) -> Any:
-    """A routine wake: no owner message in the run."""
+async def routine_run(fixture: Any, agent_id: str, trigger: str = "routine") -> Any:
+    """A routine wake (or another trigger): no owner message in the run."""
     from lonora_db.runs import create_run
     from lonora_db.threads import conversation_thread
 
@@ -30,7 +31,7 @@ async def routine_run(fixture: Any, agent_id: str) -> Any:
             RunRequest(
                 thread_id=thread.id,
                 agent_id=agent_id,
-                trigger="routine",
+                trigger=trigger,
                 prompt="Daily owner review",
             ),
         )
@@ -104,7 +105,7 @@ async def test_lonora_writes_observations_and_team_agents_keep_the_owner_rule():
             operations=[{"action": "add", "section": "USER.md", "content": "- Likes risk"}],
         )
         assert denied["code"] == "owner_profile_requires_owner_message"
-        assert "peer_send" in denied["recovery"]
+        assert "peer_send" not in denied["recovery"] and "MEMORY.md" in denied["recovery"]
         denied = await call(registry, background, "owner_preferences_update", reach_me="call")
         assert denied["code"] == "owner_preferences_require_owner_message"
         # With the owner's own message a team agent still records his words, but never
@@ -160,6 +161,60 @@ async def test_lonora_writes_observations_and_team_agents_keep_the_owner_rule():
                 .order_by(MemoryRevisionRow.created_at.desc())
             )
             assert latest is not None and latest.source_message_id is None
+    finally:
+        await reset_profile(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_lonora_observes_only_in_untainted_runs_and_agents_see_observations_apart():
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.memory import read_memory_context
+    from lonora_tools.restrictions import mark_external_content
+
+    fixture = await Fixture().open()
+    try:
+        await reset_profile(fixture)
+        registry = load_tools()
+        lead = await lonora(fixture)
+        line = {"action": "add", "section": "USER.md", "content": "- Closes gold before news"}
+        # Answering the owner, but after reading a web page: no longer his word, and not
+        # Lonora's own observation either (6.10).
+        tainted, _ = await owner_turn(fixture, lead, "راجع الأخبار")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await mark_external_content(session, tainted.lease.run_id, "web_fetch")
+        refused = await call(registry, tainted, "memory_write", version=1, operations=[line])
+        assert refused["code"] == "owner_profile_tainted_run", refused
+        # A peer woke Lonora: the peer's words are data, never an observation of the owner.
+        peer = await routine_run(fixture, lead["id"], trigger="peer")
+        refused = await call(
+            registry, peer, "memory_write", version=1, observed=True, operations=[line]
+        )
+        assert refused["code"] == "owner_profile_tainted_run", refused
+        # Lonora's own routine run still records what it observed.
+        routine = await routine_run(fixture, lead["id"])
+        written = await call(
+            registry, routine, "memory_write", version=1, observed=True, operations=[line]
+        )
+        assert written.get("owner_profile", written).get("changed") is True, written
+        # The owner's words and Lonora's observation reach a team agent apart.
+        team = await fixture.agent("Silver")
+        said, _ = await owner_turn(fixture, team, "I prefer Arabic reports")
+        await call(
+            registry,
+            said,
+            "memory_write",
+            version=1,
+            operations=[{"action": "add", "section": "USER.md", "content": "- Arabic reports"}],
+        )
+        async with fixture.runtime.db.sessions() as session:
+            sections = await read_memory_context(session, fixture.owner, team["id"])
+        body = json.loads(sections[0].body.split("\n", 1)[1])
+        assert sections[0].name == "owner_preferences"
+        assert body["profile"] == "- Arabic reports"
+        assert body["lonora_observations"] == "- Closes gold before news"
+        assert "not his word" in sections[0].body
     finally:
         await reset_profile(fixture)
         await fixture.close()

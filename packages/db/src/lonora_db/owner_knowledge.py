@@ -1,0 +1,83 @@
+"""Every line of the owner profile with where it came from (8.2, 8.4).
+
+A line is "you_said" when the revision that added it is the owner's own edit or an
+Agent's write that answered the owner's typed message; otherwise Lonora "observed"
+it. Agents read the two apart: an observation is Lonora's inference, not his word.
+"""
+
+import difflib
+from typing import Any, Literal
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .owner_profile import read_owner_profile
+from .schema import AgentRow, MemoryRevisionRow
+
+Origin = Literal["you_said", "observed"]
+
+
+def _added(before: str, after: str) -> set[str]:
+    return {
+        line[2:].strip()
+        for line in difflib.ndiff(before.splitlines(), after.splitlines())
+        if line.startswith("+ ") and line[2:].strip()
+    }
+
+
+async def profile_lines(session: AsyncSession, owner_id: str) -> dict[str, Any]:
+    profile = await read_owner_profile(session, owner_id)
+    content = profile.content if profile else ""
+    texts = [line.strip() for line in content.splitlines() if line.strip()]
+    revisions = (
+        await session.scalars(
+            select(MemoryRevisionRow)
+            .where(
+                MemoryRevisionRow.owner_id == owner_id,
+                MemoryRevisionRow.document == "owner_profile",
+            )
+            .order_by(MemoryRevisionRow.created_at.desc(), MemoryRevisionRow.version.desc())
+        )
+    ).all()
+    names = {
+        agent.id: agent.name
+        for agent in (
+            await session.scalars(
+                select(AgentRow).where(
+                    AgentRow.id.in_(
+                        {row.author_agent_id for row in revisions if row.author_agent_id}
+                    )
+                )
+            )
+        ).all()
+    }
+    # The newest revision that added each current line is where it came from.
+    wanted = set(texts)
+    found: dict[str, MemoryRevisionRow] = {}
+    for revision in revisions:
+        if len(found) == len(wanted):
+            break
+        for text in _added(revision.previous_content, revision.content) & wanted:
+            found.setdefault(text, revision)
+    lines: list[dict[str, Any]] = []
+    for text in dict.fromkeys(texts):
+        revision = found.get(text)
+        said = bool(
+            revision
+            and (
+                revision.author == "owner"
+                or (revision.author == "agent" and revision.source_message_id is not None)
+            )
+        )
+        lines.append(
+            {
+                "text": text,
+                "origin": "you_said" if said else "observed",
+                "author": revision.author if revision else None,
+                "author_agent_name": names.get(revision.author_agent_id or "")
+                if revision
+                else None,
+                "created_at": revision.created_at.isoformat() if revision else None,
+            }
+        )
+    return {"version": profile.version if profile else 1, "lines": lines}

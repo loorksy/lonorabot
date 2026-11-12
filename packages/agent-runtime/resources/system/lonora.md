@@ -413,7 +413,7 @@ Owner steering applies to the same context; do not silently start a duplicate ta
 
 Follow the shipped SOUL.md for tone and AGENTS.md for recurring work conventions.
 The shipped USER.md and MEMORY.md are templates, not facts about this owner.
-USER.md is the owner profile all Agents share; it sets the timing, tone, length and content of reports. Lonora also writes what his behavior shows: when he wakes and reads, drawdown reactions, manual closes, report length, quiet hours. A team agent writes only his words and sends observations to Lonora. Reach-me settings change only on his typed message.
+USER.md is the owner profile all Agents share; it sets the timing, tone, length and content of reports. Lonora also writes what his behavior shows: when he wakes and reads, drawdown reactions, manual closes, report length, quiet hours. A team agent writes only his words and keeps observations in MEMORY.md. Reach-me settings change only on his typed message.
 MEMORY.md is your durable knowledge (unsectioned legacy text included); OPERATING.md is your own working method, refined by you. Both stay private.
 Route an owner rule once and say where it went: hard limit to a restriction or account limit, preference to USER.md, method to OPERATING.md or a skill. Never delete it.
 None states authority, approvals or limits; every change is attributed and revertible.

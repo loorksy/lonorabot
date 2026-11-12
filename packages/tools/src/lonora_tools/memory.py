@@ -1,9 +1,9 @@
 """Durable memory: the shared owner profile and this Agent's own document.
 
 USER.md is the one owner profile every Agent reads. Lonora writes what it learns of
-the owner, from his words or his behavior (8.2); a team agent writes it only from
-what the owner said in the conversation the Run answers and sends other
-observations to Lonora. Each write records the Agent and the owner's message, if
+the owner, from his words or his behavior (8.2), the latter only in a run it or the
+owner started that read nothing others wrote; a team agent writes it only from what
+the owner said in the conversation the Run answers. Each write records the Agent and the owner's message, if
 any, so the owner sees what he said and what was observed, and can revert it. The
 structured reach-me record changes only on the owner's typed message. MEMORY.md
 (knowledge) and OPERATING.md (operating notes the Agent refines itself) are the
@@ -26,6 +26,7 @@ from lonora_db.owner_profile import (
     read_owner_profile,
     save_owner_preferences,
 )
+from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, EffectReceiptRow
 from lonora_memory.commit import atomic_commit, atomic_edit
@@ -35,7 +36,7 @@ from pydantic import Field, model_validator
 
 from .base import Tool, eager_for
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .restrictions import OWNER_TRIGGERS, external_content_seen, owner_message_id
 
 
 class Empty(Contract):
@@ -100,8 +101,20 @@ OWNER_MESSAGE_REQUIRED = {
     "ok": False,
     "code": "owner_profile_requires_owner_message",
     "recovery": "Nothing was saved. A team agent records in the owner profile only what the "
-    "owner said in the conversation this run answers; send an observation about the owner "
-    "to Lonora with peer_send.",
+    "owner said in the conversation this run answers; keep other observations in MEMORY.md. "
+    "Only the owner's words or Lonora's own observations enter the profile.",
+}
+
+# Runs Lonora starts itself or the owner starts: what it observes there is its own (8.2).
+# A peer, subagent, follow-up, task, webhook or other wake carries someone else's words.
+OBSERVATION_TRIGGERS = OWNER_TRIGGERS | {"routine", "watch", "broker_event", "owner_card"}
+
+OWNER_PROFILE_TAINTED = {
+    "ok": False,
+    "code": "owner_profile_tainted_run",
+    "recovery": "Nothing was saved. This run was started by someone other than you or the "
+    "owner, or read content others wrote, so what it saw may be steered. Note it in "
+    "MEMORY.md and confirm it in a routine run or with the owner.",
 }
 
 PREFERENCES_MESSAGE_REQUIRED = {
@@ -112,17 +125,29 @@ PREFERENCES_MESSAGE_REQUIRED = {
 }
 
 
-async def _owner_message(context: ToolContext) -> tuple[str | None, bool]:
-    """The owner's typed message this run answers, and whether the caller is Lonora."""
+async def _owner_message(context: ToolContext) -> tuple[str | None, bool, bool]:
+    """The owner's typed message this run answers, whether the caller is Lonora, and
+    whether the run is tainted for an observation without that message (6.10): another
+    agent, a script or a webhook started it, or it read content others wrote."""
     async with context.db.sessions() as session:
-        message_id = await owner_message_id(session, await require_lease(session, context.lease))
+        run = await require_lease(session, context.lease)
+        message_id = await owner_message_id(session, run)
         agent = await session.get(AgentRow, context.agent_id)
-        return message_id, bool(agent and agent.role == "personal")
+        lead = bool(agent and agent.role == "personal")
+        tainted = False
+        if lead and message_id is None:
+            typed = (
+                await owner_typed_message(session, run) if run.trigger in OWNER_TRIGGERS else None
+            )
+            tainted = run.trigger not in OBSERVATION_TRIGGERS or await external_content_seen(
+                session, run, int(typed.seq) if typed else run.input_seq
+            )
+        return message_id, lead, tainted
 
 
 async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = MemoryWrite.model_validate(args)
-    message_id, lead = await _owner_message(context)
+    message_id, lead, tainted = await _owner_message(context)
     try:
         if params.content is not None:
             return await atomic_commit(
@@ -141,6 +166,8 @@ async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         # agent records only the owner's words.
         if profile and not lead and (message_id is None or params.observed):
             return OWNER_MESSAGE_REQUIRED
+        if profile and tainted:
+            return OWNER_PROFILE_TAINTED
         if params.observed:
             # An observation is never attributed to the owner's message.
             message_id = None
