@@ -208,7 +208,9 @@ async def test_a_paused_tasks_run_tightens_a_stop_but_never_widens_it() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_bound_agents_replayed_order_is_the_same_operation() -> None:
+async def test_a_bound_agents_replayed_order_is_the_same_operation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Risk 4 of the phase 6 map: dropping the binding refusal keeps the argument fill,
     so a bound agent's replayed call hashes the same arguments, derives the same
     operation id, answers from the journal and never sends twice (6.2, 6.3)."""
@@ -236,6 +238,17 @@ async def test_a_bound_agents_replayed_order_is_the_same_operation() -> None:
             row.trading_account_id, row.trading_symbol = connection, "XAUUSD"
             await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        from lonora_session.idempotency import request_hash, stable_id
+        from lonora_tools import trade
+
+        hashed: list[dict[str, Any]] = []
+        derive = trade.operation_id
+
+        def spy(run_id: str, agent_id: str, args: dict[str, Any], key: str | None) -> str:
+            hashed.append(dict(args))
+            return derive(run_id, agent_id, args, key)
+
+        monkeypatch.setattr(trade, "operation_id", spy)
         # Account and symbol are omitted: the focus pair fills them before the id is hashed.
         first = await same_call(
             context, "bound-buy", "trade_execute", action="buy", volume="0.1", stop_loss="95"
@@ -245,6 +258,12 @@ async def test_a_bound_agents_replayed_order_is_the_same_operation() -> None:
         )
         assert first.get("status") == "confirmed", first
         assert again["operation_id"] == first["operation_id"]
+        # The derivation 6.2 pins: the run's id over the arguments with the pair filled in,
+        # as before this change, so a row journaled before it replays to the same id.
+        assert hashed[0]["account_id"] == connection and hashed[0]["symbol"] == "XAUUSD"
+        assert first["operation_id"] == stable_id(
+            context.lease.run_id, "trade:" + request_hash(hashed[0])
+        )
         broker = await fixture.runtime.services(fixture.owner).brokers.get(
             fixture.owner, connection
         )

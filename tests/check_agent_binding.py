@@ -135,9 +135,17 @@ async def checks() -> None:
             """Orders are never bound to the focus pair (3.1.2, 6.9): any refusal is
             another rule's (mode, approval), never the binding."""
             try:
-                await registry.execute(ToolCall(id=uuid4().hex, name=name, arguments=args), context)
+                result = await registry.execute(
+                    ToolCall(id=uuid4().hex, name=name, arguments=args), context
+                )
             except LonoraError as error:
                 assert error.code not in BINDING, (name, error.code)
+            else:
+                # Nothing was sent: this Ask agent's new risk needs the owner's card.
+                assert result.get("status") != "confirmed", (name, result)
+                assert all(
+                    item.get("status") != "confirmed" for item in result.get("results", [])
+                ), (name, result)
 
         # Reading is open: market data reads cover every owned account and symbol.
         # Persistent chart work, like every mutation, keeps the bound pair.
@@ -266,7 +274,7 @@ async def checks() -> None:
         assert {p["symbol"] for p in account["positions"]} == set(symbols)
         assert account["focus_pair"]["symbol"] == symbols[0]
         # The owner's standing instruction (3.3.4): this agent manages the owner's own
-        # positions. A close-all still reaches only the bound pair.
+        # positions. A close-all is not narrowed to the bound pair (3.1.2, 6.9).
         async with fixture.runtime.db.sessions() as session, session.begin():
             managing = await session.get(AgentRow, context.agent_id)
             assert managing is not None
@@ -276,9 +284,26 @@ async def checks() -> None:
             context,
         )
         assert "approval_id" not in closed, closed
-        assert [item["status"] for item in closed["results"]] == ["confirmed"], closed
+        assert [item["status"] for item in closed["results"]] == ["confirmed"] * len(symbols)
         broker = await context.brokers.get(fixture.owner, primary)
-        assert sorted(p.symbol for p in await broker.positions()) == sorted(symbols[1:])
+        assert await broker.positions() == []
+        # The owner's terminal positions again, for the watch checks below.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            snapshot = await session.get(TradingAccountRow, primary, with_for_update=True)
+            assert snapshot is not None
+            snapshot.payload = {
+                **snapshot.payload,
+                "positions": [
+                    {
+                        "id": "manual-" + s,
+                        "symbol": s,
+                        "side": "buy",
+                        "volume": "0.1",
+                        "open_price": "90",
+                    }
+                    for s in symbols
+                ],
+            }
         try:
             await context.trading.execute(
                 fixture.owner,
@@ -292,9 +317,7 @@ async def checks() -> None:
             assert error.code == "trade_approval_required", error.code
         else:
             raise AssertionError("Direct central execution sent without approval")
-        print(
-            "PASS broker manual ticket reads and close-all keeps its pair; the door binds no order"
-        )
+        print("PASS broker manual ticket reads; close-all and the door bind no order")
         async with fixture.runtime.db.sessions() as session, session.begin():
             child = await create_agent(
                 session, fixture.owner, AgentCreate(name="Inherited child"), agent["id"]

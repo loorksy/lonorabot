@@ -892,19 +892,22 @@ async def test_a_fixed_market_agent_reads_and_trades_every_account_but_watches_i
         assert decisions["decisions"][0]["recorded_by"]["you"] is False
         # The focus account still defaults to the focus symbol.
         assert (await call(context, "trade_record_history"))["records"] == []
-        # Its orders are not bound (3.1.2, 6.9): whatever answers, it is not the binding.
-        asked = await call(
-            context,
-            "trade_execute",
-            account_id=secondary,
-            symbol="XAUUSD",
-            action="buy",
-            volume="0.1",
-        )
-        assert asked.get("code") not in {
-            "agent_trading_account_mismatch",
-            "agent_trading_symbol_mismatch",
-        }, asked
+        # Its orders are not bound (3.1.2, 6.9): whatever answers, it is not the binding,
+        # and in Ask nothing is sent on its own.
+        binding = {"agent_trading_account_mismatch", "agent_trading_symbol_mismatch"}
+        try:
+            asked = await call(
+                context,
+                "trade_execute",
+                account_id=secondary,
+                symbol="XAUUSD",
+                action="buy",
+                volume="0.1",
+            )
+        except LonoraError as error:
+            assert error.code not in binding, error.code
+        else:
+            assert asked.get("code") not in binding and asked.get("status") != "confirmed", asked
         with pytest.raises(LonoraError, match="agent_trading_account_mismatch"):
             await call(
                 context,

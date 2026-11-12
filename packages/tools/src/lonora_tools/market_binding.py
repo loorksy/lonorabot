@@ -40,9 +40,8 @@ NONFINANCIAL_TRADE_TOOLS = frozenset(
 
 # Reading is open: a fixed-market agent reads every owned account and symbol (quotes,
 # candles, accounts, full history and activity, records), like every other Agent. Its
-# bound account and symbol stay its focus for every mutation path (charts, watches,
-# goals, decisions, trades), and the executor independently re-checks the binding for
-# every financial request. Copying market data into the agent's own workspace is a read
+# bound account and symbol stay its focus for every mutation path except orders (charts,
+# watches, goals, decisions); the door never binds an order (3.1.2, 6.9). Copying market data into the agent's own workspace is a read
 # of the market.
 OPEN_READ_EFFECTS = frozenset({"market_candles_to_workspace"})
 
@@ -195,7 +194,12 @@ async def prepare_market_arguments(
         aligned = args if flexible_scope(agent) else align_payload(agent, args)
         if not isinstance(aligned, dict):
             return args, note
-        filled = fill_bound_fields(agent, cast(dict[str, Any], aligned), set(model.model_fields))
+        fields = set(model.model_fields)
+        if name == "trade_close_positions":
+            # A close-all is not narrowed to the focus symbol (3.1.2, 6.9). Its operation
+            # ids are per ticket and its set frozen per call, so no replayed id changes.
+            fields.discard("symbol")
+        filled = fill_bound_fields(agent, cast(dict[str, Any], aligned), fields)
         return filled, note
 
 
@@ -224,12 +228,13 @@ async def guard_market_tool(
             args = cast(dict[str, Any], aligned)
         if read or name in OPEN_READ_EFFECTS:
             return args
-        if name in {"watch_create", "trade_close_positions"} and not args.get("symbol"):
-            # Unchanged argument fill: a replayed call keeps its operation ids (6.2, 6.3).
-            args = {**args, "symbol": agent.trading_symbol}
         if trading:
-            # The door never binds an agent's orders to its focus pair (3.1.2, 6.9).
+            # The door never binds an agent's orders to its focus pair (3.1.2, 6.9): a
+            # close-all is not narrowed to it either (its ids are per ticket, its set frozen
+            # per call, so no replayed id changes).
             return args
+        if name == "watch_create" and not args.get("symbol"):
+            args = {**args, "symbol": agent.trading_symbol}
         assert_payload_binding(agent, args)
         if args.get("chart_id"):
             chart = await session.get(CloudChartRow, args["chart_id"])

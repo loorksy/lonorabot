@@ -530,16 +530,11 @@ async def main() -> None:
         except LonoraError as error:
             assert error.code not in BINDING_CODES, error.code
         # The owner's standing instruction (3.3.4): the specialist manages the owner's own
-        # positions. A close-all still reaches only its bound market.
+        # positions, on every symbol (orders are not bound, 3.1.2, 6.9).
         async with fixture.runtime.db.sessions() as session, session.begin():
             managing = await session.get(AgentRow, specialist.agent_id)
             assert managing is not None
             managing.manages_all_positions = True
-        closed = await call("trade_close_positions", {}, actor=specialist)
-        assert "approval_id" not in closed, closed
-        assert [item["status"] for item in closed["results"]] == ["confirmed"], closed
-        held = await (await specialist.brokers.get(fixture.owner, primary)).positions()
-        assert GOLD not in {position.symbol for position in held}
         # Not the binding: the door refuses a close of a ticket nobody read (6.6), unsent.
         unread = await specialist.trading.execute(
             fixture.owner,
@@ -553,16 +548,21 @@ async def main() -> None:
         )
         assert (unread.status, unread.code) == ("failed", "broker_state_changed"), unread
         assert unread.details["send_state"] == "not_sent"
+        # A close-all is not narrowed to the focus pair.
+        closed = await call("trade_close_positions", {}, actor=specialist)
+        assert "approval_id" not in closed, closed
+        assert [item["status"] for item in closed["results"]] == ["confirmed"] * 3, closed
+        assert await (await specialist.brokers.get(fixture.owner, primary)).positions() == []
         async with fixture.runtime.db.sessions() as session:
             journal_after = await session.scalar(
                 select(func.count()).select_from(TradingJournalRow)
             )
-        # The close of the bound market, and the refused unread close (reserved, never
-        # sent): nothing else was journaled.
-        assert journal_after == (journal_before or 0) + 2
+        # The refused unread close (reserved, never sent) and the three closes of the
+        # close-all: nothing else was journaled.
+        assert journal_after == (journal_before or 0) + 4
         print(
             "PASS account-wide exposure is visible; watches and charts stay on the bound "
-            "symbol; orders are not bound"
+            "symbol; orders and close-all are not bound"
         )
     finally:
         for identifier in connections:

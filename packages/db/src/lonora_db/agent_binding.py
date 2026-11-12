@@ -73,8 +73,7 @@ def assert_market_binding(
     if agent.trading_account_id is None and agent.trading_symbol is None:
         if agent.role not in {None, "personal", "delegated", "legacy"}:
             raise LonoraError("agent_trading_binding_invalid", 409)
-        # This guard governs visibility only. Financial paths additionally call
-        # require_financial_agent; an empty binding never grants authority.
+        # This guard governs visibility only; an empty binding never grants authority.
         return
     if not agent.trading_account_id or not agent.trading_symbol:
         raise LonoraError("agent_trading_binding_invalid", 409)
