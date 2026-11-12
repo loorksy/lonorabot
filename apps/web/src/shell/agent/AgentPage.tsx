@@ -319,7 +319,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
                       ? modeLine(live?.trading_readiness, level)
                       : t`Loading…`
                   }
-                  sub={<Trans>Trading · New trades · Restrictions · Account limits</Trans>}
+                  sub={<Trans>Trading · Account limits</Trans>}
                   // chat.agent-sheet is the composer's (phase 3): the conversation opens it.
                   onClick={() => go(`/app/${agent.id}?sheet=agent`)}
                 />

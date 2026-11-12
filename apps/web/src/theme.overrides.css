@@ -136,13 +136,13 @@
 }
 .workspace-button:hover,
 .workspace-icon-button:hover {
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--accent-foreground);
 }
 .workspace-button-primary,
 .workspace-button-primary:hover {
   border-color: transparent;
-  background: var(--primary);
+  background: var(--legacy-primary);
   color: var(--primary-foreground);
 }
 .workspace-icon-button {
@@ -286,7 +286,7 @@
   height: 21px;
   padding: 0 5px;
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--muted-foreground);
   font-size: 11px;
   font-weight: 500;
@@ -310,7 +310,7 @@
   cursor: pointer;
 }
 .workspace-ticket-card:hover {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 .workspace-ticket-card strong {
   overflow-wrap: anywhere;
@@ -485,7 +485,7 @@
   color: var(--muted-foreground);
 }
 .workspace-view-switch button[aria-pressed="true"] {
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--foreground);
 }
 .workspace-search-field {
@@ -550,7 +550,7 @@
   cursor: pointer;
 }
 .workspace-artifact-open:hover {
-  background: color-mix(in srgb, var(--accent) 50%, var(--card));
+  background: color-mix(in srgb, var(--legacy-accent) 50%, var(--card));
 }
 .workspace-artifact-icon {
   display: grid;
@@ -559,7 +559,7 @@
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--accent-foreground);
 }
 .workspace-artifact-details {
@@ -596,7 +596,7 @@
   white-space: nowrap;
   padding: 4px 6px;
   border-radius: 5px;
-  background: var(--muted);
+  background: var(--legacy-muted);
   color: var(--muted-foreground);
   font-size: 11px;
 }
@@ -611,7 +611,7 @@
   text-decoration: none;
 }
 .workspace-artifact-download:hover {
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--foreground);
 }
 .workspace-artifact-list {
@@ -723,7 +723,7 @@
   text-decoration: none;
 }
 a.workspace-search-result:hover {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 .workspace-search-result-heading {
   display: flex;

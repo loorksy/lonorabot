@@ -145,3 +145,92 @@ async def test_history_does_not_acquire_a_terminal_connection_or_require_deploym
     value.get_rpc_connection.assert_not_called()
     value.get_streaming_connection.assert_not_called()
     value.deploy.assert_not_awaited()
+
+
+def refusing(value: Any, status: str) -> None:
+    """Synchronization times out; a fresh read of the account then reports `status`."""
+
+    async def reload() -> None:
+        value.connection_status = status
+
+    value.reload = AsyncMock(side_effect=reload)
+    connection = value.get_rpc_connection.return_value
+    connection._meta_api_connection.synchronized = False
+    connection._meta_api_connection.is_synchronized = lambda: False
+    connection.wait_synchronized = AsyncMock(side_effect=TimeoutError())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["rpc", "streaming"])
+async def test_a_terminal_the_broker_refuses_is_named_after_a_fresh_read_and_never_redeployed(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    """Mandate 9.4: a wrong password (MetaApi's DISCONNECTED_FROM_BROKER) is told apart
+    from a lost link, from a fresh read once synchronization timed out, without a deploy."""
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    value = account("DEPLOYED")
+    refusing(value, "DISCONNECTED_FROM_BROKER")
+    adapter = broker(value)
+    with pytest.raises(LonoraError) as caught:
+        await (adapter.prepare() if kind == "rpc" else adapter.prepare_stream())
+    assert caught.value.code == "broker_login_rejected" and caught.value.status == 409
+    value.reload.assert_awaited_once()
+    value.deploy.assert_not_awaited()
+    value.redeploy.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["rpc", "streaming"])
+async def test_a_broker_blip_that_has_passed_keeps_the_timeout(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    """A broker restart that is over by the fresh read is a lost link, not a password."""
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    value = account("DEPLOYED")
+    refusing(value, "CONNECTED")
+    adapter = broker(value)
+    with pytest.raises(LonoraError) as caught:
+        await (adapter.prepare() if kind == "rpc" else adapter.prepare_stream())
+    assert caught.value.code == "broker_connection_timeout"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["rpc", "streaming"])
+async def test_a_stale_refused_status_does_not_block_a_terminal_that_synchronizes(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    """Cached metadata that still says DISCONNECTED_FROM_BROKER never refuses by itself:
+    the connection is opened and used when it synchronizes."""
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    value = account("DEPLOYED")
+    value.connection_status = "DISCONNECTED_FROM_BROKER"
+    value.reload = AsyncMock()
+    adapter = broker(value)
+    ready = await (adapter.prepare() if kind == "rpc" else adapter.prepare_stream())
+    assert ready is value.get_rpc_connection.return_value
+    value.reload.assert_not_awaited()
+
+
+def test_a_refused_login_becomes_the_owners_problem_after_the_grace() -> None:
+    """Q12: the refused login is a lost connection, so a broker restart shorter than the
+    grace never reaches the owner; past it the owner and Lonora hear of it."""
+    from datetime import UTC, datetime, timedelta
+
+    from lonora_core.broker_health import LOST_CONNECTION_GRACE, broker_problem
+
+    since = datetime(2026, 11, 12, 9, 0, tzinfo=UTC)
+    recovery = {
+        "status": "disconnected",
+        "since": since.isoformat(),
+        "reason_code": "broker_login_rejected",
+    }
+    assert broker_problem(recovery, since + timedelta(seconds=90)) is None
+    # A broker down for maintenance clears by itself: recovery keeps trying meanwhile.
+    from lonora_core.runtime_failure import TRANSIENT_READ_CODES
+    from lonora_db.task_recovery import TRANSIENT_CODES
+
+    assert "broker_login_rejected" in TRANSIENT_READ_CODES & TRANSIENT_CODES
+    assert broker_problem(recovery, since + LOST_CONNECTION_GRACE) == (
+        "broker_connection_lost",
+        since.isoformat(),
+    )

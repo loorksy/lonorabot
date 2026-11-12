@@ -77,8 +77,8 @@ test("message appears before delayed POST and slow runs, survives navigation, th
     await expect(pending).toContainText(content, { timeout: 1000 });
     await expect(pending).toHaveCount(1);
     await expect(page.locator(".composer textarea")).toHaveValue("");
-    await expect(pending.locator("time")).toHaveCount(0);
-    // Waiting to send: the clock instead of the ticks (reference ticks()).
+    // Waiting to send: the send time, then the clock instead of the ticks (reference ticks()).
+    await expect(pending.locator(".meta time")).toHaveCount(1);
     await expect(pending.locator(".ticks.wait")).toBeVisible();
     await expect(page.locator("[data-stream-run-id]")).toHaveCount(0);
 

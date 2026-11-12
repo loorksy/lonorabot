@@ -87,16 +87,19 @@ export function Button({
   onPress,
   disabled = false,
   secondary = false,
+  accessibilityLabel,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
+  /** What a screen reader says when the visible label alone is ambiguous. */
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [

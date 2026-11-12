@@ -69,12 +69,13 @@ def test_nothing_else_decrypts_or_reaches_into_the_broker_layer() -> None:
                 assert not re.search(r"\._secrets\b", text), name
 
 
-def test_the_workspace_bridge_has_no_broker_reader() -> None:
-    from lonora_agent import workspace, workspace_access, workspace_host
+def test_the_workspace_has_no_broker_reader() -> None:
+    from lonora_tools import terminal, workspace_export
+    from lonora_workspace import client, supervisor
 
     # The workspace layer may hold the general store (to scan output for workspace
     # values), which refuses scope broker; never the broker reader or a raw decrypt.
-    for module in (workspace, workspace_access, workspace_host):
+    for module in (client, supervisor, terminal, workspace_export):
         source = inspect.getsource(module)
         for name in ("BrokerSecrets", "SecretRow", "SecretCipher", "ciphertext"):
             assert name not in source
