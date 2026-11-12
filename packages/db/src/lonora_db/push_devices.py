@@ -6,6 +6,7 @@ reachable by a model.
 """
 
 import hashlib
+from dataclasses import dataclass
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.push import PushDeviceRegistration
@@ -16,6 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import aware
 from .schema import PushDeviceRow, SessionRow
+
+
+@dataclass(frozen=True)
+class PushDevice:
+    id: str
+    device_id: str
+    platform: str
+    token: str
 
 
 def push_token_hash(token: str) -> str:
@@ -82,3 +91,24 @@ async def remove_device(session: AsyncSession, owner_id: str, device_id: str) ->
 
 async def remove_session_devices(session: AsyncSession, session_hash: str) -> None:
     await session.execute(delete(PushDeviceRow).where(PushDeviceRow.session_hash == session_hash))
+
+
+async def live_devices(
+    session: AsyncSession, owner_id: str, cipher: SecretCipher
+) -> list[PushDevice]:
+    """The phones a push may go to now: their registering session is neither revoked nor
+    expired."""
+    rows = await session.scalars(
+        select(PushDeviceRow)
+        .join(SessionRow, SessionRow.token_hash == PushDeviceRow.session_hash)
+        .where(
+            PushDeviceRow.owner_id == owner_id,
+            SessionRow.revoked.is_(False),
+            SessionRow.expires_at > utcnow(),
+        )
+        .order_by(PushDeviceRow.created_at, PushDeviceRow.id)
+    )
+    return [
+        PushDevice(row.id, row.device_id, row.platform, cipher.decrypt(row.token_ciphertext))
+        for row in rows
+    ]
