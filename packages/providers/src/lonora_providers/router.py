@@ -1,9 +1,9 @@
 """Model routing with classified recovery across an ordered candidate chain.
 
 Candidates: the model a Run was started with (a subagent's chosen model), the
-Agent's own primary model (owner-chosen, or the Agent's own choice in Automatic),
-the global route for the capability, the Agent's fallbacks, the global backups,
-then, for an Automatic Agent, the other models the owner allowed. Each candidate
+Agent's own primary model (the owner's assignment, or Lonora's model it inherited),
+the global route for the capability, the Agent's fallbacks, then the global backups.
+Each candidate
 is admitted against its own window, retried a bounded number of times for
 transient failures (honouring a short ``Retry-After``), corrected once when its
 output budget is rejected or cut off, and benched for a short period when it
@@ -33,7 +33,7 @@ from lonora_contracts.model_routing import (
 )
 from lonora_core.model_routing import select_model
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import added_models, agent_model_preference
+from lonora_db.agent_models import agent_model_preference
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
@@ -173,12 +173,8 @@ class GlobalModelRouter:
                         raise
                     primary = None
                 backups = await settings.get(session, "model_backups")
-                added: list[ModelSelection] = []
                 if owner_id and agent_id:
                     record = await agent_model_preference(session, owner_id, agent_id)
-                    if record is None or record.mode == "automatic":
-                        # Automatic: Lonora may fall back on every model the owner allowed.
-                        added = (await added_models(session)).added
                 preference = record.preference if record else None
                 ordered = [
                     *([run_choice] if run_choice else []),
@@ -186,7 +182,6 @@ class GlobalModelRouter:
                     *([primary] if primary else []),
                     *(preference.fallbacks if preference else []),
                     *(ModelSelection.model_validate(item) for item in backups.get("choices", [])),
-                    *added,
                 ]
             catalogs: dict[str, list[ModelDescriptor]] = {}
             for provider in dict.fromkeys(item.provider for item in ordered):

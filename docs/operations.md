@@ -28,7 +28,7 @@ Superseded by VISION.md
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
-- **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. يستخدمها الوكلاء عبر أدوات مساحة العمل (تشغيل أمر، قراءة ملف وكتابته، عرض العمليات وإيقافها)، وكل ما يعود منها يُفحص فتُستبدل قيم الأسرار بـ `[secret:NAME]`. ولأن سجلًا أو عملية قديمة قد تحمل قيمة سرّ أُعطي لأمر، تحتفظ البوابة بكل قيمة أُعطيت مشفّرةً بمفتاح الأسرار 30 يومًا بعد آخر مرة أُعطيت فيها، لتبقى مستبدلة في الفحص؛ فالسرّ المحذوف أو المُبدَّل تبقى قيمته مشفّرة حتى 30 يومًا ثم تُمحى. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل يقبل من العميل TLS أو HTTP أو SSH فقط، ويرفض أسماء MetaApi ونطاق Lonora، ويرفض العنوان المكتوب بدل الاسم، ويشترط أن يكون العنوان المطلوب من عناوين الاسم المعلن. هذا حماية إضافية لا جدار: اسم يشير إلى عنوان MetaApi لم يتعلّمه الحارس، أو وسيط HTTPS، أو أي شيء عبر SSH يبلغ MetaApi، والإنترنت وSSH مطلوبان. والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.9 غيغابايت منها نحو 5.2 متاحة، 25 غيغابايت حرة): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.0` و`LONORA_WORKSPACE_DISK=10g` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
+- **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. يستخدمها الوكلاء عبر أدوات مساحة العمل (تشغيل أمر، قراءة ملف وكتابته، عرض العمليات وإيقافها)، وكل ما يعود منها يُفحص فتُستبدل قيم الأسرار بـ `[secret:NAME]`. ولأن سجلًا أو عملية قديمة قد تحمل قيمة سرّ أُعطي لأمر، تحتفظ البوابة بكل قيمة أُعطيت مشفّرةً بمفتاح الأسرار 30 يومًا بعد آخر مرة أُعطيت فيها، لتبقى مستبدلة في الفحص؛ فالسرّ المحذوف أو المُبدَّل تبقى قيمته مشفّرة حتى 30 يومًا ثم تُمحى. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل يقبل من العميل TLS أو HTTP أو SSH فقط، ويرفض أسماء MetaApi ونطاق Lonora، ويرفض العنوان المكتوب بدل الاسم، ويشترط أن يكون العنوان المطلوب من عناوين الاسم المعلن. هذا حماية إضافية لا جدار: اسم يشير إلى عنوان MetaApi لم يتعلّمه الحارس، أو وسيط HTTPS، أو أي شيء عبر SSH يبلغ MetaApi، والإنترنت وSSH مطلوبان. والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. يبدأها `lonora` بعد خدمات Lonora ولا ينتظرها: إن لم تبدأ أو تعذّر تجهيز قرصها يُبلَّغ بذلك ويعمل Lonora بدونها. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.9 غيغابايت منها نحو 5.2 متاحة، 25 غيغابايت حرة): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.0` و`LONORA_WORKSPACE_DISK=10g` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
 - **الإشعارات على الهاتف:** تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
@@ -36,9 +36,9 @@ Superseded by VISION.md
 
 | Piece | Where | What it does |
 |---|---|---|
-| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), plus a `migrate` service that runs only when asked. |
+| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), SearXNG web search and the research browser, plus a `migrate` service that runs only when asked. |
 | Mode | `infra/compose/mode-direct.yml` or `mode-proxy.yml` | Direct: Caddy owns 80/443 and gets the certificate. Proxy (`LONORA_PROXY_LISTEN` set): Caddy listens in plain HTTP on one loopback address behind an existing reverse proxy; nothing binds 80/443. |
-| Optional overlays | `infra/research/compose.research.yml` (search and browser, ~1.1 GB, off by default), `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
+| Optional overlays | `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
 | Source build | `infra/compose/build-from-source.sh` | Builds the image on the server into a loopback-only registry, when no published image exists. |
 | `lonora` command | `infra/compose/lonora` (linked as `/usr/local/bin/lonora`) | status, start, update, rollback, backup, restore, restore-test, logs. |
 | Installer | `infra/compose/install.sh` | Sets up a new server. |
@@ -86,7 +86,7 @@ the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the serve
 `--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
 127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`, `--overlay FILE` (repeatable),
 `--workspace-memory` (default 4g), `--workspace-cpus` (default 2), `--workspace-disk` (default 20g),
-`--min-free-ram-mb` (default 2560 plus the workspace memory: 6656), `--min-free-disk-gb` (default 10
+`--min-free-ram-mb` (default 3584 plus the workspace memory: 7680), `--min-free-disk-gb` (default 10
 plus the workspace disk plus 2: 32), `--no-systemd`. The preflight also needs 2 CPUs, no fewer than
 the workspace's, and the tools of the workspace disk (util-linux, e2fsprogs).
 
@@ -102,8 +102,7 @@ provider API keys. The database password is always new (a fresh database). Every
 key — is not copied. It prints the copied and the ignored key **names**, never a value, and the new
 `.env` is mode 600.
 
-`--overlay` adds a bundled overlay at install time (`infra/research/compose.research.yml`,
-`infra/analysis/compose.workspace.yml`); the preflight warns (does not refuse) when the workspace
+`--overlay` adds a bundled overlay at install time (`infra/analysis/compose.workspace.yml`); the preflight warns (does not refuse) when the workspace
 host socket is missing.
 
 The preflight also reads the whole `--env-from` file before anything is written: `export ` prefixes
@@ -147,15 +146,16 @@ Every service has a memory and CPU limit, overridable in `.env`:
 | api (includes the chart renderer) | 896m | 0.75 | `LONORA_API_MEMORY`, `LONORA_API_CPUS` |
 | gateway | 768m | 0.75 | `LONORA_GATEWAY_MEMORY`, `LONORA_GATEWAY_CPUS` |
 | caddy | 96m | 0.25 | `LONORA_CADDY_MEMORY`, `LONORA_CADDY_CPUS` |
+| searxng (web search) | 384m | 0.25 | `LONORA_SEARXNG_MEMORY`, `LONORA_SEARXNG_CPUS` |
+| browser (research browser) | 768m | 0.5 | `LONORA_BROWSER_MEMORY`, `LONORA_BROWSER_CPUS` |
 | migrate (runs only during updates) | 512m | 0.5 | `LONORA_MIGRATE_MEMORY`, `LONORA_MIGRATE_CPUS` |
 
 | workspace (the owner's agents' terminal) | 4g | 2 | `LONORA_WORKSPACE_MEMORY`, `LONORA_WORKSPACE_CPUS` |
 | workspace-net (its network guard and relay) | 192m | 0.5 | fixed |
 
-Lonora itself is limited to about 2.3 GB and 2.25 CPUs, so it fits a 2-vCPU host next to other
-projects; the workspace adds its own limits («The workspace» below). The optional search and browser services (`infra/research/compose.research.yml`) add
-384m + 768m and are off unless listed in `LONORA_COMPOSE_OVERLAYS`; leave them off on a shared host.
-After changing a limit: `sudo lonora start`.
+The running stack is limited to about 3.4 GB and 3 CPUs; the workspace adds its own limits («The
+workspace» below). The limits are ceilings, not reservations, so the stack still runs on a 2-vCPU
+host. After changing a limit: `sudo lonora start`.
 
 ### The workspace
 
@@ -172,7 +172,9 @@ scan keeps replacing it: a deleted or rotated secret's value stays stored, encry
 compilers and Chromium (headless) come from the server image; agents install more at user level
 (`pip install` goes to `~/.local`), which survives updates. System packages come only from the
 image: agents have no root. Running processes end when the containers are re-created (every
-update) or the host restarts; files do not.
+update) or the host restarts; files do not. `lonora` starts the workspace after Lonora's own
+services and does not wait for it: a workspace that does not start, or a disk that cannot be
+prepared, is reported and Lonora runs without it (agents get a tool error).
 
 | Setting in `.env` | Default | Meaning |
 |---|---|---|
@@ -217,13 +219,16 @@ LONORA_WORKSPACE_CPUS=1.0
 LONORA_WORKSPACE_DISK=10g
 ```
 
-(`/opt/lonora2/.env` for the side-by-side install). A 2 GiB workspace fits in the 5.2 GiB
-available with room left; at most one CPU leaves the other to Lonora and the other stack even
+(`/opt/lonora2/.env` for the side-by-side install). Lonora's own ceilings (about 3.4 GB, with
+web search and the research browser) plus a 2 GiB workspace come to about 5.5 GB, a little
+above the 5.2 GiB available: these are ceilings, not use, and under pressure the workspace is
+killed first; at most one CPU leaves the other to Lonora and the other stack even
 when the workspace is busy; 10 GiB of the 25 GB free leaves room for images and backups. The
 Gateway and the database keep their memory reserved and the Gateway the highest CPU weight
 (2048 against the workspace's 128), so reconciliation of uncertain operations keeps running.
 For a new install on such a host: `install.sh --workspace-memory 2g --workspace-cpus 1.0
---workspace-disk 10g` (the preflight then needs 4,608 MB free memory and 22 GB free disk).
+--workspace-disk 10g` (the preflight then needs 5,632 MB free memory and 22 GB free disk; with 5.2 GiB free,
+add `--min-free-ram-mb 5120` knowingly, or give the workspace 1536m).
 
 **The first update to a version with the workspace.** `lonora update` runs the `lonora` already
 on the server, which does not know the workspace disk. Run the new version's command instead,
@@ -410,6 +415,14 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
    maintenance is turned off (writes open again), the Gateway (agent and trading loops) starts, and
    the update waits for `/ready` (default 240 s, `LONORA_READY_TIMEOUT`).
 7. Success: marker removed, `state/history.log` updated.
+
+Web search (SearXNG) and the research browser start with every update but are never waited on:
+`lonora` waits on `db`, `api`, `caddy` and `gateway` only, so their health can neither fail nor roll
+back an update, a restore or a start. One exception: the single update *from* a release that still
+had the optional research overlay runs that older `lonora`, which waits on every service, so that
+one update still needs SearXNG and the browser to pull and become healthy. Updates after it do not.
+An installation that had listed the retired overlay in `LONORA_COMPOSE_OVERLAYS` has it skipped
+from then on and removed from `.env` by its next update.
 
 **If step 4, 5, 6 or a health gate fails**, `lonora` rolls back by itself: the old deployment files
 and pin come back and the database is **restored from the backup of step 3** — dropped and recreated

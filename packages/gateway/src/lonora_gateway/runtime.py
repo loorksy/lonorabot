@@ -3,6 +3,7 @@ from pathlib import Path
 
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_agent.workspace_client import WorkspaceClient
@@ -58,7 +59,7 @@ class OwnerServices:
         mcp_owner_trust: bool = True,
     ) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
-        brokers = BrokerManager(db, secrets)
+        brokers = BrokerManager(db, BrokerSecrets(db, key, owner_id))
         router = GlobalModelRouter(db, ProviderCredentials(db, secrets))
         market = MarketRuntime(db, brokers, owner_id)
 
