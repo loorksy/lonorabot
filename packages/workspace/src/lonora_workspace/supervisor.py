@@ -1,0 +1,547 @@
+"""The workspace supervisor: the one root process in the owner's workspace (7.1).
+
+It runs each agent's commands under that agent's own Unix user and home, in the
+foreground (bounded by the foreground limit) or in the background (no limit), keeps the
+table of processes it started, and stops one process or all of them. It answers only on
+a Unix socket that the Gateway's group can open; agent users cannot reach it. It holds
+no secret, model, database or broker credential.
+"""
+
+import argparse
+import asyncio
+import contextlib
+import logging
+import os
+import re
+import signal
+import socket
+import time
+import uuid
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Annotated, Any
+
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+from .users import AGENTS_GID, Users, is_agent_uid, user_name
+
+ROOT = Path("/workspace")
+SHARED = ROOT / "shared"
+MARKER = ROOT / ".lonora-workspace-disk"
+CONTROL = Path("/run/lonora-workspace")
+OUTPUT_LIMIT = 1024 * 1024
+ENDED_KEPT = 500
+PROTECTED_ENV = {"HOME", "USER", "LOGNAME", "SHELL", "PATH", "PWD"}
+ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]{0,127}$")
+# Runs as the agent's user: every path below is resolved with the agent's permissions.
+WRAPPER = (
+    'cd -- "$1" || exit 126\n'
+    'if [ -n "$2" ]; then mkdir -p -- "${2%/*}" && exec >>"$2" 2>&1 </dev/null || exit 126; fi\n'
+    'exec /bin/bash -c "$3"\n'
+)
+log = logging.getLogger("lonora.workspace.supervisor")
+
+
+class Request(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+Command = Annotated[str, StringConstraints(min_length=1, max_length=32768)]
+
+
+class RunCommand(Request):
+    agent_id: uuid.UUID
+    command: Command
+    background: bool = False
+    timeout_seconds: float | None = Field(default=None, gt=0)
+    cwd: str | None = Field(default=None, max_length=4096)
+    env: dict[str, Annotated[str, StringConstraints(max_length=65536)]] = Field(
+        default_factory=dict, max_length=64
+    )
+
+
+class StopProcess(Request):
+    pid: int = Field(gt=1)
+
+
+class StopAll(Request):
+    agent_id: uuid.UUID | None = None
+
+
+@dataclass
+class Job:
+    id: str
+    agent_id: str
+    uid: int
+    pid: int
+    command: str
+    background: bool
+    started_at: float
+    log: str | None
+    ended_at: float | None = None
+    exit_code: int | None = None
+    stopped: bool = False
+    process: Any = field(default=None, repr=False)
+
+    def view(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "agent_id": self.agent_id,
+            "pid": self.pid,
+            "command": self.command,
+            "background": self.background,
+            "started_at": self.started_at,
+            "ended_at": self.ended_at,
+            "exit_code": self.exit_code,
+            "stopped": self.stopped,
+            "log": self.log,
+        }
+
+
+@dataclass(frozen=True)
+class Limits:
+    foreground_seconds: float
+
+    @classmethod
+    def from_environment(cls) -> "Limits":
+        value = float(os.environ.get("LONORA_WORKSPACE_FOREGROUND_SECONDS", "600"))
+        if not 0 < value <= 86400:
+            raise ValueError("workspace_foreground_limit_invalid")
+        return cls(foreground_seconds=value)
+
+
+def cgroup_limits() -> dict[str, Any]:
+    """The limits the kernel enforces on this container, read back (v2, then v1)."""
+
+    def read(*paths: str) -> str | None:
+        for path in paths:
+            with contextlib.suppress(OSError):
+                return Path(path).read_text().strip()
+        return None
+
+    memory = read("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")
+    pids = read("/sys/fs/cgroup/pids.max", "/sys/fs/cgroup/pids/pids.max")
+    cpu = read("/sys/fs/cgroup/cpu.max")
+    if cpu is None:
+        quota = read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+        period = read("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+        cpu = f"{quota} {period}" if quota and period else None
+    cpus = None
+    if cpu and cpu.split()[0] not in {"max", "-1"}:
+        quota_text, period_text = cpu.split()
+        cpus = int(quota_text) / int(period_text)
+    return {
+        "memory_bytes": int(memory) if memory and memory.isdigit() else None,
+        "processes": int(pids) if pids and pids.isdigit() else None,
+        "cpus": cpus,
+    }
+
+
+def live_processes(users: Users) -> list[dict[str, Any]]:
+    """Every process of an agent user, from /proc: the truth, including children."""
+    ticks = os.sysconf("SC_CLK_TCK")
+    boot = 0.0
+    with contextlib.suppress(OSError, ValueError, StopIteration):
+        stat = Path("/proc/stat").read_text().splitlines()
+        boot = float(next(line for line in stat if line.startswith("btime")).split()[1])
+    found: list[dict[str, Any]] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            uid = owner(int(entry.name))
+            if uid is None or not is_agent_uid(uid):
+                continue
+            raw = (entry / "cmdline").read_bytes()[:4096]
+            stat = (entry / "stat").read_text()
+        except OSError:
+            continue
+        fields = stat[stat.rindex(")") + 2 :].split()
+        if fields[0] in {"Z", "X"}:
+            continue  # ended, waiting to be reaped: no longer running
+        found.append(
+            {
+                "pid": int(entry.name),
+                "ppid": int(fields[1]),
+                "agent_id": users.agent_of(uid),
+                "user": user_name(uid),
+                "command": raw.replace(b"\0", b" ").decode("utf-8", "replace").strip(),
+                "started_at": boot + int(fields[19]) / ticks,
+                "state": fields[0],
+            }
+        )
+    return sorted(found, key=lambda item: item["pid"])
+
+
+def owner(pid: int) -> int | None:
+    """The real uid of a process. Not the owner of /proc/<pid>, which the kernel shows as
+    root for a process that made itself non-dumpable (which would hide it)."""
+    try:
+        status = Path(f"/proc/{pid}/status").read_text()
+    except OSError:
+        return None
+    for line in status.splitlines():
+        if line.startswith("Uid:"):
+            return int(line.split()[1])
+    return None
+
+
+def running(pid: int) -> bool:
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return False
+    return stat[stat.rindex(")") + 2 :][:1] != "Z"
+
+
+def signal_agents(sig: int, uids: set[int] | None, users: Users) -> int:
+    count = 0
+    for item in live_processes(users):
+        pid = item["pid"]
+        if uids is not None and owner(pid) not in uids:
+            continue
+        with contextlib.suppress(OSError):
+            os.kill(pid, sig)
+            count += 1
+    return count
+
+
+async def exited(process: asyncio.subprocess.Process, seconds: float) -> bool:
+    """Whether the command's own process ended within `seconds`. Watched through a pidfd,
+    not `process.wait()`, which also waits for every pipe to close: a background child
+    that keeps stdout open must not hold a foreground command until its limit."""
+    loop = asyncio.get_running_loop()
+    try:
+        descriptor = os.pidfd_open(process.pid)
+    except ProcessLookupError:
+        return True
+    done: asyncio.Future[None] = loop.create_future()
+    loop.add_reader(descriptor, lambda: done.done() or done.set_result(None))
+    try:
+        await asyncio.wait_for(done, seconds)
+        return True
+    except TimeoutError:
+        return False
+    finally:
+        loop.remove_reader(descriptor)
+        os.close(descriptor)
+
+
+async def returncode(process: asyncio.subprocess.Process) -> int | None:
+    for _ in range(100):  # the child watcher reaps it a moment after it ends
+        if process.returncode is not None:
+            return process.returncode
+        await asyncio.sleep(0.02)
+    return None
+
+
+async def watch_network(interval: float = 10) -> None:
+    """The workspace lives in the guard's network namespace. If the guard container is
+    restarted on its own, that namespace is gone and only loopback is left: exit, so the
+    restart policy starts the workspace again inside the guard's new namespace."""
+    missed = 0
+    while True:
+        await asyncio.sleep(interval)
+        interfaces = set(os.listdir("/sys/class/net"))
+        missed = missed + 1 if interfaces <= {"lo"} else 0
+        if missed >= 2:
+            log.warning("workspace_network_lost")
+            os._exit(1)
+
+
+class Supervisor:
+    def __init__(self, users: Users, limits: Limits) -> None:
+        self.users = users
+        self.limits = limits
+        self.boot_id = str(uuid.uuid4())
+        self.jobs: dict[str, Job] = {}
+        self.lock = asyncio.Lock()
+
+    def environment(self, uid: int, extra: dict[str, str]) -> dict[str, str]:
+        home = str(self.users.home(uid))
+        local = f"{home}/.local"
+        base = {
+            "HOME": home,
+            "USER": user_name(uid),
+            "LOGNAME": user_name(uid),
+            "SHELL": "/bin/bash",
+            "PATH": f"{local}/bin:{home}/bin:/usr/local/bin:/usr/bin:/bin",
+            "LANG": "C.UTF-8",
+            "TMPDIR": "/tmp",
+            "PIP_USER": "1",
+            "PYTHONUSERBASE": local,
+            "NPM_CONFIG_PREFIX": local,
+            "LONORA_WORKSPACE_SHARED": str(SHARED),
+        }
+        for name in extra:
+            if not ENV_NAME.match(name) or name in PROTECTED_ENV:
+                raise ValueError("workspace_environment_invalid")
+        return base | extra
+
+    async def start(self, request: RunCommand) -> tuple[Job, asyncio.subprocess.Process]:
+        if "\0" in request.command or (request.cwd and "\0" in request.cwd):
+            raise ValueError("workspace_command_invalid")
+        async with self.lock:
+            uid = self.users.ensure(str(request.agent_id))
+        job_id = uuid.uuid4().hex
+        home = self.users.home(uid)
+        cwd = request.cwd or str(home)
+        if not cwd.startswith("/"):
+            raise ValueError("workspace_cwd_invalid")
+        log_path = f"{home}/.lonora/processes/{job_id}.log" if request.background else ""
+        pipe = asyncio.subprocess.DEVNULL if request.background else asyncio.subprocess.PIPE
+        process = await asyncio.create_subprocess_exec(
+            "/bin/bash",
+            "-c",
+            WRAPPER,
+            "lonora-workspace",
+            cwd,
+            log_path,
+            request.command,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=pipe,
+            stderr=pipe,
+            cwd="/",
+            env=self.environment(uid, request.env),
+            user=uid,
+            group=uid,
+            extra_groups=[AGENTS_GID],
+            umask=0o002,
+            start_new_session=True,
+        )
+        job = Job(
+            id=job_id,
+            agent_id=str(request.agent_id),
+            uid=uid,
+            pid=process.pid,
+            command=request.command,
+            background=request.background,
+            started_at=time.time(),
+            log=log_path or None,
+            process=process,
+        )
+        self.jobs[job_id] = job
+        return job, process
+
+    def ended(self, job: Job, code: int | None) -> None:
+        job.ended_at = time.time()
+        job.exit_code = code
+        job.process = None
+        finished = [j for j in self.jobs.values() if j.ended_at is not None]
+        for old in sorted(finished, key=lambda j: j.ended_at or 0)[:-ENDED_KEPT]:
+            self.jobs.pop(old.id, None)
+
+    async def watch(self, job: Job, process: asyncio.subprocess.Process) -> None:
+        await process.wait()
+        self.ended(job, process.returncode)
+
+    async def foreground(self, request: RunCommand) -> dict[str, Any]:
+        limit = self.limits.foreground_seconds
+        timeout = min(request.timeout_seconds or limit, limit)
+        job, process = await self.start(request)
+        started = time.monotonic()
+        streams = {"stdout": bytearray(), "stderr": bytearray()}
+        dropped = {"stdout": 0, "stderr": 0}
+
+        async def drain(name: str, stream: asyncio.StreamReader | None) -> None:
+            if stream is None:
+                return
+            while block := await stream.read(65536):
+                room = OUTPUT_LIMIT - len(streams[name])
+                streams[name].extend(block[:room])
+                dropped[name] += max(0, len(block) - room)
+
+        readers = [
+            asyncio.create_task(drain("stdout", process.stdout)),
+            asyncio.create_task(drain("stderr", process.stderr)),
+        ]
+        timed_out = not await exited(process, timeout)
+        if timed_out:
+            with contextlib.suppress(OSError):
+                os.killpg(process.pid, signal.SIGKILL)
+            await exited(process, 10)
+        code = await returncode(process)
+        # A background child may keep the pipes open: read what is there, then stop.
+        _, pending = await asyncio.wait(readers, timeout=1)
+        for task in pending:
+            task.cancel()
+        # Release our ends of the pipes; a child still holding them gets SIGPIPE, not a hang.
+        process._transport.close()  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType, reportAttributeAccessIssue]
+        self.ended(job, code)
+        return {
+            "boot_id": self.boot_id,
+            "id": job.id,
+            "exit_code": code,
+            "timed_out": timed_out,
+            "duration_ms": int((time.monotonic() - started) * 1000),
+            "stdout": streams["stdout"].decode("utf-8", "replace"),
+            "stderr": streams["stderr"].decode("utf-8", "replace"),
+            "stdout_dropped_bytes": dropped["stdout"],
+            "stderr_dropped_bytes": dropped["stderr"],
+        }
+
+    async def background(self, request: RunCommand) -> dict[str, Any]:
+        if request.timeout_seconds is not None:
+            raise ValueError("workspace_background_has_no_timeout")
+        job, process = await self.start(request)
+        asyncio.get_running_loop().create_task(self.watch(job, process))
+        return {"boot_id": self.boot_id, "process": job.view()}
+
+    def processes(self) -> dict[str, Any]:
+        jobs = sorted(self.jobs.values(), key=lambda job: job.started_at)
+        return {
+            "boot_id": self.boot_id,
+            "jobs": [job.view() for job in jobs],
+            "processes": live_processes(self.users),
+        }
+
+    async def stop(self, pid: int) -> bool:
+        uid = owner(pid)
+        if uid is None or not is_agent_uid(uid):
+            return False
+        job = next((j for j in self.jobs.values() if j.pid == pid and j.ended_at is None), None)
+        with contextlib.suppress(OSError):
+            if job is not None:
+                job.stopped = True
+                os.killpg(pid, signal.SIGTERM)
+            else:
+                os.kill(pid, signal.SIGTERM)
+        for _ in range(30):
+            await asyncio.sleep(0.1)
+            if not running(pid):
+                return True
+        with contextlib.suppress(OSError):
+            if job is not None:
+                os.killpg(pid, signal.SIGKILL)
+            else:
+                os.kill(pid, signal.SIGKILL)
+        return True
+
+    async def stop_all(self, agent_id: uuid.UUID | None) -> int:
+        uids: set[int] | None = None
+        if agent_id is not None:
+            uid = self.users.by_agent.get(str(agent_id))
+            uids = {uid} if uid is not None else set()
+        for job in self.jobs.values():
+            if job.ended_at is None and (uids is None or job.uid in uids):
+                job.stopped = True
+        total = signal_agents(signal.SIGKILL, uids, self.users)
+        for _ in range(50):
+            await asyncio.sleep(0.05)
+            if not signal_agents(signal.SIGKILL, uids, self.users):
+                break
+        return total
+
+
+def create_app(supervisor: Supervisor) -> FastAPI:
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+    def refused(code: str, status: int = 422) -> JSONResponse:
+        return JSONResponse({"code": code, "boot_id": supervisor.boot_id}, status_code=status)
+
+    @app.get("/v1/health")
+    async def health() -> dict[str, Any]:
+        disk = os.statvfs(ROOT)
+        return {
+            "boot_id": supervisor.boot_id,
+            "foreground_seconds": supervisor.limits.foreground_seconds,
+            "limits": cgroup_limits(),
+            "disk": {
+                "total_bytes": disk.f_blocks * disk.f_frsize,
+                "free_bytes": disk.f_bavail * disk.f_frsize,
+            },
+        }
+
+    @app.post("/v1/run", response_model=None)
+    async def run(request: RunCommand) -> dict[str, Any] | JSONResponse:
+        try:
+            if request.background:
+                return await supervisor.background(request)
+            return await supervisor.foreground(request)
+        except ValueError as error:
+            return refused(str(error))
+        except OSError:
+            # Typically the process limit: nothing was started.
+            return refused("workspace_start_failed", 503)
+
+    @app.get("/v1/processes")
+    async def processes() -> dict[str, Any]:
+        return supervisor.processes()
+
+    @app.post("/v1/processes/stop")
+    async def stop(request: StopProcess) -> dict[str, Any]:
+        return {"boot_id": supervisor.boot_id, "stopped": await supervisor.stop(request.pid)}
+
+    @app.post("/v1/processes/stop-all")
+    async def stop_all(request: StopAll) -> dict[str, Any]:
+        return {
+            "boot_id": supervisor.boot_id,
+            "stopped": await supervisor.stop_all(request.agent_id),
+        }
+
+    return app
+
+
+def prepare(root: Path, control_gid: int) -> Users:
+    if not (root / MARKER.name).is_file():
+        # The workspace disk is not mounted: refuse rather than write to the host disk.
+        raise SystemExit("workspace_disk_missing")
+    users = Users(root)
+    users.load()
+    shared = root / SHARED.name
+    shared.mkdir(exist_ok=True)
+    os.chown(shared, 0, AGENTS_GID, follow_symlinks=False)
+    os.chmod(shared, 0o2775)
+    CONTROL.mkdir(mode=0o750, exist_ok=True)
+    os.chown(CONTROL, 0, control_gid)
+    os.chmod(CONTROL, 0o750)
+    return users
+
+
+def serve() -> None:
+    import uvicorn
+
+    control_gid = int(os.environ.get("LONORA_WORKSPACE_CONTROL_GID", "10001"))
+    supervisor = Supervisor(prepare(ROOT, control_gid), Limits.from_environment())
+    path = CONTROL / "supervisor.sock"
+    path.unlink(missing_ok=True)
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+        previous = os.umask(0o177)
+        try:
+            listener.bind(str(path))
+        finally:
+            os.umask(previous)
+        os.chown(path, 0, control_gid)
+        os.chmod(path, 0o660)
+        listener.listen(64)
+        listener.setblocking(False)
+        config = uvicorn.Config(
+            create_app(supervisor),
+            access_log=False,
+            log_level="warning",
+            timeout_keep_alive=5,
+            limit_max_requests=None,
+            timeout_graceful_shutdown=5,
+        )
+        log.warning("workspace_supervisor_ready boot_id=%s", supervisor.boot_id)
+
+        async def run() -> None:
+            watcher = asyncio.create_task(watch_network())
+            try:
+                await uvicorn.Server(config).serve(sockets=[listener])
+            finally:
+                watcher.cancel()
+
+        asyncio.run(run())
+
+
+def main() -> None:
+    argparse.ArgumentParser(description=__doc__).parse_args()
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    serve()
+
+
+if __name__ == "__main__":
+    main()

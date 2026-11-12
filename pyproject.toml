@@ -31,9 +31,9 @@ typeCheckingMode = "strict"
 pythonVersion = "3.12"
 venvPath = "."
 venv = ".venv"
-extraPaths = ["apps/api/src", "apps/worker/src", "packages/adapter-kit/src", "packages/adapters/src", "packages/agent-runtime/src", "packages/auth/src", "packages/automation/src", "packages/bus/src", "packages/channels/src", "packages/charts/src", "packages/contracts/src", "packages/core/src", "packages/db/src", "packages/gateway/src", "packages/llm-usage/src", "packages/logging/src", "packages/market/src", "packages/memory/src", "packages/providers/src", "packages/security/src", "packages/session/src", "packages/tools/src", "packages/trading/src", "packages/voice/src"]
+extraPaths = ["apps/api/src", "apps/worker/src", "packages/adapter-kit/src", "packages/adapters/src", "packages/agent-runtime/src", "packages/auth/src", "packages/automation/src", "packages/bus/src", "packages/channels/src", "packages/charts/src", "packages/contracts/src", "packages/core/src", "packages/db/src", "packages/gateway/src", "packages/llm-usage/src", "packages/logging/src", "packages/market/src", "packages/memory/src", "packages/providers/src", "packages/security/src", "packages/session/src", "packages/tools/src", "packages/trading/src", "packages/voice/src", "packages/workspace/src"]
 [tool.setuptools]
-packages = ["lonora_api", "lonora_api.middleware", "lonora_api.routes", "lonora_api.websocket", "lonora_worker", "lonora_gateway", "lonora_agent", "lonora_agent.context", "lonora_agent.collaboration", "lonora_agent.automation", "lonora_agent.skills", "lonora_adapter_kit", "lonora_adapters", "lonora_adapters.models", "lonora_adapters.voice", "lonora_adapters.brokers", "lonora_adapters.market", "lonora_adapters.channels", "lonora_adapters.mcp", "lonora_adapters.storage", "lonora_providers", "lonora_tools", "lonora_bus", "lonora_session", "lonora_automation", "lonora_market", "lonora_charts", "lonora_trading", "lonora_voice", "lonora_channels", "lonora_channels.telegram", "lonora_channels.websocket", "lonora_channels.webhook", "lonora_contracts", "lonora_core", "lonora_db", "lonora_memory", "lonora_auth", "lonora_security", "lonora_logging", "lonora_llm_usage"]
+packages = ["lonora_api", "lonora_api.middleware", "lonora_api.routes", "lonora_api.websocket", "lonora_worker", "lonora_gateway", "lonora_agent", "lonora_agent.context", "lonora_agent.collaboration", "lonora_agent.automation", "lonora_agent.skills", "lonora_adapter_kit", "lonora_adapters", "lonora_adapters.models", "lonora_adapters.voice", "lonora_adapters.brokers", "lonora_adapters.market", "lonora_adapters.channels", "lonora_adapters.mcp", "lonora_adapters.storage", "lonora_providers", "lonora_tools", "lonora_bus", "lonora_session", "lonora_automation", "lonora_market", "lonora_charts", "lonora_trading", "lonora_voice", "lonora_channels", "lonora_channels.telegram", "lonora_channels.websocket", "lonora_channels.webhook", "lonora_contracts", "lonora_core", "lonora_db", "lonora_memory", "lonora_auth", "lonora_security", "lonora_logging", "lonora_llm_usage", "lonora_workspace"]
 [tool.setuptools.package-dir]
 "lonora_api" = "apps/api/src/lonora_api"
 "lonora_api.middleware" = "apps/api/src/lonora_api/middleware"
@@ -76,6 +76,7 @@ packages = ["lonora_api", "lonora_api.middleware", "lonora_api.routes", "lonora_
 "lonora_security" = "packages/security/src/lonora_security"
 "lonora_logging" = "packages/logging/src/lonora_logging"
 "lonora_llm_usage" = "packages/llm-usage/src/lonora_llm_usage"
+"lonora_workspace" = "packages/workspace/src/lonora_workspace"
 
 [tool.setuptools.package-data]
 "lonora_bus" = ["attention_messages.json"]

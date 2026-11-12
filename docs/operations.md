@@ -22,12 +22,13 @@ Superseded by VISION.md
 - **بعد كارثة (خادم جديد):** ثبّت خادمًا جديدًا بالمثبّت، ثم `sudo install -m 600 <مفتاحك> /opt/lonora/backup.key`، ثم `sudo lonora restore <ملف> --replace --with-config`. هذا يعيد الأسرار والنطاق، ويحتفظ بكلمة مرور قاعدة البيانات الجديدة وبملفات النشر من الصورة.
 - **الخادم الحالي (VPS) — تثبيت جنبًا إلى جنب:** على خادمك يعمل traefik على المنفذين 80 و443 ومعه مشاريع أخرى وLonora القديم. التثبيت الجديد لا يلمس أيًّا منها: يُثبَّت باسم مشروع مستقل ومجلد مستقل، ويستمع على عنوان داخلي واحد فقط، مثلًا:
   `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
-  يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت للمجموع)، وخدمات البحث والمتصفح معطلة افتراضيًا.
+  يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت لـ Lonora، ومساحة العمل حدودها الخاصة)، وخدمات البحث والمتصفح معطلة افتراضيًا.
 - **إعادة استخدام الأسرار الحالية:** الخيار `--env-from /opt/lonora/.env` ينسخ من ملف الإعدادات القديم المفاتيح التي يعرفها الإصدار الجديد فقط (مفتاح التشفير الذي تُفك به مفاتيح المزودين والوسيط المحفوظة، وسر الـ webhook، وبصمات passkey لتطبيق أندرويد، والنطاق، وإعدادات الضبط)، ويطبع أسماءها فقط دون أي قيمة، ويُنشئ كلمة مرور جديدة لقاعدة البيانات الجديدة، ويتجاهل الباقي (LiveKit وIMAGE وARTIFACT_ROOT وغيرها) ويذكر أسماءها.
 - **مضيف مساحة التحليل:** الخدمة `lonora-analysis.service` على الخادم تبقى كما هي؛ يربطها التثبيت الجديد بالخيار `--overlay infra/analysis/compose.workspace.yml`. إن لم تكن الخدمة تعمل يبدأ Lonora رغم ذلك، وتبقى أدوات التحليل غير متاحة حتى تعمل الخدمة.
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
+- **مساحة العمل (الطرفية):** لكل مالك مساحة عمل Linux واحدة دائمة يتشاركها كل وكلائه (الخدمتان `workspace` و`workspace-net`)، ولكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عنوان Lonora العام ولا خوادم MetaApi. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، فلا تجوع البوابة (Gateway) أبدًا. على خادمك الحالي (معالجان، 7.8 غيغابايت): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.5` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -64,6 +65,8 @@ Layout on a server (default `/opt/lonora`):
 /opt/lonora/maintenance/on    exists while an update, rollback or restore runs
 /opt/lonora/infra/…           the deployment files from the image
 /opt/lonora/.runtime/releases mobile APK and OTA updates (served read-only by the API)
+/opt/lonora/workspace.img     the workspace disk: a fixed-size ext4 file (LONORA_WORKSPACE_DISK)
+/opt/lonora/workspace-disk/   where it is mounted; the workspace container sees it as /workspace
 ```
 
 ## Install a new server
@@ -81,7 +84,10 @@ sudo bash install.sh --domain lonora.example.com --version main
 the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the server»). Other options:
 `--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
 127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`, `--overlay FILE` (repeatable),
-`--min-free-ram-mb` (default 2560), `--min-free-disk-gb` (default 10), `--no-systemd`.
+`--workspace-memory` (default 4g), `--workspace-cpus` (default 2), `--workspace-disk` (default 20g),
+`--min-free-ram-mb` (default 2560 plus the workspace memory: 6656), `--min-free-disk-gb` (default 10
+plus the workspace disk plus 2: 32), `--no-systemd`. The preflight also needs 2 CPUs, no fewer than
+the workspace's, and the tools of the workspace disk (util-linux, e2fsprogs).
 
 `--env-from /opt/lonora/.env` reuses settings and secrets from an earlier installation. It copies
 only keys this version knows — `LONORA_ENCRYPTION_KEY` (provider and broker keys saved in a database
@@ -142,10 +148,74 @@ Every service has a memory and CPU limit, overridable in `.env`:
 | caddy | 96m | 0.25 | `LONORA_CADDY_MEMORY`, `LONORA_CADDY_CPUS` |
 | migrate (runs only during updates) | 512m | 0.5 | `LONORA_MIGRATE_MEMORY`, `LONORA_MIGRATE_CPUS` |
 
-The running stack is limited to about 2.3 GB and 2.25 CPUs, so it fits a 2-vCPU host next to other
-projects. The optional search and browser services (`infra/research/compose.research.yml`) add
+| workspace (the owner's agents' terminal) | 4g | 2 | `LONORA_WORKSPACE_MEMORY`, `LONORA_WORKSPACE_CPUS` |
+| workspace-net (its network guard) | 96m | 0.25 | fixed |
+
+Lonora itself is limited to about 2.3 GB and 2.25 CPUs, so it fits a 2-vCPU host next to other
+projects; the workspace adds its own limits («The workspace» below). The optional search and browser services (`infra/research/compose.research.yml`) add
 384m + 768m and are off unless listed in `LONORA_COMPOSE_OVERLAYS`; leave them off on a shared host.
 After changing a limit: `sudo lonora start`.
+
+### The workspace
+
+Every agent's commands run in one persistent Linux workspace per owner (mandate 7.1): the
+services `workspace` (a supervisor that runs each agent's commands under that agent's own Unix
+user and home, `/workspace/home/a<uid>`, with `/workspace/shared` writable by all) and
+`workspace-net` (a guard that owns the workspace's network). Python, pip, Node, git, SSH, curl,
+compilers and Chromium (headless) come from the server image; agents install more at user level
+(`pip install` goes to `~/.local`), which survives updates. System packages come only from the
+image: agents have no root. Running processes end when the containers are re-created (every
+update) or the host restarts; files do not.
+
+| Setting in `.env` | Default | Meaning |
+|---|---|---|
+| `LONORA_WORKSPACE_CPUS` | 2 | CPU quota. Its CPU weight is 128 against every other service's 1024, so the Gateway and the database always get their CPU first. |
+| `LONORA_WORKSPACE_MEMORY` | 4g | Memory, without swap. Its OOM score is the highest on the host, so the kernel kills a workspace process before any Lonora process; the database and the Gateway also reserve their memory. |
+| `LONORA_WORKSPACE_DISK` | 20g | Size of `workspace.img`. Grown in place when raised (`sudo lonora start`); never shrunk. |
+| `LONORA_WORKSPACE_PROCESSES` | 256 | Processes and threads in the whole workspace. |
+| `LONORA_WORKSPACE_FOREGROUND_SECONDS` | 600 | Limit of a foreground command. Background processes have none. |
+| `LONORA_WORKSPACE_BLOCKED_ADDRESSES` | empty | More addresses (CIDR, space separated) the workspace may never reach, e.g. this server's public IPv4 when `LONORA_DOMAIN` does not resolve to it. |
+
+**What the workspace can and cannot reach.** It reaches the internet. It cannot reach the
+database, the API, the Gateway or Caddy (they are on another Docker network, and every private,
+link-local and reserved range is rejected), Docker's internal resolver, the host's own ports,
+Lonora's public address (`LONORA_DOMAIN` is refused by name and its addresses are rejected), or
+MetaApi: names under `agiliumtrade.ai` and `metaapi.cloud` do not resolve, and the addresses of
+the known MetaApi hosts, resolved every 5 minutes, are rejected. It has no Docker socket, no
+`.env` and no Lonora secret; the MetaApi token never enters it. Agent processes have no
+capability and cannot gain privileges.
+
+**The disk.** `lonora start`, `update` and `restore` create `workspace.img` on first use (they
+refuse when the disk lacks its size plus 5 GB), mount it at `workspace-disk/` and install a
+systemd mount unit so it is mounted at boot before Docker. The supervisor refuses to start on an
+unmounted directory, so the host's own disk never takes workspace writes. The workspace is **not**
+in the backups (it can hold 20 GB of agent files and installed packages); back up
+`/opt/lonora/workspace.img` yourself if you want it.
+
+**The owner's current server** (2 vCPU, 7.8 GB, other projects beside Lonora): set
+
+```sh
+LONORA_WORKSPACE_MEMORY=2g
+LONORA_WORKSPACE_CPUS=1.5
+LONORA_WORKSPACE_DISK=20g
+```
+
+in that installation's `.env` (`/opt/lonora2/.env` for the side-by-side install). Lonora (2.3 GB) plus a 2 GB workspace leaves about 3.5 GB for the other
+projects; 1.5 CPUs leaves half a CPU free even while the workspace is busy, and its low weight
+gives the Gateway its share whenever it needs it.
+
+**The first update to a version with the workspace.** `lonora update` runs the `lonora` already
+on the server, which does not know the workspace disk. Run the new version's command instead,
+once:
+
+```sh
+docker run --rm --entrypoint cat ghcr.io/loorksy/lonorabot:<version> /app/deploy/infra/compose/lonora >/tmp/lonora-new
+sudo LONORA_HOME=/opt/lonora2 bash /tmp/lonora-new update <version>
+```
+
+**Prove it.** `sudo python3 tests/check_workspace_service.py --image <image>` installs a
+throwaway project beside the real one (its own name, port and 1 GB disk) and checks every point
+above, then removes it.
 
 ## Side by side with an existing reverse proxy
 
