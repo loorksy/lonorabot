@@ -12,7 +12,6 @@ from lonora_contracts.trading_goal import (
     GoalStepNote,
 )
 from lonora_core.user_error import LonoraError
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.goal_scope import require_goal_agent
 from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.routines import create_routine, routine_data
@@ -68,8 +67,6 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         run, _ = await locked_run_thread(session, context.lease)
         goal = await create_goal(session, context.owner_id, body, context.resource_id)
         await require_goal_agent(session, goal, run)
-        # A goal tainted work created or changed wakes tainted (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "goal", goal.id)
         run.model_metadata = {
             **run.model_metadata,
             "goal_id": goal.id,
@@ -194,7 +191,6 @@ async def plan(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         goal = await owned_goal(session, context.owner_id, args["goal_id"])
         if goal.agent_id != run.agent_id or goal.thread_id != run.thread_id:
             raise LonoraError("goal_run_mismatch", 409)
-        await taint_row_from(session, run, "goal", goal.id)
         return goal_data(
             await update_plan(
                 session,
@@ -254,7 +250,6 @@ async def complete(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
         )
         advance_state(goal, state)
         update_goal_state(session, goal, state)
-        await taint_row_from(session, run, "goal", goal.id)
         return goal_data(goal)
 
 
@@ -313,7 +308,6 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             ):
                 row.state = {"last_value": "0"}
             state["steps"][step.id]["watch_id"] = row.id
-            await taint_row_from(session, run, "watch", row.id)
             resource = resource_data(row)
         elif step.review_interval_seconds is not None:
             row = await create_routine(
@@ -329,7 +323,6 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 identifier,
             )
             state["steps"][step.id]["routine_id"] = row.id
-            await taint_row_from(session, run, "routine", row.id)
             state["steps"][step.id]["routine_plan_version"] = state.get("plan_version", 1)
             resource = routine_data(row)
         else:
@@ -338,7 +331,6 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         state["status"] = "waiting"
         state.pop("code", None)
         update_goal_state(session, goal, state)
-        await taint_row_from(session, run, "goal", goal.id)
         return {"goal": goal_data(goal), "wake_source": resource}
 
 
@@ -466,7 +458,6 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         goal = await owned_goal(session, context.owner_id, args["goal_id"])
         if goal.agent_id != run.agent_id or goal.thread_id != run.thread_id:
             raise LonoraError("goal_run_mismatch", 409)
-        await taint_row_from(session, run, "goal", goal.id)
         return goal_data(
             await control_goal(
                 session,

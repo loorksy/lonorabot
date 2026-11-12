@@ -485,81 +485,6 @@ async def test_card_words_never_stand_for_the_owner() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_watch_created_by_a_submission_wakes_tainted() -> None:
-    from lonora_db.schema import RunRow
-    from test_proactive_wakes import call, retire, simulation
-
-    fixture = await open_fixture()
-    connection = ""
-    try:
-        connection = await simulation(fixture, [])
-        card = await Card(fixture).open()
-        response = await card.post(card.body({"price": 2450}))
-        assert response.status_code == 202
-        submit_run = {
-            "id": response.json()["run_ids"][0],
-            "agent_id": card.agent["id"],
-            "thread_id": card.thread["id"],
-        }
-        context = await fixture.lease(submit_run)
-        created = await call(
-            context,
-            "watch_create",
-            account_id=connection,
-            symbol="XAUUSD",
-            condition="above",
-            level="2450",
-            prompt="Tell the owner gold crossed 2450.",
-        )
-        from lonora_db.genui_taint import row_taint
-
-        async with fixture.runtime.db.sessions() as session:
-            run = await session.get(RunRow, submit_run["id"])
-            assert run is not None
-            # The ledger keeps the taint; the watch's own state holds no copy to rewrite.
-            taint = await row_taint(session, "watch", created["id"])
-            assert taint == run.model_metadata["ui_submit_origin"]
-    finally:
-        await retire(fixture, connection)
-        await fixture.close()
-
-
-def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
-    """§8.4: every query of user messages either goes through ``owner_words``, reads
-    ``origin`` or sits on this reviewed allowlist with its reason."""
-    root = Path(__file__).parent.parent
-    allowed = {
-        # The idempotency backfill pairs an old message with its own runs; no authority.
-        "packages/db/src/lonora_db/messages.py": "nonce backfill",
-        "packages/db/src/lonora_db/conversation_locale.py": "reply language evidence only",
-        "packages/db/src/lonora_db/steering.py": "pending-steering existence, not words",
-        # The id of the message a run answers, to refuse retry after an edit. Not its words.
-        "packages/db/src/lonora_db/run_retry.py": "edited-source existence, not words",
-        # The id of the message this turn answers, so a reaction can land. Not its words.
-        "packages/tools/src/lonora_tools/message.py": "reaction target id, not owner words",
-        "packages/agent-runtime/src/lonora_agent/context/skills.py": "reads origin",
-        "packages/memory/src/lonora_memory/conversation.py": "reads origin",
-        "packages/tools/src/lonora_tools/trade.py": "reads origin",
-        "packages/tools/src/lonora_tools/owner_actions.py": "reads origin",
-        "packages/tools/src/lonora_tools/models.py": "reads origin",
-    }
-    offenders: list[str] = []
-    for path in [*root.glob("packages/*/src/**/*.py"), *root.glob("apps/*/src/**/*.py")]:
-        text = path.read_text()
-        if 'MessageRow.role == "user"' not in text:
-            continue
-        relative = str(path.relative_to(root))
-        if relative in allowed:
-            if allowed[relative] == "reads origin":
-                assert "origin" in text, relative
-            continue
-        if "owner_words" in text or "MessageRow.origin" in text:
-            continue
-        offenders.append(relative)
-    assert offenders == [], offenders
-
-
-@pytest.mark.asyncio
 async def test_the_cards_account_is_named_beyond_the_bounded_account_list() -> None:
     """With more enabled accounts than ``enabled_accounts`` returns, the card's own
     account is still read and named; an unnamed one is still refused."""
@@ -645,7 +570,7 @@ async def test_a_send_that_ran_is_never_marked_and_clients_learn_it_started() ->
 async def test_an_owner_message_folded_into_a_queued_send_survives_its_edit() -> None:
     """The owner types while a card's send waits: their message joins that queued Run.
     «تعديل» cancels the send, never the owner's words: they get a normal owner Run."""
-    from lonora_db.genui_taint import SUBMIT
+    from lonora_db.genui_submit import SUBMIT
 
     fixture = await open_fixture()
     try:

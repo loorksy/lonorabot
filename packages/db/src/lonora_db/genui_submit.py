@@ -38,7 +38,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_state import watch_summary
 from .conversation_locale import conversation_locale
 from .events import emit
-from .genui_taint import SUBMIT
 from .owner_words import TERMINAL, ui_submit_origin
 from .schema import (
     AgentRow,
@@ -52,6 +51,8 @@ from .schema import (
 )
 from .transactions import owned_agent
 
+# Marks the one queued Run a card's send started (read by ``owner_words.ui_submit_origin``).
+SUBMIT = "ui_submit_origin"
 SUBMIT_LIFETIME = timedelta(minutes=30)
 WAITING = ("waiting_input", "waiting_takeover")
 NEVER_RAN_NOTE = "طلب من بطاقة لم يُنفَّذ"

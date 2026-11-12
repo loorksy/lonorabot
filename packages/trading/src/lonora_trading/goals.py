@@ -570,7 +570,8 @@ async def wait_for_goal_target(
         thread_id = original.thread_id or ""
     async with db.sessions() as session, session.begin():
         await owned_thread(session, owner_id, thread_id, lock=True)
-        run = await require_lease(session, lease, lock=True) if lease else None
+        if lease:
+            await require_lease(session, lease, lock=True)
         goal = await owned_goal(session, owner_id, goal_id, True)
         if (
             goal.state.get("status") not in {"active", "waiting"}
@@ -600,12 +601,7 @@ async def wait_for_goal_target(
         )
         state["status"], state["code"] = "waiting", "goal_target_pending"
         update_goal_state(session, goal, state)
-        from lonora_db.genui_taint import taint_row_from
         from lonora_db.trading_goals import goal_data
-
-        # Tainted work that waits on a goal taints it and its routine (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "goal", goal.id)
-        await taint_row_from(session, run, "routine", routine.id)
 
         return {
             "goal": goal_data(goal),

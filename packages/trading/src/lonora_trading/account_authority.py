@@ -40,29 +40,15 @@ GRANT_TERM_REFUSALS = frozenset(
 
 
 async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
-    """A provisional handoff and its descendants cannot spend standing authority, and
-    neither can a tainted Run: one a generated card's send started, anything that descends
-    from it or that it started, or the wake of a durable row it created or changed
-    (GENUI_PLAN §8.5, ``lonora_db.genui_taint``): their trades become approval cards."""
-    from lonora_db.genui_taint import is_tainted
+    """Whether this Run answers a provisional voice handoff or a generated card's send
+    (6.10). Such input is the agent's own judgment's input; on a signed grant's old path
+    (until grants are deleted) it cannot spend the grant, so its trades ask. The mark is
+    this Run's alone: it never spreads to the agent's later watches, routines or wakes."""
+    from lonora_db.owner_words import ui_submit_origin
 
-    seen: set[str] = set()
-    current = run
-    for _ in range(16):
-        if current.id in seen:
-            raise LonoraError("goal_run_ancestry_invalid", 409)
-        seen.add(current.id)
-        if current.model_metadata.get("voice_handoff", {}).get("finalized") is False:
-            return True
-        if not current.parent_run_id:
-            break
-        parent = await session.get(RunRow, current.parent_run_id)
-        if parent is None:
-            raise LonoraError("goal_run_ancestry_invalid", 409)
-        current = parent
-    else:
-        raise LonoraError("goal_run_ancestry_invalid", 409)
-    return await is_tainted(session, run)
+    if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
+        return True
+    return ui_submit_origin(run) is not None
 
 
 async def available_authority(
