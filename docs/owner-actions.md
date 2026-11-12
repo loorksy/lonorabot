@@ -328,9 +328,11 @@ within the grant's own terms until the owner revokes it.
 
 Migration 0063 (mandate 14.3.18.2) showed, once, the Mandate card of each agent that held
 an active, unexpired grant: a system card in Lonora's conversation whose payload also
-carries `previous_grants` (`{account_id, full_delegation, symbols}` per grant). The card
-reads them as `facts.previous_grants`, with the account read live, and names the old
-grant in one line («انتهت صلاحيته الموقّعة السابقة (تفويض كامل)، وهذه البطاقة تحلّ محلّها.»);
+carries `previous_grants` (`{account_id, full_delegation, symbol_scope, symbols}` per
+grant). The card reads them as `facts.previous_grants`, with the account read live, and
+names the old grant in one line: Full delegation, «كل أزواج الحساب» / "every pair on the
+account" for a Custom grant on the whole account, or its markets
+(«انتهت صلاحيته الموقّعة السابقة (تفويض كامل)، وهذه البطاقة تحلّ محلّها.»);
 the line stays after a tap. That card replaced an older pending Mandate card of the same
 agent.
 

@@ -521,20 +521,26 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         unrecorded, _ = await new_agent("Unrecorded", role="general", scope_mode="flexible")
         flexible = {"role": "specialist", "scope_mode": "flexible"}
         managers: dict[str, tuple[str, str, str, str, str]] = {}
+        run_states = {"running": "waiting_takeover", "paused": "waiting_takeover"}
         for name, status, control in (
             ("Running", "running", None),
             ("Failed", "failed", None),
             ("Completing", "running", "complete"),
             ("Cancelled", "cancelled", None),
+            ("Leased", "running", None),
+            ("Paused", "paused", None),
         ):
             row, thread = await new_agent(name, **flexible)
             grant = await seed.grant(row.id, thread.id)
             task_id = stable_id(grant.id, "account-management-task")
+            leased = name == "Leased"
             run = RunRow(
                 thread_id=thread.id,
                 agent_id=row.id,
                 trigger="tickets",
-                status="waiting_takeover" if status == "running" else "completed",
+                status="leased" if leased else run_states.get(status, "completed"),
+                lease_owner="worker-1" if leased else None,
+                lease_expires_at=now + timedelta(minutes=5) if leased else None,
                 model_metadata={"task_id": task_id, "account_management_id": grant.id},
             )
             session.add(run)
@@ -548,6 +554,20 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             running_agent, running_thread, enabled=True, state={"task_id": running_task}
         )
         own_watch = await seed.watch(running_agent, running_thread, enabled=True)
+        # A card the management Run waits on ends with that Run.
+        stranded = TradeApprovalRow(
+            id=str(uuid4()),
+            owner_id=owner_id,
+            agent_id=running_agent,
+            run_id=managers["Running"][3],
+            thread_id=running_thread,
+            call_id="management",
+            requests=[],
+            status="pending",
+            results=[],
+            broker_snapshot={},
+        )
+        session.add(stranded)
         bounded, bounded_thread = await new_agent("Bounded", **flexible)
         bounded_grant = await seed.grant(
             bounded.id,
@@ -577,6 +597,22 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         pending_grant = await seed.grant(pending.id, pending_thread.id, status="pending")
         revoked, revoked_thread = await new_agent("Revoked", **flexible)
         revoked_grant = await seed.grant(revoked.id, revoked_thread.id, status="revoked")
+        # Runs no grant this migration revokes: they are not touched.
+        unrelated_runs: list[str] = []
+        for trigger, metadata in (
+            ("tickets", {"task_id": "another-task"}),
+            ("activation", {"account_authority_id": revoked_grant.id}),
+        ):
+            other = RunRow(
+                thread_id=revoked_thread.id,
+                agent_id=revoked.id,
+                trigger=trigger,
+                status="waiting_takeover" if trigger == "tickets" else "queued",
+                model_metadata=metadata,
+            )
+            session.add(other)
+            await session.flush()
+            unrelated_runs.append(other.id)
         orphan_grant = await seed.grant(str(uuid4()), revoked_thread.id)
         grant_card = await seed.card(
             lonora, ids["lonora_thread"], "grant_authority", "grant:" + general.id, {"x": 1}
@@ -708,6 +744,41 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             state={"code": "watch_paused", "lifecycle": "expired", "lifecycle_reason": "x"},
         )
         watch_hold = await seed.hold(worker.id, "watch", held_watch.id, "agent", supervisor.id)
+        routine_held = RoutineRow(
+            owner_id=owner_id,
+            agent_id=worker.id,
+            thread_id=worker_thread.id,
+            prompt="report",
+            interval_seconds=3600,
+            enabled=False,
+            next_run_at=now,
+        )
+        session.add(routine_held)
+        await session.flush()
+        routine_hold = await seed.hold(
+            worker.id, "routine", routine_held.id, "agent", supervisor.id
+        )
+        lapsed_watch = MarketWatchRow(
+            owner_id=owner_id,
+            agent_id=worker.id,
+            thread_id=worker_thread.id,
+            payload={
+                "symbol": "XAUUSD",
+                "enabled": False,
+                "expires_at": (now - timedelta(hours=1)).isoformat(),
+            },
+            state={"code": "watch_paused"},
+        )
+        session.add(lapsed_watch)
+        await session.flush()
+        lapsed_hold = await seed.hold(worker.id, "watch", lapsed_watch.id, "agent", supervisor.id)
+        task_watch_hold = await seed.hold(
+            running_agent, "watch", task_watch.id, "agent", supervisor.id
+        )
+        # Item 3 stops this paused management Task first, so its pause is not refused.
+        paused_task_hold = await seed.hold(
+            managers["Paused"][0], "task", managers["Paused"][2], "agent", supervisor.id
+        )
         cancelled_watch = await seed.watch(
             worker.id, worker_thread.id, enabled=False, state={"code": "watch_cancelled"}
         )
@@ -777,6 +848,13 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "orphan_grant": orphan_grant.id,
             "grant_card": grant_card.id,
             "stale_card": stale_card.id,
+            "stranded": stranded.id,
+            "routine_held": routine_held.id,
+            "routine_hold": routine_hold.id,
+            "lapsed_watch": lapsed_watch.id,
+            "lapsed_hold": lapsed_hold.id,
+            "task_watch_hold": task_watch_hold.id,
+            "paused_task_hold": paused_task_hold.id,
             "wide": wide.id,
             "lift_card": lift_card.id,
             "helper": helper.id,
@@ -842,6 +920,8 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "Failed": ("cancelled", "cancelled"),
             "Completing": ("completed", "completed"),
             "Cancelled": ("cancelled", "cancelled"),
+            "Leased": ("cancelled", "cancelled"),
+            "Paused": ("cancelled", "cancelled"),
         }
         for name, (_, _, task_id, run_id, _) in managers.items():
             ticket = await session.get(TicketRow, task_id, populate_existing=True)
@@ -853,9 +933,20 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
                 assert ticket.version > 1, name
             run = await session.get(RunRow, run_id, populate_existing=True)
             assert run is not None
-            live = name in {"Running", "Completing"}
-            assert run.status == ("cancelled" if live else "completed"), name
-            assert run.lease_owner is None
+            if name == "Leased":
+                # A worker holds it: it reads the stopped Task at its next checkpoint.
+                assert run.status == "leased" and run.lease_owner == "worker-1", run.status
+                continue
+            waiting = name in {"Running", "Completing", "Paused"}
+            assert run.status == ("cancelled" if waiting else "completed"), name
+            if waiting:
+                assert run.lease_owner is None and run.error_code == "mandate_migration"
+        for run_id in unrelated_runs:
+            run = await session.get(RunRow, run_id, populate_existing=True)
+            assert run is not None and run.status in {"waiting_takeover", "queued"}, run_id
+        approval = await session.get(TradeApprovalRow, refs["stranded"], populate_existing=True)
+        assert approval is not None
+        assert approval.status == "cancelled", "a card of a cancelled Run is not left pending"
         watch = await session.get(MarketWatchRow, refs["task_watch"], populate_existing=True)
         assert watch is not None and watch.payload["enabled"] is False
         assert watch.state["code"] == "task_terminal", watch.state
@@ -966,7 +1057,16 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             assert row is not None
             return row
 
-        for name in ("agent_hold", "watch_hold", "cancelled_watch_hold", "ended_task_hold"):
+        for name in (
+            "agent_hold",
+            "watch_hold",
+            "cancelled_watch_hold",
+            "ended_task_hold",
+            "routine_hold",
+            "lapsed_hold",
+            "task_watch_hold",
+            "paused_task_hold",
+        ):
             row = await hold(name)
             assert row.released_at is not None and row.released_by == "owner", name
         worker = await session.get(AgentRow, refs["worker"], populate_existing=True)
@@ -979,6 +1079,13 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         assert "code" not in watch.state and watch.state.get("lifecycle") == "pending"
         watch = await session.get(MarketWatchRow, refs["cancelled_watch"], populate_existing=True)
         assert watch is not None and watch.payload["enabled"] is False
+        routine_row = await session.get(RoutineRow, refs["routine_held"], populate_existing=True)
+        assert routine_row is not None and routine_row.enabled is True
+        watch = await session.get(MarketWatchRow, refs["lapsed_watch"], populate_existing=True)
+        assert watch is not None and watch.payload["enabled"] is False, "past its expiry"
+        watch = await session.get(MarketWatchRow, refs["task_watch"], populate_existing=True)
+        assert watch is not None and watch.payload["enabled"] is False, "its Task ended"
+        assert watch.state["code"] == "task_terminal"
         asked = await hold("asked_hold")
         assert asked.released_at is None and asked.source == "owner"
         routine_row = await session.get(RoutineRow, refs["routine"], populate_existing=True)
@@ -1017,7 +1124,10 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         )
         == expired_restriction
     )
-    assert len(await events_since(db, cursor, "task.updated")) == 3
+    assert len(await events_since(db, cursor, "task.updated")) == 5
+    approvals = await events_since(db, cursor, "trading.approval.updated")
+    assert [event.payload["id"] for event in approvals] == [refs["stranded"]]
+    assert approvals[0].payload["status"] == "cancelled"
     lifted = await events_since(db, cursor, "trading.restriction_revoked")
     assert sorted(event.payload["restriction"]["id"] for event in lifted) == sorted(
         [restrictions["active"], restrictions["scheduled"]]
@@ -1090,31 +1200,46 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
     owner_id = ids["owner"]
     async with db.sessions() as session, session.begin():
         seed = Seed(session, owner_id, ids["account"])
+        seed.device_id = ids["device"]
         held = await seed.agent("Held", role="general", scope_mode="flexible")
         held_thread = await seed.conversation(held.id)
         boss = await seed.agent("Boss", role="general", scope_mode="flexible")
-        task = await seed.task(held.id, held_thread.id, str(uuid4()), status="paused")
-        hold = await seed.hold(held.id, "task", task.id, "agent", boss.id)
-        hold_id = hold.id
-    await db.engine.dispose()
-    alembic("downgrade", BEFORE)
-    try:
-        alembic("upgrade", "head")
-    except subprocess.CalledProcessError as error:
-        assert "resume or cancel it" in error.stderr, error.stderr[-2000:]
-    else:
-        raise AssertionError("A supervisor's pause on a paused Task was left in force")
-    assert await revision(db) != REVISION, "the refused update must leave the database as it was"
-    async with db.sessions() as session, session.begin():
-        row = await session.get(SupervisionHoldRow, hold_id)
-        assert row is not None and row.released_at is None
-        row.released_at, row.released_by = utcnow(), "owner"
-    await db.engine.dispose()
+        trusted = await seed.agent("Trusted", role="specialist", scope_mode="flexible")
+        trusted_thread = await seed.conversation(trusted.id)
+        grant = await seed.grant(trusted.id, trusted_thread.id)
+        await set_trading_mode(session, owner_id, trusted.id, "full", by="owner_tap")
+        refs = {"held": held.id, "thread": held_thread.id, "boss": boss.id}
+        refs.update(trusted=trusted.id, grant=grant.id)
+    # A pause asked of a working Task counts as paused, as does a paused Task.
+    for status, control in (("running", "pause"), ("paused", None)):
+        async with db.sessions() as session, session.begin():
+            seed = Seed(session, owner_id, ids["account"])
+            task = await seed.task(
+                refs["held"], refs["thread"], str(uuid4()), status=status, control_requested=control
+            )
+            hold_id = (await seed.hold(refs["held"], "task", task.id, "agent", refs["boss"])).id
+        await db.engine.dispose()
+        alembic("downgrade", BEFORE)
+        try:
+            alembic("upgrade", "head")
+        except subprocess.CalledProcessError as error:
+            assert "resume or cancel it" in error.stderr, error.stderr[-2000:]
+        else:
+            raise AssertionError("A supervisor's pause on a paused Task was left in force")
+        assert await revision(db) != REVISION, "the refused update changes nothing"
+        async with db.sessions() as session, session.begin():
+            assert await trading_mode(session, owner_id, refs["trusted"]) == "full"
+            row = await session.get(AccountAuthorityRow, refs["grant"])
+            assert row is not None and row.status == "active"
+            hold = await session.get(SupervisionHoldRow, hold_id)
+            assert hold is not None and hold.released_at is None
+            hold.released_at, hold.released_by = utcnow(), "owner"
+        await db.engine.dispose()
     alembic("upgrade", "head")
     assert await revision(db) == REVISION
     print(
-        "PASS a supervisor's pause on a paused Task stops the update, which changes nothing,"
-        " until the owner resumes or cancels the Task"
+        "PASS a supervisor's pause on a paused Task, or on a Task asked to pause, stops the"
+        " update, which changes nothing, until the owner resumes or cancels the Task"
     )
 
 
