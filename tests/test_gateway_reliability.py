@@ -280,7 +280,9 @@ async def test_watches_are_filtered_and_ordered_in_sql_and_a_poison_watch_is_iso
         session.add_all([fresh, poison, overdue, future, disabled, expired])
     seen: list[str] = []
 
-    async def check(_: Database, __: BrokerManager, original: MarketWatchRow, *args: Any) -> int:
+    async def check(
+        _: Database, __: BrokerManager, original: MarketWatchRow, *args: Any, **kwargs: Any
+    ) -> int:
         seen.append(original.id)
         if original.id == poison.id:
             raise KeyError("symbol")
@@ -315,7 +317,7 @@ async def test_a_hung_watch_observation_times_out_as_unavailable_health(
         )
         session.add(row)
 
-    async def hang(*_: Any) -> Any:
+    async def hang(*_: Any, **__: Any) -> Any:
         await asyncio.sleep(30)
 
     monkeypatch.setattr(watchers, "WATCH_OBSERVATION_TIMEOUT_SECONDS", 0.05)
@@ -345,10 +347,10 @@ async def test_a_poison_attention_event_never_holds_the_cursor_and_is_quarantine
             )
     real = attention.candidate
 
-    async def poisoned(db_: Database, brokers: BrokerManager, event: EventRow) -> Any:
+    async def poisoned(db_: Database, brokers: BrokerManager, event: EventRow, **kw: Any) -> Any:
         if event.payload.get("id") == "poison":
             raise KeyError("origin_thread_id")
-        return await real(db_, brokers, event)
+        return await real(db_, brokers, event, **kw)
 
     monkeypatch.setattr(attention, "candidate", poisoned)
     await attention.attention_tick(db, NO_BROKERS, owner)
@@ -957,10 +959,10 @@ async def test_a_hanging_attention_event_times_out_into_the_ledger_and_never_hol
             )
     real = attention.candidate
 
-    async def hanging(db_: Database, brokers: BrokerManager, event: EventRow) -> Any:
+    async def hanging(db_: Database, brokers: BrokerManager, event: EventRow, **kw: Any) -> Any:
         if event.payload.get("id") == "hang":
             await asyncio.Event().wait()
-        return await real(db_, brokers, event)
+        return await real(db_, brokers, event, **kw)
 
     monkeypatch.setattr(attention, "candidate", hanging)
 
@@ -1105,7 +1107,7 @@ async def test_quarantine_notices_coalesce_per_kind_and_never_cost_a_critical_al
             payload={"emergency_stop": True, "enabled": True},
         )
 
-    async def poisoned(*_: Any) -> Any:
+    async def poisoned(*_: Any, **__: Any) -> Any:
         raise KeyError("projection bug")
 
     monkeypatch.setattr(attention, "candidate", poisoned)
