@@ -303,6 +303,8 @@ export type OwnerAction = {
     integration_id?: string;
     /** A saved Secret card: the keys saved and where; never a value. */
     saved?: string[];
+    /** A broker card: how provisioning stands (9.2). */
+    provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
     /** connect_credential for an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";

@@ -423,3 +423,44 @@ async def test_a_transient_metaapi_failure_is_retried_not_ended() -> None:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_journal_is_never_blocked_while_metaapi_creates_an_account() -> None:
+    """R-SEC H1: provisioning holds no owner-row lock across MetaApi's create, so an
+    insert that references the owner (a journal reservation) never waits on it."""
+    database()
+    from check_streaming import Fixture
+    from sqlalchemy import text
+
+    fixture = await Fixture().open()
+    account = login()
+    world = World(fixture, FakeProvisioningApi(servers={SERVER: {account: PASSWORD}}))
+    original = FakeMetaApiProvisioning.find_or_create
+    probes: list[bool] = []
+
+    async def slow_create(self: Any, **arguments: Any) -> Any:
+        # What the door's journal insert takes on the owner row (a foreign key).
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await session.execute(text("SET LOCAL lock_timeout = '1s'"))
+            await session.execute(
+                text("SELECT id FROM ln_owners WHERE id = :owner FOR KEY SHARE"),
+                {"owner": fixture.owner},
+            )
+        probes.append(True)
+        return await original(self, **arguments)
+
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Journal")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            with patch.object(FakeMetaApiProvisioning, "find_or_create", slow_create):
+                await world.gateway(1)
+        assert probes == [True]
+        assert (await world.card(card_id)).result["provisioning"] == "deploying"
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()

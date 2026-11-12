@@ -160,9 +160,14 @@ def broker_prompt(row: OwnerActionRow) -> str:
         )
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
+        token = (
+            " The saved MetaApi API token itself was refused; a new one is needed."
+            if result.get("code") == "broker_token_rejected"
+            else ""
+        )
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
-            f"{result.get('code')}. You never see "
+            f"{result.get('code')}.{token} You never see "
             "the password or token. Tell the owner in one line what went wrong and what you "
             "need; to try again, call broker_connect, which shows a new card."
         )

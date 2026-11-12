@@ -18,6 +18,8 @@ Provisioning makes account-entity calls only; orders still go only through the d
 
 import logging
 import re
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -31,7 +33,7 @@ from lonora_db.client import Database
 from lonora_db.owner_actions import continue_after_card
 from lonora_db.schema import OwnerActionRow
 from lonora_db.secrets import BROKER, METAAPI_TOKEN, metaapi_password_name
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .connections import verified_identity
@@ -53,6 +55,9 @@ TRANSIENT = frozenset(
 # How long a saved card may take to reach a connected terminal, then a first account read.
 DEPLOY_DEADLINE = timedelta(minutes=15)
 READ_DEADLINE = timedelta(minutes=5)
+# A deployed terminal the broker keeps refusing (DISCONNECTED_FROM_BROKER): a wrong
+# password or server, reported after this long rather than at the full deadline.
+LOGIN_DEADLINE = timedelta(minutes=3)
 PLATFORM = re.compile(r"mt\s*-?\s*([45])", re.IGNORECASE)
 
 
@@ -128,16 +133,23 @@ async def advance(
     if phase in {"pending", "deploying"} and (password_id is None or token_id is None):
         await failing("broker_secret_required")
         return
-    if phase == "pending":
-        assert password_id is not None and token_id is not None
-        await _provision(
-            db, secrets, failing, payload["account"], subject, password_id, token_id, started
-        )
-    elif phase == "deploying":
-        assert password_id is not None and token_id is not None
-        await _deploy(db, failing, result, password_id, token_id, started, secrets)
-    elif phase == "reading":
-        await _read(db, brokers, owner_id, card_id, result)
+    try:
+        if phase == "pending":
+            assert password_id is not None and token_id is not None
+            await _provision(
+                db, secrets, failing, payload["account"], subject, password_id, token_id, started
+            )
+        elif phase == "deploying":
+            assert password_id is not None and token_id is not None
+            await _deploy(db, failing, result, password_id, token_id, started, secrets)
+        elif phase == "reading":
+            await _read(db, brokers, owner_id, card_id, result)
+    except Exception:
+        # Any other failure retries until the deadline, then ends the card: it never
+        # holds the account "in progress" forever.
+        if phase in {"pending", "deploying"} and _late(started):
+            await failing("broker_provisioning_failed")
+        raise
 
 
 async def _change_credentials(
@@ -224,49 +236,77 @@ async def _provision(
     provisioning = provisioning_client(await secrets.read(token_id))
     failed: str | None = None
     try:
-        # Serialized with every other connection write of this owner (Q4); the lock is held
-        # across MetaApi's create, which is what keeps a second account from being made.
-        async with db.sessions() as session, session.begin():
-            await repository.lock_owner(session, owner_id)
-            row = await _card(session, owner_id, card_id)
-            if row.result.get("provisioning") != "pending":
-                return
-            try:
-                if await other_card_active(session, owner_id, subject, card_id):
-                    raise LonoraError("broker_connect_in_progress", 409)
-                await repository.assert_unique(
-                    session,
-                    owner_id,
-                    # Lonora's own uniqueness by the typed identity, before any MetaApi call.
-                    {"provider": "metaapi", "account_id": "provisioning:" + card_id},
-                    identity=account,
-                )
-                found, created = await provisioning.find_or_create(
-                    login=account["login"],
-                    server=account["server"],
-                    platform=account["platform"],
-                    password=await secrets.read(password_id),
-                    # Every create sent for this card is the same MetaApi transaction.
-                    request_key=card_id,
-                )
-            except LonoraError as failure:
-                if failure.code in TRANSIENT and not _late(started):
-                    return  # The next pass tries again; a lost create is found by then.
-                failed = failure.code
-            else:
-                # The MetaApi id is kept before any deploy: a retry finds this account.
-                await _record(
-                    session,
-                    row,
-                    provisioning="deploying",
-                    metaapi_account_id=found.account_id,
-                    region=found.region,
-                    created=created,
-                )
+        # Serialized per owner by an advisory lock (Q4): it keeps a second account from
+        # being made, and blocks no row, so the door journals orders while MetaApi works.
+        async with provisioning_locked(db, owner_id):
+            async with db.sessions() as session, session.begin():
+                row = await _card(session, owner_id, card_id)
+                if row.result.get("provisioning") != "pending":
+                    return
+                try:
+                    if await other_card_active(session, owner_id, subject, card_id):
+                        raise LonoraError("broker_connect_in_progress", 409)
+                    await repository.assert_unique(
+                        session,
+                        owner_id,
+                        # Lonora's own uniqueness by the typed identity, before any MetaApi call.
+                        {"provider": "metaapi", "account_id": "provisioning:" + card_id},
+                        identity=account,
+                    )
+                except LonoraError as failure:
+                    failed = failure.code
+            if failed is None:
+                try:
+                    # No transaction and no row lock while MetaApi works (up to minutes).
+                    found, created = await provisioning.find_or_create(
+                        login=account["login"],
+                        server=account["server"],
+                        platform=account["platform"],
+                        password=await secrets.read(password_id),
+                        # Every create sent for this card is the same MetaApi transaction.
+                        request_key=card_id,
+                    )
+                except LonoraError as failure:
+                    if failure.code in TRANSIENT and not _late(started):
+                        return  # The next pass tries again; a lost create is found by then.
+                    failed = failure.code
+                else:
+                    async with db.sessions() as session, session.begin():
+                        row = await _card(session, owner_id, card_id)
+                        if row.result.get("provisioning") != "pending":
+                            return
+                        # The MetaApi id is kept before any deploy: a retry finds this account.
+                        await _record(
+                            session,
+                            row,
+                            provisioning="deploying",
+                            metaapi_account_id=found.account_id,
+                            region=found.region,
+                            created=created,
+                        )
         if failed:
             await failing(failed)
     finally:
         await provisioning.close()
+
+
+def provisioning_key(owner_id: str) -> str:
+    return "broker-provision:" + owner_id
+
+
+async def lock_provisioning(session: AsyncSession, owner_id: str) -> None:
+    """The owner's provisioning lock, for this transaction (an advisory lock: no row)."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": provisioning_key(owner_id)},
+    )
+
+
+@asynccontextmanager
+async def provisioning_locked(db: Database, owner_id: str) -> AsyncGenerator[None]:
+    async with db.sessions() as gate, gate.begin():
+        await lock_provisioning(gate, owner_id)
+        yield
 
 
 async def other_card_active(
@@ -324,7 +364,8 @@ async def _deploy(
                 await failing(failure.code, provisioning)
             return
         if not (state.deployed and state.connected):
-            if _late(started):
+            refused = state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER"
+            if _late(started) or (refused and _late(started, LOGIN_DEADLINE)):
                 code = (
                     "broker_login_rejected"
                     if state.connection_status == "DISCONNECTED_FROM_BROKER"

@@ -11,7 +11,11 @@ from lonora_db.schema import SecretRow
 from lonora_db.secret_cards import broker_card_payload
 from lonora_db.secrets import BROKER, METAAPI_TOKEN
 from lonora_session.idempotency import stable_id
-from lonora_trading.broker_provisioning import other_card_active, platform_of
+from lonora_trading.broker_provisioning import (
+    lock_provisioning,
+    other_card_active,
+    platform_of,
+)
 from pydantic import Field
 from sqlalchemy import select
 
@@ -24,14 +28,14 @@ from .restrictions import owner_message_id
 class BrokerConnectInput(Contract):
     login: str = Field(pattern=r"^\s*\d{1,20}\s*$")
     server: str = Field(min_length=2, max_length=80, pattern=r"^[\w .\-]+$")
-    platform: str | None = Field(default=None, pattern=r"^mt[45]$")
+    platform: str | None = Field(default=None, pattern=r"^[mM][tT][45]$")
 
 
 async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = BrokerConnectInput.model_validate(args)
     login, server = params.login.strip(), params.server.strip()
     # The server's own name wins when it says MT4 or MT5.
-    platform = platform_of(server) or params.platform
+    platform = platform_of(server) or (params.platform or "").lower() or None
     if platform is None:
         raise ToolRefusal(
             "broker_platform_required",
@@ -49,7 +53,8 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 details={"hint": "Connect an account only when the owner asks in chat."},
             )
         repository = BrokerSessionRepository()
-        await repository.lock_owner(session, context.owner_id)
+        # The provisioning lock (advisory, no row), as the gateway's step takes it.
+        await lock_provisioning(session, context.owner_id)
         token_saved = await session.scalar(
             select(SecretRow.id).where(
                 SecretRow.owner_id == context.owner_id,
