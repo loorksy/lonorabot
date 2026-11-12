@@ -11,7 +11,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.schema import RunRow
 from lonora_db.workspace_processes import started
 from lonora_security.secrets import SecretScan
-from lonora_workspace.client import WorkspaceClient
+from lonora_workspace.client import WorkspaceClient, with_guard
 from pydantic import Field, StringConstraints
 
 from .base import Tool, run_scope
@@ -63,10 +63,11 @@ def client(context: ToolContext) -> WorkspaceClient:
 
 async def scan(context: ToolContext) -> SecretScan:
     """Every stored value but the broker's (workspace, integration, provider: W-ENV's
-    `scanned_values`), replaced in what reaches the model. The client adds the values the
-    supervisor gave commands, rotated and deleted ones included."""
+    `scanned_values`), and every value given to a workspace command in the last 30 days
+    (rotated and deleted ones included), replaced in what reaches the model."""
     values = await context.secrets.scanned_values()
-    return SecretScan(values)
+    given = await context.workspace_given.values() if context.workspace_given else []
+    return with_guard(SecretScan(values), [[name, value] for name, value in given])
 
 
 async def ordinary_run(context: ToolContext) -> bool:
@@ -100,13 +101,17 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
     missing = sorted(set(request.secrets) - set(values))
     if missing:
         raise LonoraError("workspace_secret_unknown", 404)
+    injected = {name: values[name] for name in request.secrets}
+    if context.workspace_given is not None:
+        # Before the command can print them: a later rotation keeps them in the scan.
+        await context.workspace_given.record(injected)
     result = await client(context).run(
         await scan(context),
         context.agent_id,
         request.command,
         background=request.background,
         timeout_seconds=None if request.background else request.timeout_seconds,
-        secrets={name: values[name] for name in request.secrets},
+        secrets=injected,
     )
     if request.background:
         process = result["process"]

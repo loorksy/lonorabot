@@ -438,9 +438,8 @@ def check_secrets(stack: Stack) -> None:
         secrets={"CHECK_SECRET": value},
     )
     record(
-        out["stdout"].split() == ["same"] and ["CHECK_SECRET", value] in out.get("guard", []),
-        "a named secret arrives as env NAME and /run/secrets/NAME, and the supervisor hands"
-        " the Gateway every value it gave out, for its scan",
+        out["stdout"].split() == ["same"] and "guard" not in out,
+        "a named secret arrives as env NAME and /run/secrets/NAME; no value comes back",
     )
     stack.run(a, "sleep 300", background=True, secrets={"CHECK_SECRET": value})
     time.sleep(1)

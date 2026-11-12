@@ -123,16 +123,19 @@ def answers(query_packet: bytes, answer: bytes) -> bool:
 
 
 def names(packet: bytes) -> list[str]:
-    """Every name an answer leads to: the owners of its records and CNAME/DNAME targets."""
+    """Every name an answer leads to: the owners of its answer records and CNAME/DNAME
+    targets."""
     if len(packet) < 12:
         raise DnsError("dns_answer_short")
-    qdcount, ancount, nscount, arcount = struct.unpack("!HHHH", packet[4:12])
+    qdcount, ancount = struct.unpack("!HH", packet[4:8])
     offset = 12
     for _ in range(qdcount):
         _, offset = _name(packet, offset)
         offset += 4
     found: list[str] = []
-    for _ in range(ancount + nscount + arcount):
+    # The answer section only: an authority or additional record names who serves a
+    # zone, not where the asked name leads.
+    for _ in range(ancount):
         owner, offset = _name(packet, offset)
         if offset + 10 > len(packet):
             raise DnsError("dns_answer_short")
@@ -140,5 +143,27 @@ def names(packet: bytes) -> list[str]:
         found.append(owner)
         if kind in (CNAME, DNAME):
             found.append(_name(packet, offset + 10)[0])
+        offset += 10 + size
+    return found
+
+
+def owned_addresses(packet: bytes) -> list[tuple[str, str]]:
+    """(owner name, address) of every A and AAAA answer record."""
+    if len(packet) < 12:
+        raise DnsError("dns_answer_short")
+    qdcount, ancount = struct.unpack("!HH", packet[4:8])
+    offset = 12
+    for _ in range(qdcount):
+        _, offset = _name(packet, offset)
+        offset += 4
+    found: list[tuple[str, str]] = []
+    for _ in range(ancount):
+        owner, offset = _name(packet, offset)
+        if offset + 10 > len(packet):
+            raise DnsError("dns_answer_short")
+        kind, _, _, size = struct.unpack("!HHIH", packet[offset : offset + 10])
+        data = packet[offset + 10 : offset + 10 + size]
+        if kind == A and size == 4 or kind == AAAA and size == 16:
+            found.append((owner, str(ipaddress.ip_address(data))))
         offset += 10 + size
     return found

@@ -24,6 +24,7 @@ from lonora_workspace import supervisor as supervisor_module
 from lonora_workspace.client import WorkspaceClient
 from lonora_workspace.supervisor import Limits, RunCommand, Supervisor, signal_agents
 from lonora_workspace.users import AGENTS_GID, Users
+from test_task_runtime import task_db as task_db
 
 VALUE = "s3cr3t-Value-0123456789"
 SCAN = SecretScan({"API_KEY": VALUE})
@@ -118,7 +119,7 @@ class Secrets:
         raise AssertionError("the workspace never reads a secret by id (broker scope)")
 
 
-def context(seen: list[Any], token: Any = None) -> Any:
+def context(seen: list[Any]) -> Any:
     client = supervisor_answering(
         {
             "/v1/run": {
@@ -140,7 +141,7 @@ def context(seen: list[Any], token: Any = None) -> Any:
         secrets=Secrets({"API_KEY": VALUE, "OTHER": "other-secret-value-1"}),
         agent_id=AGENT,
         owner_id="owner",
-        agent_token=token,
+        workspace_given=None,
     )
 
 
@@ -289,6 +290,8 @@ def test_a_partial_secret_at_the_end_of_output_becomes_the_marker():
 
     assert trailing(SCAN, "token=" + VALUE[:12]) == "token=[secret:API_KEY]"
     assert trailing(SCAN, "token=" + VALUE[:8]) == "token=" + VALUE[:8]  # too short to tell
+    # Not where a token starts: part of a longer word.
+    assert trailing(SCAN, "tokenx" + VALUE[:14]) == "tokenx" + VALUE[:14]
     assert trailing(SCAN, "plain text") == "plain text"
 
 
@@ -363,27 +366,17 @@ def test_only_an_ordinary_run_may_run_write_or_stop(monkeypatch: pytest.MonkeyPa
         assert seen == []
 
 
-def test_values_the_supervisor_gave_commands_are_replaced_too():
-    client = supervisor_answering(
-        {
-            "/v1/run": {
-                "boot_id": "b",
-                "id": "j",
-                "exit_code": 0,
-                "timed_out": False,
-                "duration_ms": 1,
-                "stdout": "old=rotated-old-value-77 new=" + VALUE,
-                "stderr": "",
-                "stdout_dropped_bytes": 0,
-                "stderr_dropped_bytes": 0,
-                "guard": [["API_KEY", "rotated-old-value-77"], ["API_KEY", VALUE]],
-            }
-        },
-        [],
+def test_values_once_given_to_commands_stay_in_the_scan():
+    class Given:
+        async def values(self) -> list[tuple[str, str]]:
+            return [("API_KEY", "rotated-old-value-77")]
+
+    ctx = context([])
+    ctx.workspace_given = Given()
+    scanned = asyncio.run(terminal.scan(ctx))
+    assert scanned.text("old=rotated-old-value-77 new=" + VALUE) == (
+        "old=[secret:API_KEY] new=[secret:API_KEY]"
     )
-    result = asyncio.run(client.run(SecretScan({}), AGENT, "x"))
-    assert result["stdout"] == "old=[secret:API_KEY] new=[secret:API_KEY]"
-    assert "guard" not in result
 
 
 def test_a_wrapped_secret_cut_mid_line_never_shows_its_earlier_lines():
@@ -408,7 +401,7 @@ def test_common_prefixes_are_not_taken_for_secrets():
 
 
 @pytest.mark.skipif(os.geteuid() != 0, reason="runs commands as agent users")
-def test_secret_files_live_while_named_and_values_are_handed_to_the_gateway(
+def test_secret_files_live_while_a_job_that_named_them_runs(
     monkeypatch: pytest.MonkeyPatch,
 ):
     root = Path(tempfile.mkdtemp(dir="/tmp"))
@@ -463,18 +456,44 @@ def test_secret_files_live_while_named_and_values_are_handed_to_the_gateway(
                     break
                 await asyncio.sleep(0.2)
             seen["left"] = (secrets / "API_KEY").exists()
-            seen["guard"] = sup.guard()
             return seen
 
         seen = asyncio.run(go())
         assert seen["first"] == ["same"] and seen["mode"] == 0o440
         assert seen["other"] == [str(len("old-value-123456"))]
         assert seen["many"] == 30 and not seen["left"]
-        # Rotated values stay in what the Gateway scans after their jobs ended.
-        assert ["API_KEY", "old-value-123456"] in seen["guard"]
-        assert ["API_KEY", VALUE] in seen["guard"]
         with pytest.raises(ValueError, match="workspace_secret_name_invalid"):
             asyncio.run(sup.start(RunCommand(agent_id=a, command="true", secrets={"PATH": "x"})))
         signal_agents(signal.SIGKILL, None, sup.users)
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_given_values_are_kept_encrypted_and_pruned(task_db: Any) -> None:
+    from datetime import timedelta
+
+    from lonora_db.schema import WorkspaceGivenRow
+    from lonora_db.workspace_given import KEPT, GivenValues
+    from sqlalchemy import select, update
+
+    db, owner, _, _ = task_db
+    key = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+    given = GivenValues(db, key, owner)
+    await given.record({"API_KEY": VALUE, "OTHER": "other-value-1234"})
+    await given.record({"API_KEY": VALUE})
+    async with db.sessions() as session:
+        rows = (await session.scalars(select(WorkspaceGivenRow))).all()
+    assert len(rows) == 2 and all(VALUE not in row.ciphertext for row in rows)
+    # Another process, after a restart, reads them back.
+    assert sorted(await GivenValues(db, key, owner).values()) == [
+        ("API_KEY", VALUE),
+        ("OTHER", "other-value-1234"),
+    ]
+    async with db.sessions() as session, session.begin():
+        await session.execute(
+            update(WorkspaceGivenRow)
+            .where(WorkspaceGivenRow.name == "OTHER")
+            .values(given_at=WorkspaceGivenRow.given_at - KEPT - timedelta(minutes=1))
+        )
+    assert await given.values() == [("API_KEY", VALUE)]

@@ -9,6 +9,7 @@ because bytes cannot be rewritten.
 import base64
 import codecs
 import os
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -19,8 +20,9 @@ SOCKET = "/run/lonora-workspace/supervisor.sock"
 # Longer than any encoded form of a secret (16,000 characters, percent-encoded): text
 # around a cut is read or dropped by this much so no secret is ever half seen.
 MARGIN = 49152
-# The shortest start of a secret form treated as that secret when a stream ends in it.
-PARTIAL = 12
+# Letters and digits in the shortest start of a secret form treated as that secret when
+# a stream ends in it.
+PARTIAL = 8
 
 
 def chars(prefix: bytes) -> int:
@@ -55,20 +57,26 @@ def window(scan: SecretScan, text: str, start: int, end: int) -> str:
     return "".join(pieces)
 
 
-def partial_length(form: str, text: str) -> int:
-    """The length of the longest end of `text` that starts `form`, if long enough to
-    tell (at least PARTIAL characters, or a third of the form: shorter ends are too often
-    a public prefix, such as "-----BEGIN" or "sk-proj-")."""
-    least = max(PARTIAL, len(form) // 3)
-    tail = text[-(len(form) - 1) :] if len(form) > 1 else ""
-    start = 0
-    while (start := tail.find(form[:1], start)) >= 0:
-        piece = tail[start:]
-        if len(piece) < least:
+BOUNDARY = set(" \t\r\n=:'\"`,;([{<>")
+
+
+def at_boundary(text: str, position: int) -> bool:
+    return position == 0 or text[position - 1] in BOUNDARY
+
+
+def partial_length(form: str, text: str, starts: Callable[[int], bool]) -> int:
+    """The length of the longest end of `text` that starts `form`: with at least PARTIAL
+    letters or digits (so a public prefix such as "-----BEGIN" or "sk-proj-" is not taken
+    for a secret) and starting where a token starts (`starts`)."""
+    tail_at = max(0, len(text) - (len(form) - 1))
+    position = tail_at
+    while (position := text.find(form[:1], position)) >= 0:
+        piece = text[position:]
+        if sum(c.isalnum() for c in piece) < PARTIAL:
             return 0
-        if form.startswith(piece):
+        if starts(position) and form.startswith(piece):
             return len(piece)
-        start += 1
+        position += 1
     return 0
 
 
@@ -79,13 +87,17 @@ def trailing(scan: SecretScan, text: str) -> str:
     cut = len(text)
     name = None
     for form in scan.plain:
-        size = partial_length(form.text, text)
+        size = partial_length(form.text, text, lambda p: at_boundary(text, p))
         if size and len(text) - size < cut:
             cut, name = len(text) - size, form.name
     if scan.wrapped:
         squeezed = Squeezed(text)
         for form in scan.wrapped:
-            size = partial_length(form.text, squeezed.text)
+            size = partial_length(
+                form.text,
+                squeezed.text,
+                lambda p: at_boundary(text, squeezed.origin(p)) if squeezed.text else True,
+            )
             if size:
                 start = squeezed.origin(len(squeezed.text) - size)
                 if start < cut:
@@ -96,8 +108,7 @@ def trailing(scan: SecretScan, text: str) -> str:
 
 
 def with_guard(scan: SecretScan, guard: list[list[str]]) -> SecretScan:
-    """The Gateway's scan plus the values the supervisor gave running or past commands
-    (rotated or deleted ones too), as one scan."""
+    """`scan` plus more (name, value) pairs, several values per name allowed, as one scan."""
     combined = SecretScan({})
     combined.plain, combined.wrapped = list(scan.plain), list(scan.wrapped)
     combined.separable = scan.separable
@@ -186,15 +197,13 @@ class WorkspaceClient:
         # The supervisor bounds the command itself; the transport waits a little longer.
         wait = (timeout_seconds or 600) + 30 if not background else 60
         result = cut_output(await self._call("POST", "/v1/run", body, wait))
-        scan = with_guard(scan, result.pop("guard", []))
         for stream in ("stdout", "stderr"):
             if isinstance(result.get(stream), str):
                 result[stream] = trailing(scan, result[stream])
         return scan.data(result)
 
     async def processes(self, scan: SecretScan) -> dict[str, Any]:
-        value = await self._call("GET", "/v1/processes", None, 30)
-        return with_guard(scan, value.pop("guard", [])).data(value)
+        return scan.data(await self._call("GET", "/v1/processes", None, 30))
 
     async def stop(self, scan: SecretScan, pid: int, agent_id: str | None = None) -> dict[str, Any]:
         body: dict[str, Any] = {"pid": pid}
@@ -223,7 +232,6 @@ class WorkspaceClient:
             },
             90,
         )
-        scan = with_guard(scan, value.pop("guard", []))
         if not value.get("ok"):
             return scan.data({"ok": False, "error": value.get("error", "")})
         data = base64.b64decode(value["content_base64"])
@@ -249,7 +257,6 @@ class WorkspaceClient:
     async def read_bytes(self, scan: SecretScan, agent_id: str, path: str) -> bytes:
         """A whole file's bytes (an export). Refused when they carry a secret."""
         value = await self._call("POST", "/v1/files/read", {"agent_id": agent_id, "path": path}, 90)
-        scan = with_guard(scan, value.pop("guard", []))
         if not value.get("ok"):
             raise LonoraError("workspace_file_unreadable", 404)
         if value["truncated"]:

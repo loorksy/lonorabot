@@ -684,9 +684,26 @@ class WorkspaceProcessRow(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     # The run whose context first carried the notice: it shows for that whole run.
     reported_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
+class WorkspaceGivenRow(Base):
+    """A secret value once given to a workspace command, encrypted (workspace_given.py)."""
+
+    __tablename__ = "ln_workspace_given"
+    __table_args__ = (UniqueConstraint("owner_id", "digest", name="ln_workspace_given_digest"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(80))
+    digest: Mapped[str] = mapped_column(String(64))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    given_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class ResourceRow(Base):

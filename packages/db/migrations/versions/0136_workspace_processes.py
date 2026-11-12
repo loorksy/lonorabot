@@ -4,8 +4,8 @@ been told they ended (mandate 7.1.2)."""
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0135_workspace_processes"
-down_revision = "0070_secret_scopes"
+revision = "0136_workspace_processes"
+down_revision = "0135_workspace_given"
 branch_labels = None
 depends_on = None
 
@@ -42,6 +42,9 @@ def upgrade() -> None:
     )
     op.create_index("ix_ln_workspace_processes_owner_id", "ln_workspace_processes", ["owner_id"])
     op.create_index("ix_ln_workspace_processes_agent_id", "ln_workspace_processes", ["agent_id"])
+    op.create_index(
+        "ix_ln_workspace_processes_reported_at", "ln_workspace_processes", ["reported_at"]
+    )
 
 
 def downgrade() -> None:
