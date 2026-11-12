@@ -3,7 +3,12 @@ from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunFailure, RunRequest
-from lonora_core.run_state import BACKGROUND_KEY, assert_transition, is_background
+from lonora_core.run_state import (
+    BACKGROUND_KEY,
+    assert_transition,
+    is_background,
+    may_end_silent,
+)
 from lonora_core.runtime_failure import failure_family, retry_after_seconds
 from lonora_core.user_error import LonoraError
 from sqlalchemy import and_, exists, or_, select
@@ -198,9 +203,12 @@ async def create_run(
     if (
         request.trigger == "follow_up"
         and parent is not None
-        and is_background(parent.trigger, parent.model_metadata)
+        and may_end_silent(
+            is_background(parent.trigger, parent.model_metadata), parent.execution_state
+        )
     ):
-        # A continuation of background work is background (11.5).
+        # A continuation of background work is background (11.5), unless the owner wrote
+        # to that work: its continuation answers them too.
         row.model_metadata = {**row.model_metadata, BACKGROUND_KEY: True}
     if run_id:
         row.id = run_id

@@ -1209,3 +1209,67 @@ def test_the_wake_sentence_does_not_say_no_one_is_waiting():
     # A Task the owner asked for is background work too; the owner may well wait on it.
     assert "no one is waiting" not in BACKGROUND
     assert "end with an empty reply" in BACKGROUND and "answer them" in BACKGROUND
+
+
+@pytest.mark.asyncio
+async def test_a_follow_up_of_work_the_owner_spoke_to_answers_the_owner():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Engaged desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        work = await work_thread(fixture, agent)
+        routine = await make_run(
+            fixture, agent, work, "routine", metadata={"origin_thread_id": conversation}
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, routine.id, with_for_update=True)
+            assert row is not None
+            row.status, row.result = "completed", ""
+            row.execution_state = {"owner_spoke": True}
+        await returned_helper(fixture, agent, routine, "completed", "Silver held 31.")
+        [follow_up] = await follow_ups(fixture, routine.id)
+        # The owner answered this work; its continuation answers them too.
+        assert "background" not in follow_up.model_metadata
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_rich_only_limit_report_is_not_taken_for_silence():
+    database()
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ModelReply
+    from lonora_agent.executor import execute_run
+    from lonora_agent.runtime_notices import limit_fallback
+    from lonora_contracts.model_routing import ModelSelection
+    from lonora_tools.loader import load_tools
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Charting desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        work = await work_thread(fixture, agent)
+        run = await make_run(
+            fixture, agent, work, "routine", metadata={"origin_thread_id": conversation}
+        )
+
+        async def turn(*_: Any, **__: Any) -> Any:
+            chart = {"version": 1, "parts": [{"type": "image", "url": "chart.png"}]}
+            return ModelReply(text="", rich_content=chart), ModelSelection(
+                provider="openai", model="background-silence-fixture"
+            )
+
+        context = await fixture.lease(
+            {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
+        )
+        with patch("lonora_agent.tool_loop.model_turn", turn):
+            await execute_run(context, load_tools(), 120, 1)
+        row = await reload(fixture, run.id)
+        # The model answered with something; only an empty answer is its silence.
+        assert row.result == limit_fallback(False), row.result
+    finally:
+        await fixture.close()

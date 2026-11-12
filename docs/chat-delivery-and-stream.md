@@ -28,8 +28,9 @@
    it never manufactures a completed assistant Message or repeats a privileged
    action. Reload recovers canonical messages plus actual remaining stream state.
 10. A background run (VISION 11.5: routines, watches, broker and workspace wakes, and
-    their follow-ups) publishes no `run.delta` or `run.rich_partial`. Its reply exists
-    only as its final Message, so an empty or failed background run leaves no preview.
+    their follow-ups) publishes no `run.delta` or `run.rich_partial` while it may end
+    silent. Its reply exists only as its final Message, so an empty or failed background
+    run leaves no preview. Once the owner writes to it, it streams like an owner turn.
 
 Older clients continue receiving readable text content. New clients render an
 ordered rich projection instead of duplicating its compatibility text.
