@@ -211,7 +211,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           ),
           api.get<Agent[]>("/agents"),
           api.get<OwnerAction[]>(`/owner-actions?thread_id=${encodeURIComponent(id)}`),
-          api.get<ExecutionReceipt[]>(`/trading/receipts?thread_id=${encodeURIComponent(id)}`),
+          // Side data of its own: a failed read never stops the cards above from refreshing.
+          api
+            .get<ExecutionReceipt[]>(`/trading/receipts?thread_id=${encodeURIComponent(id)}`)
+            .catch(() => [] as ExecutionReceipt[]),
         ]).then(
           ([nextFiles, nextApprovals, collaboration, refreshedAgents, nextCards, nextReceipts]) => {
             if (

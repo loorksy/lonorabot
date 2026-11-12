@@ -85,10 +85,24 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
         </dl>
       </div>
       <div
-        className={`od-ev ${row.verification === "unverified" ? "warn" : "ok"}`}
+        className={`od-ev ${
+          row.verification === "unverified"
+            ? "warn"
+            : row.verification === "pending"
+              ? "wait"
+              : "ok"
+        }`}
         data-receipt-status
       >
-        <Icon name={row.verification === "unverified" ? "alert" : "check"} />
+        <Icon
+          name={
+            row.verification === "unverified"
+              ? "alert"
+              : row.verification === "pending"
+                ? "hourglass"
+                : "check"
+          }
+        />
         <span>
           <Trans>Confirmed by the broker</Trans>
           {row.verification === "verified" ? (

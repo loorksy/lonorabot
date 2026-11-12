@@ -58,14 +58,10 @@ def receipt_facts(row: TradingJournalRow) -> dict[str, Any]:
         ticket = request.position_id or request.order_id or _text(result.get("broker_id"))
     facts: dict[str, Any] = {"action": request.action, "symbol": request.symbol, "ticket": ticket}
     if request.action in NEW_ORDERS or request.action == "close_position":
-        # The volume and price the broker reports it executed; a full fill without a
-        # reported volume executed the volume that was asked.
-        volume = _text(details.get("volume"))
-        if volume is None and not details.get("partial_execution") and request.volume:
-            volume = format(request.volume, "f")
+        # The volume and price the broker reports it executed; nothing it did not report.
         facts |= {
             "kind": "fill",
-            "volume": volume,
+            "volume": _text(details.get("volume")),
             "price": _text(details.get("price")) or _text(details.get("execution_price")),
             "partial": bool(details.get("partial_execution")),
         }

@@ -63,13 +63,13 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
         {row.stop_loss_removed ? (
           <View>
             <Text style={{ color: colors.secondary, textAlign: align }}>{t("stopLoss")}</Text>
-            <Text style={{ color: colors.foreground }}>{t("removedValue")}</Text>
+            <Text style={{ color: colors.foreground, textAlign: align }}>{t("removedValue")}</Text>
           </View>
         ) : null}
         {row.take_profit_removed ? (
           <View>
             <Text style={{ color: colors.secondary, textAlign: align }}>{t("takeProfit")}</Text>
-            <Text style={{ color: colors.foreground }}>{t("removedValue")}</Text>
+            <Text style={{ color: colors.foreground, textAlign: align }}>{t("removedValue")}</Text>
           </View>
         ) : null}
       </View>
@@ -83,7 +83,9 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
       {row.reason ? (
         <View testID="execution-receipt-reason">
           <Text style={{ color: colors.secondary, textAlign: align }}>{t("agentWords")}</Text>
-          <Text style={{ color: colors.foreground, writingDirection: "auto" }}>{row.reason}</Text>
+          <Text style={{ color: colors.foreground, writingDirection: "auto", textAlign: align }}>
+            {row.reason}
+          </Text>
         </View>
       ) : null}
     </View>

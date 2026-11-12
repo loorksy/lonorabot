@@ -176,39 +176,42 @@ export function TradeApprovalCard({
             </button>
           )}
         </div>
-        {row.results.map((result) => (
-          <div
-            key={result.operation_id}
-            className={`od-ev ${result.status === "confirmed" ? "ok" : result.status === "failed" ? "bad" : "warn"}`}
-            data-trade-result={result.status}
-          >
-            <Icon name={result.status === "confirmed" ? "check" : "alert"} />
-            <span>
-              <span>{operationStatusLabel(result.status, result.details)}</span>
-              {result.broker_id && (
-                <>
-                  {" · "}
-                  {brokerTicketLabel(i18n.locale)} <b className="ltr">{result.broker_id}</b>
-                </>
-              )}
-              {resultReason(result) && (
-                <>
-                  {" · "}
-                  <span>{resultReason(result)}</span>
-                </>
-              )}
-              {/* The broker's own receipt fields, as it returned them. */}
-              {Object.entries(result.details ?? {})
-                .filter(([key]) => RECEIPT_FIELDS.includes(key))
-                .map(([key, value]) => (
-                  <span key={key}>
+        {/* A confirmed result is shown once: as its Execution Receipt (10.3). */}
+        {row.results
+          .filter((result) => result.status !== "confirmed")
+          .map((result) => (
+            <div
+              key={result.operation_id}
+              className={`od-ev ${result.status === "confirmed" ? "ok" : result.status === "failed" ? "bad" : "warn"}`}
+              data-trade-result={result.status}
+            >
+              <Icon name={result.status === "confirmed" ? "check" : "alert"} />
+              <span>
+                <span>{operationStatusLabel(result.status, result.details)}</span>
+                {result.broker_id && (
+                  <>
                     {" · "}
-                    <b className="ltr">{String(value)}</b>
-                  </span>
-                ))}
-            </span>
-          </div>
-        ))}
+                    {brokerTicketLabel(i18n.locale)} <b className="ltr">{result.broker_id}</b>
+                  </>
+                )}
+                {resultReason(result) && (
+                  <>
+                    {" · "}
+                    <span>{resultReason(result)}</span>
+                  </>
+                )}
+                {/* The broker's own receipt fields, as it returned them. */}
+                {Object.entries(result.details ?? {})
+                  .filter(([key]) => RECEIPT_FIELDS.includes(key))
+                  .map(([key, value]) => (
+                    <span key={key}>
+                      {" · "}
+                      <b className="ltr">{String(value)}</b>
+                    </span>
+                  ))}
+              </span>
+            </div>
+          ))}
       </div>
     );
   }

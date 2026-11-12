@@ -46,9 +46,9 @@ def test_a_partial_fill_never_claims_the_requested_volume() -> None:
     row = journal({"action": "sell", "volume": "1"}, {"partial_execution": True}, broker_id="9")
     facts = receipt_facts(row)
     assert facts["partial"] is True and facts["volume"] is None and facts["price"] is None
-    # A full fill the broker confirmed without a volume executed what was asked.
+    # Nothing the broker did not report: no volume is inferred from the request.
     full = receipt_facts(journal({"action": "sell", "volume": "1"}, {}, broker_id="9"))
-    assert full["volume"] == "1" and full["ticket"] == "9"
+    assert full["volume"] is None and full["ticket"] == "9"
 
 
 def test_changes_to_an_existing_ticket_name_that_ticket() -> None:
