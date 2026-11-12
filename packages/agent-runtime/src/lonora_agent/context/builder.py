@@ -33,6 +33,7 @@ from .goals import goal_context_blocks
 from .governance import govern_context
 from .history import history_context, history_gap
 from .memory import read_memory_context
+from .picture import account_picture
 from .reply import reply_context
 from .routine import wake_context
 from .run_evidence import recent_tool_evidence
@@ -157,6 +158,13 @@ async def build_context(
         )
         messages = [
             ModelMessage(role="system", content="\n\n".join(block for block in blocks if block)),
+            # The agent's own book, mandatory: admission never sheds it.
+            ModelMessage(
+                role="system",
+                content=await timed(
+                    "picture", account_picture(session, context.owner_id, context.agent_id)
+                ),
+            ),
             *(
                 ModelMessage(role="system", context_origin="runtime_context", content=block)
                 for block in records
