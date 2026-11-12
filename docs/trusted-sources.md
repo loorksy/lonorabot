@@ -207,11 +207,12 @@ once (`owner_card` run, a fixed server prompt) to continue the work that needed 
 Removing a connection keeps its secrets: they are the owner's (VISION.md 7.2.4), and
 `DELETE /secrets/{secret_id}` is the only route that deletes a stored secret (14.3.11).
 In chat (P5) the owner asks an agent what is saved: `secrets_list` names his `workspace`
-secrets, when each was saved and the connections that use each, never a value or an id.
-He removes one in his own words: `secret_delete` deletes it through the route's own
-deletion, only for the owner's typed message the Run answers (`owner_message_id`, as
-trusting a source; otherwise `secret_delete_requires_owner_message`), and never one a
-connection still uses (`secret_in_use`). A replayed call answers as it did.
+secrets, when each was saved and the connections that name each, never a value or an
+id (a script or routine that reads one by name is not listed). He removes one in his
+own words: `secret_delete` deletes it through the route's own deletion, only when the
+owner's typed words the Run answers name it, as a model switch must name the model
+(`owner_message_id`; otherwise `secret_delete_requires_owner_message`), and never one a
+connection still names (`secret_in_use`). A replayed call answers as it did.
 Deleting a saved MCP server removes its trust row too (kept as the record).
 
 ## Capabilities
@@ -256,9 +257,9 @@ preview, and **Set up integrations on the web** opens the web settings.
   removed; a name a connection uses never replaced; a stored address read only on its
   saved host; no connecting card for a trading account).
 - `tests/test_secret_chat.py`: the chat list names only workspace secrets, with the
-  connections that use each and no value; one is deleted only in the owner's own words
-  (not on a routine wake or after a web page was read), never while a connection uses it,
-  and a replay answers as it did.
+  connections that name each and no value; one is deleted only when the owner's own
+  words name it (not on a routine wake, after a web page was read, or for words that
+  name another), never while a connection names it, and a replay answers as it did.
 - `tests/web/capabilities.test.ts`, `tests/web/secret-card.test.ts`; Playwright
   `capabilities` and `secret-card` on Web and Mobile, in Arabic and English (Skill Undo
   on both; on Mobile, review and trust of a server).
@@ -285,7 +286,8 @@ preview, and **Set up integrations on the web** opens the web settings.
   enter the workspace.
 - No key rotation is built (nothing in 7.2 asks for it). To change a key, a token or an
   address, remove the connection, connect it again from a new Secret card, and trust its
-  tools again. The old values stay saved until the owner removes them in chat.
+  tools again. The values a Secret card saved stay saved until the owner removes them in
+  chat.
 - An operator declaration (`LONORA_MCP_DECLARATIONS`, `credential_scope: integration`)
   also covers a server whose token is a workspace secret from a Secret card: both are
   scopes an MCP connection may name; a broker or provider value never is.
