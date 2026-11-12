@@ -119,9 +119,9 @@ function requestLine(request: Approval["requests"][number]) {
 
 /**
  * A trade approval in the conversation (reference cardMarkup approval, Desktop-37 3761-3775):
- * «طلب موافقة · SYMBOL», the request, «موافقة» / «رفض»; decided, it is one line. An approval
- * lives 30-60 minutes on the server (Q32); an expired one offers «طلب جديد», which asks the
- * agent again (it never creates an approvable request by itself).
+ * «طلب موافقة · SYMBOL», the request, «موافقة» / «رفض»; decided, it is one line. A card has
+ * no time limit; a stored card that expired offers «طلب جديد», which asks the agent again
+ * (it never creates an approvable request by itself).
  */
 export function TradeApprovalCard({
   row,

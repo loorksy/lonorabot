@@ -300,6 +300,8 @@ async def withdraw_own(
     if candidate is None or candidate.owner_id != owner_id or candidate.agent_id != agent_id:
         raise LonoraError("trade_approval_not_found", 404)
     row, run = await locked_approval(session, owner_id, approval_id)
+    if row.status == "withdrawn":
+        return row  # A replay of the same withdrawal answers the same.
     if row.status != "pending":
         raise LonoraError("trade_approval_already_decided", 409)
     # The agent itself withdrew it: no wake for what it already knows. A run of the

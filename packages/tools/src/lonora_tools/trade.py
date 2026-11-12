@@ -560,6 +560,17 @@ async def approved_execution(
                     "which the owner's approval no longer holds.",
                 },
             )
+        if not annotation.reason.strip():
+            # The card shows the agent's reason, labelled as its words (10.3).
+            raise ToolRefusal(
+                "reason_required",
+                details={
+                    "class": "input",
+                    "retryable": True,
+                    "hint": "Nothing was sent and no card was raised. Ask again with "
+                    "reason: your one-line why, shown to the owner on the card.",
+                },
+            )
         validity = {
             "tolerance": format(annotation.tolerance.normalize(), "f"),
             "reference": await reference_quote(context, adding[0]),

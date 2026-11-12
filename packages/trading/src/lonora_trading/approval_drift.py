@@ -79,18 +79,19 @@ async def check_drift(db: Database, brokers: BrokerManager, owner_id: str) -> in
     return drifted
 
 
-async def drifted_at_approve(
+async def check_band_at_approve(
     db: Database, brokers: BrokerManager, owner_id: str, approval_id: str
-) -> bool:
+) -> None:
     """The quote read when the owner taps Approve: outside the band, the card drifts
-    there and then and cannot be approved."""
+    there and then and cannot be approved. Without a quote nothing proves the card is
+    still valid, so it is not approved now; the owner may tap again."""
     async with db.sessions() as session:
         row = await session.get(TradeApprovalRow, approval_id)
         if row is None or row.owner_id != owner_id or row.status != "pending" or not watched(row):
-            return False
+            return  # The decision answers with its own code.
         validity = dict(row.validity)
     quote = await band_quote(brokers, owner_id, validity)
-    if quote is None or not outside(quote, validity):
-        return False
-    await mark_drifted(db, owner_id, approval_id)
-    return True
+    if quote is None:
+        raise LonoraError("trade_approval_quote_unavailable", 409)
+    if outside(quote, validity) and await mark_drifted(db, owner_id, approval_id):
+        raise LonoraError("trade_approval_drifted", 409)

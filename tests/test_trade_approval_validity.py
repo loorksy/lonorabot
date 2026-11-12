@@ -77,6 +77,9 @@ async def test_a_card_carries_reason_and_tolerance_and_drifts_once_outside() -> 
         # Ask without a tolerance: refused before any card, with what to add.
         with pytest.raises(ToolRefusal, match="tolerance_required"):
             await same_call(context, "no-tolerance", **entry, reason="Breakout above 100")
+        # The card shows the agent's reason (10.3): a card without one is not raised.
+        with pytest.raises(ToolRefusal, match="reason_required"):
+            await same_call(context, "no-reason", **entry, tolerance="1.5")
         asked = await same_call(
             context,
             "with-tolerance",
@@ -161,6 +164,23 @@ async def test_approve_reads_the_quote_and_refuses_a_card_outside_its_band() -> 
             waiting = await session.get(RunRow, context.lease.run_id, with_for_update=True)
             assert waiting is not None
             waiting.status = "waiting_input"
+        # No quote now: nothing proves the card still holds, so it is not approved.
+        from lonora_trading import approval_drift
+
+        real = approval_drift.band_quote
+
+        async def unavailable(*_: Any) -> None:
+            return None
+
+        approval_drift.band_quote = unavailable  # type: ignore[assignment]
+        try:
+            blind = await fixture.client.post(
+                f"/api/trading/approvals/{asked['approval_id']}/decision",
+                json={"decision": "approve"},
+            )
+        finally:
+            approval_drift.band_quote = real
+        assert blind.status_code == 409 and "quote_unavailable" in blind.text, blind.text
         await set_quote(fixture, connection, "120", "121")
         tapped = await fixture.client.post(
             f"/api/trading/approvals/{asked['approval_id']}/decision",
@@ -284,6 +304,9 @@ async def test_the_agent_withdraws_its_own_card() -> None:
             before = await session.scalar(runs)
         done = await call(later, "trade_approval_withdraw", approval_id=asked["approval_id"])
         assert done["status"] == "withdrawn"
+        # Replayed, it answers the same.
+        again = await call(later, "trade_approval_withdraw", approval_id=asked["approval_id"])
+        assert again == done, again
         async with fixture.runtime.db.sessions() as session:
             assert await session.scalar(runs) == before, "A self-withdrawal woke the agent"
         async with fixture.runtime.db.sessions() as session:

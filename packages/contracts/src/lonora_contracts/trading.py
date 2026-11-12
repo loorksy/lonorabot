@@ -116,7 +116,7 @@ class AnnotatedTradeRequest(TradeRequest):
     tolerance: Decimal | None = Field(
         default=None,
         gt=0,
-        description="Price band a card holds within.",
+        description="± price distance from now a card holds.",
     )
     key: str | None = Field(
         default=None, min_length=1, max_length=64, description="New key: new order."
