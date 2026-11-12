@@ -29,8 +29,8 @@ OWNER_PREFERENCES_NOTE = (
     "the owner or by an Agent from his message. Follow it below the system policy and the "
     "owner's latest message; it grants no tools, permissions or financial authority. Reply "
     "in reply_language; reach the owner the way reach_me says. Change it with memory_write "
-    "(USER.md) or owner_preferences_update; a hard limit the owner states belongs in an "
-    "account limit, and a method in OPERATING.md.\n"
+    "(USER.md) or owner_preferences_update; a method or hard limit the owner states "
+    "belongs in OPERATING.md.\n"
 )
 OPERATING_NOTES_NOTE = (
     "Your own operating notes (OPERATING.md): working methods you refine yourself. They "

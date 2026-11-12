@@ -398,24 +398,13 @@ test("S8: Lonora's chat has the trading and safety section like any trading agen
   await expect(page.getByTestId("agent-mode-line")).toBeVisible();
 });
 
-test("S10: the mandate sheet follows D1: until stopped, the agent's own pair, the daily loss sent only when set", async ({
+test("S10: the mandate sheet follows D1: until stopped, the agent's own pair", async ({
   page,
   conversation,
 }) => {
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   const { agent } = conversation;
   expect(agent.trading_symbol).toBeTruthy();
-  let accountLoss = null;
-  await page.route(
-    `**/api/trading/accounts/${agent.trading_account_id}/execution-policy`,
-    async (route) => {
-      const response = await route.fetch();
-      const body = await response.json();
-      await route.fulfill({
-        json: { ...body, risk: { ...body.risk, max_daily_loss: accountLoss, currency: "USD" } },
-      });
-    },
-  );
   const drafts = [];
   await page.route(`**/api/agents/${agent.id}/account-authorities/draft`, async (route) => {
     drafts.push(route.request().postDataJSON());
@@ -441,25 +430,11 @@ test("S10: the mandate sheet follows D1: until stopped, the agent's own pair, th
   await expect(full).not.toContainText("All pairs");
 
   await expect(sheet.getByText("All pairs on the account")).toHaveCount(0);
-  await expect(sheet.locator("[data-daily-loss='suggested']")).toContainText("Suggested value 3%");
   await sheet.getByRole("button", { name: "Review and sign with the passkey" }).click();
   await expect.poll(() => drafts.length).toBe(1);
   expect(drafts[0].duration).toBe("until_stopped");
   expect(drafts[0].symbols).toEqual([agent.trading_symbol]);
   expect(drafts[0].all_pairs).toBeUndefined();
-  // The suggestion is the server's (basis «suggested»), not the owner's request.
-  expect(drafts[0].daily_loss_percent).toBeUndefined();
-  await sheet.getByRole("group", { name: "Daily loss limit" }).getByLabel("Increase").click();
-  await sheet.getByRole("button", { name: "Review and sign with the passkey" }).click();
-  await expect.poll(() => drafts.length).toBe(2);
-  expect(drafts[1].daily_loss_percent).toBe("3.5");
-  // The account has its own daily loss limit: it is shown and stays, nothing is sent.
-  accountLoss = "250";
-  await open();
-  await expect(sheet.locator("[data-daily-loss='account']")).toContainText("250 USD");
-  await sheet.getByRole("button", { name: "Review and sign with the passkey" }).click();
-  await expect.poll(() => drafts.length).toBe(3);
-  expect(drafts[2].daily_loss_percent).toBeUndefined();
 });
 
 test("S15: on a phone the history picker sits under the header, not beneath it", async ({
@@ -671,66 +646,4 @@ test("M2(d): a retried reply's error card settles at once and stays settled", as
   await page.reload();
   await expect(page.getByText("Analyse gold")).toBeVisible();
   await expect(card).toHaveCount(0);
-});
-
-test("M4: the safety sheet shows the money limits of every account, each as set", async ({
-  page,
-  context,
-  conversation,
-}) => {
-  void conversation;
-  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  const lonora = (await (await context.request.get("/api/agents")).json()).find(
-    (row) => row.role === "personal",
-  );
-  const accounts = [
-    {
-      account_id: "acct-one",
-      configured: true,
-      currency: "USD",
-      limits: { max_daily_loss: "250", max_open_risk: "400" },
-      not_configured: [],
-    },
-    {
-      account_id: "acct-two",
-      configured: true,
-      currency: "EUR",
-      limits: { max_daily_loss: "90" },
-      not_configured: [],
-    },
-    {
-      account_id: "acct-three",
-      configured: false,
-      currency: null,
-      limits: {},
-      not_configured: ["max_daily_loss"],
-    },
-  ];
-  await page.route(`**/api/agents/${lonora.id}/state`, async (route) => {
-    const live = await (await route.fetch()).json();
-    await route.fulfill({
-      json: {
-        ...live,
-        trading_readiness: { ...(live.trading_readiness ?? {}), money_limits: accounts },
-      },
-    });
-  });
-  await page.goto(`/app/${lonora.id}`);
-  await expect(page.getByTestId("permission-chip")).toBeVisible();
-  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
-  const sheet = page.locator("#dialog");
-  await expect(sheet.locator("[data-account-limits]")).toHaveCount(3);
-  const one = sheet.locator("[data-account-limits='acct-one']");
-  await expect(one.locator("[data-money-limit='max_daily_loss']")).toContainText("250 USD");
-  await expect(one.locator("[data-money-limit='max_open_risk']")).toContainText("400 USD");
-  const two = sheet.locator("[data-account-limits='acct-two']");
-  await expect(two.locator("[data-money-limit='max_daily_loss']")).toContainText("90 EUR");
-  await expect(two.locator("[data-money-limit='max_open_risk_equity_percent']")).toHaveAttribute(
-    "data-unset",
-    "",
-  );
-  await expect(
-    sheet.locator("[data-account-limits='acct-three'] [data-money-limit='none']"),
-  ).toHaveCount(1);
 });

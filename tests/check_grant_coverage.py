@@ -130,26 +130,20 @@ async def main() -> None:
             {
                 "decision": "confirm",
                 "proof": device.assertion(challenge, fixture.settings.allowed_origin),
-                "money_limit": "none",
             },
         )
         assert decided["status"] == "confirmed", decided
         assert decided["result"]["allow_manual_positions"] is False, decided
-        # The settled card shows what was signed: no daily loss limit by the owner's
-        # choice, nothing replaced (a first grant).
+        # The settled card shows what was signed: nothing replaced (a first grant).
         cards = cast(
             list[dict[str, Any]],
             await fixture.request("GET", "/owner-actions?thread_id=" + lonora_context.thread_id),
         )
         settled = next(item for item in cards if item["id"] == card_id)
-        daily = settled["facts"]["money"]["daily_loss"]
-        assert daily["proposed"] is None and daily["current"] is None, daily
         assert settled["facts"]["replaces"] is None, settled["facts"]
         assert settled["facts"]["grant"]["allow_manual_positions"] is False
         assert "global_trading" not in settled["facts"], settled["facts"]
-        print(
-            "PASS a signed grant card keeps showing what was signed: no daily loss limit, nothing replaced"
-        )
+        print("PASS a signed grant card keeps showing what was signed: nothing replaced")
 
         # 2. The owner buys gold from Lonora's own Trading page: journaled with no agent.
         owner_operation = "owner-order-" + uuid4().hex[:8]

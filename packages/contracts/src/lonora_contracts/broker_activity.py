@@ -25,7 +25,7 @@ class BrokerActivity(Contract):
     # The Agent whose journaled operation opened (else last managed) this ticket.
     # None is unattributed: the owner's manual activity.
     agent_id: str | None = None
-    # A fact grants nothing; the woken Agent's own grant, limits and pauses decide.
+    # A fact grants nothing; the woken Agent's own grant and pauses decide.
     authority: Literal["observe_only"] = "observe_only"
     owner_rationale: None = None
 

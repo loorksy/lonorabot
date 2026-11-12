@@ -3,18 +3,16 @@
 Exercises the grant card end to end with the simulation broker and a scripted
 authenticator: the agent tool proposes a server-resolved draft (owner decision D1
 defaults), the card's challenge builds the same envelope the permission composer does,
-the owner's passkey activates it, and the card's own choices set the
-daily loss limit and stop another agent's overlapping grant. Under "On its own" a trade
-the grant does not cover becomes an approval card, never a refusal; repeating it reuses
-that approval. It also covers the new ladder defaults, the explicit-level migration and
-the passkey for raising a money limit through the execution-policy route. No live broker,
-MetaApi key or real order is involved.
+the owner's passkey activates it, and the card's own choices stop another agent's
+overlapping grant. Under "On its own" a trade the grant does not cover becomes an
+approval card, never a refusal; repeating it reuses that approval. It also covers the
+new ladder defaults and the explicit-level migration. No live broker, MetaApi key or
+real order is involved.
 """
 
 import asyncio
 import subprocess
 import sys
-from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -213,8 +211,8 @@ async def main() -> None:
             "PASS Lonora and trading agents start at Ask me, others at No trading; a helper never trades and a focus edit keeps the level"
         )
 
-        # 2. One sentence: Lonora proposes the grant card for the gold agent with the
-        #    owner's 2% daily loss; the server resolves the account, pair and D1 defaults.
+        # 2. One sentence: Lonora proposes the grant card for the gold agent; the server
+        #    resolves the account, pair and D1 defaults.
         lonora_context, lonora_thread = await context_for(lonora)
         gold_context, gold_thread = await context_for(gold)
         proposed = await call(
@@ -222,7 +220,6 @@ async def main() -> None:
             "owner_action_propose",
             kind="grant_authority",
             agent_id=gold["id"],
-            daily_loss_percent="2",
         )
         assert proposed["passkey_required"] is True and proposed["execution_authorized"] is False
         card_id = proposed["owner_action"]["id"]
@@ -231,7 +228,6 @@ async def main() -> None:
             "owner_action_propose",
             kind="grant_authority",
             agent_id=gold["id"],
-            daily_loss_percent="2",
         )
         assert again["already_shown"] is True and again["owner_action"]["id"] == card_id
         shown = await card(lonora_thread["id"], card_id)
@@ -239,9 +235,6 @@ async def main() -> None:
         assert grant["agent_name"] == gold["name"] and grant["symbol_scope"] == "selected"
         assert grant["symbols"] == [GOLD] and grant["all_actions"] is True
         assert grant["duration"] == "until_stopped" and grant["allow_manual_positions"] is False
-        daily = shown["facts"]["money"]["daily_loss"]
-        assert daily["proposed"] == "200.00" and daily["current"] is None, daily
-        assert daily["basis"] == "requested" and daily["currency"] == "USD"
         assert shown["facts"]["conflicts"] == [] and shown["facts"]["first_grant"] is True
         assert shown["requires_passkey"] is True
         # Another agent cannot raise a grant card for someone else.
@@ -254,7 +247,7 @@ async def main() -> None:
         else:
             raise AssertionError("an agent proposed a grant for another agent")
         print(
-            "PASS the grant card is a server-resolved draft: this account, gold only, every action, until stopped, own positions excluded, 2% daily loss from the sentence"
+            "PASS the grant card is a server-resolved draft: this account, gold only, every action, until stopped, own positions excluded"
         )
 
         # 3. Confirming needs the passkey; the first time on this device it asks for the
@@ -314,11 +307,7 @@ async def main() -> None:
         )
         assert status == 200 and decided["status"] == "confirmed", decided
         assert decided["decided_via"] == "passkey"
-        assert decided["result"]["daily_loss"] == "200.00"
         assert await level(gold["id"]) == "autonomous"
-        policy = await fixture.request("GET", f"/trading/accounts/{account}/execution-policy")
-        assert Decimal(policy["risk"]["max_daily_loss"]) == 200
-        assert policy["risk"]["currency"] == "USD"
         status, repeated = await raw(
             "POST",
             f"/owner-actions/{card_id}/decision",
@@ -337,9 +326,7 @@ async def main() -> None:
             )
             assert line is not None
             assert "approval card" in line.content or "بطاقة موافقة" in line.content, line.content
-        print(
-            "PASS one passkey tap activates the grant and sets the 2% daily loss limit; repeating the tap changes nothing"
-        )
+        print("PASS one passkey tap activates the grant; repeating the tap changes nothing")
 
         # 4. Monotonic ladder: under "On its own", a trade the grant does not cover asks
         #    the owner with an approval card; nothing reaches the broker before the tap.
@@ -445,10 +432,7 @@ async def main() -> None:
         shown = await card(lonora_thread["id"], second_id)
         conflicts = shown["facts"]["conflicts"]
         assert [item["agent_name"] for item in conflicts] == [gold["name"]], conflicts
-        # The account already has the owner's 200 limit: nothing is suggested over it.
-        daily = shown["facts"]["money"]["daily_loss"]
-        assert Decimal(daily["current"]) == 200 and daily["proposed"] is None, daily
-        assert daily["basis"] is None and shown["facts"]["first_grant"] is False
+        assert shown["facts"]["first_grant"] is False
         challenge = await fixture.request("POST", f"/owner-actions/{second_id}/challenge", {})
         status, decided = await raw(
             "POST",
@@ -508,7 +492,7 @@ async def main() -> None:
         )
 
         # 6b. Replacing a capped grant: the card lists every cap, protection and market
-        #     the old grant had; the owner's daily loss lowers the limit only when lower.
+        #     the old grant had.
         gold_state = await fixture.request("GET", f"/agents/{gold['id']}/permissions")
         capped = await fixture.request(
             "POST",
@@ -532,56 +516,29 @@ async def main() -> None:
             "/account-authorities/verify",
             device.assertion(signed, fixture.settings.allowed_origin),
         )
-        higher = await call(
+        replacing = await call(
             lonora_context,
             "owner_action_propose",
             kind="grant_authority",
             agent_id=gold["id"],
             symbols=[GOLD],
-            daily_loss_amount="900",
         )
-        # A higher daily loss than the owner's own limit is never raised by a grant card.
-        assert higher["daily_loss_above_current_needs_limits_card"] is True, higher
-        replace_id = higher["owner_action"]["id"]
+        replace_id = replacing["owner_action"]["id"]
         shown = await card(lonora_thread["id"], replace_id)
         replaced = shown["facts"]["replaces"]
         assert replaced["symbols"] == [GOLD, EURO] and replaced["all_actions"] is False, replaced
         assert replaced["maximum_order_volume"] == "0.5" and replaced["maximum_positions"] == 3
         assert replaced["management_mode"] == "full" and replaced["valid_until"] is None
-        daily = shown["facts"]["money"]["daily_loss"]
-        assert daily["proposed"] is None and daily["requested_above"] == "900", daily
-        await fixture.request(
-            "POST", f"/owner-actions/{replace_id}/decision", {"decision": "cancel"}
-        )
-        lower = await call(
-            lonora_context,
-            "owner_action_propose",
-            kind="grant_authority",
-            agent_id=gold["id"],
-            symbols=[GOLD],
-            daily_loss_amount="120",
-        )
-        assert "daily_loss_above_current_needs_limits_card" not in lower
-        lower_id = lower["owner_action"]["id"]
-        daily = (await card(lonora_thread["id"], lower_id))["facts"]["money"]["daily_loss"]
-        assert daily["current"] is not None and Decimal(daily["current"]) == 200, daily
-        assert daily["proposed"] == "120", daily
-        challenge = await fixture.request("POST", f"/owner-actions/{lower_id}/challenge", {})
+        challenge = await fixture.request("POST", f"/owner-actions/{replace_id}/challenge", {})
         status, decided = await raw(
             "POST",
-            f"/owner-actions/{lower_id}/decision",
+            f"/owner-actions/{replace_id}/decision",
             {
                 "decision": "confirm",
                 "proof": device.assertion(challenge, fixture.settings.allowed_origin),
-                "money_limit": "none",
             },
         )
-        # "Keep my current limit": the grant is signed and the 200 limit stays.
         assert status == 200 and decided["status"] == "confirmed", decided
-        assert decided["result"]["daily_loss"] is None
-        assert Decimal(decided["result"]["daily_loss_kept"]) == 200
-        policy = await fixture.request("GET", f"/trading/accounts/{account}/execution-policy")
-        assert Decimal(policy["risk"]["max_daily_loss"]) == 200
         async with db.sessions() as session:
             grants = list(
                 await session.scalars(
@@ -596,16 +553,8 @@ async def main() -> None:
             assert grants[0].envelope["symbols"] == [GOLD]
             old_grant = await session.get(AccountAuthorityRow, capped["id"])
             assert old_grant is not None and old_grant.status == "revoked"
-            line = await session.scalar(
-                select(MessageRow)
-                .where(MessageRow.thread_id == lonora_thread["id"], MessageRow.role == "assistant")
-                .order_by(MessageRow.seq.desc())
-                .limit(1)
-            )
-            assert line is not None
-            assert "stays as it was" in line.content or "بقي حد" in line.content, line.content
         print(
-            "PASS replacing a capped grant lists its caps and markets; a higher daily loss is never raised by the card and keeping the current limit keeps it"
+            "PASS replacing a capped grant lists its caps and markets and revokes the old grant once signed"
         )
 
         # 7. Moving down the ladder revokes the signed grant (a new signature is needed).
@@ -618,59 +567,7 @@ async def main() -> None:
         assert lowered["effective_level"] == "supervised" and not lowered["active_authorities"]
         print("PASS moving down the ladder revokes the signed grant")
 
-        # 8. The raw execution-policy route: lowering is one request; raising needs the
-        #    passkey bound to the exact policy.
-        path = f"/trading/accounts/{account}/execution-policy"
-        lower = {"risk": {"currency": "USD", "max_daily_loss": "150"}}
-        assert Decimal((await fixture.request("PUT", path, lower))["risk"]["max_daily_loss"]) == 150
-        higher = {"risk": {"currency": "USD", "max_daily_loss": "500"}}
-        status, refused = await raw("PUT", path, higher)
-        assert status == 403 and refused["code"] == "execution_policy_passkey_required", refused
-        status, refused = await raw("POST", path + "/challenge", lower)
-        assert status == 409 and refused["code"] == "execution_policy_passkey_not_needed"
-        signed = await fixture.request("POST", path + "/challenge", higher)
-        proof = device.assertion(signed, fixture.settings.allowed_origin)
-        status, forged = await raw(
-            "POST",
-            path + "/verify",
-            {"policy": {"risk": {"currency": "USD", "max_daily_loss": "900"}}, "proof": proof},
-        )
-        assert status == 403 and forged["code"] == "device_proof_invalid", forged
-        signed = await fixture.request("POST", path + "/challenge", higher)
-        proof = device.assertion(signed, fixture.settings.allowed_origin)
-        stored_policy = await fixture.request(
-            "POST", path + "/verify", {"policy": higher, "proof": proof}
-        )
-        assert Decimal(stored_policy["risk"]["max_daily_loss"]) == 500
-        status, _ = await raw("POST", path + "/verify", {"policy": higher, "proof": proof})
-        assert status in {403, 409}  # A used challenge never authorizes again.
-        # The executor's execution caps are limits too: adding one is one request, and
-        # raising or removing one needs the passkey like a money limit.
-        capped = {**higher, "max_positions": 1, "max_symbol_direction_volume": "0.1"}
-        assert (await fixture.request("PUT", path, capped))["max_positions"] == 1
-        for widened in (
-            higher,
-            {**capped, "max_positions": 3},
-            {**capped, "max_symbol_direction_volume": None},
-        ):
-            status, refused = await raw("PUT", path, widened)
-            assert status == 403 and refused["code"] == "execution_policy_passkey_required", (
-                widened,
-                refused,
-            )
-        stored = await fixture.request("GET", path)
-        assert stored["max_positions"] == 1 and stored["max_symbol_direction_volume"] == "0.1"
-        signed = await fixture.request("POST", path + "/challenge", higher)
-        proof = device.assertion(signed, fixture.settings.allowed_origin)
-        removed = await fixture.request(
-            "POST", path + "/verify", {"policy": higher, "proof": proof}
-        )
-        assert removed["max_positions"] is None
-        print(
-            "PASS lowering a limit or adding a cap through the policy route is one request; raising or removing one needs a passkey bound to that exact policy"
-        )
-
-        # 9. The migration writes an explicit level for every agent without one: Lonora
+        # 8. The migration writes an explicit level for every agent without one: Lonora
         #    Ask me, the others No trading; its downgrade removes only untouched rows.
         async with db.sessions() as session, session.begin():
             for agent_id in (lonora_id, general["id"], helper_id):

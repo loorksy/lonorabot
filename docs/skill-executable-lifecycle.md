@@ -68,7 +68,7 @@ request installs network packages or executes a host subprocess.
 Imported instructions and Python receive no broker credentials, live network,
 host filesystem or additional trading permission. Ordinary financial actions
 still pass through the existing typed executor, approvals or signed authority,
-risk limits, journal and reconciliation.
+journal and reconciliation.
 
 ## Verification
 

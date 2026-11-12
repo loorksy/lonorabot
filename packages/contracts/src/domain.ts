@@ -161,7 +161,6 @@ export type SkillVersionEntry = {
 export type ActivityCode =
   | "agent_created"
   | "authority_changed"
-  | "limits_changed"
   | "operation_resolved"
   | "approval_approved"
   | "approval_rejected"

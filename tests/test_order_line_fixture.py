@@ -54,8 +54,9 @@ def rows() -> dict[str, Any]:
         volume=Decimal("0.2"),
     )
     return {
-        # The money boundary stopped it (a daily loss limit): never sent to the broker.
-        "not_sent": row(blocked, not_sent(blocked, "risk_daily_loss_limit")),
+        # The boundary stopped it (an unresolved operation on this market): never sent to the
+        # broker.
+        "not_sent": row(blocked, not_sent(blocked, "broker_reconciliation_required")),
         # The broker refused it: metaapi.py's failed result with the broker's own description.
         "rejected": row(
             rejected,

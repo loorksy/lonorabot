@@ -223,8 +223,6 @@ export * from "./trading-avatar-motion";
 export {
   isolate,
   listSeparator,
-  moneyLimitLabel,
-  moneyLimitsLine,
   readinessTime,
   type TradingSafetyText,
   tradingReadinessLine,

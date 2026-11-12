@@ -62,12 +62,8 @@ def test_stale_source_not_refreshed_by_snapshot_read(resource: str) -> None:
     assert any("stale" in reason for reason in quality.reasons)
 
 
-def test_spread_server_limit_and_exact_suffix() -> None:
+def test_exact_suffix() -> None:
     state = snapshot()
-    assert (
-        evaluate_execution(request(), state, ExecutionPolicy(max_spread=Decimal("0.0001"))).state
-        == "blocked"
-    )
     assert state.quote is not None
     state.quote.symbol = "EURUSD"
     assert (
@@ -116,11 +112,6 @@ def test_cross_agent_manual_and_pending_exposure_no_symbol_rewrite() -> None:
     )
     assert long.position_volume == Decimal("0.2") and long.pending_volume == Decimal("0.2")
     assert long.unprotected_positions == 1
-    policy = ExecutionPolicy(max_symbol_direction_volume=Decimal("0.4"))
-    assert (
-        "portfolio_direction_volume_limit" in evaluate_execution(request(), state, policy).reasons
-    )
-    assert evaluate_execution(request("sell"), state, policy).state == "executable"
 
 
 @pytest.mark.parametrize(
@@ -149,37 +140,3 @@ def test_ambiguous_receipt_never_invents_fill() -> None:
         None,
     )
     assert "actual_fill_price" not in measured
-
-
-def test_risk_reduction_allowed_above_entry_cap() -> None:
-    state = snapshot()
-    trade = TradeRequest(
-        account_id="account", action="close_position", symbol="EURUSDm", position_id="manual"
-    )
-    assert evaluate_execution(trade, state, ExecutionPolicy(max_positions=0)).state == "executable"
-
-
-def test_drift_uses_actual_stop_distance_and_server_policy() -> None:
-    trade = request()
-    trade.stop_loss = Decimal("1.09")
-    initial = snapshot()
-    current = snapshot()
-    assert initial.quote is not None and current.quote is not None
-    current.quote.ask = Decimal("1.104")
-    policy = ExecutionPolicy(max_entry_drift_stop_fraction=Decimal("0.1"))
-    quality = evaluate_execution(trade, current, policy, planned_quote=initial.quote)
-    assert quality.state == "blocked"
-    assert "execution_entry_deteriorated" in quality.reasons
-    assert quality.drift_tolerance == Decimal("0.00102")
-
-
-def test_drift_never_invents_stop_reference() -> None:
-    trade = request()
-    state = snapshot()
-    quality = evaluate_execution(
-        trade,
-        state,
-        ExecutionPolicy(max_entry_drift_stop_fraction=Decimal("0.1")),
-        planned_quote=state.quote,
-    )
-    assert "execution_drift_reference_unavailable" in quality.reasons

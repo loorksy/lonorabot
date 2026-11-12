@@ -151,8 +151,8 @@ records, relationship records and every financial `trade_` tool
 keep the bound account and symbol through the guard and their own handler checks.
 The financial executor independently asserts the binding of every leased request,
 and preflight requires a position's or order's symbol to equal the request's symbol,
-so reading another account or symbol cannot widen execution. Signed grants,
-approvals and risk limits are untouched.
+so reading another account or symbol cannot widen execution. Signed grants and
+approvals are untouched.
 
 ## Instrument resolution
 

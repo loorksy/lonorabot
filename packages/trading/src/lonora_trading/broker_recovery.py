@@ -165,9 +165,9 @@ async def wake_for_activity(
 
     A change on a ticket the journal attributes to an Agent (a stop-loss or take-profit
     hit, a manual close of its position) wakes that Agent with its normal authority:
-    its grant, the account limits and pauses still decide at the executor. Unattributed
-    activity is the owner's own and wakes the Personal Agent with no financial effects,
-    as does activity of an Agent that is paused or no longer exists.
+    its grant and pauses still decide at the executor. Unattributed activity is the
+    owner's own and wakes the Personal Agent with no financial effects, as does
+    activity of an Agent that is paused or no longer exists.
     """
     personal = await ensure_personal_agent(session, owner_id)
     groups: dict[tuple[str, bool], list[str]] = {}
@@ -214,8 +214,8 @@ async def wake_for_activity(
             prompt = (
                 f"Broker activity on positions or orders you opened or manage on account_id="
                 f"{account_id}. Use account_activity and current account state to reassess them "
-                "and decide what to do next. Your normal authority applies; your grant, account "
-                "limits and pauses decide at execution. Never resend an uncertain operation."
+                "and decide what to do next. Your normal authority applies; your grant and "
+                "pauses decide at execution. Never resend an uncertain operation."
             )
             identifier = stable_id(account_id, f"external:{revision}:{agent.id}")
         else:

@@ -52,7 +52,6 @@ def test_only_server_declared_read_is_automatically_retried(code: str) -> None:
         ("research_provider_not_configured", "not_configured"),
         ("browser_unconfigured", "not_configured"),
         ("agent_trading_symbol_mismatch", "permission_denied"),
-        ("risk_trade_limit", "risk_limit_blocked"),
         ("unrecognized_domain_code", "terminal_domain_failure"),
     ],
 )
@@ -71,21 +70,9 @@ def test_recovery_contract_preserves_stable_categories(code: str, category: str)
         ("supervision_revoke_own_oversight", "permission_denied", "respect_scope"),
         # Pausing a whole trading agent has a narrower route: pause its work.
         ("supervision_pause_trading_agent", "terminal_domain_failure", "alternate_route"),
-        # A monetary limit points at its evidence: resize within it or wait for the owner.
-        ("risk_trade_limit", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_stop_loss_required", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_open_limit", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_open_unbounded", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_daily_loss_limit", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_free_margin_floor", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_limit_currency_mismatch", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_economics_unavailable", "risk_limit_blocked", "inspect_risk_assessment"),
-        ("risk_daily_history_incomplete", "risk_limit_blocked", "inspect_risk_assessment"),
     ],
 )
-def test_scopes_and_risk_limits_never_suggest_an_alternate_route(
-    code: str, category: str, action: str
-) -> None:
+def test_scopes_never_suggest_an_alternate_route(code: str, category: str, action: str) -> None:
     tool = Tool("trade_execute", "Test", Contract, handler, financial=True)
     metadata = classify(code, tool)
     assert (metadata["category"], metadata["next_action"]) == (category, action)

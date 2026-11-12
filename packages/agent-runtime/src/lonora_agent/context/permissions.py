@@ -4,10 +4,8 @@ import json
 from typing import Any
 
 from lonora_contracts.account_authority import full_delegation
-from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
-from lonora_db.trading_readiness import account_money_limits
 from lonora_tools.base import run_scope
 from lonora_trading.account_authority import provisional_voice
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +16,6 @@ def permission_guidance(
     *,
     observe_only: bool = False,
     provisional_approval_required: bool = False,
-    risk_limits: list[dict[str, Any]] | None = None,
 ) -> str:
     """Project only verified state; a pending envelope/draft is never authority."""
     level = "analysis" if observe_only else state["effective_level"]
@@ -61,8 +58,6 @@ def permission_guidance(
         "provisional_speech_requires_confirmation": provisional_approval_required,
         "authorization_pending": state.get("pending_authority") is not None,
         "authorized_scopes": scopes,
-        # Owner monetary limits per account; not_configured limits are not enforced.
-        "monetary_risk_limits": risk_limits or [],
     }
     encoded = (
         json.dumps(snapshot, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -90,8 +85,7 @@ def permission_guidance(
             "(trade_execute does it); never enlarge scope yourself. Optional "
             "numerical limits do not turn full management into supervised mode. A "
             "full_delegation scope covers every pair on its account, every action and the "
-            "owner's own positions until the owner stops it; the account's monetary limits "
-            "still bind it."
+            "owner's own positions until the owner stops it."
         ),
     }[level]
     return (
@@ -106,9 +100,9 @@ def permission_guidance(
             if level == "autonomous" and provisional_approval_required
             else ""
         )
-        + " An unset monetary limit is not enforced. Only the owner "
-        "signs a grant, attests an uncertain outcome "
-        "or changes a limit; when the owner asks for one, propose the matching owner action "
+        + " Only the owner "
+        "signs a grant or attests an uncertain outcome; "
+        "when the owner asks for one, propose the matching owner action "
         "card (owner_action_propose), a grant only when no active scope covers it, with "
         "delegation full only when the owner asked for full delegation; the owner chooses "
         "Custom or Full on the card and signs it."
@@ -134,29 +128,8 @@ async def permission_context(
     provisional = (
         await provisional_voice(session, run) if run is not None and not observe_only else False
     )
-    risk_limits = await trading_limits(session, owner_id, agent_id, state)
     return permission_guidance(
         state,
         observe_only=observe_only,
         provisional_approval_required=provisional,
-        risk_limits=risk_limits,
     )
-
-
-async def trading_limits(
-    session: AsyncSession, owner_id: str, agent_id: str, state: dict[str, Any]
-) -> list[dict[str, Any]]:
-    """The money limits of the accounts this agent acts on."""
-    agent = await agent_binding(session, owner_id, agent_id)
-    accounts: set[str] = set()
-    for authority in state.get("active_authorities", []):
-        account_id = authority.get("envelope", {}).get("account_id")
-        if isinstance(account_id, str):
-            accounts.add(account_id)
-    if agent.trading_account_id:
-        accounts.add(agent.trading_account_id)
-    risk_limits = [
-        await account_money_limits(session, owner_id, account_id)
-        for account_id in sorted(accounts)[:10]
-    ]
-    return risk_limits

@@ -9,23 +9,18 @@ import pytest
 from lonora_contracts.account_authority import AccountAuthorityEnvelope, full_delegation
 from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import (
-    DailyLossDraft,
     GrantDraft,
     OwnerActionDecision,
     OwnerActionProposal,
 )
-from lonora_contracts.risk_limits import MonetaryRiskLimits
 from lonora_core.delegation_words import asks_full_delegation
 from lonora_db.agent_permissions import default_level
 from lonora_db.owner_actions import (
     ALL_ACTIONS,
     covers_draft,
-    daily_loss_change,
     grant_proposal,
     grant_terms,
     overlaps_draft,
-    requested_above,
-    widens,
 )
 from lonora_db.schema import AgentRow
 from pydantic import ValidationError
@@ -38,9 +33,6 @@ def draft(**changes: Any) -> GrantDraft:
         "symbol_scope": "selected",
         "symbols": ["XAUUSD"],
         "actions": list(ALL_ACTIONS),
-        "daily_loss": DailyLossDraft(
-            amount=Decimal("300"), currency="USD", basis="suggested", percent=Decimal(3)
-        ),
     }
     values.update(changes)
     return GrantDraft(**values)
@@ -105,47 +97,6 @@ def test_a_grant_proposal_is_built_only_from_the_stored_draft() -> None:
         draft(symbols=[])
 
 
-def requested(amount: str, percent: str | None = None) -> GrantDraft:
-    return draft(
-        daily_loss=DailyLossDraft(
-            amount=Decimal(amount),
-            currency="USD",
-            basis="requested",
-            percent=None if percent is None else Decimal(percent),
-        )
-    )
-
-
-def test_a_suggested_daily_loss_is_set_only_where_the_account_has_none() -> None:
-    unset = MonetaryRiskLimits()
-    first = daily_loss_change(unset, draft())
-    assert first is not None and first.max_daily_loss == 300 and first.currency == "USD"
-    assert not widens(unset, first)
-    # The owner set 500 themselves: the suggested 3% (300) never tightens it unasked.
-    own = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(500))
-    assert daily_loss_change(own, draft()) is None
-    assert requested_above(own, draft()) is None
-    # Another currency is never converted.
-    euro = MonetaryRiskLimits(currency="EUR", max_trade_risk=Decimal(50))
-    assert daily_loss_change(euro, draft()) is None
-    assert daily_loss_change(unset, draft(daily_loss=None)) is None
-
-
-def test_the_owners_own_daily_loss_lowers_a_limit_and_never_raises_one() -> None:
-    own = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(500))
-    lowered = daily_loss_change(own, requested("300", "3"))
-    assert lowered is not None and lowered.max_daily_loss == 300 and not widens(own, lowered)
-    assert requested_above(own, requested("300")) is None
-    # Asking for more keeps the current limit; raising it is a limits card's passkey.
-    assert daily_loss_change(own, requested("800")) is None
-    assert requested_above(own, requested("800")) == 800
-    assert daily_loss_change(own, requested("500")) is None
-    assert requested_above(own, requested("500")) is None
-    first = daily_loss_change(MonetaryRiskLimits(), requested("800"))
-    assert first is not None and first.max_daily_loss == 800
-    assert requested_above(MonetaryRiskLimits(), requested("800")) is None
-
-
 def test_the_replaced_grant_is_described_in_full() -> None:
     capped = envelope(
         management_mode="bounded",
@@ -184,21 +135,18 @@ def test_covered_scope_needs_no_card_and_overlap_is_named() -> None:
 
 
 def test_grant_fields_belong_to_grant_cards_and_decisions_default_to_narrowing() -> None:
-    proposal = OwnerActionProposal.model_validate(
-        {"kind": "grant_authority", "agent_id": "gold", "daily_loss_percent": "2"}
-    )
-    assert proposal.account_id is None and proposal.daily_loss_percent == 2
+    proposal = OwnerActionProposal.model_validate({"kind": "grant_authority", "agent_id": "gold"})
+    assert proposal.account_id is None
     assert OwnerActionProposal.model_validate({"kind": "grant_authority"}).all_pairs is False
     with pytest.raises(ValidationError):
         OwnerActionProposal.model_validate(
             {"kind": "resolve_operation", "operation_id": "op", "agent_id": "gold"}
         )
     decision = OwnerActionDecision(decision="confirm")
-    assert decision.money_limit == "apply"
     assert decision.stop_authorities == []
 
 
-def test_full_delegation_signs_every_pair_action_and_own_position_with_no_card_limit() -> None:
+def test_full_delegation_signs_every_pair_action_and_own_position() -> None:
     custom = draft()
     full = custom.with_delegation("full")
     assert full.delegation == "full" and full.custom == custom.terms()
@@ -221,17 +169,12 @@ def test_full_delegation_signs_every_pair_action_and_own_position_with_no_card_l
         "allow_manual_positions": True,
     }
     assert full_delegation(signed.model_dump(mode="json"))
-    # The card sets no daily loss limit under Full, so it never touches the account's.
-    assert full.daily_loss is None
-    assert daily_loss_change(MonetaryRiskLimits(), full) is None
-    own = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(500))
-    assert daily_loss_change(own, full) is None and requested_above(own, full) is None
 
 
 def test_switching_back_restores_custom_exactly_with_the_d1_defaults() -> None:
     custom = draft()
     assert custom.delegation == "custom" and custom.custom is None
-    assert custom.allow_manual_positions is False and custom.daily_loss is not None
+    assert custom.allow_manual_positions is False
     there = custom.with_delegation("full")
     back = there.with_delegation("custom")
     assert back == custom and back.model_dump(mode="json") == custom.model_dump(mode="json")

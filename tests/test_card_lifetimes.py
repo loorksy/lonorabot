@@ -109,13 +109,7 @@ async def updates(session: AsyncSession, card_id: str) -> int:
 async def test_a_newer_card_names_the_card_that_replaced_it(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
-        account = await owned_account(session, owner)
-        change = OwnerActionProposal(
-            kind="set_account_limits",
-            account_id=account,
-            set_limits={"max_daily_loss": 250},  # type: ignore[dict-item]
-            currency="USD",
-        )
+        change = OwnerActionProposal(kind="connect_credential", target="news_feed")
         first, _ = await propose(
             session, owner, change, card_id="old", agent_id=agent, thread_id=thread, run_id=None
         )
@@ -312,14 +306,10 @@ def test_a_full_draft_takes_no_terms_of_its_own() -> None:
         {"actions": ["buy"]},
         {"duration": "24h"},
         {"allow_manual_positions": False},
-        {"daily_loss_amount": "100"},
-        {"daily_loss_percent": "2"},
     ):
         with pytest.raises(ValidationError):
             AccountAuthorityDraft.model_validate({"mode": "full", **terms})
     custom = AccountAuthorityDraft.model_validate(
-        {"symbols": ["XAUUSD"], "actions": ["buy", "close_position"], "daily_loss_amount": "150"}
+        {"symbols": ["XAUUSD"], "actions": ["buy", "close_position"]}
     ).proposal("gold")
     assert custom.symbols == ["XAUUSD"] and custom.agent_id == "gold"
-    with pytest.raises(ValidationError):
-        AccountAuthorityDraft.model_validate({"daily_loss_amount": "1", "daily_loss_percent": "1"})

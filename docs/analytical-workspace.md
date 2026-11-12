@@ -271,7 +271,7 @@ integrations and these export/real-container integrations passed.
   integration branch. No default production activation is included here.
 
 Generated code analyzes supplied data. Live trades continue through the existing
-typed, authorized, risk-checked, journaled and reconciled services.
+typed, authorized, journaled and reconciled services.
 
 
 ## Reviewed analytics profile and production identity

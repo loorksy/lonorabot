@@ -579,29 +579,3 @@ async def test_the_routing_frame_never_carries_the_owners_status_line():
         assert "اشترِ الذهب" not in frame
     finally:
         await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_limit_validation_codes_reach_the_client():
-    """M11: an owner-actionable limit error keeps its own code (the client says what to fix),
-    never the generic invalid_request."""
-    database()
-    from check_streaming import Fixture
-
-    fixture = await Fixture().open()
-    try:
-        path = f"/api/trading/accounts/{uuid4()}/execution-policy"
-        missing = await fixture.client.request(
-            "PUT", path, json={"risk": {"max_daily_loss": "100"}}
-        )
-        assert missing.status_code == 422
-        assert missing.json()["code"] == "risk_currency_required"
-        zone = await fixture.client.request(
-            "PUT",
-            path,
-            json={"risk": {"currency": "USD", "trading_day_timezone": "Mars/Olympus"}},
-        )
-        assert zone.status_code == 422
-        assert zone.json()["code"] == "trading_day_timezone_invalid"
-    finally:
-        await fixture.close()

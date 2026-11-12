@@ -1,4 +1,4 @@
-"""Owner action cards: classification, widening, proposal validation and the authority path.
+"""Owner action cards: classification, proposal validation and the authority path.
 
 The end-to-end card journeys (tool, runtime cards, owner decisions with a passkey) run
 on PostgreSQL in ``tests/check_owner_actions.py``. These tests pin the pure rules and
@@ -7,30 +7,21 @@ that no tool can reach a decision.
 
 import ast
 from datetime import timedelta
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pytest
 from lonora_contracts.domain import utcnow
-from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import OwnerActionProposal
-from lonora_contracts.risk_limits import MonetaryRiskLimits
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
-from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.obligations import prepare_delete
 from lonora_db.owner_actions import (
-    LIMIT_CHANGE_NAMES,
     confirm_in_thread,
     create_card,
-    limit_changes,
     owner_action_data,
-    policy_widens,
     propose,
-    proposed_limits,
     settle,
-    widens,
 )
 from lonora_db.schema import (
     AgentRow,
@@ -42,7 +33,6 @@ from lonora_db.schema import (
     ThreadRow,
     TradingJournalRow,
 )
-from lonora_db.transactions import SettingsRepository, execution_policy_key
 from lonora_gateway.liveness import Liveness
 from lonora_gateway.watchdog import Watchdog
 from lonora_tools.loader import load_tools
@@ -53,10 +43,6 @@ from test_task_runtime import task_db as task_db
 
 Fixture = tuple[Database, str, str, str]
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def limits(**values: Any) -> MonetaryRiskLimits:
-    return MonetaryRiskLimits.model_validate({"currency": "USD", **values})
 
 
 def test_an_ambiguous_operation_is_one_action_required_item_per_operation() -> None:
@@ -86,116 +72,10 @@ def test_a_stored_lift_card_could_not_be_read_back_and_its_tools_are_gone() -> N
 
 
 @pytest.mark.parametrize(
-    ("current", "proposed", "widening"),
-    [
-        ({}, {"max_daily_loss": "300"}, False),  # Adding a limit narrows.
-        ({"max_daily_loss": "300"}, {"max_daily_loss": "200"}, False),
-        ({"max_daily_loss": "300"}, {"max_daily_loss": "301"}, True),
-        ({"max_daily_loss": "300"}, {}, True),  # Removing widens.
-        ({"max_trade_risk_equity_percent": "1"}, {"max_trade_risk_equity_percent": "2"}, True),
-        ({"min_free_margin": "500"}, {"min_free_margin": "600"}, False),  # A higher floor.
-        ({"min_free_margin": "500"}, {"min_free_margin": "400"}, True),
-        ({"min_free_margin": "500"}, {}, True),
-        ({"max_open_risk": "100"}, {"max_open_risk": "100", "currency": "EUR"}, True),
-        (
-            {"max_daily_loss": "100"},
-            {"max_daily_loss": "100", "trading_day_timezone": "Asia/Riyadh"},
-            True,
-        ),
-        ({"max_trade_risk": "50"}, {"max_trade_risk": "50", "max_open_risk": "200"}, False),
-    ],
-)
-def test_raising_or_removing_any_money_limit_widens(
-    current: dict[str, str], proposed: dict[str, str], widening: bool
-) -> None:
-    assert widens(limits(**current), limits(**proposed)) is widening
-    # Whatever the card would change, the owner sees: one line per differing field,
-    # the currency and the trading day included, so a passkey never signs a hidden effect.
-    before, after = limits(**current), limits(**proposed)
-    differing = {
-        name
-        for name in MonetaryRiskLimits.model_fields
-        if getattr(before, name) != getattr(after, name)
-    }
-    assert {change["name"] for change in limit_changes(before, after)} == differing
-
-
-@pytest.mark.parametrize(
-    ("current", "proposed", "widening"),
-    [
-        ({"max_positions": 3}, {"max_positions": 2}, False),
-        ({"max_positions": 3}, {"max_positions": 5}, True),
-        ({"max_positions": 3}, {}, True),
-        ({}, {"max_pending_orders": 1}, False),
-        ({"max_pending_orders": 1}, {}, True),
-        ({"max_symbol_direction_volume": "0.1"}, {"max_symbol_direction_volume": "0.5"}, True),
-        ({"max_spread": "2"}, {"max_spread": "1"}, False),
-        ({"max_spread": "2"}, {}, True),
-        ({"max_entry_drift_stop_fraction": "0.2"}, {}, True),
-        ({"quote_max_age_seconds": 20}, {"quote_max_age_seconds": 60}, True),
-        ({"account_max_age_seconds": 60}, {"account_max_age_seconds": 30}, False),
-        ({"risk": {"currency": "USD", "max_daily_loss": "100"}}, {}, True),
-        ({}, {"max_positions": 2, "risk": {"currency": "USD", "max_daily_loss": "100"}}, False),
-    ],
-)
-def test_raising_or_removing_an_execution_cap_widens_the_policy(
-    current: dict[str, Any], proposed: dict[str, Any], widening: bool
-) -> None:
-    """The caps the executor enforces next to the money limits need the passkey too."""
-    assert (
-        policy_widens(
-            ExecutionPolicy.model_validate(current), ExecutionPolicy.model_validate(proposed)
-        )
-        is widening
-    )
-
-
-def test_a_limits_card_can_show_every_field_it_can_change() -> None:
-    assert set(LIMIT_CHANGE_NAMES) == set(MonetaryRiskLimits.model_fields)
-    assert limit_changes(
-        limits(max_daily_loss="300"),
-        limits(currency="EUR", max_daily_loss="300", trading_day_timezone="Asia/Riyadh"),
-    ) == [
-        {"name": "currency", "from": "USD", "to": "EUR"},
-        {"name": "trading_day_timezone", "from": "UTC", "to": "Asia/Riyadh"},
-    ]
-
-
-def test_a_limit_change_touches_only_the_named_limits() -> None:
-    current = limits(max_daily_loss="300", max_trade_risk="50")
-    changed = proposed_limits(
-        current,
-        {"set": {"max_daily_loss": "200"}, "remove": ["max_trade_risk"], "currency": None},
-    )
-    assert changed.max_daily_loss == Decimal(200) and changed.max_trade_risk is None
-    assert changed.currency == "USD" and changed.trading_day_timezone == "UTC"
-    # A money amount never exists without its currency.
-    with pytest.raises(LonoraError) as error:
-        proposed_limits(MonetaryRiskLimits(), {"set": {"max_daily_loss": "200"}, "remove": []})
-    assert error.value.code == "owner_action_limits_invalid"
-
-
-@pytest.mark.parametrize(
     "arguments",
     [
         {"kind": "resolve_operation", "operation_id": "op", "account_id": "a"},
-        {"kind": "set_account_limits", "account_id": "a"},  # No change at all.
-        {
-            "kind": "set_account_limits",
-            "account_id": "a",
-            "set_limits": {"max_daily_loss": "1"},
-            "remove_limits": ["max_daily_loss"],
-        },
-        {
-            "kind": "set_account_limits",
-            "account_id": "a",
-            "set_limits": {"max_open_risk_equity_percent": "150"},
-        },
-        {"kind": "set_account_limits", "account_id": "a", "set_limits": {"max_daily_loss": "0"}},
-        {"kind": "grant_authority", "set_limits": {"max_daily_loss": "1"}},
         {"kind": "grant_authority", "all_pairs": True, "symbols": ["XAUUSD"]},
-        {"kind": "grant_authority", "daily_loss_percent": "2", "daily_loss_amount": "100"},
-        {"kind": "grant_authority", "daily_loss_percent": "150"},
         {"kind": "grant_authority", "actions": ["buy", "buy"]},
         {"kind": "grant_authority", "title": "Sign everything"},
     ],
@@ -213,13 +93,12 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     assert not tool.financial and not tool.read_only and tool.replay_safe
     assert tool.toolset == "trading" and not tool.eager
     # No tool module imports anything that settles or decides a card (owner_action_propose
-    # reads the account's limits and actions for a grant card). agent_create raises
+    # reads the actions for a grant card). agent_create raises
     # a creation card or a creation's Undo card, supervision_change a supervision card, its
     # Undo card or a Restore card; trust and credential cards come from a proposal or the
     # server; none settles one.
     allowed = {
         "ALL_ACTIONS",
-        "account_policy",
         "card_facts",
         "live_status",
         "propose",
@@ -276,13 +155,7 @@ async def test_a_card_sits_after_the_conversation_and_expires_without_a_schedule
     task_db: Fixture,
 ) -> None:
     db, owner, agent, thread = task_db
-    account = await owned_account(db, owner)
-    change = OwnerActionProposal(
-        kind="set_account_limits",
-        account_id=account,
-        set_limits={"max_daily_loss": Decimal(250)},
-        currency="USD",
-    )
+    change = OwnerActionProposal(kind="connect_credential", target="news_feed")
     async with db.sessions() as session, session.begin():
         conversation = await session.get(ThreadRow, thread)
         assert conversation is not None
@@ -290,12 +163,6 @@ async def test_a_card_sits_after_the_conversation_and_expires_without_a_schedule
             session, owner, change, card_id="call-2", agent_id=agent, thread_id=thread, run_id=None
         )
         assert created and row.timeline_seq == conversation.next_seq
-        data = await owner_action_data(session, row)
-        assert data["facts"]["changes"] == [
-            {"name": "currency", "from": None, "to": "USD"},
-            {"name": "max_daily_loss", "from": None, "to": "250"},
-        ]
-        assert data["requires_passkey"] is False
         row.expires_at = utcnow() - timedelta(seconds=1)
         assert (await owner_action_data(session, row))["status"] == "expired"
         replaced, created = await propose(
@@ -304,79 +171,6 @@ async def test_a_card_sits_after_the_conversation_and_expires_without_a_schedule
         assert created and replaced.id != row.id
         stored = await session.get(OwnerActionRow, row.id)
         assert stored is not None and stored.status == "expired"
-
-
-async def store_limits(
-    session: AsyncSession, owner: str, account: str, risk: dict[str, Any]
-) -> None:
-    await SettingsRepository().put(session, execution_policy_key(owner, account), {"risk": risk})
-
-
-@pytest.mark.asyncio
-async def test_a_moved_trading_day_is_shown_and_signed_never_hidden_behind_a_lower_limit(
-    task_db: Fixture,
-) -> None:
-    db, owner, agent, thread = task_db
-    account = await owned_account(db, owner)
-    async with db.sessions() as session, session.begin():
-        await store_limits(session, owner, account, {"currency": "USD", "max_daily_loss": "300"})
-        moved, _ = await propose(
-            session,
-            owner,
-            OwnerActionProposal(
-                kind="set_account_limits",
-                account_id=account,
-                trading_day_timezone="Pacific/Kiritimati",
-            ),
-            card_id="call-day",
-            agent_id=agent,
-            thread_id=thread,
-            run_id=None,
-        )
-        data = await owner_action_data(session, moved)
-        assert data["requires_passkey"] is True
-        assert data["facts"]["changes"] == [
-            {"name": "trading_day_timezone", "from": "UTC", "to": "Pacific/Kiritimati"}
-        ]
-        bundled, _ = await propose(
-            session,
-            owner,
-            OwnerActionProposal(
-                kind="set_account_limits",
-                account_id=account,
-                set_limits={"max_daily_loss": Decimal(290)},
-                trading_day_timezone="Pacific/Kiritimati",
-            ),
-            card_id="call-bundle",
-            agent_id=agent,
-            thread_id=thread,
-            run_id=None,
-        )
-        data = await owner_action_data(session, bundled)
-        assert data["requires_passkey"] is True
-        assert [change["name"] for change in data["facts"]["changes"]] == [
-            "max_daily_loss",
-            "trading_day_timezone",
-        ]
-        # The limits moved on (no currency any more): the card only settles, no passkey.
-        await store_limits(session, owner, account, {})
-        late, _ = await propose(
-            session,
-            owner,
-            OwnerActionProposal(
-                kind="set_account_limits",
-                account_id=account,
-                set_limits={"max_daily_loss": Decimal(100)},
-                currency="USD",
-            ),
-            card_id="call-late",
-            agent_id=agent,
-            thread_id=thread,
-            run_id=None,
-        )
-        late.payload = {**late.payload, "currency": None}
-        data = await owner_action_data(session, late)
-        assert data["requires_passkey"] is False and data["facts"]["no_longer_applies"] is True
 
 
 async def ack(session: AsyncSession, card: OwnerActionRow) -> MessageRow:
@@ -458,8 +252,8 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
 
         async def card(card_id: str, thread: ThreadRow, kind: str, by: str) -> OwnerActionRow:
             payload: dict[str, Any] = (
-                {"account_id": account, "set": {"max_daily_loss": "10"}, "remove": []}
-                if kind == "set_account_limits"
+                {"spec": {"account_id": account}}
+                if kind == "create_agent"
                 else {"target": "news_feed", "service": None}
             )
             return await create_card(
@@ -471,15 +265,13 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
                 run_id=None,
                 source="agent",
                 kind=kind,
-                subject="account:" + account
-                if kind == "set_account_limits"
-                else "credential:news_feed",
+                subject="agent-create" if kind == "create_agent" else "credential:news_feed",
                 payload=payload,
             )
 
         by_helper = await card("by-helper", group, "connect_credential", helper.id)
         in_thread = await card("in-thread", conversation, "connect_credential", agent)
-        about_account = await card("about-account", group, "set_account_limits", agent)
+        about_account = await card("about-account", group, "create_agent", agent)
         elsewhere = await card("elsewhere", group, "connect_credential", other.id)
         await prepare_delete(session, owner, agent_id=helper.id)
         await prepare_delete(session, owner, thread_id=conversation.id)
