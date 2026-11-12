@@ -70,7 +70,9 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
     await page.keyboard.press("Escape");
     await expect(langMenu).toHaveCount(0);
     await page.getByRole("button", { name: /^Notifications and contact/ }).click();
-    await expect(page.getByRole("radio", { name: /Activity log only/ })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /An alert on your device/ })).toBeVisible();
+    // «سجل النشاط فقط» is gone with the activity log (P5).
+    await expect(page.getByRole("radio", { name: /Activity log only/ })).toHaveCount(0);
     // No browser notification permission until a push channel exists (Q10).
     await expect(page.getByText(/Browser notifications/)).toHaveCount(0);
     // «إشعاري بالفرص المؤكدة» (the attention policy) lives here.

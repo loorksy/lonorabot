@@ -371,7 +371,7 @@ def publish_ready(session: AsyncSession, row: AttentionRow, suppression: str | N
 # An Agent's own notifications per rolling hour; a dedupe key notifies once.
 NOTIFY_LIMIT_PER_HOUR = 6
 # Agent-declared critical alerts per owner and rolling hour, across every agent. A
-# critical alert passes quiet hours and activity-only; beyond this it is an important
+# critical alert passes quiet hours; beyond this it is an important
 # change, so injected text in many wakes cannot ring the owner without end.
 CRITICAL_LIMIT_PER_HOUR = 6
 MAX_NOTIFY_LIFETIME = timedelta(days=31)
@@ -393,10 +393,8 @@ async def notify_owner(
     One item per Agent and dedupe key, at most NOTIFY_LIMIT_PER_HOUR per Agent. Quiet
     hours hold everything but critical items until they end; beyond
     CRITICAL_LIMIT_PER_HOUR critical alerts per owner, a critical one counts as an
-    important change. Under reach-me "activity
-    only" a non-critical alert raises no item (``activity_only``): the Agent says it in
-    its reply, which reaches its conversation and the Activity list. Delivery is in the
-    app until off-app delivery exists. The item grants nothing.
+    important change. Delivery is in the app until off-app delivery exists. The item
+    grants nothing.
     """
     now = utcnow()
     if request.expires_at is not None and not now < request.expires_at <= now + (
@@ -419,7 +417,7 @@ async def notify_owner(
             "deduplicated": True,
             **({"attention": attention_data(item)} if item else {}),
         }
-    # Every alert counts, also one kept in activity only or held for quiet hours.
+    # Every alert counts, also one held for quiet hours.
     recent = await session.scalar(
         select(func.count())
         .select_from(EventRow)
@@ -500,16 +498,10 @@ async def notify_owner(
         thread_id=thread_id,
         parameters=parameters,
         coalesce_scope="notify:" + request.dedupe_key,
-        suppression_code="owner_reach_me_activity"
-        if reach.channel == "activity" and not critical
-        else blocked,
+        suppression_code=blocked,
     )
     if row is None:
-        status = (
-            "activity_only"
-            if reach.channel == "activity" and not critical
-            else blocked or "not_shown_owner_preference"
-        )
+        status = blocked or "not_shown_owner_preference"
     elif held_until is not None:
         row.due_at = held_until
         status = "held_for_quiet_hours"

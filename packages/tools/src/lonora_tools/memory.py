@@ -424,7 +424,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "owner_preferences_update",
-            "Set the owner's shared preferences from what he typed: reach_me (activity, notify, "
+            "Set the owner's shared preferences from what he typed: reach_me (notify, "
             "message or call: how to reach him when something needs him), reply_language (ar, "
             "en, or auto: his latest message's language), quiet hours as local HH:MM "
             "(quiet_start, quiet_end), timezone. Every Agent "
