@@ -56,7 +56,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.agent_eval import bank, broker  # noqa: E402
 from scripts.agent_eval import run as runner  # noqa: E402
-from scripts.genui_eval import run as genui  # noqa: E402
+from scripts.agent_eval import runner as harness  # noqa: E402
 
 SCENARIO = bank.FIXTURES / "acceptance.json"
 # Runs the harness drives after one induced event: the wake, and the wakes it causes.
@@ -259,14 +259,16 @@ class Stage:
                 context = self.api.runtime.services(self.api.owner).tool_context(
                     run.agent_id,
                     run.thread_id,
-                    await genui.lease(self.api, run.id),
+                    await harness.lease(self.api, run.id),
                     self.api.settings.artifact_root,
                 )
                 if self.model is not None:
                     context.router.factory = self.model.factory
                 registry = runner.RecordingRegistry(self.calls)
-                async with asyncio.timeout(genui.CASE_SECONDS):
-                    await execute_run(context, registry, genui.LEASE_SECONDS, genui.MAXIMUM_ROUNDS)
+                async with asyncio.timeout(harness.CASE_SECONDS):
+                    await execute_run(
+                        context, registry, harness.LEASE_SECONDS, harness.MAXIMUM_ROUNDS
+                    )
                 async with self.api.runtime.db.sessions() as session:
                     ended = await session.get(RunRow, run.id, populate_existing=True)
                     assert ended is not None
@@ -444,14 +446,14 @@ async def run_step(
     base: URL, ids: dict[str, str], step: dict[str, Any], live: bool
 ) -> dict[str, Any]:
     clone = base.set(database=f"accept_{uuid4().hex[:12]}_test")
-    await genui.admin(base, f'CREATE DATABASE "{clone.database}" TEMPLATE "{base.database}"')
+    await harness.admin(base, f'CREATE DATABASE "{clone.database}" TEMPLATE "{base.database}"')
     terminal = AcceptanceTerminal(account_id=bank.ACCOUNT, balance=Decimal("10000"))
     checks: list[Check] = []
     error, exercised = None, True
     api: Any = None
     with broker.installed(terminal):
         try:
-            api = genui.Api(clone)
+            api = harness.Api(clone)
             await api.login()
             names = {**ids, **await gold_agent(api, ids)}
             model = None if live else ScriptedModel(turns=json.loads(json.dumps(step["script"])))
@@ -470,7 +472,9 @@ async def run_step(
                 if api is not None:
                     await api.close()
             finally:
-                await genui.admin(base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)')
+                await harness.admin(
+                    base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)'
+                )
     passed = error is None and all(ok for _, ok, _ in checks)
     return {
         "step": step["id"],
@@ -506,7 +510,7 @@ async def own_key(base: URL, model: str) -> None:
     key = os.environ.get("LONORA_ACCEPT_PROVIDER_KEY")
     if not key:
         return
-    api = genui.Api(base)
+    api = harness.Api(base)
     try:
         await api.login()
         provider = model.split("/", 1)[0]
@@ -521,7 +525,7 @@ async def main(arguments: argparse.Namespace) -> int:
     unknown = (chosen or set()) - {step["id"] for step in scenario["steps"]}
     if unknown:
         raise SystemExit(f"No such step: {', '.join(sorted(unknown))}")
-    base = genui.disposable(os.environ.get("LONORA_DATABASE_URL", ""))
+    base = harness.disposable(os.environ.get("LONORA_DATABASE_URL", ""))
     results: list[dict[str, Any]] = []
     ready = [
         step
@@ -535,7 +539,7 @@ async def main(arguments: argparse.Namespace) -> int:
         for step in ready:
             results.append(await run_step(base, ids, step, arguments.live))
     finally:
-        await genui.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
+        await harness.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
     by_step = {item["step"]: item for item in results}
     report = [
         {**row, **by_step.get(row["step"], {})}

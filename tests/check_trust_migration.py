@@ -95,7 +95,7 @@ async def main() -> None:
     module = migration()
     assert module.revision == "0132_trust_from_owner_words"
     before = module.down_revision
-    assert before == "0145_metaapi_token"
+    assert before == "0110_closed_trades"
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Trust migration")

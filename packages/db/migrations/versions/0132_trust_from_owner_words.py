@@ -23,7 +23,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0132_trust_from_owner_words"
-down_revision = "0145_metaapi_token"
+down_revision = "0110_closed_trades"
 branch_labels = None
 depends_on = None
 

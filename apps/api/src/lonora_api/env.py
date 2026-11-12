@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     maximum_tool_rounds: int = Field(default=24, ge=1, le=100)
     maximum_subagents: int = Field(default=4, ge=1, le=12)
     webhook_secret: SecretStr | None = None
+    # Optional: the owner's Expo access token, when the Expo project requires one to push.
+    expo_access_token: SecretStr | None = None
     log_level: str = "INFO"
 
 

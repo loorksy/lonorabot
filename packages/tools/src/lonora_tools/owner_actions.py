@@ -285,8 +285,7 @@ def tools() -> list[Tool]:
         Tool(
             "owner_action_propose",
             "Put a one-tap owner action card in this conversation for an action only the "
-            "owner may take; nothing changes until the owner taps it. Kinds: resume_trading "
-            "(only when the owner asks to resume: Stop is the owner's brake), "
+            "owner may take; nothing changes until the owner taps it. Kinds: "
             "lift_restriction (restriction_id of an active or scheduled pause the owner asks "
             "to lift), resolve_operation (operation_id of an ambiguous operation; the owner "
             "answers executed / not executed / unknown, and any answer releases its hold), "

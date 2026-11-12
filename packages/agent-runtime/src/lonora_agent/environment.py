@@ -225,8 +225,6 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
     elif code in {
         "broker_reconciliation_pending",
         "market_health_blocked",
-        "trading_disabled",
-        "emergency_stop",
     }:
         category, action = "health_blocked", "wait_for_authoritative_recovery"
     elif status is not None and not code.startswith("broker_"):
