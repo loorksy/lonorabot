@@ -16,10 +16,10 @@ and revokes one with one tap; a revoked grant ends every read and control at onc
 
 Holds (``ln_supervision_holds``) record the pauses a supervisor put on another agent's
 work: the agent itself, a Task, a routine or a watch. On its own initiative only the
-supervisor that set a hold lifts it, while it still supervises; a run that answers the
-owner's message lifts any supervisor's hold (the owner's command wins). The owner
-pausing the same work makes the hold the owner's (``source='owner'``, the supervisor
-kept for attribution): then only the owner lifts it, from the work itself or the card.
+supervisor that set a hold lifts it, while it still supervises; Lonora lifts only the
+pauses it made (4.7.2). A pause an agent makes from the owner's message, and the owner
+pausing the same work, make the hold the owner's (``source='owner'``, the agent kept
+for attribution): then only the owner lifts it, from the work itself or the card.
 The owner resuming the work releases it. The paused agent never resumes held work on
 its own initiative. Each pause raises a card in the paused agent's conversation that
 names the supervisor, with one-tap Resume.
@@ -58,9 +58,9 @@ from .transactions import owned_agent
 GrantVia = Literal["default", "owner_ui", "owner_message", "owner_card"]
 RevokeVia = Literal["owner_ui", "owner_card", "owner_message"]
 HoldKind = Literal["agent", "task", "routine", "watch"]
-# agent: the supervisor on its own; owner_message: the supervisor from the owner's
-# message; owner: the owner paused the same work, so the pause is the owner's now.
-HoldSource = Literal["agent", "owner_message", "owner"]
+# agent: the supervisor (or Lonora) on its own; owner: the owner's pause, made by the
+# owner or by an agent from the owner's message (the holder kept for attribution, 4.7.2).
+HoldSource = Literal["agent", "owner"]
 # Agents one call or card may put under one supervisor.
 MAXIMUM_SUPERVISED_PER_CHANGE = 10
 
@@ -513,7 +513,9 @@ async def control_work(
     conversation naming the supervisor, with Resume.
 
     Resuming on its own initiative lifts only a hold this agent set on its own. With the
-    owner's message it lifts any supervisor's hold. A pause the owner holds, the owner's
+    owner's message a supervisor lifts another supervisor's hold; Lonora never lifts a
+    pause it did not make (4.7.2). A pause made from the owner's message is the owner's
+    (``source='owner'``, the actor kept as holder). A pause the owner holds, the owner's
     pause without a hold and the agent's own stay until they lift them. A watch the
     agent cancelled itself while held stays cancelled; the resume only ends the hold.
     """
@@ -560,7 +562,8 @@ async def control_work(
             agent_id=agent.id,
             target_kind=kind,
             target_id=item,
-            source="owner_message" if owner_message else "agent",
+            # A pause the owner asked for in chat is the owner's: only the owner lifts it.
+            source="owner" if owner_message else "agent",
             source_message_id=owner_message_id,
             source_run_id=run_id,
             created_at=utcnow(),
@@ -576,11 +579,11 @@ async def control_work(
         if hold is None or hold.source == "owner":
             # The owner's pause or the agent's own: only they lift it.
             raise LonoraError("supervision_resume_not_yours", 403)
-        if not owner_message:
-            if hold.holder_agent_id != actor_id:
-                raise LonoraError("supervision_resume_not_yours", 403)
-            if hold.source == "owner_message":
-                raise LonoraError("supervision_resume_needs_owner_message", 403)
+        if hold.holder_agent_id != actor_id and (
+            not owner_message or actor_id == await personal_agent_id(session, owner_id)
+        ):
+            # Lonora lifts only the pauses Lonora made (4.7.2).
+            raise LonoraError("supervision_resume_not_yours", 403)
         await release_hold(session, hold, "holder" if hold.holder_agent_id == actor_id else "owner")
         if kind == "watch" and await _cancelled_by_agent(session, item):
             # The agent cancelled the held watch itself: its own choice stays.

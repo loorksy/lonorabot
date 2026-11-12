@@ -1030,7 +1030,7 @@ async def pause_facts(
         "active": await _live_pause(session, row.owner_id, row.payload) is not None,
         "target": hold.target_kind,
         "target_label": await pause_label(session, hold),
-        "from_owner_message": hold.source == "owner_message",
+        "from_owner_message": hold.source_message_id is not None,
         # The owner paused the same work too: the pause is the owner's now.
         "owner_holds": hold.source == "owner",
     }

@@ -1101,9 +1101,7 @@ class SupervisionHoldRow(Base):
             "target_kind IN ('agent','task','routine','watch')",
             name="ln_supervision_hold_target_kind",
         ),
-        CheckConstraint(
-            "source IN ('agent','owner_message','owner')", name="ln_supervision_hold_source"
-        ),
+        CheckConstraint("source IN ('agent','owner')", name="ln_supervision_hold_source"),
         CheckConstraint(
             "released_by IS NULL OR released_by IN ('holder','owner','stale')",
             name="ln_supervision_hold_released_by",

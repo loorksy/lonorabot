@@ -264,7 +264,7 @@ async def _work(
                 else "you"
                 if hold.holder_agent_id == context.agent_id
                 else names.get(hold.holder_agent_id),
-                "from_owner_message": hold.source == "owner_message",
+                "from_owner_message": hold.source_message_id is not None,
                 # The owner paused it too: only the owner lifts it now.
                 "owner_holds": hold.source == "owner",
             }
@@ -644,8 +644,8 @@ def tools() -> list[Tool]:
             "agent_control",
             "Steer an agent you supervise: pause or resume it, or one of its Tasks, "
             "routines or watches (target, target_id), or message it. resume lifts only a "
-            "pause you set, or any supervisor's when the owner asks; the owner's own pauses "
-            "stay. You cannot pause an agent that holds a pause over you unless the owner "
+            "pause you made on your own; a pause the owner asked for or made is the "
+            "owner's. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A paused agent still wakes for its own positions and orders and only "
             "reduces their risk. Only the owner pauses Lonora itself. It "
             "never trades, grants, raises limits, lifts restrictions or edits its memory "
