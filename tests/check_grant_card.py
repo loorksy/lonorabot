@@ -688,10 +688,11 @@ async def main() -> None:
                 row = await session.get(SettingRow, permission_key(fixture.owner, agent_id))
                 if row is not None:
                     await session.delete(row)
+        explicit = "0040_explicit_agent_permission_rows"
         await alembic("downgrade", "0039_owner_profile_memory_revisions")
-        await alembic("upgrade", "head")
+        await alembic("upgrade", explicit)
         await alembic("downgrade", "0039_owner_profile_memory_revisions")
-        await alembic("upgrade", "head")
+        await alembic("upgrade", explicit)
         async with db.sessions() as session:
             for agent_id, expected in (
                 (lonora_id, "supervised"),
@@ -704,9 +705,17 @@ async def main() -> None:
             # Rows the owner changed (revision above 0) were never touched.
             changed = await session.get(SettingRow, permission_key(fixture.owner, silver["id"]))
             assert changed is not None and changed.payload["revision"] > 0
+        # Then 0063 (mandate 14.3.18.1) moves every agent to Ask at the level Ask me.
+        await alembic("upgrade", "head")
+        async with db.sessions() as session:
+            for agent_id in (general["id"], helper_id):
+                row = await session.get(SettingRow, permission_key(fixture.owner, agent_id))
+                assert row is not None and row.payload["fallback_level"] == "supervised"
+                assert row.payload["revision"] == 1, agent_id
         assert await level(lonora_id) == "supervised"
+        assert await level(general["id"]) == "supervised"
         print(
-            "PASS the migration stores Lonora at Ask me and every other existing agent at No trading; it is reversible and idempotent"
+            "PASS migration 0040 stores Lonora at Ask me and every other existing agent at No trading, reversibly and idempotently; 0063 then stores every agent at Ask me"
         )
     finally:
         await save_controls(db, original)
