@@ -99,6 +99,10 @@ export function RunningPage() {
         <p className="pad muted small" role="alert">
           {userError(running.error)}
         </p>
+      ) : view && !view.listed_at ? (
+        <p className="pad muted small" role="status" data-testid="running-unknown">
+          <Trans>The workspace has not answered yet, so what is running is not known.</Trans>
+        </p>
       ) : view && !processes.length ? (
         <Empty>
           <Trans>Nothing is running in the workspace.</Trans>

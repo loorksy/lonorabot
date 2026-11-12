@@ -55,6 +55,11 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             async with fixture.runtime.db.sessions() as session, session.begin():
                 await record_listing(session, fixture.owner, [], datetime.now(UTC))
             return {"empty": True}
+        if data["action"] == "unknown":
+            # No listing yet: the workspace has not answered since the Gateway started.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await session.execute(delete(WorkspaceRunningRow))
+            return {"unknown": True}
         if data["action"] == "carried_out":
             # What the Gateway does: the stops are taken, and a new process has started.
             async with fixture.runtime.db.sessions() as session, session.begin():

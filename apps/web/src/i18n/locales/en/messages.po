@@ -20,7 +20,7 @@ msgstr "«Filled» shows only with the broker's evidence or your confirmation."
 msgid "«New message» shows instead of the content"
 msgstr "«New message» shows instead of the content"
 
-#: src/shell/settings/RunningPage.tsx:128
+#: src/shell/settings/RunningPage.tsx:132
 msgid "(no command line)"
 msgstr "(no command line)"
 
@@ -2885,12 +2885,12 @@ msgstr "Every order is shown to you for approval before it is sent"
 msgid "Every order is shown to you for approval before it is sent."
 msgstr "Every order is shown to you for approval before it is sent."
 
-#: src/shell/settings/RunningPage.tsx:173
+#: src/shell/settings/RunningPage.tsx:177
 msgid "Every process your agents run in the workspace, with the agent that started it."
 msgstr "Every process your agents run in the workspace, with the agent that started it."
 
 #. placeholder {0}: ago(view.listed_at)
-#: src/shell/settings/RunningPage.tsx:168
+#: src/shell/settings/RunningPage.tsx:172
 msgid "Every process your agents run in the workspace, with the agent that started it. Updated {0}."
 msgstr "Every process your agents run in the workspace, with the agent that started it. Updated {0}."
 
@@ -4740,7 +4740,7 @@ msgstr "note.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 
-#: src/shell/settings/RunningPage.tsx:104
+#: src/shell/settings/RunningPage.tsx:108
 msgid "Nothing is running in the workspace."
 msgstr "Nothing is running in the workspace."
 
@@ -6732,7 +6732,7 @@ msgstr "Start now"
 #~ msgstr "Start voice conversation"
 
 #. placeholder {0}: ago(item.started_at)
-#: src/shell/settings/RunningPage.tsx:133
+#: src/shell/settings/RunningPage.tsx:137
 msgid "Started {0}"
 msgstr "Started {0}"
 
@@ -6763,7 +6763,7 @@ msgstr "Still unknown"
 
 #: src/conversation/Composer.tsx:832
 #: src/pages/ActivityList.tsx:259
-#: src/shell/settings/RunningPage.tsx:155
+#: src/shell/settings/RunningPage.tsx:159
 msgid "Stop"
 msgstr "Stop"
 
@@ -6773,7 +6773,7 @@ msgid "Stop"
 msgstr "Stop"
 
 #. placeholder {0}: item.command
-#: src/shell/settings/RunningPage.tsx:146
+#: src/shell/settings/RunningPage.tsx:150
 msgid "Stop {0}"
 msgstr "Stop {0}"
 
@@ -6839,7 +6839,7 @@ msgid "Stopping all…"
 msgstr "Stopping all…"
 
 #: src/shell/settings/RunningPage.tsx:62
-#: src/shell/settings/RunningPage.tsx:139
+#: src/shell/settings/RunningPage.tsx:143
 msgid "Stopping…"
 msgstr "Stopping…"
 
@@ -7553,6 +7553,10 @@ msgstr "The watch resumed"
 #: src/conversation/sheets/WatchesSheet.tsx:88
 msgid "The watch was cancelled"
 msgstr "The watch was cancelled"
+
+#: src/shell/settings/RunningPage.tsx:104
+msgid "The workspace has not answered yet, so what is running is not known."
+msgstr "The workspace has not answered yet, so what is running is not known."
 
 #. placeholder {0}: ago(view.listed_at)
 #: src/shell/settings/RunningPage.tsx:91

@@ -774,6 +774,10 @@ export const labels = {
   ],
   running_stopping: ["يجري الإيقاف…", "Stopping…"],
   running_empty: ["لا شيء يعمل في مساحة العمل.", "Nothing is running in the workspace."],
+  running_unknown: [
+    "لم تُجب مساحة العمل بعد، فلا يُعرف ما يعمل الآن.",
+    "The workspace has not answered yet, so what is running is not known.",
+  ],
   running_noCommand: ["(بلا سطر أمر)", "(no command line)"],
   running_started: ["بدأت {0}", "Started {0}"],
   running_note: [

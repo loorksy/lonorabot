@@ -65,4 +65,12 @@ test("Expo Arabic: the processes under their agents, stop one, stop all", async 
   await expect(page.getByTestId("running-empty")).toHaveText("لا شيء يعمل في مساحة العمل.", {
     timeout: 10_000,
   });
+
+  // Before the workspace has ever answered, the screen does not claim nothing is running.
+  fixture({ action: "unknown" });
+  await expect(page.getByTestId("running-unknown")).toHaveText(
+    "لم تُجب مساحة العمل بعد، فلا يُعرف ما يعمل الآن.",
+    { timeout: 10_000 },
+  );
+  await expect(page.getByTestId("running-empty")).toHaveCount(0);
 });

@@ -36,6 +36,7 @@ test("every process with its agent; one tap stops one, one tap stops all", async
   page,
   context,
 }) => {
+  test.setTimeout(60000);
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   await page.goto("/app/settings");
   await page.getByRole("button", { name: /What is running/ }).click();
@@ -73,6 +74,13 @@ test("every process with its agent; one tap stops one, one tap stops all", async
 
   fixture({ action: "empty" });
   await expect(main).toContainText("Nothing is running in the workspace.", { timeout: 10_000 });
+
+  // Before the workspace has ever answered, the view does not claim nothing is running.
+  fixture({ action: "unknown" });
+  await expect(main.getByTestId("running-unknown")).toBeVisible({ timeout: 10_000 });
+  await expect(main).not.toContainText("Nothing is running in the workspace.");
+  await expect(main.getByTestId("stop-all")).toBeDisabled();
+  fixture({ action: "empty" });
 
   // A list the workspace has not refreshed for a minute says so and takes no stop.
   fixture({ ...data, action: "stale" });

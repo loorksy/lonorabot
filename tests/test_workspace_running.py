@@ -19,6 +19,8 @@ from test_task_runtime import task_db as task_db
 
 Fixture = tuple[Database, str, str, str]
 SECRET = "sk-live-" + "7" * 32
+# A secret long enough that the supervisor's 4096-byte cut of a command line ends inside it.
+LONG = "tok-" + "Lq9" * 1400
 
 
 def now() -> datetime:
@@ -117,6 +119,7 @@ class Supervisor:
         self.listing = [
             process(101, agent, "python bot.py --key " + SECRET),
             process(102, agent, "sleep 9"),
+            process(103, agent, ("bot --token " + LONG)[:4096]),
         ]
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -144,7 +147,7 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
 
     class Secrets:
         async def scanned_values(self) -> dict[str, str]:
-            return {"BROKER_KEY": SECRET}
+            return {"BROKER_KEY": SECRET, "LONG_TOKEN": LONG}
 
     service: Any = SimpleNamespace(owner_id=owner, secrets=Secrets(), given=None)
     gateway: Any = SimpleNamespace(db=db)
@@ -163,6 +166,9 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
         listed = (await running_view(session, owner))["processes"]
     assert listed[0]["command"] == "python bot.py --key [secret:BROKER_KEY]"
     assert all(SECRET not in item["command"] for item in listed)
+    # A secret the supervisor's cut ended inside is replaced as well, never shown in part.
+    assert listed[2]["command"] == "bot --token [secret:LONG_TOKEN]"
+    assert all(LONG[:16] not in item["command"] for item in listed)
 
     async with db.sessions() as session, session.begin():
         await request_stop(session, owner, 101, agent)
@@ -170,7 +176,7 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
     assert supervisor.stopped == [(101, agent)] and not supervisor.stopped_all
     async with db.sessions() as session:
         view = await running_view(session, owner)
-    assert [item["pid"] for item in view["processes"]] == [102]
+    assert [item["pid"] for item in view["processes"]] == [102, 103]
 
     async with db.sessions() as session, session.begin():
         await request_stop(session, owner)
@@ -184,3 +190,13 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
     # Done once: a later tick carries nothing out again.
     await Gateway.carry_out_stops(gateway, service)
     assert supervisor.stopped == [(101, agent)] and supervisor.stopped_all == [agent]
+
+
+def test_a_stop_names_a_real_pid() -> None:
+    from lonora_api.routes.workspace_running import StopOne
+    from pydantic import ValidationError
+
+    assert StopOne.model_validate({"pid": 4_194_304, "agent_id": "a"}).pid == 4_194_304
+    for pid in (0, 4_194_305, 2**31):
+        with pytest.raises(ValidationError):
+            StopOne.model_validate({"pid": pid, "agent_id": "a"})

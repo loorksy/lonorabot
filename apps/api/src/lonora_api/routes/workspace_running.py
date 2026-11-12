@@ -15,7 +15,8 @@ router = APIRouter(prefix="/workspace/running")
 
 
 class StopOne(Contract):
-    pid: int = Field(ge=1)
+    # Linux pids are at most 2**22 (pid_max).
+    pid: int = Field(ge=1, le=4_194_304)
     agent_id: str = Field(min_length=1, max_length=36)
 
 

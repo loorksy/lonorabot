@@ -106,7 +106,16 @@ export default function RunningScreen() {
             {fill(t("running_stale"), when(view.listed_at, locale))}
           </Text>
         ) : null}
-        {view && !processes.length ? (
+        {view && !view.listed_at ? (
+          <Text
+            testID="running-unknown"
+            accessibilityRole="alert"
+            style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}
+          >
+            {t("running_unknown")}
+          </Text>
+        ) : null}
+        {view?.listed_at && !processes.length ? (
           <Text
             testID="running-empty"
             style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}

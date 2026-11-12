@@ -22,6 +22,11 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def aware(moment: datetime) -> datetime:
+    """A stored time as UTC: SQLite returns timestamps without their zone."""
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
 async def owner_agents(session: AsyncSession, owner_id: str) -> dict[str, str]:
     rows = await session.execute(
         select(AgentRow.id, AgentRow.name).where(AgentRow.owner_id == owner_id)
@@ -50,12 +55,12 @@ async def record_listing(
     row = await session.get(WorkspaceRunningRow, owner_id, with_for_update=True)
     if row is None:
         session.add(WorkspaceRunningRow(owner_id=owner_id, processes=kept, listed_at=listed_at))
-    elif row.listed_at <= listed_at:
+    elif aware(row.listed_at) <= listed_at:
         row.processes, row.listed_at = kept, listed_at
 
 
 def stale(row: WorkspaceRunningRow | None) -> bool:
-    return row is None or row.listed_at < utcnow() - STALE
+    return row is None or aware(row.listed_at) < utcnow() - STALE
 
 
 async def running_view(session: AsyncSession, owner_id: str) -> dict[str, Any]:
@@ -80,7 +85,7 @@ async def running_view(session: AsyncSession, owner_id: str) -> dict[str, Any]:
         if item["agent_id"] in agents
     ]
     return {
-        "listed_at": row.listed_at.isoformat() if row else None,
+        "listed_at": aware(row.listed_at).isoformat() if row else None,
         "stale": stale(row),
         "processes": processes,
         "stopping_all": any(stop.pid is None for stop in stops),
