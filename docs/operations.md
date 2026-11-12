@@ -319,6 +319,14 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
    the update waits for `/ready` (default 240 s, `LONORA_READY_TIMEOUT`).
 7. Success: marker removed, `state/history.log` updated.
 
+Web search (SearXNG) and the research browser start with every update but are never waited on:
+`lonora` waits on `db`, `api`, `caddy` and `gateway` only, so their health can neither fail nor roll
+back an update, a restore or a start. One exception: the single update *from* a release that still
+had the optional research overlay runs that older `lonora`, which waits on every service, so that
+one update still needs SearXNG and the browser to pull and become healthy. Updates after it do not.
+An installation that had listed the retired overlay in `LONORA_COMPOSE_OVERLAYS` has it skipped
+from then on and removed from `.env` by its next update.
+
 **If step 4, 5, 6 or a health gate fails**, `lonora` rolls back by itself: the old deployment files
 and pin come back and the database is **restored from the backup of step 3** — dropped and recreated
 from that dump, not migrated down. An Alembic downgrade after the new version has written rows can

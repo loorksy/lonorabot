@@ -105,3 +105,28 @@ def test_an_update_drops_only_the_retired_overlay_and_keeps_every_secret(tmp_pat
     # Nothing to drop: the file is left exactly as it was.
     untouched = "LONORA_ENCRYPTION_KEY=x\nLONORA_COMPOSE_OVERLAYS=\n"
     assert run_retire(tmp_path, untouched) == (untouched, "")
+
+
+def test_compose_never_merges_a_retired_overlay(tmp_path: Path) -> None:
+    """An installation updated by an older lonora keeps the overlay in .env and on disk."""
+    (tmp_path / ".env").write_text(
+        "LONORA_COMPOSE_OVERLAYS=infra/research/compose.research.yml "
+        "infra/analysis/compose.workspace.yml\n"
+    )
+    for name in ("infra/research/compose.research.yml", "infra/analysis/compose.workspace.yml"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("services: {}\n")
+    functions = (
+        "set -euo pipefail; STATE=state; COMPOSE_FILE_MAIN=infra/compose/docker-compose.prod.yml; "
+        'die() { echo "$*" >&2; exit 1; }; docker() { printf \'%s\\n\' "$@"; }; '
+        "source <(sed -n -e '/^env_value() {/,/^}/p' -e '/^project() {/p' -e '/^mode_file() {/p' "
+        "-e '/^RETIRED_OVERLAYS=/p' -e '/^compose() {/,/^}/p' "
+        + str(ROOT / "infra/compose/lonora")
+        + "); compose ps"
+    )
+    done = subprocess.run(
+        ["bash", "-c", functions], cwd=tmp_path, capture_output=True, text=True, check=True
+    )
+    arguments = done.stdout.split("\n")
+    assert "infra/analysis/compose.workspace.yml" in arguments
+    assert "infra/research/compose.research.yml" not in arguments

@@ -110,9 +110,15 @@ env_value() {
 # it) and its mode: proxy (LONORA_PROXY_LISTEN set) or direct (Caddy on 80/443).
 project() { local name; name="$(env_value LONORA_PROJECT)"; printf '%s\n' "${name:-lonora}"; }
 mode_file() { if [[ -n "$(env_value LONORA_PROXY_LISTEN)" ]]; then echo infra/compose/mode-proxy.yml; else echo infra/compose/mode-direct.yml; fi; }
+# Overlays whose services moved into docker-compose.prod.yml. Merging one would lay its old
+# definitions over the current ones (and make the gateway wait on web search again). An
+# installation updated from a release before this one still lists it until its next update
+# rewrites .env, and the older updater leaves the file on disk, so compose() skips it.
+RETIRED_OVERLAYS=(infra/research/compose.research.yml)
 compose() {
-    local files=(-f "$COMPOSE_FILE_MAIN" -f "$(mode_file)") overlay
+    local files=(-f "$COMPOSE_FILE_MAIN" -f "$(mode_file)") overlay retired
     for overlay in $(env_value LONORA_COMPOSE_OVERLAYS); do
+        for retired in "${RETIRED_OVERLAYS[@]}"; do [[ "$overlay" == "$retired" ]] && continue 2; done
         [[ -f "$overlay" ]] || die "Overlay $overlay (LONORA_COMPOSE_OVERLAYS) is missing."
         files+=(-f "$overlay")
     done
@@ -561,10 +567,8 @@ install_bundle() {
     retire_overlays
 }
 
-# Overlays whose services moved into docker-compose.prod.yml. A listed one would merge its
-# old definitions over the current ones (and make the gateway wait on web search again), so
-# the update drops it from LONORA_COMPOSE_OVERLAYS. Nothing else in .env changes.
-RETIRED_OVERLAYS=(infra/research/compose.research.yml)
+# A retired overlay still listed in .env is dropped from it by the update (nothing else in
+# .env changes); compose() never merges one in the meantime.
 retire_overlays() {
     local current kept="" overlay retired
     current="$(env_value LONORA_COMPOSE_OVERLAYS)"
