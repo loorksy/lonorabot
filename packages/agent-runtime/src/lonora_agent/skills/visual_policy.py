@@ -13,13 +13,14 @@ VISUAL_MARKER = "<lonora_native_visual_response>"
 VISUAL_END = "</lonora_native_visual_response>"
 MAX_VISUAL_GUIDANCE_CHARS = 6500
 # The v2 generative-UI block (GENUI_PLAN §9.5): decision guidance, rules, the generated
-# vocabulary and the worked programs. Off by default (§9.8): the server setting
-# ``LONORA_GENUI_V2`` switches it on only after the live evaluation passes.
+# vocabulary and the worked programs. The default (mandate 10.1.3), since web and mobile
+# render the same component set; ``LONORA_GENUI_V2=0`` keeps the v1 block until the setting
+# is deleted at the end of phase 2.
 MAX_GENUI_GUIDANCE_CHARS = 18000
 
 
 def genui_v2_enabled() -> bool:
-    return os.environ.get("LONORA_GENUI_V2", "").strip().lower() in {"1", "true", "on", "yes"}
+    return os.environ.get("LONORA_GENUI_V2", "").strip().lower() not in {"0", "false", "off", "no"}
 
 
 def genui_v2_variant() -> str:
