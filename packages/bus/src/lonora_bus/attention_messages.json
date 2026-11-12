@@ -37,7 +37,8 @@
     "owner_action_connect_credential": "تم الربط. يبقى السرّ على الخادم، ولا يرى وكلاؤك إلا أنه مُعدّ.",
     "owner_action_secret": "حُفظ مشفّرًا، ولا يرى وكلاؤك قيمته أبدًا.",
     "owner_action_connect_credential_mcp": "تم الربط. يبقى السرّ على الخادم. ليستخدم الوكلاء أدواته، سمِّ الخادم لوكيلك في المحادثة واطلب الوثوق به، أو راجعه في القدرات.",
-    "secret_requested": "وكيلك ينتظر منك تعبئة بطاقة السرّ في المحادثة. تُحفظ القيمة مباشرةً في المخزن المشفّر."
+    "secret_requested": "وكيلك ينتظر منك تعبئة بطاقة السرّ في المحادثة. تُحفظ القيمة مباشرةً في المخزن المشفّر.",
+    "mandate_proposed": "بطاقة التفويض بانتظار لمستك في المحادثة: تختار بها هل يتداول وكيلك بنفسه أم يستأذنك."
   },
   "en": {
     "super_bot_authorization": "An older authorization request was retired and granted nothing. Trading on its own needs a grant you sign for each agent.",
@@ -77,6 +78,7 @@
     "owner_action_connect_credential": "Connected. The secret stays on the server; your agents only see that it is configured.",
     "owner_action_secret": "Saved encrypted; your agents never see its value.",
     "owner_action_connect_credential_mcp": "Connected. The secret stays on the server. For agents to use its tools, name the server to your agent in chat and ask it to trust it, or review it in Capabilities.",
-    "secret_requested": "Your agent is waiting for you to fill in the secret card in the conversation. The value goes straight to the encrypted store."
+    "secret_requested": "Your agent is waiting for you to fill in the secret card in the conversation. The value goes straight to the encrypted store.",
+    "mandate_proposed": "A Mandate card is waiting for your tap in the conversation: it sets whether your agent trades on its own or asks you first."
   }
 }

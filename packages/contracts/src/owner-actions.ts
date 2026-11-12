@@ -1,7 +1,7 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
 import type { DeviceProof } from "./devices";
-import type { MoneyLimitName, MoneyLimits } from "./trading";
+import type { MoneyLimitName, MoneyLimits, TradingMode } from "./trading";
 
 export type OwnerActionKind =
   | "resolve_operation"
@@ -19,7 +19,9 @@ export type OwnerActionKind =
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
   | "watch_changed"
   /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
-  | "stop_tightened";
+  | "stop_tightened"
+  /** The Mandate card: the agent's mode read live and one button for the other mode. */
+  | "trading_mode";
 /**
  * A grant card's one choice: Custom (the markets, actions, duration, daily loss limit and
  * own positions the card shows) or Full delegation (every pair on the account, every
@@ -43,6 +45,7 @@ export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
 /** A creation card's agent, read on the server. */
 export type OwnerActionAgent = {
   exists: boolean;
+  id?: string;
   name: string | null;
   template?: AgentTemplate | null;
   symbol?: string | null;
@@ -101,6 +104,10 @@ export type OwnerAction = {
   timeline_seq: number | null;
   facts: {
     several_accounts: boolean;
+    /** The Mandate card: the agent's mode now, read live. */
+    trading_mode?: TradingMode;
+    /** The Mandate card: a signed grant of this agent is still in force. */
+    active_grant?: boolean;
     account?: OwnerActionAccount;
     operation?: {
       operation_id: string;
@@ -258,6 +265,8 @@ export type OwnerAction = {
 export type OwnerActionDecision = {
   /** "choose" switches a pending grant card's choice in its stored draft; it signs nothing. */
   decision: "confirm" | "cancel" | "choose";
+  /** The Mandate card: the mode its button showed at the moment of the tap. */
+  trading_mode?: TradingMode;
   /** Grant card, with "choose": Custom or Full delegation. */
   delegation?: GrantDelegation;
   outcome?: AttestedOutcome;

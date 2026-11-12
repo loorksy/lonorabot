@@ -327,6 +327,10 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
+#: src/components/ai/AttentionInbox.tsx:43
+msgid "A Mandate card is waiting for your tap"
+msgstr "بطاقة التفويض بانتظار لمستك"
+
 #: src/shell/settings/NotifyPages.tsx:30
 msgid "A message in the agent's conversation with an alert"
 msgstr "رسالة في محادثة الوكيل مع تنبيه"
@@ -948,8 +952,8 @@ msgstr "تسري على كل وكلاء هذا الحساب"
 msgid "Apply it to what? (optional)"
 msgstr "على ماذا أطبّقها؟ (اختياري)"
 
-#: src/components/trading/TradeApprovals.tsx:155
-#: src/components/trading/TradeApprovals.tsx:220
+#: src/components/trading/TradeApprovals.tsx:160
+#: src/components/trading/TradeApprovals.tsx:225
 msgid "Approval request"
 msgstr "طلب موافقة"
 
@@ -957,7 +961,7 @@ msgstr "طلب موافقة"
 msgid "Approval request · {what}"
 msgstr "طلب موافقة · {what}"
 
-#: src/components/trading/TradeApprovals.tsx:296
+#: src/components/trading/TradeApprovals.tsx:301
 msgid "Approve"
 msgstr "موافقة"
 
@@ -1323,7 +1327,7 @@ msgstr "خادم الوسيط"
 msgid "Broker symbol"
 msgstr "رمز الوسيط"
 
-#: src/components/trading/TradeApprovals.tsx:281
+#: src/components/trading/TradeApprovals.tsx:286
 #: src/conversation/Cards.tsx:467
 msgid "Broker ticket"
 msgstr "رقم العملية لدى الوسيط"
@@ -3147,7 +3151,7 @@ msgstr "تحتفظ المهام الحالية بتعليماتها المثبت
 #~ msgid "Expand chart"
 #~ msgstr "توسيع الشارت"
 
-#: src/components/trading/TradeApprovals.tsx:158
+#: src/components/trading/TradeApprovals.tsx:163
 msgid "Expired"
 msgstr "منتهي الصلاحية"
 
@@ -4213,7 +4217,7 @@ msgstr "تحديد الكل كمقروء"
 msgid "Mark as completed"
 msgstr "تحديد كمكتملة"
 
-#: src/components/ai/AttentionInbox.tsx:152
+#: src/components/ai/AttentionInbox.tsx:153
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -4573,7 +4577,7 @@ msgstr "رسالة جديدة"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "تستخدم المهارات الخاصة الجديدة التفعيل الصريح وبيانات وصفية للقراءة فقط. لا تثبّت أكوادًا ولا تمنح صلاحيات."
 
-#: src/components/trading/TradeApprovals.tsx:176
+#: src/components/trading/TradeApprovals.tsx:181
 msgid "New request"
 msgstr "طلب جديد"
 
@@ -4807,7 +4811,7 @@ msgstr "لم يُضبط نموذج بعد"
 msgid "No money limit"
 msgstr "دون حد مالي"
 
-#: src/components/ai/AttentionInbox.tsx:113
+#: src/components/ai/AttentionInbox.tsx:114
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -5078,8 +5082,8 @@ msgstr "إشعار"
 msgid "Notification method"
 msgstr "طريقة الإشعار"
 
-#: src/components/ai/AttentionInbox.tsx:75
-#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:76
+#: src/components/ai/AttentionInbox.tsx:78
 #: src/shell/settings/DevicePages.tsx:301
 #: src/shell/settings/NotifyPages.tsx:141
 msgid "Notifications"
@@ -5111,7 +5115,7 @@ msgstr "الإشعارات مفعّلة"
 msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:108
+#: src/components/ai/AttentionInbox.tsx:109
 #: src/shell/settings/NotifyPages.tsx:160
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
@@ -5237,7 +5241,7 @@ msgstr "فتح المكالمة الحالية"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:143
+#: src/components/ai/AttentionInbox.tsx:144
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5386,7 +5390,7 @@ msgstr "سعر الأمر"
 #~ msgid "Organic"
 #~ msgstr "شكل عضوي"
 
-#: src/components/ai/AttentionInbox.tsx:141
+#: src/components/ai/AttentionInbox.tsx:142
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:102
 msgid "Outage and recovery"
@@ -5737,7 +5741,7 @@ msgstr "المحادثة السابقة / التالية"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:125
-#: src/components/trading/TradeApprovals.tsx:237
+#: src/components/trading/TradeApprovals.tsx:242
 msgid "Price"
 msgstr "السعر"
 
@@ -6037,7 +6041,7 @@ msgstr "سجّل مفتاح مرور قبل تفعيل هذا الطلب."
 msgid "Regression"
 msgstr "تراجع في الأداء"
 
-#: src/components/trading/TradeApprovals.tsx:304
+#: src/components/trading/TradeApprovals.tsx:309
 msgid "Reject"
 msgstr "رفض"
 
@@ -6093,11 +6097,11 @@ msgstr "إزالة من المفضلة"
 #~ msgid "Remove reply"
 #~ msgstr "إزالة الرد"
 
-#: src/components/trading/TradeApprovals.tsx:264
+#: src/components/trading/TradeApprovals.tsx:269
 msgid "Remove stop loss"
 msgstr "إزالة وقف الخسارة"
 
-#: src/components/trading/TradeApprovals.tsx:274
+#: src/components/trading/TradeApprovals.tsx:279
 msgid "Remove take profit"
 msgstr "إزالة جني الربح"
 
@@ -7195,8 +7199,8 @@ msgstr "إيقاف {0}"
 msgid "Stop all"
 msgstr "إيقاف الكل"
 
-#: src/components/trading/TradeApprovals.tsx:245
-#: src/components/trading/TradeApprovals.tsx:261
+#: src/components/trading/TradeApprovals.tsx:250
+#: src/components/trading/TradeApprovals.tsx:266
 #: src/shell/agent/TradesPage.tsx:371
 #: src/shell/agent/TradesPage.tsx:418
 msgid "Stop loss"
@@ -7376,8 +7380,8 @@ msgstr "الرمز"
 msgid "Symbols"
 msgstr "رموز"
 
-#: src/components/trading/TradeApprovals.tsx:253
-#: src/components/trading/TradeApprovals.tsx:271
+#: src/components/trading/TradeApprovals.tsx:258
+#: src/components/trading/TradeApprovals.tsx:276
 #: src/shell/agent/TradesPage.tsx:372
 #: src/shell/agent/TradesPage.tsx:429
 msgid "Take profit"
