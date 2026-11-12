@@ -1966,10 +1966,6 @@ msgstr "يُغلق"
 #~ msgid "closing allowed"
 #~ msgstr "الإغلاق مسموح"
 
-#: src/conversation/sheets/AgentSheet.tsx:623
-#~ msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
-#~ msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا، حتى عند إيقاف التداول."
-
 #: src/conversation/sheets/AgentSheet.tsx:585
 #~ msgid "Closing and tightening the stop loss are always allowed, even while new trades are paused."
 #~ msgstr "الإغلاق وتقريب وقف الخسارة متاحان دائمًا، حتى أثناء إيقاف الصفقات الجديدة مؤقتًا."
@@ -2899,22 +2895,6 @@ msgstr "مُعدّلة"
 msgid "Email"
 msgstr "البريد الإلكتروني"
 
-#: src/components/trading/TradingStatus.tsx:59
-#~ msgid "Emergency Stop"
-#~ msgstr "إيقاف طارئ"
-
-#: src/components/trading/TradingStatus.tsx:36
-#~ msgid "Emergency stop active"
-#~ msgstr "الإيقاف الطارئ مفعّل"
-
-#: src/components/ai/AttentionInbox.tsx:47
-#~ msgid "Emergency Stop is active"
-#~ msgstr "الإيقاف الطارئ مفعّل"
-
-#: src/lib/user_error.ts:112
-#~ msgid "Emergency stop is active."
-#~ msgstr "الإيقاف الطارئ مفعّل."
-
 #: src/shell/lists/EmojiPanel.tsx:477
 msgid "Emoji sections"
 msgstr "أقسام الرموز"
@@ -3444,10 +3424,6 @@ msgstr "النماذج العالمية"
 #: src/shell/settings/ModelsPage.tsx:270
 msgid "Global routing"
 msgstr "التوجيه العالمي"
-
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
-#~ msgstr "يبقى التحكم العام بالتداول والإيقاف الطارئ مطبقًا على كل عملية مالية. إيقاف الهدف مؤقتًا لا يغلق الصفقات المفتوحة لدى الوسيط."
 
 #: src/pages/TradingSettingsPanel.tsx:7
 msgid "Global trading settings"
@@ -4623,10 +4599,6 @@ msgstr "مهمة جديدة"
 #~ msgid "New trades resumed"
 #~ msgstr "استُؤنفت الصفقات الجديدة"
 
-#: src/components/ai/AttentionInbox.tsx:20
-#~ msgid "New trading stopped"
-#~ msgstr "التداول الجديد متوقف"
-
 #: src/conversation/sheets/WatchesSheet.tsx:155
 #~ msgid "New watch"
 #~ msgstr "مراقبة جديدة"
@@ -5167,10 +5139,6 @@ msgstr "حسنًا"
 msgctxt "speaker"
 msgid "On"
 msgstr "مفعلة"
-
-#: src/conversation/sheets/AgentSheet.tsx:462
-#~ msgid "On · closing is always allowed"
-#~ msgstr "مفعَّل · الإغلاق مسموح دائمًا"
 
 #: src/conversation/ChatPrefsPage.tsx:51
 msgid "On a computer; Shift+Enter for a new line. When off: Ctrl+Enter"
@@ -6202,10 +6170,6 @@ msgstr "إعادة تعيين"
 msgid "Reset all"
 msgstr "إعادة ضبط الكل"
 
-#: src/components/trading/TradingStatus.tsx:67
-#~ msgid "Reset emergency stop"
-#~ msgstr "إلغاء الإيقاف الطارئ"
-
 #: src/components/charts/ChartSheetHandle.tsx:24
 #~ msgid "Resize chart"
 #~ msgstr "تغيير حجم الشارت"
@@ -7209,10 +7173,6 @@ msgstr "وقف الخسارة"
 msgid "Stop loss · optional"
 msgstr "وقف الخسارة · اختياري"
 
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-#~ msgstr "يبقى إيقاف الصفقات الجديدة وإيقافاتك والحدود المالية للحساب نافذة على كل أمر. إيقاف الهدف مؤقتًا لا يغلق المراكز المفتوحة لدى الوسيط."
-
 #: src/shell/agent/TradesPage.tsx:73
 msgid "Stop order"
 msgstr "أمر إيقاف"
@@ -7250,10 +7210,6 @@ msgstr "إيقاف الحركات والانتقالات غير الضرورية
 #: src/components/trading/SuperBotCards.tsx:161
 #~ msgid "Stopped"
 #~ msgstr "متوقف"
-
-#: src/conversation/sheets/AgentSheet.tsx:460
-#~ msgid "Stopped · no new orders are sent"
-#~ msgstr "متوقف · لا تُرسَل أوامر جديدة"
 
 #: src/conversation/Cards.tsx:609
 msgid "Stopped at its work limit"
@@ -8165,10 +8121,6 @@ msgstr "لا يوجد زوج لهذه المحادثة لعرضه. اطلب شا
 msgid "This exact symbol is not available from your broker."
 msgstr "هذا الرمز بالضبط غير متاح لدى وسيطك."
 
-#: src/components/goals/TradingGoals.tsx:241
-#~ msgid "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-#~ msgstr "هذا الهدف خطة ضمن مستوى تداول الوكيل وتفويضه الموقّع. يبقى إيقاف الصفقات الجديدة وإيقافاتك المؤقتة وحدود الحساب المالية سارية على كل أمر. إيقاف الهدف مؤقتًا لا يغلق صفقات الوسيط القائمة."
-
 #: src/lib/user_error.ts:118
 #~ msgid "This goal is paused, cancelled or completed. Reload its current state."
 #~ msgstr "هذا الهدف متوقف مؤقتًا أو ملغى أو مكتمل. أعد تحميل حالته الحالية."
@@ -8479,18 +8431,6 @@ msgstr "التداول والأمان"
 #~ msgid "Trading goals"
 #~ msgstr "أهداف التداول"
 
-#: src/lib/user_error.ts:110
-#~ msgid "Trading is off."
-#~ msgstr "التداول متوقف."
-
-#: src/conversation/sheets/AgentSheet.tsx:160
-#~ msgid "Trading is stopped"
-#~ msgstr "التداول متوقف"
-
-#: src/components/trading/TradingStatus.tsx:40
-#~ msgid "Trading OFF"
-#~ msgstr "التداول متوقف"
-
 #: src/components/trading/TradingStatus.tsx:38
 #~ msgid "Trading ON"
 #~ msgstr "التداول مفعّل"
@@ -8502,18 +8442,6 @@ msgstr "زوج التداول"
 #: src/components/trading/TradeApprovals.tsx:114
 #~ msgid "Trading request"
 #~ msgstr "طلب تداول"
-
-#: src/conversation/sheets/AgentSheet.tsx:477
-#~ msgid "Trading resumed"
-#~ msgstr "فُعِّل التداول"
-
-#: src/conversation/sheets/AgentSheet.tsx:480
-#~ msgid "Trading stopped"
-#~ msgstr "التداول متوقف"
-
-#: src/conversation/sheets/AgentSheet.tsx:479
-#~ msgid "Trading stopped · closing is still allowed"
-#~ msgstr "أُوقف التداول · الإغلاق ما زال مسموحًا"
 
 #: src/components/call/CallCard.tsx:160
 #~ msgid "Transcript"
@@ -8546,14 +8474,6 @@ msgstr "تحويل إلى مهمة"
 #: src/shell/agent/AgentPage.tsx:441
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading OFF"
-#~ msgstr "إيقاف التداول"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading ON"
-#~ msgstr "تفعيل التداول"
 
 #: src/conversation/commands.tsx:77
 msgid "Turn your request into a task the agent follows"
