@@ -239,9 +239,9 @@ export function TradingGoals({ agentId }: { agentId: string }) {
               />
               <p className="muted">
                 <Trans>
-                  This goal is a plan under the agent's trading level and signed grant. Stop new
-                  trading, your pauses and the account's money limits still apply to every order.
-                  Pausing a goal does not close existing broker positions.
+                  This goal is a plan under the agent's trading level and signed grant. Your pauses
+                  and the account's money limits still apply to every order. Pausing a goal does not
+                  close existing broker positions.
                 </Trans>
               </p>
               <div className="row">

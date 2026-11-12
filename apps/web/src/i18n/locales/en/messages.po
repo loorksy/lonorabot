@@ -21,7 +21,7 @@ msgid "«New message» shows instead of the content"
 msgstr "«New message» shows instead of the content"
 
 #. placeholder {0}: state.watch_count
-#: src/conversation/sheets/AgentSheet.tsx:366
+#: src/conversation/sheets/AgentSheet.tsx:361
 msgid "{0} active"
 msgstr "{0} active"
 
@@ -238,7 +238,7 @@ msgstr "30 days"
 msgid "7 days"
 msgstr "7 days"
 
-#: src/components/ai/AttentionInbox.tsx:32
+#: src/components/ai/AttentionInbox.tsx:31
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
 
@@ -306,7 +306,7 @@ msgstr "A removed agent"
 msgid "A short tone when a reply arrives"
 msgstr "A short tone when a reply arrives"
 
-#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:33
 msgid "A trade still has no confirmed broker result"
 msgstr "A trade still has no confirmed broker result"
 
@@ -381,7 +381,7 @@ msgstr "Account currency"
 msgid "Account ID"
 msgstr "Account ID"
 
-#: src/conversation/sheets/AgentSheet.tsx:603
+#: src/conversation/sheets/AgentSheet.tsx:565
 #: src/conversation/sheets/LimitsSheet.tsx:299
 msgid "Account limits"
 msgstr "Account limits"
@@ -458,7 +458,7 @@ msgstr "Activity log"
 msgid "Activity log only"
 msgstr "Activity log only"
 
-#: src/components/ai/AttentionInbox.tsx:31
+#: src/components/ai/AttentionInbox.tsx:30
 msgid "Activity updated"
 msgstr "Activity updated"
 
@@ -678,7 +678,7 @@ msgstr "Agent name"
 #~ msgid "Agent settings"
 #~ msgstr "Agent settings"
 
-#: src/conversation/sheets/AgentSheet.tsx:672
+#: src/conversation/sheets/AgentSheet.tsx:634
 msgid "Agent status"
 msgstr "Agent status"
 
@@ -778,7 +778,7 @@ msgstr "All time"
 msgid "Allow microphone access to start a voice conversation."
 msgstr "Allow microphone access to start a voice conversation."
 
-#: src/conversation/sheets/AgentSheet.tsx:491
+#: src/conversation/sheets/AgentSheet.tsx:453
 msgid "Allowed"
 msgstr "Allowed"
 
@@ -1104,7 +1104,7 @@ msgstr "Back to the permissions"
 #~ msgid "Back to workspace"
 #~ msgstr "Back to workspace"
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:35
 msgid "Background service is running late"
 msgstr "Background service is running late"
 
@@ -1197,11 +1197,11 @@ msgstr "Broker"
 #: src/components/trading/BrokerPairPicker.tsx:79
 #: src/components/trading/BrokerPairPicker.tsx:81
 #: src/pages/Market.tsx:27
-#: src/pages/Trading.tsx:31
+#: src/pages/Trading.tsx:29
 msgid "Broker account"
 msgstr "Broker account"
 
-#: src/components/ai/AttentionInbox.tsx:20
+#: src/components/ai/AttentionInbox.tsx:19
 msgid "Broker account changed"
 msgstr "Broker account changed"
 
@@ -1225,11 +1225,11 @@ msgstr "Broker candles are unavailable for this symbol and timeframe."
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "Broker candles contain invalid or mismatched data."
 
-#: src/components/ai/AttentionInbox.tsx:18
+#: src/components/ai/AttentionInbox.tsx:17
 msgid "Broker connection needs review"
 msgstr "Broker connection needs review"
 
-#: src/components/ai/AttentionInbox.tsx:19
+#: src/components/ai/AttentionInbox.tsx:18
 msgid "Broker connection recovered"
 msgstr "Broker connection recovered"
 
@@ -1383,7 +1383,7 @@ msgstr "Camera not allowed"
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
-#: src/conversation/sheets/AgentSheet.tsx:437
+#: src/conversation/sheets/AgentSheet.tsx:432
 #: src/conversation/sheets/LimitsSheet.tsx:288
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
@@ -1640,7 +1640,7 @@ msgid "Choose a connected account and an instrument to load market data."
 msgstr "Choose a connected account and an instrument to load market data."
 
 #: src/pages/Market.tsx:36
-#: src/pages/Trading.tsx:34
+#: src/pages/Trading.tsx:32
 msgid "Choose a connection"
 msgstr "Choose a connection"
 
@@ -1832,19 +1832,19 @@ msgstr "Close trades"
 msgid "Closes"
 msgstr "Closes"
 
-#: src/conversation/sheets/AgentSheet.tsx:319
+#: src/conversation/sheets/AgentSheet.tsx:314
 msgid "closing allowed"
 msgstr "closing allowed"
 
-#: src/conversation/sheets/AgentSheet.tsx:623
-msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
-msgstr "Closing and tightening the stop loss are always allowed, even when trading is stopped."
+#: src/conversation/sheets/AgentSheet.tsx:585
+msgid "Closing and tightening the stop loss are always allowed, even while new trades are paused."
+msgstr "Closing and tightening the stop loss are always allowed, even while new trades are paused."
 
 #: src/conversation/PermissionMenu.tsx:297
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "Closing and tightening the stop loss are always allowed."
 
-#: src/conversation/sheets/AgentSheet.tsx:553
+#: src/conversation/sheets/AgentSheet.tsx:515
 msgid "closing is frozen too"
 msgstr "closing is frozen too"
 
@@ -1852,7 +1852,7 @@ msgstr "closing is frozen too"
 msgid "Cloud chart"
 msgstr "Cloud chart"
 
-#: src/components/ai/AttentionInbox.tsx:24
+#: src/components/ai/AttentionInbox.tsx:23
 msgid "Collaboration result is ready"
 msgstr "Collaboration result is ready"
 
@@ -2258,7 +2258,7 @@ msgstr "Crosses above"
 msgid "Crosses below"
 msgstr "Crosses below"
 
-#: src/conversation/sheets/AgentSheet.tsx:338
+#: src/conversation/sheets/AgentSheet.tsx:333
 msgid "Current work"
 msgstr "Current work"
 
@@ -2289,7 +2289,7 @@ msgstr "Daily"
 msgid "Daily cost"
 msgstr "Daily cost"
 
-#: src/conversation/sheets/AgentSheet.tsx:232
+#: src/conversation/sheets/AgentSheet.tsx:228
 #: src/conversation/sheets/LimitsSheet.tsx:42
 #: src/conversation/sheets/MandateSheet.tsx:238
 #: src/conversation/sheets/MandateSheet.tsx:251
@@ -2544,7 +2544,7 @@ msgstr "Disabled"
 msgid "Discard"
 msgstr "Discard"
 
-#: src/pages/Trading.tsx:57
+#: src/pages/Trading.tsx:55
 msgid "Disconnect account"
 msgstr "Disconnect account"
 
@@ -2685,7 +2685,7 @@ msgstr "Edit stop and target"
 #~ msgid "Edit the limit"
 #~ msgstr "Edit the limit"
 
-#: src/conversation/sheets/AgentSheet.tsx:617
+#: src/conversation/sheets/AgentSheet.tsx:579
 msgid "Edit the limits"
 msgstr "Edit the limits"
 
@@ -2711,22 +2711,6 @@ msgstr "Edited"
 #: src/shell/settings/AuthFlow.tsx:256
 msgid "Email"
 msgstr "Email"
-
-#: src/components/trading/TradingStatus.tsx:59
-#~ msgid "Emergency Stop"
-#~ msgstr "Emergency Stop"
-
-#: src/components/trading/TradingStatus.tsx:36
-#~ msgid "Emergency stop active"
-#~ msgstr "Emergency stop active"
-
-#: src/components/ai/AttentionInbox.tsx:47
-#~ msgid "Emergency Stop is active"
-#~ msgstr "Emergency Stop is active"
-
-#: src/lib/user_error.ts:112
-#~ msgid "Emergency stop is active."
-#~ msgstr "Emergency stop is active."
 
 #: src/shell/lists/EmojiPanel.tsx:477
 msgid "Emoji sections"
@@ -3231,11 +3215,7 @@ msgstr "Global models"
 msgid "Global routing"
 msgstr "Global routing"
 
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
-#~ msgstr "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
-
-#: src/pages/TradingSettingsPanel.tsx:8
+#: src/pages/TradingSettingsPanel.tsx:7
 msgid "Global trading settings"
 msgstr "Global trading settings"
 
@@ -3720,7 +3700,7 @@ msgstr "Leave the edits?"
 msgid "Legacy instructions"
 msgstr "Legacy instructions"
 
-#: src/conversation/sheets/AgentSheet.tsx:566
+#: src/conversation/sheets/AgentSheet.tsx:528
 msgid "Lift"
 msgstr "Lift"
 
@@ -3969,7 +3949,7 @@ msgstr "Mark all as read"
 msgid "Mark as completed"
 msgstr "Mark as completed"
 
-#: src/components/ai/AttentionInbox.tsx:147
+#: src/components/ai/AttentionInbox.tsx:146
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -4148,7 +4128,7 @@ msgstr "Minimize"
 #~ msgid "Minimize call"
 #~ msgstr "Minimize call"
 
-#: src/conversation/sheets/AgentSheet.tsx:235
+#: src/conversation/sheets/AgentSheet.tsx:231
 #: src/conversation/sheets/LimitsSheet.tsx:66
 msgid "Minimum free margin"
 msgstr "Minimum free margin"
@@ -4318,7 +4298,7 @@ msgstr "New text file"
 msgid "New ticket"
 msgstr "New ticket"
 
-#: src/conversation/sheets/AgentSheet.tsx:489
+#: src/conversation/sheets/AgentSheet.tsx:451
 msgid "New trades"
 msgstr "New trades"
 
@@ -4330,17 +4310,13 @@ msgstr "New trades are paused"
 msgid "New trades are paused until {until}"
 msgstr "New trades are paused until {until}"
 
-#: src/conversation/sheets/AgentSheet.tsx:522
+#: src/conversation/sheets/AgentSheet.tsx:484
 msgid "New trades paused until 23:59"
 msgstr "New trades paused until 23:59"
 
-#: src/conversation/sheets/AgentSheet.tsx:499
+#: src/conversation/sheets/AgentSheet.tsx:461
 msgid "New trades resumed"
 msgstr "New trades resumed"
-
-#: src/components/ai/AttentionInbox.tsx:15
-msgid "New trading stopped"
-msgstr "New trading stopped"
 
 #: src/shell/settings/IntegrationsPage.tsx:568
 msgid "News and channels"
@@ -4488,7 +4464,7 @@ msgstr "No groups yet."
 msgid "No internet connection"
 msgstr "No internet connection"
 
-#: src/conversation/sheets/AgentSheet.tsx:264
+#: src/conversation/sheets/AgentSheet.tsx:260
 #: src/conversation/sheets/LimitsSheet.tsx:129
 #: src/conversation/sheets/LimitsSheet.tsx:188
 #: src/conversation/sheets/LimitsSheet.tsx:224
@@ -4520,7 +4496,7 @@ msgstr "No model is set up yet"
 msgid "No money limit"
 msgstr "No money limit"
 
-#: src/components/ai/AttentionInbox.tsx:108
+#: src/components/ai/AttentionInbox.tsx:107
 msgid "No new notifications"
 msgstr "No new notifications"
 
@@ -4755,8 +4731,8 @@ msgstr "Notification"
 msgid "Notification method"
 msgstr "Notification method"
 
-#: src/components/ai/AttentionInbox.tsx:70
-#: src/components/ai/AttentionInbox.tsx:72
+#: src/components/ai/AttentionInbox.tsx:69
+#: src/components/ai/AttentionInbox.tsx:71
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
@@ -4788,7 +4764,7 @@ msgstr "Notifications on"
 msgid "Notifications restored"
 msgstr "Notifications restored"
 
-#: src/components/ai/AttentionInbox.tsx:103
+#: src/components/ai/AttentionInbox.tsx:102
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
@@ -4820,18 +4796,10 @@ msgstr "of the total cost"
 msgid "OK"
 msgstr "OK"
 
-#: src/conversation/sheets/AgentSheet.tsx:463
-msgid "On"
-msgstr "On"
-
 #: src/shell/call/CallPages.tsx:290
 msgctxt "speaker"
 msgid "On"
 msgstr "On"
-
-#: src/conversation/sheets/AgentSheet.tsx:462
-msgid "On · closing is always allowed"
-msgstr "On · closing is always allowed"
 
 #: src/conversation/ChatPrefsPage.tsx:51
 msgid "On a computer; Shift+Enter for a new line. When off: Ctrl+Enter"
@@ -4905,7 +4873,7 @@ msgstr "Open active call"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:138
+#: src/components/ai/AttentionInbox.tsx:137
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -4935,7 +4903,7 @@ msgstr "Open new trades"
 msgid "Open price"
 msgstr "Open price"
 
-#: src/conversation/sheets/AgentSheet.tsx:234
+#: src/conversation/sheets/AgentSheet.tsx:230
 #: src/conversation/sheets/LimitsSheet.tsx:58
 msgid "Open risk limit"
 msgstr "Open risk limit"
@@ -5042,7 +5010,7 @@ msgstr "Order price"
 #~ msgid "Organic"
 #~ msgstr "Organic"
 
-#: src/components/ai/AttentionInbox.tsx:136
+#: src/components/ai/AttentionInbox.tsx:135
 #: src/shell/lists/HeadsUp.tsx:253
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
@@ -5122,14 +5090,14 @@ msgstr "Paste the value here"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:258
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:434
+#: src/conversation/sheets/AgentSheet.tsx:429
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/conversation/Voice.tsx:133
 #: src/pages/Board.tsx:572
 msgid "Pause"
 msgstr "Pause"
 
-#: src/conversation/sheets/AgentSheet.tsx:526
+#: src/conversation/sheets/AgentSheet.tsx:488
 msgctxt "new trades pause"
 msgid "Pause"
 msgstr "Pause"
@@ -5789,9 +5757,9 @@ msgstr "Reply to your message"
 msgid "Reply with a message"
 msgstr "Reply with a message"
 
-#: src/components/ai/AttentionInbox.tsx:17
+#: src/components/ai/AttentionInbox.tsx:16
+#: src/components/ai/AttentionInbox.tsx:27
 #: src/components/ai/AttentionInbox.tsx:28
-#: src/components/ai/AttentionInbox.tsx:29
 msgid "Request updated"
 msgstr "Request updated"
 
@@ -5842,10 +5810,6 @@ msgstr "Reset"
 msgid "Reset all"
 msgstr "Reset all"
 
-#: src/components/trading/TradingStatus.tsx:67
-#~ msgid "Reset emergency stop"
-#~ msgstr "Reset emergency stop"
-
 #: src/components/charts/ChartSheetHandle.tsx:24
 #~ msgid "Resize chart"
 #~ msgstr "Resize chart"
@@ -5854,7 +5818,7 @@ msgstr "Reset all"
 #~ msgid "Resize panel"
 #~ msgstr "Resize panel"
 
-#: src/conversation/sheets/AgentSheet.tsx:594
+#: src/conversation/sheets/AgentSheet.tsx:556
 msgid "Resolve"
 msgstr "Resolve"
 
@@ -5919,8 +5883,8 @@ msgstr "Restriction set"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:256
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:436
-#: src/conversation/sheets/AgentSheet.tsx:502
+#: src/conversation/sheets/AgentSheet.tsx:431
+#: src/conversation/sheets/AgentSheet.tsx:464
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
@@ -5952,7 +5916,7 @@ msgstr "Retry in {left} s"
 
 #: src/components/ai/AgentLiveStatus.tsx:36
 #: src/components/ai/AgentLiveStatus.tsx:95
-#: src/conversation/sheets/AgentSheet.tsx:401
+#: src/conversation/sheets/AgentSheet.tsx:396
 msgid "Retry scheduled"
 msgstr "Retry scheduled"
 
@@ -6408,12 +6372,12 @@ msgstr "Servers and repositories"
 msgid "Services are linked from Settings → Integrations."
 msgstr "Services are linked from Settings → Integrations."
 
-#: src/conversation/sheets/AgentSheet.tsx:295
-#: src/conversation/sheets/AgentSheet.tsx:295
+#: src/conversation/sheets/AgentSheet.tsx:291
+#: src/conversation/sheets/AgentSheet.tsx:291
 msgid "Set by the agent"
 msgstr "Set by the agent"
 
-#: src/conversation/sheets/AgentSheet.tsx:549
+#: src/conversation/sheets/AgentSheet.tsx:511
 msgid "Set by you"
 msgstr "Set by you"
 
@@ -6434,7 +6398,7 @@ msgstr "Settings"
 msgid "Setup token"
 msgstr "Setup token"
 
-#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:21
 msgid "Setup validity changed"
 msgstr "Setup validity changed"
 
@@ -6503,7 +6467,7 @@ msgstr "Show the full log"
 msgid "Show the key"
 msgstr "Show the key"
 
-#: src/conversation/sheets/AgentSheet.tsx:383
+#: src/conversation/sheets/AgentSheet.tsx:378
 msgid "Show the request"
 msgstr "Show the request"
 
@@ -6558,7 +6522,7 @@ msgid "Simulation"
 msgstr "Simulation"
 
 #: src/pages/Market.tsx:49
-#: src/pages/Trading.tsx:63
+#: src/pages/Trading.tsx:61
 msgid "Simulation · imported snapshot"
 msgstr "Simulation · imported snapshot"
 
@@ -6757,7 +6721,7 @@ msgstr "State details"
 msgid "Status"
 msgstr "Status"
 
-#: src/conversation/sheets/AgentSheet.tsx:670
+#: src/conversation/sheets/AgentSheet.tsx:632
 #: src/shell/ChatMenu.tsx:63
 msgid "Status and safety"
 msgstr "Status and safety"
@@ -6791,10 +6755,6 @@ msgstr "Stop loss"
 #: src/components/trading/TradeActionCard.tsx:136
 msgid "Stop loss · optional"
 msgstr "Stop loss · optional"
-
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-#~ msgstr "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 
 #: src/shell/agent/TradesPage.tsx:73
 msgid "Stop order"
@@ -6833,10 +6793,6 @@ msgstr "Stop unnecessary animations and transitions"
 #: src/components/trading/SuperBotCards.tsx:161
 #~ msgid "Stopped"
 #~ msgstr "Stopped"
-
-#: src/conversation/sheets/AgentSheet.tsx:460
-msgid "Stopped · no new orders are sent"
-msgstr "Stopped · no new orders are sent"
 
 #: src/conversation/Cards.tsx:609
 msgid "Stopped at its work limit"
@@ -6992,12 +6948,12 @@ msgstr "Task"
 msgid "Task boards"
 msgstr "Task boards"
 
-#: src/conversation/sheets/AgentSheet.tsx:429
+#: src/conversation/sheets/AgentSheet.tsx:424
 #: src/shell/domain/UpdatesPages.tsx:45
 msgid "Task cancelled"
 msgstr "Task cancelled"
 
-#: src/components/ai/AttentionInbox.tsx:30
+#: src/components/ai/AttentionInbox.tsx:29
 #: src/shell/domain/TasksPages.tsx:240
 #: src/shell/domain/UpdatesPages.tsx:43
 msgid "Task completed"
@@ -7014,21 +6970,21 @@ msgstr "Task created"
 msgid "Task details"
 msgstr "Task details"
 
-#: src/components/ai/AttentionInbox.tsx:26
+#: src/components/ai/AttentionInbox.tsx:25
 msgid "Task is retrying through a model outage"
 msgstr "Task is retrying through a model outage"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/ai/AttentionInbox.tsx:25
-#: src/conversation/sheets/AgentSheet.tsx:405
+#: src/components/ai/AttentionInbox.tsx:24
+#: src/conversation/sheets/AgentSheet.tsx:400
 msgid "Task needs review"
 msgstr "Task needs review"
 
-#: src/conversation/sheets/AgentSheet.tsx:428
+#: src/conversation/sheets/AgentSheet.tsx:423
 msgid "Task paused"
 msgstr "Task paused"
 
-#: src/conversation/sheets/AgentSheet.tsx:426
+#: src/conversation/sheets/AgentSheet.tsx:421
 msgid "Task resumed"
 msgstr "Task resumed"
 
@@ -7040,7 +6996,7 @@ msgstr "Task title"
 msgid "Task when triggered"
 msgstr "Task when triggered"
 
-#: src/conversation/sheets/AgentSheet.tsx:391
+#: src/conversation/sheets/AgentSheet.tsx:386
 #: src/shell/FloatingTabBar.tsx:23
 #: src/shell/lists/UnifiedSearch.tsx:274
 #: src/shell/lists/UnifiedSearch.tsx:309
@@ -7157,7 +7113,7 @@ msgstr "The broker connection is unavailable."
 msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:34
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 
@@ -7442,7 +7398,7 @@ msgstr "The resident voice worker is unavailable. Check server readiness and ret
 msgid "The resident worker is preparing this chart."
 msgstr "The resident worker is preparing this chart."
 
-#: src/conversation/sheets/AgentSheet.tsx:563
+#: src/conversation/sheets/AgentSheet.tsx:525
 msgid "The restriction was lifted"
 msgstr "The restriction was lifted"
 
@@ -7640,8 +7596,8 @@ msgid "This exact symbol is not available from your broker."
 msgstr "This exact symbol is not available from your broker."
 
 #: src/components/goals/TradingGoals.tsx:241
-msgid "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-msgstr "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
+msgid "This goal is a plan under the agent's trading level and signed grant. Your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
+msgstr "This goal is a plan under the agent's trading level and signed grant. Your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 
 #: src/lib/user_error.ts:118
 msgid "This goal is paused, cancelled or completed. Reload its current state."
@@ -7675,7 +7631,7 @@ msgstr "This month"
 msgid "This needs a new grant you sign with your passkey."
 msgstr "This needs a new grant you sign with your passkey."
 
-#: src/conversation/sheets/AgentSheet.tsx:554
+#: src/conversation/sheets/AgentSheet.tsx:516
 msgid "this one does not block closing"
 msgstr "this one does not block closing"
 
@@ -7869,7 +7825,7 @@ msgstr "Trade action"
 msgid "Trade order"
 msgstr "Trade order"
 
-#: src/conversation/sheets/AgentSheet.tsx:233
+#: src/conversation/sheets/AgentSheet.tsx:229
 #: src/conversation/sheets/LimitsSheet.tsx:50
 msgid "Trade risk limit"
 msgstr "Trade risk limit"
@@ -7890,11 +7846,9 @@ msgstr "Trades"
 msgid "Trades on its own"
 msgstr "Trades on its own"
 
-#: src/conversation/sheets/AgentSheet.tsx:449
-#: src/conversation/sheets/AgentSheet.tsx:456
-#: src/conversation/sheets/AgentSheet.tsx:471
+#: src/conversation/sheets/AgentSheet.tsx:444
 #: src/pages/settings-sidebar.tsx:15
-#: src/pages/Trading.tsx:25
+#: src/pages/Trading.tsx:24
 #: src/shell/settings/SettingsRoot.tsx:332
 msgid "Trading"
 msgstr "Trading"
@@ -7921,7 +7875,7 @@ msgstr "Trading agent"
 #~ msgid "Trading and operation journal"
 #~ msgstr "Trading and operation journal"
 
-#: src/conversation/sheets/AgentSheet.tsx:671
+#: src/conversation/sheets/AgentSheet.tsx:633
 #: src/shell/agent/AgentPage.tsx:307
 msgid "Trading and safety"
 msgstr "Trading and safety"
@@ -7930,7 +7884,7 @@ msgstr "Trading and safety"
 #~ msgid "Trading control"
 #~ msgstr "Trading control"
 
-#: src/components/ai/AttentionInbox.tsx:23
+#: src/components/ai/AttentionInbox.tsx:22
 msgid "Trading goal updated"
 msgstr "Trading goal updated"
 
@@ -7941,10 +7895,6 @@ msgstr "Trading goals"
 #: src/lib/user_error.ts:110
 #~ msgid "Trading is off."
 #~ msgstr "Trading is off."
-
-#: src/conversation/sheets/AgentSheet.tsx:160
-msgid "Trading is stopped"
-msgstr "Trading is stopped"
 
 #: src/components/trading/TradingStatus.tsx:40
 #~ msgid "Trading OFF"
@@ -7961,18 +7911,6 @@ msgstr "Trading pair"
 #: src/components/trading/TradeApprovals.tsx:114
 #~ msgid "Trading request"
 #~ msgstr "Trading request"
-
-#: src/conversation/sheets/AgentSheet.tsx:477
-msgid "Trading resumed"
-msgstr "Trading resumed"
-
-#: src/conversation/sheets/AgentSheet.tsx:480
-msgid "Trading stopped"
-msgstr "Trading stopped"
-
-#: src/conversation/sheets/AgentSheet.tsx:479
-msgid "Trading stopped · closing is still allowed"
-msgstr "Trading stopped · closing is still allowed"
 
 #: src/components/call/CallCard.tsx:160
 #~ msgid "Transcript"
@@ -8052,7 +7990,7 @@ msgctxt "order state"
 msgid "Unconfirmed"
 msgstr "Unconfirmed"
 
-#: src/conversation/sheets/AgentSheet.tsx:581
+#: src/conversation/sheets/AgentSheet.tsx:543
 msgid "Unconfirmed operation · not confirmed by the broker"
 msgstr "Unconfirmed operation · not confirmed by the broker"
 
@@ -8371,7 +8309,7 @@ msgid "Waiting for a condition"
 msgstr "Waiting for a condition"
 
 #: src/components/ai/AgentLiveStatus.tsx:50
-#: src/components/ai/AttentionInbox.tsx:16
+#: src/components/ai/AttentionInbox.tsx:15
 msgid "Waiting for approval"
 msgstr "Waiting for approval"
 
@@ -8385,7 +8323,7 @@ msgid "Waiting for handover"
 msgstr "Waiting for handover"
 
 #: src/components/ai/AgentLiveStatus.tsx:100
-#: src/conversation/sheets/AgentSheet.tsx:403
+#: src/conversation/sheets/AgentSheet.tsx:398
 msgid "Waiting for reconciliation"
 msgstr "Waiting for reconciliation"
 
@@ -8425,7 +8363,7 @@ msgstr "Watch cancelled"
 msgid "Watch condition changed"
 msgstr "Watch condition changed"
 
-#: src/components/ai/AttentionInbox.tsx:21
+#: src/components/ai/AttentionInbox.tsx:20
 msgid "Watch confirmed — review current evidence"
 msgstr "Watch confirmed — review current evidence"
 
@@ -8441,7 +8379,7 @@ msgstr "Watch resumed"
 msgid "Watch source"
 msgstr "Watch source"
 
-#: src/conversation/sheets/AgentSheet.tsx:364
+#: src/conversation/sheets/AgentSheet.tsx:359
 #: src/shell/agent/AgentPage.tsx:359
 #: src/shell/ChatMenu.tsx:145
 msgid "Watches"
@@ -8538,7 +8476,7 @@ msgstr "Why this interface?"
 msgid "Wink"
 msgstr "Wink"
 
-#: src/components/ai/AttentionInbox.tsx:33
+#: src/components/ai/AttentionInbox.tsx:32
 msgid "Work stopped after repeated interruptions"
 msgstr "Work stopped after repeated interruptions"
 
@@ -8687,7 +8625,7 @@ msgstr "You: {0}"
 msgid "You: {text}"
 msgstr "You: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:37
+#: src/components/ai/AttentionInbox.tsx:36
 msgid "Your agent alerted you"
 msgstr "Your agent alerted you"
 

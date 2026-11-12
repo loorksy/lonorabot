@@ -15,7 +15,6 @@ import { SettingsGroup, SettingsSwitch } from "./settings-group";
 import { Button, colors, ErrorNotice } from "./ui";
 
 const labels: Record<AttentionCode, Label> = {
-  emergency_stop: "attentionEmergency",
   approval_required: "attentionApproval",
   approval_resolved: "attentionRequestUpdated",
   broker_degraded: "attentionBrokerDegraded",

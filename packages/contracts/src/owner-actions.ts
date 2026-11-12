@@ -3,10 +3,9 @@ import type { AuthorityDuration } from "./agent-permissions";
 import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
 import type { AgentModelMode, ModelLabel } from "./models";
-import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
+import type { MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
 export type OwnerActionKind =
-  | "resume_trading"
   | "lift_restriction"
   | "resolve_operation"
   | "set_account_limits"
@@ -105,7 +104,6 @@ export type OwnerAction = {
   timeline_seq: number | null;
   facts: {
     several_accounts: boolean;
-    global_trading?: GlobalTrading;
     account?: OwnerActionAccount;
     restriction?: {
       action_class: RestrictionActionClass;
@@ -252,7 +250,6 @@ export type OwnerAction = {
   requires_passkey: boolean;
   result: {
     outcome?: AttestedOutcome;
-    global_trading?: string;
     limits?: MoneyLimits;
     daily_loss?: string | null;
     /** The account's own daily loss limit, unchanged by the card. */
@@ -270,10 +267,8 @@ export type OwnerAction = {
     supervisor_id?: string;
     revoked?: number;
     restored?: number;
-    /** A grant card resumed new trading (true); supervision_paused: what was resumed. */
+    /** supervision_paused: what was resumed. */
     resumed?: boolean | "agent" | "task" | "routine" | "watch";
-    /** resume_trading: new trading had never been started, so the card started it. */
-    started?: boolean;
     tier?: EffectTier;
     tools?: number;
     /** trust_source on an MCP server: how many trusted tools may change something. */
@@ -307,8 +302,6 @@ export type OwnerActionDecision = {
   proof?: DeviceProof;
   /** Grant card: "none" leaves the account's daily loss limit as it is. */
   money_limit?: "apply" | "none";
-  /** Grant card: resume new trading too (it widens no authority). */
-  resume_trading?: boolean;
   /** Grant card: stop these other agents' grants on this market (narrowing). */
   stop_authorities?: string[];
   /** trust_source on an MCP server: what the owner trusts its tools for. */
@@ -325,7 +318,7 @@ export type OwnerActionDecision = {
  * The mandate sheet («تنفيذ مفوَّض»): POST /agents/{id}/account-authorities/draft. It
  * becomes a pending grant card; nothing is active until the owner signs that card with
  * the passkey (POST /owner-actions/{id}/challenge, then /decision with the proof and the
- * card's choices: money_limit, stop_authorities, resume_trading). "full" takes no terms:
+ * card's choices: money_limit, stop_authorities). "full" takes no terms:
  * every pair for Lonora and flexible agents; a fixed-pair agent's own pair only, every
  * action, until stopped, its owner's positions included.
  */

@@ -7,7 +7,6 @@ export type AttentionImportance =
   | "silent";
 export type AttentionCode =
   | "watch_condition_met"
-  | "emergency_stop"
   | "approval_required"
   | "approval_resolved"
   | "broker_degraded"

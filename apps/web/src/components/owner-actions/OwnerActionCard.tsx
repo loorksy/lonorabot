@@ -482,7 +482,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   set_account_limits: "scale",
   lift_restriction: "lock",
   resolve_operation: "alert",
-  resume_trading: "power",
   agent_model: "cpu",
   agent_model_changed: "cpu",
   create_agent: "userPlus",
