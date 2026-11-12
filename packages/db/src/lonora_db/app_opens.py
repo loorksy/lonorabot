@@ -1,6 +1,6 @@
 """When the owner opens the app (VISION 11.1: the brief time is learned from it; 8.1)."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from lonora_contracts.app_opens import AppOpen
@@ -13,13 +13,18 @@ from .schema import AppOpenRow
 
 # The brief time reads the last 14 recorded days (VISION 11.1, lead: 7 to 14).
 RECORDED_DAYS = 14
+# The owner's day starts at 04:00 on the device's clock: an open at 00:30 belongs to the
+# day before, so a late session is not that day's first open (8.1 "when the owner wakes").
+DAY_START_HOUR = 4
 
 
 async def record_open(
     session: AsyncSession, owner_id: str, request: AppOpen, now: datetime
 ) -> bool:
-    """Keep the first open of the device's local date; a later open that day is not new."""
-    local_date = now.astimezone(ZoneInfo(request.timezone)).date().isoformat()
+    """Keep the first open of the owner's day on the device's clock (from 04:00); a later
+    open that day is not new."""
+    local = now.astimezone(ZoneInfo(request.timezone)) - timedelta(hours=DAY_START_HOUR)
+    local_date = local.date().isoformat()
     dialect = session.get_bind().dialect.name
     insert = postgres_insert if dialect == "postgresql" else sqlite_insert
     result = await session.execute(

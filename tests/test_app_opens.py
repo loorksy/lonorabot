@@ -51,27 +51,43 @@ def test_the_owner_zone_is_reach_me_then_the_latest_device_then_utc() -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_first_open_of_each_device_date_is_kept(task_db: Fixture) -> None:
+async def test_the_first_open_of_each_owner_day_is_kept(task_db: Fixture) -> None:
     db, owner, _agent, _thread = task_db
     riyadh = AppOpen(timezone="Asia/Riyadh")
-    # 23:30 UTC on the 11th is 02:30 on the 12th in Riyadh.
     times = [
+        # 02:30 on the 12th in Riyadh: a late session, still the owner's day of the 11th.
         datetime(2026, 11, 11, 23, 30, tzinfo=UTC),
+        # 08:00 on the 12th: the first open of the 12th; 09:00 is not new.
         datetime(2026, 11, 12, 5, 0, tzinfo=UTC),
+        datetime(2026, 11, 12, 6, 0, tzinfo=UTC),
         datetime(2026, 11, 13, 4, 0, tzinfo=UTC),
     ]
     async with db.sessions() as session, session.begin():
         assert [await record_open(session, owner, riyadh, at) for at in times] == [
+            True,
             True,
             False,
             True,
         ]
     async with db.sessions() as session:
         rows = await recorded_opens(session, owner)
-    assert [(row.local_date, row.timezone) for row in rows] == [
-        ("2026-11-12", "Asia/Riyadh"),
-        ("2026-11-13", "Asia/Riyadh"),
-    ]
+    assert [row.local_date for row in rows] == ["2026-11-11", "2026-11-12", "2026-11-13"]
+
+
+@pytest.mark.asyncio
+async def test_a_zone_change_never_brings_a_brief_for_an_earlier_date(task_db: Fixture) -> None:
+    db, owner, _agent, _thread = task_db
+    # The phone in Dubai: the brief of the 12th goes at 07:00 Dubai (03:00 UTC).
+    await opened(db, owner, [("Asia/Dubai", datetime(2026, 11, 11, 3, 0, tzinfo=UTC))])
+    assert await brief_tick(db, owner, now=datetime(2026, 11, 12, 3, 1, tzinfo=UTC)) == (
+        "2026-11-12"
+    )
+    # A New York laptop opens at 22:30 on the 11th (03:30 UTC on the 12th).
+    await opened(db, owner, [("America/New_York", datetime(2026, 11, 12, 3, 30, tzinfo=UTC))])
+    assert await brief_tick(db, owner, now=datetime(2026, 11, 12, 3, 31, tzinfo=UTC)) is None
+    async with db.sessions() as session:
+        record = await session.get(MorningBriefRow, owner)
+        assert record is not None and record.last_local_date == "2026-11-12"
 
 
 @pytest_asyncio.fixture

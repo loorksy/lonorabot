@@ -21,7 +21,7 @@ from lonora_contracts.runs import RunRequest
 from lonora_core.attention import CARD_ATTENTION
 from lonora_core.run_state import TERMINAL
 from lonora_core.user_error import LonoraError
-from lonora_db.app_opens import recorded_opens
+from lonora_db.app_opens import DAY_START_HOUR, recorded_opens
 from lonora_db.cancellation import cancel_run
 from lonora_db.client import Database
 from lonora_db.conversation_locale import conversation_locale
@@ -61,6 +61,7 @@ DEFAULT_MINUTE = 7 * 60
 MINIMUM_OPEN_DAYS = 3
 LEAD_MINUTES = 15
 DAILY_MOVE_MINUTES = 60
+DAY_START_MINUTE = DAY_START_HOUR * 60
 # How long Lonora has to write the brief before the server posts the plain one.
 WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
@@ -95,7 +96,7 @@ def learned_minute(first_opens: Sequence[int]) -> int | None:
     15 minutes earlier; None until the owner opened the app on at least 3 days (11.1)."""
     if len(first_opens) < MINIMUM_OPEN_DAYS:
         return None
-    return max(0, int(median(first_opens)) - LEAD_MINUTES)
+    return min(24 * 60 - 1, max(0, int(median(first_opens)) - LEAD_MINUTES))
 
 
 def moved_minute(previous: int, target: int) -> int:
@@ -747,10 +748,15 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         if record.planned_date != today:
             # Each recorded day's first open, minutes after midnight on the device's clock
             # where it was opened: a habit of 07:00 stays 07:00 when the owner travels.
+            # The owner's day starts at 04:00: an open before it (a late session) is read
+            # after the day's last minutes, not as an early waking.
             minutes = [
-                stamp.hour * 60 + stamp.minute
-                for stamp in (
-                    _aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens
+                minute if minute >= DAY_START_MINUTE else minute + 24 * 60
+                for minute in (
+                    stamp.hour * 60 + stamp.minute
+                    for stamp in (
+                        _aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens
+                    )
                 )
             ]
             target = learned_minute(minutes)
@@ -759,7 +765,11 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
             )
             record.planned_date = today
             record.updated_at = now
-        if record.last_local_date == today or local.hour * 60 + local.minute < record.brief_minute:
+        # A date at or before the last brief's never gets one: a zone change can step the
+        # owner's date back (a laptop in New York after a phone in Dubai).
+        if (record.last_local_date or "") >= today or (
+            local.hour * 60 + local.minute < record.brief_minute
+        ):
             return None
         key = brief_key(owner_id, today)
         if await session.get(EffectReceiptRow, key) is not None:
