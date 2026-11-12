@@ -21,7 +21,7 @@ msgid "«New message» shows instead of the content"
 msgstr "تظهر «رسالة جديدة» بدل المحتوى"
 
 #. placeholder {0}: state.watch_count
-#: src/conversation/sheets/AgentSheet.tsx:366
+#: src/conversation/sheets/AgentSheet.tsx:361
 msgid "{0} active"
 msgstr "{0} نشطة"
 
@@ -238,7 +238,7 @@ msgstr "30 يومًا"
 msgid "7 days"
 msgstr "7 أيام"
 
-#: src/components/ai/AttentionInbox.tsx:37
+#: src/components/ai/AttentionInbox.tsx:36
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
@@ -306,7 +306,7 @@ msgstr "وكيل محذوف"
 msgid "A short tone when a reply arrives"
 msgstr "نغمة قصيرة عند وصول رد"
 
-#: src/components/ai/AttentionInbox.tsx:39
+#: src/components/ai/AttentionInbox.tsx:38
 msgid "A trade still has no confirmed broker result"
 msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 
@@ -381,7 +381,7 @@ msgstr "عملة الحساب"
 msgid "Account ID"
 msgstr "معرّف الحساب"
 
-#: src/conversation/sheets/AgentSheet.tsx:603
+#: src/conversation/sheets/AgentSheet.tsx:565
 #: src/conversation/sheets/LimitsSheet.tsx:299
 msgid "Account limits"
 msgstr "حدود الحساب"
@@ -457,7 +457,7 @@ msgstr "سجل الإجراءات"
 msgid "Activity log only"
 msgstr "سجل النشاط فقط"
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:35
 msgid "Activity updated"
 msgstr "تم تحديث النشاط"
 
@@ -677,7 +677,7 @@ msgstr "اسم الوكيل"
 #~ msgid "Agent settings"
 #~ msgstr "إعدادات الوكيل"
 
-#: src/conversation/sheets/AgentSheet.tsx:672
+#: src/conversation/sheets/AgentSheet.tsx:634
 msgid "Agent status"
 msgstr "حالة الوكيل"
 
@@ -777,7 +777,7 @@ msgstr "كل الأوقات"
 msgid "Allow microphone access to start a voice conversation."
 msgstr "اسمح بالوصول إلى الميكروفون لبدء محادثة صوتية."
 
-#: src/conversation/sheets/AgentSheet.tsx:491
+#: src/conversation/sheets/AgentSheet.tsx:453
 msgid "Allowed"
 msgstr "مسموحة"
 
@@ -1103,7 +1103,7 @@ msgstr "رجوع إلى الصلاحيات"
 #~ msgid "Back to workspace"
 #~ msgstr "العودة إلى مساحة العمل"
 
-#: src/components/ai/AttentionInbox.tsx:41
+#: src/components/ai/AttentionInbox.tsx:40
 msgid "Background service is running late"
 msgstr "خدمة الخلفية متأخرة"
 
@@ -1196,11 +1196,11 @@ msgstr "الوسيط"
 #: src/components/trading/BrokerPairPicker.tsx:79
 #: src/components/trading/BrokerPairPicker.tsx:81
 #: src/pages/Market.tsx:27
-#: src/pages/Trading.tsx:31
+#: src/pages/Trading.tsx:29
 msgid "Broker account"
 msgstr "حساب الوسيط"
 
-#: src/components/ai/AttentionInbox.tsx:26
+#: src/components/ai/AttentionInbox.tsx:25
 msgid "Broker account changed"
 msgstr "تغيّرت حالة حساب الوسيط"
 
@@ -1382,7 +1382,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
-#: src/conversation/sheets/AgentSheet.tsx:437
+#: src/conversation/sheets/AgentSheet.tsx:432
 #: src/conversation/sheets/LimitsSheet.tsx:288
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
@@ -1638,7 +1638,7 @@ msgid "Choose a connected account and an instrument to load market data."
 msgstr "اختر حسابًا متصلًا وأداة مالية لتحميل بيانات السوق."
 
 #: src/pages/Market.tsx:36
-#: src/pages/Trading.tsx:34
+#: src/pages/Trading.tsx:32
 msgid "Choose a connection"
 msgstr "اختر اتصالًا"
 
@@ -1830,19 +1830,19 @@ msgstr "إغلاق الصفقات"
 msgid "Closes"
 msgstr "يُغلق"
 
-#: src/conversation/sheets/AgentSheet.tsx:319
+#: src/conversation/sheets/AgentSheet.tsx:314
 msgid "closing allowed"
 msgstr "الإغلاق مسموح"
 
-#: src/conversation/sheets/AgentSheet.tsx:623
-msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
-msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا، حتى عند إيقاف التداول."
+#: src/conversation/sheets/AgentSheet.tsx:585
+msgid "Closing and tightening the stop loss are always allowed, even while new trades are paused."
+msgstr "الإغلاق وتقريب وقف الخسارة متاحان دائمًا، حتى أثناء إيقاف الصفقات الجديدة مؤقتًا."
 
 #: src/conversation/PermissionMenu.tsx:299
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا."
 
-#: src/conversation/sheets/AgentSheet.tsx:553
+#: src/conversation/sheets/AgentSheet.tsx:515
 msgid "closing is frozen too"
 msgstr "الإغلاق مجمّد أيضًا"
 
@@ -1850,7 +1850,7 @@ msgstr "الإغلاق مجمّد أيضًا"
 msgid "Cloud chart"
 msgstr "الشارت السحابي"
 
-#: src/components/ai/AttentionInbox.tsx:29
+#: src/components/ai/AttentionInbox.tsx:28
 msgid "Collaboration result is ready"
 msgstr "نتيجة التعاون جاهزة"
 
@@ -2256,7 +2256,7 @@ msgstr "يتجاوز إلى الأعلى"
 msgid "Crosses below"
 msgstr "يتجاوز إلى الأسفل"
 
-#: src/conversation/sheets/AgentSheet.tsx:338
+#: src/conversation/sheets/AgentSheet.tsx:333
 msgid "Current work"
 msgstr "العمل الحالي"
 
@@ -2287,7 +2287,7 @@ msgstr "يوميًا"
 msgid "Daily cost"
 msgstr "التكلفة اليومية"
 
-#: src/conversation/sheets/AgentSheet.tsx:232
+#: src/conversation/sheets/AgentSheet.tsx:228
 #: src/conversation/sheets/LimitsSheet.tsx:42
 #: src/conversation/sheets/MandateSheet.tsx:238
 #: src/conversation/sheets/MandateSheet.tsx:251
@@ -2542,7 +2542,7 @@ msgstr "معطلة"
 msgid "Discard"
 msgstr "تجاهل"
 
-#: src/pages/Trading.tsx:57
+#: src/pages/Trading.tsx:55
 msgid "Disconnect account"
 msgstr "فصل الحساب"
 
@@ -2683,7 +2683,7 @@ msgstr "تعديل الوقف والهدف"
 #~ msgid "Edit the limit"
 #~ msgstr "تعديل الحد"
 
-#: src/conversation/sheets/AgentSheet.tsx:617
+#: src/conversation/sheets/AgentSheet.tsx:579
 msgid "Edit the limits"
 msgstr "تعديل الحدود"
 
@@ -2709,22 +2709,6 @@ msgstr "مُعدّلة"
 #: src/shell/settings/AuthFlow.tsx:256
 msgid "Email"
 msgstr "البريد الإلكتروني"
-
-#: src/components/trading/TradingStatus.tsx:59
-#~ msgid "Emergency Stop"
-#~ msgstr "إيقاف طارئ"
-
-#: src/components/trading/TradingStatus.tsx:36
-#~ msgid "Emergency stop active"
-#~ msgstr "الإيقاف الطارئ مفعّل"
-
-#: src/components/ai/AttentionInbox.tsx:47
-#~ msgid "Emergency Stop is active"
-#~ msgstr "الإيقاف الطارئ مفعّل"
-
-#: src/lib/user_error.ts:112
-#~ msgid "Emergency stop is active."
-#~ msgstr "الإيقاف الطارئ مفعّل."
 
 #: src/shell/lists/EmojiPanel.tsx:477
 msgid "Emoji sections"
@@ -3226,11 +3210,7 @@ msgstr "النماذج العالمية"
 msgid "Global routing"
 msgstr "التوجيه العالمي"
 
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
-#~ msgstr "يبقى التحكم العام بالتداول والإيقاف الطارئ مطبقًا على كل عملية مالية. إيقاف الهدف مؤقتًا لا يغلق الصفقات المفتوحة لدى الوسيط."
-
-#: src/pages/TradingSettingsPanel.tsx:8
+#: src/pages/TradingSettingsPanel.tsx:7
 msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
@@ -3715,7 +3695,7 @@ msgstr "مغادرة التعديلات؟"
 msgid "Legacy instructions"
 msgstr "تعليمات قديمة"
 
-#: src/conversation/sheets/AgentSheet.tsx:566
+#: src/conversation/sheets/AgentSheet.tsx:528
 msgid "Lift"
 msgstr "رفع"
 
@@ -3967,7 +3947,7 @@ msgstr "تحديد الكل كمقروء"
 msgid "Mark as completed"
 msgstr "تحديد كمكتملة"
 
-#: src/components/ai/AttentionInbox.tsx:153
+#: src/components/ai/AttentionInbox.tsx:152
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -4117,7 +4097,7 @@ msgstr "مُسحت الرسائل"
 msgid "Messages reach"
 msgstr "تصل الرسائل إلى"
 
-#: src/components/ai/AttentionInbox.tsx:23
+#: src/components/ai/AttentionInbox.tsx:22
 msgid "MetaApi rejected the access token"
 msgstr "رفضت MetaApi رمز الوصول"
 
@@ -4150,7 +4130,7 @@ msgstr "تصغير"
 #~ msgid "Minimize call"
 #~ msgstr "تصغير المكالمة"
 
-#: src/conversation/sheets/AgentSheet.tsx:235
+#: src/conversation/sheets/AgentSheet.tsx:231
 #: src/conversation/sheets/LimitsSheet.tsx:66
 msgid "Minimum free margin"
 msgstr "الحد الأدنى للهامش الحر"
@@ -4320,7 +4300,7 @@ msgstr "ملف نصي جديد"
 msgid "New ticket"
 msgstr "مهمة جديدة"
 
-#: src/conversation/sheets/AgentSheet.tsx:489
+#: src/conversation/sheets/AgentSheet.tsx:451
 msgid "New trades"
 msgstr "الصفقات الجديدة"
 
@@ -4332,17 +4312,13 @@ msgstr "الصفقات الجديدة معلّقة"
 msgid "New trades are paused until {until}"
 msgstr "الصفقات الجديدة معلّقة حتى {until}"
 
-#: src/conversation/sheets/AgentSheet.tsx:522
+#: src/conversation/sheets/AgentSheet.tsx:484
 msgid "New trades paused until 23:59"
 msgstr "عُلّقت الصفقات الجديدة حتى 23:59"
 
-#: src/conversation/sheets/AgentSheet.tsx:499
+#: src/conversation/sheets/AgentSheet.tsx:461
 msgid "New trades resumed"
 msgstr "استُؤنفت الصفقات الجديدة"
-
-#: src/components/ai/AttentionInbox.tsx:20
-msgid "New trading stopped"
-msgstr "التداول الجديد متوقف"
 
 #: src/shell/settings/IntegrationsPage.tsx:568
 msgid "News and channels"
@@ -4490,7 +4466,7 @@ msgstr "لا توجد مجموعات."
 msgid "No internet connection"
 msgstr "لا يوجد اتصال بالإنترنت"
 
-#: src/conversation/sheets/AgentSheet.tsx:264
+#: src/conversation/sheets/AgentSheet.tsx:260
 #: src/conversation/sheets/LimitsSheet.tsx:129
 #: src/conversation/sheets/LimitsSheet.tsx:188
 #: src/conversation/sheets/LimitsSheet.tsx:224
@@ -4522,7 +4498,7 @@ msgstr "لم يُضبط نموذج بعد"
 msgid "No money limit"
 msgstr "دون حد مالي"
 
-#: src/components/ai/AttentionInbox.tsx:114
+#: src/components/ai/AttentionInbox.tsx:113
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -4757,8 +4733,8 @@ msgstr "إشعار"
 msgid "Notification method"
 msgstr "طريقة الإشعار"
 
-#: src/components/ai/AttentionInbox.tsx:76
-#: src/components/ai/AttentionInbox.tsx:78
+#: src/components/ai/AttentionInbox.tsx:75
+#: src/components/ai/AttentionInbox.tsx:77
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
@@ -4790,7 +4766,7 @@ msgstr "الإشعارات مفعّلة"
 msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:109
+#: src/components/ai/AttentionInbox.tsx:108
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
@@ -4822,18 +4798,10 @@ msgstr "من إجمالي التكلفة"
 msgid "OK"
 msgstr "حسنًا"
 
-#: src/conversation/sheets/AgentSheet.tsx:463
-msgid "On"
-msgstr "مفعَّل"
-
 #: src/shell/call/CallPages.tsx:290
 msgctxt "speaker"
 msgid "On"
 msgstr "مفعلة"
-
-#: src/conversation/sheets/AgentSheet.tsx:462
-msgid "On · closing is always allowed"
-msgstr "مفعَّل · الإغلاق مسموح دائمًا"
 
 #: src/conversation/ChatPrefsPage.tsx:51
 msgid "On a computer; Shift+Enter for a new line. When off: Ctrl+Enter"
@@ -4907,7 +4875,7 @@ msgstr "فتح المكالمة الحالية"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:144
+#: src/components/ai/AttentionInbox.tsx:143
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -4937,7 +4905,7 @@ msgstr "فتح صفقات جديدة"
 msgid "Open price"
 msgstr "سعر الفتح"
 
-#: src/conversation/sheets/AgentSheet.tsx:234
+#: src/conversation/sheets/AgentSheet.tsx:230
 #: src/conversation/sheets/LimitsSheet.tsx:58
 msgid "Open risk limit"
 msgstr "حد المخاطرة المفتوحة"
@@ -5044,7 +5012,7 @@ msgstr "سعر الأمر"
 #~ msgid "Organic"
 #~ msgstr "شكل عضوي"
 
-#: src/components/ai/AttentionInbox.tsx:142
+#: src/components/ai/AttentionInbox.tsx:141
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
@@ -5123,14 +5091,14 @@ msgstr "الصق القيمة هنا"
 
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:434
+#: src/conversation/sheets/AgentSheet.tsx:429
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/conversation/Voice.tsx:133
 #: src/pages/Board.tsx:572
 msgid "Pause"
 msgstr "إيقاف مؤقت"
 
-#: src/conversation/sheets/AgentSheet.tsx:526
+#: src/conversation/sheets/AgentSheet.tsx:488
 msgctxt "new trades pause"
 msgid "Pause"
 msgstr "تعليق"
@@ -5789,9 +5757,9 @@ msgstr "ردّ على رسالتك"
 msgid "Reply with a message"
 msgstr "الرد برسالة"
 
-#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:21
+#: src/components/ai/AttentionInbox.tsx:32
 #: src/components/ai/AttentionInbox.tsx:33
-#: src/components/ai/AttentionInbox.tsx:34
 msgid "Request updated"
 msgstr "تم تحديث الطلب"
 
@@ -5842,10 +5810,6 @@ msgstr "إعادة تعيين"
 msgid "Reset all"
 msgstr "إعادة ضبط الكل"
 
-#: src/components/trading/TradingStatus.tsx:67
-#~ msgid "Reset emergency stop"
-#~ msgstr "إلغاء الإيقاف الطارئ"
-
 #: src/components/charts/ChartSheetHandle.tsx:24
 #~ msgid "Resize chart"
 #~ msgstr "تغيير حجم الشارت"
@@ -5854,7 +5818,7 @@ msgstr "إعادة ضبط الكل"
 #~ msgid "Resize panel"
 #~ msgstr "تغيير عرض اللوحة"
 
-#: src/conversation/sheets/AgentSheet.tsx:594
+#: src/conversation/sheets/AgentSheet.tsx:556
 msgid "Resolve"
 msgstr "حسم"
 
@@ -5918,8 +5882,8 @@ msgstr "فُرض قيد"
 
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:436
-#: src/conversation/sheets/AgentSheet.tsx:502
+#: src/conversation/sheets/AgentSheet.tsx:431
+#: src/conversation/sheets/AgentSheet.tsx:464
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
@@ -5951,7 +5915,7 @@ msgstr "إعادة المحاولة بعد {left} ث"
 
 #: src/components/ai/AgentLiveStatus.tsx:36
 #: src/components/ai/AgentLiveStatus.tsx:95
-#: src/conversation/sheets/AgentSheet.tsx:401
+#: src/conversation/sheets/AgentSheet.tsx:396
 msgid "Retry scheduled"
 msgstr "إعادة المحاولة مجدولة"
 
@@ -6407,12 +6371,12 @@ msgstr "الخوادم والمستودعات"
 msgid "Services are linked from Settings → Integrations."
 msgstr "ربط الخدمات من الإعدادات ← التكاملات."
 
-#: src/conversation/sheets/AgentSheet.tsx:295
-#: src/conversation/sheets/AgentSheet.tsx:295
+#: src/conversation/sheets/AgentSheet.tsx:291
+#: src/conversation/sheets/AgentSheet.tsx:291
 msgid "Set by the agent"
 msgstr "تعليق احترازي من الوكيل"
 
-#: src/conversation/sheets/AgentSheet.tsx:549
+#: src/conversation/sheets/AgentSheet.tsx:511
 msgid "Set by you"
 msgstr "تعليق من المالك"
 
@@ -6433,7 +6397,7 @@ msgstr "الإعدادات"
 msgid "Setup token"
 msgstr "رمز الإعداد"
 
-#: src/components/ai/AttentionInbox.tsx:28
+#: src/components/ai/AttentionInbox.tsx:27
 msgid "Setup validity changed"
 msgstr "تغيّرت صلاحية الإعداد"
 
@@ -6502,7 +6466,7 @@ msgstr "عرض السجل كاملًا"
 msgid "Show the key"
 msgstr "إظهار المفتاح"
 
-#: src/conversation/sheets/AgentSheet.tsx:383
+#: src/conversation/sheets/AgentSheet.tsx:378
 msgid "Show the request"
 msgstr "عرض الطلب"
 
@@ -6557,7 +6521,7 @@ msgid "Simulation"
 msgstr "محاكاة"
 
 #: src/pages/Market.tsx:49
-#: src/pages/Trading.tsx:63
+#: src/pages/Trading.tsx:61
 msgid "Simulation · imported snapshot"
 msgstr "محاكاة · بيانات مستوردة"
 
@@ -6756,7 +6720,7 @@ msgstr "تفاصيل الحالة"
 msgid "Status"
 msgstr "الحالة"
 
-#: src/conversation/sheets/AgentSheet.tsx:670
+#: src/conversation/sheets/AgentSheet.tsx:632
 #: src/shell/ChatMenu.tsx:63
 msgid "Status and safety"
 msgstr "الحالة والأمان"
@@ -6789,10 +6753,6 @@ msgstr "وقف الخسارة"
 #: src/components/trading/TradeActionCard.tsx:136
 msgid "Stop loss · optional"
 msgstr "وقف الخسارة · اختياري"
-
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-#~ msgstr "يبقى إيقاف الصفقات الجديدة وإيقافاتك والحدود المالية للحساب نافذة على كل أمر. إيقاف الهدف مؤقتًا لا يغلق المراكز المفتوحة لدى الوسيط."
 
 #: src/shell/agent/TradesPage.tsx:73
 msgid "Stop order"
@@ -6831,10 +6791,6 @@ msgstr "إيقاف الحركات والانتقالات غير الضرورية
 #: src/components/trading/SuperBotCards.tsx:161
 #~ msgid "Stopped"
 #~ msgstr "متوقف"
-
-#: src/conversation/sheets/AgentSheet.tsx:460
-msgid "Stopped · no new orders are sent"
-msgstr "متوقف · لا تُرسَل أوامر جديدة"
 
 #: src/conversation/Cards.tsx:609
 msgid "Stopped at its work limit"
@@ -6989,12 +6945,12 @@ msgstr "المهمة"
 msgid "Task boards"
 msgstr "لوحات المهام"
 
-#: src/conversation/sheets/AgentSheet.tsx:429
+#: src/conversation/sheets/AgentSheet.tsx:424
 #: src/shell/domain/UpdatesPages.tsx:50
 msgid "Task cancelled"
 msgstr "أُلغيت المهمة"
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:34
 #: src/shell/domain/TasksPages.tsx:240
 #: src/shell/domain/UpdatesPages.tsx:48
 msgid "Task completed"
@@ -7011,21 +6967,21 @@ msgstr "أُنشئت مهمة"
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
-#: src/components/ai/AttentionInbox.tsx:31
+#: src/components/ai/AttentionInbox.tsx:30
 msgid "Task is retrying through a model outage"
 msgstr "المهمة تعيد المحاولة أثناء تعطل النموذج"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/ai/AttentionInbox.tsx:30
-#: src/conversation/sheets/AgentSheet.tsx:405
+#: src/components/ai/AttentionInbox.tsx:29
+#: src/conversation/sheets/AgentSheet.tsx:400
 msgid "Task needs review"
 msgstr "المهمة تحتاج مراجعة"
 
-#: src/conversation/sheets/AgentSheet.tsx:428
+#: src/conversation/sheets/AgentSheet.tsx:423
 msgid "Task paused"
 msgstr "أُوقفت المهمة مؤقتًا"
 
-#: src/conversation/sheets/AgentSheet.tsx:426
+#: src/conversation/sheets/AgentSheet.tsx:421
 msgid "Task resumed"
 msgstr "استُؤنفت المهمة"
 
@@ -7037,7 +6993,7 @@ msgstr "عنوان المهمة"
 msgid "Task when triggered"
 msgstr "المهمة عند تحقق الشرط"
 
-#: src/conversation/sheets/AgentSheet.tsx:391
+#: src/conversation/sheets/AgentSheet.tsx:386
 #: src/shell/FloatingTabBar.tsx:23
 #: src/shell/lists/UnifiedSearch.tsx:274
 #: src/shell/lists/UnifiedSearch.tsx:309
@@ -7089,7 +7045,7 @@ msgstr "مضى هذا الوقت. اختر وقتًا جديدًا."
 msgid "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgstr "يُفصل الحساب <0>{number}</0> لدى <1>{broker}</1>."
 
-#: src/components/ai/AttentionInbox.tsx:25
+#: src/components/ai/AttentionInbox.tsx:24
 msgid "The account connection has been lost"
 msgstr "انقطع الاتصال بالحساب"
 
@@ -7097,7 +7053,7 @@ msgstr "انقطع الاتصال بالحساب"
 msgid "The account is linked"
 msgstr "رُبط الحساب"
 
-#: src/components/ai/AttentionInbox.tsx:24
+#: src/components/ai/AttentionInbox.tsx:23
 msgid "The account is not deployed on MetaApi"
 msgstr "الحساب غير مُشغَّل على MetaApi"
 
@@ -7161,7 +7117,7 @@ msgstr "الاتصال بالوسيط غير متاح."
 msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 msgstr "تعذّر على الوسيط إثبات نتيجة هذه العملية. سجّل ما تحققت منه لدى الوسيط. يرفع هذا الحظر عن هذا السوق؛ وهو ليس تأكيدًا من الوسيط ولن يُعاد إرسال أي شيء."
 
-#: src/components/ai/AttentionInbox.tsx:40
+#: src/components/ai/AttentionInbox.tsx:39
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت"
 
@@ -7446,7 +7402,7 @@ msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جا
 msgid "The resident worker is preparing this chart."
 msgstr "العامل المقيم يجهّز هذا الشارت."
 
-#: src/conversation/sheets/AgentSheet.tsx:563
+#: src/conversation/sheets/AgentSheet.tsx:525
 msgid "The restriction was lifted"
 msgstr "رُفع القيد"
 
@@ -7647,10 +7603,6 @@ msgstr "لا يوجد زوج لهذه المحادثة لعرضه. اطلب شا
 msgid "This exact symbol is not available from your broker."
 msgstr "هذا الرمز بالضبط غير متاح لدى وسيطك."
 
-#: src/components/goals/TradingGoals.tsx:241
-#~ msgid "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-#~ msgstr "هذا الهدف خطة ضمن مستوى تداول الوكيل وتفويضه الموقّع. يبقى إيقاف الصفقات الجديدة وإيقافاتك المؤقتة وحدود الحساب المالية سارية على كل أمر. إيقاف الهدف مؤقتًا لا يغلق صفقات الوسيط القائمة."
-
 #: src/lib/user_error.ts:118
 #~ msgid "This goal is paused, cancelled or completed. Reload its current state."
 #~ msgstr "هذا الهدف متوقف مؤقتًا أو ملغى أو مكتمل. أعد تحميل حالته الحالية."
@@ -7683,7 +7635,7 @@ msgstr "هذا الشهر"
 msgid "This needs a new grant you sign with your passkey."
 msgstr "يلزم تفويض جديد توقّعه بمفتاح المرور."
 
-#: src/conversation/sheets/AgentSheet.tsx:554
+#: src/conversation/sheets/AgentSheet.tsx:516
 msgid "this one does not block closing"
 msgstr "هذا لا يمنع الإغلاق"
 
@@ -7877,7 +7829,7 @@ msgstr "عملية تداول"
 msgid "Trade order"
 msgstr "أمر تداول"
 
-#: src/conversation/sheets/AgentSheet.tsx:233
+#: src/conversation/sheets/AgentSheet.tsx:229
 #: src/conversation/sheets/LimitsSheet.tsx:50
 msgid "Trade risk limit"
 msgstr "حد مخاطرة الصفقة"
@@ -7898,11 +7850,9 @@ msgstr "الصفقات"
 msgid "Trades on its own"
 msgstr "يتداول بنفسه"
 
-#: src/conversation/sheets/AgentSheet.tsx:449
-#: src/conversation/sheets/AgentSheet.tsx:456
-#: src/conversation/sheets/AgentSheet.tsx:471
+#: src/conversation/sheets/AgentSheet.tsx:444
 #: src/pages/settings-sidebar.tsx:15
-#: src/pages/Trading.tsx:25
+#: src/pages/Trading.tsx:24
 #: src/shell/settings/SettingsRoot.tsx:332
 msgid "Trading"
 msgstr "التداول"
@@ -7929,14 +7879,10 @@ msgstr "وكيل تداول"
 #~ msgid "Trading and operation journal"
 #~ msgstr "التداول وسجل العمليات"
 
-#: src/conversation/sheets/AgentSheet.tsx:671
+#: src/conversation/sheets/AgentSheet.tsx:633
 #: src/shell/agent/AgentPage.tsx:309
 msgid "Trading and safety"
 msgstr "التداول والأمان"
-
-#: src/components/trading/TradingStatus.tsx:32
-#~ msgid "Trading control"
-#~ msgstr "التحكم بالتداول"
 
 #: src/components/ai/AttentionInbox.tsx:23
 #~ msgid "Trading goal updated"
@@ -7946,22 +7892,6 @@ msgstr "التداول والأمان"
 #~ msgid "Trading goals"
 #~ msgstr "أهداف التداول"
 
-#: src/lib/user_error.ts:110
-#~ msgid "Trading is off."
-#~ msgstr "التداول متوقف."
-
-#: src/conversation/sheets/AgentSheet.tsx:160
-msgid "Trading is stopped"
-msgstr "التداول متوقف"
-
-#: src/components/trading/TradingStatus.tsx:40
-#~ msgid "Trading OFF"
-#~ msgstr "التداول متوقف"
-
-#: src/components/trading/TradingStatus.tsx:38
-#~ msgid "Trading ON"
-#~ msgstr "التداول مفعّل"
-
 #: src/pages/shell/bot-settings.tsx:83
 msgid "Trading pair"
 msgstr "زوج التداول"
@@ -7969,18 +7899,6 @@ msgstr "زوج التداول"
 #: src/components/trading/TradeApprovals.tsx:114
 #~ msgid "Trading request"
 #~ msgstr "طلب تداول"
-
-#: src/conversation/sheets/AgentSheet.tsx:477
-msgid "Trading resumed"
-msgstr "فُعِّل التداول"
-
-#: src/conversation/sheets/AgentSheet.tsx:480
-msgid "Trading stopped"
-msgstr "التداول متوقف"
-
-#: src/conversation/sheets/AgentSheet.tsx:479
-msgid "Trading stopped · closing is still allowed"
-msgstr "أُوقف التداول · الإغلاق ما زال مسموحًا"
 
 #: src/components/call/CallCard.tsx:160
 #~ msgid "Transcript"
@@ -8012,14 +7930,6 @@ msgstr "تحويل إلى مهمة"
 #: src/shell/agent/AgentPage.tsx:445
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading OFF"
-#~ msgstr "إيقاف التداول"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading ON"
-#~ msgstr "تفعيل التداول"
 
 #: src/conversation/Cards.tsx:528
 msgid "Two steps"
@@ -8060,7 +7970,7 @@ msgctxt "order state"
 msgid "Unconfirmed"
 msgstr "غير مؤكَّد"
 
-#: src/conversation/sheets/AgentSheet.tsx:581
+#: src/conversation/sheets/AgentSheet.tsx:543
 msgid "Unconfirmed operation · not confirmed by the broker"
 msgstr "عملية غير مؤكَّدة · لم يؤكدها الوسيط"
 
@@ -8379,7 +8289,7 @@ msgstr "ينتظر"
 #~ msgstr "بانتظار تحقق شرط"
 
 #: src/components/ai/AgentLiveStatus.tsx:50
-#: src/components/ai/AttentionInbox.tsx:21
+#: src/components/ai/AttentionInbox.tsx:20
 msgid "Waiting for approval"
 msgstr "بانتظار موافقتك"
 
@@ -8393,7 +8303,7 @@ msgid "Waiting for handover"
 msgstr "بانتظار التسليم"
 
 #: src/components/ai/AgentLiveStatus.tsx:100
-#: src/conversation/sheets/AgentSheet.tsx:403
+#: src/conversation/sheets/AgentSheet.tsx:398
 msgid "Waiting for reconciliation"
 msgstr "بانتظار التحقق من النتيجة"
 
@@ -8433,7 +8343,7 @@ msgstr "أُلغيت المراقبة"
 msgid "Watch condition changed"
 msgstr "تغيّر شرط المراقبة"
 
-#: src/components/ai/AttentionInbox.tsx:27
+#: src/components/ai/AttentionInbox.tsx:26
 msgid "Watch confirmed — review current evidence"
 msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 
@@ -8449,7 +8359,7 @@ msgstr "استُؤنفت المراقبة"
 msgid "Watch source"
 msgstr "مصدر المراقبة"
 
-#: src/conversation/sheets/AgentSheet.tsx:364
+#: src/conversation/sheets/AgentSheet.tsx:359
 #: src/shell/agent/AgentPage.tsx:361
 #: src/shell/ChatMenu.tsx:143
 msgid "Watches"
@@ -8546,7 +8456,7 @@ msgstr "لماذا هذه الواجهة؟"
 msgid "Wink"
 msgstr "غمزة"
 
-#: src/components/ai/AttentionInbox.tsx:38
+#: src/components/ai/AttentionInbox.tsx:37
 msgid "Work stopped after repeated interruptions"
 msgstr "توقف عمل بعد انقطاعات متكررة"
 
@@ -8695,11 +8605,11 @@ msgstr "أنت: {0}"
 msgid "You: {text}"
 msgstr "أنت: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:42
+#: src/components/ai/AttentionInbox.tsx:41
 msgid "Your agent alerted you"
 msgstr "نبّهك وكيلك"
 
-#: src/components/ai/AttentionInbox.tsx:43
+#: src/components/ai/AttentionInbox.tsx:42
 msgid "Your agent needs a secret from you"
 msgstr "وكيلك ينتظر منك بيانات سرّية"
 

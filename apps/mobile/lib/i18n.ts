@@ -323,7 +323,6 @@ export const labels = {
     "نبّهني بالفرص المؤكدة",
     "Notify me about confirmed opportunities",
   ],
-  attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
   attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
