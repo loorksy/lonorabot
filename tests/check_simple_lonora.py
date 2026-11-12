@@ -757,7 +757,7 @@ class Acceptance:
             "reason": "Fixture entry",
         }
         script = self.model.script(
-            "The owner has authenticated automatic management of account",
+            "You are in Full mode: you manage every connected trading account",
             lambda t: call("j1-buy", "trade_execute", order),
             # After the restart the model sees its order as uncertain and, careless, asks
             # for the same order again under a new call: it must not reach the broker.
