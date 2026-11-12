@@ -5,7 +5,7 @@ the owner's notification: a new restriction raises a Lift card in the conversati
 created it (Lonora's when none did), an operation that becomes ambiguous raises a
 three-button resolve card in the responsible agent's conversation (Lonora's for the
 owner's own orders), and cards whose record moved on are settled (a lifted or ended
-restriction, a settled operation, resumed trading). Raising is idempotent per record.
+restriction, a settled operation). Raising is idempotent per record.
 """
 
 from typing import Any, cast
@@ -15,7 +15,6 @@ from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_db.owner_actions import raise_system_card, supersede_subject
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import AgentRow, EventRow, RunRow, TradingJournalRow, TradingRestrictionRow
-from lonora_db.trading_readiness import global_trading
 from lonora_db.trading_restrictions import restriction_state
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +23,6 @@ CARD_EVENTS = frozenset(
         "trading.restriction_created",
         "trading.restriction_revoked",
         "trading.operation_updated",
-        "trading.controls_updated",
     }
 )
 
@@ -100,7 +98,3 @@ async def follow_event(session: AsyncSession, event: EventRow) -> None:
                 session, owner_id, "settle_operation", subject, "operation_already_settled"
             )
         return
-    if (await global_trading(session))["state"] == "running":
-        await supersede_subject(
-            session, owner_id, "resume_trading", "trading", "trading_already_running"
-        )

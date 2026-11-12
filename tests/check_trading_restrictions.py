@@ -24,7 +24,7 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_agent.context.permissions import permission_context
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import (
@@ -37,7 +37,6 @@ from lonora_db.schema import (
 from lonora_db.trading_restrictions import database_now
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.reconciliation import reconcile_ambiguous
 from settle_card import settle_by_card
 from sqlalchemy import delete, func, select
@@ -103,7 +102,6 @@ def quote(symbol: str) -> dict[str, Any]:
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original_controls = await read_controls(db)
     connections: list[str] = []
     operations: list[str] = []
     try:
@@ -131,7 +129,6 @@ async def main() -> None:
             return identifier
 
         account = await connect("restrictions-")
-        await save_controls(db, TradingControl(enabled=True))
         services = fixture.runtime.services(fixture.owner)
         service = services.trading
         await services.brokers.get(fixture.owner, account)
@@ -227,11 +224,7 @@ async def main() -> None:
             except LonoraError as error:
                 # New risk a brake holds is refused before any approval card (W15-ACC):
                 # the owner is never asked to approve what the boundary would refuse.
-                if error.code not in {
-                    "trading_restriction_active",
-                    "trading_disabled",
-                    "emergency_stop",
-                }:
+                if error.code != "trading_restriction_active":
                     raise
                 return {"status": "failed", "code": error.code, "before_card": True}
             if not proposal.get("_runtime_wait"):
@@ -978,7 +971,6 @@ async def main() -> None:
             "PASS an operation interrupted after submission stays traceable, the new restriction blocks prohibited orders, and recovery confirms it from broker evidence without resending"
         )
     finally:
-        await save_controls(db, original_controls)
         async with db.sessions() as session, session.begin():
             await session.execute(
                 delete(TradingJournalRow).where(TradingJournalRow.operation_id.in_(operations))

@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
-from lonora_adapters.storage.secret_store import EncryptedSecretStore
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import Contract, utcnow
@@ -9,17 +9,14 @@ from lonora_contracts.trading import (
     TERMINAL_STATUSES,
     TradeRequest,
     TradeResult,
-    TradingControl,
 )
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.execution_receipts import thread_receipts
-from lonora_db.obligations import prepare_delete
 from lonora_db.trading_journal import journal_entries
 from lonora_db.transactions import owned_thread, resource_data
 from lonora_trading.accounts import account_snapshot
 from lonora_trading.connections import connect_account
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.journal import journal_data
 from lonora_trading.simulation import import_simulation
 
@@ -35,20 +32,6 @@ class SimulationInput(Contract):
 
 
 router = APIRouter(prefix="/trading")
-
-
-@router.get("/controls")
-async def controls(
-    request: Request, owner: OwnerIdentity = Depends(require_owner)
-) -> TradingControl:
-    return await read_controls(runtime(request).db)
-
-
-@router.put("/controls")
-async def set_controls(
-    request: Request, body: TradingControl, owner: OwnerIdentity = Depends(require_owner)
-) -> TradingControl:
-    return await save_controls(runtime(request).db, body)
 
 
 @router.get("/connections")
@@ -69,7 +52,7 @@ async def connect(
     config = BrokerConnection.model_validate(body.model_dump(exclude={"api_key"}))
     return await connect_account(
         rt.db,
-        EncryptedSecretStore(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id),
+        BrokerSecrets(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id),
         owner.id,
         config,
         body.api_key,
@@ -80,15 +63,14 @@ async def connect(
 async def disconnect(
     request: Request, connection_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
+    from lonora_trading.broker_manage import disconnect as disconnect_connection
+
     rt = runtime(request)
-    async with rt.db.sessions() as session, session.begin():
-        # Refused while an operation on this account is uncertain; grants on it are
-        # revoked first, and its journal, grants and restrictions outlive it.
-        await prepare_delete(session, owner.id, account_id=connection_id)
-        await BrokerSessionRepository().delete(session, owner.id, connection_id)
-    prior = rt.services(owner.id).brokers.connections.pop(connection_id, None)
-    if prior:
-        await prior[1].close()
+    services = rt.services(owner.id)
+    # The same disconnect as from chat (9.3, Q8): refused while an operation on this
+    # account is uncertain; prepare_delete first; a MetaApi account Lonora created is
+    # removed there too; the password is deleted, the token kept. The journal outlives it.
+    await disconnect_connection(rt.db, services.brokers, owner.id, connection_id)
     return {"deleted": True}
 
 

@@ -59,9 +59,7 @@ fresh broker target read at the boundary:
 Everything else — entries, pending-order edits, take-profit changes, removing or
 widening protection — is risk-increasing.
 
-- Stop new trading (Trading OFF or the legacy Emergency Stop flag, one brake in the
-  clients, see `trading-safety.md`) rejects risk-increasing requests only. A
-  risk-reducing request stays admissible on every path; this relaxes no
+- A risk-reducing request stays admissible on every path; this relaxes no
   authorization (owner session, exact approval or matching signed grant still apply,
   and the lease, preflight and broker checks still run).
 - An unresolved operation (`submitted` or `ambiguous`) blocks new risk-increasing
@@ -214,16 +212,14 @@ Today every other caller (`trade_execute`) submits a single request.
 - `tests/check_execution_recovery.py` (disposable PostgreSQL, simulation broker,
   real child processes): crash before send, interruption after submission before
   acknowledgement (Owner addendum §6 step 7: blocked new risk, traceable operation,
-  no resend), scoped blocking versus reduce-only admission under Emergency Stop,
-  Trading OFF, degraded and disconnected recovery, owner attestation through the API,
+  no resend), scoped blocking versus reduce-only admission on the uncertain market,
+  degraded and disconnected recovery, owner attestation through the API,
   a crashed submission whose broker observation keeps failing (held send lock, then
   ambiguous and owner-resolvable), a sibling that waits for a definitive rejection
   under the send lock, modify/cancel target-state reconciliation, verification
   recheck, an approved close-all that keeps sending its other exits after a stopped-out
   position and after a lost response, and approved agent cards that close, cancel and
-  tighten under Emergency Stop and Trading OFF while entries stay blocked.
-- `tests/check_account_authority.py`: a signed-grant agent closes, cancels and
-  tightens under Trading OFF and Emergency Stop; entries and wider stops stay blocked.
+  tighten on an uncertain market while entries and wider stops there stay blocked.
 - `tests/check_opportunity_runtime.py`: owner attestations settle a thesis entry
   link (`not_executed` releases it, `executed` acts on it), an observed-closed entry
   position completes its thesis, and an expired thesis whose entry settles late or
