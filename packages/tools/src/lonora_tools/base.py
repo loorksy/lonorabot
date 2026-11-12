@@ -41,7 +41,7 @@ def eager_for(*profiles: ExposureProfile) -> frozenset[ExposureProfile]:
 # financial effects: it keeps memory, watches, routines, peers, owner
 # notifications and artifacts. The executor refuses broker mutations from it,
 # from its helpers and peer runs (lineage) and from the Tasks and tickets it
-# starts (they inherit the narrowing). Watches, routines and Goals it sets up
+# starts (they inherit the narrowing). Watches and routines it sets up
 # are the Agent's own later work and fire with the Agent's normal authority,
 # still under its signed grant and limits. A "helper" is a temporary subagent:
 # reads plus sandbox computation and reports, never memory writes, new agents,
