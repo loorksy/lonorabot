@@ -49,3 +49,28 @@ from an agent's sentence:
 
 Upcoming events are not in the facts. Lonora reads them with its calendar tool when the
 owner configured one. The brief sends no push (11.4).
+
+## The weekly report
+
+Each agent posts a weekly report in its own conversation (VISION 5.5.6, 11.3). The week
+is the FX week, which closes Friday 17:00 New York (`latest_close`).
+
+- **Woken at the first brief after the close.** When that brief falls due, the brief
+  step wakes each agent that existed at the close (`lonora_trading/weekly_report.py`),
+  once: the effect receipt `weekly-report:<agent>:<close date>` claims the wake. After
+  downtime only the latest close counts. No report is asked for a close that came before
+  the first brief ever sent, or before the last brief.
+- **What the wake holds.** Fixed server text asks for the week's results, what the agent
+  learned and what it changed in its method; an agent that closed no trade posts one
+  line. The agent's own journaled operations of the week follow as data in
+  `<week_facts>`, each with its broker-truth state. `weekly_report` is a conversational
+  trigger, so an empty reply is not accepted.
+- **Paused agents** are not woken (4.7.1).
+- **The brief waits** until every woken agent's run has ended, at most 30 minutes after
+  the wake. It then carries each agent's report state in the facts: `posted`,
+  `not_ready` (still writing), `no_report` (the run ended without a message),
+  `not_woken` (the wake was refused) or `paused`. The posted reports follow in a separate
+  `<agent_reports>` block as each agent's own words (at most 1,500 characters each): data,
+  never broker evidence. Lonora summarizes them in that brief. The record marks the week
+  `summarized`, so no later brief carries it again. The plain brief lists the states,
+  not the reports.
