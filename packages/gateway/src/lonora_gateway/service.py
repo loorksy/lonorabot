@@ -254,6 +254,8 @@ class Gateway:
         await self.for_each_owner(lambda service: thread_prefs_tick(self.db, service.owner_id))
 
     async def workspace(self) -> None:
+        from datetime import UTC, datetime
+
         from lonora_db.workspace_processes import reconcile
         from lonora_security.secrets import SecretScan
 
@@ -263,9 +265,10 @@ class Gateway:
             return
         # Only ids, times and exit codes are kept from this listing; commands are stored
         # from the tool's own scanned answer.
+        fetched_at = datetime.now(UTC)
         listing = await WORKSPACE.processes(SecretScan({}))
         async with self.db.sessions() as session, session.begin():
-            await reconcile(session, listing)
+            await reconcile(session, listing, fetched_at)
 
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {

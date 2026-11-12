@@ -14,6 +14,7 @@ from .schema import WorkspaceProcessRow
 NOTICE_LIMIT = 10
 COMMAND_SHOWN = 160
 KEPT = timedelta(days=7)
+SETTLE = timedelta(seconds=5)
 
 
 def utcnow() -> datetime:
@@ -41,19 +42,23 @@ async def started(
     )
 
 
-def outcome_of(row: WorkspaceProcessRow, listing: dict[str, Any]) -> tuple[str, int | None] | None:
-    """How a still-open row ended, from the supervisor's listing; None while it runs."""
+def outcome_of(
+    row: WorkspaceProcessRow, listing: dict[str, Any], fetched_at: datetime
+) -> tuple[str, int | None] | None:
+    """How a still-open row ended, from the supervisor's listing; None while it runs. A
+    row recorded after the listing was asked for is not in it yet, and is not lost."""
     if listing["boot_id"] != row.boot_id:
         return "restarted", None
     job = next((job for job in listing["jobs"] if job["id"] == row.id), None)
     if job is None:
-        return "lost", None
+        started = row.started_at if row.started_at.tzinfo else row.started_at.replace(tzinfo=UTC)
+        return ("lost", None) if started < fetched_at - SETTLE else None
     if job["ended_at"] is None:
         return None
     return ("stopped" if job["stopped"] else "exited"), job["exit_code"]
 
 
-async def reconcile(session: AsyncSession, listing: dict[str, Any]) -> int:
+async def reconcile(session: AsyncSession, listing: dict[str, Any], fetched_at: datetime) -> int:
     """Close every open row the listing shows ended (one workspace per installation), and
     forget rows reported more than a week ago. Returns how many closed."""
     await session.execute(
@@ -66,7 +71,7 @@ async def reconcile(session: AsyncSession, listing: dict[str, Any]) -> int:
     ).all()
     closed = 0
     for row in rows:
-        found = outcome_of(row, listing)
+        found = outcome_of(row, listing, fetched_at)
         if found is not None:
             row.outcome, row.exit_code = found
             row.ended_at = utcnow()
