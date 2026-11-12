@@ -149,22 +149,20 @@ receipt is never changed.
 
 ## Owner resolution with evidence
 
-`POST /trading/journal/{operation_id}/resolve` with
-`{"outcome": "executed" | "not_executed" | "unknown", "statement": "...", "broker_reference": "..."}`
-records an attestation for an `ambiguous` live operation. The statement and reference
-are optional; without a statement the record reads "Owner attested; not broker
-confirmation." The conversation's Settle Uncertain Operation card (`docs/owner-actions.md`) runs the same
-attestation. It requires the
-authenticated owner session (cookie with CSRF, or bearer token); the passkey device
-proof is not required because the action authorizes no broker mutation. For
-`unknown` the answer is recorded in `details.owner_answers` and the row stays
-`ambiguous`, held and reconciled. Otherwise the row
-becomes `resolved` with `details.resolution` (source `owner`, outcome, statement,
-reference, actor, time, `broker_confirmed: false`) and `details.prior_receipt`; the
-request, execution record and evidence stay. A durable `trading.operation_resolved`
-event records the audit fact. In-progress operations return `operation_in_progress`
-and settled ones `operation_already_settled`. The Web journal offers this form for
-ambiguous entries.
+The owner settles an `ambiguous` live operation only on its Settle Uncertain Operation
+card in the conversation (`docs/owner-actions.md`, VISION 6.8): exactly Executed / Not
+executed / Unknown, with no free text. The card's decision
+(`POST /owner-actions/{id}/decision`) requires the authenticated owner session (cookie
+with CSRF, or bearer token); the passkey device proof is not required because the action
+authorizes no broker mutation. It runs `attest_operation`, recorded with the statement
+"Owner attested via chat card; not broker confirmation." For Unknown the answer is
+recorded in `details.owner_answers` and the row stays `ambiguous`, held and reconciled.
+Otherwise the row becomes `resolved` with `details.resolution` (source `owner`, outcome,
+statement, actor, time, `broker_confirmed: false`) and `details.prior_receipt`; the
+request, execution record and evidence stay. A durable `trading.operation_resolved` event
+records the audit fact. In-progress operations return `operation_in_progress` and settled
+ones `operation_already_settled`. There is no other settlement path: the former
+`POST /trading/journal/{operation_id}/resolve` and the Web journal's form are removed.
 
 Consumers of `resolved`:
 

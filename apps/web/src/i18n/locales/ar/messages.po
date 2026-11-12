@@ -1249,8 +1249,8 @@ msgid "Broker deal history is unavailable for this time range."
 msgstr "سجل صفقات الوسيط غير متاح لهذه الفترة."
 
 #: src/components/trading/TradingJournal.tsx:65
-msgid "Broker reference (optional)"
-msgstr "مرجع لدى الوسيط (اختياري)"
+#~ msgid "Broker reference (optional)"
+#~ msgstr "مرجع لدى الوسيط (اختياري)"
 
 #: src/components/goals/TradingGoals.tsx:79
 #~ msgid "Broker result"
@@ -2615,7 +2615,7 @@ msgstr "الموعد"
 msgid "Due time"
 msgstr "موعد الإنجاز"
 
-#: src/components/trading/TradingJournal.tsx:91
+#: src/components/trading/TradingJournal.tsx:11
 msgid "Durable trading journal"
 msgstr "سجل التداول الدائم"
 
@@ -3585,12 +3585,12 @@ msgid "It stops executing and only analyses and follows"
 msgstr "يتوقف عن التنفيذ ويكتفي بالتحليل والمتابعة"
 
 #: src/components/trading/TradingJournal.tsx:51
-msgid "It was executed"
-msgstr "نُفّذت"
+#~ msgid "It was executed"
+#~ msgstr "نُفّذت"
 
 #: src/components/trading/TradingJournal.tsx:52
-msgid "It was not executed"
-msgstr "لم تُنفّذ"
+#~ msgid "It was not executed"
+#~ msgstr "لم تُنفّذ"
 
 #: src/shell/NewChatSheet.tsx:27
 msgid "Its own role, model and permissions"
@@ -4560,7 +4560,7 @@ msgstr "لا توجد صفقات مفتوحة"
 msgid "No open trade."
 msgstr "لا توجد صفقة مفتوحة."
 
-#: src/components/trading/TradingJournal.tsx:95
+#: src/components/trading/TradingJournal.tsx:15
 msgid "No operations yet"
 msgstr "لا توجد عمليات بعد"
 
@@ -5648,8 +5648,8 @@ msgstr "جارٍ إعادة الاتصال…"
 #~ msgstr "سجّل قرار سوق حديثًا قبل الدخول الافتراضي."
 
 #: src/components/trading/TradingJournal.tsx:74
-msgid "Record resolution"
-msgstr "تسجيل التسوية"
+#~ msgid "Record resolution"
+#~ msgstr "تسجيل التسوية"
 
 #: src/conversation/Cards.tsx:379
 msgid "Recorded from your statement, not broker confirmation"
@@ -6794,8 +6794,8 @@ msgid "Status: {text}"
 msgstr "الحالة: {text}"
 
 #: src/components/trading/TradingJournal.tsx:53
-msgid "Still unknown"
-msgstr "لا تزال غير معروفة"
+#~ msgid "Still unknown"
+#~ msgstr "لا تزال غير معروفة"
 
 #: src/conversation/Composer.tsx:832
 #: src/pages/ActivityList.tsx:259
@@ -7077,7 +7077,7 @@ msgstr "المهمة عند تحقق الشرط"
 msgid "Tasks"
 msgstr "المهام"
 
-#: src/components/trading/TradingJournal.tsx:122
+#: src/components/trading/TradingJournal.tsx:40
 #: src/conversation/Cards.tsx:455
 msgid "Technical details"
 msgstr "التفاصيل التقنية"
@@ -7186,8 +7186,8 @@ msgid "The broker connection is unavailable."
 msgstr "الاتصال بالوسيط غير متاح."
 
 #: src/components/trading/TradingJournal.tsx:39
-msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
-msgstr "تعذّر على الوسيط إثبات نتيجة هذه العملية. سجّل ما تحققت منه لدى الوسيط. يرفع هذا الحظر عن هذا السوق؛ وهو ليس تأكيدًا من الوسيط ولن يُعاد إرسال أي شيء."
+#~ msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+#~ msgstr "تعذّر على الوسيط إثبات نتيجة هذه العملية. سجّل ما تحققت منه لدى الوسيط. يرفع هذا الحظر عن هذا السوق؛ وهو ليس تأكيدًا من الوسيط ولن يُعاد إرسال أي شيء."
 
 #: src/components/ai/AttentionInbox.tsx:34
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
@@ -8535,8 +8535,8 @@ msgid "Welcome to Lonora"
 msgstr "مرحبًا بك في Lonora"
 
 #: src/components/trading/TradingJournal.tsx:46
-msgid "What happened at the broker"
-msgstr "ما الذي حدث لدى الوسيط"
+#~ msgid "What happened at the broker"
+#~ msgstr "ما الذي حدث لدى الوسيط"
 
 #: src/shell/domain/TasksPages.tsx:304
 msgid "What is needed"
@@ -8771,8 +8771,8 @@ msgstr "انتهت جلستك"
 #~ msgstr "إفادتك"
 
 #: src/components/trading/TradingJournal.tsx:57
-msgid "Your statement (optional)"
-msgstr "إفادتك (اختيارية)"
+#~ msgid "Your statement (optional)"
+#~ msgstr "إفادتك (اختيارية)"
 
 #: src/shell/settings/AuthFlow.tsx:70
 msgid "Your team of agents"

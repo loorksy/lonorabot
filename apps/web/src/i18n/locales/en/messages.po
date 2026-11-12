@@ -1249,8 +1249,8 @@ msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
 
 #: src/components/trading/TradingJournal.tsx:65
-msgid "Broker reference (optional)"
-msgstr "Broker reference (optional)"
+#~ msgid "Broker reference (optional)"
+#~ msgstr "Broker reference (optional)"
 
 #: src/components/goals/TradingGoals.tsx:79
 #~ msgid "Broker result"
@@ -2615,7 +2615,7 @@ msgstr "Due"
 msgid "Due time"
 msgstr "Due time"
 
-#: src/components/trading/TradingJournal.tsx:91
+#: src/components/trading/TradingJournal.tsx:11
 msgid "Durable trading journal"
 msgstr "Durable trading journal"
 
@@ -3591,12 +3591,12 @@ msgid "It stops executing and only analyses and follows"
 msgstr "It stops executing and only analyses and follows"
 
 #: src/components/trading/TradingJournal.tsx:51
-msgid "It was executed"
-msgstr "It was executed"
+#~ msgid "It was executed"
+#~ msgstr "It was executed"
 
 #: src/components/trading/TradingJournal.tsx:52
-msgid "It was not executed"
-msgstr "It was not executed"
+#~ msgid "It was not executed"
+#~ msgstr "It was not executed"
 
 #: src/shell/NewChatSheet.tsx:27
 msgid "Its own role, model and permissions"
@@ -4566,7 +4566,7 @@ msgstr "No open positions"
 msgid "No open trade."
 msgstr "No open trade."
 
-#: src/components/trading/TradingJournal.tsx:95
+#: src/components/trading/TradingJournal.tsx:15
 msgid "No operations yet"
 msgstr "No operations yet"
 
@@ -5654,8 +5654,8 @@ msgstr "Reconnecting…"
 #~ msgstr "Record a fresh market decision before virtual entry."
 
 #: src/components/trading/TradingJournal.tsx:74
-msgid "Record resolution"
-msgstr "Record resolution"
+#~ msgid "Record resolution"
+#~ msgstr "Record resolution"
 
 #: src/conversation/Cards.tsx:379
 msgid "Recorded from your statement, not broker confirmation"
@@ -6800,8 +6800,8 @@ msgid "Status: {text}"
 msgstr "Status: {text}"
 
 #: src/components/trading/TradingJournal.tsx:53
-msgid "Still unknown"
-msgstr "Still unknown"
+#~ msgid "Still unknown"
+#~ msgstr "Still unknown"
 
 #: src/conversation/Composer.tsx:832
 #: src/pages/ActivityList.tsx:259
@@ -7083,7 +7083,7 @@ msgstr "Task when triggered"
 msgid "Tasks"
 msgstr "Tasks"
 
-#: src/components/trading/TradingJournal.tsx:122
+#: src/components/trading/TradingJournal.tsx:40
 #: src/conversation/Cards.tsx:455
 msgid "Technical details"
 msgstr "Technical details"
@@ -7192,8 +7192,8 @@ msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
 #: src/components/trading/TradingJournal.tsx:39
-msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
-msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+#~ msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+#~ msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 
 #: src/components/ai/AttentionInbox.tsx:34
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
@@ -8541,8 +8541,8 @@ msgid "Welcome to Lonora"
 msgstr "Welcome to Lonora"
 
 #: src/components/trading/TradingJournal.tsx:46
-msgid "What happened at the broker"
-msgstr "What happened at the broker"
+#~ msgid "What happened at the broker"
+#~ msgstr "What happened at the broker"
 
 #: src/shell/domain/TasksPages.tsx:304
 msgid "What is needed"
@@ -8777,8 +8777,8 @@ msgstr "Your session ended"
 #~ msgstr "Your statement"
 
 #: src/components/trading/TradingJournal.tsx:57
-msgid "Your statement (optional)"
-msgstr "Your statement (optional)"
+#~ msgid "Your statement (optional)"
+#~ msgstr "Your statement (optional)"
 
 #: src/shell/settings/AuthFlow.tsx:70
 msgid "Your team of agents"

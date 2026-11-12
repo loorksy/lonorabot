@@ -473,6 +473,12 @@ async def main() -> None:
         again = await fixture.client.post(decision, json=body)
         assert again.status_code == 200 and again.json()["status"] == "confirmed"
         assert len(await events("trading.operation_resolved", unknown.operation_id)) == 1
+        # The card is the only settlement surface (6.8): the former route is gone.
+        retired = await fixture.client.post(
+            f"/api/trading/journal/{unknown.operation_id}/resolve",
+            json={"outcome": "executed", "statement": "typed"},
+        )
+        assert retired.status_code in {404, 405}, retired.status_code
         # The attestation itself settles only an uncertain operation that exists.
         actor = {"kind": "owner", "owner_id": fixture.owner}
         for operation_id, code in (
