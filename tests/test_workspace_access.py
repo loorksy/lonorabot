@@ -125,7 +125,7 @@ def context(seen: list[Any], token: Any = None) -> Any:
                 "duration_ms": 1,
                 "stdout": "x" * (terminal.MODEL_OUTPUT + 10),
                 "stderr": "",
-                "stdout_dropped_bytes": 5,
+                "stdout_dropped_bytes": 0,
                 "stderr_dropped_bytes": 0,
             }
         },
@@ -140,13 +140,22 @@ def context(seen: list[Any], token: Any = None) -> Any:
     )
 
 
+@pytest.fixture(autouse=True)
+def ordinary(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def yes(context: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(terminal, "ordinary_run", yes)
+
+
 def test_a_command_receives_only_the_workspace_secrets_it_names():
     seen: list[Any] = []
     result = asyncio.run(terminal.run(context(seen), {"command": "env", "secrets": ["API_KEY"]}))
     body = seen[0][1]
     assert body["secrets"] == {"API_KEY": VALUE} and "agent_token" not in body
+    assert body["current_secrets"] == ["API_KEY", "OTHER"]
     assert len(result["stdout"].encode()) == terminal.MODEL_OUTPUT
-    assert result["stdout_omitted_bytes"] == 15
+    assert result["stdout_omitted_bytes"] == 10
 
 
 def test_an_unknown_secret_name_is_refused_before_anything_runs():
@@ -156,19 +165,89 @@ def test_an_unknown_secret_name_is_refused_before_anything_runs():
     assert seen == []
 
 
-def test_only_an_ordinary_run_gets_the_agents_cli_token(monkeypatch: pytest.MonkeyPatch):
+def test_only_an_ordinary_run_may_run_write_or_stop(monkeypatch: pytest.MonkeyPatch):
     async def token(owner_id: str, agent_id: str) -> str:
-        return "t" * 32
+        return "tok_" + "t" * 32
 
-    for ordinary in (True, False):
+    seen: list[Any] = []
+    asyncio.run(terminal.run(context(seen, token), {"command": "true"}))
+    assert seen[0][1]["agent_token"] == "tok_" + "t" * 32
 
-        async def scope(context: Any, value: bool = ordinary) -> bool:
-            return value
+    async def no(context: Any) -> bool:
+        return False
 
-        monkeypatch.setattr(terminal, "ordinary_run", scope)
-        seen: list[Any] = []
-        asyncio.run(terminal.run(context(seen, token), {"command": "true"}))
-        assert ("agent_token" in seen[0][1]) is ordinary
+    monkeypatch.setattr(terminal, "ordinary_run", no)
+    for handler, arguments in (
+        (terminal.run, {"command": "cat ~/.lonora/token"}),
+        (terminal.write, {"path": "x", "content": "y"}),
+        (terminal.stop, {"pid": 99}),
+    ):
+        seen = []
+        with pytest.raises(LonoraError, match="workspace_run_scope_refused"):
+            asyncio.run(handler(context(seen, token), arguments))
+        assert seen == []
+
+
+def test_the_cli_token_never_reaches_the_model():
+    async def token(owner_id: str, agent_id: str) -> str:
+        return "tok_" + "q" * 40
+
+    scanned = asyncio.run(terminal.scan(context([], token)))
+    assert scanned.text("LONORA_AGENT_TOKEN=tok_" + "q" * 40) == (
+        "LONORA_AGENT_TOKEN=[secret:LONORA_AGENT_TOKEN]"
+    )
+
+
+def test_a_secret_across_a_slice_edge_is_still_replaced():
+    content = ("a" * 100 + VALUE + "b" * 100).encode()
+    seen: list[Any] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen.append(body)
+        part = content[body["offset"] : body["offset"] + body["limit"]]
+        return httpx.Response(
+            200,
+            json={
+                "boot_id": "b",
+                "ok": True,
+                "size": len(content),
+                "offset": body["offset"],
+                "truncated": body["offset"] + len(part) < len(content),
+                "content_base64": base64.b64encode(part).decode(),
+            },
+        )
+
+    client = WorkspaceClient(transport=httpx.MockTransport(handle))
+    left = asyncio.run(client.read_text(SCAN, AGENT, "f", 0, 110))
+    right = asyncio.run(client.read_text(SCAN, AGENT, "f", 110, 200))
+    assert left["content"] == "a" * 100 + "[secret:API_KEY]"
+    assert right["content"].startswith("[secret:API_KEY]") and right["content"].endswith("b" * 100)
+    assert VALUE[:10] not in left["content"] + right["content"]
+    assert VALUE[-10:] not in left["content"] + right["content"]
+
+
+def test_a_stream_cut_inside_a_secret_never_shows_its_half():
+    from lonora_workspace.client import MARGIN
+
+    client = supervisor_answering(
+        {
+            "/v1/run": {
+                "boot_id": "b",
+                "id": "j",
+                "exit_code": 0,
+                "timed_out": False,
+                "duration_ms": 1,
+                "stdout": "x" * (MARGIN * 2) + VALUE[:12],
+                "stderr": "",
+                "stdout_dropped_bytes": 100,
+                "stderr_dropped_bytes": 0,
+            }
+        },
+        [],
+    )
+    result = asyncio.run(client.run(SCAN, AGENT, "true"))
+    assert VALUE[:12] not in result["stdout"] and result["stdout_dropped_bytes"] > 100
 
 
 def _etc(root: Path) -> Path:
@@ -202,16 +281,20 @@ def test_secrets_arrive_as_env_and_file_and_the_token_only_for_its_user(
             go(
                 a,
                 'echo "$API_KEY"; cat "$S/API_KEY"; echo;'
-                " stat -c %a ~/.lonora/token; cat ~/.lonora/token",
+                ' echo "$LONORA_AGENT_TOKEN"; test -e ~/.lonora/token || echo no-file',
                 secrets={"API_KEY": VALUE},
                 agent_token=token,
                 env={"S": str(secrets)},
             )
         )
-        assert out["stdout"].split() == [VALUE, VALUE, "600", token]
+        assert out["stdout"].split() == [VALUE, VALUE, token, "no-file"], out
         assert (secrets / "API_KEY").stat().st_mode & 0o777 == 0o440
-        other = asyncio.run(go(b, f"cat {sup.users.home(20000)}/.lonora/token; echo rc=$?"))
-        assert token not in other["stdout"] and "rc=1" in other["stdout"]
+        other = asyncio.run(
+            go(b, 'echo "${LONORA_AGENT_TOKEN-none}"; cat "$S/API_KEY"', env={"S": str(secrets)})
+        )
+        assert other["stdout"].split() == ["none", VALUE]
+        asyncio.run(go(a, "true", current_secrets=["OTHER"]))
+        assert not (secrets / "API_KEY").exists()
         with pytest.raises(ValueError, match="workspace_secret_name_invalid"):
             asyncio.run(go(a, "true", secrets={"PATH": "x"}))
         signal_agents(signal.SIGKILL, None, sup.users)

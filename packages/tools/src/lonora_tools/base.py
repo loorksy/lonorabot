@@ -47,7 +47,7 @@ def eager_for(*profiles: ExposureProfile) -> frozenset[ExposureProfile]:
 # reads plus sandbox computation and reports, never memory writes, new agents,
 # peer messages or financial tools.
 ToolScope = Literal["full", "observe_only", "helper"]
-HELPER_EFFECTS = frozenset({"workspace_execute", "workspace_run", "artifact_create"})
+HELPER_EFFECTS = frozenset({"workspace_execute", "artifact_create"})
 
 
 def run_scope(trigger: str, metadata: Mapping[str, Any]) -> ToolScope:

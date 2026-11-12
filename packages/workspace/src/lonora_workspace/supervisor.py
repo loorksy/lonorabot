@@ -41,10 +41,6 @@ ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]{0,127}$")
 SECRET_NAME = r"^[A-Z][A-Z0-9_]{0,63}$"
 # Runs as the agent's user: every path below is resolved with the agent's permissions.
 WRAPPER = (
-    # The CLI token (7.3.3) is written by the agent's own process: only its user reads it.
-    'if [ -n "${LONORA_AGENT_TOKEN-}" ]; then (umask 077; mkdir -p "$HOME/.lonora" &&'
-    ' printf %s "$LONORA_AGENT_TOKEN" >"$HOME/.lonora/token.$$" &&'
-    ' mv -f "$HOME/.lonora/token.$$" "$HOME/.lonora/token") || exit 126; fi\n'
     'cd -- "$1" || exit 126\n'
     'if [ -n "$2" ]; then mkdir -p -- "${2%/*}" && exec >>"$2" 2>&1 </dev/null || exit 126; fi\n'
     'exec /bin/bash -c "$3"\n'
@@ -73,7 +69,14 @@ class RunCommand(Request):
         Annotated[str, StringConstraints(pattern=SECRET_NAME)],
         Annotated[str, StringConstraints(min_length=1, max_length=16000)],
     ] = Field(default_factory=dict, max_length=64)
+    # The agent's CLI token (7.3.3): in the environment only, never in a file, so only
+    # this command and its children (the agent's own processes) hold it.
     agent_token: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{16,512}$")] | None = None
+    # Every workspace secret name that still exists: /run/secrets files of any other name
+    # (a deleted secret) are removed before the command starts.
+    current_secrets: list[Annotated[str, StringConstraints(pattern=SECRET_NAME)]] | None = Field(
+        default=None, max_length=1024
+    )
 
 
 AgentPath = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
@@ -95,6 +98,8 @@ class WriteFile(Request):
 
 class StopProcess(Request):
     pid: int = Field(gt=1)
+    # When given, the process must belong to this agent.
+    agent_id: uuid.UUID | None = None
 
 
 class StopAll(Request):
@@ -311,6 +316,11 @@ class Supervisor:
                 raise ValueError("workspace_environment_invalid")
         return base | extra
 
+    def drop_secrets(self, keep: set[str]) -> None:
+        for path in SECRETS.iterdir():
+            if not path.name.startswith(".") and path.name not in keep:
+                path.unlink(missing_ok=True)
+
     def place_secrets(self, secrets: dict[str, str]) -> None:
         """/run/secrets/NAME, root:agents 0440 on a tmpfs: any agent may use any workspace
         secret by name (7.2.4). Rewritten on each use, so a rotated value takes effect."""
@@ -340,6 +350,8 @@ class Supervisor:
         env = self.environment(uid, request.env)
         if set(request.secrets) & (PROTECTED_ENV | set(request.env)):
             raise ValueError("workspace_secret_name_invalid")
+        if request.current_secrets is not None:
+            self.drop_secrets(set(request.current_secrets) | set(request.secrets))
         self.place_secrets(request.secrets)
         env |= request.secrets
         if request.agent_token:
@@ -477,7 +489,7 @@ class Supervisor:
         code, out, err = await self.as_agent(
             request.agent_id,
             '[ -f "$1" ] || { echo "not a regular file" >&2; exit 3; }\n'
-            'stat -c %s -- "$1" && tail -c +"$2" -- "$1" | head -c "$3"',
+            'stat -L -c %s -- "$1" && tail -c +"$2" -- "$1" | head -c "$3"',
             request.path,
             str(request.offset + 1),
             str(request.limit),
@@ -529,9 +541,11 @@ class Supervisor:
             "processes": live_processes(self.users),
         }
 
-    async def stop(self, pid: int) -> bool:
+    async def stop(self, pid: int, agent_id: uuid.UUID | None = None) -> bool:
         uid = owner(pid)
         if uid is None or not is_agent_uid(uid):
+            return False
+        if agent_id is not None and self.users.by_agent.get(str(agent_id)) != uid:
             return False
         job = next((j for j in self.jobs.values() if j.pid == pid and j.ended_at is None), None)
         with contextlib.suppress(OSError):
@@ -618,7 +632,10 @@ def create_app(supervisor: Supervisor) -> FastAPI:
 
     @app.post("/v1/processes/stop")
     async def stop(request: StopProcess) -> dict[str, Any]:
-        return {"boot_id": supervisor.boot_id, "stopped": await supervisor.stop(request.pid)}
+        return {
+            "boot_id": supervisor.boot_id,
+            "stopped": await supervisor.stop(request.pid, request.agent_id),
+        }
 
     @app.post("/v1/processes/stop-all")
     async def stop_all(request: StopAll) -> dict[str, Any]:

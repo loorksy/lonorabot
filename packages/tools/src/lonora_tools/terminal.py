@@ -18,6 +18,7 @@ from .context import ToolContext
 
 MODEL_OUTPUT = 64 * 1024
 FOREGROUND_SECONDS = 600
+FILE_LIMIT = 2 * 1024 * 1024
 SecretName = Annotated[str, StringConstraints(pattern=r"^[A-Z][A-Z0-9_]{0,63}$")]
 
 
@@ -59,8 +60,14 @@ def client(context: ToolContext) -> WorkspaceClient:
     return context.workspace
 
 
-async def scan(context: ToolContext) -> SecretScan:
-    return SecretScan(await context.secrets.workspace_values())
+async def scan(context: ToolContext, token: str | None = None) -> SecretScan:
+    """The owner's workspace secrets and the agent's CLI token: neither reaches the model."""
+    values = await context.secrets.workspace_values()
+    if token is None and context.agent_token is not None:
+        token = await context.agent_token(context.owner_id, context.agent_id)
+    if token:
+        values["LONORA_AGENT_TOKEN"] = token
+    return SecretScan(values)
 
 
 async def ordinary_run(context: ToolContext) -> bool:
@@ -78,23 +85,33 @@ def tail(text: str) -> tuple[str, int]:
     return data[-MODEL_OUTPUT:].decode("utf-8", "ignore"), len(data) - MODEL_OUTPUT
 
 
+async def require_ordinary(context: ToolContext) -> None:
+    """Commands, writes and stops come only from an ordinary run of the agent. A helper or
+    an observe-only wake runs as the same Unix user, so it could read the CLI token from
+    the agent's own processes and trade through `lonora` (6.9): it may only look."""
+    if not await ordinary_run(context):
+        raise LonoraError("workspace_run_scope_refused", 403)
+
+
 async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     request = RunInput.model_validate(arguments)
+    await require_ordinary(context)
     values = await context.secrets.workspace_values()
     missing = sorted(set(request.secrets) - set(values))
     if missing:
         raise LonoraError("workspace_secret_unknown", 404)
     token = None
-    if context.agent_token is not None and await ordinary_run(context):
+    if context.agent_token is not None:
         token = await context.agent_token(context.owner_id, context.agent_id)
     result = await client(context).run(
-        SecretScan(values),
+        await scan(context, token),
         context.agent_id,
         request.command,
         background=request.background,
         timeout_seconds=None if request.background else request.timeout_seconds,
         secrets={name: values[name] for name in request.secrets},
         agent_token=token,
+        current_secrets=sorted(values),
     )
     if request.background:
         process = result["process"]
@@ -134,10 +151,12 @@ async def processes(context: ToolContext, arguments: dict[str, Any]) -> dict[str
 
 async def stop(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     pid = StopInput.model_validate(arguments).pid
+    await require_ordinary(context)
     workspace, secrets = client(context), await scan(context)
     if not any(p["pid"] == pid for p in own(await workspace.processes(secrets), context.agent_id)):
         raise LonoraError("workspace_process_not_yours", 404)
-    return {"stopped": (await workspace.stop(secrets, pid))["stopped"]}
+    # The supervisor checks ownership again at the moment it signals (pid reuse).
+    return {"stopped": (await workspace.stop(secrets, pid, context.agent_id))["stopped"]}
 
 
 async def read(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -152,6 +171,9 @@ async def read(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any
 
 async def write(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     request = WriteInput.model_validate(arguments)
+    await require_ordinary(context)
+    if len(request.content.encode()) > FILE_LIMIT:
+        raise LonoraError("workspace_file_too_large", 413)
     result = await client(context).write(
         await scan(context),
         context.agent_id,
@@ -206,6 +228,7 @@ def tools() -> list[Tool]:
             ReadInput,
             read,
             read_only=True,
+            timeout_seconds=120,
             availability=available,
             search_terms="cat open file contents ملف",
         ),

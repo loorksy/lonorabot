@@ -431,23 +431,37 @@ def check_users(stack: Stack) -> None:
 def check_secrets(stack: Stack) -> None:
     a, b = stack.agent_a, stack.agent_b
     value = "check-" + secrets.token_hex(12)
+    token = "tok_" + "z" * 40
     out = stack.run(
         a,
-        'echo "$CHECK_SECRET"; cat /run/secrets/CHECK_SECRET; echo; stat -c %a ~/.lonora/token',
+        'echo "$CHECK_SECRET"; cat /run/secrets/CHECK_SECRET; echo; sh -c \'echo "$LONORA_AGENT_TOKEN"\';'
+        " test -e ~/.lonora/token || echo no-token-file",
         secrets={"CHECK_SECRET": value},
-        agent_token="tok_" + "z" * 40,
+        agent_token=token,
     )
     record(
-        out["stdout"].split() == [value, value, "600"],
-        "a named secret arrives as env NAME and /run/secrets/NAME; the CLI token file is the agent's only",
+        out["stdout"].split() == [value, value, token, "no-token-file"],
+        "a named secret arrives as env NAME and /run/secrets/NAME; the CLI token reaches the command and its children, never a file",
     )
-    other = stack.run(
-        b,
-        f"cat /run/secrets/CHECK_SECRET; echo; cat {stack.run(a, 'echo $HOME')['stdout'].strip()}/.lonora/token",
+    other = stack.run(b, 'cat /run/secrets/CHECK_SECRET; echo; echo "${LONORA_AGENT_TOKEN-none}"')
+    record(
+        other["stdout"].split() == [value, "none"],
+        "any agent may use a workspace secret by name; another agent's command has no token",
+    )
+    stack.run(a, "sleep 300", background=True, agent_token=token)
+    time.sleep(1)
+    environ = stack.run(
+        b, "cat /proc/[0-9]*/environ 2>/dev/null | tr '\\0' '\\n' | grep -c LONORA_AGENT_TOKEN"
     )
     record(
-        value in other["stdout"] and "tok_" not in other["stdout"],
-        "any agent may use a workspace secret by name; no agent reads another's token",
+        environ["stdout"].strip() in {"", "0"},
+        "another agent cannot read a token from a running process",
+    )
+    stack.call("POST", "/v1/processes/stop-all", {})
+    stack.run(a, "true", current_secrets=[])
+    record(
+        stack.run(a, "test -e /run/secrets/CHECK_SECRET || echo gone")["stdout"].strip() == "gone",
+        "a deleted secret leaves /run/secrets",
     )
     mounts = stack.run(a, "grep ' /run/secrets ' /proc/mounts")["stdout"]
     record(mounts.startswith("tmpfs"), "secret files live in memory only (tmpfs)")
