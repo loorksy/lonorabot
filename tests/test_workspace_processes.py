@@ -11,7 +11,11 @@ from lonora_db.workspace_processes import ended_notice, reconcile, started
 from test_task_runtime import task_db as task_db
 
 Fixture = tuple[Database, str, str, str]
-LATER = datetime.now(UTC) + timedelta(minutes=1)
+
+
+def later() -> datetime:
+    """A listing asked for well after the rows were recorded."""
+    return datetime.now(UTC) + timedelta(minutes=1)
 
 
 def listing(boot: str, *jobs: dict[str, object]) -> dict[str, object]:
@@ -44,7 +48,7 @@ async def test_an_agent_is_told_once_which_of_its_processes_ended(task_db: Fixtu
                 job("b" * 32, True, -15, stopped=True),
                 job("c" * 32, False),
             ),
-            LATER,
+            later(),
         )
     assert closed == 3  # d is gone from the listing: lost
     first = await ended_notice(db, agent, "run-1")
@@ -63,7 +67,7 @@ async def test_a_workspace_restart_ends_every_open_process(task_db: Fixture) -> 
     async with db.sessions() as session, session.begin():
         await started(session, owner, agent, "e" * 32, "boot-1", 201, "python listener.py")
     async with db.sessions() as session, session.begin():
-        assert await reconcile(session, listing("boot-2"), LATER) == 1
+        assert await reconcile(session, listing("boot-2"), later()) == 1
         row = await session.get(WorkspaceProcessRow, "e" * 32)
         assert row is not None and row.outcome == "restarted"
     notice = await ended_notice(db, agent, "run-1")
@@ -75,7 +79,7 @@ async def test_a_running_process_is_never_reported(task_db: Fixture) -> None:
     db, owner, agent, _ = task_db
     async with db.sessions() as session, session.begin():
         await started(session, owner, agent, "f" * 32, "boot-1", 301, "python bot.py")
-        assert await reconcile(session, listing("boot-1", job("f" * 32, False)), LATER) == 0
+        assert await reconcile(session, listing("boot-1", job("f" * 32, False)), later()) == 0
     assert await ended_notice(db, agent, "run-1") == ""
 
 
