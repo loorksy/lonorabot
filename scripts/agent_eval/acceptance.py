@@ -48,11 +48,12 @@ from lonora_agent.executor import execute_run
 from lonora_contracts.domain import AgentCreate, ThreadCreate
 from lonora_db.agents import create_agent
 from lonora_db.market_watches import MarketWatchRepository
-from lonora_db.schema import MessageRow, RunRow, TradingJournalRow
+from lonora_db.schema import AgentRow, MessageRow, RunRow, TradingJournalRow
 from lonora_db.threads import create_thread
 from lonora_db.trading_mode import set_trading_mode
 from lonora_market.watchers import check_watches
 from lonora_tools.loader import load_tools
+from lonora_trading.manual_activity import journal_agent
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import func, select
 from sqlalchemy.engine import URL
@@ -368,6 +369,10 @@ async def judged(stage: Stage, thread_id: str) -> list[Check]:
     ]
 
 
+# 4c's actor (a close is risk-reducing, so it needs no approval in either mode, 4.1).
+GOLD_SENT = "the gold agent, a team agent in Full, sent the close"
+
+
 async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> list[Check]:
     """4c: a connection drop during a close is reconciled without a resend.
 
@@ -403,7 +408,19 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
     await stage.drain()
     closes = [row for row in await stage.journal() if row.request.get("action") == "close_position"]
     sends = terminal.calls.count("close_position")
+    senders = [journal_agent(row) for row in closes]
+    async with stage.api.runtime.db.sessions() as session:
+        gold = await session.get(AgentRow, stage.ids["gold"])
     checks: list[Check] = [
+        (
+            GOLD_SENT,
+            senders == [stage.ids["gold"]]
+            and gold is not None
+            and gold.role != "personal"
+            and gold.trading_mode == "full",
+            f"sent by {[stage.handle(agent) if agent else 'the owner' for agent in senders]}"
+            f", mode {gold.trading_mode if gold else None}",
+        ),
         (
             "the agent's own watch woke it",
             (await stage.triggers())[:1] == ["watch"],
