@@ -529,20 +529,22 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(mandateSlot).toContainText("التفويض");
     expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(405);
     // The Secret card in its slot: W-ENV's own form, whose values go straight to the
-    // encrypted store; its row steps aside too. The compiler counts it 305 px and 95 px a
-    // field (SLOT_HEIGHTS, SLOT_ROW_HEIGHTS): 495 px for these two fields.
+    // encrypted store; its row steps aside too. The compiler counts it 365 px and 95 px a
+    // field (SLOT_HEIGHTS, SLOT_ROW_HEIGHTS): 555 px for these two fields.
     const secretSlot = page.locator('.ux .ux-slot[data-slot-card="secret"]');
     await expect(secretSlot.locator(`[data-owner-action="${ids.secret}"]`)).toBeVisible();
     await expect(page.locator(`[data-owner-action="${ids.secret}"]`)).toHaveCount(1);
     await expect(secretSlot).toContainText("بيانات سرّية");
-    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(305 + 2 * 95);
-    // The Mandate card at its tallest, which is what the compiler counts: the longest name,
-    // Ask's line and the line a signed grant adds, in Arabic and in English, whose lines are
-    // the longer.
+    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(365 + 2 * 95);
+    // The Mandate and Secret cards at their tallest as the compiler counts them: the
+    // longest name (both cards show it), Ask's line and the line a signed grant adds, in
+    // Arabic and in English, whose lines are the longer. A Secret card that replaces saved
+    // values shows one more line, which is not counted (docs/genui.md 4a).
     python("tallest_mandate", fixture.input);
     await page.reload();
     await expect(mandateSlot).toContainText("صلاحيته الموقّعة تبقى سارية");
     expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(405);
+    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(365 + 2 * 95);
     const english = await browser.newContext({ baseURL: test.info().project.use.baseURL });
     try {
       await english.addCookies(
@@ -564,6 +566,9 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
       await expect(enSlot).toContainText("Now: Ask");
       await expect(enSlot).toContainText("Its signed grant still lets it trade");
       expect((await enSlot.boundingBox()).height).toBeLessThanOrEqual(405);
+      const enSecret = en.locator('.ux .ux-slot[data-slot-card="secret"]');
+      await expect(enSecret.locator(`[data-owner-action="${ids.secret}"]`)).toBeVisible();
+      expect((await enSecret.boundingBox()).height).toBeLessThanOrEqual(365 + 2 * 95);
     } finally {
       await english.close();
     }

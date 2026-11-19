@@ -289,20 +289,23 @@ async def test_a_secret_slot_counts_its_fields_and_too_many_fall_back(task_db: F
     db, owner, agent, thread = task_db
     note = '{"type":"Note","text":"أحتاج المفاتيح لأقرأ حسابك في المنصة."}'
     one = await secret_with_fields(db, owner, agent, thread, 1)
-    ui, projector = await project(db, owner, agent, thread, card(note, slot(one, "secret")))
+    # 365 + 95 = 460 px, the English card with the longest name: with the head, 560 at rest.
+    # A note hidden at rest takes no height but could fold, so a higher count would fold it.
+    hidden = '{"type":"Note","when":"false","text":"أحتاج المفاتيح لأقرأ حسابك في المنصة."}'
+    ui, projector = await project(db, owner, agent, thread, card(hidden, slot(one, "secret")))
     assert ui is not None and "budget_folded" not in codes(projector), projector.diagnostics
+    ui, projector = await project(db, owner, agent, thread, card(note, slot(one, "secret")))
+    assert ui is not None and "budget_folded" in codes(projector), projector.diagnostics
     two = await secret_with_fields(db, owner, agent, thread, 2)
     ui, projector = await project(db, owner, agent, thread, card(note, slot(two, "secret")))
-    # 305 + 2 × 95 = 495 px with the head is over 560 at rest: the note folds, never the
-    # slot, and the card (649 px) stays under 720.
+    # 365 + 2 × 95 = 555 px with the head is over 560 at rest: the note folds, never the
+    # slot, and the card (709 px) stays under 720.
     assert ui is not None, projector.diagnostics
     assert "budget_folded" in codes(projector)
     assert {block["type"] for block in ui["blocks"]} == {"More", "Slot"}
     three = await secret_with_fields(db, owner, agent, thread, 3)
     ui, projector = await project(db, owner, agent, thread, card(slot(three, "secret")))
-    assert ui is not None, projector.diagnostics  # 690 px, alone
-    ui, projector = await project(db, owner, agent, thread, card(note, slot(three, "secret")))
-    assert ui is None and "card_fallback_budget" in codes(projector)  # 744 px with its fold
+    assert ui is None and "card_fallback_budget" in codes(projector)  # 750 px, alone
     eight = await secret_with_fields(db, owner, agent, thread, 8)
     ui, projector = await project(db, owner, agent, thread, card(slot(eight, "secret")))
     assert ui is None and "card_fallback_budget" in codes(projector)
@@ -395,6 +398,10 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     # non-joiner, zero-width space, a Cyrillic А, a right-to-left mark).
     assert imitates_fixed_card("موا\u200cفقة") and imitates_fixed_card("رف\u200bض")
     assert imitates_fixed_card("\u0410pprove") and imitates_fixed_card("\u200fرفض")
+    # Nor do marks that draw nothing (the combining grapheme joiner, variation selectors).
+    assert imitates_fixed_card("Appro\u034fve", control=True)
+    assert imitates_fixed_card("Appro\ufe0fve", control=True)
+    assert imitates_fixed_card("رف\U000e0100ض")
     assert not imitates_fixed_card("الموافقة على الخطة")
     assert not imitates_fixed_card("Approved plans")
     # A heading is held to the whole words or a separated segment; a control to its start.
@@ -423,15 +430,35 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     for dot in "\u2219\u22c5\u30fb":
         assert shows_frame_mark(f"Gold {dot} Now: Full"), dot
     assert shows_frame_mark("الذهب، الآن: وكّله · منذ اليوم")
+    # A tatweel, a dash or a slash separates where it does not join two letters: a stretched
+    # word and a compound stay whole.
+    assert shows_frame_mark("الذهب ـ الآن: وكّله") and shows_frame_mark("وكيل الذهب ـ الآن: يستأذن")
+    assert shows_frame_mark("الذهب ـــ الآن: وكّله · منذ اليوم")
+    assert shows_frame_mark("الذهب · الآن: وكّـله") and shows_frame_mark("الذهب ـ الآن: وكّـله")
+    assert shows_frame_mark("Gold - Now: Full") and shows_frame_mark("Gold/Now: Full")
+    assert shows_frame_mark("Gold-Now: Full")
+    # Each side on its own: a tatweel joined to the name before it, or to «الآن» after it.
+    assert shows_frame_mark("الذهبـ الآن: وكّله") and shows_frame_mark("الذهب ـالآن: وكّله")
+    # A mark that draws nothing inside a mode word hides nothing.
+    assert shows_frame_mark("Gold · Now: Fu\u034fll")
+    assert shows_frame_mark("الذهب · الآن: وك\u034fّله")
+    assert not shows_frame_mark("Order book, now: Ask-heavy.")
+    assert not shows_frame_mark("Spread, now: Ask/Bid 0.3")
     assert not shows_frame_mark("Full now") and not shows_frame_mark("الآن السعر 2400")
     # Only in that form: a sentence with the same words says nothing about a mode.
     assert not shows_frame_mark("You can now ask me for the weekly report.")
     assert not shows_frame_mark("The book is now full.")
     assert not shows_frame_mark("السوق هادئ الآن وكله ترقب")
     assert not shows_frame_mark("What to do now: ask your broker for the fill.")
-    assert not shows_frame_mark("Next step, now: ask your broker for the fill.")
     assert not shows_frame_mark("قرّرت الآن: يستأذن قبل كل صفقة")
     assert not shows_frame_mark("الخطة: الآن نراقب، ثم يستأذن")
+    # Each half of the form is needed: punctuation before «الآن:» is not enough when the
+    # sentence goes on after the mode word...
+    assert not shows_frame_mark("الذهب، الآن: يستأذن قبل كل صفقة")
+    assert not shows_frame_mark("Next step, now: ask your broker for the fill.")
+    # ...and a mode word at the end is not enough when a word stands before «الآن:».
+    assert not shows_frame_mark("قرّرت الآن: يستأذن")
+    assert not shows_frame_mark("What to do now: ask.")
 
 
 @pytest.mark.asyncio

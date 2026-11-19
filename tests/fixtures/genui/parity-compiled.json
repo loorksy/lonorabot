@@ -443,10 +443,6 @@
       "calc": {},
       "blocks": [
         {
-          "type": "Text",
-          "text": "أحتاج مفتاح المنصة لأقرأ رصيدك."
-        },
-        {
           "type": "Slot",
           "card": "secret",
           "record": "parity-secret"
