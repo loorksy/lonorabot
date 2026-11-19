@@ -9,7 +9,7 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.account_authority import require_authority
 from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow, TradingAccountRow
 from lonora_session.idempotency import stable_id
@@ -145,7 +145,7 @@ async def main():
         assert proposal["envelope"]["schema_version"] == 2
         assert proposal["envelope"]["maximum_actions"] is None
         assert proposal["status"] == "pending"
-        pending = await trade(volume="0.1")
+        pending = await trade(volume="0.1", tolerance="5", reason="Fixture request")
         assert pending.get("_runtime_wait"), pending
         await f.request(
             "POST", f"/trading/approvals/{pending['approval_id']}/decision", {"decision": "reject"}
@@ -249,7 +249,7 @@ async def main():
             raise AssertionError("old management task spent replacement authority")
         # Over the signed cap the agent asks the owner (correction 6); nothing is sent.
         before = await broker.snapshot()
-        over = await trade(volume="0.3")
+        over = await trade(volume="0.3", tolerance="5", reason="Fixture request")
         assert over.get("_runtime_wait") and over.get("approval_id"), over
         assert await broker.snapshot() == before
         await f.request(
@@ -264,7 +264,7 @@ async def main():
             )
             assert stopped and stopped.state["task"]["status"] == "cancelled"
         context = await f.lease(await f.run(agent, thread))
-        after_revoke = await trade(volume="0.1")
+        after_revoke = await trade(volume="0.1", tolerance="5", reason="Fixture request")
         assert after_revoke.get("_runtime_wait"), after_revoke
         await f.request(
             "POST",
@@ -276,8 +276,13 @@ async def main():
         )
 
         await sign(await propose())
-        invalid = await trade(volume="0.15")
-        assert invalid["status"] == "failed" and invalid["code"] == "volume_step_mismatch", invalid
+        # An off-step volume is refused before anything is journaled or sent.
+        try:
+            invalid = await trade(volume="0.15")
+        except ToolRefusal as refused:
+            assert refused.code == "volume_step_mismatch", refused.code
+        else:
+            raise AssertionError(invalid)
         print("PASS full management preserves broker volume validity")
 
         specialist = await f.request(
