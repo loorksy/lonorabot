@@ -619,6 +619,14 @@ def broker_prompt(row: OwnerActionRow) -> str:
                 " again, and its card asks the owner for a new token. Never ask in chat."
             )
         cause = BROKER_CAUSES.get(str(result.get("code")))
+        if result.get("password_stored") and not result.get("password_set"):
+            # The account the token already had took this card's password, and no redeploy
+            # with it was confirmed (production, 2026-11-19).
+            cause = (cause + " " if cause else "") + (
+                "MetaApi stores the password the owner typed on this card for the account, "
+                "but no redeploy of its terminal with it was confirmed: until the terminal "
+                "is redeployed, it logs in with the password it was last deployed with."
+            )
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
             f"{result.get('code')}.{token}{' ' + cause if cause else ''} You never see "

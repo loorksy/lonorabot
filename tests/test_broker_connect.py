@@ -968,6 +968,13 @@ async def test_an_account_metaapi_is_still_busy_with_at_the_deadline_fails_as_bu
         assert failed["code"] == "broker_provisioning_busy"
         prompt = await world.wake_prompt(card_id)
         assert prompt is not None and "broker_provisioning_busy" in prompt
+        # MetaApi took the typed password only when a pass got as far as storing it.
+        stored = "MetaApi stores the password the owner typed on this card"
+        assert (stored in prompt) is refused and failed.get("password_stored", False) is refused
+        if refused:
+            assert "it logs in with the password it was last deployed with" in prompt
+            assert api.accounts[metaapi_id]["password"] == PASSWORD
+            assert api.accounts[metaapi_id]["terminal_password"] == "fixture-earlier-password"
         assert metaapi_id in api.accounts  # the owner's own account is never removed
     finally:
         FakeMetaApiBroker.terminals.clear()
