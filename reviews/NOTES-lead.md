@@ -22,3 +22,4 @@
 - 2026-11-19T10:37Z: #156 3f28e107 CLEAN (merge of #110 resolved correctly); rebase needed, 8 conflicts with dcf86b43.
 - 2026-11-19T10:38Z: #203 9ca0bb8c CLEAN (0 conflicts with dcf86b43). #110 968079a4 and #156 26aec059 CLEAN; wauth/2 ab780a47 now carries main and merges with #110 with 0 conflicts.
 - 2026-11-19T10:39Z: #216 7a0809d8 FINDINGS 0/1/0. Medium: the web and mobile skills-management specs still send intents (422). Also 0121 is on 0138 and must follow main's head 0087, or there are two heads after a merge.
+- 2026-11-19T12:20Z (main de96cb30): CLEAN #81 0afa6c5a, #110 8db4df5c (merge only; already in main by batch 14), #156 d71cf0c9, #203 24ef71bf, #172 2129b73b, #204 e2bcaf07 (merge only), #148 ae859fc3, #205 ddcec761 (merge only), #216 7fe37489. Conflicts with de96cb30: #81 1, #148 1, #203 2. Migrations to re-chain to 0200 at integration: 0173 (#203), 0177 (#172), 0121 (#216). #223, #206 and the W-TEAM stack are still under review.
