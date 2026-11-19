@@ -421,10 +421,12 @@ export const labels = {
     "هذا المتصفح لا يدعم المكالمات الصوتية.",
     "This browser does not support voice calls.",
   ],
+  // Web's «المكالمات غير مُعدّة» sheet, in the call's own notice.
   voice_transport_unconfigured: [
-    "الخدمة الصوتية غير مهيأة بعد.",
-    "Voice service is not configured yet.",
+    "المكالمات غير مُعدّة. لم يُضبط مزود الصوت بعد. أضف مفتاح OpenAI في مزودي الذكاء الاصطناعي لإجراء المكالمات.",
+    "Calls are not set up. No voice provider is configured yet. Add an OpenAI key in the model providers to make calls.",
   ],
+  callBack: ["{0}. اضغط لمعاودة الاتصال", "{0}. Tap to call back"],
   tradeApproval: ["طلب تداول", "Trading request"],
   approve: ["موافقة", "Approve"],
   reject: ["رفض", "Reject"],

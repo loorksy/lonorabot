@@ -164,6 +164,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
   }, []);
   const toast = useToast();
+  // The message a search or quote jump landed on (tinted for 1.7 s).
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const timer = setTimeout(() => setFlash(null), 1700);
+    return () => clearTimeout(timer);
+  }, [flash]);
   const menuActions = useRef<() => MessageMenuActions>(() => {
     throw new Error("message_menu_unset");
   });
@@ -848,6 +855,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
+    // The message the jump landed on is marked for a moment, as on Web.
+    const landed = visibleMessages.find((row) => row.seq === around);
+    if (landed) setFlash(landed.id);
   }, [around, loaded, visibleMessages, approvals, ownerActions, id, undrawn]);
 
   if (!ready) return <Loading />;
@@ -1415,6 +1425,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         onMenu={message.id.startsWith("preview:") ? undefined : menu.open}
                         onReactions={menu.reactions}
                         onQuote={jumpTo}
+                        flash={flash === message.id}
+                        onCallBack={
+                          agent && thread && !thread.group_id
+                            ? () => void voice.start(agent, thread.id)
+                            : undefined
+                        }
                         onCancelUploads={(nonce) => cancelOutgoingUploads(outboxKey, nonce)}
                         body={
                           question?.choices.length ? (
