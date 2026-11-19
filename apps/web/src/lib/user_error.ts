@@ -34,6 +34,8 @@ export function userError(error: unknown) {
       return t`Choose an available answer.`;
     case "input_answer_expired":
       return t`This question is no longer waiting for an answer.`;
+    case "agent_paused":
+      return t`This agent is paused: it answers only after you resume it.`;
     case "input_answer_conflict":
       return t`A different answer was already recorded.`;
     case "skill_revocation_limit":

@@ -259,6 +259,10 @@ export const labels = {
     "لم يعد هذا السؤال ينتظر إجابة",
     "This question is no longer waiting for an answer",
   ],
+  agent_paused: [
+    "هذا الوكيل متوقف مؤقتًا: لا يرد إلا بعد أن تستأنفه.",
+    "This agent is paused: it answers only after you resume it.",
+  ],
   input_answer_conflict: [
     "تم تسجيل إجابة مختلفة مسبقًا",
     "This answer was already recorded differently",

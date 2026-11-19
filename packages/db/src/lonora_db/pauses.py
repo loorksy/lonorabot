@@ -23,33 +23,29 @@ from .events import emit
 from .schema import AgentRow, MarketWatchRow, RoutineRow, RunRow, SupervisionHoldRow, TicketRow
 from .transactions import owned_agent
 
-# A group run the owner addressed to this agent (a mention, a reply, its card), not the
-# group's fallback answerer.
-OWNER_ADDRESSED = "owner_addressed"
-
 
 def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
-    """What a paused agent still runs (4.7.1): the owner's direct message, and a broker
-    event on its own open positions and pending orders (an observe-only wake is activity
-    on tickets it does not own). Every other run of it waits until it is resumed, so its
-    routines, watches, timers, Tasks, peers and wakes are held."""
-    if trigger == "broker_event":
-        return metadata.get("authority") != "observe_only"
-    if trigger == "group":
-        return metadata.get(OWNER_ADDRESSED) is True
-    return trigger == "user"
+    """What a paused agent still runs (4.7.1): only the wake for broker activity on its
+    own open positions and pending orders (``wake_for_activity``: ``broker_event_ids``,
+    not observe-only). It takes no new work: the owner's messages are kept and start no
+    run, and every other run of it (its routines, watches, timers, Tasks, peers' asks,
+    Lonora's system alerts) waits until it is resumed."""
+    return (
+        trigger == "broker_event"
+        and bool(metadata.get("broker_event_ids"))
+        and "system_alert" not in metadata
+        and metadata.get("authority") != "observe_only"
+    )
 
 
 def claimable_while_paused(run: Any = RunRow) -> ColumnElement[bool]:
     """``runs_while_paused`` as a claim condition on ``run`` (``RunRow`` or an alias)."""
     authority = run.model_metadata["authority"].as_string()
-    return or_(
-        run.trigger == "user",
-        and_(run.trigger == "group", run.model_metadata[OWNER_ADDRESSED].as_boolean()),
-        and_(
-            run.trigger == "broker_event",
-            or_(authority.is_(None), authority != "observe_only"),
-        ),
+    return and_(
+        run.trigger == "broker_event",
+        run.model_metadata["broker_event_ids"].as_string().is_not(None),
+        run.model_metadata["system_alert"].as_string().is_(None),
+        or_(authority.is_(None), authority != "observe_only"),
     )
 
 

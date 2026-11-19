@@ -1,10 +1,10 @@
-"""What a paused agent does (mandate 4.7.1, 3.2.5).
+"""What a paused agent does (mandate 4.7.1).
 
-A paused agent takes no new work: its routines, watches and timers are held, and only the
-owner's direct message or a broker event on its own positions and pending orders starts a
-run of it. Through the door it sends only risk-reducing requests, in either mode. Runs on
-the real migrated PostgreSQL schema and the simulation broker (skipped without
-``LONORA_DATABASE_URL``).
+A paused agent takes no new work: its routines, watches and timers are held, the owner's
+messages to it are kept and start no run, and only a broker event on its own positions
+and pending orders starts a run of it. Through the door it sends only risk-reducing
+requests, in either mode. Runs on the real migrated PostgreSQL schema and the simulation
+broker (skipped without ``LONORA_DATABASE_URL``).
 """
 
 from datetime import timedelta
@@ -16,18 +16,20 @@ from lonora_core.user_error import LonoraError
 from test_proactive_wakes import call, database, retire, simulation
 
 
-def test_only_the_owners_message_and_its_own_broker_events_run_while_paused() -> None:
+def test_only_its_own_broker_events_run_while_paused() -> None:
     from lonora_db.pauses import runs_while_paused
 
-    assert runs_while_paused("user", {})
-    # In a group, only a run the owner addressed to it; never the group's fallback.
-    assert runs_while_paused("group", {"owner_addressed": True})
-    assert not runs_while_paused("group", {})
-    assert runs_while_paused("broker_event", {})
+    own = {"broker_event_ids": ["e1"], "account_id": "a"}
+    assert runs_while_paused("broker_event", own)
     # Activity on tickets it does not own is an observe-only wake: not its own.
-    assert not runs_while_paused("broker_event", {"authority": "observe_only"})
-    for trigger in ("routine", "watch", "tickets", "peer", "follow_up", "subagent", "webhook"):
+    assert not runs_while_paused("broker_event", {**own, "authority": "observe_only"})
+    # Lonora's system alerts (broker health, an uncertain operation) are not its tickets.
+    assert not runs_while_paused("broker_event", {"system_alert": "broker_degraded"})
+    assert not runs_while_paused("broker_event", {})
+    # The owner's messages, addressed or not, start no run of it.
+    for trigger in ("user", "group", "routine", "watch", "tickets", "peer", "follow_up"):
         assert not runs_while_paused(trigger, {}), trigger
+    assert not runs_while_paused("group", {"owner_addressed": True})
 
 
 @pytest.mark.asyncio
@@ -178,8 +180,8 @@ async def test_a_paused_agent_wakes_for_its_ticket_closes_it_and_adds_no_risk(mo
                         reducing=reducing,
                     )
 
-        # The owner's direct message starts a new run of the paused agent; a held run
-        # in the conversation never takes the owner's words.
+        # The owner's message to the paused agent is kept and starts no run (4.7.1); a
+        # held run in the conversation never takes the owner's words either.
         async with fixture.runtime.db.sessions() as session, session.begin():
             for run_id in (context.lease.run_id, woke.id):
                 row = await session.get(RunRow, run_id)
@@ -197,22 +199,25 @@ async def test_a_paused_agent_wakes_for_its_ticket_closes_it_and_adds_no_risk(mo
         sent = await fixture.request(
             "POST", f"/threads/{thread['id']}/messages", {"content": "How is gold?"}
         )
-        assert len(sent["run_ids"]) == 1 and held_id not in sent["run_ids"], sent
+        assert sent["run_ids"] == [] and sent["message"]["content"] == "How is gold?", sent
         async with fixture.runtime.db.sessions() as session:
-            run = await session.get(RunRow, sent["run_ids"][0])
-            assert run is not None and run.agent_id == gold["id"] and run.trigger == "user"
-            assert run.status == "queued"
-            assert await session.scalar(
-                select(RunRow.id).where(RunRow.id == run.id, claimable_while_paused())
+            runs = list(
+                await session.scalars(
+                    select(RunRow.id).where(
+                        RunRow.thread_id == thread["id"],
+                        RunRow.agent_id == gold["id"],
+                        RunRow.status == "queued",
+                    )
+                )
             )
+            assert runs == [held_id], runs
             assert not await session.scalar(
                 select(RunRow.id).where(RunRow.id == held_id, claimable_while_paused())
             )
-            # Settle both, so no later test claims them.
-            for run_id in (run.id, held_id):
-                row = await session.get(RunRow, run_id)
-                assert row is not None
-                row.status = "cancelled"
+            row = await session.get(RunRow, held_id)
+            assert row is not None
+            # Settle it, so no later test claims it.
+            row.status = "cancelled"
             await session.commit()
     finally:
         await retire(fixture, connection)
@@ -256,60 +261,65 @@ async def test_a_card_ending_notice_waits_for_the_resume_instead_of_failing() ->
 
 
 @pytest.mark.asyncio
-async def test_the_owners_card_submission_never_waits_behind_a_held_run() -> None:
-    """Rule Q holds a card submission until its agent's earlier runs end; a paused
-    agent's held run never ends while it is paused, so it is not waited for (3.2.5)."""
+async def test_a_system_alert_wake_queued_before_the_pause_is_held() -> None:
+    """Lonora's broker-health and uncertain-operation wakes are broker_event runs too,
+    but not about its own tickets: one queued before the owner paused Lonora is never
+    claimed while it is paused (4.7.1), and runs once it is resumed."""
     database()
     from check_streaming import Fixture
+    from lonora_contracts.domain import ThreadCreate
     from lonora_contracts.runs import RunRequest
-    from lonora_db.runs import claim_next, create_run
+    from lonora_db.pauses import claimable_while_paused
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.runs import create_run
     from lonora_db.schema import RunRow
-    from lonora_db.trade_approvals import WITHDRAWN_TRIGGER
+    from lonora_db.threads import create_thread
+    from sqlalchemy import select
 
     fixture = await Fixture().open()
+    lonora_id = ""
     try:
-        gold = await fixture.agent("Paused submit")
-        thread = await fixture.conversation(gold)
-        await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": True})
         async with fixture.runtime.db.sessions() as session, session.begin():
-            held = await create_run(
+            lonora = await ensure_personal_agent(session, fixture.owner)
+            lonora_id = lonora.id
+            work = await create_thread(
+                session, fixture.owner, ThreadCreate(agent_id=lonora.id), purpose="work"
+            )
+            alert = await create_run(
                 session,
                 fixture.owner,
                 RunRequest(
-                    thread_id=thread["id"],
-                    agent_id=gold["id"],
-                    trigger=WITHDRAWN_TRIGGER,
-                    prompt="x",
+                    thread_id=work.id,
+                    agent_id=lonora.id,
+                    trigger="broker_event",
+                    prompt="The broker connection is degraded.",
+                    metadata={"system_alert": "broker_degraded", "attention_id": "x"},
                 ),
-                held_while_paused=True,
             )
-            await session.flush()
-            submission = await create_run(
-                session,
-                fixture.owner,
-                RunRequest(thread_id=thread["id"], agent_id=gold["id"], prompt="card"),
+            alert_id = alert.id
+        await fixture.request("PATCH", f"/agents/{lonora_id}", {"paused": True})
+        async with fixture.runtime.db.sessions() as session:
+            assert not await session.scalar(
+                select(RunRow.id).where(RunRow.id == alert_id, claimable_while_paused())
             )
-            submission.model_metadata = {**submission.model_metadata, "ui_submit_origin": "card"}
-            held_id, submission_id = held.id, submission.id
-        claimed: list[RunRow] = []
+        with pytest.raises(LonoraError, match="agent_paused"):
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await create_run(
+                    session,
+                    fixture.owner,
+                    RunRequest(
+                        thread_id=work.id,
+                        agent_id=lonora_id,
+                        trigger="broker_event",
+                        prompt="x",
+                        metadata={"system_alert": "broker_degraded"},
+                    ),
+                )
         async with fixture.runtime.db.sessions() as session, session.begin():
-            for _ in range(50):
-                row = await claim_next(session, "paused-submit-test", 120)
-                if row is None:
-                    break
-                claimed.append(row)
-                if row.id == submission_id:
-                    break
-            # Runs of other tests sharing this database go back exactly as they were.
-            for row in claimed:
-                if row.id != submission_id:
-                    row.status, row.lease_owner, row.lease_expires_at = "queued", None, None
-        ids = [row.id for row in claimed]
-        assert submission_id in ids and held_id not in ids, ids
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            for run_id in (held_id, submission_id):
-                row = await session.get(RunRow, run_id)
-                assert row is not None
-                row.status = "cancelled"
+            row = await session.get(RunRow, alert_id)
+            assert row is not None
+            row.status = "cancelled"
     finally:
+        if lonora_id:
+            await fixture.request("PATCH", f"/agents/{lonora_id}", {"paused": False})
         await fixture.close()
