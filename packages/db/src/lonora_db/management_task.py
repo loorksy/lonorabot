@@ -40,8 +40,8 @@ from .tasks import create_task, save_task, task_state
 from .threads import conversation_thread
 
 MARKER = "account_management_agent"
-# Set by ``close_task``: a switch to Ask, a pause or a grant's Task taking over ended
-# this mode task, not the owner.
+# Set by ``close_task``, so the gateway can tell it from the owner's cancel or completion
+# of the task.
 CLOSED = "account_management_closed"
 TERMINAL = frozenset({"completed", "cancelled"})
 DESCRIPTION = (
@@ -129,7 +129,9 @@ async def grant_task_drives(session: AsyncSession, owner_id: str, agent_id: str)
 
 def refuse_agent_cancel(row: TicketRow) -> None:
     """The agent never cancels its own mode task: nothing would start it again while the
-    agent stays in Full (4.5.2). Ask, a pause, a delete or the owner's cancel ends it."""
+    agent stays in Full (4.5.2). Ask (the agent's switch or the owner's), a pause, a
+    delete, a signed grant's own Task taking over, or the owner's cancel or completion
+    ends it."""
     if row.agent_id and row.payload.get(MARKER) == row.agent_id:
         raise ToolRefusal(
             "management_task_cancel_forbidden",
@@ -137,9 +139,10 @@ def refuse_agent_cancel(row: TicketRow) -> None:
             details={
                 "class": "permission",
                 "retryable": False,
-                "hint": "This is your continuous Full-mode task. It ends only when you "
-                "switch yourself to Ask (trading_mode_ask), when you are paused or deleted, "
-                "or when the owner cancels it.",
+                "hint": "This is your continuous Full-mode task; you cannot cancel it. It "
+                "ends when you switch yourself to Ask (trading_mode_ask) or the owner "
+                "switches you to Ask, when you are paused or deleted, when a signed grant's "
+                "own task takes over, or when the owner cancels or completes it.",
             },
         )
 
@@ -299,7 +302,8 @@ async def close_task(session: AsyncSession, found: TicketRow) -> None:
       paused); a watch stays, moved to the conversation, and wakes the agent there.
     - A task the owner already asked to cancel or complete is left to end that way.
     - The task's watches move to the agent's conversation and keep watching.
-    - The task is marked ``CLOSED``: the gateway can tell it from the owner's own end.
+    - The task is marked ``CLOSED``: the gateway can tell it from the owner's cancel or
+      completion of the task.
 
     Locks follow the Task order elsewhere: the Runs, then the Task."""
     runs = list(

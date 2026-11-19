@@ -119,7 +119,8 @@ async def delete(
         await return_questions(session, thread_id)
         await session.delete(thread)
         # A Full agent whose grant was revoked here gets its own continuous task (4.5)
-        # once the conversation is gone: a deleted own conversation is replaced.
+        # once the conversation is gone: it reports to the agent's oldest remaining
+        # direct conversation, or a new one when none is left.
         await session.flush()
         for agent_id in handover:
             await ensure_management_task(session, owner.id, agent_id)

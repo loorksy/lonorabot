@@ -347,18 +347,19 @@ Ending the Task (`close_task`) keeps what the agent set up:
 While an active signed grant's own management Task runs for the agent, that Task drives
 the account and the Full-mode Task does not start; revoking the grant starts it, also
 when a broker connection or the conversation the grant was signed in is deleted. A
-deleted conversation is gone first, so the Task reports to the agent's own conversation,
-a new one when that was the one deleted. Deleting the agent starts none.
+deleted conversation is gone first, so the Task reports to the agent's own conversation:
+its oldest remaining direct conversation, or a new one when none is left. Deleting the
+agent starts none.
 
 The gateway's `management_tasks` step (every minute) catches what no tap reached. An
 agent in Full, not paused, that no grant's Task drives gets a mode Task when it has never
-had one (an agent already in Full when this shipped), or when its last one ended without
-the owner's decision (`close_task`: a switch to Ask, a pause, or a grant's Task taking
-over), for example once that grant expired. An open mode Task of an agent in Ask, or
-paused, ends. A mode Task the owner cancelled or completed, or one that failed for good,
-stays as it is; the next Full tap or resume starts a new one. The agent cannot cancel
-its own mode Task (`management_task_cancel_forbidden`); it may switch itself to Ask,
-which ends it.
+had one (an agent already in Full when this shipped), or when its last one was closed by
+`close_task` (a switch to Ask, a pause, a grant's Task taking over) rather than cancelled
+or completed by the owner or left failed for good, for example once that grant expired.
+An open mode Task of an agent in Ask, or paused, ends. A mode Task the owner cancelled or
+completed, or one that failed for good, stays as it is; the next Full tap or resume
+starts a new one. The agent cannot cancel its own mode Task
+(`management_task_cancel_forbidden`); it may switch itself to Ask, which ends it.
 
 ## No model cards
 
