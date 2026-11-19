@@ -185,6 +185,8 @@ async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
             volume="0.2",
             stop_loss="95",
             account_id=connection,
+            tolerance="5",
+            reason="Fixture request",
         )
         assert opened["status"] == "confirmed", opened
         ticket = opened["broker_id"]
