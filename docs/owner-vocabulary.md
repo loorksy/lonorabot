@@ -5,7 +5,7 @@ Superseded by VISION.md
 The owner meets one authority system and plain words. This page records what was
 retired, what replaced it and where the owner-visible labels come from. The
 enforcement path is unchanged: the single executor, the per-account lock, the signed
-grant, the money limits and the pauses.
+grant and the pauses.
 
 ## Super Bot is retired
 
