@@ -1,8 +1,9 @@
 import { brand } from "@lonora/ui-tokens";
 import { Redirect } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
+import { onboardingStatus } from "../lib/api";
 import { useSession } from "../lib/session";
 
 export default function SignIn() {
@@ -12,16 +13,75 @@ export default function SignIn() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (!session.ready) return <Loading />;
-  if (session.owner) return <Redirect href="/" />;
+  // A server with no owner yet gets Web's first-run form instead of sign-in (GET /onboarding).
+  // The answer belongs to the address it was read for: a changed address is checked again,
+  // and nothing is sent until it is.
+  const [checked, setChecked] = useState<{ address: string; initialized: boolean } | null>(null);
+  const [token, setToken] = useState("");
+  // A failed sign-in or setup asks the server again: an unreachable check fell back to sign-in,
+  // and an owner created elsewhere meanwhile turns the setup form back into sign-in.
+  const [recheck, setRecheck] = useState(0);
+  const address = server ?? session.server;
+  const { ready, owner } = session;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `recheck` asks the server again
+  useEffect(() => {
+    if (!ready || owner || !address.trim()) return;
+    const controller = new AbortController();
+    let live = true;
+    // A server that never answers does not hold the form: after 10 s it counts as unreachable.
+    const limit = setTimeout(() => controller.abort(), 10_400);
+    const timer = setTimeout(() => {
+      onboardingStatus(address, controller.signal).then(
+        (initialized) => live && setChecked({ address, initialized }),
+        // Unreachable or not a Lonora server: an answer already read for this address stays;
+        // with none, sign-in it is, and its own error says why.
+        () =>
+          live &&
+          setChecked((known) =>
+            known?.address === address ? known : { address, initialized: true },
+          ),
+      );
+    }, 400);
+    return () => {
+      live = false;
+      controller.abort();
+      clearTimeout(timer);
+      clearTimeout(limit);
+    };
+  }, [ready, owner, address, recheck]);
+  const pending = checked?.address !== address;
+  const setup = !pending && checked?.initialized === false;
+  // The setup token is kept only while the setup form is shown.
+  useEffect(() => {
+    if (!setup) setToken("");
+  }, [setup]);
+  if (!ready) return <Loading />;
+  if (owner) return <Redirect href="/" />;
+  // One rule for the button and for the keyboard's submit key.
+  const blocked =
+    busy ||
+    pending ||
+    !email.trim() ||
+    !password ||
+    !address.trim() ||
+    (setup && (password.length < 12 || !token));
   const submit = async () => {
+    if (blocked) return;
+    // The server's setup token is 24 characters at least: a shorter one is cut short.
+    if (setup && token.length < 24) {
+      setError(session.t("setupTokenShort"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await session.login(server ?? session.server, email, password);
+      if (setup) await session.initializeOwner(address, email, password, token);
+      else await session.login(address, email, password);
       setPassword("");
+      setToken("");
     } catch (reason) {
       setError(session.errorText(reason));
+      setRecheck((count) => count + 1);
     } finally {
       setBusy(false);
     }
@@ -66,7 +126,7 @@ export default function SignIn() {
               textAlign: session.rtl ? "right" : "left",
             }}
           >
-            {session.t("signIn")}
+            {session.t(setup ? "setupTitle" : "signIn")}
           </Text>
           <Text
             style={{
@@ -75,7 +135,7 @@ export default function SignIn() {
               textAlign: session.rtl ? "right" : "left",
             }}
           >
-            {session.t("serverHint")}
+            {session.t(setup ? "setupHint" : "serverHint")}
           </Text>
           <Field
             label={session.t("server")}
@@ -98,19 +158,32 @@ export default function SignIn() {
             style={{ textAlign: "left", writingDirection: "ltr" }}
           />
           <Field
-            label={session.t("password")}
+            label={session.t(setup ? "setupPassword" : "password")}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            autoComplete="current-password"
-            onSubmitEditing={() => void submit()}
+            autoComplete={setup ? "new-password" : "current-password"}
+            onSubmitEditing={setup ? undefined : () => void submit()}
           />
+          {setup ? (
+            <Field
+              label={session.t("setupToken")}
+              value={token}
+              onChangeText={setToken}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              onSubmitEditing={() => void submit()}
+              style={{ textAlign: "left", writingDirection: "ltr" }}
+            />
+          ) : null}
           <ErrorNotice text={error} />
           <View>
             <Button
-              label={busy ? session.t("connecting") : session.t("signIn")}
+              label={busy ? session.t("connecting") : session.t(setup ? "setupCreate" : "signIn")}
               onPress={() => void submit()}
-              disabled={busy || !email.trim() || !password || !(server ?? session.server).trim()}
+              disabled={blocked}
             />
           </View>
         </ScrollView>
