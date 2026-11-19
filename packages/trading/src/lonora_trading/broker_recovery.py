@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime
 
 from lonora_adapters.brokers.base import BrokerManager
-from lonora_contracts.account import Position
+from lonora_contracts.account import Order, Position
 from lonora_contracts.broker_activity import BrokerActivity, BrokerRecoverySnapshot
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import RunRequest
@@ -23,8 +23,8 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .exposure import ENTRY_ACTIONS
-from .manual_activity import detect_activity, opening_agent
+from .manual_activity import detect_activity
+from .picture import ticket_openers
 from .reconciliation import observe_operation, send_lock_key, settle
 
 
@@ -166,24 +166,15 @@ async def reconcile_broker_account(
 
 
 async def opened_by(session: AsyncSession, owner_id: str, change: BrokerActivity) -> str | None:
-    """The agent whose journaled order opened or placed this change's ticket (3.3.4)."""
+    """The agent whose journaled order opened or placed this change's ticket, by the door's
+    own match (3.3.4, ``picture.ticket_openers``)."""
     target = change.current or change.previous
     if target is None:
         return None
-    entries = list(
-        await session.scalars(
-            select(TradingJournalRow)
-            .where(
-                TradingJournalRow.owner_id == owner_id,
-                TradingJournalRow.account_id == change.account_id,
-                TradingJournalRow.request["symbol"].as_string() == target.symbol,
-                TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-            )
-            .order_by(TradingJournalRow.updated_at.desc())
-            .limit(1000)
-        )
-    )
-    return opening_agent(target, entries)
+    positions = [target] if isinstance(target, Position) else []
+    orders = [target] if isinstance(target, Order) else []
+    openers = await ticket_openers(session, owner_id, change.account_id, positions, orders)
+    return next(iter(openers.values()), None)
 
 
 async def wake_for_activity(

@@ -63,8 +63,9 @@ manual activity).
   approval card in its conversation.
 - Unattributed activity (the owner's own) goes to the Personal Agent, as before, with
   `authority: observe_only`.
-- Activity on a ticket a deleted Agent opened goes to the Personal Agent with its
-  normal authority: the ticket transferred to it at the delete (mandate 3.1.2, below).
+- Activity on a ticket a deleted Agent opened (by the door's own match,
+  `picture.ticket_openers`) goes to the Personal Agent with its normal authority: the
+  ticket transferred to it at the delete (mandate 3.1.2, below).
 - Activity of a delegated Agent, or on a ticket a deleted Agent only managed (never
   opened), falls back to the Personal Agent, observe-only. A paused Agent is woken for
   its own tickets and only reduces their risk (4.7.1).

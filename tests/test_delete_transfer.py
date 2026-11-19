@@ -8,6 +8,7 @@ migrated PostgreSQL schema and the simulation broker (skipped without
 ``LONORA_DATABASE_URL``).
 """
 
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -55,6 +56,7 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
     from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow, TradingJournalRow
     from lonora_trading.account_authority import ticket_agent
     from lonora_trading.broker_recovery import reconcile_broker_account, wake_for_activity
+    from lonora_trading.picture import ticket_owners
     from sqlalchemy import func, select
 
     # The Q13 wake: a server-written broker event naming the deleted agent.
@@ -145,6 +147,9 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
                 position_id=position.id,
             )
             assert await ticket_agent(session, fixture.owner, request, position) == lonora["id"]
+            # The agent picture (5.4) says the same as the door: never the deleted agent.
+            owners = await ticket_owners(session, fixture.owner, connection, [position], [])
+            assert owners == {("position", position.id): lonora["id"]}
 
         # Broker activity on it wakes Lonora with its normal authority, not observe-only.
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -250,6 +255,114 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
         await retire(fixture, connection)
         async with fixture.runtime.db.sessions() as session:
             fixture.agents = [a for a in fixture.agents if await session.get(AgentRow, a)]
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_wake_set_and_the_picture_follow_the_doors_owner() -> None:
+    """One ownership rule (3.3.4): the tickets Lonora is woken with, the agent picture and
+    the door all use ``ticket_agent``'s match. On a netting account Silver's later buy adds
+    to Gold's position and never takes it; Silver's pending order is tied to it only by
+    the broker tag. Deleting Silver hands Lonora the order, not Gold's position."""
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.collaboration.agent_create import delete_created_agent
+    from lonora_contracts.account import Order, Position
+    from lonora_contracts.broker_activity import BrokerRecoverySnapshot
+    from lonora_contracts.trading import TradeRequest
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.schema import BrokerSessionRow, TradingJournalRow
+    from lonora_session.idempotency import broker_operation_tag
+    from lonora_trading.account_authority import ticket_agent
+    from lonora_trading.picture import ticket_owners
+    from lonora_trading.ticket_transfer import opened_tickets
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora_id = (await ensure_personal_agent(session, fixture.owner)).id
+        gold, silver = await fixture.agent("Netting gold"), await fixture.agent("Netting silver")
+        now = utcnow()
+        position = Position(
+            id="P-1", symbol="XAUUSD", side="buy", volume=Decimal("0.3"), open_price=Decimal(100)
+        )
+        order = Order(
+            id="O-9",
+            symbol="XAUUSD",
+            side="buy_limit",
+            volume=Decimal("0.1"),
+            price=Decimal(90),
+            operation_id=broker_operation_tag("op-silver-limit"),
+        )
+
+        def entry(operation: str, agent: str, action: str, details: dict[str, Any], at: int):
+            return TradingJournalRow(
+                operation_id=operation,
+                owner_id=fixture.owner,
+                account_id=connection,
+                request_hash="h-" + operation,
+                request={"symbol": "XAUUSD", "action": action},
+                result={"details": {**details, "execution": {"agent_id": agent}}},
+                status="confirmed",
+                submitted_at=now.replace(microsecond=0) - timedelta(minutes=10 - at),
+            )
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add_all(
+                [
+                    # Gold opens P-1 from flat: the position carries its order's ticket.
+                    entry("op-gold-buy", gold["id"], "buy", {"order_id": "P-1"}, 1),
+                    # Silver's later buy nets into P-1: its own order ticket, P-1 as position.
+                    entry(
+                        "op-silver-buy",
+                        silver["id"],
+                        "buy",
+                        {"order_id": "O-5", "position_id": "P-1"},
+                        2,
+                    ),
+                    # Silver's limit order: the broker reports only its tag on O-9.
+                    entry("op-silver-limit", silver["id"], "buy_limit", {}, 3),
+                ]
+            )
+            row = await session.get(BrokerSessionRow, connection)
+            assert row is not None
+            snapshot = BrokerRecoverySnapshot(
+                status="connected",
+                reason_code="ok",
+                since=now,
+                observed_at=now,
+                positions=[position],
+                orders=[order],
+            )
+            row.state = {**row.state, "broker_recovery": snapshot.model_dump(mode="json")}
+
+        async with fixture.runtime.db.sessions() as session:
+            assert [
+                t["ticket"] for t in await opened_tickets(session, fixture.owner, gold["id"])
+            ] == ["P-1"]
+            assert [
+                t["ticket"] for t in await opened_tickets(session, fixture.owner, silver["id"])
+            ] == ["O-9"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            deleted = await delete_created_agent(session, fixture.owner, silver["id"])
+        fixture.agents.remove(silver["id"])
+        assert [t["ticket"] for t in deleted["transferred"]] == ["O-9"]
+        async with fixture.runtime.db.sessions() as session:
+            owners = await ticket_owners(session, fixture.owner, connection, [position], [order])
+            assert owners == {("position", "P-1"): gold["id"], ("order", "O-9"): lonora_id}
+            for target, holder in ((position, gold["id"]), (order, lonora_id)):
+                request = TradeRequest(
+                    account_id=connection,
+                    action="close_position" if target is position else "cancel_order",
+                    symbol="XAUUSD",
+                    position_id=target.id if target is position else None,
+                    order_id=target.id if target is order else None,
+                )
+                assert await ticket_agent(session, fixture.owner, request, target) == holder
+    finally:
+        await retire(fixture, connection)
         await fixture.close()
 
 

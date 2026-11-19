@@ -140,6 +140,9 @@ def main() -> None:
         "test_app_opens.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
+    # Lonora's lead powers, and its delete of a team agent with the ticket transfer (3.1.2).
+    for name in ("test_lead_powers.py", "test_delete_transfer.py"):
+        commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:
         name = "lonora_foundation_" + uuid4().hex + "_test"
         asyncio.run(database(base, name, create=True))

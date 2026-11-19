@@ -158,7 +158,8 @@ def entry_holder(entries: list[TradingJournalRow], target: Position | Order) -> 
     this filters nothing): the entry whose operation id or tag the broker reports on the
     ticket, else the oldest entry whose order has the ticket id (never a position id in its
     result: on a netting account that is the position an order added to); None for the
-    owner's own."""
+    owner's own. It names the opener even when that agent was deleted: ``current_holder``
+    hands such a ticket to Lonora for the door and the picture alike (3.1.2)."""
     for entry in entries:
         if target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}:
             return journal_agent(entry)

@@ -143,32 +143,6 @@ def attributed_agent(
     return manager
 
 
-def _opened(entry: TradingJournalRow, target: Position | Order) -> bool:
-    """This journaled entry order opened or placed ``target``."""
-    result = entry.result
-    details = result.get("details", {})
-    return entry.request.get("action") in ENTRY_ACTIONS and (
-        target.operation_id == entry.operation_id
-        or target.id
-        in {result.get("broker_id"), details.get("position_id"), details.get("order_id")}
-    )
-
-
-def opening_agent(target: Position | Order, entries: list[TradingJournalRow]) -> str | None:
-    """The Agent whose journaled order opened or placed ``target`` (its owner, 3.3.4); None
-    for a ticket with no agent-attributed opening. ``entries`` are newest first."""
-    for entry in entries:
-        if (
-            entry.status in SENT_STATUSES
-            and entry.request.get("symbol") == target.symbol
-            and _opened(entry, target)
-        ):
-            agent = journal_agent(entry)
-            if agent:
-                return agent
-    return None
-
-
 def detect_activity(
     account_id: str,
     previous: BrokerRecoverySnapshot | None,

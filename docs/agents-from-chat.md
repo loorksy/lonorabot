@@ -105,9 +105,12 @@ refused (`agent_control_lead_only`), and Lonora is never deleted. Both paths run
   broker outcome refuses the delete (`delete_blocked_unresolved_operation`, 14.3.16).
 - **Its tickets transfer to Lonora.** Ownership stays derived from the journal (3.3.4):
   a ticket whose opening agent no longer exists is Lonora's
-  (`lonora_trading.account_authority.ticket_agent`). Nothing in the journal is rewritten.
-- **Lonora is woken with them.** The tickets the agent opened are read from each
-  account's last broker observation (`lonora_trading.ticket_transfer`). Lonora gets one
+  (`lonora_trading.account_authority.ticket_agent`, `current_holder`), at the door and in
+  the agent picture alike (`picture.ticket_owners`). Nothing in the journal is rewritten.
+- **Lonora is woken with them.** The tickets the agent opened, by the door's own match
+  (`picture.ticket_openers`: confirmed entries, oldest first, the broker tag first, a
+  netting fill never taking the position), are read from each account's last broker
+  observation (`lonora_trading.ticket_transfer`). Lonora gets one
   server-written `broker_event` per account (`transferred_from`, the tickets, symbols and
   volumes), under its own mode, in a work thread whose result returns to its
   conversation. With nothing open, there is no wake. Later broker activity on those

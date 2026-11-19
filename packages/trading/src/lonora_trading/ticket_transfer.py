@@ -2,8 +2,9 @@
 
 Ownership stays derived (3.3.4): a ticket belongs to the agent whose journaled order
 opened it, and once that agent no longer exists it is Lonora's (``account_authority.
-ticket_agent``). Nothing is rewritten in the journal. At the delete, the tickets the
-deleted agent opened are read from each account's last broker observation, and Lonora
+ticket_agent``, and the agent picture with it). Nothing is rewritten in the journal. At
+the delete, the tickets the deleted agent opened, by that same match, are read from each
+account's last broker observation, and Lonora
 is woken with them: one server-written broker event per account, under Lonora's own
 mode, in a work thread whose result returns to Lonora's conversation.
 """
@@ -15,14 +16,13 @@ from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.runs import RunRequest
 from lonora_db.runs import create_run
-from lonora_db.schema import AgentRow, BrokerSessionRow, TradingJournalRow
+from lonora_db.schema import AgentRow, BrokerSessionRow
 from lonora_db.threads import conversation_thread, create_thread
 from lonora_session.idempotency import stable_id
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .exposure import ENTRY_ACTIONS
-from .manual_activity import opening_agent
+from .picture import ticket_openers
 
 # Broker strings go into the wake's server text: only identifier characters survive.
 _UNSAFE = re.compile(r"[^A-Za-z0-9._#-]")
@@ -38,7 +38,9 @@ async def opened_tickets(
     session: AsyncSession, owner_id: str, agent_id: str
 ) -> list[dict[str, str]]:
     """The positions and pending orders ``agent_id`` opened, from each account's last
-    observation; ordered by account, kind and ticket."""
+    observation, by the door's own match (``ticket_openers``, as ``ticket_agent`` reads
+    it): exactly the tickets that become Lonora's once the agent is deleted. Ordered by
+    account, kind and ticket."""
     tickets: list[dict[str, str]] = []
     accounts = await session.scalars(
         select(BrokerSessionRow)
@@ -50,29 +52,12 @@ async def opened_tickets(
         if not raw:
             continue
         snapshot = BrokerRecoverySnapshot.model_validate(raw)
-        by_symbol: dict[str, list[TradingJournalRow]] = {}
+        openers = await ticket_openers(
+            session, owner_id, account.id, snapshot.positions, snapshot.orders
+        )
         for resource, items in (("position", snapshot.positions), ("order", snapshot.orders)):
             for item in sorted(items, key=lambda ticket: ticket.id):
-                # Per symbol, as ticket_agent reads it, so a busy account's other symbols
-                # never push an old opening out of the window.
-                entries = by_symbol.get(item.symbol)
-                if entries is None:
-                    entries = by_symbol[item.symbol] = list(
-                        await session.scalars(
-                            select(TradingJournalRow)
-                            .where(
-                                TradingJournalRow.owner_id == owner_id,
-                                TradingJournalRow.account_id == account.id,
-                                TradingJournalRow.request["symbol"].as_string() == item.symbol,
-                                TradingJournalRow.request["action"]
-                                .as_string()
-                                .in_(sorted(ENTRY_ACTIONS)),
-                            )
-                            .order_by(TradingJournalRow.updated_at.desc())
-                            .limit(1000)
-                        )
-                    )
-                if opening_agent(item, entries) == agent_id:
+                if openers[(resource, item.id)] == agent_id:
                     tickets.append(
                         {
                             "account_id": account.id,
