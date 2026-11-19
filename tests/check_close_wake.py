@@ -1,10 +1,11 @@
 """A closed trade wakes its owner, which writes a short self-review (mandate 5.5.2).
 
 Done when a stop-loss hit and the agent's own close both end with a new memory
-revision. A stop-loss hit (no Run of the agent closed it) starts a broker_event Run;
-the agent's own close, while its closing Run still executes, reaches that Run as a
-notice, never a second Run. A paused agent's trade waits until it resumes; the owner's
-own trade wakes nobody; a notice its Run never read becomes a Run; each trade wakes once.
+revision. A stop-loss hit (no Run of the agent closed it) reaches the agent's pending
+broker-activity wake as a notice, else starts a broker_event Run; the agent's own close,
+while its closing Run still executes, reaches that Run as a notice, never a second Run.
+A paused agent's trade waits until it resumes; the owner's own trade wakes nobody; a
+notice its Run never read becomes a Run; each trade wakes once.
 """
 
 import asyncio
@@ -16,6 +17,7 @@ from unittest.mock import patch
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.executor import execute_run
+from lonora_contracts.broker_activity import BrokerActivity
 from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_db.memory import read_memory
@@ -30,6 +32,7 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_tools.loader import load_tools
+from lonora_trading.broker_recovery import wake_for_activity
 from lonora_trading.close_wake import MAXIMUM_PER_PASS, wake_for_closes
 from sqlalchemy import func, select
 
@@ -185,6 +188,41 @@ async def stop_loss_hit(f: Fixture, account: str) -> None:
     assert len(seen) == 2, "the empty reply was nudged into a chat message"
     print("PASS a stop-loss hit wakes the position's owner, which writes a self-review")
     print("PASS a review that needs nothing from the owner posts nothing in the chat")
+
+
+async def activity_wake(f: Fixture, account: str) -> None:
+    """A stop-loss hit also shows as a closed position in broker activity, which wakes
+    the agent that opened it. While that wake is queued or executing, the close reaches
+    it as a notice: one Run, never a second one for the same close."""
+    agent = await f.agent("Gold activity")
+    before = await revisions(f, agent["id"])
+    trade = await closed(f, account, agent["id"], "sl-activity", "-4")
+    async with f.runtime.db.sessions() as session, session.begin():
+        change = BrokerActivity(
+            id=new_id(),
+            account_id=account,
+            symbol="XAUUSD",
+            ticket="pos-" + trade[:8],
+            resource="position",
+            change="closed",
+            origin="external",
+            observed_at=utcnow(),
+            agent_id=agent["id"],
+        )
+        await wake_for_activity(session, f.owner, account, 7, [change])
+    (wake,) = await runs_of(f, agent["id"], "broker_event")
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    woken = await runs_of(f, agent["id"], "broker_event")
+    assert [run.id for run in woken] == [wake.id], "a second Run was started"
+    seen: list[list[ModelMessage]] = []
+    ctx = await f.lease({"id": wake.id, "agent_id": wake.agent_id, "thread_id": wake.thread_id})
+    version = await memory_version(f, agent["id"])
+    with patch.object(ctx.router, "complete", reviewer(version, seen)):
+        await execute_run(ctx, load_tools(), 120, 8)
+    assert any(CLOSED in m.content for m in seen[0]), "the activity wake never read the close"
+    assert await revisions(f, agent["id"]) == before + 1, "no self-review was written"
+    assert await wake_for_closes(f.runtime.db, f.owner) == 0  # read: nothing redirected
+    print("PASS a stop-loss hit's broker-activity wake carries the review; no second Run")
 
 
 async def messages_in(f: Fixture, thread_id: str) -> int:
@@ -486,6 +524,7 @@ async def main() -> None:
             )
         )["id"]
         await stop_loss_hit(f, account)
+        await activity_wake(f, account)
         await own_close(f, account, read_first=True)
         await own_close(f, account, read_first=False)
         await last_round_notice(f, account)

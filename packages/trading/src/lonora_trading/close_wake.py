@@ -11,6 +11,10 @@ every value is JSON-escaped.
 Where the wake goes (the lead's map Q5):
 - the closing operation's own Run, when it is still executing: the text reaches it as a
   run notice at its next turn boundary (``merge_run_notices``), not as a second Run;
+- else the agent's wake for broker activity on that account, when it is still queued or
+  executing and is not observe-only: a stop-loss or take-profit hit also shows as a
+  closed position in broker activity, which wakes the agent that opened it, so the text
+  reaches that wake as a notice the same way;
 - otherwise a ``broker_event`` Run of the owner, in a work thread of its own. A notice
   its Run ended without reading becomes such a Run on the next pass.
 
@@ -127,6 +131,32 @@ async def closing_run(session: AsyncSession, trade: ClosedTradeRow) -> RunRow | 
     return None
 
 
+async def activity_wake(
+    session: AsyncSession, trade: ClosedTradeRow, agent: AgentRow
+) -> RunRow | None:
+    """The agent's queued or executing wake for broker activity on the trade's account.
+
+    ``broker_recovery.wake_for_activity`` wakes the agent that opened a position its
+    stop-loss or take-profit closed; the review joins that wake instead of a second Run.
+    An observe-only wake (the owner's own activity, or a paused or deleted agent's) is
+    left alone: it has no financial effects, and the review's own Run keeps the agent's
+    normal authority.
+    """
+    return await session.scalar(
+        select(RunRow)
+        .where(
+            RunRow.agent_id == agent.id,
+            RunRow.trigger == "broker_event",
+            RunRow.status.in_(sorted(EXECUTING)),
+            RunRow.model_metadata["account_id"].as_string() == trade.account_id,
+            RunRow.model_metadata["broker_event_ids"].as_string().is_not(None),
+            RunRow.model_metadata["authority"].as_string().is_distinct_from("observe_only"),
+        )
+        .order_by(RunRow.created_at.desc())
+        .limit(1)
+    )
+
+
 def wake_text(trade: ClosedTradeRow, agent: AgentRow, ending: str = WAKE_ENDING) -> str:
     inherited = (
         " The agent that opened it no longer exists; you answer for its tickets."
@@ -207,7 +237,9 @@ async def wake_for_closes(db: Database, owner_id: str) -> int:
             if agent.paused:
                 continue  # Lonora is paused: the trade waits until it resumes.
             run = await closing_run(session, trade)
-            if run is not None and run.agent_id == agent.id and run.status in EXECUTING:
+            if run is None or run.agent_id != agent.id or run.status not in EXECUTING:
+                run = await activity_wake(session, trade, agent)
+            if run is not None:
                 session.add(
                     EffectReceiptRow(
                         key=NOTICE_KEY + run.id + ":" + trade.id,
