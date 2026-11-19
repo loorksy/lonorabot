@@ -1,19 +1,22 @@
 """Migration 0197 moves every settings-era model key to the Secret card's record.
 
 A key saved on the removed provider settings screens has scope ``provider`` and the
-provider's id as its name. On a disposable PostgreSQL before 0197, store four such keys
+provider's id as its name. On a disposable PostgreSQL before 0197, store five such keys
 beside the card records they meet, plus one under a name that is no provider. The
 upgrade refuses that one and changes nothing. Without it, the upgrade:
 
 - moves a key alone to the workspace under the provider's usual name, recorded for the
   router (OpenAI);
-- drops a key older than its card's key (Anthropic);
+- drops a key no newer than its card's key (Anthropic, saved at the same moment);
 - writes a key newer than its card's key into that card's secret (DeepSeek);
 - leaves the owner's own workspace secret under the usual name alone and takes the next
-  free name (Z.ai).
+  free name (Z.ai);
+- moves a key whose card record names a deleted secret, and rewrites that record
+  (OpenRouter).
 
 Each value moves as its ciphertext, unchanged. No ``provider`` scope remains, and a new
-one is refused. The downgrade keeps every key where the earlier release reads it.
+one is refused. The downgrade keeps every key where the earlier release reads it, and
+that release can store a provider-scope key again.
 """
 
 import asyncio
@@ -103,8 +106,9 @@ async def main() -> None:
             )
             openai = await secret(connection, owner, "provider", "openai", earlier)
             old_anthropic = await secret(connection, owner, "provider", "anthropic", earlier)
+            # Saved at the same moment: the card's key stays, as the router read it.
             card_anthropic = await secret(
-                connection, owner, "workspace", "ANTHROPIC_API_KEY", later
+                connection, owner, "workspace", "ANTHROPIC_API_KEY", earlier
             )
             await record(connection, "anthropic", card_anthropic[0])
             new_deepseek = await secret(connection, owner, "provider", "deepseek", later)
@@ -114,6 +118,9 @@ async def main() -> None:
             await record(connection, "deepseek", card_deepseek[0])
             zai = await secret(connection, owner, "provider", "zai", earlier)
             own_zai = await secret(connection, owner, "workspace", "ZAI_API_KEY", earlier)
+            # A record whose secret was deleted: the key moves and the record is rewritten.
+            openrouter = await secret(connection, owner, "provider", "openrouter", earlier)
+            await record(connection, "openrouter", str(uuid4()))
             mystery = await secret(connection, owner, "provider", "mystery", earlier)
         async with engine.connect() as connection:
             before = await secrets(connection), await records(connection)
@@ -144,11 +151,18 @@ async def main() -> None:
         assert after[("workspace", "ZAI_API_KEY")] == own_zai
         assert after[("workspace", "ZAI_API_KEY_2")] == zai
         assert routed["zai"] == {"secret_id": zai[0], "url": None}
+        assert after[("workspace", "OPENROUTER_API_KEY")] == openrouter
+        assert routed["openrouter"] == {"secret_id": openrouter[0], "url": None}
+        async with engine.connect() as connection:
+            written = await connection.scalar(
+                text("SELECT updated_at FROM ln_secrets WHERE id = :id"), {"id": card_deepseek[0]}
+            )
+        assert written == later, written
         print("PASS each key moves to the card's record as its ciphertext, the newest kept")
 
         try:
             async with engine.begin() as connection:
-                await secret(connection, owner, "provider", "openrouter", later)
+                await secret(connection, owner, "provider", "anthropic", later)
             raise AssertionError("a provider-scope key was stored")
         except IntegrityError:
             pass
@@ -158,6 +172,12 @@ async def main() -> None:
         assert back.returncode == 0, back.stderr
         async with engine.connect() as connection:
             assert (await secrets(connection), await records(connection)) == (after, routed)
+        # The earlier release stores provider-scope keys again.
+        async with engine.begin() as connection:
+            stored = await secret(connection, owner, "provider", "anthropic", later)
+            await connection.execute(
+                text("DELETE FROM ln_secrets WHERE id = :id"), {"id": stored[0]}
+            )
         assert alembic("upgrade", "heads").returncode == 0
         print("PASS the downgrade keeps every key where the earlier release reads it")
         async with engine.begin() as connection:

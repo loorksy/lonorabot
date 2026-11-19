@@ -3,13 +3,15 @@
 Reads one JSON action on stdin. ``init`` gives the browser the owner session, sets one
 default model and two connected providers with explicit catalogs, and creates an agent
 with its conversation. ``cleanup`` restores the global model settings and removes the
-fixture keys, so later specs see what they saw before. No real provider is called and no
-key is real.
+fixture keys (a same-name workspace secret gets its value back), so later specs see what
+they saw before. A provider that already has a key keeps it. No real provider is called
+and no key is real.
 """
 
 import asyncio
 import json
 import sys
+from datetime import datetime
 from typing import Any
 
 from check_streaming import Fixture
@@ -19,7 +21,7 @@ from lonora_db.schema import SecretRow, SettingRow
 from lonora_db.secrets import WORKSPACE
 from lonora_db.transactions import SettingsRepository
 from model_keys import connect_model_key
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 SETTINGS = (
     "model_routing",
@@ -39,12 +41,19 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                 for key, value in data["restore"]["settings"].items():
                     await SettingsRepository().put(session, key, value)
                 for provider in data["restore"]["added_keys"]:
-                    await session.execute(
-                        delete(SecretRow).where(
-                            SecretRow.scope == WORKSPACE,
-                            SecretRow.name == PROVIDER_KEY_NAMES[provider],
+                    name = PROVIDER_KEY_NAMES[provider]
+                    row = await session.scalar(
+                        select(SecretRow).where(
+                            SecretRow.scope == WORKSPACE, SecretRow.name == name
                         )
                     )
+                    # A workspace secret the owner had under that name gets its value back.
+                    earlier = data["restore"]["replaced"].get(name)
+                    if row is not None and earlier is not None:
+                        row.ciphertext = earlier["ciphertext"]
+                        row.updated_at = datetime.fromisoformat(earlier["updated_at"])
+                    elif row is not None:
+                        await session.delete(row)
                     await session.execute(
                         delete(SettingRow).where(SettingRow.key == CONNECTION_SETTING + provider)
                     )
@@ -55,11 +64,23 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
         if data["action"] != "init":
             raise ValueError("Unknown model browser fixture action")
         async with fixture.runtime.db.sessions() as session:
+            # Only providers without a key get the fixture's; a key the owner had stays.
+            added = [p for p in CATALOGS if await saved_key(session, p) is None]
+            replaced: dict[str, dict[str, str]] = {}
+            for provider in added:
+                name = PROVIDER_KEY_NAMES[provider]
+                row = await session.scalar(
+                    select(SecretRow).where(SecretRow.scope == WORKSPACE, SecretRow.name == name)
+                )
+                if row is not None:
+                    replaced[name] = {
+                        "ciphertext": row.ciphertext,
+                        "updated_at": row.updated_at.isoformat(),
+                    }
             restore = {
                 "settings": {key: await SettingsRepository().get(session, key) for key in SETTINGS},
-                "added_keys": [
-                    provider for provider in CATALOGS if await saved_key(session, provider) is None
-                ],
+                "added_keys": added,
+                "replaced": replaced,
             }
         cookies = [
             {"name": cookie.name, "value": cookie.value} for cookie in fixture.client.cookies.jar
@@ -69,7 +90,7 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             "/settings/models",
             {"mode": "unified", "unified": {"provider": "openai", "model": "gpt-default-ui"}},
         )
-        for provider in CATALOGS:
+        for provider in added:
             await connect_model_key(
                 fixture.runtime, fixture.owner, provider, "explicit-ui-key-1234"
             )
