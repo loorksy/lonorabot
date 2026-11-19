@@ -6,45 +6,58 @@ worker who owns that feature and the code that proves the feature is on this com
 never approximated. A step whose feature is present runs from its own seeded state, so it
 passes or fails as soon as its own feature lands, whatever the state of the steps before it.
 
-Two modes:
+Two model modes, and two brokers:
 
 - ``--offline``: scripted model turns (``ScriptedModel``) through Lonora's real loop
   (``execute_run``), the real tool handlers and the real MetaApi adapter over the fake
-  terminal of broker.py. No model, no network. The local gate of every PR runs it.
+  terminal of broker.py. No model. The local gate of every PR runs it.
 - ``--live``: the same steps with the product choosing and calling a real model through the
   providers saved in the database (the owner's server). The harness only presents the
   situation (a watch firing, a dropped reply); a step that depends on the model's choice
   passes when the agent acted within its authority without asking and explained in one
   line. Which choice it made is not asserted. Plumbing assertions are exact in both modes.
 
-The harness induces what the scenario needs: a lost broker reply (the broker applied the
-operation and the connection dropped before the answer), a price move, and the wakes that
-follow. Nothing here reaches a broker, prints a credential or keeps a database: every step
-runs on its own copy of a disposable PostgreSQL template, dropped at the end.
+- the fake terminal and W-BROKER's fake MetaApi provisioning (the default): no broker is
+  reached;
+- ``--broker demo``: step 1 only, against MetaApi itself and the owner's demo account. The
+  login, server, password and token are typed at hidden prompts, the run prints only its
+  table, and it leaves nothing at MetaApi (it asks MetaApi to be sure).
+
+The harness induces what the scenario needs on the fake terminal: a lost broker reply (the
+broker applied the operation and the connection dropped before the answer), a price move,
+and the wakes that follow. No run prints a credential or keeps a database: every step runs
+on its own copy of a disposable PostgreSQL template, dropped at the end.
 
     LONORA_DATABASE_URL=postgresql+asyncpg://.../accept_test \\
     .venv/bin/python scripts/agent_eval/acceptance.py --offline [--steps 4c] [--json]
     .venv/bin/python scripts/agent_eval/acceptance.py --live [--steps 4c]
+    .venv/bin/python scripts/agent_eval/acceptance.py --offline --broker demo --steps 1
 """
 
 import argparse
 import asyncio
 import hashlib
+import io
 import json
+import logging
 import os
 import re
 import sys
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext, redirect_stdout
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from getpass import getpass
 from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_agent.context.history import peer_content
 from lonora_agent.context.routine import PEER_WAKE
 from lonora_agent.environment import classify, error_class
@@ -57,12 +70,27 @@ from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.owner_profile import REACH_ME_KEY
 from lonora_db.peer_messages import PeerMessageRepository
 from lonora_db.routines import create_routine
-from lonora_db.schema import AgentRow, MessageRow, RunRow, TradingJournalRow
+from lonora_db.schema import (
+    AgentRow,
+    BrokerSessionRow,
+    MessageRow,
+    OwnerActionRow,
+    RunRow,
+    TradingJournalRow,
+)
 from lonora_db.threads import create_thread
 from lonora_db.trading_mode import set_trading_mode
 from lonora_db.transactions import SettingsRepository
 from lonora_market.watchers import check_watches
+from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
+from lonora_trading import broker_provisioning
+from lonora_trading.broker_manage import disconnect, set_enabled
+from lonora_trading.broker_provisioning import (
+    DEPLOY_DEADLINE,
+    READ_DEADLINE,
+    maintain_broker_provisioning,
+)
 from lonora_trading.broker_recovery import maintenance_account_recovery
 from lonora_trading.manual_activity import journal_agent
 from lonora_trading.morning_brief import TRIGGER, brief_tick, latest_close, owner_zone
@@ -79,6 +107,14 @@ from scripts.agent_eval import run as runner  # noqa: E402
 from scripts.agent_eval import runner as harness  # noqa: E402
 
 SCENARIO = bank.FIXTURES / "acceptance.json"
+# --broker demo: the steps that may reach the real MetaApi demo account (the trading steps
+# need what the harness can only induce on the fake terminal: a lost reply, a price move,
+# a position already open), what the owner types
+# for them at hidden prompts, and how long the gateway's provisioning passes may take.
+DEMO_STEPS = frozenset({"1"})
+DEMO_VALUES = ("login", "server", "password", "token")
+# The product's own deploy and read deadlines, and a margin for its cleanup pass.
+DEMO_WAIT, DEMO_PASS_SECONDS = DEPLOY_DEADLINE + READ_DEADLINE + timedelta(minutes=2), 10
 # Runs the harness drives after one induced event: the wake, and the wakes it causes.
 MAXIMUM_RUNS = 6
 
@@ -142,9 +178,34 @@ class ScriptedModel:
         self.used.append(agent)
         self.shown.append((agent, []))
 
-    def factory(self, provider: str, secret: str) -> "ScriptedAdapter":
-        del provider, secret
+    def factory(self, provider: str, secret: str, *endpoint: str) -> "ScriptedAdapter":
+        del provider, secret, endpoint
         return ScriptedAdapter(self)
+
+
+def witnessed(factory: Callable[..., Any], sink: list[str]) -> Callable[..., Any]:
+    """The router's adapter factory, with every message each model is shown recorded."""
+
+    def build(*args: Any) -> Witness:
+        return Witness(factory(*args), sink)
+
+    return build
+
+
+class Witness:
+    """A model adapter that records what it is shown and otherwise is the adapter."""
+
+    def __init__(self, inner: Any, sink: list[str]):
+        self.inner, self.sink = inner, sink
+
+    async def complete(
+        self, model: str, messages: list[ModelMessage], *args: Any, **kw: Any
+    ) -> Any:
+        self.sink.extend(message.content for message in messages)
+        return await self.inner.complete(model, messages, *args, **kw)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
 
 
 class ScriptedAdapter:
@@ -167,7 +228,7 @@ class ScriptedAdapter:
             raise AssertionError(f"{self.script.agent}'s scripted turn ended early")
         reply = self.script.replies.pop(0)
         if "text" in reply:
-            return ModelReply(text=reply["text"])
+            return ModelReply(text=resolve(reply["text"], self.script.names))
         calls = [
             ToolCall(
                 id=uuid4().hex,
@@ -242,6 +303,11 @@ class Stage:
     model: ScriptedModel | None
     runs: list[str] = field(default_factory=list[str])
     calls: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    # Every message any model was shown, every round, scripted or live.
+    inputs: list[str] = field(default_factory=list[str])
+    # --broker demo: the MetaApi demo account's login, server, password and token, typed at
+    # hidden prompts and held only in memory.
+    demo: dict[str, str] | None = None
     # Runs the template left queued (the signed grant's account task): not the step's.
     before: set[str] = field(default_factory=set[str])
     # Each conversation's last message before the step (``seq`` counts per conversation).
@@ -290,8 +356,8 @@ class Stage:
                     await harness.lease(self.api, run.id),
                     self.api.settings.artifact_root,
                 )
-                if self.model is not None:
-                    context.router.factory = self.model.factory
+                inner = self.model.factory if self.model is not None else context.router.factory
+                context.router.factory = witnessed(inner, self.inputs)
                 registry = runner.RecordingRegistry(self.calls)
                 async with asyncio.timeout(harness.CASE_SECONDS):
                     await execute_run(
@@ -848,7 +914,268 @@ async def news(stage: Stage, step: dict[str, Any]) -> list[Check]:
     return checks + await judged(stage, thread, stage.ids["news"])
 
 
+async def secret_cards(stage: Stage) -> list[OwnerActionRow]:
+    """The Secret cards raised in Lonora's conversation, oldest first."""
+    async with stage.api.runtime.db.sessions() as session:
+        return list(
+            await session.scalars(
+                select(OwnerActionRow)
+                .where(
+                    OwnerActionRow.kind == "secret",
+                    OwnerActionRow.thread_id == stage.ids["thread_id"],
+                )
+                .order_by(OwnerActionRow.created_at)
+            )
+        )
+
+
+async def says(stage: Stage, text: str) -> None:
+    """The owner types ``text`` in Lonora's conversation; the runs it causes are driven."""
+    await stage.api.request(
+        "POST", f"/threads/{stage.ids['thread_id']}/messages", {"content": text}
+    )
+    await stage.drain()
+
+
+async def card_result(stage: Stage, card_id: str) -> dict[str, Any]:
+    async with stage.api.runtime.db.sessions() as session:
+        row = await session.get(OwnerActionRow, card_id)
+        return dict(row.result) if row is not None else {}
+
+
+async def provision(
+    stage: Stage, card_id: str, api: broker.FakeProvisioningApi | None, used: list[str]
+) -> dict[str, Any]:
+    """The gateway's provisioning step, pass after pass, until the card's account is
+    connected or has failed and any MetaApi account it left is cleaned up. On the fake
+    API that takes a pass; on MetaApi up to the product's deploy and read deadlines."""
+    key = stage.api.settings.encryption_key.get_secret_value()
+    secrets = BrokerSecrets(stage.api.runtime.db, key, stage.api.owner)
+
+    def fake_client(token: str) -> broker.FakeMetaApiProvisioning:
+        assert api is not None
+        used.append(token)
+        return broker.FakeMetaApiProvisioning(api, token)
+
+    deadline = asyncio.get_running_loop().time() + DEMO_WAIT.total_seconds()
+    result: dict[str, Any] = {}
+    with (
+        patch("lonora_trading.broker_provisioning.provisioning_client", fake_client)
+        if api is not None
+        else nullcontext()
+    ):
+        for passes in range(1, 1_000_000):
+            for account_id, data in (api.accounts if api is not None else {}).items():
+                broker.FakeMetaApiBroker.terminals.setdefault(
+                    account_id,
+                    broker.FakeTerminal(
+                        account_id=account_id, login=data["login"], server=data["server"]
+                    ),
+                )
+            await maintain_broker_provisioning(
+                stage.api.runtime.db, stage.brokers, secrets, stage.api.owner
+            )
+            result = await card_result(stage, card_id)
+            ended = result.get("provisioning") in {"connected", "failed"}
+            if ended and result.get("metaapi_cleanup") != "pending":
+                return result
+            if api is not None and passes >= 4:
+                return result
+            if api is None:
+                if asyncio.get_running_loop().time() > deadline:
+                    return result
+                await asyncio.sleep(DEMO_PASS_SECONDS)
+    return result
+
+
+async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
+    """1: the owner asks Lonora to trade an MT5 account; Lonora asks for the account number
+    and server, shows the broker Secret card, provisions through MetaApi and reports the
+    balance.
+
+    The card is saved through the owner's own route; the gateway's provisioning step runs
+    on W-BROKER's fake MetaApi provisioning API (or, with ``--broker demo``, on MetaApi
+    itself). The password and token must appear nowhere but the store: not in a message,
+    not in anything a model was shown.
+    """
+    given, demo = step["given"], stage.demo
+    login, server = (demo["login"], demo["server"]) if demo else (given["login"], given["server"])
+    password, token = (
+        (demo["password"], demo["token"])
+        if demo
+        else ("accept-master-" + uuid4().hex, "accept.metaapi." + uuid4().hex)
+    )
+    api = None if demo else broker.FakeProvisioningApi(servers={server: {login: password}})
+    if demo:
+        # The template's own connection is a fake; with no fake installed it is switched
+        # off so nothing in the run reaches MetaApi with it.
+        await set_enabled(
+            stage.api.runtime.db, stage.brokers, stage.api.owner, stage.ids["account_id"], False
+        )
+    if stage.model is not None:
+        stage.model.names |= {"$login": login, "$server": server}
+    await says(stage, step["owner_says"])
+    asked = await stage.replies(stage.ids["thread_id"], stage.ids["lonora_id"])
+    early = await secret_cards(stage)
+    await says(stage, resolve(given["owner_answers"], {"$login": login, "$server": server}))
+    cards = await secret_cards(stage)
+    if not cards and stage.model is None:
+        raise NotExercised("Lonora did not raise the password card")
+    card = cards[0] if cards else None
+    listed: list[dict[str, Any]] = await stage.api.request(
+        "GET", "/owner-actions?thread_id=" + stage.ids["thread_id"]
+    )
+    nothing: dict[str, Any] = {}
+    shown = next((item for item in listed if card and item["id"] == card.id), nothing)
+    facts: dict[str, Any] = shown.get("facts") or {}
+    secret: dict[str, Any] = facts.get("secret") or {}
+    asks: list[dict[str, Any]] = secret.get("fields") or []
+    fields: list[str] = [str(item["key"]) for item in asks]
+    values = {"PASSWORD": password, "METAAPI_TOKEN": token}
+    saved = await stage.api.client.post(
+        f"/api/owner-actions/{card.id if card else 'none'}/secret",
+        json={"values": {key: values[key] for key in fields if key in values}},
+    )
+    used: list[str] = []
+    checks: list[Check] = []
+    cleanup: list[Check] = []
+    try:
+        result: dict[str, Any] = {}
+        if card is not None and saved.status_code == 200:
+            result = await provision(stage, card.id, api, used)
+        async with stage.api.runtime.db.sessions() as session:
+            connection = (
+                await session.get(BrokerSessionRow, result["connection_id"])
+                if result.get("connection_id")
+                else None
+            )
+        balance = "?"
+        if connection is not None and demo:
+            state = await stage.brokers.account(stage.api.owner, connection.id)
+            balance = format(state.balance.normalize(), "f")
+        elif connection is not None:
+            terminal = broker.FakeMetaApiBroker.terminals[connection.payload["account_id"]]
+            balance = format(terminal.balance.normalize(), "f")
+        if stage.model is not None:
+            stage.model.names["$balance"] = balance
+        await stage.drain()
+        async with stage.api.runtime.db.sessions() as session:
+            wake = (
+                await session.get(RunRow, stable_id(card.id, "continue-after-card"))
+                if card
+                else None
+            )
+        reply = await posted(stage, wake) if wake is not None else None
+        async with stage.api.runtime.db.sessions() as session:
+            # One owner per disposable database: every message is the owner's.
+            written = " ".join(await session.scalars(select(MessageRow.content)))
+        shown_to_models = " ".join(stage.inputs)
+        checks = [
+            (
+                "Lonora asked for the account number and server in chat",
+                bool(asked) and not early,
+                f"{len(asked)} replies and {len(early)} cards before the owner gave them",
+            ),
+            (
+                "the broker Secret card asks for the password",
+                card is not None and secret.get("destination") == "broker" and "PASSWORD" in fields,
+                f"destination {secret.get('destination')}, fields {fields}",
+            ),
+            (
+                "the owner's values were saved",
+                saved.status_code == 200,
+                f"HTTP {saved.status_code}",
+            ),
+            (
+                "provisioned once through MetaApi, with the owner's token",
+                (api is None or (api.calls.count("create_account") == 1 and set(used) == {token}))
+                and result.get("provisioning") == "connected",
+                f"{'MetaApi' if api is None else api.calls.count('create_account')} creates, "
+                f"{result.get('provisioning')}",
+            ),
+            (
+                "the account is connected with the owner's login",
+                connection is not None
+                and bool(connection.payload.get("enabled"))
+                and connection.state.get("broker_identity", {}).get("login") == login,
+                f"connection {'found' if connection else 'missing'}",
+            ),
+            (
+                "Lonora was woken with the broker's balance",
+                wake is not None and f"Balance {balance}" in wake.prompt,
+                "read from the broker" if demo else f"broker balance {balance}",
+            ),
+            (
+                "Lonora reported the balance in its conversation",
+                reply is not None
+                and reply.thread_id == stage.ids["thread_id"]
+                and states(balance, reply.content),
+                "reported" if reply is not None else "no answer",
+            ),
+            (
+                "no password or token in any message or model input",
+                bool(shown_to_models)
+                and all(
+                    value not in written and value not in shown_to_models
+                    for value in (password, token)
+                ),
+                f"{len(stage.inputs)} model inputs and every message scanned",
+            ),
+        ]
+    finally:
+        if demo and card is not None:
+            cleanup = await removed_demo(stage, card.id)
+    return checks + cleanup
+
+
+def states(figure: str, text: str) -> bool:
+    """Whether ``text`` states the whole-number part of ``figure``, in Latin or
+    Arabic-Indic digits, with or without thousands separators."""
+    if not figure.replace(".", "", 1).isdigit():
+        return False
+    digits = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    plain = re.sub(r"(?<=\d)[,٬\u066c\u00a0 ](?=\d{3})", "", digits)
+    return figure.split(".")[0] in re.findall(r"\d+", plain)
+
+
+async def removed_demo(stage: Stage, card_id: str) -> list[Check]:
+    """--broker demo leaves nothing behind. A connected account is removed by the product's
+    own disconnect (9.3); one whose connect failed is removed by the provisioning step's own
+    cleanup, which ``provision`` waits for. Then MetaApi itself is asked, with the owner's
+    token, whether any account for this login and server is left (one already there before
+    the run is never removed by the product, and is reported). No id is printed."""
+    assert stage.demo is not None
+    result = await card_result(stage, card_id)
+    if result.get("connection_id"):
+        await disconnect(
+            stage.api.runtime.db, stage.brokers, stage.api.owner, result["connection_id"]
+        )
+    client = broker_provisioning.provisioning_client(stage.demo["token"])
+    try:
+        left = await client.find(stage.demo["login"], stage.demo["server"])
+    except Exception as failure:  # an unanswered lookup is reported, never lost
+        return [
+            (
+                "nothing is left at MetaApi",
+                False,
+                f"MetaApi did not answer ({type(failure).__name__}): check the account there",
+            )
+        ]
+    finally:
+        await client.close()
+    return [
+        (
+            "nothing is left at MetaApi",
+            left is None,
+            "no account for this login and server"
+            if left is None
+            else "an account for this login and server is still at MetaApi: remove it there",
+        )
+    ]
+
+
 RUNNERS: dict[str, Callable[[Stage, dict[str, Any]], Awaitable[list[Check]]]] = {
+    "1": connecting,
     "4a": news,
     "4c": close_with_dropped_connection,
     "5": morning,
@@ -907,7 +1234,11 @@ async def opened_by(stage: Stage, position: dict[str, Any], agent_id: str) -> No
 
 
 async def run_step(
-    base: URL, ids: dict[str, str], step: dict[str, Any], live: bool
+    base: URL,
+    ids: dict[str, str],
+    step: dict[str, Any],
+    live: bool,
+    demo: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     clone = base.set(database=f"accept_{uuid4().hex[:12]}_test")
     await harness.admin(base, f'CREATE DATABASE "{clone.database}" TEMPLATE "{base.database}"')
@@ -915,13 +1246,14 @@ async def run_step(
     checks: list[Check] = []
     error, exercised = None, True
     api: Any = None
-    with broker.installed(terminal):
+    # --broker demo: the real MetaApi adapter and provisioning, no fake installed.
+    with nullcontext() if demo else broker.installed(terminal):
         try:
             api = harness.Api(clone)
             await api.login()
             names = {**ids, **await gold_agent(api, ids, terminal.variant)}
             model = None if live else ScriptedModel(turns=json.loads(json.dumps(step["script"])))
-            stage = Stage(api, names, terminal, model)
+            stage = Stage(api, names, terminal, model, demo=demo)
             await stage.settle()
             checks = await RUNNERS[step["id"]](stage, step)
             if model is not None:
@@ -953,7 +1285,11 @@ async def run_step(
         "step": step["id"],
         "state": state,
         "error": error,
-        **({"partial": step["partial"]["note"]} if "partial" in step else {}),
+        **(
+            {"partial": step["partial"].get("demo_note" if demo else "note")}
+            if "partial" in step and step["partial"].get("demo_note" if demo else "note")
+            else {}
+        ),
         **({"defects": step["defects"]} if "defects" in step else {}),
         "checks": [{"check": name, "ok": ok, "seen": seen} for name, ok, seen in checks],
     }
@@ -1006,12 +1342,23 @@ async def main(arguments: argparse.Namespace) -> int:
         for step, row in zip(scenario["steps"], status(scenario), strict=True)
         if row["state"] == "ready" and (chosen is None or step["id"] in chosen)
     ]
+    demo = None
+    if arguments.broker == "demo":
+        if not chosen or not chosen <= DEMO_STEPS:
+            raise SystemExit(f"--broker demo runs only steps {', '.join(sorted(DEMO_STEPS))}")
+        if not any(step["id"] in chosen for step in ready):
+            raise SystemExit("--broker demo: the step is not ready on this commit")
+        demo = {name: getpass(f"MetaApi demo {name}: ") for name in DEMO_VALUES}
+        # The run prints its table and nothing else: the MetaApi SDK prints account ids
+        # with print(), and log lines can carry them.
+        logging.disable(logging.CRITICAL)
     try:
-        ids = await runner.template(base, arguments.model) if ready else {}
-        if ready and arguments.live:
-            await own_key(base, arguments.model)
-        for step in ready:
-            results.append(await run_step(base, ids, step, arguments.live))
+        with redirect_stdout(io.StringIO()) if demo else nullcontext():
+            ids = await runner.template(base, arguments.model) if ready else {}
+            if ready and arguments.live:
+                await own_key(base, arguments.model)
+            for step in ready:
+                results.append(await run_step(base, ids, step, arguments.live, demo))
     finally:
         await harness.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
     by_step = {item["step"]: item for item in results}
@@ -1044,4 +1391,10 @@ if __name__ == "__main__":
     parser.add_argument("--steps", default="", help="comma-separated step ids")
     parser.add_argument("--model", default=runner.MODEL, help="provider/model of the template")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--broker",
+        choices=["fake", "demo"],
+        default="fake",
+        help="demo: the real MetaApi demo account (values typed at hidden prompts)",
+    )
     sys.exit(asyncio.run(main(parser.parse_args())))
