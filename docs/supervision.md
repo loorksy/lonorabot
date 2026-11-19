@@ -102,7 +102,8 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   pause card, or `agent_control`), it gets one run in each conversation where the owner
   sent it messages while it was paused (in a group, the messages that addressed it),
   admitted as the latest of them would have been (`answer_kept_messages`): the owner's
-  message is the run's trigger, so a reply to the wake's question answers it. Whoever
+  message is the run's trigger, so when that latest message is a reply to its wake's
+  question, or the next message right after it, it answers that question. Whoever
   resumes it, only the owner's messages get a run, and a conversation where the owner
   sent it nothing gets none. Lonora may
   therefore pause a whole trading agent on its own. Supervision is not extended before phase 6 removes it:

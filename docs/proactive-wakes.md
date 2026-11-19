@@ -187,8 +187,9 @@ Delivery is in-app only until Wave 3. See
   to a question it asks (the wake's prompt says so). The resume, whoever makes it,
   queues one run in each conversation where the owner sent the Agent messages while it
   was paused (in a group, those that addressed it), admitted as the latest of them would
-  have been, with the owner's message as its trigger; a reply to the wake's question
-  among them answers it (`docs/supervision.md`).
+  have been, with the owner's message as its trigger: when that latest message is a
+  reply to the wake's question, or the next message right after it, it answers it
+  (`docs/supervision.md`).
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
   runs and memory through its default, revocable supervision grant, on demand.
