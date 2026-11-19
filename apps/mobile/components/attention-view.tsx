@@ -2,35 +2,16 @@
 // server projection (GET /attention/view), the same list the web shows. A row opens its
 // conversation, where the fixed card or the question stands; opening it decides nothing.
 
-import type { Agent, AttentionViewKind, AttentionViewRow } from "@lonora/contracts";
+import type { Agent, AttentionViewRow } from "@lonora/contracts";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Text, View } from "react-native";
 import { api } from "../lib/api";
-import type { Label } from "../lib/i18n";
+import { attentionLabels } from "../lib/attention-labels";
 import { useSession } from "../lib/session";
 import { textDirection } from "../lib/text-direction";
 import { Button, colors, ErrorNotice } from "./ui";
 
-const labels: Record<AttentionViewKind, Label> = {
-  trade_approval: "attentionApproval",
-  settle_operation: "attentionOperationUncertain",
-  secret_request: "attentionSecretRequested",
-  mandate_card: "attentionMandateProposed",
-  broker_health: "attentionBrokerConnectionLost",
-  owner_question: "attentionOwnerQuestion",
-  task_review: "taskNeedsReview",
-  agent_alert: "attentionAgentAlert",
-  system_alert: "attentionOperationUnresolved",
-};
-// The three broker problems and the watchdog's two items each say which one it is.
-const codeLabels: Record<string, Label> = {
-  broker_token_rejected: "attentionBrokerTokenRejected",
-  broker_account_undeployed: "attentionBrokerUndeployed",
-  broker_connection_lost: "attentionBrokerConnectionLost",
-  operation_unresolved: "attentionOperationUnresolved",
-  run_quarantined: "attentionRunQuarantined",
-};
 const POLL_MS = 5000;
 
 export function AttentionView({ agents }: { agents: Agent[] }) {
@@ -78,7 +59,8 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
           style={{ backgroundColor: colors.muted, padding: 14, borderRadius: 16, gap: 8 }}
         >
           <Text style={{ color: colors.foreground, textAlign: align }}>
-            {t((row.code && codeLabels[row.code]) || labels[row.kind])}
+            {/* Each code says which item it is, as on the web; a waiting question has none. */}
+            {t(row.code ? attentionLabels[row.code] : "attentionOwnerQuestion")}
           </Text>
           {row.summary ? (
             <Text

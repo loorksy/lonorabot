@@ -29,10 +29,37 @@ test("Expo Arabic attention view lists what needs the owner and opens its conver
       httpOnly: cookie.name === "lonora_session",
     })),
   );
+  // A MetaApi throttle is a broker health row of its own code: the view adds one to the
+  // server's answer, so the label it shows is the client's own choice.
+  const throttle = `browser-throttle-${Date.now()}`;
+  await page.route("**/api/attention/view", async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    await route.fulfill({
+      response,
+      json: [
+        {
+          kind: "broker_health",
+          id: throttle,
+          agent_id: fixture.agent.id,
+          thread_id: fixture.uncertain.thread_id,
+          code: "broker_rate_limited",
+          created_at: new Date().toISOString(),
+        },
+        ...rows,
+      ],
+    });
+  });
   await page.goto("/");
   await page.getByTestId("tab-updates").click();
   // «يحتاج انتباهك» (11.7): the same server view as the web, in Arabic.
   const view = page.getByTestId("attention-view");
+  // A throttle says MetaApi is limiting requests, never that the connection was lost.
+  const limited = view.getByTestId("attention-row-broker_health").filter({
+    hasText: fixture.agent.name,
+  });
+  await expect(limited.getByText("MetaApi تحدّ من الطلبات حاليًا", { exact: true })).toBeVisible();
+  await expect(limited).not.toContainText("انقطع الاتصال بالحساب");
   const row = view.getByTestId("attention-row-settle_operation").filter({
     hasText: fixture.agent.name,
   });
