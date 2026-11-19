@@ -39,7 +39,7 @@ async def main() -> None:
         )
         async with db.engine.connect() as connection:
             tables = await connection.run_sync(lambda conn: inspect(conn).get_table_names())
-            # The old tools' receipts are gone (0146); the snapshots stay for the mover.
+            # The old tools' receipts are gone (0200); the snapshots stay for the mover.
             assert "ln_analytical_workspaces" in tables and "ln_workspace_operations" not in tables
             assert "ln_account_authorities" in tables
         print(

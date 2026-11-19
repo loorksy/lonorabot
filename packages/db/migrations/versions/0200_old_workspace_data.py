@@ -22,7 +22,7 @@ from typing import Any, cast
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0146_old_workspace_data"
+revision = "0200_old_workspace_data"
 down_revision = "0087_end_money_limits"
 branch_labels = None
 depends_on = None

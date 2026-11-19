@@ -1,4 +1,4 @@
-"""Migration 0146 on real rows, in an empty disposable PostgreSQL database (Lonora has one
+"""Migration 0200 on real rows, in an empty disposable PostgreSQL database (Lonora has one
 owner, so it runs once per database): stored skill
 manifests that require a removed workspace tool name its replacement, saved stdio MCP
 servers are deleted and the others lose `transport` and `command`, and the old tools'
@@ -159,7 +159,7 @@ async def main() -> None:
         await db.close()
         await alembic("upgrade", "head")
         print(
-            "PASS: 0146 renames removed workspace tools in stored manifests, deletes saved "
+            "PASS: 0200 renames removed workspace tools in stored manifests, deletes saved "
             "stdio MCP servers, strips transport/command, drops the old receipts; round-trips"
         )
     finally:

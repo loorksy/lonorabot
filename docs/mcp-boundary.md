@@ -54,7 +54,7 @@ Credentials stay server-side. Saved MCP servers are remote: the `mcp_*` tools re
 only a saved server's HTTPS URL (a review refuses a server without one,
 `mcp_url_required`). A local (stdio) MCP server is a program an agent runs in the owner's
 workspace as its own process, like any other command; the `mcp_*` tools do not reach it,
-and nothing runs one as the Gateway user. Migration 0146 deleted the saved stdio records
+and nothing runs one as the Gateway user. Migration 0200 deleted the saved stdio records
 and revoked any trust still on them.
 
 The HTTP path retains public-network validation, TLS and disabled redirects,
