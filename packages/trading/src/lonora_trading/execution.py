@@ -6,7 +6,6 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionQuality, ExecutionSnapshot
-from lonora_contracts.risk_limits import RiskAssessment
 from lonora_contracts.runs import Lease
 from lonora_contracts.tasks import TaskState
 from lonora_contracts.trading import (
@@ -37,7 +36,6 @@ from .manual_activity import material_state
 from .operation_events import operation_event
 from .preflight import preflight
 from .reconciliation import send_lock_key
-from .risk_limits import assess_risk, risk_operations
 from .verification import verify_effect
 
 BROKER_OUTCOMES = frozenset({"confirmed", "failed", "ambiguous"})
@@ -137,6 +135,7 @@ class ExecutionService:
         authorization: Callable[[], Awaitable[None]] | None = None,
         account_authority_id: str | None = None,
         expected_target: dict[str, Any] | None = None,
+        owner_message_id: str | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
@@ -171,7 +170,14 @@ class ExecutionService:
                 origin = await require_lease(session, lease)
                 await authority_lock(session, origin.agent_id)
                 await require_operation_permission(
-                    session, owner_id, origin, request, account_authority_id
+                    session,
+                    owner_id,
+                    origin,
+                    request,
+                    account_authority_id,
+                    reducing=planned_reducing,
+                    target=management_target(planned_snapshot, request),
+                    owner_message_id=owner_message_id,
                 )
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
@@ -297,36 +303,8 @@ class ExecutionService:
                     before_send=observed,
                 )
                 raise LonoraError(quality.reasons[0], 409)
-            # Owner monetary limits, from fresh broker economics under this account's send
-            # lock. Risk-reducing requests are never blocked by a limit.
-            risk = None
-            if not reducing and policy.risk.configured:
-                async with self.db.sessions() as session:
-                    operations = await risk_operations(
-                        session, owner_id, request.account_id, exclude=request.operation_id
-                    )
-                risk = await assess_risk(
-                    broker,
-                    request,
-                    snapshot,
-                    policy.risk,
-                    reducing=reducing,
-                    operations=operations,
-                )
-                if risk.state == "blocked":
-                    await record_block(
-                        {
-                            "risk_assessment": risk.model_dump(mode="json"),
-                            "admission_block": {
-                                "code": risk.reasons[0],
-                                "reasons": risk.reasons,
-                            },
-                        },
-                        before_send=observed,
-                    )
-                    raise LonoraError(risk.reasons[0], 409)
             try:
-                await final_admission(snapshot, reducing, observed, risk, quality)
+                await final_admission(snapshot, reducing, observed, quality)
             except AdmissionBlocked as blocked:
                 await record_block({"admission_block": blocked.evidence}, before_send=observed)
                 raise
@@ -336,7 +314,6 @@ class ExecutionService:
             snapshot: ExecutionSnapshot,
             reducing: bool,
             observed: dict[str, Any],
-            risk: RiskAssessment | None,
             quality: ExecutionQuality,
         ) -> None:
             """The decisive checks and the reserved -> submitted transition, in one commit."""
@@ -348,7 +325,14 @@ class ExecutionService:
                     origin = await require_lease(session, lease)
                     await authority_lock(session, origin.agent_id)
                     await require_operation_permission(
-                        session, owner_id, origin, request, account_authority_id
+                        session,
+                        owner_id,
+                        origin,
+                        request,
+                        account_authority_id,
+                        reducing=reducing,
+                        target=management_target(snapshot, request),
+                        owner_message_id=owner_message_id,
                     )
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id
@@ -393,6 +377,19 @@ class ExecutionService:
                         request,
                         material_state(target) if target else None,
                     )
+                    if (
+                        not account_authority_id
+                        and (request.position_id or request.order_id)
+                        and (
+                            expected_target is None
+                            or target is None
+                            or material_state(target) != expected_target
+                        )
+                    ):
+                        # The ticket the agent read changed before the send (an owner's
+                        # intervention), or nothing records what it read: never overwrite
+                        # it, with or without a card (6.6, fail closed).
+                        raise LonoraError("broker_state_changed", 409)
                     if account_authority_id:
                         leased_run = await require_lease(session, lease)
                         await require_account_execution(
@@ -431,7 +428,6 @@ class ExecutionService:
                             **row.result.get("details", {}).get("execution_evidence", {}),
                             "before_send": observed,
                         },
-                        **({"risk_assessment": risk.model_dump(mode="json")} if risk else {}),
                     },
                 }
                 await operation_event(session, row)
