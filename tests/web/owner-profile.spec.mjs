@@ -86,19 +86,19 @@ test("the owner profile is edited, logged, restored, and the reach mode saved", 
     )
     .toBe("");
   await page.goto("/app/notify-settings");
-  await page.getByRole("radio", { name: /Activity log only/ }).click();
+  await page.getByRole("radio", { name: /An alert on your device/ }).click();
   await expect
     .poll(
       async () => (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
     )
-    .toBe("activity");
+    .toBe("notify");
   const after = await (await context.request.get("/api/owner/profile")).json();
   expect(after.name).toBe(name);
   // Restoring a preferences row the page does not reload for by itself (the reach mode) updates
   // the log in place, without a reload: the row reads «Restored» and the revert is the newest row.
   await page.goto("/app/owner");
   const rows = log.locator(".row");
-  const reach = rows.filter({ has: page.locator("ins", { hasText: /^Activity only$/ }) }).first();
+  const reach = rows.filter({ has: page.locator("ins", { hasText: /^Notify me$/ }) }).first();
   await expect(reach).toBeVisible();
   const top = await rows.first().innerText();
   let reloaded = false;

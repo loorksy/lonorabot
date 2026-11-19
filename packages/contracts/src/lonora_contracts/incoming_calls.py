@@ -11,11 +11,11 @@ from .domain import Contract
 
 # How the owner wants to be reached about something that needs him (the reach-me
 # preference of the owner profile). Delivery is in-app until off-app delivery exists:
-# activity = keep it in Activity only; notify = the inbox (Agents raise their own alerts
-# once owner_notify exists; until then they message); message = a message
-# in the agent's conversation; call = an incoming conversation invitation.
-ReachMe = Literal["activity", "notify", "message", "call"]
-REACH_ME_CHANNELS: tuple[ReachMe, ...] = ("activity", "notify", "message", "call")
+# notify = an attention item (an Agent raises its own alert with owner_notify);
+# message = a message in the agent's conversation; call = an incoming conversation
+# invitation.
+ReachMe = Literal["notify", "message", "call"]
+REACH_ME_CHANNELS: tuple[ReachMe, ...] = ("notify", "message", "call")
 # Codes of IncomingCallPolicy's checks that tell the owner what to fix; the API returns
 # them as the error code instead of a generic invalid_request.
 POLICY_ERROR_CODES = frozenset(

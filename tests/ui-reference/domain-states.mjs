@@ -170,21 +170,6 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
       appPath: () => `/app/file-edit?agent=${agent("lonora")}`,
       app: async () => {},
     },
-    {
-      name: "activity",
-      ref: async (page) => {
-        await refRun(page, () => {
-          S.activities = [
-            { title: "أُنشئت مهارة", text: "موجز الأخبار · Lonora", time: "" },
-            { title: "أُنشئت مهمة", text: "متابعة الذهب · محلل الذهب", time: "" },
-          ];
-          save();
-          go("activity");
-        });
-      },
-      appPath: "/app/activity",
-      app: async () => {},
-    },
   ];
   return states.map((state) => ({
     ...state,

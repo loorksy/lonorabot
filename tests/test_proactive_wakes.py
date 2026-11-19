@@ -912,21 +912,9 @@ async def test_owner_notify_follows_dedupe_quiet_hours_rate_and_reach_me():
             dedupe_key="margin-" + uuid4().hex[:6],
         )
         assert urgent["status"] == "ready"
-        # "Activity only" keeps non-critical alerts out of the owner's notifications.
-        await reach_me(fixture, channel="activity")
-        quiet = await call(
-            context,
-            "owner_notify",
-            importance="important_change",
-            summary="Silver range is tightening",
-            dedupe_key="silver-" + uuid4().hex[:6],
-        )
-        assert quiet["status"] == "activity_only" and quiet["attention_id"] is None
-        # The Agent is told where the record goes instead of a notification.
-        assert "your reply" in quiet["note"] and "Shown in" not in quiet["note"]
         # A bounded rate per Agent and hour.
         await reach_me(fixture, channel="message")
-        sent = 4  # Every alert counts, the activity-only one too.
+        sent = 3  # Every alert counts.
         while sent < NOTIFY_LIMIT_PER_HOUR:
             await call(
                 context,

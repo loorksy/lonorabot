@@ -29,7 +29,7 @@ test("every profile, reach-me and language label exists in Arabic and English", 
   }
   for (const language of replyLanguages)
     assert.ok(arabic.test(replyLanguageLabel(language, "ar-SA")));
-  assert.deepEqual([...reachMeChannels], ["activity", "notify", "message", "call"]);
+  assert.deepEqual([...reachMeChannels], ["notify", "message", "call"]);
   // Delivery is in-app until off-app delivery exists; the label says so.
   assert.match(ownerProfileLabel("inAppOnly", "en"), /inside Lonora/);
 });

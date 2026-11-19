@@ -270,7 +270,7 @@ async def test_an_uploaded_strategy_pdf_ends_as_a_method_version_quoting_its_rul
         # Text in a file is someone else's words (6.10): the run no longer stands for the
         # owner's typed message, so a setting only the owner's word changes is refused.
         injected = ToolCall(
-            id="prefs", name="owner_preferences_update", arguments={"reach_me": "activity"}
+            id="prefs", name="owner_preferences_update", arguments={"reach_me": "notify"}
         )
         turns = [write, injected]
 

@@ -6,25 +6,20 @@
  * and the labels say so instead of promising a notification on a closed phone.
  */
 
-export type ReachMe = "activity" | "notify" | "message" | "call";
-export const reachMeChannels: readonly ReachMe[] = ["activity", "notify", "message", "call"];
+export type ReachMe = "notify" | "message" | "call";
+export const reachMeChannels: readonly ReachMe[] = ["notify", "message", "call"];
 export type ReplyLanguage = "auto" | "ar" | "en";
 export const replyLanguages: readonly ReplyLanguage[] = ["auto", "ar", "en"];
 
 type Text = { readonly en: string; readonly ar: string };
 
 const channels: Readonly<Record<ReachMe, Text>> = {
-  activity: { en: "Activity only", ar: "النشاط فقط" },
   notify: { en: "Notify me", ar: "أرسل لي تنبيهًا" },
   message: { en: "Message me", ar: "راسلني" },
   call: { en: "Call me", ar: "اتصل بي" },
 };
 
 const channelHints: Readonly<Record<ReachMe, Text>> = {
-  activity: {
-    en: "Agents keep it in Activity and do not interrupt you.",
-    ar: "يسجّل الوكلاء ذلك في النشاط ولا يقاطعونك.",
-  },
   // Agents cannot raise inbox alerts of their own yet; the hint promises only what happens.
   notify: {
     en: "Agents write to you in their conversation, and alerts Lonora raises stay in your inbox.",

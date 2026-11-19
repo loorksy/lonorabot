@@ -39,7 +39,8 @@ test("domain pages: the task and skill pages take their id in the path, the rest
   assert.deepEqual(parseRoute("/app/skills/k1"), { kind: "page", page: "skill", item: "k1" });
   assert.deepEqual(parseRoute("/app/tasks"), { kind: "root", root: "tasks" });
   assert.deepEqual(parseRoute("/app/goals"), { kind: "page", page: "goals" });
-  assert.deepEqual(parseRoute("/app/activity"), { kind: "page", page: "activity" });
+  // The activity log page is gone (P5): the path is no page any more.
+  assert.notEqual(parseRoute("/app/activity").kind, "page");
   assert.deepEqual(parseRoute("/app/task"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/goals/x"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/tasks/t1/x"), { kind: "not-found" });

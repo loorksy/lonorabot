@@ -66,8 +66,8 @@ own document keeps only its private views:
 The structured part of the profile is the reply language
 (`ln_owner_profile.reply_language`: Arabic, English, or none = the language of
 the owner's latest message) and the reach-me preference. The reach-me preference
-is the existing incoming-call policy record with a `channel` (activity only,
-notify, message or call; see `docs/incoming-attention.md`), so the call gate and
+is the existing incoming-call policy record with a `channel` (notify,
+message or call; see `docs/incoming-attention.md`), so the call gate and
 the profile can never disagree.
 
 **Reading.** `memory_read` returns the Agent's own view (`MEMORY.md` and
