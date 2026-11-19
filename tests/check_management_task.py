@@ -7,6 +7,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any, cast
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from check_trading import ScriptedBroker, ScriptedManager, database
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_agent.collaboration.agent_create import delete_created_agent
 from lonora_api.routes.owner_actions import undo_creation
+from lonora_api.routes.threads import delete as delete_thread
 from lonora_auth.identity import OwnerIdentity
 from lonora_bus.attention import catalogs
 from lonora_contracts.account import Position
@@ -58,6 +60,7 @@ from lonora_db.tasks import (
     save_task,
     task_state,
 )
+from lonora_db.threads import conversation_thread
 from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.trading_mode import set_trading_mode
 from lonora_session.idempotency import stable_id
@@ -681,6 +684,40 @@ async def checks() -> None:
         await set_agent(trading_mode="ask", paused=False)
     print("PASS the gateway ends an open task of an agent in Ask or paused")
 
+    async def delete_conversation(thread_id: str) -> None:
+        """The owner's delete route."""
+        request = SimpleNamespace(
+            app=SimpleNamespace(state=SimpleNamespace(runtime=SimpleNamespace(db=db)))
+        )
+        await delete_thread(cast(Any, request), thread_id, owner_identity)
+
+    async def grant_takes_over(agent: str, thread_id: str, **values: Any) -> str:
+        """A signed grant whose own Task took over, as finish_activation does."""
+        async with db.sessions() as session, session.begin():
+            grant = AccountAuthorityRow(
+                owner_id=owner_id,
+                agent_id=agent,
+                thread_id=thread_id,
+                account_id=account_id,
+                status="active",
+                envelope={},
+                envelope_hash="0" * 64,
+                activation_expires_at=utcnow() + timedelta(minutes=5),
+                **values,
+            )
+            session.add(grant)
+            await session.flush()
+            await create_task(
+                session,
+                owner_id,
+                agent,
+                thread_id,
+                TaskCreate(title="grant management", completion_mode="continuous"),
+                task_id=stable_id(grant.id, "account-management-task"),
+            )
+            await end_management_task(session, owner_id, agent)
+            return grant.id
+
     # A grant signed in another conversation of the agent: deleting that conversation
     # revokes the grant and hands the Full agent over to its own task.
     async with db.sessions() as session, session.begin():
@@ -712,11 +749,27 @@ async def checks() -> None:
         # As finish_activation does: the grant's Task takes over.
         await end_management_task(session, owner_id, legacy_id)
     assert await legacy_live() is None
-    async with db.sessions() as session, session.begin():
-        await prepare_delete(session, owner_id, thread_id=side_id)
-        await session.delete(await session.get(ThreadRow, side_id))
+    await delete_conversation(side_id)
     assert await legacy_live() is not None, "deleting the grant's conversation left no task"
     print("PASS deleting the conversation a grant was signed in hands over to the mode task")
+
+    # Its own conversation too, with mode tasks behind it: the Full agent is handed over
+    # at once, to a new own conversation, never to the deleted one.
+    async with db.sessions() as session, session.begin():
+        own_id = (await conversation_thread(session, owner_id, legacy_id)).id
+    own_grant = await grant_takes_over(legacy_id, own_id)
+    assert await legacy_live() is None
+    await delete_conversation(own_id)
+    handed = await legacy_live()
+    assert handed is not None, "deleting the agent's own conversation left no task"
+    origin = task_state(handed).origin_thread_id
+    async with db.sessions() as session, session.begin():
+        assert await session.get(ThreadRow, own_id) is None and origin != own_id
+        assert (await conversation_thread(session, owner_id, legacy_id)).id == origin
+        revoked = await session.get(AccountAuthorityRow, own_grant)
+        assert revoked is not None and revoked.status == "revoked"
+    print("PASS deleting the agent's own conversation hands over to a new own conversation")
+
     print("management task checks passed")
 
 

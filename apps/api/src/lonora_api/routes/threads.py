@@ -11,6 +11,7 @@ from lonora_contracts.thread_prefs import (
 )
 from lonora_db.authority_lock import authority_lock
 from lonora_db.inbox import inbox_projection
+from lonora_db.management_task import ensure_management_task
 from lonora_db.obligations import prepare_delete
 from lonora_db.thread_prefs import (
     clear_history,
@@ -114,9 +115,14 @@ async def delete(
         thread = await owned_thread(session, owner.id, thread_id, lock=True)
         # Refused while a trade from this conversation is uncertain; otherwise its
         # grants and Super Bot requests are settled, and the records survive.
-        await prepare_delete(session, owner.id, thread_id=thread_id)
+        handover = await prepare_delete(session, owner.id, thread_id=thread_id)
         await return_questions(session, thread_id)
         await session.delete(thread)
+        # A Full agent whose grant was revoked here gets its own continuous task (4.5)
+        # once the conversation is gone: a deleted own conversation is replaced.
+        await session.flush()
+        for agent_id in handover:
+            await ensure_management_task(session, owner.id, agent_id)
     return {"deleted": True}
 
 
