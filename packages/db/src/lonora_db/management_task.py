@@ -1,10 +1,12 @@
 """The continuous account-management task of Full mode (mandate 4.5, 14.3.3).
 
-An agent in Full that is not paused has exactly one continuous Task, keyed by the agent
-(its kickoff Run carries ``account_management_id`` = the agent's id, the recovery path
-of ``is_continuous_task``). It is bound to no account: every wake reads the accounts
-connected at that moment, so a newly connected account joins it and a disconnected one
-leaves it. Its Runs are ordinary Runs of the agent under the agent's mode.
+An agent in Full that is not paused runs one continuous Task, keyed by the agent (its
+kickoff Run carries ``account_management_id`` = the agent's id, the recovery path of
+``is_continuous_task``), except while a signed grant's own Task drives the account, or
+after the owner cancelled or completed it or it failed for good. It is bound to no
+account: every wake reads the accounts connected at that moment, so a newly connected
+account joins it and a disconnected one leaves it. Its Runs are ordinary Runs of the
+agent under the agent's mode.
 
 - ``ensure_management_task`` starts the task when the agent is in Full, not paused, and
   no active signed grant's own management Task drives the account (the grant decides
@@ -25,7 +27,8 @@ from typing import Any
 from lonora_bus.attention import attention_text
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskCreate
-from sqlalchemy import and_, exists, or_, select
+from lonora_core.user_error import ToolRefusal
+from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .authority_lock import authority_lock
@@ -37,6 +40,9 @@ from .tasks import create_task, save_task, task_state
 from .threads import conversation_thread
 
 MARKER = "account_management_agent"
+# Set by ``close_task``: a switch to Ask, a pause or a grant's Task taking over ended
+# this mode task, not the owner.
+CLOSED = "account_management_closed"
 TERMINAL = frozenset({"completed", "cancelled"})
 DESCRIPTION = (
     "You are in Full mode: you manage every connected trading account on your own and "
@@ -88,15 +94,15 @@ def task_live(row: TicketRow) -> bool:
     return state.status != "failed" or bool(state.failure and state.failure.next_retry_at)
 
 
-async def grant_task_drives(session: AsyncSession, owner_id: str, agent_id: str) -> bool:
-    """Whether an active, unexpired signed grant's own management Task is still running
-    for this agent: that Task drives the account until its grant is revoked."""
+async def grant_driven(session: AsyncSession, *where: ColumnElement[bool]) -> set[str]:
+    """The agents for which an active, unexpired signed grant's own management Task is
+    still running: that Task drives the account until its grant is revoked or expires."""
     from lonora_session.idempotency import stable_id
 
+    driven: set[str] = set()
     for grant in await session.scalars(
         select(AccountAuthorityRow).where(
-            AccountAuthorityRow.owner_id == owner_id,
-            AccountAuthorityRow.agent_id == agent_id,
+            *where,
             AccountAuthorityRow.status == "active",
             or_(
                 AccountAuthorityRow.valid_until.is_(None),
@@ -106,8 +112,36 @@ async def grant_task_drives(session: AsyncSession, owner_id: str, agent_id: str)
     ):
         task = await session.get(TicketRow, stable_id(grant.id, "account-management-task"))
         if task is not None and task.state.get("task") and task_live(task):
-            return True
-    return False
+            driven.add(grant.agent_id)
+    return driven
+
+
+async def grant_task_drives(session: AsyncSession, owner_id: str, agent_id: str) -> bool:
+    """Whether a signed grant's own management Task drives this agent's account."""
+    return bool(
+        await grant_driven(
+            session,
+            AccountAuthorityRow.owner_id == owner_id,
+            AccountAuthorityRow.agent_id == agent_id,
+        )
+    )
+
+
+def refuse_agent_cancel(row: TicketRow) -> None:
+    """The agent never cancels its own mode task: nothing would start it again while the
+    agent stays in Full (4.5.2). Ask, a pause, a delete or the owner's cancel ends it."""
+    if row.agent_id and row.payload.get(MARKER) == row.agent_id:
+        raise ToolRefusal(
+            "management_task_cancel_forbidden",
+            409,
+            details={
+                "class": "permission",
+                "retryable": False,
+                "hint": "This is your continuous Full-mode task. It ends only when you "
+                "switch yourself to Ask (trading_mode_ask), when you are paused or deleted, "
+                "or when the owner cancels it.",
+            },
+        )
 
 
 async def ensure_management_task(
@@ -165,8 +199,10 @@ async def end_management_task(session: AsyncSession, owner_id: str, agent_id: st
 async def reconcile_management_tasks(db: Database) -> int:
     """The gateway's catch-up for what no Full tap, pause or resume reached; idempotent.
 
-    - An agent in Full, not paused, that has never had a mode task gets one: it was in
-      Full before this task existed.
+    - An agent in Full, not paused, and not driven by a signed grant's Task gets a mode
+      task when it has never had one (it was in Full before this task existed), or when
+      ``close_task`` ended its last one (``CLOSED``): a grant's Task took over and that
+      grant has since expired, or the mode was written back to Full without a tap.
     - An open mode task of an agent in Ask, or paused, ends.
 
     A mode task the owner cancelled or completed, or one that failed for good, stays as
@@ -183,13 +219,29 @@ async def reconcile_management_tasks(db: Database) -> int:
     open_task = exists().where(
         *mode_task, TicketRow.state["task"]["status"].as_string().not_in(sorted(TERMINAL))
     )
+    last_closed = (
+        select(TicketRow.payload[CLOSED].as_boolean())
+        .where(*mode_task)
+        .order_by(TicketRow.created_at.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
     full = and_(AgentRow.trading_mode == "full", AgentRow.paused.is_(False))
     async with db.sessions() as session:
+        # A grant-driven agent gets no task, so it would fill every batch, pass after pass.
+        driven = await grant_driven(session)
         rows = list(
             await session.execute(
                 select(AgentRow.id, AgentRow.owner_id)
                 .where(
-                    or_(and_(full, ~had_task), and_(~full, open_task)),
+                    or_(
+                        and_(
+                            full,
+                            or_(~had_task, last_closed.is_(True)),
+                            AgentRow.id.not_in(driven),
+                        ),
+                        and_(~full, open_task),
+                    ),
                     ~blocked("management_task", AgentRow.id),
                 )
                 .order_by(AgentRow.id)
@@ -208,15 +260,18 @@ async def reconcile_management_tasks(db: Database) -> int:
                 if agent is None or agent.owner_id != owner_id:
                     return False
                 if agent.trading_mode == "full" and not agent.paused:
-                    if await session.scalar(
-                        select(
-                            exists().where(
-                                TicketRow.owner_id == owner_id,
-                                TicketRow.agent_id == agent_id,
-                                TicketRow.payload[MARKER].as_string() == agent_id,
-                            )
+                    last = await session.scalar(
+                        select(TicketRow)
+                        .where(
+                            TicketRow.owner_id == owner_id,
+                            TicketRow.agent_id == agent_id,
+                            TicketRow.payload[MARKER].as_string() == agent_id,
                         )
-                    ):
+                        .order_by(TicketRow.created_at.desc())
+                        .limit(1)
+                        .execution_options(populate_existing=True)
+                    )
+                    if last is not None and not last.payload.get(CLOSED):
                         return False
                     return await ensure_management_task(session, owner_id, agent_id) is not None
                 if not await open_management_tasks(session, owner_id, agent_id):
@@ -244,6 +299,7 @@ async def close_task(session: AsyncSession, found: TicketRow) -> None:
       paused); a watch stays, moved to the conversation, and wakes the agent there.
     - A task the owner already asked to cancel or complete is left to end that way.
     - The task's watches move to the agent's conversation and keep watching.
+    - The task is marked ``CLOSED``: the gateway can tell it from the owner's own end.
 
     Locks follow the Task order elsewhere: the Runs, then the Task."""
     runs = list(
@@ -295,6 +351,7 @@ async def close_task(session: AsyncSession, found: TicketRow) -> None:
     state.waiting_reason = None
     if state.failure:
         state.failure.next_retry_at = None
+    task.payload = {**task.payload, CLOSED: True}
     save_task(session, task, state)
 
 

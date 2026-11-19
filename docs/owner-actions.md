@@ -325,8 +325,10 @@ spent on the door's refusal.
 
 ## Full mode keeps working (mandate 4.5)
 
-An agent in Full that is not paused has one continuous account-management Task
-(`lonora_db.management_task`). The tap that sets Full starts it in the same transaction;
+An agent in Full that is not paused runs one continuous account-management Task
+(`lonora_db.management_task`), except while a signed grant's own Task drives the account,
+or after the owner cancelled or completed it or it failed for good (below). The tap that
+sets Full starts it in the same transaction;
 switching to Ask, pausing the agent or deleting it ends it, and resuming a paused agent
 in Full starts it again. A second Full tap finds the running Task and adds none; a
 mode Task that failed for good is closed before a new one starts, and one that failed
@@ -352,14 +354,19 @@ Ending the Task (`close_task`) keeps what the agent set up:
 
 While an active signed grant's own management Task runs for the agent, that Task drives
 the account and the Full-mode Task does not start; revoking the grant starts it, also
-when a broker connection, or a conversation other than the agent's own, is deleted.
-Deleting the agent or its own conversation starts none.
+when a broker connection or the conversation the grant was signed in is deleted. A
+deleted conversation is gone first, so the Task reports to the agent's own conversation,
+a new one when that was the one deleted. Deleting the agent starts none.
 
 The gateway's `management_tasks` step (every minute) catches what no tap reached. An
-agent in Full, not paused, that has never had a mode Task gets one: an agent already in
-Full when this shipped. An open mode Task of an agent in Ask, or paused, ends. A mode
-Task the owner cancelled or completed, or one that failed for good, stays as it is; the
-next Full tap or resume starts a new one.
+agent in Full, not paused, that no grant's Task drives gets a mode Task when it has never
+had one (an agent already in Full when this shipped), or when its last one ended without
+the owner's decision (`close_task`: a switch to Ask, a pause, or a grant's Task taking
+over), for example once that grant expired. An open mode Task of an agent in Ask, or
+paused, ends. A mode Task the owner cancelled or completed, or one that failed for good,
+stays as it is; the next Full tap or resume starts a new one. The agent cannot cancel
+its own mode Task (`management_task_cancel_forbidden`); it may switch itself to Ask,
+which ends it.
 
 ## No model cards
 
