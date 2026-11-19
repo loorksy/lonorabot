@@ -28,7 +28,6 @@ import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
-from decimal import Decimal
 from io import BytesIO
 from typing import Any, cast
 from unittest.mock import patch
@@ -626,11 +625,11 @@ class Acceptance:
     # Journey 1 -----------------------------------------------------------------------
 
     async def gold_agent_trades_on_its_own(self) -> str:
-        """«أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%»: one grant
+        """«أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه»: one grant
         card, one passkey; the agent then trades by itself, and a worker that dies mid-send
         never sends it twice."""
         name = "J1 create a gold agent and let it trade on its own"
-        words = "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%"
+        words = "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه"
         task = "يدير صفقات الذهب على حساب المالك بنفسه ضمن التفويض الموقّع."
         self.model.script(
             words,
@@ -650,7 +649,6 @@ class Acceptance:
                 {
                     "kind": "grant_authority",
                     "agent_id": t.result("j1-create")["agent"]["id"],
-                    "daily_loss_percent": "2",
                 },
             ),
             "أنشأت وكيل الذهب على XAUUSD، وهو يسألك قبل كل صفقة حتى توقّع بطاقة التفويض.",
@@ -681,8 +679,6 @@ class Acceptance:
         assert grant["symbols"] == [GOLD] and grant["symbol_scope"] == "selected", grant
         assert grant["duration"] == "until_stopped" and grant["all_actions"] is True
         assert grant["allow_manual_positions"] is False  # D1: the owner's own excluded.
-        daily = card["facts"]["money"]["daily_loss"]
-        assert daily["proposed"] == "200.00" and daily["basis"] == "requested", daily
         assert card["requires_passkey"] is True
         # Nothing trades before the signature: the agent is still Ask me.
         state = await self.state(gold.id)
@@ -690,18 +686,11 @@ class Acceptance:
         # One tap on Authorize with the passkey (the device enrolls inline the first time).
         decided = await self.passkey(name, card["id"], {})
         assert decided["status"] == "confirmed", decided
-        assert decided["result"]["daily_loss"] == "200.00"
         assert await self.level(gold.id) == "autonomous"
-        policy = await self.request("GET", f"/trading/accounts/{self.account}/execution-policy")
-        assert Decimal(policy["risk"]["max_daily_loss"]) == 200
         # The status line, the card and the records agree.
         readiness = (await self.state(gold.id))["trading_readiness"]
         assert readiness["state"] == "on_its_own", readiness
         assert readiness["params"]["symbols"] == [GOLD], readiness["params"]
-        assert readiness["params"]["money_limit_set"] is True
-        assert readiness["params"].get("daily_loss") == {"amount": "200.00", "currency": "USD"}, (
-            readiness["params"]
-        )
         assert readiness["grants"][0]["allow_manual_positions"] is False
         async with self.db.sessions() as session:
             active = list(
@@ -900,8 +889,8 @@ class Acceptance:
 
     async def lonora_manages_all_pairs(self) -> None:
         """«خلي لونورا تدير كل أزواجي بنفسها»: one grant card per connected account with
-        all pairs preselected and the account's money limits; a broker event on one of its
-        positions wakes Lonora with its normal authority."""
+        all pairs preselected; a broker event on one of its positions wakes Lonora with its
+        normal authority."""
         name = "J2 let Lonora manage all my pairs"
         connection = await self.request(
             "POST",
@@ -930,7 +919,7 @@ class Acceptance:
                     {"kind": "grant_authority", "account_id": self.second_account},
                 ),
             ),
-            "جهّزت بطاقة تفويض لكل حساب: كل الأزواج، حتى توقفه، مع حدودك المالية.",
+            "جهّزت بطاقة تفويض لكل حساب: كل الأزواج، حتى توقفه.",
         )
         run = await self.work(await self.say(self.lonora_thread, words))
         assert run.status == "completed", (run.status, run.error_code)
@@ -942,11 +931,6 @@ class Acceptance:
             grant = card["facts"]["grant"]
             assert grant["symbol_scope"] == "account" and grant["agent_is_personal"] is True
             assert grant["allow_manual_positions"] is False
-        # The first account keeps the owner's 200 limit; the second gets the D1 suggestion.
-        first = by_account[self.account]["facts"]["money"]["daily_loss"]
-        assert Decimal(first["current"]) == 200 and first["proposed"] is None, first
-        second = by_account[self.second_account]["facts"]["money"]["daily_loss"]
-        assert second["proposed"] == "300.00" and second["basis"] == "suggested", second
         # The gold agent already trades gold on the first account: the card says so.
         names = [item["agent_name"] for item in by_account[self.account]["facts"]["conflicts"]]
         assert names == ["Gold agent"], names
@@ -1970,7 +1954,7 @@ async def main() -> None:
 
 # The owner's sentences the browser specs type into the real composer.
 UI_WORDS = {
-    "create_gold": "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%",
+    "create_gold": "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه",
     "buy_once": "اشترِ 0.1 ذهب على حسابي بوقف خسارة 150",
 }
 
@@ -2005,7 +1989,6 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                 {
                     "kind": "grant_authority",
                     "agent_id": t.result("ui-create")["agent"]["id"],
-                    "daily_loss_percent": "2",
                 },
             ),
             "أنشأت وكيل الذهب؛ وقّع البطاقة ليتداول بنفسه.",

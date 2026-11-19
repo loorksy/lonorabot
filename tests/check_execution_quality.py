@@ -2,17 +2,38 @@
 
 import asyncio
 import copy
+from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
+from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.schema import AgentRow, TradingAccountRow, TradingJournalRow
 from lonora_db.trading_journal import persist_result
+from lonora_db.transactions import SettingsRepository, execution_policy_key
 from lonora_tools.loader import load_tools
+
+
+class GatedSimulation(SimulationBroker):
+    """Holds an operation inside the account send lock, before its send boundary."""
+
+    def __init__(self, db: Any, owner_id: str, connection_id: str):
+        super().__init__(db, owner_id, connection_id)
+        self.waiting = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def execute(
+        self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
+    ) -> TradeResult:
+        self.waiting.set()
+        await self.release.wait()
+        return await super().execute(request, before_send)
 
 
 async def main() -> None:
@@ -86,63 +107,65 @@ async def main() -> None:
                     }
                 ],
             }
-        await fixture.request(
-            "PUT",
-            f"/trading/accounts/{account_id}/execution-policy",
-            {
-                "max_symbol_direction_volume": "0.2",
-            },
-        )
-        service = fixture.runtime.services(fixture.owner).trading
+        services = fixture.runtime.services(fixture.owner)
+        service = services.trading
+        # Two concurrent closes of the one ticket opened outside Lonora: the account send
+        # lock orders them, so the second is decided at its send boundary after the first.
+        # The first is held inside the send lock until the second is reserved behind it, so
+        # both are planned while the ticket is open.
         operations = [
-            TradeRequest(account_id=account_id, symbol=symbol, action="buy", volume=Decimal("0.1"))
-            for _ in range(2)
-        ]
-        outcomes = await asyncio.gather(
-            *(service.execute(fixture.owner, operation) for operation in operations)
-        )
-        assert sorted(result.status for result in outcomes) == ["confirmed", "failed"], [
-            (item.status, item.code) for item in outcomes
-        ]
-        failed = next(item for item in outcomes if item.status == "failed")
-        assert failed.code == "portfolio_direction_volume_limit"
-        exposure = await fixture.request("GET", f"/trading/accounts/{account_id}/exposure")
-        assert len(exposure["buckets"]) == 1
-        assert exposure["buckets"][0]["position_volume"] == "0.2"
-        assert exposure["notional"] is None and exposure["monetary_stop_risk"] is None
-        async with db.sessions() as session:
-            row = await session.get(TradingJournalRow, failed.operation_id)
-            assert row is not None
-            assert row.result["details"]["execution_quality"]["state"] == "blocked"
-        async with db.sessions() as session:
-            row = await session.get(TradingJournalRow, failed.operation_id)
-            assert row
-            observed = row.result["details"]["execution_evidence"]
-            assert observed["planned"]["phase"] == "planned"
-            assert observed["before_send"]["policy"]["max_symbol_direction_volume"] == "0.2"
-            assert observed["before_send"]["counts"]["positions"] == 2
-        repeated = await service.execute(
-            fixture.owner, next(op for op in operations if op.operation_id == failed.operation_id)
-        )
-        assert repeated == failed
-        print(
-            "PASS two concurrent operations serialized: manual + other-agent risk cannot bypass owner cap; blocked result durable/idempotent"
-        )
-        # A target opened outside Lonora remains closable even over the entry cap.
-        close = await service.execute(
-            fixture.owner,
             TradeRequest(
                 account_id=account_id,
                 symbol=symbol,
                 action="close_position",
                 position_id="manual-ticket",
-            ),
+            )
+            for _ in range(2)
+        ]
+        await services.brokers.get(fixture.owner, account_id)
+        cached = services.brokers.connections[account_id]
+        gated = GatedSimulation(db, fixture.owner, account_id)
+        services.brokers.connections[account_id] = (cached[0], gated)
+        first = asyncio.create_task(service.execute(fixture.owner, operations[0]))
+        await asyncio.wait_for(gated.waiting.wait(), 30)
+        second = asyncio.create_task(service.execute(fixture.owner, operations[1]))
+        for _ in range(300):
+            async with db.sessions() as session:
+                queued = await session.get(TradingJournalRow, operations[1].operation_id)
+            if queued is not None and queued.status == "reserved":
+                break
+            await asyncio.sleep(0.05)
+        else:
+            raise AssertionError("the second close was never reserved behind the first")
+        gated.release.set()
+        outcomes = list(await asyncio.gather(first, second))
+        services.brokers.connections[account_id] = cached
+        assert sorted(result.status for result in outcomes) == ["confirmed", "failed"], [
+            (item.status, item.code) for item in outcomes
+        ]
+        failed = next(item for item in outcomes if item.status == "failed")
+        assert failed.code == "position_not_found"
+        async with db.sessions() as session:
+            row = await session.get(TradingJournalRow, failed.operation_id)
+            assert row is not None
+            assert row.result["details"]["send_state"] == "not_sent"
+            observed = row.result["details"]["execution_evidence"]
+            # Planned while the ticket was open; refused once the first close removed it.
+            assert observed["planned"]["phase"] == "planned"
+            assert observed["planned"]["counts"]["positions"] == 1
+        repeated = await service.execute(
+            fixture.owner, next(op for op in operations if op.operation_id == failed.operation_id)
         )
-        assert close.status == "confirmed"
+        assert repeated == failed
+        print(
+            "PASS two concurrent operations serialized: the second close of one ticket is refused at its send boundary once the first removed it; blocked result durable/idempotent"
+        )
+        close = next(item for item in outcomes if item.status == "confirmed")
         async with db.sessions() as session:
             row = await session.get(TradingJournalRow, close.operation_id)
             assert row
             original_evidence = copy.deepcopy(row.result["details"]["execution_evidence"])
+            assert original_evidence["before_send"]["policy"]["quote_max_age_seconds"] == 60
             assert any(
                 p["id"] == "manual-ticket"
                 for p in original_evidence["before_send"]["snapshot"]["positions"]
@@ -192,7 +215,7 @@ async def main() -> None:
         # fixed-market Agent reads the whole immutable evidence, not a projection.
         assert record["result"]["details"]["execution_evidence"] == original_evidence
         assert record["execution_authorized"] is False
-        assert len(history["records"]) == 3 and all(
+        assert len(history["records"]) == 2 and all(
             item["symbol"] == symbol for item in history["records"]
         )
         # The terminal receipt retains immutable server attribution rather than
@@ -241,7 +264,47 @@ async def main() -> None:
         print(
             "PASS blocked and executed historical evidence survives reconciliation; same read-only tool loop reads scoped receipts without broker access"
         )
-        print("PASS owner manual position closes despite entry limit")
+        print("PASS owner manual position opened outside Lonora closes")
+
+        # The quality gate at the send boundary reads the account's stored freshness bound
+        # and records why it blocked: a quote 30 s old passes the broker preflight's window
+        # but not a stored 5 s bound, so the operation is recorded blocked and never sent.
+        async with db.sessions() as session, session.begin():
+            await SettingsRepository().put(
+                session,
+                execution_policy_key(fixture.owner, account_id),
+                {"quote_max_age_seconds": 5},
+            )
+            book = await session.get(TradingAccountRow, account_id, with_for_update=True)
+            assert book is not None
+            aged = (utcnow() - timedelta(seconds=30)).isoformat()
+            book.payload = {
+                **book.payload,
+                "quotes": {
+                    name: {**quote, "observed_at": aged}
+                    for name, quote in book.payload["quotes"].items()
+                },
+            }
+        stale = await service.execute(
+            fixture.owner,
+            TradeRequest(account_id=account_id, symbol=symbol, action="buy", volume=Decimal("0.1")),
+        )
+        assert stale.status == "failed" and stale.code == "market_quote_stale", stale
+        async with db.sessions() as session:
+            row = await session.get(TradingJournalRow, stale.operation_id)
+            assert row is not None
+            details = row.result["details"]
+            assert details["send_state"] == "not_sent"
+            assert details["execution_quality"]["state"] == "blocked"
+            assert details["execution_quality"]["reasons"] == ["market_quote_stale"]
+            before = details["execution_evidence"]["before_send"]
+            assert before["policy"]["quote_max_age_seconds"] == 5
+            book = await session.get(TradingAccountRow, account_id)
+            assert book is not None
+            assert stale.operation_id not in book.payload.get("operations", {})
+        print(
+            "PASS the send-boundary quality gate reads the stored freshness bound and records its block, never sent"
+        )
     finally:
         await fixture.close()
 
