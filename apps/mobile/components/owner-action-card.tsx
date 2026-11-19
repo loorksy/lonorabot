@@ -24,9 +24,9 @@ import { Button, colors, ErrorNotice, Field } from "./ui";
 
 /**
  * One owner action card, rendered from the same shared spec as Web: server facts in the
- * owner's language and one tap. A grant card, or raising or removing a money limit, asks
- * for the passkey (registering this device inline the first time); a grant card's
- * switches go with that tap. The owner-session route re-validates.
+ * owner's language and one tap. A grant card asks for the passkey (registering this
+ * device inline the first time); its switches go with that tap. The owner-session route
+ * re-validates.
  */
 export function OwnerActionCard({
   row,
@@ -101,7 +101,6 @@ export function OwnerActionCard({
       decision: button.decision,
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
-    if (button.tier) body.tier = button.tier;
     if (button.outcome) {
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();

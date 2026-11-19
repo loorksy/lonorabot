@@ -9,10 +9,14 @@ import type {
   ThreadPrefs,
   ThreadSettings,
 } from "../lib/api";
+import type { OwnerProfile } from "./settings/owner";
 
 /** What the shell fetched once for every pane, including a pager ghost. */
 export type ShellData = {
   owner: Owner;
+  /** The owner profile (name, form of address, reach-me); null until read. */
+  ownerProfile: OwnerProfile | null;
+  setOwnerProfile: (profile: OwnerProfile) => void;
   agents: Agent[];
   agentsLoading: boolean;
   groups: Resource[];
@@ -42,6 +46,13 @@ export function useShellData() {
   if (!value) throw new Error("shell_data_missing");
   return value;
 }
+
+/** What the app calls the owner: «طريقة المخاطبة», else «الاسم», else the e-mail's local part. */
+export const ownerDisplayName = (profile: OwnerProfile | null, owner: Owner) =>
+  profile?.address || profile?.name || owner.email.split("@")[0] || owner.email;
+
+/** The owner's avatar letter: the name's first character, uppercased (Arabic stays as it is). */
+export const ownerInitial = (name: string) => (Array.from(name)[0] ?? "").toLocaleUpperCase();
 
 /** An inbox entry with the owner's new state of its conversation. */
 export function mergePrefs(entries: InboxEntry[], prefs: ThreadPrefs[]): InboxEntry[] {

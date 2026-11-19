@@ -14,7 +14,6 @@ def create_gateway(settings: Settings) -> tuple[Database, Gateway]:
         settings.maximum_tool_rounds,
         settings.maximum_subagents,
         settings.worker_poll_seconds,
-        workspace_socket=settings.workspace_socket,
         mcp_declarations=settings.mcp_declarations,
         mcp_owner_trust=settings.mcp_owner_trust,
         searxng_url=settings.searxng_url,

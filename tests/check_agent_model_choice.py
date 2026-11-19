@@ -28,7 +28,7 @@ from lonora_llm_usage.store import save_usage
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
-from lonora_tools.restrictions import mark_external_content
+from lonora_tools.provenance import mark_external_content
 from sqlalchemy import func, select
 
 DEFAULT = ModelSelection(provider="openai", model="gpt-default-test")

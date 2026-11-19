@@ -8,6 +8,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.run_retry import RunRetryTooEarly, retry_run
 from lonora_db.runs import create_run, run_data
 from lonora_db.schema import RunRow, ThreadRow
+from lonora_db.threads import asks_in
 from lonora_db.transactions import owned_thread
 from lonora_session.continuation import continuation_state
 from sqlalchemy import or_, select
@@ -34,6 +35,8 @@ async def list_runs(
                     RunRow.parent_run_id.in_(
                         select(RunRow.id).where(RunRow.thread_id == thread_id)
                     ),
+                    # Background runs whose questions were copied into this conversation.
+                    asks_in(thread_id),
                 )
             )
         rows = (await session.scalars(query.order_by(RunRow.created_at.desc()).limit(100))).all()

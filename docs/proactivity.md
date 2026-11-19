@@ -25,11 +25,29 @@ conversation, never in a chat of its own.
 - **Watches.** A watch set in a chat keeps that chat and runs there. A watch set up
   outside any chat (for example through `POST /watches` without a thread) gets a hidden
   work thread and reports to the agent's conversation exactly like a routine.
+- **Questions.** A question the run asks the owner (`wait_for_input`) is posted in its
+  work thread, which stays its memory, and copied into the conversation it reports to
+  (`report_thread`); the stored request names the copy and its thread, so the question
+  card shows under the copy (`threadQuestions` in `packages/core`). The owner answers it
+  there: by tapping a choice, by replying to the question, or with the next message when
+  nothing in that conversation is taking messages and the question is still the last
+  message there (`asking_run` in `lonora_db/messages.py`); a live voice transcript answers
+  only by reply. The answer
+  resumes the same run from its checkpoint in its work thread; the run reads it as the
+  owner's message and gains no authority from it, and its result is copied back as
+  above. A later turn in the conversation sees the question with its choices and a note
+  that the answer went to the background work; an answer that went there cannot be
+  edited and resent. Card sends, @mentions and collaboration messages never answer a
+  background question, and the answer never stands for the owner's words of another run
+  in that conversation. The work thread keeps the owner's answer next to the question, so
+  the routine's later runs read it. A question from a run that reports nowhere else stays
+  in its own thread, and a question whose conversation is deleted goes back to it.
 - **History.** A routine's run history (`GET /routines/{id}/history`) lists its runs by
   routine, so it survives a move to a new work thread. On mobile, a history entry, like a
-  row of the Tasks tab, opens where the owner reads that run: the agent's conversation
-  for a run with an origin; the run's own thread for a run waiting for the owner's answer
-  (its question is there) or for a run from before this change (its output is there).
+  row of the Tasks tab, opens where the owner reads that run: while it waits for the
+  owner's answer, the thread that holds its question; otherwise the agent's conversation
+  for a run with an origin, or the run's own thread for a run from before this change (its
+  output is there).
 
 Migration `0090_routine_work_threads` converts the routine chats of earlier releases:
 a chat used only by a routine or a thread-less watch becomes that routine's work thread.
@@ -40,6 +58,3 @@ list, a pin or a favourite), when a question in it waits for the owner's answer,
 is the agent's earliest conversation; a routine on such a thread moves to a new work
 thread of its own. A routine or watch run still in flight in a converted thread reports
 to the agent's conversation, like the runs the new code queues.
-
-Not yet built: a question a background run asks the owner (`wait_for_input`) is posted in
-its work thread, so it cannot be answered from the conversation yet.

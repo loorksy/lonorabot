@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import logging
 from typing import Any
 
 from lonora_adapters.channels.telegram import TelegramAdapter
@@ -6,6 +8,7 @@ from lonora_adapters.channels.webhook import WebhookAdapter
 from lonora_bus.attention import attention_text
 from lonora_bus.runtime_events import RuntimeEvents
 from lonora_channels.telegram.runtime import decode_update
+from lonora_contracts.attention import BROKER_HEALTH_CODES
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.events import EventEnvelope
 from lonora_core.user_error import LonoraError
@@ -15,14 +18,36 @@ from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.messages import send_message
 from lonora_db.schema import (
+    AgentRow,
     AttentionRow,
     EffectReceiptRow,
     EventRow,
     IntegrationRow,
 )
+from lonora_db.telegram_pairing import OFFER_TEXT, offer_code, withdraw_offer
 from sqlalchemy import select
 
+from .push import PUSH_CODES, push_record
 from .runtime import OwnerServices
+
+# Telegram message fields that mark text as not the owner's own words.
+FORWARDED = frozenset(
+    {
+        "forward_origin",
+        "forward_from",
+        "forward_from_chat",
+        "forward_sender_name",
+        "forward_date",
+        "is_automatic_forward",
+        "via_bot",
+    }
+)
+log = logging.getLogger("lonora.channels")
+
+
+def offer_text(locale: str, code: str) -> str:
+    return OFFER_TEXT.get(locale, OFFER_TEXT["ar"]).format(code=code)
+
 
 # A channel request never holds the delivery loop longer than this.
 CHANNEL_TIMEOUT_SECONDS = 30
@@ -71,12 +96,35 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
             adapter = TelegramAdapter(secret)
             async with asyncio.timeout(CHANNEL_TIMEOUT_SECONDS):
                 updates = await adapter.updates(int(row.state.get("update_offset", 0)))
+            offers: list[tuple[str, str]] = []
             async with db.sessions() as session, session.begin():
                 locked = await session.get(IntegrationRow, row.id, with_for_update=True)
                 if locked is None:
                     return
+                locale = (await policy(session, services.owner_id)).locale
                 for update in updates:
-                    if config.get("thread_id"):
+                    message: dict[str, Any] = update.get("message") or {}
+                    chat: dict[str, Any] = message.get("chat") or {}
+                    chat_id, text = str(chat.get("id", "")), message.get("text")
+                    # The locked row: a link committed since this tick began counts.
+                    config = locked.payload
+                    paired = chat_id in config.get("allowed_destinations", [])
+                    if FORWARDED.intersection(message) or not isinstance(text, str):
+                        # Forwarded or sent through another bot: someone else's words. They
+                        # never reach an agent as the owner's own message (6.10).
+                        pass
+                    elif not paired:
+                        # A chat the bot does not serve gets a code to give Lonora in the app
+                        # (telegram_link); its words never reach an agent.
+                        code = (
+                            offer_code(locked, chat_id) if chat.get("type") == "private" else None
+                        )
+                        if code is not None:
+                            offers.append((chat_id, offer_text(locale, code)))
+                    elif text.strip().startswith("/start"):
+                        # A bot command, not a message to an agent.
+                        pass
+                    elif config.get("thread_id"):
                         incoming = decode_update(update, config["thread_id"])
                         if incoming and incoming.destination in config.get(
                             "allowed_destinations", []
@@ -96,6 +144,18 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                             int(update["update_id"]) + 1,
                         ),
                     }
+            for chat_id, text in offers:
+                try:
+                    async with asyncio.timeout(CHANNEL_TIMEOUT_SECONDS):
+                        await adapter.send(chat_id, text)
+                except Exception:
+                    # The code never reached the chat: its place is freed, so the owner's
+                    # next message to the bot gets a new code.
+                    log.warning("telegram_pairing_offer_unsent")
+                    async with db.sessions() as session, session.begin():
+                        locked = await session.get(IntegrationRow, row.id, with_for_update=True)
+                        if locked is not None:
+                            withdraw_offer(locked, chat_id)
         async with db.sessions() as session, session.begin():
             locked = await session.get(IntegrationRow, row.id, with_for_update=True)
             if locked is None:
@@ -104,9 +164,15 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                 EventRow.owner_id == services.owner_id,
                 EventRow.payload[PUBLIC_CURSOR].as_integer()
                 > int(locked.state.get("event_cursor", 0)),
-                EventRow.kind.in_(["message.created", "attention.ready"]),
+                # Telegram carries the alerts that push (11.4), from every conversation, and
+                # no agent replies; a webhook also carries its conversation's replies.
+                EventRow.kind.in_(
+                    ["attention.ready"]
+                    if config["type"] == "telegram"
+                    else ["message.created", "attention.ready"]
+                ),
             )
-            if config.get("thread_id"):
+            if config.get("thread_id") and config["type"] != "telegram":
                 query = query.where(EventRow.thread_id == config["thread_id"])
             events = (
                 await session.scalars(
@@ -128,6 +194,8 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                         or notification.owner_id != services.owner_id
                         or notification.status != "ready"
                         or notification.importance not in {"critical", "action_required"}
+                        # Telegram carries the events that push (11.4), nothing else.
+                        or (config["type"] == "telegram" and notification.code not in PUSH_CODES)
                     ):
                         continue
                     if not await mandatory_current(session, notification):
@@ -149,6 +217,25 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                     settings = await policy(session, services.owner_id)
                     outbound = {"content": attention_text(notification.code, settings.locale)}
                     identity = "attention:" + notification.id
+                    if config["type"] == "telegram":
+                        found = await push_record(session, notification)
+                        if found is None:
+                            continue
+                        # One message per record, as one push: the same broker outage or
+                        # card raised again under another item is not sent twice.
+                        kind = (
+                            "broker_health"
+                            if notification.code in BROKER_HEALTH_CODES
+                            else notification.code
+                        )
+                        identity = (
+                            "record:"
+                            + hashlib.sha256(f"{kind}\x00{found[0]}".encode()).hexdigest()[:40]
+                        )
+                        agent = await session.get(AgentRow, notification.agent_id)
+                        outbound = {
+                            "content": (agent.name + ": " if agent else "") + outbound["content"]
+                        }
                 elif event.payload.get("role") != "assistant":
                     continue
                 destinations = (
