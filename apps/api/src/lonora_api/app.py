@@ -23,6 +23,7 @@ ROUTES = (
     "auth",
     "device_authority",
     "push_devices",
+    "app_opens",
     "account_authority",
     "agent_permissions",
     "agent_models",
