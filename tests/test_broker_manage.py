@@ -158,11 +158,16 @@ async def test_an_uncertain_operation_blocks_disable_and_disconnect() -> None:
             with patch(
                 "lonora_trading.broker_manage.unsettled_obligation", AsyncMock(return_value=True)
             ):
-                for action in ("disable", "disconnect", "rotate_password"):
+                # A disconnect is a delete: the same code as every delete (14.3.16).
+                for action, expected in (
+                    ("disable", "broker_operation_unsettled"),
+                    ("disconnect", "delete_blocked_unresolved_operation"),
+                    ("rotate_password", "broker_operation_unsettled"),
+                ):
                     code = await refused(
                         context, "broker_manage", account_id=connection_id, action=action
                     )
-                    assert code == "broker_operation_unsettled"
+                    assert code == expected, (action, code)
             assert (await row(fixture, connection_id)).payload["enabled"]
             assert world.api.accounts
     finally:

@@ -41,10 +41,12 @@ async def send_locked(db: Database, owner_id: str, connection_id: str) -> AsyncG
         yield
 
 
-async def refuse_unsettled(db: Database, owner_id: str, connection_id: str) -> None:
+async def refuse_unsettled(
+    db: Database, owner_id: str, connection_id: str, code: str = "broker_operation_unsettled"
+) -> None:
     async with db.sessions() as session:
         if await unsettled_obligation(session, owner_id, account_id=connection_id):
-            raise LonoraError("broker_operation_unsettled", 409)
+            raise LonoraError(code, 409)
 
 
 async def set_enabled(
@@ -85,7 +87,9 @@ async def disconnect(
     there too; one the owner linked by id is left as it is. The trading password is
     deleted; the owner's MetaApi token is kept for other accounts (Q8). No value is read
     here."""
-    await refuse_unsettled(db, owner_id, connection_id)
+    # A disconnect is a delete (14.3.16): refused with the code prepare_delete gives under
+    # the send lock, so the owner reads why nothing was deleted, not "try again".
+    await refuse_unsettled(db, owner_id, connection_id, "delete_blocked_unresolved_operation")
     repository = BrokerSessionRepository()
     async with db.sessions() as session:
         row = await repository.get(session, owner_id, connection_id)

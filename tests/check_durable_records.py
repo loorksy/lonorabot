@@ -122,7 +122,10 @@ async def deletes(f: Fixture) -> None:
     agent = await f.agent("Gold desk")
     thread = await f.conversation(agent)
     async with f.runtime.db.sessions() as session, session.begin():
-        account = BrokerSessionRow(owner_id=f.owner, payload={"provider": "simulation"})
+        # A connection as connect stores it: the disconnect reads it back (9.3).
+        account = BrokerSessionRow(
+            owner_id=f.owner, payload={"provider": "simulation", "account_id": "durable-sim"}
+        )
         run = RunRow(thread_id=thread["id"], agent_id=agent["id"], status="completed")
         session.add_all([account, run])
         await session.flush()
