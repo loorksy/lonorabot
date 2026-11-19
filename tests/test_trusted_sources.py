@@ -1,7 +1,7 @@
-"""Trusted sources (W15-8): one visible list, feeds and secure credentials, and trust from
-the owner's own words (VISION 10.3.2, Q21 (b)): a feed's domain, a GitHub repository or
-an MCP server joins the list only when the owner's typed message the run answers names
-it, with no card.
+"""Trusted sources (W15-8): one visible list, feeds and Secret cards, and trust from the
+owner's own words (VISION 10.3.2, Q21 (b)): a feed's domain, a GitHub repository or an
+MCP server joins the list only when the owner's typed message the run answers names it,
+with no card.
 
 The pure tests need no database. The PostgreSQL tests run the real tools and owner
 routes against the test database (skipped without ``LONORA_DATABASE_URL``); MCP servers
@@ -15,6 +15,7 @@ from dataclasses import replace
 from io import BytesIO
 from typing import Any, cast
 from unittest.mock import patch
+from urllib.parse import urlsplit
 from uuid import uuid4
 from zipfile import ZipFile
 
@@ -225,13 +226,19 @@ def test_trusted_identifiers_are_canonical_and_bounded() -> None:
             normalize_identifier(kind, value)
     with pytest.raises(ValidationError):
         TrustedSourceCreate.model_validate({"kind": "mcp_server", "identifier": "x"})
-    # Trusting a source is no card; a credential card names one form, nothing else.
-    OwnerActionProposal.model_validate({"kind": "connect_credential", "target": "mcp_server"})
+    # Trusting a source is no card; a connecting Secret card names what it connects.
+    OwnerActionProposal.model_validate({"kind": "secret", "target": "mcp_server", "name": "X"})
     for bad in (
         {"kind": "trust_source", "source_kind": "mcp_server", "connection_id": "c"},
         {"kind": "trust_source", "source_kind": "github_repo", "identifier": "a/b"},
         {"kind": "connect_credential", "target": "broker", "service": "x"},
         {"kind": "connect_credential", "target": "mcp_server", "account_id": "a"},
+        {"kind": "secret", "target": "broker", "service": "x"},
+        {"kind": "secret", "target": "mcp_server", "name": "X", "account_id": "a"},
+        # The owner types an address into the card; the agent never gives one.
+        {"kind": "secret", "target": "mcp_server", "name": "X", "url": URL},
+        {"kind": "secret", "target": "mcp_server"},
+        {"kind": "secret", "target": "news_feed", "name": "Desk", "url": URL},
         {"kind": "resolve_operation", "operation_id": "op", "source_kind": "github_repo"},
     ):
         with pytest.raises(ValidationError):
@@ -278,16 +285,39 @@ def test_owner_words_name_a_source_strictly() -> None:
     assert not named("trust mcp.notion.com.evil.io", "mcp.notion.com")
 
 
-def test_credential_cards_have_lifetimes_and_fixed_confirmations() -> None:
-    assert "trust_source" not in LIFETIME
+def test_cards_have_lifetimes_and_fixed_confirmations() -> None:
+    assert "trust_source" not in LIFETIME and "connect_credential" not in LIFETIME
     for kind, payload, code in (
-        ("connect_credential", {"target": "brave_search"}, "owner_action_connect_credential"),
-        ("connect_credential", {"target": "mcp_server"}, "owner_action_connect_credential_mcp"),
+        ("secret", {"connect": None}, "owner_action_secret"),
+        ("secret", {"connect": "brave_search"}, "owner_action_secret_connected"),
+        ("secret", {"connect": "mcp_server"}, "owner_action_secret_connected_mcp"),
     ):
         card = cast(Any, type("Card", (), {"kind": kind, "payload": payload, "result": {}}))
         assert confirmation_code(card) == code
         for locale in ("ar", "en"):
             assert catalogs()[locale][code], (locale, code)
+
+
+def test_a_feed_item_never_links_back_to_the_feed_address() -> None:
+    """A link that is only a fragment, blank or only a query resolves to the feed itself:
+    it is dropped, since the feed's address may carry a key (VISION.md 7.2.6)."""
+    from lonora_adapters.market.news_feed import safe_link
+
+    feed = "https://feeds.example.com/private.rss?key=k1"
+    for value in ("#top", "   ", "?page=2", feed):
+        assert safe_link(value, feed) is None, value
+    assert safe_link("/a/1", feed) == "https://feeds.example.com/a/1"
+    assert safe_link("https://news.example/x#y", feed) == "https://news.example/x"
+    # An item link that repeats the feed's key (a query value, or a token in its path)
+    # would carry it into the agent's context: it is dropped too.
+    keyed = "https://feeds.example.com/u/a1b2c3d4e5f6a7b8c9d0/rss?apikey=Zx9%2BkQ7pLm"
+    for value in (
+        "/item/5?apikey=Zx9%2BkQ7pLm",
+        "https://news.example/item/5?ref=Zx9+kQ7pLm",
+        "/u/a1b2c3d4e5f6a7b8c9d0/item/5",
+    ):
+        assert safe_link(value, keyed) is None, value
+    assert safe_link("/item/5?page=2", keyed) == "https://feeds.example.com/item/5?page=2"
 
 
 def test_feeds_parse_bounded_untrusted_text_and_refuse_entities() -> None:
@@ -430,6 +460,13 @@ async def refused(context: Any, tool: str, /, **arguments: Any) -> str:
 
 async def decide(fixture: Any, card_id: str, body: dict[str, Any]) -> Any:
     return await fixture.client.post(f"/api/owner-actions/{card_id}/decision", json=body)
+
+
+async def save(fixture: Any, card_id: str, values: dict[str, str]) -> Any:
+    """The owner saves a Secret card: its values go only to the card's own route."""
+    return await fixture.client.post(
+        f"/api/owner-actions/{card_id}/secret", json={"values": values}
+    )
 
 
 async def default_github(fixture: Any) -> dict[str, Any]:
@@ -993,21 +1030,17 @@ async def test_connecting_a_server_raises_no_trust_card_and_asks_the_owner_to_na
         context = await fixture.lease(await fixture.run(agent, thread))
         server = Server()
         proposed = await call(
-            context, "owner_action_propose", kind="connect_credential", target="mcp_server"
+            context, "owner_action_propose", kind="secret", target="mcp_server", name="X review"
         )
-        connection_id = await saved_server(fixture, "X review")
-        created.append(connection_id)
         with patch.object(mcp, "HttpMcpTransport", server.transport):
-            done = await decide(
-                fixture,
-                proposed["owner_action"]["id"],
-                {"decision": "confirm", "connected": {"resource": "mcp", "id": connection_id}},
-            )
-        # The decision reads nothing from the server and trusts nothing.
+            done = await save(fixture, proposed["owner_action"]["id"], {"URL": URL + "/review"})
+        connection_id = done.json()["result"]["connection_id"]
+        created.append(connection_id)
+        # Saving reads nothing from the server and trusts nothing.
         assert done.status_code == 200 and "review" not in done.json()["result"], done.json()
         assert server.calls == []
-        assert await last_line(fixture, thread["id"]) in said("owner_action_connect_credential_mcp")
-        assert await card_kinds(fixture, thread["id"]) == ["connect_credential"]
+        assert await last_line(fixture, thread["id"]) in said("owner_action_secret_connected_mcp")
+        assert await card_kinds(fixture, thread["id"]) == ["secret"]
         assert await trusted_row(fixture, "mcp_server", connection_id) is None
         async with fixture.runtime.db.sessions() as session:
             # The agent that asked is woken to tell the owner to name the server.
@@ -1427,6 +1460,7 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
     # A domain of its own per run: the trusted list is the owner's and outlives the test.
     domain = "feeds-" + uuid4().hex[:8] + ".analyst.example"
     cleanup: list[str] = []
+    saved: list[str] = []
 
     async def public(url: str, method: str = "GET", *, maximum_bytes: int = 0) -> Any:
         from lonora_security.public_http import PublicResponse
@@ -1503,39 +1537,58 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
             )
         assert again["code"] == REFUSED
 
-        # A secure credential card: the client posts the value straight to the owner API.
-        proposed = await call(
-            context, "owner_action_propose", kind="connect_credential", target="brave_search"
+        # A Secret card for web search: the owner's key goes straight to the encrypted
+        # store, and saving the card connects Brave.
+        proposed = await call(context, "owner_action_propose", kind="secret", target="brave_search")
+        second = await call(
+            context, "owner_action_propose", kind="secret", target="brave_search", name="Second"
         )
         card_id = proposed["owner_action"]["id"]
-        stored = await fixture.request(
-            "POST", "/integrations/secrets", {"name": "Brave", "value": secret}
-        )
-        brave = await fixture.request(
-            "POST",
-            "/integrations",
-            {
-                "payload": {
-                    "type": "brave_search",
-                    "name": "Brave",
-                    "secret_id": stored["id"],
-                    "enabled": True,
-                }
-            },
-        )
-        cleanup.append(brave["id"])
-        wrong = await decide(
-            fixture,
-            card_id,
-            {"decision": "confirm", "connected": {"resource": "mcp", "id": brave["id"]}},
-        )
+        wrong = await save(fixture, card_id, {"TOKEN": secret})
         assert wrong.status_code == 422
-        done = await decide(
-            fixture,
-            card_id,
-            {"decision": "confirm", "connected": {"resource": "integration", "id": brave["id"]}},
-        )
+        done = await save(fixture, card_id, {"API_KEY": secret})
         assert done.json()["status"] == "confirmed" and done.json()["result"]["configured"]
+        cleanup.append(done.json()["result"]["integration_id"])
+        saved.extend(done.json()["result"]["saved"])
+        # Web search needs one key: a card raised before that one was saved writes nothing.
+        late = await save(fixture, second["owner_action"]["id"], {"API_KEY": "late-key"})
+        assert late.status_code == 200 and late.json()["status"] == "expired"
+        assert late.json()["status_reason"] == "credential_already_configured"
+        rows = cast(list[dict[str, Any]], await fixture.request("GET", "/integrations"))
+        assert len([row for row in rows if row["payload"]["type"] == "brave_search"]) == 1
+        # A feed whose address carries a key: the address is the secret; agents read the
+        # feed and see its host, never the address.
+        keyed = "https://desk-" + uuid4().hex[:6] + ".news.example/rss?key=" + secret
+        proposed = await call(
+            context, "owner_action_propose", kind="secret", target="news_feed", name="Desk"
+        )
+        done = await save(fixture, proposed["owner_action"]["id"], {"URL": keyed})
+        assert done.json()["status"] == "confirmed"
+        cleanup.append(done.json()["result"]["integration_id"])
+        saved.extend(done.json()["result"]["saved"])
+        with patch.object(news_feed, "public_get", public):
+            read = await call(
+                context, "news_feed_read", feed_id=done.json()["result"]["integration_id"]
+            )
+        assert read["feeds"][0]["status"] == "ok" and read["feeds"][0]["name"] == "Desk"
+        assert read["feeds"][0]["domain"] == urlsplit(keyed).hostname
+        assert secret not in json.dumps(read)
+        # The same address again is the feed already connected: nothing new is saved.
+        proposed = await call(
+            context, "owner_action_propose", kind="secret", target="news_feed", name="Desk two"
+        )
+        same = await save(fixture, proposed["owner_action"]["id"], {"URL": keyed})
+        assert same.json()["status"] == "confirmed"
+        assert same.json()["result"]["integration_id"] == done.json()["result"]["integration_id"]
+        assert same.json()["result"]["saved"] == []
+        # A calendar address that cannot be parsed is refused, and the card still waits.
+        proposed = await call(
+            context, "owner_action_propose", kind="secret", target="economic_calendar", name="Cal"
+        )
+        for address in ("https://[abc/feed", "http://cal.example.test/feed"):
+            broken = await save(fixture, proposed["owner_action"]["id"], {"URL": address})
+            assert broken.status_code == 422, address
+            assert broken.json()["code"] == "integration_source_invalid"
         report = await fixture.request("GET", "/capabilities")
         search = next(item for item in report["built_in"] if item["capability"] == "web_search")
         assert search["state"] == "ready" and search["via"] in {"brave", "searxng"}
@@ -1544,6 +1597,12 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
         # Workspace execution is listed ready; a helper or observe-only wake is told it is not its.
         assert "never in a helper or an observe-only wake" in listed["guidance"]
         assert "unavailable_now" in listed["guidance"]
+        # Removing the feed keeps the owner's secret: only DELETE /secrets/{id} deletes a
+        # stored secret (VISION.md 14.3.11).
+        await fixture.request("DELETE", "/integrations/" + cleanup.pop())
+        secrets = cast(list[dict[str, Any]], await fixture.request("GET", "/secrets"))
+        names = {item["name"] for item in secrets}
+        assert set(done.json()["result"]["saved"]) <= names
         # The value never reaches a message, an event, a card or a Run.
         async with fixture.runtime.db.sessions() as session:
             for model in (MessageRow, EventRow, OwnerActionRow, RunRow):
@@ -1553,4 +1612,8 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
     finally:
         for integration_id in cleanup:
             await fixture.client.delete("/api/integrations/" + integration_id)
+        listed = cast(list[dict[str, Any]], await fixture.request("GET", "/secrets"))
+        for item in listed:
+            if item["name"] in saved:
+                await fixture.client.delete("/api/secrets/" + item["id"])
         await fixture.close()

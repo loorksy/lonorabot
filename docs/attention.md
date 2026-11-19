@@ -10,7 +10,7 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 |---|---|---|---|
 | `trade_approval` | `approval_required` | a Trade Approval card becomes pending | the card is no longer pending |
 | `settle_operation` | `operation_uncertain` | an operation becomes ambiguous (its Settle card is raised from the same event) | the operation is no longer ambiguous, or its Settle card ended (answered, superseded or expired) |
-| `secret_request` | `secret_requested` | a `connect_credential` card becomes pending | the card is no longer pending, or its lifetime ran out |
+| `secret_request` | `secret_requested` | a Secret card (`secret`) becomes pending | the card is no longer pending, or its lifetime ran out |
 | `broker_health` | `broker_token_rejected` | the account is disconnected with `broker_credentials_rejected` | the account is no longer disconnected with that problem, or its connection is disabled or removed |
 | `broker_health` | `broker_account_undeployed` | the account is disconnected with `broker_account_undeployed` or `broker_account_not_found` | the same |
 | `broker_health` | `broker_connection_lost` | the account has been disconnected for any other reason for 2 minutes (`LOST_CONNECTION_GRACE`) | the same |

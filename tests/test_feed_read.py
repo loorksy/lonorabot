@@ -2,10 +2,18 @@
 
 import asyncio
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from lonora_tools import feeds
+
+
+async def no_secret(_: str) -> str:
+    raise AssertionError("a feed with its address on the row reads no secret")
+
+
+# The read uses only the secret store from its context; the subscriptions are patched.
+CONTEXT = cast(Any, SimpleNamespace(secrets=SimpleNamespace(read=no_secret)))
 
 
 def subscriptions(count: int) -> list[Any]:
@@ -37,7 +45,7 @@ async def test_a_cancelled_read_fetches_no_feed_after_it_ends(
 
     monkeypatch.setattr(feeds, "subscribed", listed)
     monkeypatch.setattr(feeds, "one_feed", fetch)
-    read = asyncio.create_task(feeds.read(SimpleNamespace(), {}))
+    read = asyncio.create_task(feeds.read(CONTEXT, {}))
     await asyncio.sleep(0.1)
     read.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -65,7 +73,7 @@ async def test_at_the_deadline_a_feed_is_answered_timed_out_or_not_reached(
     monkeypatch.setattr(feeds, "one_feed", fetch)
     monkeypatch.setattr(feeds, "FEED_CONCURRENCY", 1)
     monkeypatch.setattr(feeds, "READ_DEADLINE_SECONDS", 0.3)
-    result = await feeds.read(SimpleNamespace(), {})
+    result = await feeds.read(CONTEXT, {})
     assert [(feed["feed_id"], feed["status"], feed.get("reason")) for feed in result["feeds"]] == [
         ("feed-0", "ok", None),
         ("feed-1", "unavailable", "news_feed_timeout"),

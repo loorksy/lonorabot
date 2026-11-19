@@ -13,12 +13,18 @@ Nothing here logs in anywhere or scrapes with the owner's account.
 
 import asyncio
 from typing import Any
-from urllib.parse import urlsplit
 
 from lonora_adapters.market.news_feed import FeedItem, read_feed
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
-from lonora_db.integrations import feed_host, subscribe_feed, subscribed_feed
+from lonora_db.integrations import (
+    feed_host,
+    has_source,
+    source_host,
+    source_url,
+    subscribe_feed,
+    subscribed_feed,
+)
 from lonora_db.runs import require_lease
 from lonora_db.schema import IntegrationRow
 from lonora_db.trusted_sources import feed_domain_of, feed_trusted, trust_source
@@ -65,7 +71,7 @@ async def subscribed(context: ToolContext) -> list[IntegrationRow]:
             for row in rows
             if row.payload.get("type") == "news_feed"
             and row.payload.get("enabled")
-            and row.payload.get("url")
+            and has_source(row.payload)
         ]
 
 
@@ -111,14 +117,18 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     pace = asyncio.Semaphore(FEED_CONCURRENCY)
     started: set[int] = set()
 
-    async def paced(index: int, url: str) -> dict[str, Any]:
+    async def paced(index: int, row: IntegrationRow) -> dict[str, Any]:
         async with pace:
             started.add(index)
+            # A feed saved from a Secret card keeps its address in the encrypted store; one
+            # address that cannot be read leaves the other feeds readable.
+            try:
+                url = await source_url(row.payload, context.secrets.read)
+            except LonoraError as error:
+                return {"status": "unavailable", "reason": error.code}
             return await one_feed(url, params.limit)
 
-    reads = [
-        asyncio.create_task(paced(index, str(row.payload["url"]))) for index, row in enumerate(rows)
-    ]
+    reads = [asyncio.create_task(paced(index, row)) for index, row in enumerate(rows)]
     try:
         if reads:
             await asyncio.wait(reads, timeout=READ_DEADLINE_SECONDS)
@@ -140,7 +150,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             {
                 "feed_id": row.id,
                 "name": row.payload.get("name"),
-                "domain": urlsplit(str(row.payload["url"])).hostname,
+                "domain": source_host(row.payload),
                 **result,
             }
             for row, result in zip(rows, results, strict=True)
