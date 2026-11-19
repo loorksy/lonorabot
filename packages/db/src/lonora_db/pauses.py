@@ -37,14 +37,15 @@ from .transactions import owned_agent
 
 
 def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
-    """What a paused agent still runs (4.7.1): only the wake for broker activity on its
-    own open positions and pending orders (``wake_for_activity``: ``broker_event_ids``,
-    not observe-only). It takes no new work: the owner's messages are kept and start no
-    run, and every other run of it (its routines, watches, timers, Tasks, peers' asks,
-    Lonora's system alerts) waits until it is resumed."""
+    """What a paused agent still runs (4.7.1): only a wake for its own open positions and
+    pending orders: broker activity on them (``wake_for_activity``: ``broker_event_ids``,
+    not observe-only), and Lonora's wake with a deleted agent's tickets, which are hers
+    (``ticket_transfer``: ``transferred_from``). It takes no new work: the owner's
+    messages are kept and start no run, and every other run of it (its routines, watches,
+    timers, Tasks, peers' asks, Lonora's system alerts) waits until it is resumed."""
     return (
         trigger == "broker_event"
-        and bool(metadata.get("broker_event_ids"))
+        and bool(metadata.get("broker_event_ids") or metadata.get("transferred_from"))
         and "system_alert" not in metadata
         and metadata.get("authority") != "observe_only"
     )
@@ -58,7 +59,10 @@ def claimable_while_paused(run: Any = RunRow) -> ColumnElement[bool]:
     authority = run.model_metadata["authority"].as_string()
     return and_(
         run.trigger == "broker_event",
-        run.model_metadata["broker_event_ids"].as_string().is_not(None),
+        or_(
+            run.model_metadata["broker_event_ids"].as_string().is_not(None),
+            run.model_metadata["transferred_from"].as_string().is_not(None),
+        ),
         run.model_metadata["system_alert"].as_string().is_(None),
         or_(authority.is_(None), authority != "observe_only"),
         ~exists(

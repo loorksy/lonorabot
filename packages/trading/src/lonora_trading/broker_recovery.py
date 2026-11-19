@@ -27,6 +27,16 @@ from .manual_activity import detect_activity
 from .picture import ticket_openers
 from .reconciliation import observe_operation, send_lock_key, settle
 
+# A paused agent's wake for its own tickets (4.7.1): broker activity, or tickets a deleted
+# agent left to Lonora.
+PAUSED_WAKE = (
+    " You are paused: only risk-reducing requests are sent (a full or partial "
+    "close, cancelling a pending order whose fill would add exposure, adding "
+    "a stop loss, or moving a stop loss toward the market); take no new work. "
+    "The owner's answers reach you only once you are resumed, so do not wait "
+    "on a question."
+)
+
 
 def throttled_at(error: BaseException) -> datetime | None:
     """MetaApi's retry time a ``broker_rate_limited`` failure carries, as a stored time."""
@@ -279,13 +289,7 @@ async def wake_for_activity(
                 "pauses decide at execution. Never resend an uncertain operation."
             )
             if agent.paused:
-                prompt += (
-                    " You are paused: only risk-reducing requests are sent (a full or partial "
-                    "close, cancelling a pending order whose fill would add exposure, adding "
-                    "a stop loss, or moving a stop loss toward the market); take no new work. "
-                    "The owner's answers reach you only once you are resumed, so do not wait "
-                    "on a question."
-                )
+                prompt += PAUSED_WAKE
             identifier = stable_id(account_id, f"external:{revision}:{agent.id}")
         else:
             # Facts only. No financial effects from this wake, its helpers, peer runs or

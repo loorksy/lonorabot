@@ -263,6 +263,60 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_paused_lonora_is_woken_with_the_tickets_of_an_agent_the_owner_deletes() -> None:
+    """4.7.1: a paused agent still wakes for its own tickets, and the transferred ones are
+    Lonora's (3.1.2). The delete never fails because Lonora is paused."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.pauses import claimable_while_paused
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.schema import AgentRow, RunRow
+    from lonora_trading.broker_recovery import reconcile_broker_account
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    connection = ""
+    lonora_id = ""
+    try:
+        connection = await simulation(fixture, [])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora_id = (await ensure_personal_agent(session, fixture.owner)).id
+        silver = await fixture.agent("Silver", supervised=True)
+        position = await opened_by(fixture, silver, connection, "0.3")
+        services = fixture.runtime.services(fixture.owner)
+        assert await reconcile_broker_account(
+            fixture.runtime.db, services.brokers, fixture.owner, connection
+        )
+        paused = await fixture.client.patch(f"/api/agents/{lonora_id}", json={"paused": True})
+        assert paused.status_code == 200, paused.text
+        response = await fixture.client.delete(f"/api/agents/{silver['id']}")
+        assert response.status_code == 200, response.text
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.get(AgentRow, silver["id"]) is None
+            (woke,) = list(
+                await session.scalars(
+                    select(RunRow).where(
+                        RunRow.agent_id == lonora_id,
+                        RunRow.model_metadata["transferred_from"].as_string() == silver["id"],
+                    )
+                )
+            )
+            assert position.id in woke.prompt
+            assert "You are paused: only risk-reducing requests are sent" in woke.prompt
+            # Claimed while Lonora stays paused, as its own broker wake is.
+            assert await session.scalar(
+                select(RunRow.id).where(RunRow.id == woke.id, claimable_while_paused())
+            )
+    finally:
+        if lonora_id:
+            await fixture.client.patch(f"/api/agents/{lonora_id}", json={"paused": False})
+        await retire(fixture, connection)
+        async with fixture.runtime.db.sessions() as session:
+            fixture.agents = [a for a in fixture.agents if await session.get(AgentRow, a)]
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_the_wake_set_and_the_picture_follow_the_doors_owner() -> None:
     """One ownership rule (3.3.4): the tickets Lonora is woken with, the agent picture and
     the door all use ``ticket_agent``'s match. On a netting account Silver's later buy adds

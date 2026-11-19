@@ -22,6 +22,7 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .broker_recovery import PAUSED_WAKE
 from .picture import ticket_openers
 
 # Broker strings go into the wake's server text: only identifier characters survive.
@@ -103,14 +104,7 @@ def transfer_prompt(
         f"and pending orders are now yours: {shown}{more}. Use account_activity and the current "
         "account state to reassess each and decide what to do under your mode. Never resend "
         "an uncertain operation."
-    ) + (
-        # The same line a paused agent's own broker wake carries (4.7.1).
-        " You are paused: only risk-reducing requests are sent (a full or partial close, "
-        "cancelling a pending order, adding a stop loss, or moving a stop loss toward the "
-        "market); take no new work."
-        if paused
-        else ""
-    )
+    ) + (PAUSED_WAKE if paused else "")
 
 
 async def wake_lonora(
