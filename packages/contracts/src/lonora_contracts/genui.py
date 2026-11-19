@@ -50,7 +50,7 @@ KINDS = (
     "quiz",
     "timer",
     "diagram",
-    "receipt",
+    "summary",
 )
 Kind = Literal[
     "calculator",
@@ -62,7 +62,7 @@ Kind = Literal[
     "quiz",
     "timer",
     "diagram",
-    "receipt",
+    "summary",
 ]
 TONES = ("info", "good", "warn", "bad", "muted", "accent")
 CHANNELS = ("app", "push", "call")

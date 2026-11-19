@@ -19,7 +19,7 @@ import { readinessTime } from "../../packages/core/src/trading-readiness";
 const now = new Date("2026-11-08T10:00:00Z");
 const base: OwnerAction = {
   id: "card",
-  kind: "lift_restriction",
+  kind: "create_agent",
   status: "pending",
   status_reason: null,
   source: "agent",
@@ -36,28 +36,6 @@ const base: OwnerAction = {
   created_at: "2026-11-08T09:30:00Z",
   updated_at: "2026-11-08T09:30:00Z",
 };
-const lift: OwnerAction = {
-  ...base,
-  kind: "lift_restriction",
-  source: "system",
-  facts: {
-    several_accounts: true,
-    account: { id: "acct", label: "Broker · 1234 · Live", provider: "metaapi" },
-    restriction: {
-      action_class: "no_new_entries",
-      symbol: "XAUUSD",
-      all_agents: true,
-      agent_name: null,
-      includes_owner_manual: false,
-      state: "active",
-      valid_from: "2026-11-08T08:00:00Z",
-      valid_until: "2026-11-08T20:59:00Z",
-      source: "agent",
-      set_by_agent_name: "Gold agent",
-    },
-  },
-};
-const pause = lift.facts.restriction ?? (undefined as never);
 const resolve: OwnerAction = {
   ...base,
   kind: "resolve_operation",
@@ -106,9 +84,9 @@ const limits = (passkey: boolean): OwnerAction => ({
 
 test("every pending card has its one-tap buttons in both languages", () => {
   for (const locale of ["en", "ar"]) {
-    const lifting = ownerActionCard(lift, locale, now);
+    const pending = ownerActionCard(base, locale, now);
     assert.deepEqual(
-      lifting.buttons.map((button) => [button.key, button.decision]),
+      pending.buttons.map((button) => [button.key, button.decision]),
       [
         ["confirm", "confirm"],
         ["cancel", "cancel"],
@@ -124,7 +102,6 @@ test("every pending card has its one-tap buttons in both languages", () => {
       ],
     );
     assert.equal(answer.notes, true);
-    assert.equal(ownerActionCard(lift, locale, now).buttons.length, 2);
   }
   const en = ownerActionCard(resolve, "en", now);
   assert.equal(en.title, "The broker did not confirm this trade");
@@ -150,31 +127,6 @@ test("every pending card has its one-tap buttons in both languages", () => {
     );
     assert.match(settled.outcome ?? "", /no longer holds new risk|لم تعد تعلّق المخاطرة الجديدة/);
   }
-});
-
-test("a lift card names scope and source from facts, with tickers isolated in Arabic", () => {
-  const en = ownerActionCard(lift, "en", now);
-  assert.equal(en.title, "New entries paused");
-  assert.equal(en.lines[0], "no new entries · ⁨XAUUSD⁩ · all agents · ⁨Broker · 1234 · Live⁩");
-  assert.match(en.lines[1] ?? "", / · set by ⁨Gold agent⁩$/);
-  assert.equal(en.hint, ownerActionLabels.en.exitsAllowed);
-  const ar = ownerActionCard(lift, "ar", now);
-  assert.equal(ar.title, "الصفقات الجديدة متوقفة");
-  assert.match(ar.lines[0] ?? "", /⁨XAUUSD⁩/);
-  assert.match(ar.lines[1] ?? "", /وضعه ⁨Gold agent⁩$/);
-  const frozen = ownerActionCard(
-    {
-      ...lift,
-      facts: {
-        ...lift.facts,
-        restriction: { ...pause, action_class: "all_mutations" },
-      },
-    },
-    "en",
-    now,
-  );
-  assert.equal(frozen.title, "Trading frozen");
-  assert.equal(frozen.hint, ownerActionLabels.en.exitsFrozen);
 });
 
 test("raising a money limit asks for the passkey; lowering one is one tap", () => {
@@ -250,13 +202,13 @@ test("a limits card shows a moved trading day and currency, in both languages", 
 
 test("settled cards show what happened and offer no buttons", () => {
   const settled: Array<[Partial<OwnerAction>, string]> = [
-    [{ status: "confirmed" }, "Pause lifted."],
+    [{ status: "confirmed" }, "Agent created."],
     [{ status: "cancelled" }, "Dismissed. Nothing changed."],
     [{ status: "expired", status_reason: "expired" }, "This card expired. Nothing changed."],
     [{ status: "superseded", status_reason: "done_by_another_card" }, "Done from another card."],
   ];
   for (const [change, line] of settled) {
-    const spec = ownerActionCard({ ...lift, ...change }, "en", now);
+    const spec = ownerActionCard({ ...base, ...change }, "en", now);
     assert.equal(spec.outcome, line);
     assert.deepEqual(spec.buttons, []);
     assert.equal(spec.hint, null);
@@ -267,12 +219,6 @@ test("settled cards show what happened and offer no buttons", () => {
     now,
   );
   assert.match(answered.outcome ?? "", /did not execute .*not broker confirmation/);
-  const ended = ownerActionCard(
-    { ...lift, status: "expired", status_reason: "restriction_already_ended" },
-    "ar",
-    now,
-  );
-  assert.equal(ended.outcome, "انتهى هذا الإيقاف مسبقًا. لم يتغير شيء.");
 });
 
 test("a late pending read never reopens a settled card", () => {

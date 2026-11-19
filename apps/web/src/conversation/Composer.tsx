@@ -1,41 +1,51 @@
-import { t } from "@lingui/core/macro";
+import { plural, t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { PermissionState } from "@lonora/contracts";
+import type { MessageCommand, PermissionState } from "@lonora/contracts";
 import {
+  commandQuery,
   guestCandidates,
+  highlightRange,
   type MentionAddress,
   type MentionRange,
+  matchesEveryone,
   mentionAddress,
   mentionCandidates,
+  mentionSegments,
+  parseCommand,
+  rankCommands,
   mentionQuery as readMentionQuery,
   rebaseMentions,
   showsTradingControl,
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import type { Agent, Message, Resource } from "../lib/api";
-import { api } from "../lib/api";
+import { api, isRequestCancelled } from "../lib/api";
 import {
-  appendDraftFiles,
+  type DraftUpload,
   draftKey,
-  finishDraftUpload,
+  draftUploads,
   observeDraftUploads,
-  pendingDraftUploads,
   readComposerDraft,
   saveComposerDraft,
-  startDraftUpload,
+  takeDraftUploads,
+  trackDraftUpload,
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
+import { agentRole } from "../shell/lists/ThreadRow";
 import { usePermissionSheet } from "../shell/PermissionSheet";
 import { useToast } from "../shell/Toast";
+import { type CommandRow, useComposerCommands } from "./commands";
 import { speakerColor } from "./context";
 import { snippet } from "./Message";
 import { PermissionChip } from "./PermissionMenu";
 import { useChatPrefs } from "./prefs";
 import { useToolsSheet } from "./ToolsSheet";
 import { useThreadOptions } from "./threadOptions";
+import { UploadRing } from "./UploadRing";
 import { VOICE, voiceFmt, voicePeaks } from "./Voice";
 
 /* The composer (reference composer(), Desktop-37 3828-3870, 404-435): a floating glass card,
@@ -51,7 +61,10 @@ export type ComposerSend = (
   extra?: {
     edited_from?: string;
     voice?: { artifact_id: string; duration: number; peaks: number[] };
+    command?: MessageCommand;
   },
+  /** Files still uploading: the message carries them and is posted once they are up. */
+  uploads?: DraftUpload[],
 ) => void;
 
 /** The recorder's floating knob and lock live on <body>; they draw the reference's icons. */
@@ -59,6 +72,15 @@ const svg = (name: IconName) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
 const fine = () => matchMedia("(pointer: fine)").matches;
 const ATTACH = { items: 6, bytes: 8 * 1024 * 1024 };
+/** «تنبيه 3 وكلاء»: who «@الكل» alerts in a group (reference mentionOptions, 5085-5094). */
+const alertText = (count: number) =>
+  plural(count, {
+    one: "Alerts one agent",
+    two: "Alerts two agents",
+    few: "Alerts # agents",
+    many: "Alerts # agents",
+    other: "Alerts # agents",
+  });
 
 export function Composer({
   threadId,
@@ -102,16 +124,23 @@ export function Composer({
   const initial = useRef(readComposerDraft(storageKey));
   const [text, setText] = useState(initial.current.text);
   const [files, setFiles] = useState<Resource[]>(initial.current.files);
-  const [uploading, setUploading] = useState(() => pendingDraftUploads(storageKey) > 0);
+  const [uploads, setUploads] = useState(() => draftUploads(storageKey));
   const [error, setError] = useState<unknown>();
   const [dragging, setDragging] = useState(false);
   const [mention, setMention] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
+  // What follows a «/» that starts the message; Esc closes its list until the «/» is gone.
+  const [command, setCommand] = useState<string | null>(null);
+  const [commandOff, setCommandOff] = useState(false);
+  const [slashed, setSlashed] = useState(false);
   const [listening, setListening] = useState(false);
   const committed = useRef<MentionRange[]>(initial.current.mentions);
   const caret = useRef(0);
+  const settling = useRef(false);
   const field = useRef<HTMLTextAreaElement>(null);
+  const mirror = useRef<HTMLDivElement>(null);
+  const micButton = useRef<HTMLButtonElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const dictation = useRef<{ stop: () => void } | null>(null);
@@ -149,10 +178,22 @@ export function Composer({
     saveComposerDraft(storageKey, { text, files, mentions: committed.current, reply });
   }, [storageKey, text, files, reply]);
   useEffect(() => () => saveComposerDraft(storageKey, current.current), [storageKey]);
+  // «مسح المحادثة» also drops the draft and the reply-to.
+  useEffect(() => {
+    const cleared = (event: Event) => {
+      if ((event as CustomEvent<{ threadId: string }>).detail?.threadId !== threadId) return;
+      setText("");
+      setFiles([]);
+      committed.current = [];
+      onClearReply();
+    };
+    window.addEventListener("lonora:chat-cleared", cleared);
+    return () => window.removeEventListener("lonora:chat-cleared", cleared);
+  }, [threadId, onClearReply]);
   useEffect(
     () =>
       observeDraftUploads(storageKey, () => {
-        setUploading(pendingDraftUploads(storageKey) > 0);
+        setUploads(draftUploads(storageKey));
         setFiles(readComposerDraft(storageKey).files);
       }),
     [storageKey],
@@ -205,8 +246,18 @@ export function Composer({
     };
   }, []);
 
-  /* ---- mentions: group members (+ القائد, متوقف); a direct chat: other agents (+ @الكل while
-     a collaboration session is open) */
+  const trading = agent
+    ? agent.template === "trading" ||
+      showsTradingControl({
+        role: agent.role,
+        trading_account_id: agent.trading_account_id,
+        level: permission?.effective_level,
+        grants: permission?.active_authorities.length,
+      })
+    : false;
+
+  /* ---- mentions: group members (+ القائد, متوقف), then @الكل; a direct chat: other agents
+     (+ @الكل while a collaboration session is open) */
   const memberIds = isGroup
     ? agents.map((row) => row.id)
     : agents.filter((row) => row.id !== agent?.id).map((row) => row.id);
@@ -220,24 +271,70 @@ export function Composer({
           agent?.id,
         ).slice(0, 6)
       : [];
-  // «@الكل» addresses everyone in this chat's open collaboration session (a direct chat with
-  // guests); the server refuses it anywhere else, so it is offered only there.
+  // «@الكل» addresses every member of a group, or everyone in a direct chat's open
+  // collaboration session (guests); it is offered only where one of the two exists.
   const all =
-    Boolean(collaborationSessionId) &&
-    !isGroup &&
+    (isGroup || Boolean(collaborationSessionId)) &&
     mention !== null &&
     mention !== dismissed &&
-    "الكلall".includes(mention.toLowerCase());
+    matchesEveryone(mention);
+  // A paused member is not alerted: the count says who will be.
+  const alerted = agents.filter((row) => !row.paused).length;
   const options_: Array<Agent | null> = [...candidates, ...(all ? [null] : [])];
-  const assistOpen = prefs.assist && options_.length > 0;
-  const active = Math.min(highlight, Math.max(0, options_.length - 1));
 
+  /* ---- / commands: only as the first thing in the message. The list is the same floating
+     list as @; a command that needs text stays in the field as plain text. */
+  const commands = useComposerCommands({
+    threadId,
+    agent,
+    name,
+    isGroup,
+    trading,
+    wanted: slashed,
+  });
+  const ranked =
+    prefs.assist && command !== null && !commandOff ? rankCommands(commands.rows, command) : null;
+  const commandOpen = ranked !== null;
+  const commandRows = ranked ?? [];
+  // An edit or a caption is never a command: it is sent as the text it is.
+  const typedCommand = editing || files.length ? null : parseCommand(text, commands.rows);
+  const assistOpen = commandOpen || (prefs.assist && options_.length > 0);
+  const listed = commandOpen ? commandRows.length : options_.length;
+  const active = Math.min(highlight, Math.max(0, listed - 1));
+
+  const readCommand = (before: string) => {
+    const typed = commandQuery(before);
+    setCommand(typed);
+    if (typed === null) setCommandOff(false);
+    else setSlashed(true);
+  };
   const update = (value: string, position = value.length) => {
     committed.current = rebaseMentions(text, value, committed.current);
     caret.current = position;
     setText(value);
     setMention(readMentionQuery(value.slice(0, position)));
+    readCommand(value.slice(0, position));
     setHighlight(0);
+  };
+  const runCommand = (row: CommandRow) => {
+    if (row.command !== "summary") return commands.run(row.command);
+    onSend(`/${row.name}`, [], reply?.id ?? null, undefined, { command: { name: "summary" } });
+    if (reply) onClearReply();
+  };
+  const pickCommand = (row: CommandRow) => {
+    // What was typed of the command goes; anything after it stays.
+    const rest = text.slice(caret.current).replace(/^\S*[ \t]*/, "");
+    const position = row.argument ? row.name.length + 2 : 0;
+    // A select event still queued for the text before the pick must not reopen the list.
+    settling.current = true;
+    update(row.argument ? `/${row.name} ${rest}` : rest, position);
+    if (!row.argument) runCommand(row);
+    requestAnimationFrame(() => {
+      settling.current = false;
+      if (!row.argument) return;
+      field.current?.focus();
+      field.current?.setSelectionRange(position, position);
+    });
   };
   const pick = (target: Agent | null) => {
     const before = text.slice(0, caret.current);
@@ -268,43 +365,77 @@ export function Composer({
 
   /* ---- attachments: chips in the composer; ≤6 items ≤8MB; caption rides with the first photo */
   const upload = useCallback(
-    async (picked: File[]) => {
+    (picked: File[]) => {
       if (!picked.length) return;
-      const room = ATTACH.items - files.length;
+      const room = ATTACH.items - files.length - uploads.length;
       const fit = picked.filter((file) => file.size <= ATTACH.bytes).slice(0, Math.max(0, room));
       if (fit.length < picked.length)
         toast(t`Up to 6 photos and files, 8 MB each`, { type: "warn" });
-      if (!fit.length) return;
-      startDraftUpload(storageKey);
-      setUploading(true);
       setError(undefined);
-      try {
-        const results = await Promise.allSettled(fit.map((file) => api.upload(file, threadId)));
-        const done = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-        appendDraftFiles(storageKey, done);
-        for (const row of done) onUploaded(row);
-        const failure = results.find((r) => r.status === "rejected");
-        if (failure?.status === "rejected") setError(failure.reason);
-      } finally {
-        finishDraftUpload(storageKey);
-        setUploading(false);
-      }
+      // Each file uploads on its own: its ring is in the tray and the composer stays free.
+      for (const file of fit)
+        trackDraftUpload(storageKey, file, (progress, signal) =>
+          api.upload(file, threadId, progress, signal),
+        ).done.then(onUploaded, (cause) => {
+          if (!isRequestCancelled(cause)) setError(cause);
+        });
     },
-    [files.length, storageKey, threadId, toast, onUploaded],
+    [files.length, uploads.length, storageKey, threadId, toast, onUploaded],
   );
 
-  const canSend = Boolean(text.trim() || files.length) && !uploading;
+  const canSend = Boolean(text.trim() || files.length || uploads.length);
   const send = () => {
     if (!canSend) return;
+    const sent = typedCommand?.option;
+    if (
+      sent &&
+      typedCommand &&
+      sent.argument &&
+      sent.command !== "skill" &&
+      !typedCommand.argument
+    ) {
+      // An LRM keeps the «/» before the command's name inside Arabic text.
+      const slash = `\u200e/${sent.name}`;
+      toast(
+        sent.command === "task"
+          ? t`Write the task title after ${slash}`
+          : t`Write what you are looking for after ${slash}`,
+        { type: "warn" },
+      );
+      return;
+    }
     const ids = files.map((file) => file.id);
-    const body = text.trim() || (ids.length ? t`Attached files` : "");
-    onSend(body, ids, reply?.id ?? null, mentionAddress(text, committed.current), {
-      ...(editing ? { edited_from: editing.id } : {}),
-    });
+    const body = text.trim() || (ids.length || uploads.length ? t`Attached files` : "");
+    const message =
+      sent?.command === "task" ||
+      sent?.command === "search" ||
+      sent?.command === "summary" ||
+      sent?.command === "skill"
+        ? {
+            name: sent.command,
+            argument: typedCommand?.argument ?? "",
+            ...(sent.command === "skill" ? { skill_id: sent.id } : {}),
+          }
+        : null;
+    if (sent && !message) runCommand(sent);
+    else
+      onSend(
+        body,
+        ids,
+        reply?.id ?? null,
+        mentionAddress(text, committed.current, isGroup ? memberIds : undefined),
+        {
+          ...(editing ? { edited_from: editing.id } : {}),
+          ...(message ? { command: message } : {}),
+        },
+        // A file still uploading leaves the tray with the message: its ring is in the bubble.
+        takeDraftUploads(storageKey),
+      );
     navigator.vibrate?.(6);
     setText("");
     committed.current = [];
     setMention(null);
+    setCommand(null);
     setFiles([]);
     current.current = { text: "", files: [], mentions: [], reply: null };
     saveComposerDraft(storageKey, current.current);
@@ -403,16 +534,35 @@ export function Composer({
     onShort: () => toast(t`Hold the microphone to record, release to send.`),
   });
 
-  const trading = agent
-    ? agent.template === "trading" ||
-      showsTradingControl({
-        role: agent.role,
-        trading_account_id: agent.trading_account_id,
-        level: permission?.effective_level,
-        grants: permission?.active_authorities.length,
-      })
-    : false;
+  /* ---- the one-time hint above the mic: a tap dictates, a hold records a voice message */
+  const [micTip, setMicTip] = useState(false);
+  const hideMicTip = useCallback(() => setMicTip(false), []);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(MIC_TIP) === "1") return;
+    } catch {
+      return;
+    }
+    const timer = setTimeout(() => setMicTip(true), 700);
+    return () => clearTimeout(timer);
+  }, []);
+  const micBusy = assistOpen || recorder.active;
+  useEffect(() => {
+    if (micTip && micBusy) setMicTip(false);
+  }, [micTip, micBusy]);
+
+  // The list fills the room between the chat's header and the composer, within the
+  // reference's bounds (assistPaint: 150 to 340).
+  const assist = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!assistOpen || !assist.current || !form.current) return;
+    const head = document.querySelector(".chat-head")?.getBoundingClientRect().bottom ?? 0;
+    const room = form.current.getBoundingClientRect().top - head - 28;
+    assist.current.style.setProperty("--as-max", `${Math.min(340, Math.max(150, room))}px`);
+  }, [assistOpen]);
   const replyTarget = editing ?? reply;
+  // Where the mirror's ordinary text starts: after a typed command.
+  const shown = typedCommand?.end ?? 0;
   const showSuggestion =
     Boolean(suggestion) &&
     !text.trim() &&
@@ -469,54 +619,121 @@ export function Composer({
       }}
     >
       {assistOpen && (
-        <div className="assist" data-type="mention">
+        <div className="assist" ref={assist} data-type={commandOpen ? "command" : "mention"}>
           <div
             className="as-list"
             role="listbox"
             id={`assist-${threadId}`}
-            aria-label={t`Mention an agent`}
+            aria-label={
+              commandOpen
+                ? t({ message: "Commands", context: "composer list" })
+                : t`Mention an agent`
+            }
           >
-            <div className="as-sec" role="presentation">
-              {isGroup ? (
-                <Trans>Group members</Trans>
-              ) : (
-                <Trans>Bring an agent into the conversation</Trans>
-              )}
-            </div>
-            {options_.map((row, index) => (
-              <button
-                key={row?.id ?? "all"}
-                id={`assist-${threadId}-${index}`}
-                type="button"
-                role="option"
-                aria-selected={index === active}
-                className={`as-row${index === active ? " on" : ""}`}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseMove={() => setHighlight(index)}
-                onClick={() => pick(row)}
-              >
-                {row ? (
-                  <span className="as-av">
-                    <AgentAvatar agent={row} />
-                  </span>
+            {commandOpen && !commandRows.length && (
+              <div className="as-empty">
+                <Trans>No command by that name</Trans>
+              </div>
+            )}
+            {commandRows.map((row, index) => {
+              const skill = row.command === "skill";
+              const mark = command ? highlightRange(row.name, command) : null;
+              return (
+                <Fragment key={row.id}>
+                  {(index === 0 || skill !== (commandRows[index - 1].command === "skill")) && (
+                    <div className="as-sec" role="presentation">
+                      {skill ? (
+                        <Trans>
+                          <bdi>{name}</bdi>'s skills
+                        </Trans>
+                      ) : (
+                        t({ message: "Commands", context: "composer list" })
+                      )}
+                    </div>
+                  )}
+                  <button
+                    id={`assist-${threadId}-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === active}
+                    className={`as-row${index === active ? " on" : ""}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseMove={() => setHighlight(index)}
+                    onClick={() => pickCommand(row)}
+                  >
+                    <span className={`as-ic${row.command === "clear" ? " danger" : ""}`}>
+                      <Icon name={row.icon} />
+                    </span>
+                    <span className="as-body">
+                      <strong>
+                        <span dir="auto">
+                          /
+                          {mark ? (
+                            <>
+                              {row.name.slice(0, mark[0])}
+                              <b>{row.name.slice(mark[0], mark[1])}</b>
+                              {row.name.slice(mark[1])}
+                            </>
+                          ) : (
+                            row.name
+                          )}
+                        </span>
+                        {row.hint && <em>{row.hint}</em>}
+                      </strong>
+                      {row.sub && <small>{row.sub}</small>}
+                    </span>
+                    {row.alias && row.alias !== row.name && (
+                      <span className="as-end ltr">/{row.alias}</span>
+                    )}
+                  </button>
+                </Fragment>
+              );
+            })}
+            {!commandOpen && (
+              <div className="as-sec" role="presentation">
+                {isGroup ? (
+                  <Trans>Group members</Trans>
                 ) : (
-                  <span className="as-ic">
-                    <Icon name="users" />
-                  </span>
+                  <Trans>Bring an agent into the conversation</Trans>
                 )}
-                <span className="as-body">
-                  <span className="as-t">
-                    <span dir="auto">@{row ? row.name : t`all`}</span>
+              </div>
+            )}
+            {!commandOpen &&
+              options_.map((row, index) => (
+                <button
+                  key={row?.id ?? "all"}
+                  id={`assist-${threadId}-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={index === active}
+                  className={`as-row${index === active ? " on" : ""}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseMove={() => setHighlight(index)}
+                  onClick={() => pick(row)}
+                >
+                  {row ? (
+                    <span className="as-av">
+                      <AgentAvatar agent={row} />
+                    </span>
+                  ) : (
+                    <span className="as-ic">
+                      <Icon name="users" />
+                    </span>
+                  )}
+                  <span className="as-body">
+                    <strong>
+                      <span dir="auto">@{row ? row.name : t`all`}</span>
+                    </strong>
+                    {row && agentRole(row) && <small>{agentRole(row)}</small>}
+                    {!row && isGroup && <small>{alertText(alerted)}</small>}
                   </span>
-                  {row && <small>{row.description || row.role}</small>}
-                </span>
-                {row && (row.id === groupLead || row.paused) && (
-                  <span className="as-end tag">{row.id === groupLead ? t`Lead` : t`Paused`}</span>
-                )}
-              </button>
-            ))}
+                  {row && (row.id === groupLead || row.paused) && (
+                    <span className="as-end tag">{row.id === groupLead ? t`Lead` : t`Paused`}</span>
+                  )}
+                </button>
+              ))}
           </div>
-          {fine() && (
+          {fine() && listed > 0 && (
             <div className="as-foot" aria-hidden="true">
               <span>
                 <kbd>↑</kbd>
@@ -580,7 +797,7 @@ export function Composer({
             </button>
           </div>
         )}
-        {files.length > 0 && (
+        {files.length + uploads.length > 0 && (
           // biome-ignore lint/a11y/useSemanticElements: the reference's attachment chips
           <div className="att-row" role="list" aria-label={t`Attachments`}>
             {files.map((file) => {
@@ -616,10 +833,60 @@ export function Composer({
                 </div>
               );
             })}
+            {uploads.map((item) => {
+              const cancel = () => {
+                item.cancel();
+                toast(t`Upload cancelled`);
+              };
+              const kb = Math.max(1, Math.ceil(item.size / 1024));
+              return item.preview ? (
+                // biome-ignore lint/a11y/useSemanticElements: one chip of the row
+                <div key={item.id} className="att image uploading" role="listitem">
+                  <img src={item.preview} alt="" />
+                  <UploadRing name={item.name} p={item.p} onCancel={cancel} />
+                </div>
+              ) : (
+                // biome-ignore lint/a11y/useSemanticElements: one chip of the row
+                <div key={item.id} className="att file uploading" role="listitem">
+                  <UploadRing name={item.name} p={item.p} onCancel={cancel} />
+                  <span className="att-n">
+                    <b>{item.name}</b>
+                    <small>{t`Uploading · ${kb} KB`}</small>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
         <div className="ta-wrap">
-          <div className="ta-mirror" aria-hidden="true" />
+          <div className="ta-mirror" aria-hidden="true" ref={mirror}>
+            {typedCommand && (
+              <>
+                {text.slice(0, typedCommand.start)}
+                <mark className="cmd">{text.slice(typedCommand.start, typedCommand.end)}</mark>
+              </>
+            )}
+            {mentionSegments(
+              text.slice(shown),
+              committed.current
+                .filter((range) => range.start >= shown)
+                .map((range) => ({ ...range, start: range.start - shown, end: range.end - shown })),
+            ).map((part, index) =>
+              part.mark ? (
+                // biome-ignore lint/suspicious/noArrayIndexKey: the segments of one text, in order
+                <mark key={index}>{part.text}</mark>
+              ) : (
+                part.text
+              ),
+            )}
+            {typedCommand?.option.hint && !typedCommand.argument && (
+              <span className="ghost">
+                {text.length === typedCommand.end && " "}
+                {typedCommand.option.hint}
+              </span>
+            )}
+            {"\u200b"}
+          </div>
           <textarea
             ref={field}
             name="message"
@@ -635,9 +902,14 @@ export function Composer({
             aria-activedescendant={assistOpen ? `assist-${threadId}-${active}` : undefined}
             value={text}
             onChange={(event) => update(event.target.value, event.target.selectionStart)}
+            onScroll={(event) => {
+              if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop;
+            }}
             onSelect={(event) => {
+              if (settling.current) return;
               caret.current = event.currentTarget.selectionStart;
               setMention(readMentionQuery(text.slice(0, caret.current)));
+              readCommand(text.slice(0, caret.current));
             }}
             onPaste={(event) => {
               const picked = Array.from(event.clipboardData.files);
@@ -647,13 +919,21 @@ export function Composer({
             }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-              if (assistOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+              if (assistOpen && listed && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
                 event.preventDefault();
                 const delta = event.key === "ArrowDown" ? 1 : -1;
-                setHighlight((active + delta + options_.length) % options_.length);
+                setHighlight((active + delta + listed) % listed);
                 return;
               }
-              if (assistOpen && (event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+              const picks = (event.key === "Enter" || event.key === "Tab") && !event.shiftKey;
+              if (commandOpen && picks && commandRows.length) {
+                event.preventDefault();
+                pickCommand(commandRows[active]);
+                return;
+              }
+              // No command by that name: the list closes and Enter sends the text as it is.
+              if (commandOpen && picks) setCommandOff(true);
+              else if (assistOpen && picks) {
                 event.preventDefault();
                 const row = options_[active];
                 if (row !== undefined) pick(row);
@@ -662,7 +942,8 @@ export function Composer({
               if (assistOpen && event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();
-                setDismissed(mention);
+                if (commandOpen) setCommandOff(true);
+                else setDismissed(mention);
                 return;
               }
               if (event.key === "Escape" && replyTarget) {
@@ -732,11 +1013,11 @@ export function Composer({
             className="icon cbtn"
             aria-label={t`Attachments and tools`}
             title={t`Attachments and tools`}
-            disabled={uploading}
             onClick={() =>
               tools.open({
                 agent,
                 isGroup,
+                groupLead,
                 trading,
                 // Another agent's level is never shown while this one's loads.
                 permission: permission?.agent_id === agent?.id ? permission : null,
@@ -753,7 +1034,6 @@ export function Composer({
                   input.onchange = () => void upload(Array.from(input.files ?? []));
                   input.click();
                 },
-                onVoiceNote: () => recorder.startLocked(),
               })
             }
           >
@@ -785,6 +1065,7 @@ export function Composer({
           )}
           <span className="grow" />
           <button
+            ref={micButton}
             type="button"
             className="icon cbtn mic"
             aria-label={t`Dictation, or hold to record a voice message`}
@@ -855,7 +1136,61 @@ export function Composer({
           </div>
         </div>
       )}
+      {micTip && !micBusy && micButton.current && (
+        <MicTip mic={micButton.current} onDone={hideMicTip} />
+      )}
     </form>
+  );
+}
+
+const MIC_TIP = "lonora.tips.mic";
+
+/** Above the mic, its arrow on the mic; gone on any press or after 5.2s, and never shown again. */
+function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
+  const tip = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+  useLayoutEffect(() => {
+    try {
+      localStorage.setItem(MIC_TIP, "1");
+    } catch {
+      // shown for this page only
+    }
+    const el = tip.current;
+    const card = mic.closest(".composer-card");
+    if (!el || !card) return;
+    const m = mic.getBoundingClientRect();
+    const cx = m.left + m.width / 2;
+    const left = Math.max(12, Math.min(innerWidth - 12 - el.offsetWidth, cx - el.offsetWidth / 2));
+    el.style.left = `${left}px`;
+    el.style.bottom = `${innerHeight - card.getBoundingClientRect().top + 12}px`;
+    el.style.setProperty("--ax", `${cx - left}px`);
+    const frame = requestAnimationFrame(() => setShow(true));
+    let gone = 0;
+    const off = () => {
+      document.removeEventListener("pointerdown", off, true);
+      setShow(false);
+      gone = window.setTimeout(onDone, 260);
+    };
+    document.addEventListener("pointerdown", off, true);
+    const timer = setTimeout(off, 5200);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      clearTimeout(gone);
+      document.removeEventListener("pointerdown", off, true);
+    };
+  }, [mic, onDone]);
+  return createPortal(
+    <div ref={tip} className={`mic-tip${show ? " show" : ""}`} role="status">
+      <strong>
+        <Icon name="mic" />
+        <Trans>Tap to dictate</Trans>
+      </strong>
+      <span>
+        <Trans>Hold to record a voice message</Trans>
+      </span>
+    </div>,
+    mic.closest(".app-shell") ?? document.body,
   );
 }
 
@@ -1016,7 +1351,7 @@ function useVoiceRecorder({
     }
     r.raf = requestAnimationFrame(tick);
   };
-  const begin = async (startLocked: boolean, mic?: HTMLElement) => {
+  const begin = async (mic: HTMLElement) => {
     const media = navigator.mediaDevices;
     if (
       !(media && "getUserMedia" in media && "MediaRecorder" in window && window.isSecureContext)
@@ -1036,25 +1371,23 @@ function useVoiceRecorder({
     } as NonNullable<typeof rec.current>;
     rec.current = r;
     setActive(true);
-    setLocked(startLocked);
-    if (!startLocked && mic) {
-      const b = mic.getBoundingClientRect();
-      const cx = b.left + b.width / 2;
-      const cy = b.top + b.height / 2;
-      const k = document.createElement("div");
-      k.className = "vrec-knob";
-      k.style.left = `${cx}px`;
-      k.style.top = `${cy}px`;
-      k.innerHTML = `<span class="vring"></span><span class="vk">${svg("mic")}</span>`;
-      const l = document.createElement("div");
-      l.className = "vrec-lock";
-      l.style.left = `${cx}px`;
-      l.style.top = `${cy - 136}px`;
-      l.innerHTML = `${svg("lock")}<span class="vl-up">${svg("up")}</span>`;
-      document.body.append(k, l);
-      knob.current = k;
-      lock.current = l;
-    }
+    setLocked(false);
+    const b = mic.getBoundingClientRect();
+    const cx = b.left + b.width / 2;
+    const cy = b.top + b.height / 2;
+    const k = document.createElement("div");
+    k.className = "vrec-knob";
+    k.style.left = `${cx}px`;
+    k.style.top = `${cy}px`;
+    k.innerHTML = `<span class="vring"></span><span class="vk">${svg("mic")}</span>`;
+    const l = document.createElement("div");
+    l.className = "vrec-lock";
+    l.style.left = `${cx}px`;
+    l.style.top = `${cy - 136}px`;
+    l.innerHTML = `${svg("lock")}<span class="vl-up">${svg("up")}</span>`;
+    document.body.append(k, l);
+    knob.current = k;
+    lock.current = l;
     requestAnimationFrame(() => {
       setEntered(true);
       knob.current?.classList.add("in");
@@ -1199,7 +1532,6 @@ function useVoiceRecorder({
     active,
     in: entered,
     bar,
-    startLocked: () => void begin(true),
     micHandlers: (onTap: () => void) => ({
       onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
         if (event.button > 0 || rec.current) return;
@@ -1211,7 +1543,7 @@ function useVoiceRecorder({
           recording: false,
           timer: window.setTimeout(() => {
             if (press.current) press.current.recording = true;
-            void begin(false, target);
+            void begin(target);
           }, VOICE.hold),
         };
         try {

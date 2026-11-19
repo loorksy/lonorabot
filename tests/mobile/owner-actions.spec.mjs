@@ -68,8 +68,6 @@ const copy = {
     executed: "نُفذت",
     unknown: "غير معروفة — ارفع التعليق",
     recorded: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
-    lift: "رفع الإيقاف",
-    noPauses: "لا توجد إيقافات",
     grantTitle: "يتداول بنفسه",
     authorize: "التفويض بمفتاح المرور",
     notNow: "ليس الآن",
@@ -80,8 +78,6 @@ const copy = {
     executed: "It executed",
     unknown: "Unknown: release the hold",
     recorded: "Recorded: it executed (your statement, not broker confirmation).",
-    lift: "Lift pause",
-    noPauses: "No pauses",
     grantTitle: "trade on its own",
     authorize: "Authorize with passkey",
     notNow: "Not now",
@@ -122,7 +118,6 @@ for (const locale of ["ar", "en"])
     const thread = await (
       await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
     ).json();
-    let pause;
     try {
       const uncertain = seedCard({
         kind: "resolve_operation",
@@ -178,25 +173,7 @@ for (const locale of ["ar", "en"])
       const row = journal.find((item) => item.operation_id === uncertain.operation_id);
       expect(row.status).toBe("resolved");
       expect(row.result.details.resolution.outcome).toBe("executed");
-      // The header sheet lifts a pause with one tap too.
-      const made = await context.request.post("/api/trading/restrictions", {
-        headers,
-        data: { account_id: data.account, action_class: "no_new_entries" },
-      });
-      expect(made.status()).toBe(201);
-      pause = (await made.json()).id;
-      await page.reload();
-      await page.getByTestId("safety-pill").click();
-      const sheet = page.getByTestId("safety-sheet");
-      await sheet.getByRole("button", { name: text.lift, exact: true }).click();
-      await expect(sheet.getByText(text.noPauses, { exact: true })).toBeVisible();
-      pause = undefined;
     } finally {
-      if (pause)
-        await context.request.post(`/api/trading/restrictions/${pause}/revoke`, {
-          headers,
-          data: { reason: "" },
-        });
       simulation({ ...data, action: "cleanup" });
     }
   });

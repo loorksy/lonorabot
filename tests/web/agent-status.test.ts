@@ -129,6 +129,26 @@ test("the status line follows the reference priority, most urgent first", () => 
   assert.equal(agentStatusLine(working, "ar"), "يحلّل");
 });
 
+test("the status line says «يعمل» or «ينتظر», never «نشط», when the server names no work", () => {
+  // A run with no named family is the agent at work.
+  const busy: AgentLiveState = { ...idle, state: "working", phase: "thinking" };
+  assert.equal(agentStatusLine(busy, "ar"), "يعمل");
+  assert.equal(agentStatusLine(busy, "en"), "Working");
+  // A waiting agent, a model retry or a read retry included, waits: it is never «نشط».
+  const waiting: AgentLiveState[] = [
+    { ...idle, state: "waiting", phase: "queued" },
+    { ...idle, state: "waiting", phase: "recovering", reason_code: "model_provider_retry" },
+    { ...idle, state: "waiting", phase: "recovering", reason_code: "retry_backoff" },
+  ];
+  for (const state of waiting) {
+    assert.equal(agentStatusLine(state, "ar"), "ينتظر");
+    assert.equal(agentStatusLine(state, "en"), "Waiting");
+  }
+  // A service problem is said as it is, never as «نشط».
+  const unwell: AgentLiveState = { ...idle, state: "degraded" };
+  assert.notEqual(agentStatusLine(unwell, "ar"), "نشط");
+});
+
 function journal(status: Journal["status"], extra: Partial<Journal> = {}): Journal {
   return {
     operation_id: "op",
@@ -297,7 +317,7 @@ test("the quota card follows Q22: no spend cap to raise, the provider's own quot
   const { readFileSync } = await import("node:fs");
   const cards = readFileSync("apps/web/src/conversation/Cards.tsx", "utf8");
   assert.doesNotMatch(cards, /Edit the limit`|Raise the limit|usage limit/);
-  assert.match(cards, /family === "quota" \? t`View usage`/);
+  assert.match(cards, /family === "quota"\s+\? t`View usage`/);
 });
 
 test("R1/R2: the executor's own rows: a never-sent order is Requested → Blocked; no «try again» on money", async () => {
@@ -324,7 +344,7 @@ test("item 21: «Mandate details» opens the signed grant card of this chat", as
   assert.match(sheet, /if \(card\) return <OwnerActionCard row=\{card\}/);
 });
 
-test("item 24: the call log and the new-trades pause have their own Arabic words", async () => {
+test("item 24: the call log has its own Arabic words", async () => {
   const { readFileSync } = await import("node:fs");
   const po = readFileSync("apps/web/src/i18n/locales/ar/messages.po", "utf8");
   const entry = (id: string, context?: string) => {
@@ -335,5 +355,4 @@ test("item 24: the call log and the new-trades pause have their own Arabic words
   };
   assert.equal(entry("Voice call", "call log"), "مكالمة صوتية");
   assert.equal(entry("Voice call"), "اتصال صوتي");
-  assert.equal(entry("Pause", "new trades pause"), "تعليق");
 });

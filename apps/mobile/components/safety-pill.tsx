@@ -1,10 +1,9 @@
 // The thread header's status pill and its sheet, the same projection and text as Web.
-import type { Agent, Resource, TradingReadiness } from "@lonora/contracts";
+import type { Resource, TradingReadiness } from "@lonora/contracts";
 import {
   isolate,
   moneyLimitsLine,
   operationStatusText,
-  pauseClassLabel,
   readinessTime,
   tradingReadinessLine,
   tradingReadinessTone,
@@ -16,26 +15,15 @@ import { api } from "../lib/api";
 import { brokerIdentityLabel } from "../lib/broker-identity";
 import { useSession } from "../lib/session";
 import { NativeSymbol } from "./native-symbol";
-import { Button, colors, ErrorNotice } from "./ui";
+import { colors } from "./ui";
 
 /**
  * The header's one status pill and its sheet. The thread screen reads the agent's live
- * state once (``useAgentLiveState``) and passes its readiness here; lifting a pause
- * refreshes that one read.
+ * state once (``useAgentLiveState``) and passes its readiness here.
  */
-export function SafetyPill({
-  readiness,
-  agents,
-  onChanged,
-}: {
-  readiness: TradingReadiness | null;
-  agents: Agent[];
-  onChanged: () => Promise<void>;
-}) {
-  const { locale, rtl, errorText, t } = useSession();
+export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }) {
+  const { locale, rtl, t } = useSession();
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Resource[]>([]);
   const text = tradingSafetyText(locale);
   // With more than one account the line and the sheet name the account of each item.
@@ -44,7 +32,6 @@ export function SafetyPill({
       ? [
           ...readiness.money_limits.map((item) => item.account_id),
           ...readiness.grants.map((item) => item.account_id),
-          ...readiness.restrictions.map((item) => item.account_id),
           ...readiness.unresolved_operations.map((item) => item.account_id),
         ]
       : [],
@@ -69,10 +56,6 @@ export function SafetyPill({
     const index = accounts.findIndex((row) => row.id === id);
     return index < 0 ? null : brokerIdentityLabel(accounts[index], index, t);
   };
-  const agentName = (id: string | null) => {
-    const name = agents.find((agent) => agent.id === id)?.name;
-    return name ? `${text.setByAgent} · ${isolate(name)}` : text.setByAgent;
-  };
   const line = tradingReadinessLine(readiness, locale, new Date(), accountName);
   const tone = tradingReadinessTone(readiness);
   const tint =
@@ -81,21 +64,6 @@ export function SafetyPill({
   const body = { color: colors.foreground, fontSize: 14, textAlign: align } as const;
   const muted = { ...body, color: colors.secondary, fontSize: 13 } as const;
   const heading = { ...body, fontWeight: "600", fontSize: 15 } as const;
-  const change = async (controls: { lift: string }) => {
-    setBusy(true);
-    try {
-      // Lifting a pause: one tap, owner session only (no agent can lift one).
-      await api.post(`/trading/restrictions/${encodeURIComponent(controls.lift)}/revoke`, {
-        reason: "",
-      });
-      setError(null);
-      await onChanged();
-    } catch (caught) {
-      setError(errorText(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <>
       <Pressable
@@ -177,7 +145,6 @@ export function SafetyPill({
                 </Pressable>
               </View>
               <Text style={body}>{line}</Text>
-              <ErrorNotice text={error} />
               <Text style={heading}>{text.level}</Text>
               <Text style={body}>{text[readiness.level]}</Text>
               {readiness.grants.map((grant) => (
@@ -197,46 +164,6 @@ export function SafetyPill({
                     .join(" · ")}
                 </Text>
               ))}
-              <Text style={heading}>{text.pauses}</Text>
-              {readiness.restrictions.length ? (
-                readiness.restrictions.map((item) => (
-                  <View key={item.id} style={{ gap: 6 }}>
-                    <Text style={body}>
-                      {[
-                        accountName(item.account_id),
-                        pauseClassLabel(item.action_class, locale),
-                        item.symbol ? isolate(item.symbol) : text.allPairs,
-                        item.applies_to === "all_agents" ? text.allAgents : text.thisAgent,
-                        item.includes_owner_manual ? text.includesManual : null,
-                        item.source === "owner_ui"
-                          ? text.setByYou
-                          : item.source === "owner_message"
-                            ? text.fromYourMessage
-                            : agentName(item.created_by_agent_id),
-                        item.state === "scheduled"
-                          ? `${text.starts} ${readinessTime(item.valid_from, locale)}`
-                          : item.valid_until
-                            ? `${text.until} ${readinessTime(item.valid_until, locale)}`
-                            : text.noEnd,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
-                    <Button
-                      label={text.lift}
-                      secondary
-                      disabled={busy}
-                      onPress={() => void change({ lift: item.id })}
-                    />
-                  </View>
-                ))
-              ) : (
-                <Text style={muted}>{text.noPauses}</Text>
-              )}
-              {readiness.restrictions.length ? <Text style={muted}>{text.onlyYouLift}</Text> : null}
-              {!readiness.exits_allowed && (
-                <Text style={{ ...body, color: colors.warning }}>{text.exitsFrozen}</Text>
-              )}
               <Text style={heading}>{text.moneyLimits}</Text>
               {readiness.money_limits.map((limits) => (
                 <Text key={limits.account_id} style={body}>

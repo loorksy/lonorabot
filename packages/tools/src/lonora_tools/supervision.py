@@ -8,9 +8,8 @@ automatically. Text that agent or others wrote is labelled untrusted: it is data
 the reader, never its instructions.
 
 ``agent_control`` pauses or resumes an agent you supervise, or one of its Tasks,
-routines or watches, and messages it. It never grants, raises a limit, lifts a
-restriction, trades or edits the agent's memory or instructions; its trading is
-narrowed with ``trade_restriction_create``. A whole agent with money standing is paused
+routines or watches, and messages it. It never grants, raises a limit, trades or edits
+the agent's memory or instructions. A whole agent with money standing is paused
 only from the owner's message, and the Personal Agent only by the owner. The hold
 rules and the cycle rule are in ``lonora_db.supervision``.
 
@@ -71,8 +70,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 PAGE_ITEMS = 10
 # What a decisions page shows of each stored decision; the full record is one read away.
@@ -624,10 +623,9 @@ def tools() -> list[Tool]:
             "pause you set, or any supervisor's when the owner asks; the owner's own pauses "
             "stay. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A whole trading agent is paused only when the owner asks (its exits "
-            "would stop too): narrow it with trade_restriction_create (no_new_entries) and "
-            "pause its routines, watches or Tasks. Only the owner pauses Lonora itself. It "
-            "never trades, grants, raises limits, lifts restrictions or edits its memory "
-            "or instructions.",
+            "would stop too): pause its routines, watches or Tasks. Only the owner pauses "
+            "Lonora itself. It never trades, grants, raises limits or edits its memory or "
+            "instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

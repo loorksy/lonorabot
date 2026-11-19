@@ -29,8 +29,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
+from .profile_taint import mark_from
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 async def keyed_watch(
@@ -163,6 +164,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             }
         # A watch tainted work created wakes tainted (docs/genui.md).
         await taint_row_from(session, run, "watch", row.id)
+        await mark_from(session, run, "watch", row.id)
         return resource_data(row)
 
 
@@ -254,6 +256,7 @@ async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dic
         )
         # Tainted work that resumes or steers a watch taints it (docs/genui.md).
         await taint_row_from(session, run, "watch", row.id)
+        await mark_from(session, run, "watch", row.id)
         return stating(
             {
                 **resource_data(row),
@@ -294,6 +297,7 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             level=params.level,
         )
         await taint_row_from(session, run, "watch", row.id)
+        await mark_from(session, run, "watch", row.id)
         if row.version != version:
             # An extension the owner did not ask for shows as a notice with Undo (Q31).
             await raise_watch_changed(

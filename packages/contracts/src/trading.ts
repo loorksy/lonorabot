@@ -170,11 +170,9 @@ export type MoneyLimits = {
   not_configured: MoneyLimitName[];
   trading_day_timezone?: string;
 };
-export type RestrictionActionClass = "no_new_entries" | "no_risk_increase" | "all_mutations";
 export type TradingReadinessState =
   | "no_trading"
   | "agent_paused"
-  | "paused"
   | "uncertain"
   | "ask_me"
   | "on_its_own";
@@ -187,13 +185,9 @@ export type TradingReadiness = {
   observed_at: string;
   state: TradingReadinessState;
   params: {
-    action_class?: RestrictionActionClass;
     valid_until?: string | null;
     symbol?: string | null;
-    /**
-     * paused: the account of the strongest pause; on_its_own: the first grant's account.
-     * The line names it when the owner has several accounts.
-     */
+    /** on_its_own: the first grant's account; the line names it when the owner has several. */
     account_id?: string | null;
     count?: number;
     symbol_scope?: "selected" | "account";
@@ -218,19 +212,6 @@ export type TradingReadiness = {
     /** Every pair on the account, every action and the owner's own positions, until revoked. */
     full_delegation?: boolean;
   }>;
-  restrictions: Array<{
-    id: string;
-    account_id: string;
-    symbol: string | null;
-    action_class: RestrictionActionClass;
-    state: "active" | "scheduled";
-    applies_to: "all_agents" | "this_agent";
-    includes_owner_manual: boolean;
-    valid_from: string;
-    valid_until: string | null;
-    source: "owner_ui" | "owner_message" | "agent";
-    created_by_agent_id: string | null;
-  }>;
   money_limits: MoneyLimits[];
   unresolved_operations: Array<{
     operation_id: string;
@@ -252,5 +233,4 @@ export type TradingReadiness = {
     } | null;
   }>;
   unresolved_count: number;
-  exits_allowed: boolean;
 };
