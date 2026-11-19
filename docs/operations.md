@@ -55,6 +55,12 @@ Images come from a registry, or are built on the server with `build-from-source.
 loopback-only registry («Build from source on the server»); either way install and update pin a
 digest. There is no host-PostgreSQL variant.
 
+Only the Gateway keeps MetaApi connections: one subscription and one synchronization owner
+per account. The API process opens none. It hands every MetaApi read, and the owner's direct
+order on a MetaApi account, to the Gateway through the database (`ln_broker_relay`), and the
+Gateway answers with its own connection. While the Gateway is stopped these requests answer
+`broker_gateway_unavailable` and nothing reaches the broker.
+
 Layout on a server (default `/opt/lonora`):
 
 ```

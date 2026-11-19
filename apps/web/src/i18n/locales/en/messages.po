@@ -1704,7 +1704,7 @@ msgstr "Check the fields"
 msgid "Check the highlighted fields."
 msgstr "Check the highlighted fields."
 
-#: src/lib/user_error.ts:188
+#: src/lib/user_error.ts:192
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -3566,7 +3566,7 @@ msgstr "Hour"
 msgid "How to reach you"
 msgstr "How to reach you"
 
-#: src/lib/user_error.ts:207
+#: src/lib/user_error.ts:211
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "I paused at this run's step budget. Send a message and I continue from here."
 
@@ -3586,7 +3586,7 @@ msgstr "Image attachment"
 msgid "Immediately"
 msgstr "Immediately"
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:190
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -4155,6 +4155,14 @@ msgstr "Lonora needs the microphone for dictation, voice messages and calls. Not
 msgctxt "model"
 msgid "Lonora's model"
 msgstr "Lonora's model"
+
+#: src/lib/user_error.ts:188
+msgid "Lonora's server did not answer in time. If this was an order, check your trades before trying again."
+msgstr "Lonora's server did not answer in time. If this was an order, check your trades before trying again."
+
+#: src/lib/user_error.ts:186
+msgid "Lonora's server is not running right now, so nothing reached the broker. Try again shortly."
+msgstr "Lonora's server is not running right now, so nothing reached the broker. Try again shortly."
 
 #: src/shell/FloatingTabBar.tsx:138
 msgid "Main navigation"
@@ -5418,7 +5426,7 @@ msgstr "Page not found"
 msgid "Pair"
 msgstr "Pair"
 
-#: src/lib/user_error.ts:205
+#: src/lib/user_error.ts:209
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 
@@ -7788,7 +7796,7 @@ msgstr "The messages of {0} are hidden for you; the chats stay in the list."
 msgid "The microphone is not available on this page."
 msgstr "The microphone is not available on this page."
 
-#: src/lib/user_error.ts:203
+#: src/lib/user_error.ts:207
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -7885,7 +7893,7 @@ msgstr "The reply did not arrive in time; the connection may be weak."
 msgid "The reply timed out"
 msgstr "The reply timed out"
 
-#: src/lib/user_error.ts:209
+#: src/lib/user_error.ts:213
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -8155,7 +8163,7 @@ msgstr "This item changed. Reload it before saving."
 #~ msgid "This key is set on the server and cannot be deleted here."
 #~ msgstr "This key is set on the server and cannot be deleted here."
 
-#: src/lib/user_error.ts:201
+#: src/lib/user_error.ts:205
 msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 msgstr "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 
@@ -8237,15 +8245,15 @@ msgstr "This question is no longer waiting for an answer."
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "This skill is no longer in the current catalog. Reload the list."
 
-#: src/lib/user_error.ts:192
+#: src/lib/user_error.ts:196
 msgid "This step was interrupted and picked up again. Nothing was repeated."
 msgstr "This step was interrupted and picked up again. Nothing was repeated."
 
-#: src/lib/user_error.ts:197
+#: src/lib/user_error.ts:201
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "This task cannot resume in its current state. Review its plan or retry limit."
 
-#: src/lib/user_error.ts:194
+#: src/lib/user_error.ts:198
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
@@ -8328,7 +8336,7 @@ msgstr "today so far"
 msgid "Tokens"
 msgstr "Tokens"
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:194
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 

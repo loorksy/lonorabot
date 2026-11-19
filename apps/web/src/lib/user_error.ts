@@ -182,6 +182,10 @@ export function userError(error: unknown) {
       return t`Broker deal history is unavailable for this time range.`;
     case "broker_connection_unavailable":
       return t`The broker connection is unavailable.`;
+    case "broker_gateway_unavailable":
+      return t`Lonora's server is not running right now, so nothing reached the broker. Try again shortly.`;
+    case "broker_gateway_no_answer":
+      return t`Lonora's server did not answer in time. If this was an order, check your trades before trying again.`;
     case "simulation_snapshot_required":
       return t`Import a market snapshot before using the demo account.`;
     case "invalid_request":
