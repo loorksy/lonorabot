@@ -36,7 +36,6 @@ from .schema import (
     RoutineRow,
     SupervisionHoldRow,
     TicketRow,
-    TradingJournalRow,
 )
 from .transactions import owned_agent
 
@@ -100,24 +99,6 @@ def record_intervention(
 
 
 WorkAction = Literal["pause", "resume"]
-
-
-async def money_standing(session: AsyncSession, owner_id: str, agent: AgentRow) -> bool:
-    """Whether an agent may have money standing: it is bound to an account, or the
-    executor recorded operations for it (positions and orders it opened may still be
-    open). Paused, it still wakes for them and reduces their risk (4.7.1)."""
-    if agent.trading_account_id:
-        return True
-    producer = TradingJournalRow.result["details"]["execution"]["agent_id"].as_string()
-    operation = await session.scalar(
-        select(TradingJournalRow.operation_id)
-        .where(
-            TradingJournalRow.owner_id == owner_id,
-            producer == agent.id,
-        )
-        .limit(1)
-    )
-    return operation is not None
 
 
 async def _owned_work(

@@ -347,7 +347,6 @@ async def test_lonora_pauses_a_trading_agent_a_team_agent_does_not_and_nobody_pa
         RoutineRow,
         SupervisionHoldRow,
     )
-    from lonora_db.supervision import money_standing
     from pause_cards import raise_supervision_pause_card
 
     async def legacy_card(target_id: str) -> None:
@@ -389,12 +388,6 @@ async def test_lonora_pauses_a_trading_agent_a_team_agent_does_not_and_nobody_pa
             f"/agents/{asker['id']}/permissions",
             {"level": "supervised", "expected_revision": permission["revision"]},
         )
-        async with fixture.runtime.db.sessions() as session:
-            # money_standing reads no permission ladder (14.3.7): a bound agent has money
-            # standing; an Ask agent with no account and no recorded operations has none.
-            rows = {item: await session.get(AgentRow, item) for item in (gold["id"], asker["id"])}
-            assert await money_standing(session, fixture.owner, cast(Any, rows[gold["id"]]))
-            assert not await money_standing(session, fixture.owner, cast(Any, rows[asker["id"]]))
         peer_thread = await fixture.conversation(peer)
         woke = await wake(fixture, peer, peer_thread)
         # A team agent pauses no other agent or its work (3.3.1).
