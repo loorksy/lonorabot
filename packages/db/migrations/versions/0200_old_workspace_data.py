@@ -23,7 +23,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0200_old_workspace_data"
-down_revision = "0100_execution_receipts"
+down_revision = "0196_model_provider_cards"
 branch_labels = None
 depends_on = None
 
