@@ -136,7 +136,7 @@ async def ticket_agent(
             )
         )
         if opener is not None:
-            return journal_agent(opener)
+            return await current_holder(session, owner_id, journal_agent(opener))
     entries = list(
         await session.scalars(
             select(TradingJournalRow)
@@ -149,7 +149,7 @@ async def ticket_agent(
     )
     for entry in entries:
         if target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}:
-            return journal_agent(entry)
+            return await current_holder(session, owner_id, journal_agent(entry))
     kind = "position_id" if request.position_id else "order_id"
     for entry in entries:
         details = entry.result.get("details", {})
@@ -158,12 +158,16 @@ async def ticket_agent(
             entry.operation_id,
             broker_operation_tag(entry.operation_id),
         } or target.id in {details.get(kind), safe_id}:
-            agent = journal_agent(entry)
-            if agent is None or await session.get(AgentRow, agent) is not None:
-                return agent
-            # Its agent was deleted: the ticket transferred to Lonora (3.1.2, derived).
-            return await personal_agent_id(session, owner_id) or agent
+            return await current_holder(session, owner_id, journal_agent(entry))
     return None
+
+
+async def current_holder(session: AsyncSession, owner_id: str, opener: str | None) -> str | None:
+    """The opener, or Lonora when the opener was deleted: its tickets transferred to
+    Lonora (mandate 3.1.2, derived). None stays the owner's own."""
+    if opener is None or await session.get(AgentRow, opener) is not None:
+        return opener
+    return await personal_agent_id(session, owner_id) or opener
 
 
 async def authority_snapshot(broker: BrokerStateReader, account_id: str) -> ExecutionSnapshot:
