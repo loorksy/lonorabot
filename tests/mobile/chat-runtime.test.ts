@@ -353,3 +353,15 @@ test("native visual persistence retains complete scope identity beyond filesyste
     files.set(key, JSON.stringify({ ...JSON.parse(raw), key: "different-owner-document" }));
   assert.equal(await fixture().loadVisualState(`${prefix}-document-one`), null);
 });
+
+test("a cleared chat does not draw its finished replies again from their streams (as Web)", () => {
+  const done = { ...run("r1"), status: "succeeded" } as Run;
+  const stream = {
+    run_id: "r1",
+    phase: "committed",
+    text: "old reply",
+    message_id: "hidden-message",
+    input_seq: 1,
+  } as never;
+  assert.equal(projectConversation([], [done], { r1: stream }).length, 0);
+});

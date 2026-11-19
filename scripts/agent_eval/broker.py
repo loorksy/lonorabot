@@ -632,18 +632,29 @@ class FakeAccountEntity:
 
     async def deploy(self) -> None:
         self.api.called("deploy")
+        self.api.refuse_if_busy(self._data["_id"], "deploy")
         self.api.start(self._data["_id"])
         await self.reload()
 
     async def undeploy(self) -> None:
         self.api.called("undeploy")
+        self.api.refuse_if_busy(self._data["_id"], "undeploy")
         self.api.stored(self._data["_id"])["state"] = "UNDEPLOYING"
         await self.reload()
 
     async def redeploy(self) -> None:
         self.api.called("redeploy")
+        self.api.refuse_if_busy(self._data["_id"], "redeploy")
+        before = dict(self.api.stored(self._data["_id"]))
         self.api.start(self._data["_id"])
+        if self.api.lose_redeploy_answer:
+            self.api.lose_redeploy_answer = False
+            raise sdk_error("TooManyRequestsException", "Rate limited", {}, PROVISIONING_URL)
         await self.reload()
+        if self.api.redeploy_lags:
+            # MetaApi answers once the redeploy is scheduled: the reading right after it
+            # still shows the terminal from before; the next reading shows the redeploy.
+            self._data = before
 
     async def update(self, account: dict[str, Any]) -> None:
         # A PUT: an update field left out is reset. A new password is used by the
@@ -693,6 +704,15 @@ class FakeProvisioningApi:
     unreadable: set[str] = field(default_factory=set[str])
     # The next removals fail (429), as when MetaApi is busy.
     remove_fails: int = 0
+    # The next deploys, redeploys or undeploys are refused: MetaApi is still deploying the
+    # account (its ValidationException, as in production on 2026-11-19).
+    busy: int = 0
+    # Accounts MetaApi is still deploying or undeploying: their state does not settle.
+    held: set[str] = field(default_factory=set[str])
+    # MetaApi takes the next redeploy, then the SDK's read after it fails once (429).
+    lose_redeploy_answer: bool = False
+    # A redeploy's own read still shows the terminal from before it.
+    redeploy_lags: bool = False
     transactions: list[str] = field(default_factory=list[str])
     by_transaction: dict[str, str] = field(default_factory=dict[str, str])
     sequence: int = 0
@@ -738,7 +758,8 @@ class FakeProvisioningApi:
                 PROVISIONING_URL + "/" + account_id,
             )
         settle = {"DEPLOYING": "DEPLOYED", "UNDEPLOYING": "UNDEPLOYED"}
-        data["state"] = settle.get(data["state"], data["state"])
+        if account_id not in self.held:
+            data["state"] = settle.get(data["state"], data["state"])
         expected = self.servers.get(data["server"], {}).get(data["login"])
         right = expected == data["terminal_password"]
         data["connectionStatus"] = (
@@ -747,6 +768,17 @@ class FakeProvisioningApi:
             else "DISCONNECTED"
         )
         return data
+
+    def refuse_if_busy(self, account_id: str, action: str) -> None:
+        if self.busy > 0:
+            self.busy -= 1
+            raise sdk_error(
+                "ValidationException",
+                f"Account {account_id} can not be {action}ed because it is in the process "
+                "of being deployed",
+                [],
+                f"{PROVISIONING_URL}/{account_id}/{action}",
+            )
 
     def start(self, account_id: str) -> None:
         data = self.stored(account_id)

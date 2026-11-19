@@ -870,3 +870,124 @@ def test_scrub_replaces_a_trade_operation_id() -> None:
     }
     scrubbed = runner.scrub(record, {})
     assert scrubbed["transcript"][0]["tool_calls"][0]["arguments"]["operation_id"] == "operation_1"
+
+
+# --- The voice of a decisive trader (mandate 5.3) ---------------------------------------
+
+VOICE = {"disclaimer", "reassurance", "refused_view", "unshown_profit"}
+
+
+@pytest.mark.parametrize(
+    ("reply", "condition"),
+    [
+        ("Buy gold at 2400. This is not financial advice.", "disclaimer"),
+        ("Trading involves significant risk; size accordingly.", "disclaimer"),
+        ("الدخول شراء عند 2400، وهذه ليست نصيحة مالية.", "disclaimer"),
+        ("التداول ينطوي على مخاطر عالية، فانتبه.", "disclaimer"),
+        ("Don't worry, the position will recover.", "reassurance"),
+        ("لا تقلق، الصفقة ستعود.", "reassurance"),
+        ("I can't give you financial advice on whether to buy.", "refused_view"),
+        ("لا أستطيع تقديم نصيحة بالشراء أو البيع.", "refused_view"),
+        ("لا يمكنني تقديم المشورة المالية.", "refused_view"),
+        ("لا أستطيع تقديم استشارة مالية.", "refused_view"),
+        ("لا أستطيع إعطاءك رأيًا.", "refused_view"),
+        ("لا أستطيع إعطائك نصيحة.", "refused_view"),
+        # The "not a financial advisor" hedge fails on its own, also after "because".
+        ("I can't recommend buying because I'm not a financial advisor.", "refused_view"),
+        (
+            "I can\u2019t recommend buying because I\u2019m not a licensed financial adviser.",
+            "refused_view",
+        ),
+    ],
+)
+def test_the_voice_conditions_catch_their_bad_reply(reply: str, condition: str):
+    assert condition in score.conditions(ANY, record(reply))
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Long XAUUSD 0.10 at 2401.5, stop 2394, target 2420. I add at 2410 if H1 closes above.",
+        "انتظار: لا دخول قبل إغلاق ساعة فوق 2410. الوقف تحت 2394.",
+        "الـTake Profit عند 2450 والوقف عند 2400.",
+        "Risk on this trade is 0.5% of the account: 0.10 lots with a 65-point stop.",
+    ],
+)
+def test_a_decisive_reply_passes_the_voice_conditions(reply: str):
+    language = "ar" if any("\u0600" <= char <= "\u06ff" for char in reply) else "en"
+    assert score.conditions({**ANY, "language": language}, record(reply)) == {}
+
+
+def test_a_profit_figure_must_be_one_a_tool_of_the_turn_showed():
+    read = call("account_read", {}, positions=[{"ticket": 7, "profit": 42.5}])
+    shown = record("The floating profit is 42.5 USD on ticket 7.", [read])
+    assert "unshown_profit" not in score.conditions(ANY, shown)
+    invented = record("The floating profit is 120 USD on ticket 7.", [read])
+    assert "unshown_profit" in score.conditions(ANY, invented)
+    arabic = record("الربح الحالي 120 دولار.", [read])
+    assert "unshown_profit" in score.conditions(ANY, arabic)
+    # A take profit is a target, not a profit the account shows.
+    target = record("Take profit at 2450 on ticket 7.", [read])
+    assert "unshown_profit" not in score.conditions(ANY, target)
+    # Nor is a ticket number: only a profit, P&L, equity or balance field backs a figure.
+    ticket = record("The floating profit is 7 USD on ticket 7.", [read])
+    assert "unshown_profit" in score.conditions(ANY, ticket)
+    # Nor is a quote's tick value: it is a rate, not what the account holds.
+    quote = call(
+        "market_quote", {"symbol": "XAUUSD"}, bid=2400.1, ask=2400.4, profit_tick_value=120
+    )
+    tick = record("The floating profit is 120 USD on ticket 7.", [read, quote])
+    assert "unshown_profit" in score.conditions(ANY, tick)
+    # Nor is a minimum equity: it is a limit, not what the account holds.
+    limit = record(
+        "The floating profit is 8000 USD.", [call("account_read", {}, minimum_equity="8000")]
+    )
+    assert "unshown_profit" in score.conditions(ANY, limit)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Past performance of this setup: 3 of 5 trades won, net +120 USD.",
+        "I can't recommend a buy until H1 closes above 2410.",
+        "لا أستطيع تقديم توصية بالشراء قبل إغلاق الساعة فوق 2410.",
+        "اطمئنان السوق ضعيف بعد البيانات.",
+        "Gold made a gain of 1.2% today.",
+        "Total profit target is 200 USD.",
+        "The take profit is 2450.",
+        # A truthful obstacle is not a refused view.
+        "لا أستطيع تقديم الأمر لأن السوق مغلق الآن.",
+        "لا أستطيع تقديم الأمر الآن، السوق مغلق.",
+        "I can't recommend this size because free margin is 120 USD.",
+    ],
+)
+def test_a_traders_honest_wording_is_not_mistaken_for_a_voice_failure(reply: str):
+    read = call("account_read", {}, positions=[{"ticket": 7, "profit": 42.37}])
+    language = "ar" if any("؀" <= char <= "ۿ" for char in reply) else "en"
+    found = score.conditions({**ANY, "language": language}, record(reply, [read]))
+    assert not set(found) & VOICE, found
+
+
+@pytest.mark.parametrize(
+    ("reply", "condition"),
+    [
+        ("This isn't financial advice, but I would buy.", "disclaimer"),
+        ("هذه ليست توصية استثمارية.", "disclaimer"),
+        ("No need to panic, it will come back.", "reassurance"),
+        ("I'm not able to give investment recommendations.", "refused_view"),
+        # The typographic apostrophe (U+2019) models often write.
+        ("This isn\u2019t financial advice, but I would buy.", "disclaimer"),
+        ("Don\u2019t worry, it will come back.", "reassurance"),
+        ("I can\u2019t give you financial advice.", "refused_view"),
+        ("I\u2019m not able to give investment recommendations.", "refused_view"),
+    ],
+)
+def test_more_ways_to_hedge_are_caught(reply: str, condition: str):
+    assert condition in score.conditions({**ANY, "language": "en"}, record(reply))
+
+
+def test_a_profit_figure_allows_rounding_and_eastern_arabic_digits():
+    read = call("account_read", {}, positions=[{"ticket": 7, "profit": 42.37}])
+    for reply in ("The floating profit is 42.4 USD.", "الربح العائم ٤٢٫٣٧ دولار."):
+        assert "unshown_profit" not in score.conditions(ANY, record(reply, [read])), reply
+    assert "unshown_profit" in score.conditions(ANY, record("الربح العائم ٩٩ دولار.", [read]))

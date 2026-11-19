@@ -2,12 +2,15 @@
 
 import type { Agent, Artifact, Message } from "@lonora/contracts";
 import {
+  commandQuery,
   guestCandidates,
   type MentionAddress,
   type MentionRange,
   mentionAddress,
   mentionCandidates,
   mentionQuery,
+  parseCommand,
+  rankCommands,
   rebaseMentions,
 } from "@lonora/core";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -20,6 +23,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { CommandRow } from "../lib/commands";
 import type { ComposerUpload } from "../lib/composer-uploads";
 import { fill } from "../lib/i18n";
 import { useSession } from "../lib/session";
@@ -51,6 +55,11 @@ export function ThreadComposer({
   onCancelReply,
   editing,
   onCancelEdit,
+  commands = [],
+  onCommand,
+  suggestion,
+  onSuggestion,
+  onWebSearchOff,
   assist = true,
   permissionControl,
 }: {
@@ -78,6 +87,14 @@ export function ThreadComposer({
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
+  /** The / commands this chat offers (lib/commands), and what picking one does. */
+  commands?: CommandRow[];
+  onCommand?: (row: CommandRow) => void;
+  /** The agent's own suggested reply (Q23); a tap puts it in the composer. */
+  suggestion?: string;
+  onSuggestion?: (text: string) => void;
+  /** The chat's web search is on: a globe beside «+» turns it off, as on Web. */
+  onWebSearchOff?: () => void;
   /** «اقتراحات @» (chat preference): off, no list of agents while writing. */
   assist?: boolean;
   /** Edit and resend (Q21): the owner's message this send replaces. */
@@ -101,6 +118,14 @@ export function ThreadComposer({
         );
   if (assist && query !== null && mentionAll && "all".startsWith(query.toLowerCase()))
     candidates.push(null);
+  // «/» at the start of a message: the chat's commands, best match first (never in an edit);
+  // as Web, «اقتراحات @» off hides this list too.
+  const commandTyped = editing || !assist ? null : commandQuery(textBeforeCaret);
+  const ranked = commandTyped === null ? null : rankCommands(commands, commandTyped);
+  // A bare command that takes words: what to write after it, as Web's ghost text.
+  const typedCommand = editing || attachments.length ? null : parseCommand(draft, commands);
+  const commandHint =
+    !ranked?.length && typedCommand && !typedCommand.argument ? typedCommand.option.hint : null;
   useEffect(() => {
     if (!draft) {
       committed.current = [];
@@ -108,6 +133,16 @@ export function ThreadComposer({
       setCursor(0);
     }
   }, [draft]);
+  // The agent's suggested reply, as on Web: only over an empty composer with nothing in it
+  // (no files, no reply or edit) while no reply is being written.
+  const showSuggestion =
+    Boolean(suggestion) &&
+    !draft.trim() &&
+    !attachments.length &&
+    !uploads.length &&
+    !reply &&
+    !editing &&
+    !working;
   // A message may be sent while its files upload: it goes out once they are up (as on Web).
   const canSend =
     Boolean(draft.trim() || attachments.length || uploads.length) &&
@@ -124,12 +159,110 @@ export function ThreadComposer({
         backgroundColor: shell.background,
       }}
     >
+      {showSuggestion && suggestion && onSuggestion ? (
+        <Pressable
+          testID="suggested-reply"
+          accessibilityRole="button"
+          accessibilityLabel={fill(t("suggestedReply"), suggestion)}
+          onPress={() => onSuggestion(suggestion)}
+          style={({ pressed }) => ({
+            alignSelf: rtl ? "flex-end" : "flex-start",
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: shell.border,
+            backgroundColor: pressed ? shell.muted : "transparent",
+          })}
+        >
+          <Text
+            numberOfLines={1}
+            style={{ color: shell.foreground, fontSize: 14, writingDirection: "auto" }}
+          >
+            {suggestion}
+          </Text>
+        </Pressable>
+      ) : null}
       {editing ? (
         <ComposerReplyPreview message={editing} onClose={onCancelEdit} editing />
       ) : reply ? (
         <ComposerReplyPreview message={reply} onClose={onCancelReply} />
       ) : null}
-      {candidates.length ? (
+      {commandHint ? (
+        <Text
+          testID="command-hint"
+          numberOfLines={1}
+          style={{
+            color: shell.secondary,
+            fontSize: 13,
+            fontStyle: "italic",
+            paddingHorizontal: 14,
+            textAlign: rtl ? "right" : "left",
+          }}
+        >
+          {commandHint}
+        </Text>
+      ) : null}
+      {ranked?.length ? (
+        <View
+          role="list"
+          accessibilityLabel={t("cmdList")}
+          style={{ backgroundColor: shell.muted, borderRadius: 14, overflow: "hidden" }}
+        >
+          {ranked.slice(0, 8).map((row) => (
+            <Pressable
+              key={row.id}
+              accessibilityRole="button"
+              accessibilityLabel={`/${row.name}`}
+              onPress={() => {
+                const rest = draft.slice(cursor).replace(/^\S*[ \t]*/, "");
+                if (row.argument) {
+                  const next = `/${row.name} ${rest}`;
+                  onChange(next);
+                  setCursor(row.name.length + 2);
+                } else {
+                  onChange(rest);
+                  setCursor(0);
+                  onCommand?.(row);
+                }
+              }}
+              style={({ pressed }) => ({
+                flexDirection: rtl ? "row-reverse" : "row",
+                alignItems: "center",
+                gap: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                backgroundColor: pressed ? shell.accent : "transparent",
+              })}
+            >
+              <Text style={{ color: shell.foreground, fontSize: 15, fontWeight: "600" }}>
+                {/* RLM: in Arabic the «/» stays before the name, read from the right. */}
+                {rtl ? "\u200f/" : "/"}
+                {row.name}
+                {row.hint ? (
+                  <Text style={{ color: shell.secondary, fontStyle: "italic", fontWeight: "400" }}>
+                    {" "}
+                    {row.hint}
+                  </Text>
+                ) : null}
+              </Text>
+              {row.sub ? (
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    color: shell.secondary,
+                    fontSize: 13,
+                    writingDirection: "auto",
+                  }}
+                >
+                  {row.sub}
+                </Text>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      ) : candidates.length ? (
         <View style={{ backgroundColor: shell.muted, borderRadius: 14, overflow: "hidden" }}>
           {candidates.map((agent) => (
             <Pressable
@@ -290,6 +423,18 @@ export function ThreadComposer({
             </Pressable>
           </View>
           {permissionControl}
+          {onWebSearchOff ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("webSearchIsOn")}
+              testID="web-search-on"
+              hitSlop={6}
+              onPress={onWebSearchOff}
+              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+            >
+              <NativeSymbol name="globe" size={18} color={shell.link} />
+            </Pressable>
+          ) : null}
           <TextInput
             accessibilityLabel={t("message")}
             placeholder={t("message")}

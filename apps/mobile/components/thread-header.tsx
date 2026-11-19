@@ -14,6 +14,7 @@ export function ThreadHeader({
   onActions,
   onCall,
   safety,
+  subtitle,
 }: {
   title: string;
   avatar?: ReactNode;
@@ -22,6 +23,8 @@ export function ThreadHeader({
   onSettings: () => void;
   onActions: () => void;
   onCall?: () => void;
+  /** A line under the title: «X يكتب» in a group while a member replies. */
+  subtitle?: string | null;
   /** An agent thread shows its one safety pill: can it trade now, what stops it. */
   safety?: ReactNode;
 }) {
@@ -69,6 +72,15 @@ export function ThreadHeader({
               {title}
             </Text>
           </Pressable>
+          {subtitle ? (
+            <Text
+              testID="thread-subtitle"
+              numberOfLines={1}
+              style={{ marginTop: 2, fontSize: 12, color: shell.secondary }}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
         {onCall ? (
           <HeaderButton label={t("callAgent")} onPress={onCall}>

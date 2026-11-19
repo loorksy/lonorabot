@@ -66,6 +66,12 @@ def observation(messages: list[ModelMessage], identity: str) -> dict[str, Any]:
     return json.loads(row.content)
 
 
+def tail(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """The conversation's last two messages, without the per-request runtime context
+    blocks (observation catalog, UI capabilities) every request appends after them."""
+    return [message for message in messages if message.context_origin != "runtime_context"][-2:]
+
+
 async def simulation(f: Fixture, symbol: str = "EURUSD.suffix") -> tuple[str, str]:
     account = (
         await f.request(
@@ -405,7 +411,7 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
         if phase == 9:
             if not valid:
                 # A substantive answer is an update, not the end of account management.
-                assert any("task_wait" in message.content for message in messages[-2:])
+                assert any("task_wait" in message.content for message in tail(messages))
                 return response(
                     call("continue-management", "task_wait", kind="timer", seconds=60),
                     text=result_update,
@@ -433,7 +439,7 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             verified = True
             return response(text=result_update)
         assert phase == 11 and valid
-        assert any("task_wait" in message.content for message in messages[-2:])
+        assert any("task_wait" in message.content for message in tail(messages))
         return response(
             call("continue-management", "task_wait", kind="timer", seconds=60),
             text=result_update,

@@ -26,7 +26,7 @@ from sqlalchemy import select
 from .base import Tool
 from .context import ToolContext
 from .owner_actions import card_scope, card_summary
-from .provenance import owner_message_id
+from .provenance import attachment_hint, owner_message_id
 
 
 class BrokerConnectInput(Contract):
@@ -51,10 +51,11 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         # A password card for a server the owner did not name would send their password
         # where a page or a peer chose (6.10): only the owner's own typed message asks.
         if await owner_message_id(session, run) is None:
+            hint = await attachment_hint(session, run)
             raise ToolRefusal(
                 "broker_connect_needs_owner_message",
                 403,
-                details={"hint": "Connect an account only when the owner asks in chat."},
+                details={"hint": hint or "Connect an account only when the owner asks in chat."},
             )
         repository = BrokerSessionRepository()
         # The provisioning lock (advisory, no row), as the gateway's step takes it.
@@ -197,10 +198,13 @@ async def manage(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         if await owner_message_id(session, run) is None:
+            hint = await attachment_hint(session, run)
             raise ToolRefusal(
                 "broker_manage_needs_owner_message",
                 403,
-                details={"hint": "Change a broker connection only when the owner asks in chat."},
+                details={
+                    "hint": hint or "Change a broker connection only when the owner asks in chat."
+                },
             )
         row = await BrokerSessionRepository().get(session, context.owner_id, params.account_id)
         identity = current_broker_identity(row) or {}

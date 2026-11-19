@@ -8,26 +8,31 @@ import type {
   Message,
   MessageReaction,
   OwnerAction,
+  PermissionState,
   ReactionEmoji,
   Run,
   Thread,
+  ThreadUpdatedPayload,
   TradeApproval,
 } from "@lonora/contracts";
 import {
   accumulateStream,
   activeStatuses,
   type ConversationItem,
+  commandQuery,
   conversationTimeline,
   type LiveReplyStream,
   liveAvatarState,
   type MentionAddress,
   mergeOwnerAction,
   needsTimeSeparator,
+  parseCommand,
   projectRunEvents,
   retryableFailure,
   runStatusText,
   SLOT_OWNER_ACTION_KINDS,
   seedStream,
+  showsTradingControl,
   stopTargets,
   streamForRun,
   submitMark,
@@ -64,7 +69,7 @@ import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
 import { Icon } from "../components/shell/icon";
-import { GroupBox, Row } from "../components/shell/kit";
+import { Btn, GroupBox, Row } from "../components/shell/kit";
 import { useSheets } from "../components/shell/sheets";
 import { useToast } from "../components/shell/toast";
 import { ThreadComposer } from "../components/thread-composer";
@@ -73,9 +78,11 @@ import { TimeSeparator } from "../components/time-separator";
 import { TradeApprovalCard } from "../components/trade-approval";
 import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
+import { WebSearchRow } from "../components/web-search-row";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
 import { useChatPrefs } from "../lib/chat-prefs";
+import { type CommandRow, commandRows, type Skill, sentCommand } from "../lib/commands";
 import {
   type ComposerDraft,
   composerDraft,
@@ -98,6 +105,8 @@ import {
 import { projectConversation } from "../lib/conversation-projection";
 import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
+import { fill } from "../lib/i18n";
+import { listsApi } from "../lib/lists-api";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
@@ -117,6 +126,7 @@ import {
   waitsForNetwork,
 } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
+import { useShellData } from "../lib/shell-data";
 import { useShellColors, useTheme } from "../lib/theme";
 import { useVoiceSession } from "../lib/voice-session";
 
@@ -156,6 +166,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [asking, setAsking] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
+  // The agent's enabled skills, loaded the first time «/» starts a message in its chat.
+  const [skills, setSkills] = useState<Skill[]>([]);
+  // The agent whose skills were asked for, and the agent this chat shows now.
+  const skillsOf = useRef<string | null>(null);
+  const skillsAgent = useRef<string | null>(null);
   // Edit and resend (Q21): the owner's message the next send replaces.
   const [editing, setEditing] = useState<Message | null>(null);
   // The owner's quick reactions as the server last answered them, until a snapshot carries them.
@@ -170,9 +185,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
   }, []);
   const toast = useToast();
+  const { patchInbox } = useShellData();
   const prefs = useChatPrefs();
-  // The message a search or quote jump landed on (tinted for 1.7 s).
-  const [flash, setFlash] = useState<string | null>(null);
+  // The message a search or quote jump landed on (tinted for 1.7 s). Each jump sets a new
+  // mark, so a second tap on the same quote restarts it, as on Web.
+  const [flash, setFlash] = useState<{ id: string } | null>(null);
   useEffect(() => {
     if (!flash) return;
     const timer = setTimeout(() => setFlash(null), 1700);
@@ -210,10 +227,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const list = useRef<FlatList<ConversationItem>>(null);
   const following = useRef(around == null);
   const jumped = useRef<number | null>(null);
+  const [jumpAgain, setJumpAgain] = useState(0);
   const shell = useShellColors();
   const [atEnd, setAtEnd] = useState(around == null);
   const [loaded, setLoaded] = useState(false);
   const [permissionRevision, setPermissionRevision] = useState(0);
+  // The agent's authority as its control last read it (the / list's /chart, as on Web).
+  const [permission, setPermission] = useState<PermissionState | null>(null);
   const permissionAgent = useRef(thread?.agent_id);
   permissionAgent.current = thread?.agent_id;
   // One live-state read for the header's safety pill and the background-activity strip.
@@ -284,6 +304,29 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       }),
     [outboxKey, scope],
   );
+  useEffect(() => {
+    const agentId = thread?.group_id ? null : (thread?.agent_id ?? null);
+    if (skillsAgent.current !== agentId) {
+      // Another chat: the last agent's skills, and its request still out, are not this one's.
+      skillsAgent.current = agentId;
+      skillsOf.current = null;
+      setSkills([]);
+    }
+    if (
+      !agentId ||
+      skillsOf.current === agentId ||
+      commandQuery(draft.split(/\s/)[0] ?? "") === null
+    )
+      return;
+    skillsOf.current = agentId;
+    void api
+      .get<Skill[]>(`/skills?agent_id=${encodeURIComponent(agentId)}`)
+      .then((rows) => {
+        if (skillsAgent.current === agentId) setSkills(rows);
+      })
+      // Without its skills the chat still offers its commands; the next chat asks again.
+      .catch(() => undefined);
+  }, [draft, thread?.agent_id, thread?.group_id]);
   const reportError = useRef(errorText);
   reportError.current = errorText;
   const say = useRef(t);
@@ -578,6 +621,15 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               setReactions((old) => new Map(old).set(value.message_id as string, rows));
             }
           }
+          // The chat's options as the server set them (from Web or another device): the
+          // web-search globe beside «+» follows them.
+          if (event.kind === "thread.updated") {
+            const value = event.payload as Partial<ThreadUpdatedPayload>;
+            if (value.thread_id === id && value.options) {
+              const options = { web_search: Boolean(value.options.web_search) };
+              setThread((old) => (old && old.id === id ? { ...old, options } : old));
+            }
+          }
           if (
             ![
               "run.delta",
@@ -858,15 +910,17 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       ),
     [runs],
   );
+  const timeline = conversationTimeline(
+    visibleMessages,
+    approvals.filter((row) => row.thread_id === id),
+    ownerActions.filter((row) => row.thread_id === id),
+    undrawn,
+    receipts.filter((row) => row.thread_id === id),
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `jumpAgain` repeats a jump to the same message
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
-    const index = conversationTimeline(
-      visibleMessages,
-      approvals.filter((row) => row.thread_id === id),
-      ownerActions.filter((row) => row.thread_id === id),
-      undrawn,
-      receipts.filter((row) => row.thread_id === id),
-    )
+    const index = [...timeline]
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
     if (index < 0) return;
@@ -877,15 +931,108 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
     // The message the jump landed on is marked for a moment, as on Web.
     const landed = visibleMessages.find((row) => row.seq === around);
-    if (landed) setFlash(landed.id);
-  }, [around, loaded, visibleMessages, approvals, ownerActions, receipts, id, undrawn]);
+    if (landed) setFlash({ id: landed.id });
+  }, [around, loaded, timeline, visibleMessages, jumpAgain]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const agent = agents.find((value) => value.id === thread?.agent_id);
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
-  const send = async (mentions?: MentionAddress, followUp?: string) => {
+  const commands = commandRows(
+    t,
+    {
+      group: Boolean(thread?.group_id),
+      symbol: agent?.trading_symbol,
+      // As Web: a trading agent, or one that shows the trading control (Lonora, an account,
+      // a level above analysis, a grant).
+      trading: agent
+        ? agent.template === "trading" ||
+          showsTradingControl({
+            role: agent.role,
+            trading_account_id: agent.trading_account_id,
+            level: permission?.effective_level,
+            grants: permission?.active_authorities.length,
+          })
+        : false,
+      name: title,
+      callable: Boolean(agent && !agent.paused),
+    },
+    thread?.group_id ? [] : skills,
+  );
+  /** A command that sends nothing opens what the chat already has; «ملخص» is sent at once. */
+  const runCommand = (row: CommandRow) => {
+    if (row.command === "summary")
+      // Sent at once with the reply it answers; send() takes that reply out of the composer
+      // once the message is queued (as on Web).
+      void send(
+        undefined,
+        `/${row.name}`,
+        { name: "summary", argument: "" },
+        reply?.id ?? null,
+      ).catch(() => undefined);
+    else if (row.command === "chart")
+      chartSheet.open({ threadId: id, ...(agent ? { botId: agent.id } : {}) });
+    else if (row.command === "call") {
+      if (agent && thread) void voice.start(agent, thread.id);
+    } else if (row.command === "clear") confirmClear();
+  };
+  /** «مسح»: asks, then hides this chat's history for the owner, as the list's «مسح» does. */
+  const confirmClear = () =>
+    sheets.open({
+      id: "clear-chat",
+      title: t("sh_clearMessagesQ"),
+      body: (
+        <View style={{ gap: 16 }}>
+          <Text
+            style={{
+              color: shellTheme.text,
+              fontSize: 16,
+              lineHeight: 26,
+              textAlign: rtl ? "right" : "left",
+            }}
+          >
+            {t(thread?.group_id ? "clearChatGroup" : "clearChatAgent")}
+          </Text>
+          <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 10 }}>
+            <Btn label={t("sh_cancel")} variant="outline" full onPress={() => sheets.close()} />
+            <Btn
+              label={t("sh_clear")}
+              variant="danger"
+              full
+              onPress={() => {
+                sheets.close();
+                void listsApi
+                  .clear(id)
+                  .then((prefs) => {
+                    patchInbox([prefs]);
+                    setMessages([]);
+                    setStreams({});
+                    // The draft's quote and files belonged to the cleared history.
+                    updateDraft({ text: "", attachments: [], reply: null });
+                    void snapshot();
+                  })
+                  .catch((reason) => setError(errorText(reason)));
+              }}
+            />
+          </View>
+        </View>
+      ),
+    });
+  // A group: «X يكتب» while a member's reply runs (as Web's header).
+  const replying = thread?.group_id
+    ? runs.find(
+        (run) => run.thread_id === id && ["queued", "leased", "running"].includes(run.status),
+      )
+    : undefined;
+  const typingName = replying ? agents.find((row) => row.id === replying.agent_id)?.name : null;
+  const send = async (
+    mentions?: MentionAddress,
+    followUp?: string,
+    asked?: ReturnType<typeof sentCommand>,
+    /** The reply a command sent at once answers (a follow-up has none otherwise). */
+    replyTo: string | null = null,
+  ) => {
     if (
       sendLocks.current.has(outboxKey) ||
       uploading ||
@@ -895,13 +1042,38 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       (!followUp && editing && !draft.trim())
     )
       return;
+    // «/» commands: never in an edit or a message with attached files, as on Web and as the
+    // composer's hint: a file still uploading is not attached yet.
+    let command = asked ?? null;
+    if (!followUp && !editing && !attachments.length) {
+      const typed = parseCommand(draft, commands);
+      if (typed) {
+        const option = typed.option;
+        if (option.argument && option.command !== "skill" && !typed.argument) {
+          // An LRM keeps the «/» before the command's name inside Arabic text.
+          setError(
+            fill(
+              t(option.command === "task" ? "cmdTaskMissing" : "cmdSearchMissing"),
+              `\u200e/${option.name}`,
+            ),
+          );
+          return;
+        }
+        command = sentCommand(option, typed.argument);
+        if (!command) {
+          updateDraft({ text: "", reply: null, attachments: [] });
+          runCommand(option);
+          return;
+        }
+      }
+    }
     const submittedDraft = composerDraft(outboxKey);
     const content = followUp?.trim() || draft.trim() || t("attach");
     const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
     // Files still uploading go with the message, which waits for them.
     const handed = followUp ? [] : handOver(outboxKey);
     const edit = followUp ? null : editing;
-    const reply_to = followUp || edit ? null : (reply?.id ?? null);
+    const reply_to = edit ? null : followUp ? replyTo : (reply?.id ?? null);
     const targetKey = outboxKey,
       targetId = id;
     const body = {
@@ -912,6 +1084,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       mention_all: mentions?.all ?? false,
       collaboration_session_id: mentions?.collaboration_session_id,
       ...(edit ? { edited_from: edit.id } : {}),
+      ...(command ? { command } : {}),
     };
     const fingerprint = JSON.stringify([targetId, body, handed.map((file) => file.id)]);
     sendLocks.current.add(targetKey);
@@ -927,9 +1100,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         handed,
         followUp ? [] : attachments,
       );
-      const nextDraft = followUp
-        ? composerDraft(targetKey)
-        : consumeComposerDraft(targetKey, submittedDraft.revision);
+      // A command sent at once took the composer's reply: queued, it leaves the composer.
+      const nextDraft = !followUp
+        ? consumeComposerDraft(targetKey, submittedDraft.revision)
+        : replyTo
+          ? editComposerDraft(targetKey, { reply: null })
+          : composerDraft(targetKey);
       if (current()) {
         following.current = true;
         setAtEnd(true);
@@ -938,7 +1114,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           markEditing(targetKey, false);
           setEditing(null);
         }
-        if (!followUp) {
+        if (!followUp || replyTo) {
           setDraft(nextDraft.text);
           setAttachments(nextDraft.attachments);
           setReply(nextDraft.reply);
@@ -975,6 +1151,35 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     await deliver(intent, outboxKey, id);
   };
   const questions = threadQuestions([...asking, ...runs], id);
+  // The globe beside «+»: the chat's web search off, as Web's composer button.
+  const webSearchOff = async () => {
+    try {
+      const row = await api.put<{ options?: { web_search?: boolean } }>(
+        `/threads/${encodeURIComponent(id)}/options`,
+        { web_search: false },
+      );
+      const options = { web_search: Boolean(row.options?.web_search) };
+      setThread((old) => (old && old.id === id ? { ...old, options } : old));
+      toast(t("webSearchOff"));
+    } catch (reason) {
+      toast(errorText(reason), { type: "error" });
+    }
+  };
+  // The agent's own suggested reply (Q23) under its last answer, as on Web: the answer is
+  // conversational (no generated interface, not a question) and nothing (a card) came after it.
+  const lastAgent = [...visibleMessages]
+    .reverse()
+    .find((row) => row.role !== "user" && !row.id.startsWith("preview:"));
+  const lastMine = [...visibleMessages].reverse().find((row) => row.role === "user");
+  const suggestion =
+    lastAgent?.suggested_reply &&
+    timeline.at(-1)?.kind === "message" &&
+    // As Web's hasGenUi: any generated interface, of either version.
+    !(lastAgent.rich_content?.parts ?? []).some((part) => part.type === "ui") &&
+    !questions.has(lastAgent.id) &&
+    lastMine?.content.trim() !== lastAgent.suggested_reply
+      ? lastAgent.suggested_reply
+      : "";
   // «+»: Files or Photos from the system picker (no storage or camera permission), several
   // at once; each file uploads on its own with a ring and a cancel, as on Web.
   const pick = async (kind: "files" | "photos") => {
@@ -1033,11 +1238,17 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             lead={<Icon name="image" size={22} color={shellTheme.text} />}
             title={t("pickPhotos")}
             sub={t("attachLimit")}
-            last
             onPress={() => {
               sheets.close();
               void pick("photos");
             }}
+          />
+          <WebSearchRow
+            threadId={id}
+            initial={Boolean(thread?.options?.web_search)}
+            onChange={(options) =>
+              setThread((old) => (old && old.id === id ? { ...old, options } : old))
+            }
           />
         </GroupBox>
       ),
@@ -1138,7 +1349,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   // A tap on a quote: the list rests on the quoted message (loaded around it when needed).
   const jumpTo = (message: Message) => {
     jumped.current = null;
-    router.setParams({ around: String(message.seq) });
+    // The same target again leaves the route unchanged: the jump runs again all the same,
+    // and marks the message again, as on Web.
+    if (around === message.seq) setJumpAgain((count) => count + 1);
+    else router.setParams({ around: String(message.seq) });
   };
   // Q22: Retry re-asks only an owner's reply, as the server and Web's error card do; the
   // banner shows one run, so mobile offers it for the newest such failure only.
@@ -1178,6 +1392,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     <Screen background={shell.background}>
       <ThreadHeader
         title={title}
+        subtitle={typingName ? fill(t("isTyping"), typingName) : null}
         settingsLabel={group ? t("groupSettings") : t("agentSettings")}
         onBack={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         onSettings={() => {
@@ -1340,13 +1555,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 ref={list}
                 testID="conversation-transcript"
                 inverted
-                data={conversationTimeline(
-                  visibleMessages,
-                  approvals.filter((row) => row.thread_id === id),
-                  ownerActions.filter((row) => row.thread_id === id),
-                  undrawn,
-                  receipts.filter((row) => row.thread_id === id),
-                ).reverse()}
+                data={[...timeline].reverse()}
                 keyExtractor={(item) => item.id}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
                 keyboardShouldPersistTaps="handled"
@@ -1456,7 +1665,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         onMenu={message.id.startsWith("preview:") ? undefined : menu.open}
                         onReactions={menu.reactions}
                         onQuote={jumpTo}
-                        flash={flash === message.id}
+                        flash={flash?.id === message.id}
                         onCallBack={
                           agent && thread && !thread.group_id
                             ? () => void voice.start(agent, thread.id)
@@ -1551,6 +1760,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 agent={agent}
                 threadId={id}
                 revision={permissionRevision}
+                onState={setPermission}
                 pendingTrade={approvals.some(
                   (row) =>
                     row.thread_id === id && row.agent_id === agent.id && row.status === "pending",
@@ -1567,6 +1777,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
+          commands={commands}
+          onCommand={runCommand}
+          suggestion={suggestion}
+          onSuggestion={(text) => updateDraft({ text })}
+          onWebSearchOff={thread?.options?.web_search ? () => void webSearchOff() : undefined}
           assist={prefs.assist}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}

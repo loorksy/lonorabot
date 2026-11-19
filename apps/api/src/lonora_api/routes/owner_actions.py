@@ -8,7 +8,7 @@ function for its effect: the owner attestation of an uncertain operation
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
-paused (``lonora_db.supervision``; never money authority). A Secret card's values
+paused (``lonora_db.pauses``; never money authority). A Secret card's values
 never come here: the card has its own route (``secret_cards``).
 Resuming, creating an agent, setting supervision, choosing a model and Undo are one
 tap.
@@ -68,11 +68,11 @@ from lonora_db.owner_actions import (
     supersede_subject,
     thread_cards,
 )
+from lonora_db.pauses import owner_resumes
 from lonora_db.schema import AgentRow, OwnerActionRow
 from lonora_db.supervision import (
     grant_supervision,
     owned_grant,
-    owner_resumes,
     revoke_supervision,
 )
 from lonora_db.threads import conversation_thread

@@ -40,7 +40,7 @@ class RoutineService:
             request = RoutineCreate.model_validate(
                 merged, context={"keep_run_at": "run_at" not in sent and not switching_on}
             )
-            from lonora_db.supervision import owner_takes_over
+            from lonora_db.pauses import owner_takes_over
 
             # The owner switching the routine on or off wins over a supervisor's pause;
             # saving its schedule with the switch unchanged leaves the pause as it is.
