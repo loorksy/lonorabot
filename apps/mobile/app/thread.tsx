@@ -152,7 +152,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [collaborationActive, setCollaborationActive] = useState(false);
   const [collaborationSessionId, setCollaborationSessionId] = useState<string>();
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
-  // The chat's financial operations, one order line each (Q30).
+  // The chat's financial operations, one order line each (Q30), except a confirmed one, which
+  // is its Execution Receipt (10.3).
   const [journal, setJournal] = useState<Journal[]>([]);
   const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
   const [receipts, setReceipts] = useState<ExecutionReceipt[]>([]);

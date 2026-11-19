@@ -1,7 +1,8 @@
 // The order line and its sheet, as on Web (Cards.tsx OrderLine / OrderSheetBody): one line per
-// financial operation of the chat with its durable state from packages/core (orderLineState):
-// «منفَّذ» only with evidence. A tap opens the sheet: the timeline, the evidence and, for an
-// operation with no answer, «حسم العملية» to its own settle card.
+// financial operation of the chat, except a confirmed one, which is its Execution Receipt
+// (10.3), with its durable state from packages/core (orderLineState): «منفَّذ» only with
+// evidence. A tap opens the sheet: the timeline, the evidence and, for an operation with no
+// answer, «حسم العملية» to its own settle card.
 import type { Journal } from "@lonora/contracts";
 import {
   financialBoundaryError,

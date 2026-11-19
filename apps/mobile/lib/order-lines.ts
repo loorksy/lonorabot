@@ -1,5 +1,6 @@
 // Order lines in the conversation, as on Web (Q30): one line per trading-journal operation of
-// this chat, at its anchor (the server's timeline_seq: before the first message after it),
+// this chat, except a confirmed one, which is its Execution Receipt (10.3; the chat drops it
+// before this), at its anchor (the server's timeline_seq: before the first message after it),
 // else by time; an operation of another chat never shows here.
 import type { Journal } from "@lonora/contracts";
 import type { ConversationItem } from "@lonora/core";
