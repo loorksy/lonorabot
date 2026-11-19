@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from check_streaming import Fixture
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import BrokerSessionRow, SecretRow
@@ -48,7 +49,12 @@ async def main() -> None:
             == "broker_account_already_connected"
         )
         secret_id = success["payload"]["secret_id"]
-        store = fixture.runtime.services(fixture.owner).secrets
+        # Broker values are read only through the broker layer's reader (7.2.3).
+        store = BrokerSecrets(
+            fixture.runtime.db,
+            fixture.runtime.settings.encryption_key.get_secret_value(),
+            fixture.owner,
+        )
         assert await store.read(secret_id) == "fixture-token"
         retry = await post(first_id + " ", provider="simulation", key="bad-replacement")
         assert retry.status_code == 409

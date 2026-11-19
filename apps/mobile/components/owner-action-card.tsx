@@ -9,7 +9,9 @@ import {
   ownerActionChoose,
   ownerActionText,
   rereadOwnerAction,
+  type SecretForm,
   submitCredential,
+  submitSecret,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -99,7 +101,6 @@ export function OwnerActionCard({
       decision: button.decision,
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
-    if (button.tier) body.tier = button.tier;
     if (button.trading_mode) body.trading_mode = button.trading_mode;
     if (button.outcome) {
       body.outcome = button.outcome;
@@ -149,6 +150,15 @@ export function OwnerActionCard({
           connected,
         } satisfies OwnerActionDecision),
       );
+    });
+  const save = (form: SecretForm) =>
+    run(async () => {
+      const sent = Object.fromEntries(
+        form.fields.map((field) => [field.key, values[field.key] ?? ""]),
+      );
+      setValues({});
+      // The values go only to the card's own route, which stores them encrypted.
+      onChange(await submitSecret((path, body) => api.post<OwnerAction>(path, body), row.id, sent));
     });
   const register = () =>
     run(async () => {
@@ -291,6 +301,28 @@ export function OwnerActionCard({
               )
             }
             onPress={() => void connect(spec.credential as CredentialForm)}
+          />
+        </View>
+      ) : null}
+      {spec.secret ? (
+        <View testID="owner-action-form-secret" style={{ gap: 8 }}>
+          {spec.secret.fields.map((field) => (
+            <Field
+              key={field.key}
+              label={field.label}
+              secureTextEntry={field.type === "password"}
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={values[field.key] ?? ""}
+              editable={!busy}
+              style={{ textAlign: "left", writingDirection: "ltr" }}
+              onChangeText={(value) => setValues((old) => ({ ...old, [field.key]: value }))}
+            />
+          ))}
+          <Button
+            label={spec.secret.submit}
+            disabled={busy || spec.secret.fields.some((field) => !(values[field.key] ?? "").trim())}
+            onPress={() => void save(spec.secret as SecretForm)}
           />
         </View>
       ) : null}

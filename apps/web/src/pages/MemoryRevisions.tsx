@@ -65,6 +65,7 @@ export function MemoryRevisions({
     const parts = [who];
     if (row.from_owner_message) parts.push(label("fromYourMessage"));
     if (row.change === "revert") parts.push(label("restoredChange"));
+    if (row.change === "restore") parts.push(label("restoredVersion"));
     return parts.join(" · ");
   };
   return (

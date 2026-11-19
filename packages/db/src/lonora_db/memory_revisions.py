@@ -15,9 +15,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import AgentRow, MemoryRevisionRow
 
+
+def _method_text(content: str) -> str:
+    from .memory import method_text
+
+    return method_text(content)
+
+
 Document = Literal["owner_profile", "owner_preferences", "agent_memory"]
 Author = Literal["owner", "agent", "system"]
-# Newest revisions kept per document; older ones are pruned on commit.
+# Newest revisions kept per document; older ones are pruned on commit. A revision that
+# changed an Agent's method (its OPERATING.md) is a method version and is never pruned
+# (5.5.5: any version can be restored).
 REVISIONS_KEPT = 100
 MAX_DIFF_LINES = 60
 DIFF_LINE_CHARS = 400
@@ -67,17 +76,36 @@ async def record_revision(
     )
     session.add(row)
     await session.flush()
-    kept = (
+    newest = (
         select(MemoryRevisionRow.id)
         .where(*scope)
         .order_by(MemoryRevisionRow.version.desc(), MemoryRevisionRow.created_at.desc())
-        .limit(REVISIONS_KEPT)
     )
-    await session.execute(
-        delete(MemoryRevisionRow)
-        .where(*scope, MemoryRevisionRow.id.not_in(kept))
-        .execution_options(synchronize_session=False)
+    if document != "agent_memory":
+        await session.execute(
+            delete(MemoryRevisionRow)
+            .where(*scope, MemoryRevisionRow.id.not_in(newest.limit(REVISIONS_KEPT)))
+            .execution_options(synchronize_session=False)
+        )
+        return row
+    # Only the row that just left the newest REVISIONS_KEPT is new to pruning: every
+    # older one still stored is a method version an earlier commit kept on purpose.
+    leaving = await session.scalars(
+        select(MemoryRevisionRow).where(
+            MemoryRevisionRow.id.in_(newest.offset(REVISIONS_KEPT).limit(5))
+        )
     )
+    doomed = [
+        item.id
+        for item in leaving
+        if _method_text(item.content) == _method_text(item.previous_content)
+    ]
+    if doomed:
+        await session.execute(
+            delete(MemoryRevisionRow)
+            .where(MemoryRevisionRow.id.in_(doomed))
+            .execution_options(synchronize_session=False)
+        )
     return row
 
 

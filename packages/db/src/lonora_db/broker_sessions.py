@@ -190,6 +190,37 @@ class BrokerSessionRepository(ResourceRepository):
         assert isinstance(row, BrokerSessionRow)
         return row
 
+    async def credentials_changed(
+        self,
+        session: AsyncSession,
+        owner_id: str,
+        resource_id: str,
+        *,
+        secret_id: str | None = None,
+        state: dict[str, Any] | None = None,
+    ) -> BrokerSessionRow:
+        """A credential of the same MetaApi account changed (9.3): its password at MetaApi,
+        or the token it names. The version moves, so every cached adapter drops the old
+        credential and the door's version fence sees the change; the verified identity is
+        carried over, because the account is the same one. Callers hold the account's send
+        lock. Changing the account itself is a new connection, never this."""
+        await self.lock_owner(session, owner_id)
+        row = await self.get(session, owner_id, resource_id, lock=True)
+        identity = current_broker_identity(row)
+        if row.payload.get("provider") != "metaapi" or identity is None:
+            raise LonoraError("broker_identity_unavailable", 503)
+        if secret_id is not None:
+            row.payload = {**row.payload, "secret_id": secret_id}
+        row.version += 1
+        row.updated_at = utcnow()
+        row.state = {
+            **row.state,
+            **(state or {}),
+            "broker_identity": {**identity, "connection_version": row.version},
+        }
+        assert isinstance(row, BrokerSessionRow)
+        return row
+
     async def update(
         self,
         session: AsyncSession,

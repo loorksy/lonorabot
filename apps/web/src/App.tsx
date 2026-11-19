@@ -1,12 +1,20 @@
 import { Trans } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
-import { ApiError, isRequestCancelled, resetSessionRequests } from "./lib/api";
+import {
+  ApiError,
+  isRequestCancelled,
+  isServiceUnavailable,
+  resetSessionRequests,
+} from "./lib/api";
 import { auth, type Owner } from "./lib/auth";
 import { onboardingStatus } from "./lib/bootstrap";
 import { userError } from "./lib/user_error";
 import { ClientProvider } from "./providers/ClientProvider";
+import { LogoMark } from "./shell/LogoMark";
 import { Shell } from "./shell/Shell";
+import { MaintenanceOverlay, StatePage } from "./shell/StatePage";
 import { AuthFlow } from "./shell/settings/AuthFlow";
+import { ToastProvider } from "./shell/Toast";
 export default function App() {
   const [owner, setOwner] = useState<Owner | null>(null);
   const [initialized, setInitialized] = useState<boolean>();
@@ -15,6 +23,8 @@ export default function App() {
   const [expired, setExpired] = useState(false);
   // The reference reopens the intro slides when the owner signs out (signOut → authOpen("intro")).
   const [signedOut, setSignedOut] = useState(false);
+  // Counts the tries to start: a retry asks the server again, without reloading the page.
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const expired = () => {
       resetSessionRequests();
@@ -24,8 +34,10 @@ export default function App() {
     window.addEventListener("lonora:session-expired", expired);
     return () => window.removeEventListener("lonora:session-expired", expired);
   }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the retry trigger
   useEffect(() => {
     let live = true;
+    setError(undefined);
     void onboardingStatus()
       .then(async (status) => {
         let account: Owner | null = null;
@@ -46,24 +58,49 @@ export default function App() {
     return () => {
       live = false;
     };
-  }, []);
-  if (error != null)
+  }, [attempt]);
+  const retry = () => setAttempt((count) => count + 1);
+  if (error != null) {
+    const offline = navigator.onLine === false;
     return (
-      <main className="auth-card">
-        <p role="alert">{userError(error)}</p>
-        <button type="button" onClick={() => location.reload()}>
-          <Trans>Retry</Trans>
-        </button>
-      </main>
+      <div className="app-shell">
+        {isServiceUnavailable(error) ? (
+          <ToastProvider>
+            <MaintenanceOverlay onReady={retry} />
+          </ToastProvider>
+        ) : (
+          <div id="app-state">
+            <StatePage
+              icon={offline ? "wifiOff" : "alert"}
+              title={
+                offline ? (
+                  <Trans>No internet connection</Trans>
+                ) : (
+                  <Trans>An unexpected error occurred</Trans>
+                )
+              }
+              text={userError(error)}
+              actions={
+                <button type="button" className="btn primary" onClick={retry}>
+                  <Trans>Try again</Trans>
+                </button>
+              }
+            />
+          </div>
+        )}
+      </div>
     );
+  }
   if (initialized === undefined)
     return (
-      <main className="workspace-loading" role="status" data-testid="workspace-loading">
-        <span className="workspace-loading-mark" aria-hidden="true">
-          L
-        </span>
-        <Trans>Opening workspace…</Trans>
-      </main>
+      <div className="app-shell">
+        <main className="boot" role="status" data-testid="workspace-loading">
+          <span className="logo-hero">
+            <LogoMark size={64} />
+          </span>
+          <Trans>Opening workspace…</Trans>
+        </main>
+      </div>
     );
   if (!owner)
     return (

@@ -22,7 +22,7 @@
 #
 # Environment:
 #   OLD_SHA                  commit for "old" (default 80e195f, main before this tooling)
-#   LONORA_TEST_SKIP_APT=1   drop the Chromium/fonts apt-get line (only where the Debian mirror
+#   LONORA_TEST_SKIP_APT=1   drop the apt-get step (only where the Debian mirror
 #                            is unreachable; /ready does not need them, charts do)
 #   LONORA_BUILD_CA_FILE     a CA bundle for a TLS-intercepting proxy, passed as build secrets
 #   LONORA_BUILD_NETWORK     docker build --network value (e.g. host, for a proxy on 127.0.0.1)
@@ -37,7 +37,7 @@ build() { # $1 source dir, $2 tag, rest: extra docker build args
     local src="$1" tag="$2"; shift 2
     local dockerfile="$work/Dockerfile.$RANDOM"
     if [[ -n "${LONORA_TEST_SKIP_APT:-}" ]]; then
-        sed '/apt-get install -y --no-install-recommends fonts-dejavu-core chromium/d' "$src/Dockerfile" >"$dockerfile"
+        sed '/^RUN apt-get update/,/rm -rf \/var\/lib\/apt\/lists/d' "$src/Dockerfile" >"$dockerfile"
     else
         cp "$src/Dockerfile" "$dockerfile"
     fi

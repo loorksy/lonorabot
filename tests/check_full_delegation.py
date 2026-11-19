@@ -24,7 +24,6 @@ from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_agent.context.permissions import permission_context
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
-from lonora_contracts.trading import TradingControl
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run, run_data
 from lonora_db.schema import (
@@ -37,7 +36,6 @@ from lonora_db.schema import (
 )
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from sqlalchemy import func, select
 
 GOLD, EURO = "XAUUSDm", "EURUSDm"
@@ -100,10 +98,8 @@ def snapshot() -> dict[str, Any]:
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     registry = load_tools()
     try:
-        await save_controls(db, TradingControl(enabled=True))
         connection = await fixture.request(
             "POST",
             "/trading/connections",
@@ -695,7 +691,6 @@ async def main() -> None:
             assert signed.envelope == active[0].envelope
         print("PASS a card stored before the choice reads as Custom; signed grants stay as signed")
     finally:
-        await save_controls(db, original)
         await fixture.close()
 
 

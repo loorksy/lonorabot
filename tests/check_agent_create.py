@@ -191,7 +191,7 @@ async def main() -> None:
         lead_model = ModelSelection(provider="openai", model="lead-model-" + uuid4().hex[:6])
         async with db.sessions() as session, session.begin():
             await change_agent_model(
-                session, owner, lonora_id, AgentModelChange(mode="fixed", primary=lead_model)
+                session, owner, lonora_id, AgentModelChange(primary=lead_model)
             )
 
         # 1. «أنشئ وكيل ذهب بصلاحية كاملة»: Lonora creates it at once, flat, in Ask, and

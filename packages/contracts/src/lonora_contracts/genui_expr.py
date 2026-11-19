@@ -1,4 +1,4 @@
-"""The lonora-ui v2 expression language, values only (GENUI_PLAN §2.2, §7.3).
+"""The lonora-ui v2 expression language, values only (docs/genui.md).
 
 The grammar is the reference's (Desktop-37 6287-6356): numbers without sign or exponent,
 '…' or "…" strings without escapes, ``$state``, ``@Fn(...)``, locals and calc names,

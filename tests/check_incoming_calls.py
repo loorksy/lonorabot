@@ -10,7 +10,6 @@ from lonora_contracts.incoming_calls import IncomingCallPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import AgentRow, AttentionRow, DeviceCredentialRow, EventRow, VoiceSessionRow
-from lonora_db.transactions import SettingsRepository
 from lonora_voice.incoming import (
     ProviderAccepted,
     call_data,
@@ -70,7 +69,6 @@ async def main():
                 f.owner,
                 IncomingCallPolicy(enabled=True, device_id=device, minimum_interval_seconds=60),
             )
-            await SettingsRepository().put(session, "trading_control", {"emergency_stop": True})
 
         async def attention():
             identifier = new_id()
@@ -82,7 +80,7 @@ async def main():
                         agent_id=agent["id"],
                         thread_id=thread["id"],
                         importance="critical",
-                        code="emergency_stop",
+                        code="run_quarantined",
                         status="ready",
                         logical_key=identifier,
                         coalesce_key=identifier,
@@ -201,9 +199,6 @@ async def main():
             async with restarted.sessions() as session:
                 row = await session.get(VoiceSessionRow, call_id)
                 assert row and row.payload["status"] == "cancelled"
-                assert (await SettingsRepository().get(session, "trading_control"))[
-                    "emergency_stop"
-                ]
 
             async def fresh_call():
                 # Independent invitations without wall-clock sleeps or rate bypasses in code.

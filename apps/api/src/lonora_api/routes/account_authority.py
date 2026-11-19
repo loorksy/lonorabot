@@ -78,7 +78,7 @@ async def draft(
     grant card with the exact payload and its hash. Nothing is active until the owner
     signs it with the passkey: ``POST /owner-actions/{id}/challenge`` then
     ``POST /owner-actions/{id}/decision`` with the proof (and the card's own choices:
-    ``money_limit``, ``stop_authorities``, ``resume_trading``)."""
+    ``money_limit``, ``stop_authorities``)."""
     rt = runtime(request)
     async with rt.db.sessions() as session:
         agent = await require_financial_agent(session, owner.id, agent_id)

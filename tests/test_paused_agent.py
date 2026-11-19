@@ -12,7 +12,6 @@ from uuid import uuid4
 
 import pytest
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from test_proactive_wakes import call, database, retire, simulation
 
@@ -45,15 +44,12 @@ async def test_a_paused_agent_wakes_for_its_ticket_closes_it_and_adds_no_risk(mo
     from lonora_db.schema import RoutineRow, RunRow, TradeApprovalRow
     from lonora_db.trading_mode import set_trading_mode
     from lonora_trading.broker_recovery import wake_for_activity
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import func, select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         gold = await fixture.agent("Paused " + mode, supervised=True)
         thread = await fixture.conversation(gold)
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -219,7 +215,6 @@ async def test_a_paused_agent_wakes_for_its_ticket_closes_it_and_adds_no_risk(mo
                 row.status = "cancelled"
             await session.commit()
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
