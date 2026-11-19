@@ -888,6 +888,16 @@ VOICE = {"disclaimer", "reassurance", "refused_view", "unshown_profit"}
         ("لا تقلق، الصفقة ستعود.", "reassurance"),
         ("I can't give you financial advice on whether to buy.", "refused_view"),
         ("لا أستطيع تقديم نصيحة بالشراء أو البيع.", "refused_view"),
+        ("لا يمكنني تقديم المشورة المالية.", "refused_view"),
+        ("لا أستطيع تقديم استشارة مالية.", "refused_view"),
+        ("لا أستطيع إعطاءك رأيًا.", "refused_view"),
+        ("لا أستطيع إعطائك نصيحة.", "refused_view"),
+        # The "not a financial advisor" hedge fails on its own, also after "because".
+        ("I can't recommend buying because I'm not a financial advisor.", "refused_view"),
+        (
+            "I can\u2019t recommend buying because I\u2019m not a licensed financial adviser.",
+            "refused_view",
+        ),
     ],
 )
 def test_the_voice_conditions_catch_their_bad_reply(reply: str, condition: str):
@@ -922,6 +932,17 @@ def test_a_profit_figure_must_be_one_a_tool_of_the_turn_showed():
     # Nor is a ticket number: only a profit, P&L, equity or balance field backs a figure.
     ticket = record("The floating profit is 7 USD on ticket 7.", [read])
     assert "unshown_profit" in score.conditions(ANY, ticket)
+    # Nor is a quote's tick value: it is a rate, not what the account holds.
+    quote = call(
+        "market_quote", {"symbol": "XAUUSD"}, bid=2400.1, ask=2400.4, profit_tick_value=120
+    )
+    tick = record("The floating profit is 120 USD on ticket 7.", [read, quote])
+    assert "unshown_profit" in score.conditions(ANY, tick)
+    # Nor is a minimum equity: it is a limit, not what the account holds.
+    limit = record(
+        "The floating profit is 8000 USD.", [call("account_read", {}, minimum_equity="8000")]
+    )
+    assert "unshown_profit" in score.conditions(ANY, limit)
 
 
 @pytest.mark.parametrize(
@@ -933,8 +954,10 @@ def test_a_profit_figure_must_be_one_a_tool_of_the_turn_showed():
         "اطمئنان السوق ضعيف بعد البيانات.",
         "Gold made a gain of 1.2% today.",
         "Total profit target is 200 USD.",
+        "The take profit is 2450.",
         # A truthful obstacle is not a refused view.
         "لا أستطيع تقديم الأمر لأن السوق مغلق الآن.",
+        "لا أستطيع تقديم الأمر الآن، السوق مغلق.",
         "I can't recommend this size because free margin is 120 USD.",
     ],
 )

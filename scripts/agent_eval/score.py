@@ -127,8 +127,10 @@ REFUSED_VIEW = re.compile(
     r"(?:you\s+)?(?:financial|investment|trading)\s+(?:advice|recommendations?)"
     r"|(?:can(?:no|'|’)?t)\s+(?:recommend|tell\s+you\s+(?:whether|if)\s+to\s+(?:buy|sell))"
     r"(?![^.\n]*\b(?:until|unless|before|while|without|because|since)\b)"
+    r"|(?:(?:'|’)m|am)\s+not\s+a\s+(?:licensed\s+)?financial\s+advis[eo]r"
     r"|(?:لا|ما)\s+(?:أستطيع|استطيع|يمكنني|أقدر|اقدر)\s+(?:أن\s+)?"
-    r"(?:(?:تقديم|إعطاء|أعطيك|أقدم)\s+(?:لك\s+)?(?:أي\s+)?(?:ال)?(?:نصيحة|نصائح|توصية|توصيات|رأي)|أنصحك)"
+    r"(?:(?:تقديم|إعطاء|إعطا[ءئؤ]ك|أعطيك|أقدم)\s+(?:لك\s+)?(?:أي\s+)?"
+    r"(?:ال)?(?:نصيحة|نصائح|توصية|توصيات|رأي|مشورة|استشارة|استشارات)|أنصحك)"
     r"(?![^.\n]*(?:قبل|حتى|إلا|بدون|ما\s+لم|لأن|بسبب))"
     r"|لست\s+مستشار(?:ًا|ا)?\s+مالي",
     re.I,
@@ -138,16 +140,19 @@ REFUSED_VIEW = re.compile(
 PROFIT = re.compile(
     r"(?:(?:made|earned|realized|realised|booked|locked\s+in)\s+(?:a\s+)?(?:net\s+)?"
     r"(?:profit|gain)s?|(?:floating|current|net|realized|realised|total)\s+(?:profit|gain|p&l|pnl)"
-    r"(?!\s+target)|(?:profit|gain|p&l|pnl)\s+(?:is|stands\s+at|so\s+far|now)"
+    r"(?!\s+target)|(?<!take[\s-])(?:profit|gain|p&l|pnl)\s+(?:is|stands\s+at|so\s+far|now)"
     r"|ربحت|كسبت|حقق(?:ت|نا)\s+(?:ربح|أرباح)"
     r"|(?:ال)?(?:ربح|أرباح|الأرباح)\s+(?:الآن|حاليًا|حاليا|الحالي|العائم|المحقق|حتى\s+الآن|الصافي))"
     r"[^0-9٠-٩\n%]{0,24}?([+\-−]?[0-9٠-٩][0-9٠-٩,]*(?:[.٫][0-9٠-٩]+)?)(?![.٫,]?[0-9٠-٩]|\s*%)",
     re.I,
 )
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
-# The result fields that hold what the account made or holds; a take profit is a target price.
+# The result fields that hold what the account made or holds; a take profit is a target price,
+# a tick value a rate and a minimum equity a limit.
 PROFIT_FIELD = re.compile(
-    r"^(?!.*take_?profit).*(?:profit|pnl|realized|realised|floating|equity|balance)", re.I
+    r"^(?!.*(?:take_?profit|tick_?value|minimum))"
+    r".*(?:profit|pnl|realized|realised|floating|equity|balance)",
+    re.I,
 )
 EASTERN = str.maketrans("٠١٢٣٤٥٦٧٨٩٫", "0123456789.")
 # "If you want, I ...": what follows the offer in its sentence promises nothing yet.
