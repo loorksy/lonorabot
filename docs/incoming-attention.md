@@ -76,7 +76,10 @@ wake in the work lane reports to the conversation it came from, `report_thread` 
   publishes it (`publish_ready`, shared with server alerts).
 - The owner's informational preference applies as for server alerts. (The reach-me
   choice "activity only" was removed with the activity log page, mandate P5; stored
-  preferences that named it became "message", migration 0173.)
+  preferences that named it became "message", migration 0173, which records that move
+  once in the owner's preference history as the system's change. The history the owner
+  wrote keeps "activity only", and undoing a change back to it is refused with
+  `reach_me_choice_removed`.)
 - `critical` and `action_required` alerts are ready at once; others within seconds.
 - Delivery is in-app only (`delivery: "in_app"`): Web and Mobile show the label
   "Your agent alerted you" / «نبّهك وكيلك» with the summary in its own text direction.

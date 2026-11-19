@@ -37,6 +37,9 @@ test("every profile, reach-me and language label exists in Arabic and English", 
 test("recorded preference changes read as plain words and never as raw values", () => {
   assert.equal(preferenceFieldLabel("reach_me", "en"), "How to reach you");
   assert.equal(preferenceValueText("reach_me", "message", "ar"), "راسلني");
+  // «النشاط فقط» is no longer offered, but the history the owner chose it in stays readable.
+  assert.equal(preferenceValueText("reach_me", "activity", "ar"), "النشاط فقط");
+  assert.equal(preferenceValueText("reach_me", "activity", "en"), "Activity only");
   assert.equal(preferenceValueText("reply_language", "ar", "en"), "Arabic");
   assert.equal(preferenceValueText("reply_language", null, "en"), "Not set");
   assert.equal(preferenceValueText("opportunity_calls", true, "ar"), "مفعّل");
@@ -72,6 +75,7 @@ test("undo names what it does and why it may be refused, in both languages", () 
     "incoming_call_quiet_hours_incomplete",
     "incoming_call_quiet_hours_empty",
     "incoming_call_channel_conflict",
+    "reach_me_choice_removed",
   ]) {
     assert.ok(ownerProfileError(code, "en"), code);
     assert.ok(arabic.test(ownerProfileError(code, "ar") ?? ""), code);

@@ -1,8 +1,10 @@
 """Migration 0173: a stored reach-me preference of "activity only" becomes "message".
 
 PostgreSQL only (LONORA_DATABASE_URL): downgrade below 0173, store the old choice,
-upgrade, and read the preference through its contract again. An owner-preference
-revision that names the old choice is rewritten too, so undoing it still works.
+upgrade, and read the preference through its contract again. The owner did not make
+the move, so it is recorded once in his preference history as the system's change;
+the history he wrote keeps "activity only" as he chose it, and undoing a change back
+to it is refused with a reason.
 """
 
 import asyncio
@@ -14,9 +16,11 @@ from pathlib import Path
 
 from check_streaming import Fixture
 from lonora_contracts.incoming_calls import IncomingCallPolicy
-from lonora_db.memory_revisions import record_revision
+from lonora_core.user_error import LonoraError
+from lonora_db.memory_revisions import list_revisions, record_revision
 from lonora_db.owner_profile import (
     REACH_ME_KEY,
+    preference_changes,
     preferences_snapshot,
     reach_me_policy,
     revert_revision,
@@ -38,14 +42,25 @@ def alembic(action: str, revision: str) -> None:
     )
 
 
+async def refused(owner: str, revision_id: str, fixture: Fixture) -> str:
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await revert_revision(session, owner, revision_id)
+    except LonoraError as error:
+        return error.code
+    return "undone"
+
+
 async def main() -> None:
     fixture = await Fixture().open()
     try:
         key = REACH_ME_KEY + fixture.owner
-        # A change from "activity only" to "notify", stored before the choice was removed.
+        # The owner's change from "activity only" to "notify", stored before the choice
+        # was removed.
         after = preferences_snapshot(IncomingCallPolicy(channel="notify"), None)
         before = json.loads(after)
         before["reach_me"]["channel"] = "activity"
+        owner_before = json.dumps(before, sort_keys=True, ensure_ascii=False)
         async with fixture.runtime.db.sessions() as session, session.begin():
             revision = await record_revision(
                 session,
@@ -53,12 +68,12 @@ async def main() -> None:
                 document="owner_preferences",
                 agent_id=None,
                 version=None,
-                previous_content=json.dumps(before, sort_keys=True, ensure_ascii=False),
+                previous_content=owner_before,
                 content=after,
                 author="owner",
                 change="preferences",
             )
-            revision_id = revision.id
+            owner_revision = revision.id
         await asyncio.to_thread(alembic, "downgrade", PREVIOUS)
         async with fixture.runtime.db.sessions() as session, session.begin():
             await session.execute(text("DELETE FROM ln_settings WHERE key = :key"), {"key": key})
@@ -81,29 +96,25 @@ async def main() -> None:
         assert (policy.quiet_start_hour, policy.quiet_end_hour) == (22, 6)
         print("PASS migration 0173 turns a stored 'activity only' reach-me into 'message'")
         async with fixture.runtime.db.sessions() as session:
-            stored = await session.get(MemoryRevisionRow, revision_id)
+            rows = await list_revisions(session, fixture.owner, ("owner_preferences",))
+            stored = await session.get(MemoryRevisionRow, owner_revision)
             assert stored is not None
-            previous, content = json.loads(stored.previous_content), json.loads(stored.content)
-        assert previous["reach_me"]["channel"] == "message", previous
-        assert content["reach_me"]["channel"] == "notify", content
-        assert stored.content == after, "an untouched side keeps its exact text"
-        # Undoing that change validates and restores the default, never "activity".
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            await session.execute(
-                text("UPDATE ln_settings SET payload = CAST(:payload AS JSON) WHERE key = :key"),
-                {
-                    "key": key,
-                    "payload": json.dumps(
-                        IncomingCallPolicy(channel="notify").model_dump(mode="json")
-                    ),
-                },
-            )
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            await revert_revision(session, fixture.owner, revision_id)
+            kept = (stored.previous_content, stored.content, stored.version)
+        moved = [row for row in rows if row.change == "choice_removed"]
+        assert len(moved) == 1 and moved[0].author == "system", rows
+        assert rows[0].id == moved[0].id and moved[0].version > kept[2], "the newest change"
+        assert preference_changes(moved[0].previous_content, moved[0].content) == [
+            {"field": "reach_me", "before": "activity", "after": "message"}
+        ]
+        assert kept[:2] == (owner_before, after), "the owner's own history is never rewritten"
+        print("PASS the move is recorded once as the system's change; the owner's stays")
+        for revision_id in (owner_revision, moved[0].id):
+            assert await refused(fixture.owner, revision_id, fixture) == "reach_me_choice_removed"
         async with fixture.runtime.db.sessions() as session:
             policy = await reach_me_policy(session, fixture.owner, fresh=True)
-        assert policy.channel == "message", policy
-        print("PASS a stored 'activity only' preference change is rewritten and can be undone")
+            count = len(await list_revisions(session, fixture.owner, ("owner_preferences",)))
+        assert policy.channel == "message" and count == len(rows), "nothing else was saved"
+        print("PASS undoing a change back to 'activity only' is refused and saves nothing")
     finally:
         await fixture.close()
 

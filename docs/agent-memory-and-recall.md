@@ -210,7 +210,8 @@ what the change did. A downgrade therefore still finds every earlier preference 
 
 Every commit to the owner profile, the structured preferences or an Agent's
 memory stores one `ln_memory_revisions` row: the text before and after, the
-author (`owner`, `agent` with its Agent id, or `system` for the merge), the owner
+author (`owner`, `agent` with its Agent id, or `system` for the merge and for the
+reach-me move of migration 0173), the owner
 message an Agent answered, the Run and the kind of change. The newest 100 are kept
 per document. The owner API lists them with a bounded line diff (or, for
 preferences, plain field changes without device identifiers):
@@ -227,7 +228,9 @@ preferences, plain field changes without device identifiers):
   wrote, nothing is saved and the answer is `memory_revert_conflict` (409): undo the
   later change first or edit the text. For preferences only the settings that
   change touched go back (undoing an Agent's "reply in Arabic" leaves a later "message
-  me instead of calling" as it is). The document is locked before anything is read.
+  me instead of calling" as it is); a change whose earlier reach-me was the removed
+  "activity only" is not undone (`reach_me_choice_removed`, 409). The document is
+  locked before anything is read.
 
 On the web the profile lives in Settings: «الملف الشخصي» (`/app/owner`) edits the name, the
 form of address, the time zone and the profile text, lists what agents wrote and shows the

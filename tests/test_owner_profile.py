@@ -146,6 +146,34 @@ def test_undoing_an_older_preference_change_keeps_later_unrelated_settings():
     assert error.value.code == "incoming_call_device_required"
 
 
+def test_undoing_a_change_away_from_activity_only_says_the_choice_is_gone():
+    # History keeps «النشاط فقط» as the owner chose it (migration 0173 never rewrites it).
+    after = preferences_snapshot(
+        IncomingCallPolicy(channel="notify", quiet_start_hour=22, quiet_end_hour=6), None
+    )
+    before = json.loads(after)
+    before["reach_me"]["channel"] = "activity"
+    stored = MemoryRevisionRow(previous_content=json.dumps(before), content=after)
+    assert preference_changes(stored.previous_content, stored.content) == [
+        {"field": "reach_me", "before": "activity", "after": "notify"}
+    ]
+    with pytest.raises(LonoraError) as error:
+        undone_preferences(stored, IncomingCallPolicy(channel="notify"))
+    assert error.value.code == "reach_me_choice_removed"
+    # A change made while «النشاط فقط» was chosen still undoes what it touched.
+    no_quiet = {
+        key: None
+        for key in ("quiet_start_hour", "quiet_end_hour", "quiet_start_minute", "quiet_end_minute")
+    }
+    quiet = MemoryRevisionRow(
+        previous_content=json.dumps({**before, "reach_me": {**before["reach_me"], **no_quiet}}),
+        content=json.dumps(before),
+    )
+    current = IncomingCallPolicy(channel="message", quiet_start_hour=22, quiet_end_hour=6)
+    policy, _ = undone_preferences(quiet, current)
+    assert policy is not None and policy.channel == "message" and policy.quiet_start_hour is None
+
+
 def test_reach_me_checks_name_what_the_owner_should_fix():
     for payload, code in (
         ({"channel": "call"}, "incoming_call_device_required"),

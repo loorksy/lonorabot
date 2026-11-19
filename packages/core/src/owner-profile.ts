@@ -19,6 +19,9 @@ const channels: Readonly<Record<ReachMe, Text>> = {
   call: { en: "Call me", ar: "اتصل بي" },
 };
 
+// «النشاط فقط» is no longer offered (P5); earlier history still names it in plain words.
+const activityOnly: Text = { en: "Activity only", ar: "النشاط فقط" };
+
 const channelHints: Readonly<Record<ReachMe, Text>> = {
   // Agents cannot raise inbox alerts of their own yet; the hint promises only what happens.
   notify: {
@@ -142,6 +145,10 @@ const errors: Readonly<Record<string, Text>> = {
     en: "Choose a valid time zone, such as Asia/Riyadh.",
     ar: "اختر منطقة زمنية صحيحة، مثل Asia/Riyadh.",
   },
+  reach_me_choice_removed: {
+    en: "“Activity only” is no longer a choice, so nothing was undone. Choose another way to reach you.",
+    ar: "لم يعد «النشاط فقط» خيارًا متاحًا، فلم يُتراجع عن شيء. اختر طريقة أخرى للتواصل معك.",
+  },
   memory_revert_conflict: {
     en: "A later change edited the same lines, so nothing was undone. Undo that later change first, or edit the text directly.",
     ar: "عدّل تغيير لاحق الأسطر نفسها، فلم يُتراجع عن شيء. تراجع عن ذلك التغيير اللاحق أولًا، أو عدّل النص مباشرة.",
@@ -185,6 +192,7 @@ export function preferenceValueText(field: string, value: unknown, locale: strin
   if (typeof value === "boolean") return pick(value ? labels.on : labels.off, locale);
   if (field === "reach_me" && typeof value === "string" && value in channels)
     return pick(channels[value as ReachMe], locale);
+  if (field === "reach_me" && value === "activity") return pick(activityOnly, locale);
   if (field === "reply_language" && (value === "ar" || value === "en"))
     return pick(languages[value], locale);
   return String(value);
