@@ -242,7 +242,7 @@ class VisualReplyProjector:
         )
         self.scope: AgentScope | None = None
         self.cards: dict[str, dict[str, Any] | None] = {}
-        self.slots: dict[str, frozenset[tuple[str, str]]] = {}
+        self.slots: dict[str, dict[tuple[str, str], int]] = {}
 
     async def slot_scope(self, scope: AgentScope, blocks: list[dict[str, Any]]) -> AgentScope:
         """The scope with the records this card's slots name, read once per record set."""
@@ -252,14 +252,12 @@ class VisualReplyProjector:
         key = "\n".join(ids)
         if key not in self.slots:
             async with self.context.db.sessions() as session:
-                self.slots[key] = frozenset(
-                    await slot_records(
-                        session,
-                        self.context.owner_id,
-                        self.context.lease.run_id,
-                        self.context.thread_id,
-                        ids,
-                    )
+                self.slots[key] = await slot_records(
+                    session,
+                    self.context.owner_id,
+                    self.context.lease.run_id,
+                    self.context.thread_id,
+                    ids,
                 )
         return replace(scope, slot_records=self.slots[key])
 

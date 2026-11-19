@@ -77,7 +77,9 @@ async def polled(db: Database, monkeypatch: pytest.MonkeyPatch) -> set[str]:
     """The watches one poll of the evaluator takes."""
     seen: set[str] = set()
 
-    async def check(_: Database, __: BrokerManager, original: MarketWatchRow, *args: Any) -> int:
+    async def check(
+        _: Database, __: BrokerManager, original: MarketWatchRow, *args: Any, **kwargs: Any
+    ) -> int:
         seen.add(original.id)
         return 0
 
