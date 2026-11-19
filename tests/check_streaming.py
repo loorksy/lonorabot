@@ -143,13 +143,13 @@ class Fixture:
                 agent_id=row.agent_id,
                 run_id=row.id,
             )
-        return self.gateway().tool_context(
+        return self.runtime.services(self.owner).tool_context(
             run["agent_id"], run["thread_id"], lease, self.settings.artifact_root
         )
 
     def context(self, data: dict[str, Any]) -> ToolContext:
         run = data["run"]
-        return self.gateway().tool_context(
+        return self.runtime.services(self.owner).tool_context(
             run["agent_id"],
             run["thread_id"],
             Lease.model_validate(data["lease"]),
@@ -157,8 +157,9 @@ class Fixture:
         )
 
     def gateway(self) -> OwnerServices:
-        """The Gateway's services for the owner. Agents' tools and Gateway steps run in the
-        Gateway, which alone keeps MetaApi connections; the API runtime relays to it."""
+        """The Gateway's services for the owner: the Gateway alone keeps MetaApi
+        connections, and the API runtime relays MetaApi work to it. A test of a MetaApi
+        account runs tools and Gateway steps on these, as production does."""
         if self._gateway is None:
             settings = self.settings
             self._gateway = OwnerServices.create(

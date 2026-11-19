@@ -44,7 +44,11 @@ async def connected(world: World, agent: dict[str, Any], account: str) -> str:
 
 
 async def asked(fixture: Any, agent: dict[str, Any], text: str) -> Any:
-    return await owner_says(fixture, agent, await fixture.conversation(agent), text)
+    context = await owner_says(fixture, agent, await fixture.conversation(agent), text)
+    # The agent's run, and so its tools, runs in the Gateway (the only MetaApi connections).
+    return fixture.gateway().tool_context(
+        context.agent_id, context.thread_id, context.lease, fixture.settings.artifact_root
+    )
 
 
 async def row(fixture: Any, connection_id: str) -> Any:
