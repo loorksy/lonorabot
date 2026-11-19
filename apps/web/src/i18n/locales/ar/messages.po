@@ -103,7 +103,7 @@ msgstr "{0} من {1}"
 #. placeholder {0}: isolate(agent.name)
 #: src/shell/agent/AgentPage.tsx:522
 msgid "{0} reads and steers every team agent by its role."
-msgstr "{0} تقرأ عمل كل وكيل في الفريق وتوجّهه بدورها."
+msgstr "{0} تقرأ عمل كل وكيل في الفريق وتوجّهه بحكم دورها."
 
 #. placeholder {0}: summary.usage.requests
 #: src/conversation/PermissionMenu.tsx:481

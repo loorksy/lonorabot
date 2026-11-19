@@ -45,7 +45,7 @@ export const supervisionLabels = {
     byYou: "عيّنته أنت",
     fromMessage: "من رسالتك",
     fromCard: "من بطاقة",
-    none: "تقود لونورا هذا الوكيل بدورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
+    none: "تقود لونورا هذا الوكيل بحكم دورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
     unnamed: "وكيل",
   },
 } as const satisfies Record<Language, Record<string, string>>;
