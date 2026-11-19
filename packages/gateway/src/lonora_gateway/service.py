@@ -225,7 +225,11 @@ class Gateway:
     async def calendar(self) -> None:
         from lonora_market.economic_calendar import cache_calendar
 
-        await self.for_each_owner(lambda service: cache_calendar(self.db, service.owner_id))
+        await self.for_each_owner(
+            lambda service: cache_calendar(
+                self.db, service.owner_id, read_secret=service.secrets.read
+            )
+        )
 
     async def broker_provisioning(self) -> None:
         from lonora_adapters.storage.broker_secrets import BrokerSecrets
