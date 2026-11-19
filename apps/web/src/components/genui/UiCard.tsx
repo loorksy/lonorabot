@@ -960,7 +960,7 @@ export default function UiCard({
           {part.cut !== undefined && (
             <span className="ux-cut">
               <Icon name="stop" />
-              <span>{t`You stopped the reply before the interface was complete`}</span>
+              <span>{t`The reply stopped before the interface was complete`}</span>
             </span>
           )}
           {doc.why && (

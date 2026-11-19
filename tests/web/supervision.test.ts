@@ -129,3 +129,14 @@ test("the paused-agent refusal asks for a resume and a retry, and promises no an
   const catalog = readFileSync("apps/web/src/i18n/locales/ar/messages.po", "utf8");
   assert.ok(catalog.includes(`msgid "${en}"\nmsgstr "${ar}"`));
 });
+
+test("a reply Lonora stopped never reads as the owner's own Stop", () => {
+  // Lonora's cancel_run is recorded on the run (model_metadata.cancelled_by): the web names
+  // her; a cut interface says only that the reply stopped, on web and mobile alike.
+  const catalog = readFileSync("apps/web/src/i18n/locales/ar/messages.po", "utf8");
+  assert.ok(catalog.includes('msgid "{stopper} stopped the reply"\nmsgstr "أوقفت {stopper} الرد"'));
+  const message = readFileSync("apps/web/src/conversation/Message.tsx", "utf8");
+  assert.match(message, /<Trans>\{stopper\} stopped the reply<\/Trans>/);
+  assert.equal(translate("ar", "uiCut"), "توقّف الرد قبل اكتمال الواجهة");
+  assert.equal(translate("en", "uiCut"), "The reply stopped before the interface was complete");
+});

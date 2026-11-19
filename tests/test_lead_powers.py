@@ -160,7 +160,10 @@ async def test_lonora_cancels_a_run_switches_to_ask_and_pauses_without_a_card():
         assert cancelled["changed"] is True and cancelled["cancelled_runs"] == 1
         assert cancelled["owner_line"] == "required"
         async with fixture.runtime.db.sessions() as session:
-            assert (await session.get(RunRow, gold_run["id"])).status == "cancelled"  # type: ignore[union-attr]
+            stopped = await session.get(RunRow, gold_run["id"])
+            assert stopped is not None and stopped.status == "cancelled"
+            # Recorded as Lonora's, so no client tells the owner it stopped this reply.
+            assert stopped.model_metadata["cancelled_by"] == lonora["id"]
             assert (await session.get(RunRow, lead.lease.run_id)).status != "cancelled"  # type: ignore[union-attr]
             assert (await session.get(RunRow, queued["id"])).status == "queued"  # type: ignore[union-attr]
         again = await call(lead, "agent_control", agent_id=gold["id"], action="cancel_run")

@@ -533,7 +533,7 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
             )
             cancelled = [run_id for run_id in active if run_id not in ancestors]
             for run_id in cancelled:
-                await cancel_run(session, context.owner_id, run_id)
+                await cancel_run(session, context.owner_id, run_id, by=context.agent_id)
             result.update(changed=bool(cancelled), cancelled_runs=len(cancelled))
         # Fenced last: the target's thread and run locks come before this run's own.
         await require_lease(session, context.lease, lock=True)

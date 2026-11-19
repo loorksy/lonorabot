@@ -42,7 +42,9 @@ from each other as before (wall 5 of correction 1). Migration
 or resumes a team agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), messages it (`action: message`, the same peer request as `peer_send`),
 cancels its current run (`cancel_run`: its started runs, never Lonora's own run or its
-ancestors; a queued run stays), switches it to Ask (`set_ask`, the same switch as
+ancestors; a queued run stays; each is recorded as Lonora's, `model_metadata.cancelled_by`
+and the `run.cancelled` payload, so the web says «أوقفت لونورا الرد», never that the
+owner stopped it, and a cut interface says only that the reply stopped), switches it to Ask (`set_ask`, the same switch as
 `trading_mode_ask`: Ask, except within an active signed grant's own terms until revoked,
 which `active_signed_grants` counts) or deletes it (`delete`, see `agents-from-chat.md`).
 A team agent is refused (`supervision_required`, `agent_control_lead_only`). It has no
