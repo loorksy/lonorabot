@@ -132,9 +132,12 @@ def test_the_journal_attributes_tickets_to_the_agent_that_opened_or_manages_them
     assert attributed_agent(position("T2"), None, [managed, owner_order]) == "lonora"
     # A reservation never reached the broker and attributes nothing.
     reserved = journal(
-        "op-res", {"action": "buy", "symbol": "XAUUSD"}, agent_id="gold", status="reserved"
+        "op-res",
+        {"action": "buy", "symbol": "XAUUSD"},
+        agent_id="gold",
+        status="reserved",
+        broker_id="T3",
     )
-    reserved.result["broker_id"] = "T3"
     assert attributed_agent(position("T3"), None, [reserved]) is None
 
 
