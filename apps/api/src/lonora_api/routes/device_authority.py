@@ -95,6 +95,10 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
             await stop_management_task(session, authority)
             authority_changed(session, authority)
             changed_agents.add(authority.agent_id)
+        from lonora_db.management_task import ensure_management_task
+
         for agent_id in sorted(changed_agents):
             await bump_permission(session, owner.id, agent_id)
+            # Without the grant's Task, an agent in Full runs its own continuous task (4.5).
+            await ensure_management_task(session, owner.id, agent_id)
     return {"revoked": True}
