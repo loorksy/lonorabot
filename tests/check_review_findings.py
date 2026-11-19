@@ -79,14 +79,21 @@ async def main() -> None:
                 content="A completely different objective", mention_agent_ids=[peers[0]["id"]]
             )
             second = await send_message(session, f.owner, thread["id"], unrelated)
+            # Q29: a later @mention in a direct chat joins the chat's open session as a
+            # round of its own; the first round's evidence and synthesis stay its own.
+            assert second["message"]["mentions"]["session_id"] == session_id
             row = await current_session(session, f.owner, thread["id"])
-            assert row and row.id != session_id
-            second_id = row.id
-            assert len(row.state["participants"]) == 1
+            assert row and row.id == session_id
+            assert len(row.state["rounds"]) == 2
+            joined = row.state["rounds"][1]
+            assert joined["id"] != round_id and joined["subject"] == unrelated.content
+            assert len(joined["participant_run_ids"]) == 1 and joined["synthesis_run_id"] is None
+            assert row.state["rounds"][0]["participant_run_ids"] == ids
+            assert row.state["rounds"][0]["synthesis_run_id"] == synthesis
             repeated = await send_message(session, f.owner, thread["id"], unrelated)
             assert repeated["deduplicated"]
             first = await session.get(CollaborationSessionRow, session_id)
-            assert first and len(first.state["rounds"]) == 1
+            assert first and len(first.state["rounds"]) == 2
             continuation = MessageCreate(
                 content="Revalidate original evidence",
                 mention_all=True,
@@ -95,14 +102,19 @@ async def main() -> None:
             again = await send_message(session, f.owner, thread["id"], continuation)
             assert again["message"]["mentions"]["session_id"] == session_id
             first = await session.get(CollaborationSessionRow, session_id)
-            assert first and len(first.state["rounds"]) == 2
-            assert {p["agent_id"] for p in first.state["participants"]} == {p["id"] for p in peers}
-            row = await session.get(CollaborationSessionRow, second_id)
-            assert row and len(row.state["rounds"]) == 1
-            assert all(len(p["run_ids"]) == 1 for p in row.state["participants"])
+            assert first and len(first.state["rounds"]) == 3
+            assert [p["agent_id"] for p in first.state["participants"]] == [p["id"] for p in peers]
+            # One run per round each agent was named in: the retry added none.
+            assert [len(p["run_ids"]) for p in first.state["participants"]] == [3, 2, 2]
+            sessions = await session.scalars(
+                select(CollaborationSessionRow.id).where(
+                    CollaborationSessionRow.thread_id == thread["id"]
+                )
+            )
+            assert list(sessions) == [session_id]
             assert second["message"]["id"] != sent["message"]["id"]
         print(
-            "PASS unrelated objectives get separate durable sessions; explicit @all continues only its captured session and retry creates no session"
+            "PASS a later @mention joins the chat's open session as its own round; explicit @all continues that session with all peers and retry creates no session or round"
         )
 
         async with f.runtime.db.sessions() as session, session.begin():
