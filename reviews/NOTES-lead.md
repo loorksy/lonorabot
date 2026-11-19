@@ -16,3 +16,6 @@
 - 2026-11-12T13:07Z: #206 a3550e24 FINDINGS 0/1/1. Medium: a background run failing on a rejected key or quota is now hidden on mobile too, and raises no item (11.5 says 'nothing new'; reproduced).
 - 2026-11-12T13:15Z: #203 297d4161 CLEAN (all fixed). #110 48a6cd27 CLEAN (carries wauth/2 41febbbf, so it lands after #73; 0 conflicts with main).
 - 2026-11-12T13:16Z: #204 d64d84e3 CLEAN (medium fixed, probe passes).
+- 2026-11-19T10:35Z (after the pause, main dcf86b43): #205 6530e7a1 CLEAN; #214 be2cb660 CLEAN; #81 d111e89d CLEAN (rebase, 4 conflicts); #206 9b285666 CLEAN (rebase, 2 conflicts).
+  - Existing on main: web never shows background failures, and a background model/quota failure raises no attention item.
+- Conflicts with dcf86b43 on heads already reviewed: #203 2, #110 6, #148 6, and the W-TEAM stack #138/#146/#185/#193/#198 50-75 each (they need restacking on main).
