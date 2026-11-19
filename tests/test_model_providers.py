@@ -175,6 +175,8 @@ def test_an_owner_endpoint_is_accepted_over_https_or_on_the_owners_network(url: 
         "http://instance-data/latest",
         # A Lonora service by its Docker container name.
         "http://lonora-api-1/v1",
+        "http://workspace-net:8080/v1",
+        "http://lonora-workspace-net-1/v1",
         "http://lonora-db-1:5432/v1",
         "http://lonora-gateway-1/v1",
         "http://myproject-api-2:8000/v1",
