@@ -52,6 +52,8 @@ def test_who_is_background():
     # Background work the owner's words were given to answers them.
     assert not is_background("routine", {"owner_spoke": True})
     assert not is_background("follow_up", {"background": True, "owner_spoke": True})
+    # Lonora's system-alert wake reports the problem and offers to fix it (3.1.5, 9.4).
+    assert not is_background("broker_event", {"system_alert": "broker_connection_lost"})
     # A subagent's run owes its parent an answer; every other work trigger is background.
     assert BACKGROUND_TRIGGERS == WORK_TRIGGERS - {"subagent"}
     assert may_end_silent(True, {})
@@ -294,6 +296,60 @@ async def test_an_empty_background_reply_posts_nothing(case: str):
     finally:
         if connection:
             await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_system_alert_wake_always_reports():
+    """Lonora reports a broker problem and offers to fix it (3.1.5, 9.4): its alert wake is
+    not background, so a blank reply is nudged for an answer, and the answer is posted."""
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.collaboration.outcome_return import return_outcome
+    from lonora_agent.context.routine import BACKGROUND
+    from lonora_agent.runtime_notices import NO_ANSWER
+    from lonora_contracts.domain import utcnow
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.runs import run_data
+    from lonora_db.schema import AttentionRow
+    from lonora_db.system_alerts import wake_lonora
+    from lonora_db.threads import conversation_thread
+    from lonora_tools.runtime_control import silence
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora = await ensure_personal_agent(session, fixture.owner)
+            lonora.paused = False
+            conversation = (await conversation_thread(session, fixture.owner, lonora.id)).id
+            item = AttentionRow(
+                id=str(uuid4()),
+                owner_id=fixture.owner,
+                code="broker_connection_lost",
+                status="ready",
+                parameters={
+                    "account_id": "acct-" + uuid4().hex[:8],
+                    "reason_code": "broker_timeout",
+                    "since": utcnow().isoformat(),
+                },
+            )
+            run = await wake_lonora(session, item)
+            assert run is not None and run.trigger == "broker_event"
+            assert run_data(run)["background"] is False
+        context = await fixture.lease(
+            {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
+        )
+        assert (await silence(context, {}))["ok"] is False
+        report = "انقطع الاتصال بحساب الذهب منذ دقائق. هل أعيد وصله؟"
+        complete, requests = router(" ", report)
+        await execute(fixture, await reload(fixture, run.id), complete)
+        assert len(requests) == 2 and said(requests[1:], NO_ANSWER)
+        assert not said(requests, BACKGROUND)
+        row = await reload(fixture, run.id)
+        assert row.status == "completed" and row.result == report
+        await return_outcome(fixture.runtime.db, run.id)
+        assert report in await contents(fixture, conversation)
+    finally:
         await fixture.close()
 
 

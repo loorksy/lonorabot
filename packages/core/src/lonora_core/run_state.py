@@ -47,13 +47,18 @@ BACKGROUND_KEY = "background"
 # Set when the owner's words reach a Run: by admission in its metadata (server-only),
 # and in its execution state when they are merged into its transcript.
 OWNER_SPOKE = "owner_spoke"
+# Set on Lonora's wake for a system alert (``lonora_db/system_alerts.py``). Lonora reports
+# a broker problem or an uncertain operation and offers to fix it (3.1.5, 9.4): that wake
+# always answers. A caller who sets it only makes its own run answer.
+SYSTEM_ALERT = "system_alert"
 
 
 def is_background(trigger: str, metadata: Mapping[str, Any] | None) -> bool:
     """A background run: its reply may be empty, and an empty one posts nothing. A run the
-    owner's words were given to answers them: it is not background."""
+    owner's words were given to answers them, and so does a system-alert wake: neither is
+    background."""
     data = metadata or {}
-    if data.get(OWNER_SPOKE) is True:
+    if data.get(OWNER_SPOKE) is True or data.get(SYSTEM_ALERT):
         return False
     return trigger in BACKGROUND_TRIGGERS or (
         trigger == "follow_up" and data.get(BACKGROUND_KEY) is True

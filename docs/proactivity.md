@@ -67,14 +67,16 @@ conversation, the attention list or a channel, and a failed one nothing in a con
 or a channel.
 
 - **Background runs** (`is_background` in `lonora_core/run_state.py`): the triggers
-  `routine`, `watch` (opportunity wakes included), `broker_event` (Lonora's system-alert
-  wakes included), `activation`, `tickets` (Tasks with their timer, watch and broker
+  `routine`, `watch` (opportunity wakes included), `broker_event` (an agent's wake for
+  broker activity), `activation`, `tickets` (Tasks with their timer, watch and broker
   resumes, and legacy tickets), `webhook` and `workspace_wake`; and a `follow_up` (a
   helper's returned outcome or a collaboration synthesis) whose parent is background and
   was not written to by the owner: `create_run` marks it `background`, and a caller never
   can. A run the owner's words were given to is not background either. Not background: the owner's messages and taps (`user`, `group`, `owner_card`,
   `agent_created`), peer requests and subagent tasks (they owe the agent that asked an
-  answer), the morning brief (11.1) and the weekly report (5.5.6).
+  answer), Lonora's system-alert wakes (`system_alert`: Lonora reports a broker problem or
+  an uncertain operation and offers to fix it, 3.1.5 and 9.4, so a blank reply is nudged
+  for an answer), the morning brief (11.1) and the weekly report (5.5.6).
 - **What the agent is told.** Every background `<wake>` frame carries one fixed sentence
   (`BACKGROUND` in `lonora_agent/context/routine.py`): if nothing is new for the owner, end
   with an empty reply, which posts nothing and notifies no one. The core policy, the
