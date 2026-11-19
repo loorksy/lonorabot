@@ -285,6 +285,8 @@ async def test_an_empty_background_reply_posts_nothing(case: str):
                         AttentionRow.owner_id == fixture.owner,
                         AttentionRow.agent_id == agent["id"],
                         AttentionRow.status.in_(["pending", "ready"]),
+                        # Lonora's own onboarding Mandate card (4.3.1) waits apart from this.
+                        AttentionRow.code != "mandate_proposed",
                     )
                 )
             )
