@@ -97,6 +97,7 @@ export {
 export {
   type ConversationItem,
   conversationTimeline,
+  embeddedSlots,
   nearConversationBottom,
   SLOT_OWNER_ACTION_KINDS,
 } from "./conversation-timeline";
