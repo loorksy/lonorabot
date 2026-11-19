@@ -314,6 +314,63 @@ test("native failed outgoing message retries same nonce after reload and navigat
   }
 });
 
+test("native offline message waits for the network, survives a reload and goes out by itself", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000);
+  const data = await fixture(context);
+  const posted = [],
+    saved = [];
+  let network = false;
+  // The shell's own reads fail too: the strip says the device is offline.
+  await page.route("**/api/threads/inbox", (route) =>
+    network ? route.fallback() : route.abort("internetdisconnected"),
+  );
+  await page.route(`**/api/threads/${data.thread.id}/messages`, async (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: saved });
+    const body = route.request().postDataJSON();
+    posted.push(body);
+    // No answer at all: the API never saw it (Q6).
+    if (!network) return route.abort("internetdisconnected");
+    const message = outgoing(data, body);
+    saved.push(message);
+    return route.fulfill({ status: 202, json: { message, run_ids: [], runs: [] } });
+  });
+  try {
+    await page.goto(`/thread?id=${data.thread.id}`);
+    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+    await composer.fill("Send me when you can");
+    await composer.press("Enter");
+    const waiting = page.getByText("Waiting for the network…", { exact: true });
+    await expect(waiting).toBeVisible();
+    await expect(page.getByText("Message not sent", { exact: true })).toHaveCount(0);
+    await page.reload();
+    await expect(waiting).toBeVisible();
+    // On the chat list the strip says the device is offline and one message waits.
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page.getByTestId("network-strip")).toContainText("one message waiting", {
+      timeout: 15000,
+    });
+    network = true;
+    await expect(page.getByText("One waiting message was sent", { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
+    await page.getByText(data.agent.name, { exact: true }).click();
+    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+    await expect(waiting).toHaveCount(0);
+    await expect(page.getByText("Send me when you can", { exact: true })).toHaveCount(1);
+    // An answer to an agent's question never waits: it fails at once with a manual retry.
+    expect(posted.every((body) => body.input_answer == null)).toBe(true);
+    const nonces = new Set(posted.map((body) => body.client_nonce));
+    expect(nonces.size).toBe(1);
+    expect(saved).toHaveLength(1);
+  } finally {
+    await data.remove();
+  }
+});
+
 test("native reconnect ready drains a fresh snapshot after an older recovery read finishes", async ({
   page,
   context,

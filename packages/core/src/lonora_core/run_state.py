@@ -31,7 +31,7 @@ def assert_transition(current: str, target: RunStatus) -> None:
 
 
 def is_conversational(trigger: str) -> bool:
-    return trigger not in {"routine", "webhook", "created", "tickets", "watch"}
+    return trigger not in {"routine", "webhook", "created", "tickets", "watch", "workspace_wake"}
 
 
 def next_fence(fence: int) -> int:

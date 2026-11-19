@@ -80,16 +80,10 @@ services. A missing or unreachable service produces a tool error; registration,
 a configuration value or a running container alone does not prove successful
 external research.
 
-The optional deployment overlay starts the private services and connects the
-gateway to their dedicated bridge:
-
-```bash
-docker compose -f infra/compose/docker-compose.prod.yml \
-  -f infra/research/compose.research.yml up -d
-```
-
-Use the same deployment environment and reviewed image as the base production
-composition. The overlay publishes no search/browser host ports and gives those
+The production stack (`infra/compose/docker-compose.prod.yml`) starts the private
+services and connects the gateway to their dedicated bridge; no overlay is needed.
+The gateway does not wait for them: while they are down, a search or a browse
+returns a tool error and the gateway keeps running. The stack publishes no search/browser host ports and gives those
 services no database network, application secrets or application data volumes.
 The operator-owned SearXNG settings are in `infra/research/searxng.yml`. A
 nonstandard deployment must retain the same isolation rather than attach the

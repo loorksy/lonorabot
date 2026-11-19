@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
-// The fixture's agent goes after each test, so it never counts against the agent cap.
+// The fixture's agent goes after each test, so later tests start without it.
 let fixtureAgent;
 test.afterEach(async ({ context }) => {
   if (!fixtureAgent) return;

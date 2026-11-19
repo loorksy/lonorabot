@@ -392,3 +392,44 @@ async def test_context_admission_rejects_unowned_or_mismatched_identity_before_p
         )
     assert failed.value.code == "thread_not_found"
     assert paid is False
+
+
+@pytest.mark.asyncio
+async def test_peer_messages_are_framed_as_data_and_stay_within_the_budget(
+    context_workspace: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another agent's message in the call history is a data-framed user turn (3.2.3, 6.10);
+    escaping can grow it, yet the whole context stays within MAX_CONTEXT_BYTES."""
+    workspace = context_workspace
+    peer = await extra_agent(workspace)
+    hostile = "if (a < b && c > d) " * 200
+    for _ in range(3):
+        async with workspace["runtime"].db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, workspace["thread"], with_for_update=True)
+            assert thread is not None
+            session.add(
+                MessageRow(
+                    thread_id=thread.id,
+                    agent_id=peer,
+                    seq=thread.next_seq,
+                    role="assistant",
+                    content=hostile,
+                    client_nonce=uuid4().hex,
+                )
+            )
+            thread.next_seq += 1
+    configuration = await negotiate(workspace, monkeypatch)
+    size = len(configuration["instructions"].encode()) + len(
+        json.dumps(configuration["input"], ensure_ascii=False, separators=(",", ":")).encode()
+    )
+    assert size <= MAX_CONTEXT_BYTES
+    framed = [
+        item
+        for item in configuration["input"]
+        if "<lonora_context_data>" in item["content"][0]["text"]
+    ]
+    assert framed, "at least one peer turn fits"
+    for item in framed:
+        text = item["content"][0]["text"]
+        assert item["role"] == "user" and text.startswith("[Peer ")
+        assert text.rstrip().endswith("</lonora_context_data>") and hostile not in text

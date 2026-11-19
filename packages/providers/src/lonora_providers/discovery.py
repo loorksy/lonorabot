@@ -3,13 +3,14 @@ from lonora_db.client import Database
 
 from .catalog import store_catalog
 from .credentials import ProviderCredentials
-from .registry import model_adapter
+from .registry import build_adapter, model_adapter
 
 
 async def discover_models(
     db: Database, credentials: ProviderCredentials, provider: str
 ) -> list[ModelDescriptor]:
-    adapter = model_adapter(provider, await credentials.resolve(provider))
+    secret = await credentials.resolve(provider)
+    adapter = build_adapter(model_adapter, provider, secret, await credentials.endpoint(provider))
     try:
         models = await adapter.discover()
     finally:

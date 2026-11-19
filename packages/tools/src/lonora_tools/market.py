@@ -1,6 +1,7 @@
 from decimal import Decimal
 from typing import Any
 
+from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import Contract, utcnow
 from lonora_core.chart_controller import validate_timeframe
 from lonora_market.broker import broker_market
@@ -53,22 +54,49 @@ async def instruments(context: ToolContext, args: dict[str, Any]) -> dict[str, A
     return {"instruments": [i.model_dump(mode="json") for i in await provider.instruments()]}
 
 
+async def read_quote(
+    brokers: BrokerManager, owner_id: str, account_id: str, symbol: str
+) -> dict[str, Any]:
+    """The quote for one broker symbol: the market_quote tool and `lonora price`."""
+    provider = await broker_market(brokers, owner_id, account_id)
+    return (await provider.quote(symbol)).model_dump(mode="json")
+
+
+async def read_candles(
+    brokers: BrokerManager, owner_id: str, account_id: str, symbol: str, timeframe: str, limit: int
+) -> dict[str, Any]:
+    """Candles for one broker symbol: the market_candles tool and `lonora candles`."""
+    provider = await broker_market(brokers, owner_id, account_id)
+    return {
+        "candles": [
+            c.model_dump(mode="json") for c in await provider.candles(symbol, timeframe, limit)
+        ]
+    }
+
+
 async def quote(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     broker = await context.brokers.get(context.owner_id, args["account_id"])
     symbol, stated = await read_symbol(broker, args["symbol"])
-    provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
-    return {**(await provider.quote(symbol)).model_dump(mode="json"), **stated}
+    return {
+        **(await read_quote(context.brokers, context.owner_id, args["account_id"], symbol)),
+        **stated,
+    }
 
 
 async def candles(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     broker = await context.brokers.get(context.owner_id, args["account_id"])
     symbol, stated = await read_symbol(broker, args["symbol"])
-    provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
     return {
-        "candles": [
-            c.model_dump(mode="json")
-            for c in await provider.candles(symbol, args["timeframe"], args["limit"])
-        ],
+        **(
+            await read_candles(
+                context.brokers,
+                context.owner_id,
+                args["account_id"],
+                symbol,
+                args["timeframe"],
+                args["limit"],
+            )
+        ),
         **stated,
     }
 

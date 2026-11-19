@@ -1,8 +1,9 @@
-// The canonical alert card end to end on web (GENUI_PLAN §10.5, S-A01 acceptance), from a
+// The canonical alert card end to end on web (docs/genui.md, S-A01 acceptance), from a
 // recorded stream replay of A01 through a real Run, a real card submission, the receipt,
-// reload and «تعديل»; Stop on a queued submission; and §10.4's gate on the A01 card inside
+// reload and «تعديل»; Stop on a queued submission; and the side-by-side gate on the A01 card inside
 // the real conversation pane against Desktop-37's own alert recipe.
 import { execFileSync, spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
@@ -69,12 +70,9 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
   const fixture = await open(page, context);
   const forbidden = [];
   page.on("request", (request) => {
-    // No card control may decide an approval, an owner action or a restriction (§10.2).
+    // No card control may decide an approval or an owner action (mandate 6.10).
     const path = new URL(request.url()).pathname;
-    if (
-      request.method() !== "GET" &&
-      /^\/api\/(trading\/approvals|owner-actions|trading\/restrictions)/.test(path)
-    )
+    if (request.method() !== "GET" && /^\/api\/(trading\/approvals|owner-actions)/.test(path))
       forbidden.push(path);
   });
   try {
@@ -133,7 +131,7 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     expect(body.content).toBe("");
     expect(body.ui_submit.values).toMatchObject({ symbol: "XAUUSD", dir: "above", price: 2400 });
     // The server's bubble, quoting the card; the card locks.
-    // With several accounts in the database the server appends « · <account>» (§8.3).
+    // With several accounts in the database the server appends « · <account>» (docs/genui.md §7).
     await expect(
       page.getByText(/^أنشئ تنبيهًا: الذهب فوق 2,400\.00( · Simulation · \d+ · Demo)?$/),
     ).toBeVisible();
@@ -217,7 +215,7 @@ test("A01: «تعديل» on a queued send marks it «مُعدّلة» and colla
   }
 });
 
-// §10.4 inside the conversation pane: the A01 card as the owner sees it against the
+// The side-by-side gate inside the conversation pane: the A01 card as the owner sees it against the
 // reference's alert recipe opened in its own conversation («جرّب في محادثة»).
 const CLASSES = [
   ".ux",
@@ -274,7 +272,7 @@ const PROPS = [
   "text-align",
   "stroke-width",
 ];
-// Intended differences, each with its reason (GENUI_PLAN §10.4 allow-list).
+// Intended differences, each with its reason (docs/genui.md allow-list).
 const ALLOWED = {
   // The delivery row shows only the real channels, read-only (Q39, Q59): one row where the
   // reference shows three, so the row, the body and the card are 84 px shorter.
@@ -395,3 +393,162 @@ for (const theme of ["dark", "light"]) {
     });
   }
 }
+
+/** The catalog generated from the server contract (packages/contracts/src/genui-catalog.ts). */
+function catalog(name) {
+  const source = readFileSync(`${ROOT}packages/contracts/src/genui-catalog.ts`, "utf8");
+  const list = new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(source)?.[1] ?? "";
+  return [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+}
+
+test("Parity: the web card draws every node the server accepts and runs every action", async ({
+  page,
+  context,
+}) => {
+  const fixture = await open(page, context);
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    python("stream", { ...fixture.input, delay: 0 });
+    python("parity", fixture.input);
+    // A trusted slot needs a real record: the agent's card embeds a pending approval.
+    const ids = python("records", fixture.input);
+    python("slots", { ...fixture.input, record: ids.approval });
+    const ux = page.locator(".ux").filter({ hasText: "حاسبة حجم الصفقة" }).first();
+    await expect(ux).toBeVisible();
+    await expect(card(page)).toBeVisible();
+    await expect(page.locator(".ux-slot[data-slot-live]")).toBeVisible();
+    await ux.getByRole("button", { name: "المزيد" }).click();
+    // «2%» (a set action) shows the Note its `when` hides at 1%.
+    await ux.getByRole("button", { name: "2%", exact: true }).click();
+    const drawn = await page
+      .locator(".ux [data-ux-type]:not([data-ux-off])")
+      .evaluateAll((nodes) => [...new Set(nodes.map((node) => node.dataset.uxType))].sort());
+    expect(drawn).toEqual([...catalog("UI_NODE_TYPES"), ...catalog("UI_SERVER_NODE_TYPES")].sort());
+    // Local actions and inputs, computed on the client from the server's expressions.
+    const slider = ux.getByRole("slider", { name: "المخاطرة %" });
+    await slider.fill("3");
+    await expect(ux.locator("output")).toHaveText("3%");
+    await expect(ux.getByText("مخاطرة مرتفعة")).toBeVisible();
+    await expect(ux.locator(".ux-sub.tr-up")).toBeVisible();
+    await ux.getByRole("button", { name: "2%", exact: true }).click();
+    await expect(ux.locator("output")).toHaveText("2%");
+    await expect(ux.locator(".ux-sub.tr-up")).toHaveCount(0);
+    await ux.getByRole("button", { name: "التفاصيل" }).click();
+    await expect(ux.getByText("تفاصيل إضافية")).toBeVisible();
+    await ux.getByLabel("الرافعة").selectOption({ label: "1:500" });
+    await expect(ux.getByLabel("الرافعة")).toHaveValue("3");
+    await ux.getByRole("button", { name: "إعادة" }).click();
+    await expect(ux.locator("output")).toHaveText("1%");
+    await expect(ux.getByText("تفاصيل إضافية")).toBeHidden();
+    await ux.getByRole("button", { name: "نسخ" }).click();
+    await expect(ux.getByText("تم النسخ")).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("0.50 لوت");
+    // `open` opens the server-checked literal URL with noopener (no network in the test).
+    await context.route("https://example.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<p>ok</p>" }),
+    );
+    const [popup] = await Promise.all([
+      page.waitForEvent("popup"),
+      ux.getByRole("button", { name: "المصدر" }).click(),
+    ]);
+    await popup.waitForURL("https://example.com/position-size");
+    expect(await popup.evaluate(() => window.opener)).toBeNull();
+    await popup.close();
+    // The send goes through ui_submit and the server writes the owner's bubble. It is the
+    // `ask` intent (a Button with no action), which never locks its card.
+    await ux.getByRole("button", { name: "اشرح الحساب" }).click();
+    await expect(page.getByText("اشرح الحساب", { exact: true })).toHaveCount(2);
+    await expect(ux.locator(".ux-sent")).toHaveCount(0);
+    await ux.getByRole("button", { name: "السوق" }).click();
+    await expect(page).toHaveURL(/\/app\/market/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("Slots: a fixed card in the agent's card is the live record, and its row steps aside", async ({
+  page,
+  context,
+}) => {
+  // Three replies, a stale tap, Enter, two decisions and two reloads: more than the default.
+  test.setTimeout(60_000);
+  const fixture = await open(page, context);
+  const csrf = fixture.cookies.find((row) => row.name === "lonora_csrf").value;
+  try {
+    const ids = python("records", fixture.input);
+    const approval = page.locator(`[data-trade-approval="${ids.approval}"]`);
+    const settle = page.locator(`[data-owner-action="${ids.settle}"]`);
+    // No message embeds them yet: each fixed card stands in its own row.
+    await page.reload();
+    await expect(approval).toHaveCount(1);
+    await expect(settle).toHaveCount(1);
+    await expect(page.locator(".ux-slot")).toHaveCount(0);
+    python("slots", { ...fixture.input, record: ids.approval, number: true });
+    python("slots", { ...fixture.input, card: "settle", record: ids.settle });
+    const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
+    const settleSlot = page.locator('.ux .ux-slot[data-slot-card="settle"]');
+    await expect(slot).toBeVisible();
+    await expect(settleSlot).toBeVisible();
+    // The server's records, drawn by the client: only the cards' own words.
+    await expect(slot.locator(`[data-trade-approval="${ids.approval}"]`)).toBeVisible();
+    await expect(settleSlot.locator(`[data-owner-action="${ids.settle}"]`)).toBeVisible();
+    await expect(slot).toContainText("XAUUSD");
+    await expect(slot).toContainText("2350.00");
+    await expect(settleSlot).toContainText("XAGUSD");
+    for (const frame of [slot, settleSlot]) {
+      await expect(frame).toContainText("بطاقة ثابتة من Lonora");
+      for (const forged of ["صفقة مضمونة", "0.50 لوت"])
+        await expect(frame).not.toContainText(forged);
+    }
+    // Enter in the agent's own Number field never reaches the fixed card's buttons: the
+    // approval is still pending on the server afterwards.
+    const lots = page.getByLabel("الحجم المقترح");
+    await lots.fill("0.2");
+    await lots.press("Enter");
+    const after = await context.request.get(
+      `/api/trading/approvals?thread_id=${encodeURIComponent(fixture.thread.id)}`,
+    );
+    expect((await after.json()).find((row) => row.id === ids.approval).status).toBe("pending");
+    // The slots are the records' places now: no standalone rows.
+    await expect(approval).toHaveCount(1);
+    await expect(settle).toHaveCount(1);
+    // Each slot fits the height the compiler counts for it at rest at 390 px (SLOT_HEIGHTS in
+    // genui_compile.py: trade approval 230 px, settle 460 px, frame included).
+    expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
+    expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
+    // Decided elsewhere while this screen still shows it pending: the second tap is refused
+    // and the slot shows the record as it is now.
+    await page.route("**/api/trading/approvals?*", (route) => route.abort());
+    const elsewhere = await context.request.post(
+      `/api/trading/approvals/${ids.approval}/decision`,
+      { data: { decision: "reject" }, headers: { "X-CSRF-Token": csrf } },
+    );
+    expect(elsewhere.status()).toBe(200);
+    await expect(slot.getByRole("button", { name: "موافقة", exact: true })).toBeVisible();
+    await page.unroute("**/api/trading/approvals?*");
+    const [stale] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/trading/approvals/${ids.approval}/decision`),
+      ),
+      slot.getByRole("button", { name: "موافقة", exact: true }).click(),
+    ]);
+    expect(stale.status()).toBe(409);
+    await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
+    // The settle slot's buttons are the card's own server action on the owner session.
+    const [settled] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/owner-actions/${ids.settle}/decision`),
+      ),
+      settleSlot.getByRole("button", { name: "لم تُنفذ", exact: true }).click(),
+    ]);
+    expect(settled.status()).toBe(200);
+    await expect(settleSlot.getByRole("button", { name: "لم تُنفذ", exact: true })).toHaveCount(0);
+    // Read again later, the slots show the records as they are now, and still no rows.
+    await page.reload();
+    await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
+    await expect(approval).toHaveCount(1);
+    await expect(settle).toHaveCount(1);
+  } finally {
+    await fixture.cleanup();
+  }
+});

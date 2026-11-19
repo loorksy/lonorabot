@@ -32,7 +32,7 @@ from sqlalchemy import select, text
 
 STORED = {"reason": "Breakout", "tolerance": "1.5"}
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0110_closed_trades"
+BEFORE = "0061_trade_approval_validity"
 
 
 def alembic(*arguments: str) -> None:

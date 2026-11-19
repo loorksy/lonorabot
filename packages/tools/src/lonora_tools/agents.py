@@ -16,13 +16,10 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.agent_creation import TEMPLATE_LEVEL, AgentCreateInput
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import Contract, utcnow
-from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_creation import (
-    MAXIMUM_ACTIVE_AGENTS,
     MAXIMUM_CREATIONS_PER_RUN,
-    active_agents,
     agent_origin,
     existing_creation,
     report_targets,
@@ -49,7 +46,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .models import model_available, owner_named
+from .provenance import owner_message_id
 
 # A broker's spelling of a symbol may add a suffix ("XAUUSD.r", "XAUUSDm").
 SUFFIX_SEPARATORS = frozenset(".-_#!+")
@@ -141,20 +139,6 @@ async def resolve_market(
     return {"resolved": True, "account_id": row.id, "symbol": name, "version": row.version}
 
 
-async def configured_models(context: ToolContext) -> list[ModelSelection]:
-    """The owner's configured conversation models, in routing order."""
-    route: Any = getattr(context.router, "route", None)
-    if route is None:
-        return []
-    try:
-        routed = await route(
-            Capability.CONVERSATION, owner_id=context.owner_id, agent_id=context.agent_id
-        )
-    except LonoraError:
-        return []
-    return list(routed.choices)
-
-
 def creation_receipt(owner_id: str, message_id: str, template: str, name: str) -> str:
     """One agent per owner message, template and requested name, across retries."""
     digest = sha256(
@@ -216,11 +200,10 @@ def proposal_result(card: OwnerActionRow, *, created: bool) -> dict[str, Any]:
 
 
 async def check_limits(session: AsyncSession, owner_id: str, run_id: str) -> None:
-    """A new creation (or creation card) fits the per-run and per-owner limits."""
+    """A new creation (or creation card) fits the per-run guard against a runaway loop;
+    the number of the owner's agents is never counted (mandate 3.3.2)."""
     if await run_creations(session, owner_id, run_id) >= MAXIMUM_CREATIONS_PER_RUN:
         raise LonoraError("agent_create_run_limit", 429)
-    if await active_agents(session, owner_id) >= MAXIMUM_ACTIVE_AGENTS:
-        raise LonoraError("agent_limit_reached", 409)
 
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -270,14 +253,13 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             symbol=market["symbol"],
             connection_version=market["version"],
         )
-    if params.model is not None:
-        models = await configured_models(context)
-        if params.model not in models:
-            return {
-                "created": False,
-                "code": "agent_model_not_allowed",
-                "configured_models": [item.model_dump(mode="json") for item in models],
-            }
+    if params.model is not None and not await model_available(context, params.model):
+        return {
+            "created": False,
+            "code": "agent_model_not_available",
+            "recovery": "Find the exact id with model_list, or omit model: the new agent "
+            "starts on Lonora's current model.",
+        }
     async with context.db.sessions() as session, session.begin():
         # The order the owner's card decision takes them in: cards, then creation.
         await lock_owner_actions(session, context.owner_id)
@@ -324,6 +306,13 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             # Fenced after the conversation lock: the thread-before-run order of admission.
             await require_lease(session, context.lease, lock=True)
             return proposal_result(card, created=created)
+        dropped = params.model is not None and not await owner_named(
+            session, run, message_id, params.model
+        )
+        if dropped:
+            # Only the owner assigns a model (VISION 12.3): one his words do not name is
+            # dropped, and the new agent starts on Lonora's (3.1.2).
+            spec["model"] = None
         key = creation_receipt(context.owner_id, message_id, params.template, params.name)
         receipt = await session.get(EffectReceiptRow, key)
         agent_id = str(receipt.result["agent_id"]) if receipt else context.resource_id
@@ -353,7 +342,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             run_id=run.id,
         )
         await require_lease(session, context.lease, lock=True)
-        return await created_result(session, context, row, deduplicated=not created)
+        result = await created_result(session, context, row, deduplicated=not created)
+        if dropped:
+            result["model_dropped"] = "not named by the owner: it starts on Lonora's model"
+        return result
 
 
 def tools() -> list[Tool]:

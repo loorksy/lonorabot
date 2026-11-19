@@ -9,6 +9,17 @@ export type ComposerDraft = {
 };
 const empty: ComposerDraft = { text: "", attachments: [], reply: null, revision: 0 };
 const drafts = new Map<string, ComposerDraft>();
+const listeners = new Set<(key: string) => void>();
+/** Every change of a conversation's draft (the device store saves it). */
+export function subscribeDrafts(listener: (key: string) => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+function changed(key: string) {
+  for (const listener of listeners) listener(key);
+}
 
 /** Unsent input survives navigation, scoped to the same server, owner and conversation. */
 export function composerDraft(key: string): ComposerDraft {
@@ -18,6 +29,7 @@ export function editComposerDraft(key: string, patch: Partial<Omit<ComposerDraft
   const previous = composerDraft(key);
   const next = { ...previous, ...patch, revision: previous.revision + 1 };
   drafts.set(key, next);
+  changed(key);
   return next;
 }
 
@@ -27,6 +39,7 @@ export function consumeComposerDraft(key: string, revision: number): ComposerDra
   if (current.revision !== revision) return current;
   const next = { ...empty, revision: revision + 1 };
   drafts.set(key, next);
+  changed(key);
   return next;
 }
 

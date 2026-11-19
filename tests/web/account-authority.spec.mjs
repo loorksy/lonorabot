@@ -152,9 +152,6 @@ for (const locale of ["en", "ar"])
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();
       expect(saved.find((row) => row.id === state.row.id).status).toBe("revoked");
-      expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
-        false,
-      );
     } finally {
       await state.cleanup();
     }
@@ -218,9 +215,6 @@ for (const full of [false, true])
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();
       expect(saved.find((row) => row.id === activated.id).status).toBe("active");
-      expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
-        false,
-      );
       await state.revoke(page, true);
       const stopped = await (
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)

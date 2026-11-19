@@ -8,7 +8,7 @@
   width: 100%;
   border-radius: 20px;
   padding: 16px;
-  background: var(--muted);
+  background: var(--legacy-muted);
   overflow-wrap: anywhere;
 }
 .conversation-question-title {

@@ -52,6 +52,21 @@ def memory_view(content: str) -> str:
     return split_legacy(content)[0]
 
 
+METHOD_VIEW = "OPERATING.md"
+
+
+def method_text(content: str) -> str:
+    """The Agent's method: the text of every ``# OPERATING.md`` section of its view."""
+    view = memory_view(content)
+    matches = list(VIEW_HEADING.finditer(view if view.endswith("\n") else view + "\n"))
+    bodies = [
+        view[match.end() : matches[index + 1].start() if index + 1 < len(matches) else None]
+        for index, match in enumerate(matches)
+        if match[1] == METHOD_VIEW
+    ]
+    return "\n\n".join(body.strip() for body in bodies if body.strip())
+
+
 def with_legacy(view: str, legacy: str) -> str:
     """The row to store: the new view, then the retired sections, unchanged."""
     if not legacy:

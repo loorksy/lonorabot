@@ -13,6 +13,7 @@ import re
 from collections.abc import Sequence
 from typing import Any, cast
 
+from lonora_adapter_kit.context_sections import unescape_context_text
 from lonora_adapter_kit.types import ModelMessage
 
 NOTICE_OPEN = "<runtime_notice>"
@@ -53,6 +54,15 @@ def notice_kind(message: ModelMessage) -> str | None:
 
 # history_context prefixes another Agent's message in a shared thread with this.
 PEER_PREFIX = "[Peer "
+PEER_BODY = re.compile(
+    r'<context_section name="peer_message"[^>]*>\n(.*?)\n</context_section>', re.S
+)
+
+
+def peer_text(content: str) -> str:
+    """A peer's own words inside its framed turn (for recall and digests), else the text."""
+    match = PEER_BODY.search(content) if content.startswith(PEER_PREFIX) else None
+    return unescape_context_text(match.group(1)) if match else content
 
 
 def is_owner_message(message: ModelMessage) -> bool:

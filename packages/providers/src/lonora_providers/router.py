@@ -1,9 +1,9 @@
 """Model routing with classified recovery across an ordered candidate chain.
 
 Candidates: the model a Run was started with (a subagent's chosen model), the
-Agent's own primary model (owner-chosen, or the Agent's own choice in Automatic),
-the global route for the capability, the Agent's fallbacks, the global backups,
-then, for an Automatic Agent, the other models the owner allowed. Each candidate
+Agent's own primary model (the owner's assignment, or Lonora's model it inherited),
+the global route for the capability, the Agent's fallbacks, then the global backups.
+Each candidate
 is admitted against its own window, retried a bounded number of times for
 transient failures (honouring a short ``Retry-After``), corrected once when its
 output budget is rejected or cut off, and benched for a short period when it
@@ -33,7 +33,7 @@ from lonora_contracts.model_routing import (
 )
 from lonora_core.model_routing import select_model
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import added_models, agent_model_preference
+from lonora_db.agent_models import agent_model_preference
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
@@ -46,7 +46,7 @@ from .context import (
 )
 from .credentials import ProviderCredentials
 from .default_model import choose_default_model
-from .registry import model_adapter
+from .registry import build_adapter, model_adapter
 from .resilience import (
     MAXIMUM_INLINE_WAIT_SECONDS,
     RECOVERY,
@@ -132,7 +132,7 @@ class GlobalModelRouter:
         self,
         db: Database,
         credentials: ProviderCredentials,
-        factory: Callable[[str, str], ModelAdapter] = model_adapter,
+        factory: Callable[..., ModelAdapter] = model_adapter,
         *,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], float] = monotonic,
@@ -173,12 +173,8 @@ class GlobalModelRouter:
                         raise
                     primary = None
                 backups = await settings.get(session, "model_backups")
-                added: list[ModelSelection] = []
                 if owner_id and agent_id:
                     record = await agent_model_preference(session, owner_id, agent_id)
-                    if record is None or record.mode == "automatic":
-                        # Automatic: Lonora may fall back on every model the owner allowed.
-                        added = (await added_models(session)).added
                 preference = record.preference if record else None
                 ordered = [
                     *([run_choice] if run_choice else []),
@@ -186,7 +182,6 @@ class GlobalModelRouter:
                     *([primary] if primary else []),
                     *(preference.fallbacks if preference else []),
                     *(ModelSelection.model_validate(item) for item in backups.get("choices", [])),
-                    *added,
                 ]
             catalogs: dict[str, list[ModelDescriptor]] = {}
             for provider in dict.fromkeys(item.provider for item in ordered):
@@ -327,7 +322,9 @@ class GlobalModelRouter:
                     raise
                 failures.append((selection, ModelProviderError(FailureReason.NOT_CONFIGURED)))
                 continue
-            fingerprint = credential_fingerprint(secret)
+            endpoint = await self.credentials.endpoint(selection.provider)
+            # A new base URL is a new credential: its health starts fresh.
+            fingerprint = credential_fingerprint(secret + "\n" + endpoint if endpoint else secret)
             bench = self.health.benched(selection, fingerprint)
             if bench is not None:
                 state, remaining = bench
@@ -337,7 +334,7 @@ class GlobalModelRouter:
                 if RECOVERY[state.reason].transient:
                     waits.append(remaining)
                 continue
-            adapter = self.factory(selection.provider, secret)
+            adapter = build_adapter(self.factory, selection.provider, secret, endpoint)
             credentials_ms = round((monotonic() - credentials_started) * 1000, 2)
             try:
                 reply = await self._complete_with(

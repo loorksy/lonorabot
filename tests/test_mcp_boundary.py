@@ -59,7 +59,7 @@ def context(*, declarations: tuple[McpToolDeclaration, ...] = (), **config: Any)
     counters = {"decrypted": 0}
 
     class Session:
-        async def get(self, model: Any, key: str) -> Any:
+        async def get(self, model: Any, key: str, **_: Any) -> Any:
             if model is McpConnectionRow:
                 return connection if key == "connection" else None
             return secret if key == "credential" else None

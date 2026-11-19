@@ -107,19 +107,6 @@ class SkillCatalogDetail(SkillCatalogEntry):
     content: str = Field(max_length=16000)
 
 
-class PlaybookManifest(Contract):
-    """Describes an existing domain workflow; never creates a second workflow executor."""
-
-    id: SkillId
-    version: SkillVersion
-    required_skills: list[str] = Field(min_length=1, max_length=16)
-    required_tools: list[str] = Field(min_length=1, max_length=32)
-    state_owner: str = Field(min_length=1, max_length=256)
-    entry_conditions: list[str] = Field(min_length=1, max_length=16)
-    terminal_states: list[str] = Field(min_length=1, max_length=16)
-    recovery: str = Field(min_length=1, max_length=1000)
-
-
 class SkillVersionEntry(Contract):
     """One saved version of an installed skill, listed in «سجل الإصدارات»."""
 

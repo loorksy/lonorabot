@@ -217,8 +217,6 @@ test("a creation card without an owner message asks before anything exists", () 
   assert.equal(ar.lines[2], "يبلغ: ⁨Gold agent⁩، ⁨Silver agent⁩");
   const done = { ...proposal, status: "confirmed" as const };
   assert.equal(ownerActionCard(done, "en", now).outcome, "Agent created.");
-  const full = { ...proposal, status: "expired" as const, status_reason: "agent_limit_reached" };
-  assert.match(ownerActionCard(full, "en", now).outcome ?? "", /most active agents/);
   const answered = {
     ...proposal,
     status: "superseded" as const,

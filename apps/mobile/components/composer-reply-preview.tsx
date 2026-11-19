@@ -6,9 +6,12 @@ import { NativeSymbol } from "./native-symbol";
 export function ComposerReplyPreview({
   message,
   onClose,
+  editing = false,
 }: {
   message: Message;
   onClose?: () => void;
+  /** «تعديل الرسالة»: the composer edits this message instead of replying to it. */
+  editing?: boolean;
 }) {
   const { rtl, t } = useSession();
   const shell = useShellColors();
@@ -26,7 +29,7 @@ export function ComposerReplyPreview({
       <View style={{ width: 2, height: 32, backgroundColor: shell.secondary, borderRadius: 1 }} />
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={{ color: shell.secondary, fontSize: 12, textAlign: rtl ? "right" : "left" }}>
-          {t("reply")}
+          {t(editing ? "editTheMessage" : "reply")}
         </Text>
         <Text
           numberOfLines={2}
@@ -44,7 +47,7 @@ export function ComposerReplyPreview({
       {onClose ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t("cancelReply")}
+          accessibilityLabel={t(editing ? "cancelEdit" : "cancelReply")}
           hitSlop={8}
           onPress={onClose}
         >

@@ -318,6 +318,7 @@
 .empty svg {
   width: 32px;
   height: 32px;
+  margin-inline: auto;
   margin-bottom: 12px;
 }
 .list-empty .btn {
@@ -1067,6 +1068,7 @@
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
   box-shadow: var(--float-shadow);
+  animation: pop-in 0.16s var(--ease) both;
 }
 .emo-tones .emo {
   width: 44px;

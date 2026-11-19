@@ -64,8 +64,12 @@ class BaseModelAdapter:
         )
         self.owns_client = client is None
 
+    def auth_headers(self) -> dict[str, str]:
+        """The API key in the header the provider documents for API keys."""
+        return {"Authorization": "Bearer " + self.api_key}
+
     async def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
-        headers = {"Authorization": "Bearer " + self.api_key, **kwargs.pop("headers", {})}
+        headers = {**self.auth_headers(), **kwargs.pop("headers", {})}
         try:
             response = await self.client.request(
                 method, self.base_url + path, headers=headers, **kwargs
@@ -91,7 +95,7 @@ class BaseModelAdapter:
     async def stream_request(
         self, path: str, payload: dict[str, Any], headers: dict[str, str] | None = None
     ) -> AsyncIterator[dict[str, Any]]:
-        request_headers = {"Authorization": "Bearer " + self.api_key, **(headers or {})}
+        request_headers = {**self.auth_headers(), **(headers or {})}
         try:
             async with self.client.stream(
                 "POST", self.base_url + path, headers=request_headers, json=payload

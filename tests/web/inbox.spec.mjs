@@ -285,7 +285,7 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
     releaseMessages();
     releaseBackground();
     // Logout invalidated this session: the fixture's own cleanup signs in itself and
-    // deletes the agent bound to its account, so it never counts against the agent cap.
+    // deletes the agent bound to its account, so later specs start without it.
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
       input: JSON.stringify({ ...fixture, action: "cleanup" }),
       encoding: "utf8",

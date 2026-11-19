@@ -1,20 +1,15 @@
 """Structured event classification; never match human text or invent a market signal."""
 
-from typing import Any, cast
+from typing import Any
 
-from lonora_contracts.attention import AttentionClassification
+from lonora_contracts.attention import AttentionClassification, AttentionCode
 
 ATTENTION_KINDS = frozenset(
     {
-        "trading.controls_updated",
         "trading.approval.updated",
         # Owner action cards follow these (lonora_gateway.owner_cards); an operation that
         # becomes ambiguous is also the owner's "operation_uncertain" item.
         "trading.operation_updated",
-        "trading.restriction_created",
-        "trading.restriction_revoked",
-        "broker.degraded",
-        "broker.recovered",
         "broker.external_activity",
         "watch.confirmed",
         "watch.forming",
@@ -30,8 +25,12 @@ ATTENTION_KINDS = frozenset(
         "task.degraded",
         "task.retry_scheduled",
         "task.updated",
+        # Cards that wait for the owner (the Secret card) and their end.
+        "owner_action.updated",
     }
 )
+# Owner-action card kinds whose pending card is an attention item, by code.
+CARD_ATTENTION: dict[str, AttentionCode] = {"connect_credential": "secret_requested"}
 
 
 def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassification:
@@ -48,19 +47,12 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
     )
     if kind == "trading.operation_updated":
         resource = str(payload.get("operation_id") or resource)
-    elif kind.startswith("trading.restriction_"):
-        restriction: Any = payload.get("restriction")
-        if isinstance(restriction, dict):
-            identifier = cast(dict[str, Any], restriction).get("id")
-            resource = str(identifier or resource)
     if kind in {"watch.suspended_health", "watch.resumed_health"}:
         transition = str(payload.get("health", {}).get("observed_at") or transition)
     result = AttentionClassification(
         importance="silent", code="internal_update", resource_id=resource, transition=transition
     )
-    if kind == "trading.controls_updated" and payload.get("emergency_stop") is True:
-        result.importance, result.code = "critical", "emergency_stop"
-    elif kind == "trading.operation_updated" and payload.get("status") == "ambiguous":
+    if kind == "trading.operation_updated" and payload.get("status") == "ambiguous":
         # One item per operation: later ambiguous rewrites of the row are the same fact.
         result.importance, result.code = "action_required", "operation_uncertain"
         transition = "ambiguous"
@@ -70,13 +62,10 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
             if payload.get("status") == "pending"
             else ("informational", "approval_resolved")
         )
-    elif kind in {"broker.degraded", "broker.recovered"}:
-        result.importance, result.code = (
-            "important_change",
-            "broker_degraded" if kind.endswith("degraded") else "broker_recovered",
-        )
-        if kind.endswith("recovered") and not payload.get("previous_status"):
-            result.importance = "silent"
+    elif kind == "owner_action.updated":
+        code = CARD_ATTENTION.get(str(payload.get("kind")))
+        if code is not None and payload.get("status") == "pending":
+            result.importance, result.code = "action_required", code
     elif kind == "broker.external_activity":
         result.importance, result.code = "important_change", "external_broker_activity"
         transition = str(payload.get("id") or transition)
