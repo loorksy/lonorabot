@@ -116,7 +116,10 @@ export async function onboardingStatus(server: string, signal: AbortSignal): Pro
     signal,
   });
   if (!response.ok) throw new ApiError("request_failed", response.status);
-  return Boolean(((await response.json()) as { owner_initialized?: boolean }).owner_initialized);
+  // Only a Lonora answer counts: any other JSON is not "no owner yet".
+  const { owner_initialized } = (await response.json()) as { owner_initialized?: unknown };
+  if (typeof owner_initialized !== "boolean") throw new ApiError("request_failed", response.status);
+  return owner_initialized;
 }
 
 export function configureApi(server: string, token: string | null, onExpired: () => void) {

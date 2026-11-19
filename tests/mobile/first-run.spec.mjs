@@ -219,3 +219,12 @@ test("a setup that fails asks the server again: an owner created meanwhile shows
     page.getByText("Check your credentials or sign in again.", { exact: true }),
   ).toBeVisible();
 });
+
+test("an answer that is not Lonora's keeps sign-in", async ({ page }) => {
+  await page.route("**/api/onboarding", (route) => route.fulfill({ json: {} }));
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  await page.getByLabel("Password", { exact: true }).fill(credentials.password);
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
+  await expect(page.getByLabel("Setup token", { exact: true })).toHaveCount(0);
+});
