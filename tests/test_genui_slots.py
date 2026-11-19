@@ -223,6 +223,25 @@ async def test_a_mandate_card_is_a_mandate_slot_and_no_other(task_db: Fixture) -
 
 
 @pytest.mark.asyncio
+async def test_a_mandate_slot_counts_its_tallest_card(task_db: Fixture) -> None:
+    """A Mandate slot counts the English card with the longest name and a grant's line
+    (405 px, tests/web/genui.spec.mjs "Slots"): a note and a line beside it would rest above
+    560 px, so they fold and the slot stays."""
+    db, owner, agent, thread = task_db
+    record = await resolve_card(db, owner, agent, thread, "trading_mode")
+    text = card(
+        slot(record, "mandate"),
+        '{"type":"Note","text":"ملاحظة"}',
+        '{"type":"Text","text":"سطر"}',
+    )
+    ui, projector = await project(db, owner, agent, thread, text)
+    assert ui is not None, projector.diagnostics
+    assert ui["blocks"][0] == {"type": "Slot", "card": "mandate", "record": record}
+    assert [block["type"] for block in ui["blocks"]] == ["Slot", "More"]
+    assert "budget_folded" in codes(projector)
+
+
+@pytest.mark.asyncio
 async def test_a_secret_card_is_a_secret_slot_and_no_other(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
     record = await resolve_card(db, owner, agent, thread, "secret")

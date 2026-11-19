@@ -90,9 +90,11 @@ HEIGHTS = {
 # counts toward the 560 px budget like any block, and is never folded). A Secret card grows
 # with the fields the agent asked for: 305 px and 95 px a field (measured 398 px for one
 # field, 493 for two, 588 for three, 1,063 for eight; a broker card's two fields, 493). A
-# Mandate card is counted at its tallest: an 80-character name, Ask and a signed grant's line
-# (measured 362 px).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 365, "secret": 305}
+# Mandate card is counted at its tallest for an 80-character name of words (the contract's
+# longest), Ask and a signed grant's line, which is the English card, whose lines are longer
+# (measured 404 px with an Arabic or a Latin name; the Arabic card 362 px, 386 with a Latin
+# name). A name of wide capitals (W, M) wraps further, up to 500 px.
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 405, "secret": 305}
 SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).

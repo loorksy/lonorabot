@@ -469,6 +469,7 @@ test("Parity: the web card draws every node the server accepts and runs every ac
 test("Slots: a fixed card in the agent's card is the live record, and its row steps aside", async ({
   page,
   context,
+  browser,
 }) => {
   // Three replies, a stale tap, Enter, two decisions and two reloads: more than the default.
   test.setTimeout(60_000);
@@ -516,7 +517,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
     // Each slot fits the height the compiler counts for it at rest at 390 px (SLOT_HEIGHTS in
-    // genui_compile.py: trade approval 230 px, settle 460 px, mandate 365 px, frame included).
+    // genui_compile.py: trade approval 230 px, settle 460 px, mandate 405 px, frame included).
     expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
     expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
     // The Mandate card in its slot: the agent's mode read live and one button for the other
@@ -526,7 +527,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(mandateSlot.locator(`[data-owner-action="${ids.mandate}"]`)).toBeVisible();
     await expect(mandate).toHaveCount(1);
     await expect(mandateSlot).toContainText("التفويض");
-    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(365);
+    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(405);
     // The Secret card in its slot: W-ENV's own form, whose values go straight to the
     // encrypted store; its row steps aside too. The compiler counts it 305 px and 95 px a
     // field (SLOT_HEIGHTS, SLOT_ROW_HEIGHTS): 495 px for these two fields.
@@ -536,11 +537,36 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(secretSlot).toContainText("بيانات سرّية");
     expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(305 + 2 * 95);
     // The Mandate card at its tallest, which is what the compiler counts: the longest name,
-    // Ask's line and the line a signed grant adds.
+    // Ask's line and the line a signed grant adds, in Arabic and in English, whose lines are
+    // the longer.
     python("tallest_mandate", fixture.input);
     await page.reload();
     await expect(mandateSlot).toContainText("صلاحيته الموقّعة تبقى سارية");
-    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(365);
+    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(405);
+    const english = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+    try {
+      await english.addCookies(
+        fixture.cookies.map((cookie) => ({
+          ...cookie,
+          url: test.info().project.use.baseURL,
+          httpOnly: cookie.name === "lonora_session",
+          sameSite: "Strict",
+        })),
+      );
+      await english.addInitScript(() => {
+        localStorage.setItem("lonora.locale", "en");
+        localStorage.setItem("lonora.theme", JSON.stringify("dark"));
+      });
+      const en = await english.newPage();
+      await en.setViewportSize({ width: 390, height: 844 });
+      await en.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+      const enSlot = en.locator('.ux .ux-slot[data-slot-card="mandate"]');
+      await expect(enSlot).toContainText("Now: Ask");
+      await expect(enSlot).toContainText("Its signed grant still lets it trade");
+      expect((await enSlot.boundingBox()).height).toBeLessThanOrEqual(405);
+    } finally {
+      await english.close();
+    }
     // Decided elsewhere while this screen still shows it pending: the second tap is refused
     // and the slot shows the record as it is now.
     await page.route("**/api/trading/approvals?*", (route) => route.abort());
