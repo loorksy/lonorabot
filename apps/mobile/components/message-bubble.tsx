@@ -105,13 +105,29 @@ export function MessageBubble({
       style={{
         alignSelf: isOwner ? (rtl ? "flex-start" : "flex-end") : "stretch",
         maxWidth: isOwner ? "88%" : "100%",
-        backgroundColor: flash ? shell.muted : isOwner ? shell.chatUser : "transparent",
-        ...(flash ? { borderWidth: 1, borderColor: shell.link } : {}),
+        backgroundColor: isOwner ? shell.chatUser : "transparent",
         borderRadius: 18,
-        padding: isOwner || flash ? 14 : 0,
+        padding: isOwner ? 14 : 0,
         gap: 8,
       }}
     >
+      {flash ? (
+        // The jump's mark, as Web's ring: drawn around the bubble, never changing its size.
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: isOwner ? 0 : -8,
+            bottom: isOwner ? 0 : -8,
+            left: isOwner ? 0 : -10,
+            right: isOwner ? 0 : -10,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: shell.link,
+            backgroundColor: isOwner ? "transparent" : shell.muted,
+          }}
+        />
+      ) : null}
       {!grouped && !isOwner && !tool ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           {agent ? (
@@ -213,6 +229,11 @@ export function MessageBubble({
               <Text style={{ color: shell.link, fontSize: 14, writingDirection: "auto" }}>
                 {partLine}
               </Text>
+              {call.missed ? (
+                <Text style={{ color: shell.secondary, fontSize: 12, writingDirection: "auto" }}>
+                  {t("tapToCallBack")}
+                </Text>
+              ) : null}
             </Pressable>
           ) : (
             <Text style={{ color: shell.secondary, fontSize: 14, writingDirection: "auto" }}>
