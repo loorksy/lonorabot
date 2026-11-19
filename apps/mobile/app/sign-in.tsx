@@ -18,8 +18,11 @@ export default function SignIn() {
   // and nothing is sent until it is.
   const [checked, setChecked] = useState<{ address: string; initialized: boolean } | null>(null);
   const [token, setToken] = useState("");
+  // A failed sign-in asks the server again: an unreachable check fell back to sign-in.
+  const [recheck, setRecheck] = useState(0);
   const address = server ?? session.server;
   const { ready, owner } = session;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `recheck` asks the server again
   useEffect(() => {
     if (!ready || owner || !address.trim()) return;
     const controller = new AbortController();
@@ -39,7 +42,7 @@ export default function SignIn() {
       clearTimeout(timer);
       clearTimeout(limit);
     };
-  }, [ready, owner, address]);
+  }, [ready, owner, address, recheck]);
   const pending = checked?.address !== address;
   const setup = !pending && checked?.initialized === false;
   // The setup token is kept only while the setup form is shown.
@@ -58,6 +61,7 @@ export default function SignIn() {
       setToken("");
     } catch (reason) {
       setError(session.errorText(reason));
+      if (!setup) setRecheck((count) => count + 1);
     } finally {
       setBusy(false);
     }

@@ -103,3 +103,55 @@ test("a retry after the owner was created (then the sign-in failed) signs in", a
   expect((await signedIn).status()).toBe(200);
   await expect(page.getByText("Set up Lonora", { exact: true })).toHaveCount(0);
 });
+
+test("the answer belongs to its address: a new address is checked again before anything is sent", async ({
+  page,
+  baseURL,
+}) => {
+  const other = baseURL.replace("localhost", "127.0.0.1");
+  await page.route("**/api/onboarding", (route) =>
+    new URL(route.request().url()).hostname === "127.0.0.1"
+      ? route.fulfill({
+          json: { owner_initialized: false },
+          headers: { "access-control-allow-origin": "*" },
+        })
+      : route.fallback(),
+  );
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  const field = page.getByRole("textbox", { name: "Lonora server URL", exact: true });
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  await page.getByLabel("Password", { exact: true }).fill(credentials.password);
+  await field.fill(other);
+  // Until the new address answers, nothing can be sent.
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeDisabled();
+  await expect(page.getByText("Set up Lonora", { exact: true })).toBeVisible();
+  // Back to the first server: sign-in again, and the check did not cancel the sign-in.
+  await field.fill(baseURL);
+  const signIn = page.getByRole("button", { name: "Sign in", exact: true });
+  await expect(signIn).toBeEnabled();
+  const signedIn = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/auth/login") && response.request().method() === "POST",
+  );
+  await signIn.click();
+  expect((await signedIn).status()).toBe(200);
+});
+
+test("a sign-in that fails asks the server again: a first run missed by the check appears", async ({
+  page,
+}) => {
+  let initialized = true;
+  await page.route("**/api/onboarding", (route) =>
+    route.fulfill({ json: { owner_initialized: initialized } }),
+  );
+  await page.route("**/api/auth/login", (route) =>
+    route.fulfill({ status: 401, json: { code: "unauthorized" } }),
+  );
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  await page.getByLabel("Password", { exact: true }).fill(credentials.password);
+  initialized = false;
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByText("Set up Lonora", { exact: true })).toBeVisible();
+});
