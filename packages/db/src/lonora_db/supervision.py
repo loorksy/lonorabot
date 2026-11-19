@@ -452,8 +452,12 @@ async def _apply(
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
         # Pausing ended the Full-mode task in control_work; resuming starts it again.
         if action == "resume":
+            from .messages import answer_kept_messages
+
             await session.flush()
             await ensure_management_task(session, owner_id, agent_id)
+            # Whoever resumes it, it answers only what the owner sent it while paused.
+            await answer_kept_messages(session, owner_id, agent_id)
     elif kind == "routine":
         from .routines import owned_routine
 

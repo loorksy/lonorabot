@@ -9,7 +9,9 @@ attribution).
 
 Lock order: the owner's controls lock the agent, routine or watch row before its hold;
 a Task's control takes the hold, then the Run, then the Task. Callers keep both
-orders, so a pause or resume never deadlocks with message admission.
+orders, so a pause or resume never deadlocks with message admission. An agent's resume
+then locks each conversation where the owner's messages were kept for it
+(``answer_kept_messages``); admission locks the conversation and never the agent's row.
 """
 
 from typing import Any
@@ -227,6 +229,10 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
             await session.flush()
             # Resuming a Full agent starts its continuous task again (4.5.1).
             await ensure_management_task(session, owner_id, agent.id)
+            from .messages import answer_kept_messages
+
+            # It answers what the owner sent it while it was paused.
+            await answer_kept_messages(session, owner_id, agent.id)
     elif kind == "routine":
         from .routines import owned_routine
 

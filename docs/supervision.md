@@ -97,7 +97,14 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   only its risk-reducing requests (mandate 4.7.1). The owner's messages to it are kept
   in the conversation and start no run; it answers only after it is resumed. That holds
   for an answer to a question its wake asked too: a tapped choice is refused
-  (`agent_paused`) and a typed reply is kept, and the question stays open. Lonora may
+  (`agent_paused`) and a typed reply is kept, and the question stays open. Nothing is
+  queued while it is paused. When it is resumed (the owner's switch or Resume on its
+  pause card, or `agent_control`), it gets one run in each conversation where the owner
+  sent it messages while it was paused (in a group, the messages that addressed it),
+  admitted as the latest of them would have been (`answer_kept_messages`): the owner's
+  message is the run's trigger, so a reply to the wake's question answers it. Whoever
+  resumes it, only the owner's messages get a run, and a conversation where the owner
+  sent it nothing gets none. Lonora may
   therefore pause a whole trading agent on its own. Supervision is not extended before phase 6 removes it:
   another supervisor still pauses a whole agent with money standing only from the
   owner's message (`supervision_pause_trading_agent`, 403), and pauses its routines,
@@ -247,7 +254,10 @@ profile) do not fit and are promoted after first use like any remembered tool.
 - `tests/test_paused_agent.py`: what a paused agent runs (only its own broker wakes, not
   the owner's messages, the owner's answers to its wake's question or Lonora's system
   alerts), the door refusing its new risk, and its pending Trade Approval card staying
-  pending, with Approve refused until the resume and a wake whose card is approved held.
+  pending, with Approve refused until the resume and a wake whose card is approved held;
+  the resume (switch, card or supervisor) queuing one run per conversation for the
+  latest message the owner sent it while paused, a kept reply answering its wake's
+  question, only group messages that addressed it, and nothing where nothing was sent.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the

@@ -181,10 +181,14 @@ Delivery is in-app only until Wave 3. See
   position whose opening operation fell out of that window is unattributed and wakes
   the Personal Agent observe-only.
 - An attributed wake of a paused Agent runs while it is paused, for its own tickets
-  only; its other runs (routines, watches, timers, Tasks, the owner's messages) wait for
-  the resume. So does the wake itself while its Trade Approval card is pending or
-  approved and not yet sent, and the owner's answer to a question it asks (the wake's
-  prompt says so).
+  only; its other runs (routines, watches, timers, Tasks) wait for the resume, and the
+  owner's messages to it are kept and start no run. So does the wake itself while its
+  Trade Approval card is pending or approved and not yet sent, and the owner's answer
+  to a question it asks (the wake's prompt says so). The resume, whoever makes it,
+  queues one run in each conversation where the owner sent the Agent messages while it
+  was paused (in a group, those that addressed it), admitted as the latest of them would
+  have been, with the owner's message as its trigger; a reply to the wake's question
+  among them answers it (`docs/supervision.md`).
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
   runs and memory through its default, revocable supervision grant, on demand.

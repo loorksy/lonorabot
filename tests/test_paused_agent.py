@@ -1,8 +1,9 @@
 """What a paused agent does (mandate 4.7.1).
 
 A paused agent takes no new work: its routines, watches and timers are held, the owner's
-messages to it are kept and start no run, and only a broker event on its own positions
-and pending orders starts a run of it. Through the door it sends only risk-reducing
+messages to it are kept and start no run until its resume answers the latest of them,
+once per conversation, and only a broker event on its own positions and pending orders
+starts a run of it. Through the door it sends only risk-reducing
 requests, in either mode, and its pending Trade Approval card stays pending until the
 resume. Runs on the real migrated PostgreSQL schema and the simulation broker (skipped
 without ``LONORA_DATABASE_URL``).
@@ -440,19 +441,21 @@ async def test_a_paused_agents_card_stays_pending_and_approve_waits_for_the_resu
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("answer", ["tap", "typed"])
-async def test_no_answer_reaches_a_paused_agents_wake_until_it_is_resumed(answer: str) -> None:
+@pytest.mark.parametrize("kept", ["next", "reply"])
+async def test_no_answer_reaches_a_paused_agents_wake_until_it_is_resumed(kept: str) -> None:
     """A paused agent takes no new work and the owner's messages to it start nothing
     (4.7.1): a question its own broker wake asked is answered by neither form while it
     is paused (a tapped choice is refused, a typed reply or next message is kept), and the
-    question stays open. Once resumed, either form reaches the wake."""
+    question stays open. The resume admits the latest kept message as it would have been
+    admitted when sent: the next message right after the question, or a reply to it,
+    answers the wake."""
     database()
     from check_streaming import Fixture
     from lonora_db.schema import MessageRow, RunRow, ThreadRow
 
     fixture = await Fixture().open()
     try:
-        agent = await fixture.agent("Paused question " + answer)
+        agent = await fixture.agent("Paused question " + kept)
         thread = await fixture.conversation(agent)
         wake_id = await own_wake(fixture, agent["id"], thread["id"])
         choice = {"id": "close", "label": "Close it"}
@@ -510,23 +513,182 @@ async def test_no_answer_reaches_a_paused_agents_wake_until_it_is_resumed(answer
         await still_open()
         # The next message would answer the question (it is the last one there), and a
         # reply to it always would: while paused, neither does.
-        for typed in ({"content": "close it"}, {"content": "close it", "reply_to": question_id}):
-            kept = await fixture.request("POST", messages, typed)
-            assert kept["run_ids"] == [] and kept["message"]["content"] == "close it", kept
+        typed = [{"content": "close it"}]
+        if kept == "reply":
+            typed.append({"content": "close the rest", "reply_to": question_id})
+        latest = ""
+        for body in typed:
+            sent = await fixture.request("POST", messages, body)
+            assert sent["run_ids"] == [] and sent["message"]["content"] == body["content"], sent
+            latest = sent["message"]["id"]
             await still_open()
 
         await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": False})
-        resumed = await fixture.request(
-            "POST",
-            messages,
-            tap if answer == "tap" else {"content": "close it", "reply_to": question_id},
-        )
-        assert resumed["run_ids"] == [wake_id], resumed
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await session.get(RunRow, wake_id, with_for_update=True)
             assert row is not None and row.status == "queued"
-            assert row.execution_state["input_requests"][0]["status"] == "answered"
+            asked = row.execution_state["input_requests"][0]
+            assert asked["status"] == "answered" and asked["answer_message_id"] == latest
             # Settle it, so no later test claims it.
             row.status = "cancelled"
+    finally:
+        await fixture.close()
+
+
+async def owner_runs(fixture: Any, agent_id: str, thread_id: str) -> list[Any]:
+    """The runs the owner's messages started for the agent in one conversation."""
+    from lonora_db.schema import RunRow
+    from sqlalchemy import select
+
+    async with fixture.runtime.db.sessions() as session:
+        return list(
+            await session.scalars(
+                select(RunRow)
+                .where(
+                    RunRow.thread_id == thread_id,
+                    RunRow.agent_id == agent_id,
+                    RunRow.trigger.in_(["user", "group"]),
+                )
+                .order_by(RunRow.created_at)
+            )
+        )
+
+
+async def settle(fixture: Any, runs: list[Any]) -> None:
+    """Cancel queued test runs, so no later test claims them."""
+    from lonora_db.schema import RunRow
+
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        for run in runs:
+            row = await session.get(RunRow, run.id, with_for_update=True)
+            assert row is not None
+            row.status = "cancelled"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("resume", ["switch", "card", "supervisor"])
+async def test_the_resume_answers_what_the_owner_sent_while_paused(resume: str) -> None:
+    """The owner's messages to a paused agent start no run (4.7.1). Its resume, by the
+    owner's switch, the owner's Resume on its pause card or the supervisor that paused it,
+    queues one run in the conversation, through the owner message's own admission: the
+    latest message is its input and its trigger, so the run speaks for the owner."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.pauses import live_hold, owner_resumes
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.supervision import control_work
+    from lonora_tools.provenance import owner_message_id
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Kept words " + resume)
+        thread = await fixture.conversation(agent)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora_id = (await ensure_personal_agent(session, fixture.owner)).id
+
+        async def supervisor(action: str) -> None:
+            """Lonora on its own initiative: no owner message in its run."""
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await control_work(
+                    session,
+                    fixture.owner,
+                    actor_id=lonora_id,
+                    agent_id=agent["id"],
+                    kind="agent",
+                    target_id=None,
+                    action=action,  # type: ignore[arg-type]
+                    owner_message_id=None,
+                    run_id=None,
+                )
+
+        if resume == "supervisor":
+            await supervisor("pause")
+        else:
+            await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": True})
+        messages = f"/threads/{thread['id']}/messages"
+        latest = ""
+        for content in ("Close half of the gold position", "Actually, close all of it"):
+            sent = await fixture.request("POST", messages, {"content": content})
+            assert sent["run_ids"] == [], sent
+            latest = sent["message"]["id"]
+        # Nothing is queued during the pause.
+        assert await owner_runs(fixture, agent["id"], thread["id"]) == []
+
+        if resume == "switch":
+            await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": False})
+        elif resume == "card":
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                hold = await live_hold(session, "agent", agent["id"])
+                assert hold is not None and hold.source == "owner"
+                assert await owner_resumes(session, fixture.owner, hold.id) == "agent"
+        else:
+            await supervisor("resume")
+        runs = await owner_runs(fixture, agent["id"], thread["id"])
+        assert len(runs) == 1 and runs[0].status == "queued" and runs[0].trigger == "user"
+        async with fixture.runtime.db.sessions() as session:
+            from lonora_db.schema import MessageRow
+
+            answered = await session.get(MessageRow, latest)
+            assert answered is not None and runs[0].input_seq == answered.seq
+            # The owner's latest words stand for the owner in that run.
+            assert await owner_message_id(session, runs[0]) == latest
+        await settle(fixture, runs)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_resume_answers_once_per_conversation_and_only_what_addressed_it() -> None:
+    """In a group, only the owner's messages that addressed the paused agent are kept for
+    it: the resume answers the latest of those, not a later one another member answered.
+    A conversation where the owner sent it nothing gets no run, and a later pause and
+    resume with nothing sent answer nothing again."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MessageRow
+
+    fixture = await Fixture().open()
+    try:
+        paused, lead = await fixture.agent("Kept in group"), await fixture.agent("Group lead")
+        own = await fixture.conversation(paused)
+        group = await fixture.request(
+            "POST",
+            "/groups/create",
+            {"name": "Desk", "member_ids": [paused["id"], lead["id"]], "lead_agent_id": lead["id"]},
+        )
+        fixture.groups.append(group["id"])
+        fixture.group_threads.append(group["thread_id"])
+        messages = f"/threads/{group['thread_id']}/messages"
+
+        await fixture.request("PATCH", f"/agents/{paused['id']}", {"paused": True})
+        addressed = ""
+        for content in ("What do you see on gold?", "And on silver?"):
+            sent = await fixture.request(
+                "POST", messages, {"content": content, "mention_agent_ids": [paused["id"]]}
+            )
+            assert sent["run_ids"] == [], sent
+            addressed = sent["message"]["id"]
+        # Nobody named: the lead answers it, so it is not the paused agent's to answer.
+        plain = await fixture.request("POST", messages, {"content": "Anyone?"})
+        assert [run["agent_id"] for run in plain["runs"]] == [lead["id"]], plain
+        assert await owner_runs(fixture, paused["id"], group["thread_id"]) == []
+
+        await fixture.request("PATCH", f"/agents/{paused['id']}", {"paused": False})
+        runs = await owner_runs(fixture, paused["id"], group["thread_id"])
+        assert len(runs) == 1 and runs[0].trigger == "group", runs
+        async with fixture.runtime.db.sessions() as session:
+            latest = await session.get(MessageRow, addressed)
+            assert latest is not None and runs[0].input_seq == latest.seq
+        # Its own conversation got nothing from the owner: no run there.
+        assert await owner_runs(fixture, paused["id"], own["id"]) == []
+
+        # Paused and resumed again with nothing sent: nothing more is queued.
+        await fixture.request("PATCH", f"/agents/{paused['id']}", {"paused": True})
+        await fixture.request("PATCH", f"/agents/{paused['id']}", {"paused": False})
+        assert [run.id for run in await owner_runs(fixture, paused["id"], group["thread_id"])] == [
+            runs[0].id
+        ]
+        assert await owner_runs(fixture, paused["id"], own["id"]) == []
+        await settle(fixture, [*runs, *await owner_runs(fixture, lead["id"], group["thread_id"])])
     finally:
         await fixture.close()
