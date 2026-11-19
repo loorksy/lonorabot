@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import scope_data
 from .agent_creation import agent_origin, report_targets
+from .lead import personal_agent_id, reached_ids
 from .schema import AgentRow
-from .supervision import supervised_ids, supervisor_ids
+from .supervision import supervisor_ids
 
 
 async def agent_directory(
@@ -19,8 +20,12 @@ async def agent_directory(
     rows = (await session.scalars(query.order_by(AgentRow.created_at, AgentRow.id))).all()
     origins = {row.id: await agent_origin(session, owner_id, row.id) for row in rows}
     # Supervision is visible to both sides: whom this agent supervises, who supervises it.
-    supervised = set(await supervised_ids(session, owner_id, agent_id))
+    # Lonora leads every team agent by its role, with or without a grant.
+    supervised = set(await reached_ids(session, owner_id, agent_id))
     supervisors = set(await supervisor_ids(session, owner_id, agent_id))
+    lead = await personal_agent_id(session, owner_id)
+    if lead is not None and lead != agent_id:
+        supervisors.add(lead)
     return [
         {
             "id": row.id,

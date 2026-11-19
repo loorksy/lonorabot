@@ -226,7 +226,6 @@ export {
   supervisionLabels,
   supervisionRows,
   supervisionText,
-  unsupervisedAgents,
 } from "./supervision";
 export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
