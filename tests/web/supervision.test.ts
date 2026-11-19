@@ -79,6 +79,23 @@ test("the Undo card stops supervision, and an ended one can only be dismissed", 
     ended.buttons.map((button) => button.decision),
     ["cancel"],
   );
+  assert.equal(ended.hint, "انتهى هذا الإشراف مسبقًا.");
+  // An older card for a grant of Lonora's: it leads by its role, so nothing ended.
+  const lead = ownerActionCard(
+    {
+      ...created,
+      facts: {
+        ...created.facts,
+        supervision: { supervisor_name: "Lonora", supervised_names: [], active: false, lead: true },
+      },
+    },
+    "en",
+  );
+  assert.deepEqual(
+    lead.buttons.map((button) => button.decision),
+    ["cancel"],
+  );
+  assert.equal(lead.hint, "This supervision is already set. Nothing changed.");
   const undone = ownerActionCard({ ...created, status: "confirmed", result: { revoked: 1 } }, "en");
   assert.equal(undone.outcome, "Undone: supervision stopped.");
   const set = ownerActionCard({ ...proposal, status: "confirmed" }, "ar");

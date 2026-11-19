@@ -181,6 +181,9 @@ async def stale_reason(
                 return None
         return "supervision_already_set"
     if kind == "supervision_created":
+        # An older card for a grant of Lonora's: Undo would stop nothing, it leads by its role.
+        if await _lead_grants(session, owner_id, payload):
+            return "supervision_already_set"
         return None if await _active_grants(session, owner_id, payload) else "supervision_ended"
     if kind == "supervision_stopped":
         grants = await _stopped_grants(session, owner_id, payload)
@@ -431,6 +434,29 @@ async def _active_grants(
             )
             .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.id)
         )
+    )
+
+
+async def _lead_grants(session: AsyncSession, owner_id: str, payload: dict[str, Any]) -> bool:
+    """Whether a supervision card names grants of Lonora's: its lead role reaches every
+    team agent, so neither the grant nor its revoke changes anything."""
+    from .lead import personal_agent_id
+
+    ids = [str(item) for item in payload.get("grant_ids", [])]
+    lead = await personal_agent_id(session, owner_id)
+    if not ids or lead is None:
+        return False
+    return (
+        await session.scalar(
+            select(SupervisionGrantRow.id)
+            .where(
+                SupervisionGrantRow.owner_id == owner_id,
+                SupervisionGrantRow.id.in_(ids),
+                SupervisionGrantRow.supervisor_agent_id == lead,
+            )
+            .limit(1)
+        )
+        is not None
     )
 
 
@@ -718,9 +744,13 @@ async def supervision_facts(
             "active": False,
         }
         return facts
+    # An Undo card for a grant of Lonora's has nothing in force to stop: it leads by its role.
+    lead = row.kind == "supervision_created" and await _lead_grants(session, owner_id, row.payload)
     grants = (
         await _restorable(session, owner_id, await _stopped_grants(session, owner_id, row.payload))
         if row.kind == "supervision_stopped"
+        else []
+        if lead
         else await _active_grants(session, owner_id, row.payload)
     )
     supervisor = grants[0].supervisor_agent_id if grants else row.result.get("supervisor_id")
@@ -737,6 +767,8 @@ async def supervision_facts(
         ],
         "active": bool(grants),
     }
+    if lead:
+        facts["supervision"]["lead"] = True
     return facts
 
 

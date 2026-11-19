@@ -38,7 +38,10 @@ either agent.
   raises a `supervision_created` card with Undo for the grants that call created; a
   grant that already existed is never on that card. Without the owner's message it
   raises a `supervise` card and nothing changes until the owner taps Allow; the tap
-  raises the same Undo card. Revoking oversight needs the owner's message too
+  raises the same Undo card. An older Undo card for a grant of Lonora's says the
+  supervision is already set and offers only Keep it: Lonora leads by its role, so
+  revoking that grant would stop nothing. An Undo tap on it revokes nothing and settles
+  it (`supervision_already_set`). Revoking oversight needs the owner's message too
   (`supervision_revoke_requires_owner_message`) and is never done by the supervised
   agent itself, whatever its run (`supervision_revoke_own_oversight`): text it read
   could ask it to shed its oversight. A revoke from chat raises a `supervision_stopped`

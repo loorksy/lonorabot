@@ -1125,8 +1125,9 @@ export function ownerActionCard(
       title = text.supervisionTitle;
       lines.push(...supervisionLines(card, lang, text));
       if (!card.facts.supervision?.active) {
-        // Revoked elsewhere (the profile): the card can only be dismissed.
-        hint = text.supervisionEnded;
+        // Revoked elsewhere (the profile), or Lonora's, which leads by its role whatever
+        // its grant: the card can only be dismissed.
+        hint = card.facts.supervision?.lead ? text.supervisionAlreadySet : text.supervisionEnded;
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }

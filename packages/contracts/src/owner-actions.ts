@@ -173,6 +173,11 @@ export type OwnerAction = {
        * one can still be restored; supervision_paused: the pause still holds.
        */
       active: boolean;
+      /**
+       * supervision_created: the grants are Lonora's, which leads every team agent by its
+       * role, so Undo would stop nothing (an older card).
+       */
+      lead?: boolean;
       /** supervision_paused: what is paused, and that item's own short label. */
       target?: "agent" | "task" | "routine" | "watch";
       target_label?: string | null;

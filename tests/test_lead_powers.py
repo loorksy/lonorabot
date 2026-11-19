@@ -154,6 +154,7 @@ async def test_lonora_takes_no_grant_and_no_card_says_its_supervision_changed():
     from check_streaming import Fixture
     from lonora_db.owner_actions import (
         propose_supervision,
+        raise_supervision_card,
         raise_supervision_stopped_card,
         stale_reason,
     )
@@ -259,5 +260,47 @@ async def test_lonora_takes_no_grant_and_no_card_says_its_supervision_changed():
             "expired",
             "supervision_already_set",
         )
+        # Nor does an Undo card raised before this change for a grant of Lonora's: Undo
+        # would stop nothing, so it offers none and a tap revokes nothing.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            granted, _ = await grant_supervision(
+                session, fixture.owner, lonora["id"], gold["id"], via="owner_message"
+            )
+            granted_id = granted.id
+            undo = await raise_supervision_card(
+                session,
+                fixture.owner,
+                [granted_id],
+                card_key=str(uuid4()),
+                agent_id=lonora["id"],
+                thread_id=thread["id"],
+                run_id=None,
+            )
+            assert undo is not None
+            undo_id = undo.id
+            assert (
+                await stale_reason(session, fixture.owner, "supervision_created", undo.payload)
+                == "supervision_already_set"
+            )
+        listed = next(item for item in await cards() if item["id"] == undo_id)
+        assert listed["status"] == "pending"
+        assert listed["facts"]["supervision"] == {
+            "supervisor_name": lonora["name"],
+            "supervised_names": [],
+            "active": False,
+            "lead": True,
+        }
+        response = await fixture.client.post(
+            f"/api/owner-actions/{undo_id}/decision", json={"decision": "confirm"}
+        )
+        assert response.is_success, response.text
+        settled = response.json()
+        assert (settled["status"], settled["status_reason"]) == (
+            "expired",
+            "supervision_already_set",
+        )
+        async with fixture.runtime.db.sessions() as session:
+            kept = await session.get(SupervisionGrantRow, granted_id)
+            assert kept is not None and kept.revoked_at is None
     finally:
         await fixture.close()
