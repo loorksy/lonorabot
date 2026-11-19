@@ -112,7 +112,7 @@ class BrokerSessionRepository(ResourceRepository):
     row_type = BrokerSessionRow
     kind = "broker_sessions"
     payload_model = BrokerConnection
-    secret_scope = "broker"
+    secret_scopes = ("broker",)
 
     async def lock_owner(self, session: AsyncSession, owner_id: str) -> None:
         # An existing owner row serializes even the first connection across API

@@ -40,7 +40,8 @@ OWNER_PREFERENCES_NOTE = (
 OWNER_SIGNALS_NOTE = (
     "What the owner did over the last two weeks, recorded by the server in his time zone: "
     "when he read conversations, and positions closed outside Lonora (by his hand, or by "
-    "the position's own stop or target). Facts, not conclusions: write what you learn of "
+    "the position's own stop or target) with their profit just before the close. Facts, "
+    "not conclusions: write what you learn of "
     "him to USER.md.\n"
 )
 OPERATING_NOTES_NOTE = (
