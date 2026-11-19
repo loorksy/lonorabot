@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0196_model_provider_cards"
-down_revision = "0071_secret_card_kinds"
+down_revision = "0100_execution_receipts"
 branch_labels = None
 depends_on = None
 
