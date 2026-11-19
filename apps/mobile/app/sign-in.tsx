@@ -51,7 +51,21 @@ export default function SignIn() {
   }, [setup]);
   if (!ready) return <Loading />;
   if (owner) return <Redirect href="/" />;
+  // One rule for the button and for the keyboard's submit key.
+  const blocked =
+    busy ||
+    pending ||
+    !email.trim() ||
+    !password ||
+    !address.trim() ||
+    (setup && (password.length < 12 || !token));
   const submit = async () => {
+    if (blocked) return;
+    // The server's setup token is 24 characters at least: a shorter one is cut short.
+    if (setup && token.length < 24) {
+      setError(session.t("setupTokenShort"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -163,14 +177,7 @@ export default function SignIn() {
             <Button
               label={busy ? session.t("connecting") : session.t(setup ? "setupCreate" : "signIn")}
               onPress={() => void submit()}
-              disabled={
-                busy ||
-                pending ||
-                !email.trim() ||
-                !password ||
-                !address.trim() ||
-                (setup && (password.length < 12 || !token))
-              }
+              disabled={blocked}
             />
           </View>
         </ScrollView>

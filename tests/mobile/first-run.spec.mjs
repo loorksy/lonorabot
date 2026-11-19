@@ -157,3 +157,36 @@ test("a sign-in that fails asks the server again: a first run missed by the chec
   await signIn.click();
   await expect(page.getByText("Set up Lonora", { exact: true })).toBeVisible();
 });
+
+test("a setup token shorter than the server's says so, and the submit key sends nothing the button would not", async ({
+  page,
+}) => {
+  const sent = [];
+  await page.route("**/api/onboarding", (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { owner_initialized: false } });
+    sent.push(route.request().postDataJSON());
+    return route.fulfill({ status: 422, json: { code: "invalid_request" } });
+  });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  const password = page.getByLabel("Password · at least 12 characters", { exact: true });
+  const field = page.getByLabel("Setup token", { exact: true });
+  const create = page.getByRole("button", { name: "Create workspace", exact: true });
+  await password.fill("short");
+  await field.fill(token);
+  await expect(create).toBeDisabled();
+  await field.press("Enter");
+  await password.fill(credentials.password);
+  await field.fill(token.slice(0, 10));
+  await expect(create).toBeEnabled();
+  await create.click();
+  const short = page.getByText(
+    "The setup token is at least 24 characters. Copy all of it from your server configuration.",
+    { exact: true },
+  );
+  await expect(short).toBeVisible();
+  await field.press("Enter");
+  await expect(short).toBeVisible();
+  expect(sent).toEqual([]);
+});

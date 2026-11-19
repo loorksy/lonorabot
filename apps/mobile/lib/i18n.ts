@@ -644,6 +644,10 @@ export const labels = {
   ],
   setupPassword: ["كلمة المرور · 12 حرفًا على الأقل", "Password · at least 12 characters"],
   setupToken: ["رمز الإعداد", "Setup token"],
+  setupTokenShort: [
+    "رمز الإعداد 24 حرفًا على الأقل. انسخه كاملًا من إعدادات الخادم.",
+    "The setup token is at least 24 characters. Copy all of it from your server configuration.",
+  ],
   setupCreate: ["إنشاء مساحة العمل", "Create workspace"],
   retry: ["إعادة المحاولة", "Retry"],
   emptyInbox: [
