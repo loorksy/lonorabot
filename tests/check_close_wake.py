@@ -164,6 +164,7 @@ async def stop_loss_hit(f: Fixture, account: str) -> None:
     assert CLOSED in run.prompt and '"realized_pnl": "-12.5"' in run.prompt
     assert '"label": "secure_then_add"' in run.prompt and trade[:8] in run.prompt
     assert run.model_metadata["closed_trade_id"] == trade
+    assert run.prompt.endswith("otherwise end without a reply.")
     seen: list[list[ModelMessage]] = []
     data = {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
     ctx = await f.lease(data)
@@ -334,7 +335,10 @@ async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
     version = await memory_version(f, agent["id"])
     with patch.object(ctx.router, "complete", reviewer(version, seen, read_first=read_first)):
         await execute_run(ctx, load_tools(), 120, 8)
-    assert any(CLOSED in m.content for messages in seen for m in messages)
+    (notice,) = {m.content for messages in seen for m in messages if CLOSED in m.content}
+    # The Run was answering something: it goes on, and is never told to end silently.
+    assert "including any answer the owner is waiting for" in notice, notice
+    assert "end without a reply" not in notice, notice
     assert await revisions(f, agent["id"]) == before + 1, "no self-review was written"
     assert await wake_for_closes(f.runtime.db, f.owner) == 0  # read: nothing redirected
     path = "after a tool block" if read_first else "before its final reply"
