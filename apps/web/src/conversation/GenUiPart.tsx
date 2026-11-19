@@ -3,9 +3,10 @@ import { RichResponse } from "../components/visual/RichResponse";
 import type { Message } from "../lib/api";
 import { partsOf, useConversation } from "./context";
 
-/* THE single mount point for generated interfaces inside a message (track T1 fills it with the
-   lonora-ui v2 renderer as a lazy chunk). Until then today's v1 rich responses render here,
-   read-only as they are. A message whose rich_content carries a `ui` part is a ui message. */
+/* THE single mount point for generated interfaces inside a message: RichResponse draws each
+   v2 card through `renderUiPart` (the lazily loaded `UiCard`) and a stored v1 part through its
+   own read-only renderer (docs/genui.md). A message whose rich_content carries a `ui` part is a
+   ui message. */
 
 export const hasGenUi = (message: Message) => partsOf(message).some((part) => part.type === "ui");
 
@@ -31,7 +32,7 @@ export function GenUiPart({ message, live }: { message: Message; live: boolean }
   );
 }
 
-/** The quoted owner bubble of a card submit (origin "ui_submit"; T1 owns its v2 look). */
+/** The quoted owner bubble of a card submit (origin "ui_submit", docs/genui.md §7). */
 export function GenUiSubmitQuote({ message }: { message: Message }) {
   return (
     <span className="text">
