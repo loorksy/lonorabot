@@ -77,6 +77,7 @@ import { TimeSeparator } from "../components/time-separator";
 import { TradeApprovalCard } from "../components/trade-approval";
 import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
+import { WebSearchRow } from "../components/web-search-row";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
 import { useChatPrefs } from "../lib/chat-prefs";
@@ -891,6 +892,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       ),
     [runs],
   );
+  const timeline = conversationTimeline(
+    visibleMessages,
+    approvals.filter((row) => row.thread_id === id),
+    ownerActions.filter((row) => row.thread_id === id),
+    undrawn,
+    receipts.filter((row) => row.thread_id === id),
+  );
   // biome-ignore lint/correctness/useExhaustiveDependencies: `jumpAgain` repeats a jump to the same message
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
@@ -995,6 +1003,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         </View>
       ),
     });
+  // A group: «X يكتب» while a member's reply runs (as Web's header).
+  const replying = thread?.group_id
+    ? runs.find(
+        (run) => run.thread_id === id && ["queued", "leased", "running"].includes(run.status),
+      )
+    : undefined;
+  const typingName = replying ? agents.find((row) => row.id === replying.agent_id)?.name : null;
   const send = async (
     mentions?: MentionAddress,
     followUp?: string,
@@ -1116,6 +1131,35 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     await deliver(intent, outboxKey, id);
   };
   const questions = threadQuestions([...asking, ...runs], id);
+  // The globe beside «+»: the chat's web search off, as Web's composer button.
+  const webSearchOff = async () => {
+    try {
+      const row = await api.put<{ options?: { web_search?: boolean } }>(
+        `/threads/${encodeURIComponent(id)}/options`,
+        { web_search: false },
+      );
+      const options = { web_search: Boolean(row.options?.web_search) };
+      setThread((old) => (old && old.id === id ? { ...old, options } : old));
+      toast(t("webSearchOff"));
+    } catch (reason) {
+      toast(errorText(reason), { type: "error" });
+    }
+  };
+  // The agent's own suggested reply (Q23) under its last answer, as on Web: the answer is
+  // conversational (no generated interface, not a question) and nothing (a card) came after it.
+  const lastAgent = [...visibleMessages]
+    .reverse()
+    .find((row) => row.role !== "user" && !row.id.startsWith("preview:"));
+  const lastMine = [...visibleMessages].reverse().find((row) => row.role === "user");
+  const suggestion =
+    lastAgent?.suggested_reply &&
+    timeline.at(-1)?.kind === "message" &&
+    // As Web's hasGenUi: any generated interface, of either version.
+    !(lastAgent.rich_content?.parts ?? []).some((part) => part.type === "ui") &&
+    !questions.has(lastAgent.id) &&
+    lastMine?.content.trim() !== lastAgent.suggested_reply
+      ? lastAgent.suggested_reply
+      : "";
   // «+»: Files or Photos from the system picker (no storage or camera permission), several
   // at once; each file uploads on its own with a ring and a cancel, as on Web.
   const pick = async (kind: "files" | "photos") => {
@@ -1174,11 +1218,17 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             lead={<Icon name="image" size={22} color={shellTheme.text} />}
             title={t("pickPhotos")}
             sub={t("attachLimit")}
-            last
             onPress={() => {
               sheets.close();
               void pick("photos");
             }}
+          />
+          <WebSearchRow
+            threadId={id}
+            initial={Boolean(thread?.options?.web_search)}
+            onChange={(options) =>
+              setThread((old) => (old && old.id === id ? { ...old, options } : old))
+            }
           />
         </GroupBox>
       ),
@@ -1322,6 +1372,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     <Screen background={shell.background}>
       <ThreadHeader
         title={title}
+        subtitle={typingName ? fill(t("isTyping"), typingName) : null}
         settingsLabel={group ? t("groupSettings") : t("agentSettings")}
         onBack={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         onSettings={() => {
@@ -1484,13 +1535,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 ref={list}
                 testID="conversation-transcript"
                 inverted
-                data={conversationTimeline(
-                  visibleMessages,
-                  approvals.filter((row) => row.thread_id === id),
-                  ownerActions.filter((row) => row.thread_id === id),
-                  undrawn,
-                  receipts.filter((row) => row.thread_id === id),
-                ).reverse()}
+                data={[...timeline].reverse()}
                 keyExtractor={(item) => item.id}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
                 keyboardShouldPersistTaps="handled"
@@ -1714,6 +1759,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           editing={editing}
           commands={commands}
           onCommand={runCommand}
+          suggestion={suggestion}
+          onSuggestion={(text) => updateDraft({ text })}
+          onWebSearchOff={thread?.options?.web_search ? () => void webSearchOff() : undefined}
           assist={prefs.assist}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}

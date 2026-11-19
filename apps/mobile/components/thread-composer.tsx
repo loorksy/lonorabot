@@ -57,6 +57,9 @@ export function ThreadComposer({
   onCancelEdit,
   commands = [],
   onCommand,
+  suggestion,
+  onSuggestion,
+  onWebSearchOff,
   assist = true,
   permissionControl,
 }: {
@@ -87,6 +90,11 @@ export function ThreadComposer({
   /** The / commands this chat offers (lib/commands), and what picking one does. */
   commands?: CommandRow[];
   onCommand?: (row: CommandRow) => void;
+  /** The agent's own suggested reply (Q23); a tap puts it in the composer. */
+  suggestion?: string;
+  onSuggestion?: (text: string) => void;
+  /** The chat's web search is on: a globe beside «+» turns it off, as on Web. */
+  onWebSearchOff?: () => void;
   /** «اقتراحات @» (chat preference): off, no list of agents while writing. */
   assist?: boolean;
   /** Edit and resend (Q21): the owner's message this send replaces. */
@@ -125,6 +133,16 @@ export function ThreadComposer({
       setCursor(0);
     }
   }, [draft]);
+  // The agent's suggested reply, as on Web: only over an empty composer with nothing in it
+  // (no files, no reply or edit) while no reply is being written.
+  const showSuggestion =
+    Boolean(suggestion) &&
+    !draft.trim() &&
+    !attachments.length &&
+    !uploads.length &&
+    !reply &&
+    !editing &&
+    !working;
   // A message may be sent while its files upload: it goes out once they are up (as on Web).
   const canSend =
     Boolean(draft.trim() || attachments.length || uploads.length) &&
@@ -141,6 +159,30 @@ export function ThreadComposer({
         backgroundColor: shell.background,
       }}
     >
+      {showSuggestion && suggestion && onSuggestion ? (
+        <Pressable
+          testID="suggested-reply"
+          accessibilityRole="button"
+          accessibilityLabel={fill(t("suggestedReply"), suggestion)}
+          onPress={() => onSuggestion(suggestion)}
+          style={({ pressed }) => ({
+            alignSelf: rtl ? "flex-end" : "flex-start",
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: shell.border,
+            backgroundColor: pressed ? shell.muted : "transparent",
+          })}
+        >
+          <Text
+            numberOfLines={1}
+            style={{ color: shell.foreground, fontSize: 14, writingDirection: "auto" }}
+          >
+            {suggestion}
+          </Text>
+        </Pressable>
+      ) : null}
       {editing ? (
         <ComposerReplyPreview message={editing} onClose={onCancelEdit} editing />
       ) : reply ? (
@@ -381,6 +423,18 @@ export function ThreadComposer({
             </Pressable>
           </View>
           {permissionControl}
+          {onWebSearchOff ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("webSearchIsOn")}
+              testID="web-search-on"
+              hitSlop={6}
+              onPress={onWebSearchOff}
+              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+            >
+              <NativeSymbol name="globe" size={18} color={shell.link} />
+            </Pressable>
+          ) : null}
           <TextInput
             accessibilityLabel={t("message")}
             placeholder={t("message")}

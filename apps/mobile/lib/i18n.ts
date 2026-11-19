@@ -487,6 +487,12 @@ export const labels = {
   cmdTaskMissing: ["اكتب عنوان المهمة بعد الأمر {0}", "Write the task title after {0}"],
   cmdSearchMissing: ["اكتب ما تبحث عنه بعد الأمر {0}", "Write what you are looking for after {0}"],
   cmdList: ["الأوامر", "Commands"],
+  webSearch: ["البحث في الويب", "Web search"],
+  webSearchOn: ["يجمع المصادر قبل الرد", "Gathers sources before replying"],
+  webSearchIsOn: ["البحث في الويب مفعّل، اضغط لإيقافه", "Web search is on, tap to turn it off"],
+  webSearchOff: ["أُوقف البحث في الويب", "Web search turned off"],
+  isTyping: ["{0} يكتب…", "{0} is typing…"],
+  suggestedReply: ["رد مقترح: {0}", "Suggested reply: {0}"],
   // «تجربة المحادثة» (Web's chat preferences), from the conversation's menu.
   chatPrefs: ["تجربة المحادثة", "Chat experience"],
   chatPrefsIntro: [
