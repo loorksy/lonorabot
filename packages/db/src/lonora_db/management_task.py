@@ -11,7 +11,8 @@ leaves it. Its Runs are ordinary Runs of the agent under the agent's mode.
   within its own terms until it is revoked, 0.4); otherwise it does nothing.
 - ``end_management_task`` ends it: on the switch to Ask, a pause, a delete, or a signed
   grant's Task taking over. Ending keeps what the agent set up (``close_task``): its Runs
-  go on outside the task with their Trade Approval cards still decidable, its watches
+  go on outside the task with their Trade Approval cards still decidable (a pause has
+  withdrawn them just before, ``pauses.end_on_pause``), its watches
   move to its conversation, a pending timer becomes a one-shot routine there, and its
   routines are untouched; the agent keeps managing its positions in Ask.
 - ``reconcile_management_tasks``, a gateway step, catches what no transition reached.
@@ -234,9 +235,9 @@ async def close_task(session: AsyncSession, found: TicketRow) -> None:
     - A Run of the task that is working, waiting for the owner (a question or a Trade
       Approval card), queued after a wake, or failed leaves the task and goes on as an
       ordinary Run of the agent: it keeps its cards, which stay decidable and end only as
-      10.3.1.3 says, its in-flight request is decided under the agent's mode, and a watch
-      it creates from now on belongs to the agent's conversation. A paused agent's Runs
-      are held by the worker until the owner resumes it.
+      10.3.1.3 says (a pause withdrew them first), its in-flight request is decided under
+      the agent's mode, and a watch it creates from now on belongs to the agent's
+      conversation. A paused agent's Runs are held by the worker until it is resumed.
     - The kickoff Run that never started is cancelled; nothing of it exists yet.
     - A Run suspended on its own ``task_wait`` (or held by the owner's pause of the task)
       is cancelled, since only the task could resume it: a timer becomes a one-shot

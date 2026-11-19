@@ -389,13 +389,12 @@ async def delete_agent(
 async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> AgentRow:
     """Stop its runs, routines and watches; nothing it did is removed."""
     from .authority_lock import authority_lock
-    from .management_task import end_management_task
-    from .pauses import owner_takes_over
+    from .pauses import end_on_pause, owner_takes_over
 
     await authority_lock(session, agent_id)
-    # A paused agent's Full-mode task ends (4.5.2), before the agent's row lock: the
-    # task's Runs are locked first, as their own work does.
-    await end_management_task(session, owner_id, agent_id)
+    # A paused agent's pending cards are withdrawn and its Full-mode task ends (4.5.2),
+    # before the agent's row lock: the task's Runs are locked first, as their own work does.
+    await end_on_pause(session, owner_id, agent_id)
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
     # The owner's Undo: a supervisor's hold on this agent becomes the owner's pause.
     await owner_takes_over(session, owner_id, "agent", agent_id, paused=True, agent_id=agent_id)

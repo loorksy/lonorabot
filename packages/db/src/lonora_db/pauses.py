@@ -49,6 +49,20 @@ def claimable_while_paused(run: Any = RunRow) -> ColumnElement[bool]:
     )
 
 
+async def end_on_pause(session: AsyncSession, owner_id: str, agent_id: str) -> None:
+    """What pausing the whole agent ends, in the caller's transaction under the agent's
+    authority lock and before its row lock (the order a mode change takes them): its
+    pending Trade Approval cards, withdrawn and never executed (a paused agent sends no
+    new risk, 4.7.1, so no Approve may wait on one), and its Full-mode task (4.5.2)."""
+    from .management_task import end_management_task
+    from .trade_approvals import withdraw_pending
+    from .trading_mode import trading_mode
+
+    mode = await trading_mode(session, owner_id, agent_id)
+    await withdraw_pending(session, owner_id, agent_id, mode, paused=True)
+    await end_management_task(session, owner_id, agent_id)
+
+
 async def live_hold(
     session: AsyncSession, kind: str, target_id: str, *, lock: bool = False
 ) -> SupervisionHoldRow | None:

@@ -117,11 +117,12 @@ async def update_agent(
         # Taken before the row lock, in the order a mode change takes them.
         await authority_lock(session, agent_id)
         if request.paused:
-            from .management_task import end_management_task
+            from .pauses import end_on_pause
 
-            # Pausing ends the Full-mode task (4.5.2), before the agent's row lock: the
-            # task's Runs are locked first, as their own work does.
-            await end_management_task(session, owner_id, agent_id)
+            # Pausing withdraws the agent's pending cards and ends its Full-mode task
+            # (4.5.2), before the agent's row lock: the task's Runs are locked first, as
+            # their own work does.
+            await end_on_pause(session, owner_id, agent_id)
     row = await owned_agent(session, owner_id, agent_id, lock=True)
     was_paused = row.paused
     if "scope_mode" in request.model_fields_set:

@@ -36,6 +36,7 @@ from lonora_db.management_task import (
     reconcile_management_tasks,
 )
 from lonora_db.obligations import prepare_delete
+from lonora_db.pauses import claimable_while_paused
 from lonora_db.routines import due_query
 from lonora_db.schema import (
     AccountAuthorityRow,
@@ -362,8 +363,9 @@ async def checks() -> None:
         assert ended is not None and ended.status == "cancelled"
     print("PASS ending the task keeps its pending timer as a wake in the conversation")
 
-    # A pause ends the task; the Run waiting on the owner's card leaves it with the card
-    # still decidable (10.3.1.3), held while the agent is paused; the timer is held too.
+    # A pause ends the task and withdraws the card the Run waits on (a paused agent sends
+    # no new risk, 4.7.1): the Run leaves the task, woken to read that, and is held while
+    # the agent is paused; the timer is held too.
     paused_task, card_run = await started_task()
     await set_run(card_run, status="waiting_input", execution_state={"messages": [{"x": 1}]})
     async with db.sessions() as session, session.begin():
@@ -385,16 +387,21 @@ async def checks() -> None:
     async with db.sessions() as session:
         held_run = await session.get(RunRow, card_run)
         held_card = await session.get(TradeApprovalRow, card_id)
-        assert held_run is not None and held_run.status == "waiting_input"
+        assert held_run is not None and held_run.status == "queued"
         assert "task_id" not in held_run.model_metadata
-        assert held_card is not None and held_card.status == "pending"
+        assert not await session.scalar(
+            select(RunRow.id).where(RunRow.id == card_run, claimable_while_paused())
+        )
+        assert held_card is not None and held_card.status == "withdrawn"
+        assert held_card.validity.get("withdrawn_by") == "pause"
         # Due routines of a paused agent are not enqueued.
         assert await session.scalar(due_query(due + timedelta(minutes=1)).limit(1)) is None
     async with db.sessions() as session, session.begin():
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
     assert await live() is not None
     async with db.sessions() as session:
-        assert (await session.get(TradeApprovalRow, card_id)).status == "pending"  # type: ignore[union-attr]
+        # A withdrawn card never comes back: the agent decides again on its own.
+        assert (await session.get(TradeApprovalRow, card_id)).status == "withdrawn"  # type: ignore[union-attr]
     async with db.sessions() as session, session.begin():
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=True))
     assert await live() is None
@@ -402,7 +409,7 @@ async def checks() -> None:
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
     assert await live() is not None
     await set_run(card_run, status="completed")
-    print("PASS a pause ends the task, keeps its card decidable; the owner's resume restarts it")
+    print("PASS a pause ends the task and withdraws its card; the owner's resume restarts it")
 
     # A failed task that can still be resumed is ended by Ask, and is the agent's one task
     # for a Full tap; one that failed for good is closed before a new one starts.
