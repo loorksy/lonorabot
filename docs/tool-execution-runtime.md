@@ -42,7 +42,7 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 | `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `session_search` |
 | `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_snapshot`, `market_sessions`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `watch_list`, `watch_cancel`, `trade_execute`, `trade_close_positions` |
 | `research` | every other agent | `web_search`, `web_fetch`, `artifact_read`, `economic_calendar_read` (only when the owner configured a calendar source) |
-| `coordination` | the Personal Agent, and any agent while it holds a supervision grant; not a trading identity's Task Run (`docs/supervision.md`) | `agent_inspect`, `peer_send`, `web_search` |
+| `coordination` | the Personal Agent only (3.3.1); not a trading identity's Task Run (`docs/supervision.md`) | `agent_inspect`, `peer_send`, `web_search` |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
 
 A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
@@ -311,7 +311,7 @@ What a name may do depends on the call:
 | Watch | `market_watch.named_watch` | symbol, "symbol condition level", prompt | cancel and pause on an exact name, among watches the action still applies to; resume and update never |
 | Routine | `routine.named_routine` | title, prompt | switching off on an exact title; switching on never |
 | Task | `tasks.named_task` | title | `task_inspect` only |
-| Agent | `supervision.named_agent` | name, among this agent and those it supervises now | `agent_inspect` only; `agent_control` never |
+| Agent | `supervision.named_agent` | name, among this agent and, for Lonora, every team agent | `agent_inspect` only; `agent_control` never |
 
 A change is never pointed at something the call did not name, an exit is never held back
 by a resolver (a ticket is only checked for existing, on a first attempt, and a failed
@@ -481,9 +481,9 @@ continuous work, so unfinished work is never marked completed.
 
 A Task has declared steps; a conversation has none, so a reply could end the owner's
 request with one named step left untaken. `conversation_gate.py` checks a text reply of a
-Run the owner started by typing (`owner_started`; a Task Run and every wake are never
-checked) and continues the turn in four cases, read from the request's own calls and
-results:
+Run the owner started by typing (`owner_started`; a Task Run is never checked) and
+continues the turn in five cases, read from the request's own calls and results. A wake
+is checked for the last case only, over the calls since its last input or finished reply:
 
 | Condition | What was seen | What the notice asks |
 |---|---|---|
@@ -491,10 +491,11 @@ results:
 | `read_step_not_taken` | The last call failed with class `resolution`, listed nothing that exists, and named exactly one read-only tool to call next, which the request never called | Take that step and answer from it, or say plainly what was not done |
 | `found_tool_unused` | `tool_environment` returned exactly one available tool (an exact lookup, or a search with one match; never one row of a longer listing), and the request never called it and changed nothing | A read: call it. A change: call it only if the owner asked for the action; a question about it is answered |
 | `changes_all_failed` | Every change of the request failed, and one failure names how to repeat it (`repeat_with`) or a read to make first | Take the step, or say that the change was not made |
+| `lead_action_unreported` | A lead action changed the team (`owner_line: "required"` in its result: Lonora's `agent_control`, or `trading_mode_ask` on another agent) and the reply is empty. Checked first, whatever else the request contains: it asks for words, never a call | Tell the owner in one line what was done and why |
 
-The gate reads call names, arguments and result fields only. It never reads what the owner
-or the model wrote, never issues a call, and its notices carry tool names but no failure
-code. It holds the reply, whatever else the request contains, when the request made any
+The gate reads call names, arguments and result fields, and whether the reply is empty. It
+never reads what the owner or the model wrote, never issues a call, and its notices carry
+tool names but no failure code. Except for `lead_action_unreported`, it holds the reply, whatever else the request contains, when the request made any
 financial call, when any result is a permission refusal, needs the owner's authorization,
 hit a health block, has an unknown outcome, was stopped by a guardrail or spent
 its retries, and when the last owner-side message is a wake. A found tool that is

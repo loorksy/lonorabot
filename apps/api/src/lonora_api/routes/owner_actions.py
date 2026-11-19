@@ -41,12 +41,6 @@ from lonora_contracts.owner_actions import (
 from lonora_contracts.trading import OperationResolution
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
-from lonora_db.agent_creation import (
-    cancel_first_task,
-    pause_agent,
-    start_first_task,
-    undo_plan,
-)
 from lonora_db.authority_lock import authority_lock
 from lonora_db.owner_actions import (
     agent_names,
@@ -60,8 +54,6 @@ from lonora_db.owner_actions import (
     lock_owner_actions,
     owned_card,
     owner_action_data,
-    raise_created_card,
-    raise_supervision_card,
     renew_card,
     settle,
     stale_reason,
@@ -69,16 +61,10 @@ from lonora_db.owner_actions import (
     thread_cards,
 )
 from lonora_db.pauses import owner_resumes
-from lonora_db.schema import AgentRow, OwnerActionRow
-from lonora_db.supervision import (
-    grant_supervision,
-    owned_grant,
-    revoke_supervision,
-)
+from lonora_db.schema import OwnerActionRow
 from lonora_db.threads import conversation_thread
 from lonora_db.trading_mode import set_trading_mode
 from lonora_db.transactions import owned_thread
-from lonora_session.idempotency import stable_id
 from lonora_trading.owner_controls import attest_operation
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -290,50 +276,9 @@ async def decide(
             raise LonoraError("owner_action_passkey_required", 403)
         result = await confirm_grant(session, rt, owner, row, body)
         via = "passkey"
-    elif row.kind == "create_agent":
-        created = await create_agent_from_card(session, owner, row)
-        result = {"agent_id": created.id, "agent_name": created.name}
-    elif row.kind == "agent_created":
-        undone = await undo_creation(session, owner, row)
-        if undone is None:
-            # Deleted by the owner while this tap waited: nothing is left to undo.
-            await settle(session, row, "expired", "agent_already_removed")
-            return
-        result = undone
-    elif row.kind == "supervise":
-        granted = await supervise_from_card(session, owner, row)
-        result = {"grant_ids": granted, "supervisor_id": row.payload["supervisor_id"]}
-    elif row.kind == "supervision_created":
-        revoked = await undo_supervision(session, owner, row)
-        result = {"revoked": revoked}
-    elif row.kind == "supervision_stopped":
-        result = {"restored": await restore_supervision(session, owner, row)}
     elif row.kind == "supervision_paused":
         result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
-    created_agent = (
-        await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
-    )
-    if row.kind == "supervise":
-        # The same one-line result with Undo as a grant set from the owner's message.
-        await raise_supervision_card(
-            session,
-            owner.id,
-            result["grant_ids"],
-            card_key=row.id,
-            agent_id=row.agent_id,
-            thread_id=row.thread_id,
-            run_id=row.run_id,
-        )
-    if created_agent is not None:
-        await raise_created_card(
-            session,
-            owner.id,
-            created_agent,
-            agent_id=row.agent_id,
-            thread_id=row.thread_id,
-            run_id=row.run_id,
-        )
     await supersede_subject(
         session,
         owner.id,
@@ -344,9 +289,6 @@ async def decide(
         effect=row.payload_hash,
     )
     await confirm_in_thread(session, row)
-    if created_agent is not None:
-        # The agent that proposed it hands it its first task, after the line above.
-        await start_first_task(session, row, created_agent)
 
 
 async def choose(
@@ -426,103 +368,3 @@ async def confirm_grant(
         "stopped_authorities": stopped,
         "stopped_agents": sorted(names.values()),
     }
-
-
-async def create_agent_from_card(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> AgentRow:
-    """The owner's tap creates the agent the card names, once (its id comes from the card)."""
-    from lonora_agent.collaboration.agent_create import create_from_spec
-
-    created, _ = await create_from_spec(
-        session,
-        owner.id,
-        row.payload["spec"],
-        agent_id=stable_id(row.id, "created-agent"),
-        created_via="owner_card",
-        created_by_agent_id=row.agent_id,
-        source_message_id=None,
-        run_id=row.run_id,
-        card_id=row.id,
-    )
-    return created
-
-
-async def supervise_from_card(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> list[str]:
-    """The owner's tap sets the supervision the card names; pairs already set stay as
-    they are and are not part of this change (its Undo never takes them back)."""
-    created: list[str] = []
-    for agent_id in row.payload["supervised_ids"]:
-        grant, new = await grant_supervision(
-            session,
-            owner.id,
-            row.payload["supervisor_id"],
-            agent_id,
-            via="owner_card",
-            created_by_agent_id=row.agent_id,
-        )
-        if new:
-            created.append(grant.id)
-    return created
-
-
-async def restore_supervision(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> int:
-    """Restore: the grants stopped from chat are set again by the owner's tap; a pair
-    supervised again meanwhile stays as it is."""
-    restored = 0
-    for grant_id in row.payload["grant_ids"]:
-        stopped = await owned_grant(session, owner.id, grant_id)
-        _, new = await grant_supervision(
-            session,
-            owner.id,
-            stopped.supervisor_agent_id,
-            stopped.supervised_agent_id,
-            via="owner_card",
-            created_by_agent_id=row.agent_id,
-        )
-        restored += new
-    return restored
-
-
-async def undo_supervision(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> int:
-    """Undo: the grants this change set end now; reads and control stop at once."""
-    revoked = 0
-    for grant_id in row.payload["grant_ids"]:
-        grant = await owned_grant(session, owner.id, grant_id)
-        if grant.revoked_at is None:
-            await revoke_supervision(session, owner.id, grant_id, via="owner_card")
-            revoked += 1
-    return revoked
-
-
-async def undo_creation(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> dict[str, Any] | None:
-    """Undo: remove an agent that has done nothing yet, pause one that has. None when
-    the owner deleted it while this tap waited for its lock."""
-    from lonora_agent.collaboration.agent_create import delete_created_agent
-
-    agent_id = row.payload["agent_id"]
-    # Lock it first: a run or watch that starts now waits on this lock, so the plan below
-    # never deletes work begun meanwhile.
-    await authority_lock(session, agent_id)
-    from lonora_db.management_task import end_management_task
-
-    # Both outcomes end its Full-mode task (4.5.2): before the agent's row lock, since the
-    # task's Runs are locked first, as their own work does.
-    await end_management_task(session, owner.id, agent_id)
-    agent = await session.get(AgentRow, agent_id, with_for_update=True, populate_existing=True)
-    if agent is None or agent.owner_id != owner.id:
-        return None
-    name = agent.name
-    # The proposing agent's first-task run has not started: it never hands out a task.
-    await cancel_first_task(session, owner.id, agent_id)
-    if await undo_plan(session, owner.id, agent_id) == "delete":
-        await delete_created_agent(session, owner.id, agent_id, keep_card=row.id)
-        return {"undo": "deleted", "agent_name": name}
-    await pause_agent(session, owner.id, agent_id)
-    return {"undo": "paused", "agent_name": name}

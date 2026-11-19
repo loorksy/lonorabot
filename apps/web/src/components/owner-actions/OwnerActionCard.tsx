@@ -3,7 +3,6 @@ import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/
 import {
   brokerCardFailed,
   mergeOwnerAction,
-  noticeUndone,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -208,20 +207,7 @@ export function OwnerActionCard({
     }
   }
   const settled = !ownerActionLive(row);
-  const notice = NOTICE_KINDS.has(row.kind);
   const kind = ownerActionKindName(row);
-  if (notice)
-    return (
-      <NoticeLine
-        row={row}
-        text={[spec.title, ...spec.lines].join(" · ")}
-        undo={settled ? undefined : spec.buttons.find((button) => button.decision === "confirm")}
-        outcome={spec.outcome}
-        busy={busy}
-        error={error}
-        onUndo={(button) => void decide(button)}
-      />
-    );
   if (settled && !inSheet)
     return (
       <DecisionLine
@@ -399,16 +385,9 @@ export function OwnerActionCard({
   );
 }
 
-/** Undo-only kinds: a change made without asking, in one centred line with «تراجع» (Q31). */
-const NOTICE_KINDS = new Set<string>(["agent_created", "supervision_created"]);
 const KIND_ICON: Partial<Record<string, IconName>> = {
   grant_authority: "shield",
   settle_operation: "alert",
-  create_agent: "userPlus",
-  agent_created: "userPlus",
-  supervise: "eye",
-  supervision_created: "eye",
-  supervision_stopped: "eye",
   supervision_paused: "pause",
   secret: "key",
 };
@@ -507,71 +486,6 @@ function DecisionLine({
         <button type="button" className="btn sm ghost" onClick={() => onLatest(supersededBy)}>
           {labels.latest}
         </button>
-      )}
-    </div>
-  );
-}
-
-function NoticeLine({
-  row,
-  text,
-  undo,
-  outcome,
-  busy,
-  error,
-  onUndo,
-}: {
-  row: OwnerAction;
-  text: string;
-  undo?: OwnerActionButton;
-  /** The settled card's own line (core settledLine), e.g. «تم التراجع: أُزيل الوكيل.». */
-  outcome?: string | null;
-  busy: boolean;
-  error: unknown;
-  onUndo: (button: OwnerActionButton) => void;
-}) {
-  const labels = ownerActionText(i18n.locale);
-  // Only a notice that offers «تراجع» can be undone (Q31).
-  const undone = noticeUndone(row);
-  return (
-    <div
-      className="k-notice"
-      data-owner-action={row.id}
-      data-owner-action-kind={row.kind}
-      data-owner-action-status={row.status}
-    >
-      <div className={`notice${undone ? " undone" : ""}`}>
-        <Icon name={KIND_ICON[row.kind] ?? "info"} />
-        <span className="nt-text" title={text} dir="auto">
-          {text}
-        </span>
-        <time dateTime={row.created_at}>
-          {new Date(row.created_at).toLocaleTimeString("en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </time>
-        {undone ? (
-          <span className="nt-done" role="status">
-            <Icon name="undo" />
-            {outcome ?? labels.undone}
-          </span>
-        ) : undo ? (
-          <button
-            type="button"
-            className="nt-undo"
-            data-owner-action-button={undo.key}
-            disabled={busy}
-            onClick={() => onUndo(undo)}
-          >
-            {labels.undo}
-          </button>
-        ) : null}
-      </div>
-      {error != null && (
-        <p className="oa-warn" role="alert">
-          {userError(error)}
-        </p>
       )}
     </div>
   );

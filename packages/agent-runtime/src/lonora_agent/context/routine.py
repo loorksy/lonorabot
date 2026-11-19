@@ -27,7 +27,6 @@ SERVER_AUTHORED_TRIGGERS = frozenset(
         "broker_event",
         "follow_up",
         "activation",
-        "agent_created",
         "owner_card",
         WORKSPACE_WAKE,
         WEBHOOK,

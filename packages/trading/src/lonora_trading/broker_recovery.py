@@ -23,7 +23,8 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .manual_activity import detect_activity
+from .exposure import ENTRY_ACTIONS
+from .manual_activity import detect_activity, opening_agent
 from .reconciliation import observe_operation, send_lock_key, settle
 
 
@@ -164,6 +165,27 @@ async def reconcile_broker_account(
         return snapshot
 
 
+async def opened_by(session: AsyncSession, owner_id: str, change: BrokerActivity) -> str | None:
+    """The agent whose journaled order opened or placed this change's ticket (3.3.4)."""
+    target = change.current or change.previous
+    if target is None:
+        return None
+    entries = list(
+        await session.scalars(
+            select(TradingJournalRow)
+            .where(
+                TradingJournalRow.owner_id == owner_id,
+                TradingJournalRow.account_id == change.account_id,
+                TradingJournalRow.request["symbol"].as_string() == target.symbol,
+                TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
+            )
+            .order_by(TradingJournalRow.updated_at.desc())
+            .limit(1000)
+        )
+    )
+    return opening_agent(target, entries)
+
+
 async def wake_for_activity(
     session: AsyncSession,
     owner_id: str,
@@ -175,11 +197,12 @@ async def wake_for_activity(
 
     A change on a ticket the journal attributes to an Agent (a stop-loss or take-profit
     hit, a manual close of its position) wakes that Agent with its normal authority:
-    its grant and pauses still decide at the executor. A paused Agent is woken too, for
-    its own positions and orders only, and may only reduce risk (4.7.1). Unattributed
-    activity is the owner's own and wakes the Personal Agent with no financial effects,
-    as does activity of an Agent that no longer exists; a paused Personal Agent is not
-    woken for it.
+    its grant and pauses still decide at the executor. A paused
+    Agent is woken too, for its own positions and orders only, and may only reduce risk
+    (4.7.1). A ticket of an Agent that no longer exists transferred to the Personal Agent
+    (3.1.2): it wakes the Personal Agent the same way, as its own. Unattributed activity is
+    the owner's own and wakes the Personal Agent with no financial effects; a paused
+    Personal Agent is not woken for it.
     """
     personal = await ensure_personal_agent(session, owner_id)
     groups: dict[tuple[str, bool], list[str]] = {}
@@ -192,7 +215,15 @@ async def wake_for_activity(
         attributed = bool(
             responsible and responsible.owner_id == owner_id and responsible.role != "delegated"
         )
+        # A ticket a deleted agent opened transferred to Lonora (3.1.2, 3.3.4): Lonora's
+        # own, woken normally. One it only managed stays the owner's own (observe-only).
+        transferred = (
+            change.agent_id is not None
+            and responsible is None
+            and await opened_by(session, owner_id, change) == change.agent_id
+        )
         agent = responsible if attributed and responsible else personal
+        attributed = attributed or transferred
         agents[agent.id] = agent
         thread = await conversation_thread(session, owner_id, agent.id)
         emit(
@@ -251,7 +282,7 @@ async def wake_for_activity(
         }
         if attributed:
             prompt = (
-                f"Broker activity on positions or orders you opened or manage on account_id="
+                f"Broker activity on positions or orders you own or manage on account_id="
                 f"{account_id}. Use account_activity and current account state to reassess them "
                 "and decide what to do next. Your normal authority applies; your grant and "
                 "pauses decide at execution. Never resend an uncertain operation."

@@ -5,7 +5,7 @@ import { rowKey } from "@lonora/core";
 import { Redirect, useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { useOpenChat } from "../components/shell/chat-list";
-import { CircleButton, PageHeader } from "../components/shell/chrome";
+import { PageHeader } from "../components/shell/chrome";
 import { Icon } from "../components/shell/icon";
 import {
   Btn,
@@ -36,16 +36,7 @@ export default function Agents() {
   if (!owner) return <Redirect href="/sign-in" />;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <PageHeader
-        title={t("sh_fAgents")}
-        actions={
-          <CircleButton
-            icon="plus"
-            label={t("sh_createAgent")}
-            onPress={() => router.push("/new")}
-          />
-        }
-      />
+      <PageHeader title={t("sh_fAgents")} />
       {!data.loaded ? (
         <SkRows count={5} />
       ) : (

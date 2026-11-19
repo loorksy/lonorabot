@@ -25,7 +25,6 @@ export const PAGES = [
   "skill",
   "new-skill",
   "file-edit",
-  "new-agent",
   "new-group",
   "owner",
   // «ما يعمل الآن» (7.1.5): the owner's view of every workspace process.

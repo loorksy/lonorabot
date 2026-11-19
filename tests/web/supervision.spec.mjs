@@ -11,24 +11,21 @@ function simulation(data) {
   );
 }
 
-// Lonora (with a default grant over Gold, as migration 0041 stored one), a gold agent and a watcher that
-// proposed to supervise it, as supervision_change raises the card without an owner
-// message (no model involved); Lonora paused one of Gold's routines on its own, which
-// raises the pause card in Gold's conversation.
+// Lonora and a gold agent; one of Gold's routines is paused, held by a team supervisor
+// from before grants were deleted, whose pause card still shows in Gold's conversation.
 function seedSupervision(data) {
   const script = `
 import asyncio,json,sys
 sys.path.insert(0,'tests')
-from uuid import uuid4
 from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate
 from lonora_db.agents import create_agent
-from lonora_db.owner_actions import propose_supervision
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_contracts.routines import RoutineCreate
 from lonora_db.routines import create_routine
-from lonora_db.schema import OwnerActionRow
-from lonora_db.supervision import control_work, grant_supervision
+from lonora_db.schema import OwnerActionRow, SupervisionHoldRow
+from pause_cards import raise_supervision_pause_card
+from lonora_db.supervision import control_work
 from sqlalchemy import select
 from lonora_db.threads import conversation_thread
 async def main():
@@ -38,15 +35,18 @@ async def main():
         async with f.runtime.db.sessions() as session, session.begin():
             lonora=await ensure_personal_agent(session,f.owner)
             gold=await create_agent(session,f.owner,AgentCreate(name=data['gold'],scope_mode='flexible'))
-            watcher=await create_agent(session,f.owner,AgentCreate(name=data['watcher'],scope_mode='flexible'))
-            await grant_supervision(session,f.owner,lonora.id,gold.id,via='default')
-            thread=await conversation_thread(session,f.owner,watcher.id)
-            card,_=await propose_supervision(session,f.owner,watcher.id,[gold.id],card_id=str(uuid4()),agent_id=watcher.id,thread_id=thread.id,run_id=None)
             routine=await create_routine(session,f.owner,gold.id,RoutineCreate(prompt=data['routine'],interval_seconds=3600))
             await control_work(session,f.owner,actor_id=lonora.id,agent_id=gold.id,kind='routine',target_id=routine.id,action='pause',owner_message_id=None,run_id=None)
+            # Lonora's pause raises no card: the card is a pause a team supervisor made
+            # before grants were deleted (0127), which still renders with Resume.
+            desk=await create_agent(session,f.owner,AgentCreate(name=data['gold']+' desk'))
+            hold=await session.scalar(select(SupervisionHoldRow).where(SupervisionHoldRow.target_id==routine.id,SupervisionHoldRow.released_at.is_(None)))
+            hold.holder_agent_id=desk.id
+            await session.flush()
+            await raise_supervision_pause_card(session,hold,run_id=None)
             pause=await session.scalar(select(OwnerActionRow.id).where(OwnerActionRow.kind=='supervision_paused',OwnerActionRow.agent_id==gold.id))
-            gold_thread=await conversation_thread(session,f.owner,gold.id)
-            print(json.dumps({'lonora':lonora.id,'lonora_name':lonora.name,'gold':gold.id,'watcher':watcher.id,'card':card.id,'pause':pause}))
+            await conversation_thread(session,f.owner,gold.id)
+            print(json.dumps({'lonora_name':desk.name,'desk':desk.id,'gold':gold.id,'pause':pause}))
     finally:
         await f.close(cleanup=False)
 asyncio.run(main())
@@ -60,42 +60,12 @@ asyncio.run(main())
 }
 
 const copy = {
-  en: {
-    settings: "Agent info",
-    section: "Lonora supervises your agents",
-    none: "Lonora leads this agent by its role. No other agent supervises it, and it supervises none.",
-    stop: "Stop",
-    title: "Let it supervise?",
-    allow: "Allow",
-    set: "Supervision set.",
-    created: "Supervision set",
-    undo: "Undo",
-    undone: "Undone: supervision stopped.",
-    never: /never trades for them/,
-    pauseTitle: "Paused by a supervisor",
-    resume: "Resume",
-    resumed: "Resumed.",
-  },
-  ar: {
-    settings: "معلومات الوكيل",
-    section: "لونورا تشرف على وكلائك",
-    none: "تقود لونورا هذا الوكيل بحكم دورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
-    stop: "إيقاف",
-    title: "السماح له بالإشراف؟",
-    allow: "السماح",
-    set: "تم تعيين الإشراف.",
-    created: "تم تعيين الإشراف",
-    undo: "تراجع",
-    undone: "تم التراجع: توقف الإشراف.",
-    never: /لا يتداول عنهم/,
-    pauseTitle: "أوقفه مشرف مؤقتًا",
-    resume: "استئناف",
-    resumed: "تم الاستئناف.",
-  },
+  en: { pauseTitle: "Paused by a supervisor", resume: "Resume", resumed: "Resumed." },
+  ar: { pauseTitle: "أوقفه مشرف مؤقتًا", resume: "استئناف", resumed: "تم الاستئناف." },
 };
 
 for (const locale of ["en", "ar"])
-  test(`${locale}: Lonora's profile lists no grant of its own, and a card sets supervision with Undo`, async ({
+  test(`${locale}: an earlier supervisor's pause card names who paused what, with one-tap Resume`, async ({
     page,
     context,
   }) => {
@@ -117,62 +87,9 @@ for (const locale of ["en", "ar"])
     const suffix = randomUUID().slice(0, 6);
     const seeded = seedSupervision({
       gold: `Gold ${suffix}`,
-      watcher: `Watcher ${suffix}`,
       routine: `Review gold ${suffix}`,
     });
     try {
-      // Lonora's profile: Lonora reads and steers every team agent by its lead role, so its
-      // stored default grant over Gold changes nothing. It is not listed, with no Stop that
-      // would change nothing, and no new grant is offered.
-      const loaded = page.waitForResponse((response) =>
-        response.url().includes(`/supervision?agent_id=${seeded.lonora}`),
-      );
-      await page.goto(`/app/${seeded.lonora}`);
-      await page.getByRole("button", { name: text.settings, exact: true }).click();
-      const section = page.getByTestId("supervision-settings");
-      await section.locator("summary").click();
-      await expect(section.locator("summary")).toHaveText(text.section);
-      expect((await (await loaded).json()).supervises).toEqual([]);
-      await expect(section.locator("li")).toHaveCount(0);
-      await expect(section.getByRole("button", { name: text.stop, exact: true })).toHaveCount(0);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await section.screenshot({ path: test.info().outputPath("supervision-profile-ar.png") });
-      }
-      const view = await (
-        await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)
-      ).json();
-      expect(view.supervised_by).toEqual([]);
-      // Gold's profile names Lonora as its lead, with no Stop for the stored grant.
-      await page.goto(`/app/${seeded.gold}`);
-      await page.getByRole("button", { name: text.settings, exact: true }).click();
-      const gold = page.getByTestId("supervision-settings");
-      await gold.locator("summary").click();
-      await expect(gold.getByText(text.none, { exact: true })).toBeVisible();
-      await expect(gold.getByRole("button", { name: text.stop, exact: true })).toHaveCount(0);
-
-      // The watcher's card: Allow sets supervision; its Undo card stops it again.
-      await page.goto(`/app/${seeded.watcher}`);
-      const card = page.locator(`[data-owner-action="${seeded.card}"]`);
-      await expect(card).toHaveAttribute("data-owner-action-kind", "supervise");
-      // The reference's card head names the kind (.oa-kind).
-      await expect(card.locator(".oa-kind")).toHaveText(text.title);
-      await expect(card).toContainText(`⁨Gold ${suffix}⁩`);
-      await expect(card).toContainText(text.never);
-      await card.getByRole("button", { name: text.allow, exact: true }).click();
-      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.getByRole("status")).toHaveText(text.set);
-      const undo = page.locator('[data-owner-action-kind="supervision_created"]');
-      // A change made without asking is one notice line with Undo (reference noticeMarkup).
-      await expect(undo.locator(".nt-text")).toContainText(text.created);
-      await undo.getByRole("button", { name: text.undo, exact: true }).click();
-      await expect(undo).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(undo.getByRole("status")).toHaveText(text.undone);
-      const after = await (
-        await context.request.get(`/api/supervision?agent_id=${seeded.watcher}`)
-      ).json();
-      expect(after.supervises).toEqual([]);
-
       // Gold's conversation names who paused its routine, with one-tap Resume.
       await page.goto(`/app/${seeded.gold}`);
       const pause = page.locator(`[data-owner-action="${seeded.pause}"]`);
@@ -190,8 +107,8 @@ for (const locale of ["en", "ar"])
         routines.filter((row) => row.agent_id === seeded.gold).map((row) => row.enabled),
       ).toEqual([true]);
     } finally {
-      for (const id of [seeded.gold, seeded.watcher])
-        await context.request.delete(`/api/agents/${id}`, { headers });
+      await context.request.delete(`/api/agents/${seeded.gold}`, { headers });
+      await context.request.delete(`/api/agents/${seeded.desk}`, { headers });
       simulation({ ...data, action: "cleanup" });
     }
   });

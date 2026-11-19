@@ -8,26 +8,13 @@ import { agentRole } from "./lists/ThreadRow";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
 
-/* «محادثة جديدة»: a new agent or group, then the agents and the groups that already exist. */
+/* «محادثة جديدة»: a new group, then the agents and the groups that already exist. */
 /* The lists are read live: a sheet opened before the shell's data arrives fills in. */
 function Body({ onGo }: { onGo: (path: string) => void }) {
   const { agents, groups } = useShellData();
   return (
     <>
       <div className="group">
-        <button type="button" className="row" onClick={() => onGo("/app/new-agent")}>
-          <span className="avatar icon-av">
-            <Icon name="userPlus" />
-          </span>
-          <span className="body">
-            <strong>
-              <Trans>New agent</Trans>
-            </strong>
-            <small>
-              <Trans>Its own role, model and permissions</Trans>
-            </small>
-          </span>
-        </button>
         <button type="button" className="row" onClick={() => onGo("/app/new-group")}>
           <span className="avatar icon-av">
             <Icon name="users" />

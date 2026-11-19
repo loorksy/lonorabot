@@ -69,7 +69,6 @@ ROUTES = (
     "opportunities",
     "owner_actions",
     "secret_cards",
-    "supervision",
     "tasks",
     "collaboration",
     "watches",

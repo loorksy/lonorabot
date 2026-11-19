@@ -29,10 +29,9 @@ nothing of the host's private thread. A persistent child Agent has its own
 identity and therefore its own scope.
 
 Lonora reads the threads, decisions, memory and Runs of every team agent by its lead
-role, whatever its grant (`lonora_db.lead`); another supervisor reads those of the
-agents it supervises now, through the owner's visible, revocable supervision grant
-(`docs/supervision.md`). Each such result names the agent and is labelled untrusted;
-for any other agent everything below is unchanged.
+role (`lonora_db.lead`, `docs/supervision.md`); no team agent reads another's. Each
+such result names the agent and is labelled untrusted; for any other agent everything
+below is unchanged.
 
 `subagent_inspect` follows the same rule for Runs
 (`lonora_agent/collaboration/subagents.py`, `delegated_by`): it returns a Run

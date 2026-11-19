@@ -1,4 +1,4 @@
-"""Lonora's lead powers are built in (mandate 3.1.6, 14.3.15): no revoked grant ends them.
+"""Lonora's lead powers are built in (mandate 3.1.6, 14.3.15): they need no grant.
 
 Runs the real tools and owner routes against the test database (skipped without
 ``LONORA_DATABASE_URL``).
@@ -58,11 +58,10 @@ async def wake(fixture: Any, agent: dict[str, Any]) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked():
+async def test_lonora_reads_and_steers_a_team_agent_with_no_grant():
     database()
     from check_streaming import Fixture
     from lonora_db.personal_agent import ensure_personal_agent
-    from lonora_db.supervision import grant_supervision, revoke_supervision
 
     fixture = await Fixture().open()
     try:
@@ -88,19 +87,6 @@ async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked()
             assert memory is not None
             memory.content = "# MEMORY.md\n- " + SENTINEL + " spreads widen at the open\n"
         gold_run = await fixture.run(gold, gold_thread)
-
-        # A default grant as migration 0041 stored one changes nothing, so no profile lists
-        # it (its Stop would change nothing); revoked, the lead role remains.
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            default, _ = await grant_supervision(
-                session, fixture.owner, lonora["id"], gold["id"], via="default"
-            )
-            default_id = default.id
-        for agent_id in (gold["id"], lonora["id"]):
-            view = await fixture.request("GET", f"/supervision?agent_id={agent_id}")
-            assert view["supervises"] == [] and view["supervised_by"] == [], view
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            await revoke_supervision(session, fixture.owner, default_id, via="owner_ui")
 
         lead = await wake(fixture, lonora)
         found = await call(lead, "session_search", query=SENTINEL)
@@ -147,169 +133,138 @@ async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked()
 
 
 @pytest.mark.asyncio
-async def test_lonora_takes_no_grant_and_no_card_says_its_supervision_changed():
-    """0.4: a grant to Lonora, or a revoke of one, would change nothing, so neither is made
-    and no card says supervision was set or stopped."""
+async def test_lonora_cancels_a_run_switches_to_ask_and_pauses_without_a_card():
     database()
     from check_streaming import Fixture
-    from lonora_db.owner_actions import (
-        propose_supervision,
-        raise_supervision_card,
-        raise_supervision_stopped_card,
-        stale_reason,
-    )
     from lonora_db.personal_agent import ensure_personal_agent
-    from lonora_db.schema import SupervisionGrantRow
-    from lonora_db.supervision import grant_supervision, revoke_supervision
-    from test_supervision import owner_says
+    from lonora_db.schema import OwnerActionRow, RunRow
+    from lonora_db.trading_mode import set_trading_mode, trading_mode
+    from sqlalchemy import select
 
     fixture = await Fixture().open()
     try:
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await ensure_personal_agent(session, fixture.owner)
             lonora = {"id": row.id, "name": row.name}
-        gold, silver = await fixture.agent("Gold"), await fixture.agent("Silver")
-        # Silver holds a default grant as migration 0041 stored one; Gold, made later, none.
+        gold, peer = await fixture.agent("Gold"), await fixture.agent("Peer")
+        gold_run = await fixture.run(gold, await fixture.conversation(gold))
+        await fixture.lease(gold_run)
+        # An owner message waiting its turn is not the current run: it stays.
+        queued = await fixture.run(gold, await fixture.conversation(gold))
         async with fixture.runtime.db.sessions() as session, session.begin():
-            stored, _ = await grant_supervision(
-                session, fixture.owner, lonora["id"], silver["id"], via="default"
-            )
-            stored_id = stored.id
-        thread = await fixture.conversation(lonora)
+            await set_trading_mode(session, fixture.owner, gold["id"], "full", by="owner_tap")
+        lead = await wake(fixture, lonora)
 
-        async def cards() -> list[dict[str, Any]]:
-            response = await fixture.client.get(
-                "/api/owner-actions", params={"thread_id": thread["id"]}
-            )
-            assert response.is_success, response.text
-            return [
-                item
-                for item in response.json()
-                if item["kind"].startswith("supervis") and item["id"] not in earlier
-            ]
-
-        # The database is shared: cards other tests left in Lonora's conversation (a
-        # supervisor pausing Lonora's routine, a supervision set from its chat) are not this
-        # test's.
-        earlier: set[str] = set()
-        earlier = {item["id"] for item in await cards()}
-        # The owner asks Lonora to stop (or start) supervising: refused with the reason,
-        # nothing revoked, and no Stopped card with Restore, nor an Undo card.
-        told = await owner_says(fixture, lonora, thread, "توقفي عن الإشراف على الذهب والفضة")
-        for action in ("revoke", "grant"):
-            assert (
-                await refused(
-                    told,
-                    "supervision_change",
-                    action=action,
-                    supervised_ids=[gold["id"], silver["id"]],
-                )
-                == "supervision_lead_needs_no_grant"
-            )
+        # cancel_run ends the team agent's current run, never Lonora's own (3.1.2).
+        cancelled = await call(lead, "agent_control", agent_id=gold["id"], action="cancel_run")
+        assert cancelled["changed"] is True and cancelled["cancelled_runs"] == 1
+        assert cancelled["owner_line"] == "required"
         async with fixture.runtime.db.sessions() as session:
-            kept = await session.get(SupervisionGrantRow, stored_id)
-            assert kept is not None and kept.revoked_at is None
-        assert await cards() == []
-        # Nor does another agent name Lonora as the supervisor.
-        silver_run = await owner_says(
-            fixture, silver, await fixture.conversation(silver), "Let Lonora supervise Gold"
-        )
+            assert (await session.get(RunRow, gold_run["id"])).status == "cancelled"  # type: ignore[union-attr]
+            assert (await session.get(RunRow, lead.lease.run_id)).status != "cancelled"  # type: ignore[union-attr]
+            assert (await session.get(RunRow, queued["id"])).status == "queued"  # type: ignore[union-attr]
+        again = await call(lead, "agent_control", agent_id=gold["id"], action="cancel_run")
+        assert again["changed"] is False and "owner_line" not in again
+
+        # set_ask switches it to Ask with no card and no owner message (4.2.2).
+        asked = await call(lead, "agent_control", agent_id=gold["id"], action="set_ask")
+        assert asked["changed"] is True and asked["trading_mode"] == "ask"
+        # The same switch as trading_mode_ask: it says what signed grants still decide.
+        assert asked["active_signed_grants"] == 0 and asked["owner_line"] == "required"
+        async with fixture.runtime.db.sessions() as session:
+            assert await trading_mode(session, fixture.owner, gold["id"]) == "ask"
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, gold["id"], "full", by="owner_tap")
+        # Through trading_mode_ask, Lonora's switch of a team agent carries the line too.
+        tool = await call(lead, "trading_mode_ask", agent_id=gold["id"])
+        assert tool["changed"] is True and tool["owner_line"] == "required"
+        assert "owner_line" not in await call(lead, "trading_mode_ask", agent_id=gold["id"])
+
+        # Lonora's pause raises no card (only the five fixed cards, 10.3): one line instead.
+        async def pause_cards() -> int:
+            async with fixture.runtime.db.sessions() as session:
+                return len(
+                    list(
+                        await session.scalars(
+                            select(OwnerActionRow.id).where(
+                                OwnerActionRow.owner_id == fixture.owner,
+                                OwnerActionRow.kind == "supervision_paused",
+                            )
+                        )
+                    )
+                )
+
+        cards = await pause_cards()
+        paused = await call(lead, "agent_control", agent_id=gold["id"], action="pause")
+        assert paused["changed"] is True and paused["owner_line"] == "required"
+        assert await pause_cards() == cards
+
+        # A team agent leads no one (3.2.2): Lonora's powers are refused to it.
+        team = await wake(fixture, peer)
         assert (
-            await refused(
-                silver_run,
-                "supervision_change",
-                action="grant",
-                supervisor_id=lonora["id"],
-                supervised_ids=[gold["id"]],
-            )
-            == "supervision_lead_needs_no_grant"
+            await refused(team, "agent_control", agent_id=gold["id"], action="resume")
+            == "supervision_required"
         )
+        for action in ("cancel_run", "set_ask"):
+            assert (
+                await refused(team, "agent_control", agent_id=gold["id"], action=action)
+                == "agent_control_lead_only"
+            )
+        assert (
+            await refused(lead, "agent_control", agent_id=lonora["id"], action="set_ask")
+            == "supervision_self_target"
+        )
+    finally:
+        await fixture.close()
 
-        # A card naming Lonora as the supervisor is never live: Lonora already reaches both.
-        payload = {"supervisor_id": lonora["id"], "supervised_ids": [gold["id"]]}
+
+@pytest.mark.asyncio
+async def test_a_pause_an_earlier_supervisor_left_never_blocks_lonora_and_stays_its_own():
+    """A hold a team supervisor made before grants were deleted (0127) stays until the
+    owner lifts it, and never blocks Lonora's own pause of that agent (3.1.2)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.routines import create_routine
+    from lonora_db.schema import RoutineRow, SupervisionHoldRow
+
+    fixture = await Fixture().open()
+    try:
         async with fixture.runtime.db.sessions() as session, session.begin():
-            assert (
-                await stale_reason(session, fixture.owner, "supervise", payload)
-                == "supervision_already_set"
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        desk = await fixture.agent("Desk")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            routine = await create_routine(
+                session,
+                fixture.owner,
+                lonora["id"],
+                RoutineCreate(prompt="Scan", interval_seconds=3600),
             )
-            with pytest.raises(LonoraError) as error:
-                await propose_supervision(
-                    session,
-                    fixture.owner,
-                    lonora["id"],
-                    [gold["id"]],
-                    card_id=str(uuid4()),
+            routine.enabled = False
+            session.add(
+                SupervisionHoldRow(
+                    owner_id=fixture.owner,
+                    holder_agent_id=desk["id"],
                     agent_id=lonora["id"],
-                    thread_id=thread["id"],
-                    run_id=None,
+                    target_kind="routine",
+                    target_id=routine.id,
+                    source="agent",
                 )
-            assert error.value.code == "owner_action_not_needed_supervision_already_set"
-        # A Stopped card raised before this change offers no Restore: Lonora still reads.
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            await revoke_supervision(session, fixture.owner, stored_id, via="owner_message")
-            stopped = await raise_supervision_stopped_card(
-                session,
-                fixture.owner,
-                [stored_id],
-                card_key=str(uuid4()),
-                agent_id=lonora["id"],
-                thread_id=thread["id"],
-                run_id=None,
             )
-            assert stopped is not None
-            stopped_id = stopped.id
-        (listed,) = await cards()
-        assert listed["id"] == stopped_id and listed["facts"]["supervision"]["active"] is False
-        response = await fixture.client.post(
-            f"/api/owner-actions/{stopped_id}/decision", json={"decision": "confirm"}
-        )
-        assert response.is_success, response.text
-        settled = response.json()
-        assert (settled["status"], settled["status_reason"]) == (
-            "expired",
-            "supervision_already_set",
-        )
-        # Nor does an Undo card raised before this change for a grant of Lonora's: Undo
-        # would stop nothing, so it offers none and a tap revokes nothing.
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            granted, _ = await grant_supervision(
-                session, fixture.owner, lonora["id"], gold["id"], via="owner_message"
-            )
-            granted_id = granted.id
-            undo = await raise_supervision_card(
-                session,
-                fixture.owner,
-                [granted_id],
-                card_key=str(uuid4()),
-                agent_id=lonora["id"],
-                thread_id=thread["id"],
-                run_id=None,
-            )
-            assert undo is not None
-            undo_id = undo.id
-            assert (
-                await stale_reason(session, fixture.owner, "supervision_created", undo.payload)
-                == "supervision_already_set"
-            )
-        listed = next(item for item in await cards() if item["id"] == undo_id)
-        assert listed["status"] == "pending"
-        assert listed["facts"]["supervision"] == {
-            "supervisor_name": lonora["name"],
-            "supervised_names": [],
-            "active": False,
-            "lead": True,
-        }
-        response = await fixture.client.post(
-            f"/api/owner-actions/{undo_id}/decision", json={"decision": "confirm"}
-        )
-        assert response.is_success, response.text
-        settled = response.json()
-        assert (settled["status"], settled["status_reason"]) == (
-            "expired",
-            "supervision_already_set",
-        )
+            routine_id = routine.id
+        lead = await wake(fixture, lonora)
+
+        # The old supervisor's pause over Lonora's work never blocks Lonora's pause of it.
+        paused = await call(lead, "agent_control", agent_id=desk["id"], action="pause")
+        assert paused["changed"] is True and paused["paused"] is True
+
+        # Lonora never lifts another agent's pause on its own (4.7.2): the routine stays.
+        code = await refused(lead, "routine_toggle", routine_id=routine_id, enabled=True)
+        assert code in {"work_paused_by_supervisor", "supervision_resume_not_yours"}, code
         async with fixture.runtime.db.sessions() as session:
-            kept = await session.get(SupervisionGrantRow, granted_id)
-            assert kept is not None and kept.revoked_at is None
+            kept = await session.get(RoutineRow, routine_id)
+            assert kept is not None and kept.enabled is False
     finally:
         await fixture.close()

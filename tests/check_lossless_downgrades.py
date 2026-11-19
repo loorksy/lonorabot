@@ -5,10 +5,10 @@ Review regressions (durability lens):
 - ``0039`` keeps the owner profile: lines the owner wrote after the upgrade are written
   back as the Personal Agent's ``# USER.md`` section before the tables go, and the
   re-upgrade merges them into the profile again.
-- ``0041`` and ``0042`` refuse while the owner's own choices would be lost and the
-  re-upgrade would silently restore a default: a revoked supervision grant (Lonora
-  reading an agent again) or a removed github.com (Skill imports from all of GitHub
-  trusted again). The refused downgrade changes nothing.
+- ``0042`` refuses while the owner's own choice would be lost and the re-upgrade would
+  silently restore a default: a removed github.com (Skill imports from all of GitHub
+  trusted again). The refused downgrade changes nothing. (Supervision grants are gone
+  at head since ``0127``, so no revoked grant is left for ``0041`` to guard.)
 - ``0043`` refuses while the owner holds a pause on an agent's work.
 - ``0039``'s merge never pushes legacy preferences past the profile limit: whole agent
   blocks fit oldest first, and the rest goes to that agent's own operating notes.
@@ -26,7 +26,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.routines import RoutineCreate
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.routines import create_routine
-from lonora_db.schema import MemoryRow, SupervisionGrantRow, TrustedSourceRow
+from lonora_db.schema import MemoryRow, TrustedSourceRow
 from lonora_db.trusted_sources import ensure_defaults
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -93,14 +93,8 @@ async def main() -> None:
             "PASS a downgrade below 0039 keeps the owner's profile in Lonora's USER.md and the re-upgrade merges it back"
         )
 
-        # 2. A revoked default grant or a removed github.com refuses the downgrade.
+        # 2. A removed github.com refuses the downgrade.
         async with fixture.runtime.db.sessions() as session:
-            grant = await session.scalar(
-                select(SupervisionGrantRow).where(
-                    SupervisionGrantRow.supervised_agent_id == private["id"],
-                    SupervisionGrantRow.revoked_at.is_(None),
-                )
-            )
             github = await session.scalar(
                 select(TrustedSourceRow).where(
                     TrustedSourceRow.owner_id == fixture.owner,
@@ -108,26 +102,15 @@ async def main() -> None:
                     TrustedSourceRow.revoked_at.is_(None),
                 )
             )
-        assert grant is not None and github is not None
-        # The supervision revocation alone: 0042 passes, 0041 refuses, all rolled back.
-        await fixture.request("POST", f"/supervision/{grant.id}/revoke")
-        fixture = await reopen(fixture)
-        refused: Any = alembic("downgrade", "0040_retire_super_bot_requests")
-        assert refused.returncode != 0 and "supervision" in refused.stderr, refused.stderr
-        assert current() == head, current()
-        async with fixture.runtime.db.sessions() as session:
-            kept = await session.get(SupervisionGrantRow, grant.id)
-            assert kept is not None and kept.revoked_at is not None
-            source = await session.get(TrustedSourceRow, github.id)
-            assert source is not None and source.revoked_at is None
+        assert github is not None
         # The removed github.com: 0042 refuses.
         await fixture.request("POST", f"/trusted-sources/{github.id}/revoke")
         fixture = await reopen(fixture)
-        refused = alembic("downgrade", "0041_supervision_grants")
+        refused: Any = alembic("downgrade", "0041_supervision_grants")
         assert refused.returncode != 0 and "trusted sources" in refused.stderr, refused.stderr
         assert current() == head, current()
         print(
-            "PASS a downgrade below 0041 or 0042 refuses while a revoked grant or source would come back as a default, and changes nothing"
+            "PASS a downgrade below 0042 refuses while a removed source would come back as a default, and changes nothing"
         )
 
         # 3. The owner's own pause on an agent's work refuses a downgrade below 0043.
