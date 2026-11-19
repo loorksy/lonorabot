@@ -1,6 +1,5 @@
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
-  type CredentialForm,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -10,7 +9,6 @@ import {
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
-  submitCredential,
   submitSecret,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
@@ -48,8 +46,13 @@ export function OwnerActionCard({
   // The choice being stored: shown selected until the server's card says so.
   const [choosing, setChoosing] = useState<string | null>(null);
   const [supported, setSupported] = useState<boolean | null>(null);
-  // A credential card's form: values stay here until posted to the owner API, then clear.
+  // A Secret card's form: values stay here until posted to the card's route, then clear.
   const [values, setValues] = useState<Record<string, string>>({});
+  // Typed values never outlive the form: Not now, or a save on another device, clears them.
+  const open = row.status === "pending";
+  useEffect(() => {
+    if (!open) setValues({});
+  }, [open]);
   const pending = useRef(false);
   const align = { textAlign: rtl ? ("right" as const) : ("left" as const) };
   useEffect(() => {
@@ -131,30 +134,13 @@ export function OwnerActionCard({
         setChoosing(null);
       }
     });
-  const connect = (form: CredentialForm) =>
-    run(async () => {
-      const sent = {
-        ...Object.fromEntries(form.fields.map((field) => [field.key, field.initial])),
-        ...values,
-      };
-      setValues({});
-      // The value goes straight to the owner API; the card only learns what was created.
-      const connected = await submitCredential(
-        (path, body) => api.post<{ id: string }>(path, body),
-        form.target,
-        sent,
-      );
-      onChange(
-        await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, {
-          decision: "confirm",
-          connected,
-        } satisfies OwnerActionDecision),
-      );
-    });
   const save = (form: SecretForm) =>
     run(async () => {
+      // An optional field left empty is not sent.
       const sent = Object.fromEntries(
-        form.fields.map((field) => [field.key, values[field.key] ?? ""]),
+        form.fields
+          .map((field) => [field.key, values[field.key] ?? ""] as const)
+          .filter(([, value]) => value.trim()),
       );
       setValues({});
       // The values go only to the card's own route, which stores them encrypted.
@@ -276,34 +262,6 @@ export function OwnerActionCard({
           />
         </>
       ) : null}
-      {spec.credential ? (
-        <View testID={`owner-action-form-${spec.credential.target}`} style={{ gap: 8 }}>
-          {spec.credential.fields.map((field) => (
-            <Field
-              key={field.key}
-              label={field.label}
-              secureTextEntry={field.type === "password"}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType={field.type === "url" ? "url" : "default"}
-              value={values[field.key] ?? field.initial}
-              editable={!busy}
-              style={field.ltr ? { textAlign: "left", writingDirection: "ltr" } : undefined}
-              onChangeText={(value) => setValues((old) => ({ ...old, [field.key]: value }))}
-            />
-          ))}
-          <Button
-            label={spec.credential.submit}
-            disabled={
-              busy ||
-              spec.credential.fields.some(
-                (field) => field.required && !(values[field.key] ?? field.initial).trim(),
-              )
-            }
-            onPress={() => void connect(spec.credential as CredentialForm)}
-          />
-        </View>
-      ) : null}
       {spec.secret ? (
         <View testID="owner-action-form-secret" style={{ gap: 8 }}>
           {spec.secret.fields.map((field) => (
@@ -313,6 +271,11 @@ export function OwnerActionCard({
               secureTextEntry={field.type === "password"}
               autoCapitalize="none"
               autoCorrect={false}
+              // Never offered to, or filled from, the system's password store.
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              keyboardType={field.type === "url" ? "url" : "default"}
               value={values[field.key] ?? ""}
               editable={!busy}
               style={{ textAlign: "left", writingDirection: "ltr" }}
@@ -321,7 +284,12 @@ export function OwnerActionCard({
           ))}
           <Button
             label={spec.secret.submit}
-            disabled={busy || spec.secret.fields.some((field) => !(values[field.key] ?? "").trim())}
+            disabled={
+              busy ||
+              spec.secret.fields.some(
+                (field) => field.required && !(values[field.key] ?? "").trim(),
+              )
+            }
             onPress={() => void save(spec.secret as SecretForm)}
           />
         </View>
