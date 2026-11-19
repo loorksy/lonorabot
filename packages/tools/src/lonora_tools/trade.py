@@ -8,6 +8,7 @@ from lonora_contracts.trading import (
     TradeAnnotation,
     TradeRequest,
     TradeResult,
+    judgment_label,
 )
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.agent_binding import (
@@ -556,6 +557,7 @@ async def approved_execution(
                     # No time limit (10.3.1): drift, a decision or a withdrawal ends it.
                     expires_at=None,
                     reason=annotation.reason if annotation else "",
+                    label=(annotation.label or None) if annotation else None,
                     validity=validity,
                 )
                 session.add(row)
@@ -613,6 +615,7 @@ async def approved_execution(
             card_annotation = TradeAnnotation(
                 reason=row.reason,
                 tolerance=row.validity.get("tolerance"),
+                label=row.label or "",
             )
             expected_snapshot = row.broker_snapshot
             if gate_only:
@@ -896,6 +899,7 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     annotation = TradeAnnotation(
         reason=str(args.pop("reason", "") or ""),
         tolerance=args.pop("tolerance", None),
+        label=judgment_label(str(args.pop("label", "") or "")),
     )
     key = args.pop("key", None)
     if args.get("thesis_id") is None:

@@ -43,7 +43,7 @@ The server contract `lonora_contracts.genui` is the single source of the set (ma
   both clients draw.
 
 - **Trusted slots (`Slot {card, record}`, mandate 10.2):** a fixed card placed inside the
-  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval` and `settle`); `record` is
+  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval`, `settle` and `secret`); `record` is
   the record's id. The agent chooses only where the slot sits; section 4a says what the server
   and the clients do with it.
 
@@ -102,7 +102,8 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
 
 - **Placement (10.2.1).** The projector reads the records a card's slots name
   (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
-  `resolve_operation` owner-action card (`settle`) of this owner, in the reply's conversation
+  `resolve_operation` owner-action card (`settle`) or a `secret` owner-action card, the Secret
+  card (`secret`), of this owner, in the reply's conversation
   (the Run's origin conversation when it works in its own thread, as broker-event and watch
   Runs do). A slot
   whose record is missing, of another kind, another owner's or another conversation's is
@@ -127,10 +128,12 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   settles or switches a mode (6.10): only the fixed card inside the slot does. Enter in the
   agent's own field presses the agent's own primary Button only, never a button inside a slot,
   and a sent card dims its own blocks, never a slot.
-- **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 460 px, its
-  frame included, measured at 390 px by the web "Slots" journey) toward the 560 px resting
-  height and is one of the 6 visible blocks. The agent's other blocks fold first; a slot is
-  never folded, and a card over 720 px falls back, which brings the record's row back.
+- **Budget (10.1.4).** A slot counts its height toward the 560 px resting height and is one
+  of the 6 visible blocks: trade approval 230 px and settle 460 px; a Secret card 305 px and
+  95 px for each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads
+  the field count). Each is measured at 390 px with its frame by the web "Slots" journey. The
+  agent's other blocks fold first; a slot is never folded, and a card over 720 px falls back,
+  which brings the record's row back (a Secret card of eight fields always does).
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
   standalone row while a loaded assistant message of the conversation draws it as a slot
   (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is
