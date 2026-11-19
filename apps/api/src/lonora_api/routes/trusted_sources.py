@@ -97,8 +97,8 @@ async def review(
         if row is None or row.owner_id != owner_id:
             raise LonoraError("mcp_not_found", 404)
         config = McpConnection.model_validate(row.payload)
-    if config.transport != "http" or not config.url:
-        raise LonoraError("mcp_stdio_isolation_required", 403)
+    if not config.url:
+        raise LonoraError("mcp_url_required", 422)
     reviewed = review_tools(await advertised_tools(rt.services(owner_id).secrets, config))
     digest = review_digest(
         endpoint_sha256(config.url), reviewed.tools, reviewed.blocked, reviewed.read_only

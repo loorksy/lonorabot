@@ -125,7 +125,7 @@ async def seeded(fixture: Fixture, url: str) -> None:
     connection = await fixture.request(
         "POST",
         "/mcp",
-        {"payload": {"name": "Declared", "transport": "http", "url": URL, "enabled": True}},
+        {"payload": {"name": "Declared", "url": URL, "enabled": True}},
     )
     declarations = json.dumps(
         [
@@ -196,7 +196,6 @@ async def connect_and_trust(fixture: Fixture) -> None:
             {
                 "payload": {
                     "name": "X",
-                    "transport": "http",
                     "url": URL,
                     "secret_id": secret["id"],
                     "enabled": True,

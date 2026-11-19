@@ -1181,7 +1181,6 @@ class Acceptance:
             {
                 "payload": {
                     "name": name,
-                    "transport": "http",
                     "url": url,
                     "secret_id": secret_id,
                     "enabled": True,

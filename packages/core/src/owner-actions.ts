@@ -1021,8 +1021,6 @@ export async function submitCredential(
       payload: {
         name,
         url: (values.url ?? "").trim(),
-        transport: "http",
-        command: [],
         secret_id,
         enabled: true,
       },

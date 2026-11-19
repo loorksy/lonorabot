@@ -93,7 +93,7 @@ async def connected_result(
         connection = await _connection(session, owner_id, resource_id)
         if connection is None:
             raise LonoraError("mcp_not_found", 404)
-        if connection.payload.get("transport") != "http" or current_endpoint(connection) is None:
+        if current_endpoint(connection) is None:
             raise LonoraError("owner_action_connection_mismatch", 422)
         return {"target": target, "connection_id": connection.id, "configured": True}
     if resource == "broker":

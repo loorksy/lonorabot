@@ -50,11 +50,11 @@ Changed configuration during discovery blocks the call. Discovery reports
 `execution_allowed` separately from advertisements and cannot grant permission.
 
 Both resource save and runtime use reject broker/Agent-purpose credential refs.
-Credentials stay server-side. Owner-supplied stdio commands are disabled before
-discovery or execution: environment filtering alone cannot isolate a process
-running as the Gateway user. Existing records remain listable. A future stdio
-implementation needs a real isolated transport with reviewed dependencies and
-explicit permissions; the owner's workspace is not a substitute for it.
+Credentials stay server-side. Saved MCP servers are remote (HTTPS) only. A local
+(stdio) MCP server is a program an agent runs in the owner's workspace as its own
+process, like any other command (VISION 7.1); nothing runs one as the Gateway user.
+Saved stdio records were deleted by migration 0146 (no stdio server was ever reviewed
+or trusted).
 
 The HTTP path retains public-network validation, TLS and disabled redirects,
 bounds response bytes and whole-request time, rejects compressed responses before
