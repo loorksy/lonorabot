@@ -14,7 +14,7 @@ from alembic import op
 from lonora_session.idempotency import request_hash
 
 revision = "0101_settle_operation_card"
-down_revision = "0100_execution_receipts"
+down_revision = "0146_broker_relay"
 branch_labels = None
 depends_on = None
 
