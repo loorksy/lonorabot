@@ -104,9 +104,9 @@ test("a jump marks its message; a call log calls back; no voice provider says so
     const quote = page.getByRole("button", { name: "Reply: Line 3", exact: true });
     await quote.click();
     await expect(flashed).toContainText("Line 3");
-    const marked = await page.getByText("Line 3", { exact: true }).boundingBox();
+    const marked = await page.getByText("Line 3", { exact: true }).last().boundingBox();
     await expect(flashed).toHaveCount(0, { timeout: 4000 });
-    const plain = await page.getByText("Line 3", { exact: true }).boundingBox();
+    const plain = await page.getByText("Line 3", { exact: true }).last().boundingBox();
     expect(Math.abs(marked.x - plain.x) + Math.abs(marked.y - plain.y)).toBeLessThan(1);
     expect(marked.width).toBe(plain.width);
     await quote.click();
