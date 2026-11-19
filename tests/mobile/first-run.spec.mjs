@@ -190,3 +190,32 @@ test("a setup token shorter than the server's says so, and the submit key sends 
   await expect(short).toBeVisible();
   expect(sent).toEqual([]);
 });
+
+test("a setup that fails asks the server again: an owner created meanwhile shows sign-in", async ({
+  page,
+}) => {
+  let initialized = false;
+  await page.route("**/api/onboarding", (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { owner_initialized: initialized } });
+    // Created elsewhere after the check: the token is right, but this is not that owner.
+    initialized = true;
+    return route.fulfill({ status: 409, json: { code: "owner_already_initialized" } });
+  });
+  await page.route("**/api/auth/login", (route) =>
+    route.fulfill({ status: 401, json: { code: "unauthorized" } }),
+  );
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  await page
+    .getByLabel("Password · at least 12 characters", { exact: true })
+    .fill(credentials.password);
+  await page.getByLabel("Setup token", { exact: true }).fill(token);
+  await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByText("Set up Lonora", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Setup token", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Check your credentials or sign in again.", { exact: true }),
+  ).toBeVisible();
+});

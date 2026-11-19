@@ -18,7 +18,8 @@ export default function SignIn() {
   // and nothing is sent until it is.
   const [checked, setChecked] = useState<{ address: string; initialized: boolean } | null>(null);
   const [token, setToken] = useState("");
-  // A failed sign-in asks the server again: an unreachable check fell back to sign-in.
+  // A failed sign-in or setup asks the server again: an unreachable check fell back to sign-in,
+  // and an owner created elsewhere meanwhile turns the setup form back into sign-in.
   const [recheck, setRecheck] = useState(0);
   const address = server ?? session.server;
   const { ready, owner } = session;
@@ -75,7 +76,7 @@ export default function SignIn() {
       setToken("");
     } catch (reason) {
       setError(session.errorText(reason));
-      if (!setup) setRecheck((count) => count + 1);
+      setRecheck((count) => count + 1);
     } finally {
       setBusy(false);
     }
