@@ -53,6 +53,7 @@ import { AgentLiveStatus } from "../components/agent-live-status";
 import { AgentPermissions } from "../components/agent-permissions";
 import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
+import { ChatPrefsBody } from "../components/chat-prefs-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
 import { ExecutionReceiptCard } from "../components/execution-receipt";
 import { CardHost, type CardHostValue } from "../components/genui/host";
@@ -74,6 +75,7 @@ import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
+import { useChatPrefs } from "../lib/chat-prefs";
 import {
   type ComposerDraft,
   composerDraft,
@@ -168,6 +170,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
   }, []);
   const toast = useToast();
+  const prefs = useChatPrefs();
   const menuActions = useRef<() => MessageMenuActions>(() => {
     throw new Error("message_menu_unset");
   });
@@ -1230,6 +1233,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             onPress: () => router.push({ pathname: "/artifacts", params: { threadId: id } }),
           },
           {
+            label: t("chatPrefs"),
+            icon: "settings",
+            onPress: () =>
+              sheets.open({ id: "chat-prefs", title: t("chatPrefs"), body: <ChatPrefsBody /> }),
+          },
+          {
             label: group ? t("groupSettings") : t("agentSettings"),
             icon: "settings",
             onPress: () => {
@@ -1301,6 +1310,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         ))}
       {thread?.agent_id && (
         <AgentLiveStatus
+          detailed={prefs.agentStatus}
           state={liveState.state}
           error={liveState.error}
           refresh={liveState.refresh}
@@ -1392,6 +1402,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                           }}
                           events={events}
                           connection={connection}
+                          steps={prefs.steps}
+                          stepsOpen={prefs.stepsOpen}
                           agent={agents.find((value) => value.id === responseRun.agent_id)}
                         />
                       ) : null}
@@ -1539,6 +1551,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
+          assist={prefs.assist}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}
