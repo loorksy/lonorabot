@@ -575,9 +575,22 @@ async def secret_card(
             thread_id=thread_id,
             run_id=str(uuid4()) if source == "agent" else None,
             source=source,
-            kind="connect_credential",
+            kind="secret",
             subject="secret:" + uuid4().hex,
-            payload={},
+            payload={
+                "label": "Exchange key",
+                "connect": None,
+                "fields": [
+                    {
+                        "key": "EXCHANGE_KEY",
+                        "label": "Key",
+                        "secret": True,
+                        "role": None,
+                        "required": True,
+                    }
+                ],
+                "destination": "workspace",
+            },
             payload_hash=uuid4().hex,
             status="pending",
             timeline_seq=11,

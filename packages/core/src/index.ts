@@ -150,10 +150,6 @@ export {
   orderLineText,
 } from "./order-line";
 export {
-  type CredentialField,
-  type CredentialForm,
-  type CredentialPost,
-  credentialForm,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -171,7 +167,6 @@ export {
   rereadOwnerAction,
   type SecretForm,
   type SecretFormField,
-  submitCredential,
   submitSecret,
 } from "./owner-actions";
 export {

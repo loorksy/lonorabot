@@ -1,6 +1,6 @@
 Superseded by VISION.md
 
-# Capabilities you can see: trusted sources, MCP in one tap, feeds and credentials
+# Capabilities you can see: trusted sources, MCP in one tap, feeds and Secret cards
 
 Wave 1.5 slice W15-8 (corrections 21 and 22, owner decision D3). Agents add and use
 Skills, MCP tools and news sources by themselves inside one trusted-sources list the
@@ -141,7 +141,7 @@ A server is trusted in one of two ways:
   the server advertises now and pins exactly those, at the tier it was given. It
   checks the owner's words before contacting the server. A server trusted for reading
   whose work later needs a writing tool (`needs_write_trust` in `mcp_tools`) is widened
-  the same way (`tier=write_nonfinancial`), when the owner names it and asks it to write. After a `connect_credential`
+  the same way (`tier=write_nonfinancial`), when the owner names it and asks it to write. After a Secret
   card connects a server, the agent that asked is woken and tells the owner to name it;
 - «التكاملات» (`/app/integrations`), owner session only: an MCP server's sheet previews
   the tools with a digest («مراجعة الأدوات»), and approving re-reads the server and
@@ -191,18 +191,55 @@ Channels (Telegram, signed webhook) now deliver to an agent the owner picks by n
 (`deliver_to_agent_id`); the server resolves that agent's conversation. The raw
 conversation id field is gone from the form.
 
-## Secure credential cards
+## Secret cards that connect
 
-`owner_action_propose(kind="connect_credential", target=…)` offers a form in the
-conversation for `mcp_server` (`service="x"` titles it "Connect X"), `news_feed`,
-`brave_search`, `economic_calendar` or `broker`. The client posts the value straight to
-the owner API (`/integrations/secrets` then `/integrations` or `/mcp`, or
-`/trading/connections` for a broker) and confirms the card with only what was created
-(`connected: {resource, id}`); the server checks it is the card's kind of connection and
-is configured. The value never enters the card, the transcript, an event, model context
-or agent code: agents see "configured". The agent that asked is woken once (`owner_card`
-run, a fixed server prompt) to continue the work that needed it; for an MCP server it
-asks the owner to name the server in chat so its tools can be trusted. Deleting a saved MCP server removes its trust row too (kept as the record).
+`owner_action_propose(kind="secret", target=…)` raises a Secret card (VISION.md 7.2,
+10.3) that connects one thing. The agent gives the non-secret details it took from the
+owner's words in chat, and the card shows them as facts. An address may carry a key, so
+the owner types it into the card with the secret:
+
+| Target | Details from chat | The card asks for | Saved as |
+| --- | --- | --- | --- |
+| `mcp_server` (`service="x"`: "Connect X") | `name` (none for X) | the server's address, and an access token (optional) | `MCP_<NAME>_URL`, `MCP_<NAME>_TOKEN` (workspace) |
+| `brave_search` | `name` (optional) | the API key | `BRAVE_API_KEY` (workspace) |
+| `news_feed`, `economic_calendar` | `name` | the address, which may carry a key | `FEED_<NAME>_URL`, `CALENDAR_<NAME>_URL` (workspace) |
+
+A trading account is not one of these: `broker_connect` raises its own Secret card with
+the `broker` destination (`docs/owner-actions.md`).
+
+The card shows the names its values are saved under. Saving it
+(`POST /owner-actions/{id}/secret`) stores the values encrypted and creates the
+connection in the same transaction:
+- A saved name is made unique, and one card's names share their number
+  (`MCP_DESK_2_URL` with `MCP_DESK_2_TOKEN`), so one connection's value never replaces
+  another's. An agent's own card may not name a value a connection uses: it is refused
+  when raised (`owner_action_not_needed_secret_name_in_use`), and a card raised earlier
+  settles `expired` (`secret_name_in_use`) when the owner saves it, writing nothing.
+- An address is checked as its reader checks it (https, port 443, a host whose labels
+  can be looked up, no user name, password or fragment). A key or token is trimmed, and
+  one with a character no HTTP header carries is refused
+  (`owner_action_secret_value_unsendable`).
+- A feed or calendar saved this way keeps its address in the store (`secret_id`) and
+  only its host on the row (`domain`); the feed tool, the calendar and its watches read
+  the address from the store, and only while it is on that host
+  (`integration_source_changed` otherwise). An address an enabled feed or calendar
+  already reads is that connection: nothing new is saved. A feed item has no link when
+  it points back at the feed itself (only a fragment or a query), or when it repeats a
+  part of the feed's address that may be its key: a query value of 8 characters or more,
+  or a path segment of 16 or more. A long path segment that is no key drops the link
+  too; the item keeps its title and summary.
+- An MCP server saved this way keeps its address in the store too (`url_secret_id`) and
+  its fingerprint on the row (`endpoint_sha256`), which the trust checks compare.
+- Web search takes one key: a second Brave card saved later settles `expired`
+  (`credential_already_configured`) and writes nothing.
+
+The value never enters the card, the transcript, an event, model context or agent code:
+agents see "configured". The agent that asked is woken once (`owner_card` run, a fixed
+server prompt) to continue the work that needed it; for an MCP server it asks the owner
+to name the server in chat, so its tools can be trusted (`mcp_trust`).
+Removing a connection keeps its secrets: they are the owner's (VISION.md 7.2.4), and
+`DELETE /secrets/{secret_id}` is the only route that deletes a stored secret (14.3.11).
+Deleting a saved MCP server removes its trust row too (kept as the record).
 
 ## Capabilities
 
@@ -240,16 +277,22 @@ preview, and **Set up integrations on the web** opens the web settings.
   without it, one naming another source, or one that read third-party content first
   trusts nothing; the write tier only on the owner's words and never with a money tool;
   the owner preview pins exactly what was shown; write-tier calls never send twice;
-  Skills install silently inside the list (without any workspace access), and Undo in Capabilities marks the version undone and it no longer loads;
-  feeds and the Brave credential reach agents as configured and never as values, and
+  Skills install silently inside the list (without any workspace access), and Undo in
+  Capabilities marks the version undone and it no longer loads; feeds, the Brave key and
+  a feed whose address carries a key reach agents as configured and never as values, and
   removing a site's last feed makes an agent ask again.
 - `tests/check_trusted_sources.py` (fresh database): the migration seed, idempotence and
-  round trip; adding an MCP server from chat (one form, then the owner names it) with the
-  token never leaving the server.
+  round trip; adding an MCP server from chat (one Secret card, then the owner names it)
+  with its address and token never leaving the server.
 - `tests/check_trust_migration.py` (fresh database): `0132` settles and retires stored
   trust cards and keeps `owner_message` across a downgrade and upgrade.
-- `tests/web/capabilities.test.ts`; Playwright `capabilities` on Web and Mobile, in Arabic
-  and English (Skill Undo on both; on Mobile, review and trust of a server).
+- `tests/test_secret_card.py`: the Secret card's own fields and its connecting cards
+  (each MCP server's address and token under names of their own, kept when the server is
+  removed; a name a connection uses never replaced; a stored address read only on its
+  saved host; no connecting card for a trading account).
+- `tests/web/capabilities.test.ts`, `tests/web/secret-card.test.ts`; Playwright
+  `capabilities` and `secret-card` on Web and Mobile, in Arabic and English (Skill Undo
+  on both; on Mobile, review and trust of a server).
 
 ## Known limits
 
@@ -265,5 +308,20 @@ preview, and **Set up integrations on the web** opens the web settings.
   asking for the write tier. The owner removes a source in Capabilities with one tap.
 - Feeds are read on demand; feed watches that wake an agent arrive with the Wave 2 wake
   primitive.
-- If the secure form creates its record but the confirmation fails, the record stays and
-  shows in Capabilities, where the owner can remove it.
+- Saving an MCP server's Secret card does not read its tools: `mcp_trust` reads them when
+  the owner names the server, and says so if they cannot be read then.
+- An MCP server's token and address saved from a Secret card are workspace secrets:
+  VISION.md 7.2.3 names exactly two destinations, workspace and broker. Tool pinning and
+  the block on tools that move money govern Lonora's MCP tools; they do not govern a
+  workspace command that holds such a secret. Lonora's broker accounts stay behind the
+  execution door: their passwords and the MetaApi token are broker secrets, which never
+  enter the workspace.
+- No key rotation is built (nothing in 7.2 asks for it). To change a key, a token or an
+  address, remove the connection, connect it again from a new Secret card, and name it
+  again so its tools are trusted.
+- An operator declaration (`LONORA_MCP_DECLARATIONS`, `credential_scope: integration`)
+  also covers a server whose token is a workspace secret from a Secret card: both are
+  scopes an MCP connection may name; a broker or provider value never is.
+- A feed subscribed with `news_feed_subscribe` and a feed saved from a Secret card are
+  told apart by their address only when it is on the row: the same public address added
+  both ways makes two feeds.

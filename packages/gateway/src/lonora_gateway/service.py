@@ -256,7 +256,9 @@ class Gateway:
         )
 
     async def watches(self) -> None:
-        await self.for_each_owner(lambda service: dispatch_market_wakes(self.db, service.brokers))
+        await self.for_each_owner(
+            lambda service: dispatch_market_wakes(self.db, service.brokers, service.secrets.read)
+        )
 
     async def approval_drift(self) -> None:
         from lonora_trading.approval_drift import check_drift
@@ -287,7 +289,9 @@ class Gateway:
         from .attention import attention_tick
 
         await self.for_each_owner(
-            lambda service: attention_tick(self.db, service.brokers, service.owner_id)
+            lambda service: attention_tick(
+                self.db, service.brokers, service.owner_id, read_secret=service.secrets.read
+            )
         )
 
     async def push(self) -> None:
