@@ -8,8 +8,9 @@
    agent_inspect and session_search, offered natively; nothing of the gold agent was
    in Lonora's context before it asked. No grant row was ever written.
 4. Migration 0127 drops ``ln_supervision_grants`` and deletes the cards of the three
-   grant kinds; ``supervision_paused`` cards and pause holds stay. Its downgrade brings
-   the table back empty.
+   grant kinds. The pauses team supervisors held end and their work resumes (14.3.18.6):
+   an agent, a routine and a watch. Lonora's pause and the owner's stay, with their
+   ``supervision_paused`` cards. Its downgrade brings the table back empty.
 
 No live broker, model provider or real order is involved.
 """
@@ -269,6 +270,77 @@ async def lonora_answers_from_the_records(
     print("PASS Lonora answers what the gold agent did and why from its records, with no grant")
 
 
+async def team_supervisor_pauses(fixture: Fixture) -> dict[str, str]:
+    """Pauses a team supervisor ("Desk") set before grants were deleted: a whole agent, a
+    routine and a watch; and one the owner took over, which is the owner's."""
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_db.routines import create_routine
+    from lonora_db.schema import MarketWatchRow, RoutineRow
+
+    desk, silver = await fixture.agent("Desk"), await fixture.agent("Silver held")
+    tin, copper = await fixture.agent("Tin"), await fixture.agent("Copper")
+    thread = await fixture.conversation(tin)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        routine = await create_routine(
+            session, fixture.owner, tin["id"], RoutineCreate(prompt="Scan", interval_seconds=3600)
+        )
+        routine.enabled = False
+        watch = MarketWatchRow(
+            owner_id=fixture.owner,
+            agent_id=tin["id"],
+            thread_id=thread["id"],
+            payload={"enabled": False, "kind": "price", "symbol": "XAUUSD"},
+            state={"code": "watch_paused"},
+        )
+        session.add(watch)
+        await session.flush()
+        ids = {"routine": routine.id, "watch": watch.id}
+        for agent_id in (silver["id"], copper["id"]):
+            row = await session.get(AgentRow, agent_id)
+            assert row is not None
+            row.paused = True
+        for kind, target, agent, source in (
+            ("agent", silver["id"], silver["id"], "agent"),
+            ("routine", routine.id, tin["id"], "agent"),
+            ("watch", watch.id, tin["id"], "agent"),
+            ("agent", copper["id"], copper["id"], "owner"),
+        ):
+            hold = SupervisionHoldRow(
+                owner_id=fixture.owner,
+                holder_agent_id=desk["id"],
+                agent_id=agent,
+                target_kind=kind,
+                target_id=target,
+                source=source,
+            )
+            session.add(hold)
+            await session.flush()
+            ids[kind + ":" + target] = hold.id
+        assert await session.get(RoutineRow, routine.id) is not None
+    return {**ids, "silver": silver["id"], "copper": copper["id"]}
+
+
+async def ended_and_kept(session: Any, team: dict[str, str]) -> None:
+    from lonora_db.schema import MarketWatchRow, RoutineRow
+
+    for key in ("agent:" + team["silver"], "routine:" + team["routine"], "watch:" + team["watch"]):
+        hold = await session.get(SupervisionHoldRow, team[key])
+        assert hold is not None and hold.released_at is not None, key
+        assert hold.released_by == "owner", key
+    silver = await session.get(AgentRow, team["silver"])
+    assert silver is not None and not silver.paused
+    routine = await session.get(RoutineRow, team["routine"])
+    assert routine is not None and routine.enabled
+    watch = await session.get(MarketWatchRow, team["watch"])
+    assert watch is not None and watch.payload["enabled"] is True
+    assert "code" not in watch.state and watch.state["steered_by"] == "agent"
+    # The owner's pause stays the owner's, whoever set it first (14.3.18.6).
+    owners = await session.get(SupervisionHoldRow, team["agent:" + team["copper"]])
+    assert owners is not None and owners.released_at is None
+    copper = await session.get(AgentRow, team["copper"])
+    assert copper is not None and copper.paused
+
+
 async def migration_drops_grants_and_keeps_pauses(
     fixture: Fixture, url: str, personal_id: str, gold: dict[str, Any]
 ) -> None:
@@ -291,6 +363,7 @@ async def migration_drops_grants_and_keeps_pauses(
         template = {
             column.key: getattr(stored, column.key) for column in OwnerActionRow.__table__.columns
         }
+    team = await team_supervisor_pauses(fixture)
 
     await alembic("downgrade", PREVIOUS)
     assert await table_exists(url, "ln_supervision_grants")
@@ -334,7 +407,9 @@ async def migration_drops_grants_and_keeps_pauses(
         assert kept is not None and kept.released_at is None
         agent = await session.get(AgentRow, gold["id"])
         assert agent is not None and agent.paused
+        await ended_and_kept(session, team)
     print("PASS migration 0127 drops the grant table and the three grant card kinds")
+    print("PASS 0127 ends the pauses team supervisors held; the owner's and Lonora's stay")
     print("PASS supervision_paused cards and pause holds survive 0127; its downgrade is empty")
     # The owner's Resume on the kept card still lifts the pause.
     decided = await fixture.request(

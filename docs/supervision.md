@@ -126,7 +126,11 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
   refuses while the owner holds a live pause (a holder-less hold has no place in the
   earlier schema), and the downgrade of `0041_supervision_grants` refuses while any live
   hold exists: dropping it would resume paused work. The downgrade of `0127` recreates
-  the grant table empty, so no grant comes back. A refused downgrade changes nothing.
+  the grant table empty and restores nothing else: no grant, no deleted card and no
+  pause it ended comes back. The code below `0127` leads by role and needs no grant; a
+  release older than the lead role (`lonora_db.lead`) read Lonora's access from 0041's
+  `default` grants, which the downgrade does not recreate. A refused downgrade changes
+  nothing.
 - **The owner's pause is the owner's.** The owner pausing work Lonora holds (the
   agent's switch, the routine's switch, the watch list's Pause or Cancel, the Task's
   Pause, an Undo) keeps the hold and makes it the owner's control pause (`source='owner'`,
