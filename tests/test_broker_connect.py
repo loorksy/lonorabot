@@ -643,7 +643,8 @@ async def test_a_leftover_account_a_new_connect_takes_over_is_removed_when_it_fa
             assert again["metaapi_account_id"] == metaapi_id
             assert (await world.card(first)).result["metaapi_cleanup"] == "handed_over"
             await backdate(world, second, "started_at")
-            await world.gateway(1)
+            # One pass redeploys with the card's password, the next reads the outcome.
+            await world.gateway(2)
             refused = (await world.card(second)).result
             assert refused["provisioning"] == "failed" and refused["lonora_owned"] is True
             assert metaapi_id in api.accounts  # the removal is the next pass's
@@ -783,16 +784,18 @@ async def test_a_redeploy_refused_while_metaapi_is_busy_is_repeated_not_failed()
             waiting = (await world.card(card_id)).result
             assert waiting["provisioning"] == "deploying", waiting
             assert waiting["password_stored"] is True and "password_set" not in waiting
+            assert waiting["redeploy_sent"] is False  # refused: none went out
             assert api.calls.count("update") == 1 and api.calls.count("redeploy") == 1
             assert api.accounts[metaapi_id]["password"] == PASSWORD
             assert api.accounts[metaapi_id]["terminal_password"] == "fixture-earlier-password"
             await world.gateway(1)
             again = (await world.card(card_id)).result
-            assert again["provisioning"] == "reading" and again["password_set"] is True, again
+            # The pass that redeployed does not read the outcome from that call.
+            assert again["provisioning"] == "deploying" and again["password_set"] is True, again
             # The same saved password again, then the redeploy MetaApi now takes.
             assert api.calls.count("update") == 2 and api.calls.count("redeploy") == 2
             assert api.accounts[metaapi_id]["terminal_password"] == PASSWORD
-            await world.gateway(1)
+            await world.gateway(2)
         assert (await world.card(card_id)).result["provisioning"] == "connected"
         assert len(api.accounts) == 1 and api.creates == []
     finally:
@@ -802,17 +805,21 @@ async def test_a_redeploy_refused_while_metaapi_is_busy_is_repeated_not_failed()
 
 
 @pytest.mark.asyncio
-async def test_a_stored_password_is_redeployed_even_once_the_old_terminal_logs_in() -> None:
+@pytest.mark.parametrize("lags", [False, True])
+async def test_a_stored_password_is_redeployed_even_once_the_old_terminal_logs_in(
+    lags: bool,
+) -> None:
     """MetaApi stores this card's password, then refuses the redeploy as busy; meanwhile
     the terminal logs in with the password it was deployed with, which MetaApi no longer
     stores. The next pass still redeploys with the stored one, so the broker's answer to
-    the password the owner typed decides the card, not a terminal left on another."""
+    the password the owner typed decides the card, not a terminal left on another: also
+    when the redeploy's own reading still shows that terminal logged in (``lags``)."""
     database()
     from check_streaming import Fixture
 
     fixture = await Fixture().open()
     account = login()
-    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}}, redeploy_lags=lags)
     metaapi_id = linked_not_logged_in(api, account)
     world = World(fixture, api)
     try:
@@ -829,9 +836,57 @@ async def test_a_stored_password_is_redeployed_even_once_the_old_terminal_logs_i
             await world.gateway(1)
             assert api.calls.count("update") == 2 and api.calls.count("redeploy") == 2
             assert api.accounts[metaapi_id]["terminal_password"] == PASSWORD
+            redeployed = (await world.card(card_id)).result
+            assert redeployed["provisioning"] == "deploying", redeployed
+            assert redeployed["password_set"] is True and "connection_id" not in redeployed
+            await world.gateway(1)
+            assert api.accounts[metaapi_id]["connectionStatus"] == "DISCONNECTED_FROM_BROKER"
+            assert (await world.card(card_id)).result["provisioning"] == "deploying"
+            await backdate(world, card_id, "deployed_at")
+            await world.gateway(1)
         result = (await world.card(card_id)).result
-        assert result["provisioning"] == "deploying" and result["password_set"] is True
-        assert api.accounts[metaapi_id]["connectionStatus"] == "DISCONNECTED_FROM_BROKER"
+        assert result["provisioning"] == "failed", result
+        assert result["code"] == "broker_login_rejected" and "connection_id" not in result
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_redeploy_metaapi_took_whose_answer_was_lost_is_not_sent_again() -> None:
+    """MetaApi takes the redeploy with the card's password, and the read after it fails,
+    so its answer is lost; then MetaApi refuses every redeploy as busy, as it did for more
+    than 8 minutes in production (2026-11-19). Once MetaApi reports the terminal deployed
+    and logged in, the card connects: no second redeploy refused until the deadline, and
+    the password the terminal logged in with is kept."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    account = login()
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    metaapi_id = linked_not_logged_in(api, account)
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Lost redeploy answer")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway(1)
+            api.lose_redeploy_answer = True
+            await world.gateway(1)
+            waiting = (await world.card(card_id)).result
+            assert waiting["provisioning"] == "deploying", waiting
+            assert waiting["password_stored"] is True and waiting["redeploy_sent"] is True
+            assert "password_set" not in waiting
+            assert api.accounts[metaapi_id]["terminal_password"] == PASSWORD  # it was taken
+            api.busy = 100
+            await world.gateway(2)
+        result = (await world.card(card_id)).result
+        assert result["provisioning"] == "connected", result
+        assert api.calls.count("update") == 1 and api.calls.count("redeploy") == 1
     finally:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
@@ -867,7 +922,7 @@ async def test_a_terminal_metaapi_is_still_deploying_is_waited_for(busy_state: s
             assert waiting["provisioning"] == "deploying" and "password_stored" not in waiting
             assert not {"update", "deploy", "redeploy", "undeploy"} & set(api.calls[before:])
             api.held.discard(metaapi_id)
-            await world.gateway(2)
+            await world.gateway(3)
         assert (await world.card(card_id)).result["provisioning"] == "connected"
         assert api.accounts[metaapi_id]["terminal_password"] == PASSWORD
     finally:

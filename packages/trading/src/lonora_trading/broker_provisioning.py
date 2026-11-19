@@ -524,26 +524,43 @@ async def _deploy(
                 # An account that already existed at MetaApi gets the password the owner
                 # just typed, unless it is already deployed and connected with its own.
                 # Once MetaApi stores this card's password, each pass stores it again and
-                # redeploys until MetaApi takes the redeploy (``password_set``).
+                # redeploys until MetaApi takes the redeploy (``password_set``), unless a
+                # redeploy with it went out and its answer was lost (``redeploy_sent``):
+                # MetaApi may run it already, so a terminal deployed and connected now is
+                # taken, as before any password was stored.
                 stored = result.get("password_stored") is True
-                if stored or not (state.deployed and state.connected):
+                sent = result.get("redeploy_sent") is True
+                redeploy = (stored and not sent) or not (state.deployed and state.connected)
+                if redeploy:
                     await provisioning.update_password(account_id, await secrets.read(password_id))
-                    if not stored:
-                        async with db.sessions() as session, session.begin():
-                            row = await _card(session, failing.owner_id, failing.card_id)
-                            if row.result.get("provisioning") != "deploying":
-                                return
-                            await _record(session, row, password_stored=True)
-                    state = await (
-                        provisioning.redeploy(account_id)
-                        if state.deployed
-                        else provisioning.deploy(account_id)
-                    )
+                    # Kept before the redeploy, as create_sent before a create.
+                    async with db.sessions() as session, session.begin():
+                        row = await _card(session, failing.owner_id, failing.card_id)
+                        if row.result.get("provisioning") != "deploying":
+                            return
+                        await _record(session, row, password_stored=True, redeploy_sent=True)
+                    try:
+                        await (
+                            provisioning.redeploy(account_id)
+                            if state.deployed
+                            else provisioning.deploy(account_id)
+                        )
+                    except LonoraError as failure:
+                        if failure.code == "broker_provisioning_busy" and not sent:
+                            # MetaApi refused it: no redeploy with this password went out.
+                            async with db.sessions() as session, session.begin():
+                                row = await _card(session, failing.owner_id, failing.card_id)
+                                await _record(session, row, redeploy_sent=False)
+                        raise
                 async with db.sessions() as session, session.begin():
                     row = await _card(session, failing.owner_id, failing.card_id)
                     if row.result.get("provisioning") != "deploying":
                         return
                     await _record(session, row, password_set=True)
+                if redeploy:
+                    # MetaApi answers once the redeploy is scheduled: its own reading can
+                    # still show the terminal from before it. A later pass reads the account.
+                    return
             elif not busy and state.state != "DEPLOYED":
                 state = await provisioning.deploy(account_id)
         except LonoraError as failure:

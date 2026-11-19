@@ -645,8 +645,16 @@ class FakeAccountEntity:
     async def redeploy(self) -> None:
         self.api.called("redeploy")
         self.api.refuse_if_busy(self._data["_id"], "redeploy")
+        before = dict(self.api.stored(self._data["_id"]))
         self.api.start(self._data["_id"])
+        if self.api.lose_redeploy_answer:
+            self.api.lose_redeploy_answer = False
+            raise sdk_error("TooManyRequestsException", "Rate limited", {}, PROVISIONING_URL)
         await self.reload()
+        if self.api.redeploy_lags:
+            # MetaApi answers once the redeploy is scheduled: the reading right after it
+            # still shows the terminal from before; the next reading shows the redeploy.
+            self._data = before
 
     async def update(self, account: dict[str, Any]) -> None:
         # A PUT: an update field left out is reset. A new password is used by the
@@ -701,6 +709,10 @@ class FakeProvisioningApi:
     busy: int = 0
     # Accounts MetaApi is still deploying or undeploying: their state does not settle.
     held: set[str] = field(default_factory=set[str])
+    # MetaApi takes the next redeploy, then the SDK's read after it fails once (429).
+    lose_redeploy_answer: bool = False
+    # A redeploy's own read still shows the terminal from before it.
+    redeploy_lags: bool = False
     transactions: list[str] = field(default_factory=list[str])
     by_transaction: dict[str, str] = field(default_factory=dict[str, str])
     sequence: int = 0
