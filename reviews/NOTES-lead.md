@@ -20,3 +20,4 @@
   - Existing on main: web never shows background failures, and a background model/quota failure raises no attention item.
 - Conflicts with dcf86b43 on heads already reviewed: #203 2, #110 6, #148 6, and the W-TEAM stack #138/#146/#185/#193/#198 50-75 each (they need restacking on main).
 - 2026-11-19T10:37Z: #156 3f28e107 CLEAN (merge of #110 resolved correctly); rebase needed, 8 conflicts with dcf86b43.
+- 2026-11-19T10:38Z: #203 9ca0bb8c CLEAN (0 conflicts with dcf86b43). #110 968079a4 and #156 26aec059 CLEAN; wauth/2 ab780a47 now carries main and merges with #110 with 0 conflicts.
