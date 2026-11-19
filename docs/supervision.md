@@ -171,8 +171,9 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   paused agent's conversation: "Paused by <supervisor>", the agent, and what (the whole
   agent, or a routine, watch or Task with its own short label, isolated), "from your
   message" when it was. The owner's pause says so: one asked for in chat stays until the
-  owner resumes it on the card or asks in chat, one the owner set with a control is the
-  owner's alone. Lonora's own pause of a trading agent raises this card too: a
+  owner resumes it, or an agent resumes it acting on the owner's message in chat
+  (`refuse_held`, `control_work`); one the owner set with a control is the owner's
+  alone. Lonora's own pause of a trading agent raises this card too: a
   per-agent supervision card, which mandate 10.3.2 removes with supervision in phase 6;
   until then it is the owner's one-tap Resume for that pause. Resume is the owner's own resume of that work, whoever holds
   it; Keep paused dismisses the card. Once the pause ends anywhere the card stops

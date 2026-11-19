@@ -170,10 +170,24 @@ test("a pause card names the supervisor, the agent and the item, with one-tap Re
     },
     "en",
   );
-  // Asked for in chat: the owner lifts it here or by asking in chat (4.7.2).
+  // Asked for in chat: the owner lifts it, or an agent acting on the owner's message in
+  // chat does (4.7.2).
   assert.equal(
     ownerHolds.hint,
-    "You asked for this pause: it stays until you resume it here or ask for that in chat.",
+    "You asked for this pause: it stays until you resume it, or an agent resumes it acting on your message in chat.",
+  );
+  assert.equal(
+    ownerActionCard(
+      {
+        ...pause,
+        facts: {
+          ...pause.facts,
+          supervision: { ...held, owner_holds: true, from_owner_message: true },
+        },
+      },
+      "ar",
+    ).hint,
+    "طلبت هذا الإيقاف: يبقى حتى تستأنفه أنت، أو يستأنفه وكيل بناءً على رسالتك في المحادثة.",
   );
   assert.ok(ownerHolds.lines[0]?.endsWith("from your message"), ownerHolds.lines[0]);
   // The owner's own control made it control-only: only the owner resumes it.
