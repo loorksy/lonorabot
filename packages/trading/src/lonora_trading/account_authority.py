@@ -144,10 +144,18 @@ async def ticket_agent(
             )
         )
     )
+    return entry_holder(entries, target, "position_id" if request.position_id else "order_id")
+
+
+def entry_holder(
+    entries: list[TradingJournalRow], target: Position | Order, kind: str
+) -> str | None:
+    """``ticket_agent``'s match over the ticket's confirmed entries, oldest first (``kind``
+    names the ticket's id field): the entry whose operation id or tag the broker reports
+    on the ticket, else the oldest entry carrying the ticket id; None for the owner's own."""
     for entry in entries:
         if target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}:
             return journal_agent(entry)
-    kind = "position_id" if request.position_id else "order_id"
     for entry in entries:
         details = entry.result.get("details", {})
         safe_id = entry.result.get("broker_id") if details.get("simulation") else None

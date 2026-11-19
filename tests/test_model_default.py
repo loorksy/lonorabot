@@ -125,6 +125,30 @@ async def test_a_fresh_install_with_a_key_answers_and_records_its_choice(
 
 
 @pytest.mark.asyncio
+async def test_a_deepseek_key_chooses_a_model_its_current_catalog_lists(
+    router_db: Database,
+) -> None:
+    """A fresh install with only a DeepSeek key, whose catalog lists the current ids
+    (seen in production, 2026-11): a model is chosen, never "not configured"."""
+    from lonora_providers.model_windows import family_output, family_window
+
+    deepseek = Provider("deepseek", ["deepseek-flash", "deepseek-v4-pro"])
+    route = router(router_db, Keys("deepseek"), deepseek)
+    reply, selection = await route.complete(Capability.CONVERSATION, USER, [])
+    assert reply.text
+    assert selection == ModelSelection(provider="deepseek", model="deepseek-v4-pro")
+    assert deepseek.asked == ["deepseek-v4-pro"]
+    # A catalog with only the other id still chooses it.
+    assert preferred_model(["deepseek-flash"], ("deepseek-v4-pro", "deepseek-flash")) == (
+        "deepseek-flash"
+    )
+    # Their windows are not documented here: they stay unknown, so the policy's limits
+    # apply until the provider states one (never a guessed number).
+    for model in ("deepseek-flash", "deepseek-v4-pro"):
+        assert family_window(model) is None and family_output(model) is None
+
+
+@pytest.mark.asyncio
 async def test_the_next_provider_is_used_when_the_first_lists_no_preferred_model(
     router_db: Database,
 ) -> None:
