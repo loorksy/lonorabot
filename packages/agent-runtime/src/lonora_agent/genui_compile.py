@@ -90,7 +90,7 @@ HEIGHTS = {
 # counts toward the 560 px budget like any block, and is never folded). A Secret card grows
 # with the fields the agent asked for: 305 px and 95 px a field (measured 398 px for one
 # field, 493 for two, 588 for three, 1,063 for eight; a broker card's two fields, 493).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "secret": 305}
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 300, "secret": 305}
 SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
@@ -110,6 +110,10 @@ FIXED_LABELS = (
     "نُفذت",
     "It did not execute",
     "لم تُنفذ",
+    "Trading mode",
+    "التفويض",
+    "وكّله",
+    "يستأذن",
     "Secret",
     "بيانات سرّية",
     "Connect trading account",
@@ -122,6 +126,9 @@ FIXED_LABELS = (
 # A fixed card's button words that are ordinary as a heading or a badge («غير معروفة»):
 # refused only as an agent's button label, which is what the Settle card's buttons are.
 FIXED_CONTROL_LABELS = ("Unknown", "غير معروفة")
+# Fixed-card words that are also everyday words: refused only as a whole label, never as the
+# start of one ("Full report", "Ask about gold").
+FIXED_WHOLE = ("Full", "Ask")
 
 
 @dataclass
@@ -476,16 +483,25 @@ def _plain(text: str) -> str:
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
 CONTROL_PLAIN = FIXED_PLAIN | frozenset(_plain(label) for label in FIXED_CONTROL_LABELS)
+WHOLE_PLAIN = frozenset(_plain(label) for label in FIXED_WHOLE)
 MARKS_PLAIN = tuple(_plain(mark) for mark in FRAME_MARKS)
 # The frame's own icon: an agent's node never wears it.
 FRAME_ICON = "shield"
 LITERAL = re.compile(r"'([^']*)'")
 
 
+# The Mandate card's state line, «الآن: وكّله» / "Now: Full" (the clients' mandateNow and
+# mode words): only that card says an agent's mode is now one or the other.
+MODE_NOW = ("Now", "الآن")
+MODE_WORDS = ("Full", "Ask", "وكّله", "يستأذن")
+
+
 def shows_frame_mark(text: str) -> bool:
-    """Text that says what only the trust frame says."""
+    """Text that says what only the trust frame, or a fixed card's state line, says."""
     plain = f" {_plain(text)} "
-    return any(f" {mark} " in plain for mark in MARKS_PLAIN)
+    return any(f" {mark} " in plain for mark in MARKS_PLAIN) or any(
+        f" {_plain(now)} {_plain(mode)} " in plain for now in MODE_NOW for mode in MODE_WORDS
+    )
 
 
 # What separates a fixed card's title from what follows it («طلب موافقة · XAUUSD»).
@@ -502,7 +518,9 @@ def imitates_fixed_card(text: str, *, control: bool = False) -> bool:
         return True
     plain = _plain(text)
     if control:
-        return any(plain == label or plain.startswith(label + " ") for label in CONTROL_PLAIN)
+        return plain in WHOLE_PLAIN or any(
+            plain == label or plain.startswith(label + " ") for label in CONTROL_PLAIN
+        )
     return plain in FIXED_PLAIN or any(
         _plain(part) in FIXED_PLAIN for part in SEGMENTS.split(text) if part.strip()
     )

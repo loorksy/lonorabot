@@ -11,7 +11,7 @@ from typing import Any, cast
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage
-from lonora_agent.genui_compile import SLOT_HEIGHTS, imitates_fixed_card
+from lonora_agent.genui_compile import SLOT_HEIGHTS, imitates_fixed_card, shows_frame_mark
 from lonora_agent.visual_response import VisualReplyProjector
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
@@ -87,6 +87,7 @@ async def resolve_card(db: Database, owner: str, agent: str, thread: str, kind: 
     async with db.sessions() as session, session.begin():
         row = await session.get(ThreadRow, thread)
         assert row is not None
+        mandate = kind == "trading_mode"
         secret = kind == "secret"
         made = await create_card(
             session,
@@ -95,10 +96,22 @@ async def resolve_card(db: Database, owner: str, agent: str, thread: str, kind: 
             agent_id=agent,
             thread=row,
             run_id=None,
-            source="agent" if secret else "system",
+            source="agent" if mandate or secret else "system",
             kind=kind,
-            subject="secret:exchange" if secret else "operation:op-1",
-            payload=SECRET_CARD if secret else {"operation_id": "op-1"},
+            subject=(
+                "trading_mode:" + agent
+                if mandate
+                else "secret:exchange"
+                if secret
+                else "operation:op-1"
+            ),
+            payload=(
+                {"agent_id": agent}
+                if mandate
+                else SECRET_CARD
+                if secret
+                else {"operation_id": "op-1"}
+            ),
         )
         return made.id
 
@@ -192,6 +205,21 @@ async def test_a_slot_of_another_kind_owner_conversation_or_no_record_is_refused
         ui, projector = await project(db, asker, agent, where, card(block))
         assert ui is None, block
         assert {"slot_refused", "card_fallback_slot"} <= codes(projector), block
+
+
+@pytest.mark.asyncio
+async def test_a_mandate_card_is_a_mandate_slot_and_no_other(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    record = await resolve_card(db, owner, agent, thread, "trading_mode")
+    ui, projector = await project(db, owner, agent, thread, card(slot(record, "mandate")))
+    assert ui is not None, projector.diagnostics
+    assert ui["blocks"] == [{"type": "Slot", "card": "mandate", "record": record}]
+    for kind in ("settle", "trade_approval", "secret"):
+        ui, projector = await project(db, owner, agent, thread, card(slot(record, kind)))
+        assert ui is None and "card_fallback_slot" in codes(projector), kind
+    settle = await resolve_card(db, owner, agent, thread, "settle_operation")
+    ui, projector = await project(db, owner, agent, thread, card(slot(settle, "mandate")))
+    assert ui is None and "card_fallback_slot" in codes(projector)
 
 
 @pytest.mark.asyncio
@@ -314,6 +342,9 @@ async def test_one_record_is_one_slot_and_it_is_never_folded(task_db: Fixture) -
         '{"type":"Note","text":"This is a fixed card from Lonora."}',
         # A label that becomes a fixed card's word only at a state no option selects.
         '{"type":"Button","label":"{1>2 ? \'Wait\' : \'Approve\'}"}',
+        '{"type":"Button","label":"وكّله"}',
+        '{"type":"Card","title":"التفويض","children":[{"type":"Badge","text":"يستأذن"}]}',
+        '{"type":"Button","label":"Full"}',
         '{"type":"Card","title":"بيانات سرّية","children":[{"type":"Text","text":"المفتاح"}]}',
         '{"type":"Card","title":"Secret · Binance","children":[{"type":"Text","text":"Key"}]}',
         '{"type":"Badge","text":"ربط حساب التداول"}',
@@ -356,6 +387,14 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert not imitates_fixed_card("غير معروفة") and not imitates_fixed_card("Unknown")
     assert imitates_fixed_card("غير معروفة", control=True)
     assert imitates_fixed_card("Unknown outcome", control=True)
+    # Everyday words a fixed card also says («Full», «Ask») are refused only as a whole
+    # Button label: a Bid/Ask quote or a «Full» close size is an ordinary card.
+    assert imitates_fixed_card("Full", control=True) and imitates_fixed_card("ask", control=True)
+    assert not imitates_fixed_card("Full report", control=True)
+    assert not imitates_fixed_card("Ask") and not imitates_fixed_card("Full")
+    # The Mandate card's state line, wherever it is shown.
+    assert shows_frame_mark("الذهب · الآن: وكّله") and shows_frame_mark("Now: Full")
+    assert not shows_frame_mark("Full now") and not shows_frame_mark("الآن السعر 2400")
 
 
 @pytest.mark.asyncio
@@ -417,7 +456,12 @@ def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() ->
     fails here instead of silently opening the imitation check."""
     from pathlib import Path
 
-    from lonora_agent.genui_compile import FIXED_CONTROL_LABELS, FIXED_LABELS, FRAME_MARKS
+    from lonora_agent.genui_compile import (
+        FIXED_CONTROL_LABELS,
+        FIXED_LABELS,
+        FIXED_WHOLE,
+        FRAME_MARKS,
+    )
 
     root = Path(__file__).parents[1]
     sources = "\n".join(
@@ -429,7 +473,19 @@ def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() ->
             "apps/mobile/lib/i18n.ts",
         )
     )
-    for label in FIXED_LABELS + FIXED_CONTROL_LABELS:
+    for label in FIXED_LABELS + FIXED_CONTROL_LABELS + FIXED_WHOLE:
         assert f'"{label}"' in sources, label
     for mark in FRAME_MARKS:
         assert mark in sources.lower(), mark
+
+
+@pytest.mark.asyncio
+async def test_a_bid_ask_quote_and_a_full_close_size_are_ordinary_cards(task_db: Fixture) -> None:
+    """«Full» and «Ask» are the Mandate card's words only as a whole Button label."""
+    db, owner, agent, thread = task_db
+    text = card(
+        '{"type":"Grid","cols":2,"children":[{"type":"Stat","label":"Bid","value":"—"},{"type":"Stat","label":"Ask","value":"—"}]}',
+        '{"type":"Segmented","bind":"size","label":"Close","options":[{"value":"full","label":"Full"},{"value":"half","label":"Half"}]}',
+    ).replace(HEAD, HEAD + '\n{"state":{"size":"full"}}')
+    ui, projector = await project(db, owner, agent, thread, text)
+    assert ui is not None, projector.diagnostics

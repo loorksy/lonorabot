@@ -11,7 +11,7 @@ import { validateRichContent } from "./visual-response";
 /** The owner-action kind each owner-action fixed card a slot names is stored as. */
 export const SLOT_OWNER_ACTION_KINDS: Readonly<
   Record<Exclude<UiSlotCard, "trade_approval">, string>
-> = { settle: "settle_operation", secret: "secret" };
+> = { settle: "settle_operation", mandate: "trading_mode", secret: "secret" };
 
 /** The `card:record` key of an owner-action card when a slot can name it, else null. */
 function ownerActionSlot(action: OwnerAction): string | null {
