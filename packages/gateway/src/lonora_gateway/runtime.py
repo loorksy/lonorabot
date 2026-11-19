@@ -53,9 +53,10 @@ class OwnerServices:
         searxng_url: str | None = None,
         browser_url: str | None = None,
         mcp_owner_trust: bool = True,
+        relay_brokers: bool = False,
     ) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
-        brokers = BrokerManager(db, BrokerSecrets(db, key, owner_id))
+        brokers = BrokerManager(db, BrokerSecrets(db, key, owner_id), relay=relay_brokers)
         router = GlobalModelRouter(db, ProviderCredentials(db, secrets))
         market = MarketRuntime(db, brokers, owner_id)
 

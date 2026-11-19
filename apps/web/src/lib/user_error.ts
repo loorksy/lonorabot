@@ -159,7 +159,7 @@ export function userError(error: unknown) {
     case "broker_market_data_billing_required":
       return t`Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available.`;
     case "broker_rate_limited":
-      return t`The broker market-data service is rate limited.`;
+      return t`MetaApi is limiting this account's requests for now. Lonora retries at the time MetaApi gives.`;
     case "broker_candles_not_found":
       return t`No candle history was found for this symbol and timeframe.`;
     case "broker_candles_mismatch":
@@ -182,6 +182,10 @@ export function userError(error: unknown) {
       return t`Broker deal history is unavailable for this time range.`;
     case "broker_connection_unavailable":
       return t`The broker connection is unavailable.`;
+    case "broker_gateway_unavailable":
+      return t`Lonora's server is not running right now, so nothing reached the broker. Try again shortly.`;
+    case "broker_gateway_no_answer":
+      return t`Lonora's server did not answer in time. If this was an order, check your trades before trying again.`;
     case "simulation_snapshot_required":
       return t`Import a market snapshot before using the demo account.`;
     case "invalid_request":

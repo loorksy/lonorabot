@@ -28,6 +28,7 @@ from lonora_db.messages import send_message
 from lonora_db.runs import complete_run
 from lonora_db.schema import MessageRow, PeerMessageRow, RunRow, SteeringRow
 from lonora_db.streaming import MAX_STREAM_CHARS
+from lonora_gateway.runtime import OwnerServices
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.context import ToolContext
 from sqlalchemy import func, select
@@ -58,6 +59,7 @@ class Fixture:
         self.agents: list[str] = []
         self.groups: list[str] = []
         self.group_threads: list[str] = []
+        self._gateway: OwnerServices | None = None
 
     async def open(self):
         credentials = {
@@ -154,6 +156,23 @@ class Fixture:
             self.settings.artifact_root,
         )
 
+    def gateway(self) -> OwnerServices:
+        """The Gateway's services for the owner: the Gateway alone keeps MetaApi
+        connections, and the API runtime relays MetaApi work to it. A test of a MetaApi
+        account runs tools and Gateway steps on these, as production does."""
+        if self._gateway is None:
+            settings = self.settings
+            self._gateway = OwnerServices.create(
+                self.runtime.db,
+                self.owner,
+                settings.encryption_key.get_secret_value(),
+                mcp_declarations=settings.mcp_declarations,
+                mcp_owner_trust=settings.mcp_owner_trust,
+                searxng_url=settings.searxng_url,
+                browser_url=settings.browser_url,
+            )
+        return self._gateway
+
     async def close(self, cleanup: bool = True):
         if cleanup:
             for thread in self.group_threads:
@@ -163,6 +182,8 @@ class Fixture:
             for agent in self.agents:
                 await self.request("DELETE", "/agents/" + agent)
         await self.client.aclose()
+        if self._gateway is not None:
+            await self._gateway.close()
         await self.runtime.close()
 
 

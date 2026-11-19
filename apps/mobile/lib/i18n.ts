@@ -331,6 +331,10 @@ export const labels = {
     "The account is not deployed on MetaApi",
   ],
   attentionBrokerConnectionLost: ["انقطع الاتصال بالحساب", "The account connection has been lost"],
+  attentionBrokerRateLimited: [
+    "MetaApi تحدّ من الطلبات حاليًا",
+    "MetaApi is limiting requests for now",
+  ],
   attentionSecretRequested: ["وكيلك ينتظر منك بيانات سرّية", "Your agent needs a secret from you"],
   attentionMandateProposed: [
     "بطاقة التفويض بانتظار لمستك",
@@ -554,6 +558,18 @@ export const labels = {
   broker_account_not_ready: [
     "حساب الوسيط غير جاهز بعد لدى MetaApi. إن استمر ذلك فاطلب من لونورا في المحادثة.",
     "The broker account is not ready at MetaApi yet. If it lasts, ask Lonora in chat.",
+  ],
+  broker_rate_limited: [
+    "تحدّ MetaApi من طلبات هذا الحساب حاليًا. يعيد لونورا المحاولة في الوقت الذي تحدده MetaApi.",
+    "MetaApi is limiting this account's requests for now. Lonora retries at the time MetaApi gives.",
+  ],
+  broker_gateway_unavailable: [
+    "خادم لونورا لا يعمل الآن، فلم يصل شيء إلى الوسيط. حاول مجددًا بعد قليل.",
+    "Lonora's server is not running right now, so nothing reached the broker. Try again shortly.",
+  ],
+  broker_gateway_no_answer: [
+    "لم يُجب خادم لونورا في الوقت المحدد. إن كان هذا أمرًا، فراجع صفقاتك قبل أن تحاول مجددًا.",
+    "Lonora's server did not answer in time. If this was an order, check your trades before trying again.",
   ],
   createChart: ["إنشاء رسم بياني", "Create chart"],
   chooseAccount: ["اختر الحساب", "Choose account"],

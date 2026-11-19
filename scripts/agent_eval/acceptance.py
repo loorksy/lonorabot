@@ -264,7 +264,7 @@ class Stage:
 
     @property
     def brokers(self) -> Any:
-        return self.api.runtime.services(self.api.owner).brokers
+        return self.api.gateway().brokers
 
     async def drain(self) -> None:
         """Every queued run of the owner, oldest first, through ``execute_run``."""
@@ -284,7 +284,7 @@ class Stage:
             if self.model is not None:
                 self.model.start(self.turn(run))
             for _ in range(runner.WORKER_PICKUPS):
-                context = self.api.runtime.services(self.api.owner).tool_context(
+                context = self.api.gateway().tool_context(
                     run.agent_id,
                     run.thread_id,
                     await harness.lease(self.api, run.id),

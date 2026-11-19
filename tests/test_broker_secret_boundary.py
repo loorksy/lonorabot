@@ -111,7 +111,7 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
     try:
         key = fixture.runtime.settings.encryption_key.get_secret_value()
         broker = BrokerSecrets(fixture.runtime.db, key, fixture.owner)
-        services = fixture.runtime.services(fixture.owner)
+        services = fixture.gateway()
         value = "fixture.metaapi." + uuid4().hex
         async with fixture.runtime.db.sessions() as session, session.begin():
             token_id = await broker.write_in_session(session, "fixture_" + uuid4().hex, value)

@@ -271,3 +271,19 @@ async def record_market_health(
                     "health": health.model_dump(mode="json"),
                 },
             )
+
+
+async def forget_quote_health(
+    db: "Database", owner_id: str, connection_id: str, symbol: str
+) -> None:
+    """A symbol no longer streamed has no current quote health: its last entry would read
+    stale for good (``market_health.as_of``)."""
+    from lonora_db.schema import BrokerSessionRow
+
+    async with db.sessions() as session, session.begin():
+        connection = await session.get(BrokerSessionRow, connection_id, with_for_update=True)
+        if connection is None or connection.owner_id != owner_id:
+            return
+        resources = dict(connection.state.get("market_health", {}))
+        if resources.pop("quote:" + symbol + ":", None) is not None:
+            connection.state = {**connection.state, "market_health": resources}

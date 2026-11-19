@@ -170,7 +170,6 @@ async def rotate_password(
     so no send uses a connection object from before the change."""
     from lonora_db.secrets import metaapi_password_name
 
-    del brokers  # The version moved: BrokerManager replaces its cached adapter itself.
     connection_id = str(card.payload["connection_id"])
     new_password = await secrets.named(metaapi_password_name(card.id))
     if new_password is None:
@@ -208,6 +207,9 @@ async def rotate_password(
                 stored = True
                 async with asyncio.timeout(METAAPI_SECONDS):
                     await provisioning.redeploy(payload.account_id)
+                # The version moved, so BrokerManager replaces its cached adapter itself;
+                # one made meanwhile that read the account mid-redeploy asks again at once.
+                recheck_after_deploy(brokers, connection_id)
         finally:
             await provisioning.close()
     except (LonoraError, TimeoutError) as failure:
@@ -290,6 +292,16 @@ async def _all_send_locked(
         yield
 
 
+def recheck_after_deploy(brokers: Any, connection_id: str) -> None:
+    """The adapter took the account as undeployed and waits before asking MetaApi again;
+    after a deploy it asks at the next call instead."""
+    from lonora_adapters.brokers.metaapi import MetaApiBroker
+
+    cached = brokers.connections.get(connection_id)
+    if cached is not None and isinstance(cached[1], MetaApiBroker):
+        cached[1].deployed()
+
+
 async def deploy(db: Database, brokers: Any, owner_id: str, connection_id: str) -> dict[str, Any]:
     """Start the account's terminal at MetaApi again (9.4, Q13): Lonora proposes it when
     the account is not running, and does it after the owner's reply. The connection's
@@ -307,6 +319,7 @@ async def deploy(db: Database, brokers: Any, owner_id: str, connection_id: str) 
         async with asyncio.timeout(METAAPI_SECONDS):
             state = await provisioning.state(payload.account_id)
             if state.deployed:
+                recheck_after_deploy(brokers, connection_id)
                 return {
                     "connection_id": connection_id,
                     "state": state.state,
@@ -318,6 +331,7 @@ async def deploy(db: Database, brokers: Any, owner_id: str, connection_id: str) 
         raise LonoraError("broker_provisioning_timeout", 504) from None
     finally:
         await provisioning.close()
+    recheck_after_deploy(brokers, connection_id)
     return {
         "connection_id": connection_id,
         "state": state.state,

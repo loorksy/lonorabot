@@ -15,9 +15,12 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 | `broker_health` | `broker_token_rejected` | the account is disconnected with `broker_credentials_rejected` | the account is no longer disconnected with that problem, or its connection is disabled or removed |
 | `broker_health` | `broker_account_undeployed` | the account is disconnected with `broker_account_undeployed` or `broker_account_not_found` | the same |
 | `broker_health` | `broker_connection_lost` | the account has been disconnected for any other reason for 2 minutes (`LOST_CONNECTION_GRACE`) | the same |
+| `broker_health` | `broker_rate_limited` | the account has been disconnected because MetaApi throttles its requests (`broker_rate_limited`) for 2 minutes; the account itself is fine and the adapter retries at the time MetaApi gives | the same |
 
-- Every item is `action_required` (a broker problem on an account with open positions
-  or unresolved operations is `critical`), so it is ready at once, and it becomes ready
+- Every item is `action_required`, except `broker_rate_limited`, which is
+  `important_change` (MetaApi throttling needs no action from the owner); a broker
+  problem on an account with open positions or unresolved operations is `critical`.
+  Each is ready at once, and it becomes ready
   once (one `attention.ready` event per item id).
 - Card items come from the `owner_action.updated` and `trading.*` events through the
   attention projection (`lonora_gateway/attention.py`). Broker health items come from
@@ -26,7 +29,9 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
   time the account became disconnected). The adapter's reason flaps between polls
   within one outage: a rejected token or an undeployed account stays the outage's
   problem while later polls show only a generic lost connection, and a lost connection
-  is replaced by the specific problem once one shows.
+  is replaced by a specific problem (a rejected token or an undeployed account) once
+  one shows. The two generic reasons, a lost connection and MetaApi throttling,
+  alternate within one outage; the one raised first stays the outage's item.
 - `withdraw_ended` (`lonora_db/attention.py`) checks the open items of these codes on
   every tick, 200 at a time, rotating through them in id order, and withdraws the ones
   whose card ended or whose problem cleared, including one the owner has already seen,
