@@ -107,11 +107,12 @@ test("each operation of the chat is a line at its anchor, a confirmed one only i
     created_at: now,
   });
   const filledId = randomUUID(),
-    uncertainId = randomUUID();
+    uncertainId = randomUUID(),
+    confirmedId = randomUUID();
   const journal = [
     {
       // Broker-confirmed: shown once, as its Execution Receipt, never as an order line.
-      operation_id: randomUUID(),
+      operation_id: confirmedId,
       account_id: "account-raw-id",
       status: "confirmed",
       request: { action: "buy", symbol: "XAGUSD", volume: 2 },
@@ -171,12 +172,37 @@ test("each operation of the chat is a line at its anchor, a confirmed one only i
   await page.route("**/api/trading/journal?thread_id=*", (route) =>
     route.fulfill({ json: journal }),
   );
+  await page.route("**/api/trading/receipts?thread_id=*", (route) =>
+    route.fulfill({
+      json: [
+        {
+          operation_id: confirmedId,
+          thread_id: data.thread.id,
+          timeline_seq: 1,
+          agent_id: data.agent.id,
+          created_at: now,
+          kind: "fill",
+          action: "buy",
+          symbol: "XAGUSD",
+          ticket: "771230",
+          volume: "2",
+          price: "30.5",
+          partial: false,
+          reason: null,
+          verification: "verified",
+        },
+      ],
+    }),
+  );
   try {
     await page.goto(`/thread?id=${data.thread.id}`);
     const lines = page.getByTestId("order-line");
+    const receipts = page.getByTestId("execution-receipt");
+    await expect(receipts).toHaveCount(1);
+    await expect(receipts).toContainText("XAGUSD");
     await expect(lines).toHaveCount(2);
+    await expect(lines.filter({ hasText: "XAGUSD" })).toHaveCount(0);
     await expect(page.getByText("EURUSD")).toHaveCount(0);
-    await expect(page.getByText("XAGUSD")).toHaveCount(0);
     const filled = page.getByRole("button", { name: /^Order Buy 0\.1 XAUUSD: Filled/ });
     await expect(filled).toBeVisible();
     const uncertain = page.getByRole("button", { name: /XAUUSD: Unconfirmed/ });
