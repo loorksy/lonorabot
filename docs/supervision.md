@@ -97,8 +97,11 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   only its risk-reducing requests (mandate 4.7.1). The owner's messages to it are kept
   in the conversation and start no run; it answers only after it is resumed. That holds
   for an answer to a question its wake asked too: a tapped choice is refused
-  (`agent_paused`) and a typed reply is kept, and the question stays open. Nothing is
-  queued while it is paused. When it is resumed (the owner's switch or Resume on its
+  (`agent_paused`) and a typed reply is kept, and the question stays open. Input refused
+  with `agent_paused` (a tapped choice, a card's send, an invitation) is not kept, so the
+  clients say only to resume it and try again:
+  «هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة.» ("This agent is paused: resume
+  it, then try again."). Nothing is queued while it is paused. When it is resumed (the owner's switch or Resume on its
   pause card, or `agent_control`), it gets one run in each conversation where the owner
   sent it messages while it was paused (in a group, the messages that addressed it; an
   owner message folded into a card's send that the lifetime or «تعديل» cancels while it

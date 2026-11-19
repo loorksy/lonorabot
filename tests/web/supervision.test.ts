@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { translate } from "../../apps/mobile/lib/i18n";
 import type { Agent, OwnerAction, SupervisionView } from "../../packages/contracts/src/index";
 import { ownerActionCard } from "../../packages/core/src/owner-actions";
 import {
@@ -259,4 +261,16 @@ test("profile rows name the other agent and where each grant came from", () => {
   );
   assert.equal(supervisionError("unknown_code", "ar"), null);
   for (const key of Object.keys(supervisionLabels.en)) assert.ok(key in supervisionLabels.ar, key);
+});
+
+test("the paused-agent refusal asks for a resume and a retry, and promises no answer", () => {
+  // Only refused input shows it (a tapped choice, a card's send, an invitation), and that
+  // input is not kept: a typed message to a paused agent is kept and answered on resume.
+  const ar = "هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة.";
+  const en = "This agent is paused: resume it, then try again.";
+  assert.equal(translate("ar", "agent_paused"), ar);
+  assert.equal(translate("en", "agent_paused"), en);
+  assert.ok(readFileSync("apps/web/src/lib/user_error.ts", "utf8").includes(`t\`${en}\``));
+  const catalog = readFileSync("apps/web/src/i18n/locales/ar/messages.po", "utf8");
+  assert.ok(catalog.includes(`msgid "${en}"\nmsgstr "${ar}"`));
 });

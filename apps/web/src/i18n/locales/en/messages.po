@@ -8152,8 +8152,12 @@ msgid "This agent has reached its blocked-version limit. Existing blocks have be
 msgstr "This agent has reached its blocked-version limit. Existing blocks have been preserved."
 
 #: src/lib/user_error.ts:38
-msgid "This agent is paused: it answers only after you resume it."
-msgstr "This agent is paused: it answers only after you resume it."
+#~ msgid "This agent is paused: it answers only after you resume it."
+#~ msgstr "This agent is paused: it answers only after you resume it."
+
+#: src/lib/user_error.ts:38
+msgid "This agent is paused: resume it, then try again."
+msgstr "This agent is paused: resume it, then try again."
 
 #: src/lib/user_error.ts:28
 msgid "This agent’s market scope cannot be changed."

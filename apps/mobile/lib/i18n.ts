@@ -260,8 +260,8 @@ export const labels = {
     "This question is no longer waiting for an answer",
   ],
   agent_paused: [
-    "هذا الوكيل متوقف مؤقتًا: لا يرد إلا بعد أن تستأنفه.",
-    "This agent is paused: it answers only after you resume it.",
+    "هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة.",
+    "This agent is paused: resume it, then try again.",
   ],
   input_answer_conflict: [
     "تم تسجيل إجابة مختلفة مسبقًا",

@@ -8146,8 +8146,12 @@ msgid "This agent has reached its blocked-version limit. Existing blocks have be
 msgstr "وصل هذا الوكيل إلى الحد الأقصى للإصدارات المحظورة. بقيت عمليات الحظر الحالية محفوظة."
 
 #: src/lib/user_error.ts:38
-msgid "This agent is paused: it answers only after you resume it."
-msgstr "هذا الوكيل متوقف مؤقتًا: لا يرد إلا بعد أن تستأنفه."
+#~ msgid "This agent is paused: it answers only after you resume it."
+#~ msgstr "هذا الوكيل متوقف مؤقتًا: لا يرد إلا بعد أن تستأنفه."
+
+#: src/lib/user_error.ts:38
+msgid "This agent is paused: resume it, then try again."
+msgstr "هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة."
 
 #: src/lib/user_error.ts:28
 msgid "This agent’s market scope cannot be changed."
