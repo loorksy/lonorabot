@@ -30,7 +30,9 @@ from lonora_db.schema import (
     MarketWakeReceiptRow,
     MarketWatchRow,
     RunRow,
+    TicketRow,
 )
+from lonora_db.tasks import task_state
 from lonora_db.threads import background_origin
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import or_, select
@@ -370,15 +372,21 @@ async def observe_stream_indicator(
     )
 
 
-def resumes_task(task_run: RunRow, watch_id: str) -> bool:
+def resumes_task(task_run: RunRow, task: TicketRow | None, watch_id: str) -> bool:
     """Whether a confirmation resumes its Task now: ``resume_ready_waits`` wakes only a
-    Task run waiting on this very watch; otherwise the Task is not told (11.5)."""
+    Task run waiting on this very watch, its Task waiting with no control pending;
+    otherwise the Task is not told (11.5)."""
+    if task is None or not task.state.get("task"):
+        return False
+    state = task_state(task)
     environment: object = task_run.execution_state.get("environment")
     wait: object = (
         cast(dict[str, Any], environment).get("wait") if isinstance(environment, dict) else None
     )
     return (
-        task_run.status == "waiting_takeover"
+        state.status == "waiting"
+        and state.control_requested is None
+        and task_run.status == "waiting_takeover"
         and isinstance(wait, dict)
         and cast(dict[str, Any], wait).get("kind") == "watch"
         and cast(dict[str, Any], wait).get("source_id") == watch_id
@@ -645,6 +653,11 @@ async def check_watch(
                 # resident scheduler. Do not create a competing watch Run.
                 task_run_id = row.state.get("task_run_id")
                 task_run = await session.get(RunRow, task_run_id) if task_run_id else None
+                task = (
+                    await session.get(TicketRow, str(task_run.model_metadata.get("task_id") or ""))
+                    if task_run is not None
+                    else None
+                )
                 if task_run_id and (
                     task_run is None or task_run.status in {"completed", "failed", "cancelled"}
                 ):
@@ -703,7 +716,7 @@ async def check_watch(
                 woken = (
                     (
                         task_run_id
-                        if task_run is not None and resumes_task(task_run, row.id)
+                        if task_run is not None and resumes_task(task_run, task, row.id)
                         else None
                     )
                     if task_run_id

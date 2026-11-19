@@ -113,11 +113,19 @@ async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchR
 async def projected(db: Database, event: EventRow) -> EventRow:
     """The event an item is decided on. A background wake that failed stands for the source
     that woke it: a source whose agent was to report it raised no item (VISION 11.5), so
-    when that run fails the source is decided again as if no agent had been woken."""
+    when that run fails the source is decided again as if no agent had been woken. A
+    background follow-up continues the wake's work, so its failure stands for the same."""
     if event.kind != "run.failed" or not event.run_id:
         return event
     async with db.sessions() as session:
         run = await session.get(RunRow, event.run_id)
+        while (
+            run is not None
+            and run.trigger == "follow_up"
+            and run.parent_run_id
+            and is_background(run.trigger, run.model_metadata)
+        ):
+            run = await session.get(RunRow, run.parent_run_id)
         if run is None or not is_background(run.trigger, run.model_metadata):
             return event
         metadata = run.model_metadata

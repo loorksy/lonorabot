@@ -169,9 +169,10 @@ async def return_outcome(db: Database, run_id: str) -> None:
         # VISION 11.5: background work that may end silent in a conversation reads its
         # helpers' outcomes out of the owner's sight: the card goes to a hidden thread of
         # that work and reaches it only by steering, and its own reply, if any, is the
-        # owner's news. Nothing acts on an outcome of ended work that failed, was
-        # cancelled or got nothing back. A work thread keeps every outcome (it is the
-        # work's memory) and a collaboration collects every return for its synthesis.
+        # owner's news. Nothing acts on an outcome of ended work that failed or was
+        # cancelled, nor on a helper that brought nothing back; a helper's failure is the
+        # work's to finish or report. A work thread keeps every outcome (it is the work's
+        # memory) and a collaboration collects every return for its synthesis.
         hidden = bool(
             parent
             and thread
@@ -185,7 +186,10 @@ async def return_outcome(db: Database, run_id: str) -> None:
             hidden
             and parent
             and parent.status in TERMINAL
-            and (parent.status != "completed" or not (child.result or rich_content))
+            and (
+                parent.status != "completed"
+                or (status != "failed" and not (child.result or rich_content))
+            )
         )
         # A follow-up is its parent's continuation, not a helper: its outcome never
         # returns to the parent, so it never starts another follow-up.

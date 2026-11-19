@@ -609,7 +609,7 @@ async def test_group_silence_accepts_a_background_wake():
 
 
 @pytest.mark.asyncio
-async def test_an_empty_or_failed_helper_of_ended_background_work_posts_no_card():
+async def test_a_helper_of_ended_background_work_posts_no_card():
     database()
     from check_streaming import Fixture
 
@@ -617,20 +617,27 @@ async def test_an_empty_or_failed_helper_of_ended_background_work_posts_no_card(
     try:
         agent = await fixture.agent("Helper desk")
         conversation = (await fixture.conversation(agent))["id"]
-        # A watch set in the chat has ended; its helper failed: nothing reaches the chat.
+        # A watch set in the chat has ended; its helper brought nothing back: nothing
+        # reaches the chat and nothing acts on it.
         watch = await make_run(fixture, agent, conversation, "watch")
         await ended(fixture, watch)
-        await returned_helper(fixture, agent, watch, "failed", None)
         await returned_helper(fixture, agent, watch, "completed", "")
         assert await contents(fixture, conversation) == []
         assert await follow_ups(fixture, watch.id) == []
-        # A helper that brought something back reaches the work, not the chat: its
-        # background follow-up reads it and decides whether anything is new.
+        # A helper that brought something back, or failed, reaches the work, not the
+        # chat: a background follow-up reads it and decides what the owner hears.
         helped = await returned_helper(fixture, agent, watch, "completed", "Gold held 2,400.")
         assert await contents(fixture, conversation) == []
         [follow_up] = await follow_ups(fixture, watch.id)
         assert follow_up.model_metadata["background"] is True
         assert helped.id in await steered_text(fixture, follow_up.id)
+        other = await make_run(fixture, agent, conversation, "watch")
+        await ended(fixture, other)
+        broken = await returned_helper(fixture, agent, other, "failed", None)
+        assert await contents(fixture, conversation) == []
+        [finisher] = await follow_ups(fixture, other.id)
+        assert finisher.model_metadata["background"] is True
+        assert broken.id in await steered_text(fixture, finisher.id)
         # A watch still running is still told its helper failed (it may wait for it), out
         # of the owner's sight.
         running = await make_run(fixture, agent, conversation, "watch")
@@ -1199,8 +1206,9 @@ async def test_a_failed_background_run_gets_no_helper_card_in_the_chat():
 async def test_a_subagent_of_background_work_works_in_a_hidden_thread():
     database()
     from check_streaming import Fixture
-    from lonora_db.schema import RunRow, ThreadRow
+    from lonora_db.schema import GroupRow, RunRow, ThreadRow
     from lonora_db.threads import list_threads, report_thread
+    from sqlalchemy import update
     from test_routine_output import call
 
     fixture = await Fixture().open()
@@ -1231,6 +1239,26 @@ async def test_a_subagent_of_background_work_works_in_a_hidden_thread():
         async with fixture.runtime.db.sessions() as session:
             helper = await session.get(RunRow, direct["id"])
             assert helper is not None
+            thread = await session.get(ThreadRow, helper.thread_id)
+            assert thread is not None and thread.purpose == "conversation"
+        # A watch set in a group reports there; a helper's questions cannot reach a group
+        # from a hidden thread, so its helper keeps a chat of its own, as before.
+        group = (await fixture.conversation(agent))["id"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            members = GroupRow(owner_id=fixture.owner, payload={"member_ids": [agent["id"]]})
+            session.add(members)
+            await session.flush()
+            await session.execute(
+                update(ThreadRow).where(ThreadRow.id == group).values(group_id=members.id)
+            )
+        watch = await make_run(fixture, agent, group, "watch")
+        watch_context = await fixture.lease(
+            {"id": watch.id, "agent_id": watch.agent_id, "thread_id": watch.thread_id}
+        )
+        grouped = await call(watch_context, "subagent_spawn", task="Check the gold fix")
+        async with fixture.runtime.db.sessions() as session:
+            helper = await session.get(RunRow, grouped["id"])
+            assert helper is not None and "origin_thread_id" not in helper.model_metadata
             thread = await session.get(ThreadRow, helper.thread_id)
             assert thread is not None and thread.purpose == "conversation"
     finally:
@@ -1341,6 +1369,7 @@ async def test_a_failed_wake_returns_exactly_the_sources_it_stood_for():
     database()
     from check_streaming import Fixture
     from lonora_db.events import emit
+    from lonora_db.schema import RunRow
     from lonora_gateway.attention import projected
 
     fixture = await Fixture().open()
@@ -1397,6 +1426,28 @@ async def test_a_failed_wake_returns_exactly_the_sources_it_stood_for():
         source = await projected(fixture.runtime.db, await failed_wake(fixture, broker))
         assert source.kind == "broker.external_activity"
         assert source.payload["account_id"] == "acc" and source.payload["symbol"] is None
+        # The second wake ended silent while its helper worked; the follow-up that was to
+        # finish that work failed: the wake's confirmation returns all the same.
+        await ended(fixture, second)
+        follow_up = await make_run(
+            fixture, agent, conversation, "follow_up", parent_run_id=second.id
+        )
+        assert follow_up.model_metadata["background"] is True
+        finisher = await make_run(
+            fixture, agent, conversation, "follow_up", parent_run_id=follow_up.id
+        )
+        source = await projected(fixture.runtime.db, await failed_wake(fixture, finisher))
+        assert source.kind == "watch.confirmed" and source.payload["transition_id"] == "t2"
+        # A follow-up the owner spoke to is theirs: its failure shows as it is.
+        answered = await make_run(
+            fixture, agent, conversation, "follow_up", parent_run_id=second.id
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, answered.id, with_for_update=True)
+            assert row is not None
+            row.model_metadata = {**row.model_metadata, "owner_spoke": True}
+        event = await failed_wake(fixture, answered)
+        assert (await projected(fixture.runtime.db, event)).kind == "run.failed"
     finally:
         await fixture.close()
 
@@ -1428,28 +1479,42 @@ async def test_a_failed_helper_of_work_the_owner_spoke_to_is_still_reported():
 
 
 def test_a_task_owned_confirmation_is_a_wake_only_for_a_task_waiting_on_it():
-    from lonora_db.schema import RunRow
+    from lonora_contracts.tasks import TaskState
+    from lonora_db.schema import RunRow, TicketRow
     from lonora_market.watchers import resumes_task
 
     def task_run(status: str, wait: dict[str, Any] | None) -> RunRow:
         return RunRow(status=status, execution_state={"environment": {"wait": wait}})
 
+    def task(status: str = "waiting", control: str | None = None) -> TicketRow:
+        state = TaskState.model_validate(
+            {"origin_thread_id": "t", "status": status, "control_requested": control}
+        )
+        return TicketRow(state={"task": state.model_dump(mode="json")})
+
     waiting = {"kind": "watch", "source_id": "w2"}
-    assert resumes_task(task_run("waiting_takeover", waiting), "w2")
+    assert resumes_task(task_run("waiting_takeover", waiting), task(), "w2")
     # Waiting on another watch, on a timer, or not waiting at all: nothing resumes, so the
     # confirmation stays the owner's item.
     assert not resumes_task(
-        task_run("waiting_takeover", {"kind": "watch", "source_id": "w1"}), "w2"
+        task_run("waiting_takeover", {"kind": "watch", "source_id": "w1"}), task(), "w2"
     )
-    assert not resumes_task(task_run("waiting_takeover", {"kind": "timer", "due_at": "x"}), "w2")
-    assert not resumes_task(task_run("running", waiting), "w2")
-    assert not resumes_task(task_run("waiting_input", None), "w2")
+    assert not resumes_task(
+        task_run("waiting_takeover", {"kind": "timer", "due_at": "x"}), task(), "w2"
+    )
+    assert not resumes_task(task_run("running", waiting), task(), "w2")
+    assert not resumes_task(task_run("waiting_input", None), task(), "w2")
+    # A paused Task, one with a control pending, or a missing one is not resumed either.
+    assert not resumes_task(task_run("waiting_takeover", waiting), task("paused"), "w2")
+    assert not resumes_task(task_run("waiting_takeover", waiting), task(control="pause"), "w2")
+    assert not resumes_task(task_run("waiting_takeover", waiting), None, "w2")
 
 
 @pytest.mark.asyncio
 async def test_background_work_in_a_chat_reads_its_helper_out_of_sight():
     database()
     from check_streaming import Fixture
+    from lonora_agent.runtime_notices import is_owner_message
     from lonora_db.schema import AgentRow
     from lonora_db.workspace_wakes import wake_by_handle
 
@@ -1470,6 +1535,13 @@ async def test_background_work_in_a_chat_reads_its_helper_out_of_sight():
         complete, requests = router("")
         await execute(fixture, wake, complete)
         assert said(requests, "No events today.")
+        # The steered card is a helper's words, never the owner's: it reaches the model in
+        # the data frame history gives them (6.10).
+        card = next(
+            message for message in requests[0] if "No events today." in str(message.content)
+        )
+        assert card.content.startswith("[Peer ") and "peer_untrusted" in card.content
+        assert not is_owner_message(card)
         row = await reload(fixture, wake.id)
         assert row.status == "completed" and row.result == ""
         assert await contents(fixture, conversation) == []

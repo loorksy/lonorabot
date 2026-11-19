@@ -6,7 +6,7 @@ from lonora_contracts.runs import RunRequest
 from lonora_core.run_state import is_background
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import create_run, require_lease, run_data
-from lonora_db.schema import AgentRow, RunRow
+from lonora_db.schema import AgentRow, RunRow, ThreadRow
 from lonora_db.supervision import supervises
 from lonora_db.threads import create_thread, report_thread
 from lonora_db.transactions import owned_thread
@@ -42,15 +42,27 @@ async def spawn_subagent(
             raise LonoraError("subagent_limit", 409)
         # A helper of background work is that work's own: it works in a hidden thread,
         # never a new chat (11.6), and what it raises for the owner goes where its parent
-        # reports (11.5: an empty background run posts nothing anywhere).
-        background = is_background(parent.trigger, parent.model_metadata)
+        # reports (11.5: an empty background run posts nothing anywhere). Only the
+        # Agent's direct conversation takes what a hidden thread raises; a helper of work
+        # that reports anywhere else (a group) keeps a chat of its own, where it asks.
+        reports_to = (
+            await session.get(ThreadRow, await report_thread(session, parent))
+            if is_background(parent.trigger, parent.model_metadata)
+            else None
+        )
+        hidden = bool(
+            reports_to
+            and reports_to.purpose == "conversation"
+            and reports_to.group_id is None
+            and reports_to.agent_id == context.agent_id
+        )
         thread = await create_thread(
             session,
             context.owner_id,
             ThreadCreate(agent_id=context.agent_id, title=task[:80]),
-            purpose="work" if background else "conversation",
+            purpose="work" if hidden else "conversation",
         )
-        origin = {"origin_thread_id": await report_thread(session, parent)} if background else {}
+        origin = {"origin_thread_id": reports_to.id} if hidden and reports_to else {}
         run = await create_run(
             session,
             context.owner_id,
