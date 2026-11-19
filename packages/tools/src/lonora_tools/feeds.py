@@ -31,6 +31,9 @@ from .source_trust import owner_named, refusal
 
 # Feeds fetched at once in a read of every feed. It paces requests; every feed is read.
 FEED_CONCURRENCY = 10
+# A read of every feed answers within the tool's 60 seconds: a feed still waiting then is
+# reported as timed out, and the feeds that answered are kept.
+READ_DEADLINE_SECONDS = 50
 FEED_TIMEOUT_SECONDS = 20
 
 
@@ -49,9 +52,11 @@ async def subscribed(context: ToolContext) -> list[IntegrationRow]:
     async with context.db.sessions() as session:
         rows = await session.scalars(
             select(IntegrationRow)
-            .where(IntegrationRow.owner_id == context.owner_id)
+            .where(
+                IntegrationRow.owner_id == context.owner_id,
+                IntegrationRow.payload["type"].as_string() == "news_feed",
+            )
             .order_by(IntegrationRow.created_at, IntegrationRow.id)
-            .limit(500)
         )
         return [
             row
@@ -107,7 +112,17 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         async with pace:
             return await one_feed(url, params.limit)
 
-    results = await asyncio.gather(*(paced(str(row.payload["url"])) for row in rows))
+    reads = [asyncio.create_task(paced(str(row.payload["url"]))) for row in rows]
+    if reads:
+        await asyncio.wait(reads, timeout=READ_DEADLINE_SECONDS)
+    for read_task in reads:
+        read_task.cancel()
+    results = [
+        read_task.result()
+        if read_task.done() and not read_task.cancelled()
+        else {"status": "unavailable", "reason": "news_feed_timeout"}
+        for read_task in reads
+    ]
     return {
         "feeds": [
             {

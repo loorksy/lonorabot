@@ -35,6 +35,7 @@ from lonora_db.owner_actions import LIFETIME, confirmation_code
 from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
+    IntegrationRow,
     MessageRow,
     OwnerActionRow,
     RunRow,
@@ -1322,7 +1323,19 @@ async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
 
         return PublicResponse(200, {"content-type": "application/rss+xml"}, RSS)
 
+    others: list[str] = []
     try:
+        # Five hundred older integrations of another kind come first: the feeds after them
+        # are still found, by read and by the duplicate check alike.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for index in range(500):
+                row = IntegrationRow(
+                    owner_id=fixture.owner,
+                    payload={"type": "webhook", "name": f"Other {index}", "enabled": False},
+                )
+                session.add(row)
+                await session.flush()
+                others.append(row.id)
         agent = await fixture.agent("Wide reader")
         thread = await fixture.conversation(agent)
         context = await owner_says(fixture, agent, thread["id"], "Subscribe to " + domain)
@@ -1335,10 +1348,67 @@ async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
                     name=f"Feed {index}",
                 )
                 assert added["status"] == "subscribed", added
+            again = await call(
+                context, "news_feed_subscribe", url=f"https://{domain}/rss/11", name="Again"
+            )
+            assert again["status"] == "already_subscribed", again
             read = await call(context, "news_feed_read")
         mine = [feed for feed in read["feeds"] if feed["domain"] == domain]
         assert sorted(feed["name"] for feed in mine) == sorted(f"Feed {i}" for i in range(12))
         assert all(feed["status"] == "ok" for feed in mine)
+    finally:
+        report = await fixture.request("GET", "/capabilities")
+        for item in report["integrations"]:
+            if item.get("domain") == domain:
+                await fixture.request("DELETE", "/integrations/" + item["id"])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for identity in others:
+                row = await session.get(IntegrationRow, identity)
+                if row is not None:
+                    await session.delete(row)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_slow_feed_never_costs_the_agent_the_feeds_that_answered(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The read returns before the tool's deadline: feeds that answered come back, a feed
+    still waiting is reported as timed out."""
+    database()
+    import asyncio
+
+    from check_streaming import Fixture
+    from lonora_tools import feeds
+
+    fixture = await Fixture().open()
+    domain = "slow-" + uuid4().hex[:8] + ".analyst.example"
+    monkeypatch.setattr(feeds, "READ_DEADLINE_SECONDS", 0.5)
+    slow: list[bool] = []
+
+    async def public(url: str, method: str = "GET", *, maximum_bytes: int = 0) -> Any:
+        from lonora_security.public_http import PublicResponse
+
+        if url.endswith("/slow") and slow:
+            await asyncio.sleep(30)
+        return PublicResponse(200, {"content-type": "application/rss+xml"}, RSS)
+
+    try:
+        agent = await fixture.agent("Patient reader")
+        thread = await fixture.conversation(agent)
+        context = await owner_says(fixture, agent, thread["id"], "Subscribe to " + domain)
+        with patch.object(news_feed, "public_get", public):
+            for path in ("fast", "slow"):
+                added = await call(
+                    context, "news_feed_subscribe", url=f"https://{domain}/{path}", name=path
+                )
+                assert added["status"] == "subscribed", added
+            slow.append(True)
+            read = await call(context, "news_feed_read")
+        mine = {feed["name"]: feed for feed in read["feeds"] if feed["domain"] == domain}
+        assert mine["fast"]["status"] == "ok", mine
+        assert mine["slow"]["status"] == "unavailable", mine
+        assert mine["slow"]["reason"] == "news_feed_timeout"
     finally:
         report = await fixture.request("GET", "/capabilities")
         for item in report["integrations"]:
