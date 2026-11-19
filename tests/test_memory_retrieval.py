@@ -15,7 +15,7 @@ from lonora_memory.evidence import (
     render_evidence,
     retrieve_evidence,
 )
-from lonora_memory.retrieval import document_chunks, lexical_score, retrieve_sections
+from lonora_memory.retrieval import document_chunks, lexical_score
 from lonora_memory.semantic import cosine_similarity
 from lonora_providers.credentials import ProviderCredentials
 from sqlalchemy.exc import SQLAlchemyError
@@ -96,9 +96,15 @@ def test_current_document_offsets_and_retrieval_are_bounded():
         document[offset : offset + len(text)] == text for offset, text in document_chunks(document)
     )
     assert all(len(text) <= 2000 for _, text in document_chunks(document))
-    assert "مخاطر الذهب" in retrieve_sections(document, "مخاطر الذهب")[0]
-    assert retrieve_sections(document, "absent") == []
-    assert retrieve_sections(document, "risk", -1) == []
+    # Recall ranks the same chunks through fuse_evidence (retrieve_sections, its older
+    # stand-alone form, is deleted under mandate 13.2).
+    chunks = [
+        evidence(f"memory:a:v3:{offset}", text, "memory")
+        for offset, text in document_chunks(document)
+    ]
+    assert "مخاطر الذهب" in fuse_evidence(chunks, "مخاطر الذهب", {})[0][0].text
+    assert fuse_evidence(chunks, "absent", {})[0] == []
+    assert fuse_evidence(chunks, "risk", {}, limit=-1)[0] == []
 
 
 def test_render_reports_fallback_and_preserves_untrusted_source_as_data():

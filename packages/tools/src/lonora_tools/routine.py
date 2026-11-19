@@ -16,8 +16,9 @@ from .base import Tool
 from .context import ToolContext
 from .market_watch import created_to_run
 from .memory import Empty
+from .profile_taint import mark_from
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 class RoutineToggle(Contract):
@@ -27,7 +28,7 @@ class RoutineToggle(Contract):
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        _run, _thread = await locked_run_thread(session, context.lease)
+        run, _thread = await locked_run_thread(session, context.lease)
         if (
             args.get("enabled") is False
             and await session.get(RoutineRow, context.resource_id) is None
@@ -40,6 +41,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             RoutineCreate.model_validate(args),
             context.resource_id,
         )
+        await mark_from(session, run, "routine", row.id)
         return routine_data(row)
 
 
@@ -112,6 +114,7 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 owner_message=await owner_message_id(session, run) is not None,
             )
         row.enabled = args["enabled"]
+        await mark_from(session, run, "routine", row.id)
         return stating(routine_data(row), named)
 
 

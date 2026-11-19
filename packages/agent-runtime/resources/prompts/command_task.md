@@ -1,0 +1,1 @@
+<lonora_owner_command>The owner's latest message is the /task command. Turn the text after the command into a task you follow until it is done: start it with the task_start tool, then confirm in one short line. A task grants no authority: trading still follows your permission and the owner's approvals.</lonora_owner_command>

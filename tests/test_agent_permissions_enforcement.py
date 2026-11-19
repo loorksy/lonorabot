@@ -198,17 +198,10 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
         side_effect=[permission_snapshot("autonomous"), permission_snapshot("analysis")]
     )
     monkeypatch.setattr("lonora_agent.context.permissions.permission_state", state)
-    # Restrictions and monetary limits are read from the database; covered elsewhere.
+    # Monetary limits are read from the database; covered elsewhere.
     monkeypatch.setattr(
-        "lonora_agent.context.permissions.trading_limits", AsyncMock(return_value=([], []))
+        "lonora_agent.context.permissions.trading_limits", AsyncMock(return_value=[])
     )
-    trading = AsyncMock(
-        side_effect=[
-            {"state": "running", "since": "2026-11-08T08:00:00+00:00", "changed_by": "owner"},
-            {"state": "stopped", "since": "2026-11-08T09:00:00+00:00", "changed_by": "owner"},
-        ]
-    )
-    monkeypatch.setattr("lonora_agent.context.permissions.global_trading", trading)
     monkeypatch.setattr(
         "lonora_agent.context.permissions.trading_mode", AsyncMock(return_value="ask")
     )
@@ -221,18 +214,9 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
     assert context_snapshot(first)["valid_autonomous_authorization"] is True
     assert context_snapshot(resumed)["financial_mutations_prohibited"] is True
     assert state.await_count == 2
-    # Stop new trading is re-read every turn too, and travels as data in the frame.
-    assert context_snapshot(first)["global_trading"] == {
-        "state": "running",
-        "since": "2026-11-08T08:00:00+00:00",
-        # Who stopped it: the owner's brake, or a never-started install (default).
-        "changed_by": "owner",
-    }
-    assert context_snapshot(resumed)["global_trading"]["state"] == "stopped"
-    assert "While global_trading is stopped" in resumed and "attempt no entry" in resumed
-    # Stop is the owner's brake: no agent pushes a Resume card unless the owner asks.
-    assert "propose a Resume card only when the owner asks to resume" in resumed
-    assert "offer the owner a Resume card" not in resumed
+    # Lonora has no Stop: the frame carries no global trading state and no Resume text.
+    assert "global_trading" not in context_snapshot(first)
+    assert "global_trading" not in resumed and "Resume card" not in resumed
     assert "when the owner asks for one, propose the matching owner action card" in resumed
 
 

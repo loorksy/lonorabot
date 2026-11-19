@@ -12,7 +12,7 @@ class SubagentInput(Contract):
     task: str = Field(min_length=1, max_length=8000)
     model: ModelSelection | None = Field(
         default=None,
-        description="One of the owner's allowed models for this helper; omit to use yours.",
+        description="Another available model for this helper, by exact id; omit to use yours.",
     )
 
 
@@ -49,7 +49,7 @@ def tools() -> list[Tool]:
         Tool(
             "subagent_spawn",
             "Start a bounded temporary research run without creating a permanent agent "
-            "identity, optionally on another of the owner's allowed models.",
+            "identity, optionally on another available model.",
             SubagentInput,
             spawn,
         ),

@@ -1,14 +1,14 @@
-"""One model choice per Agent, and the owner's allowed models, stored without a schema change.
+"""One model choice per Agent, stored without a schema change.
 
 Like the per-Agent approval preference, the record lives in ``ln_settings`` under an
 owner-scoped key. It only orders the model candidates the router tries; it never grants
 authority or changes what the Agent may do, and changing it never repeats a tool call,
 a trade or any other effect: the next model turn simply asks another model.
 
-An Agent is *Automatic* (Lonora chooses: the owner's default model, and the Agent may
-switch itself among the allowed models) or *Fixed* (the owner chose one model; only the
-owner changes it). The allowed models are the owner's global text routes and backups
-plus the models the owner added (``model_allowed``).
+Only the owner assigns a model (VISION 12.3): from an agent's settings, or in chat, where
+an agent applies it when the owner's own message names the model. Any text model of a
+connected provider's catalog is assignable. A new agent starts on Lonora's current model
+(``inherit_lead_model``, VISION 3.1.2) until the owner assigns another.
 """
 
 from collections.abc import Iterable
@@ -18,25 +18,20 @@ from typing import Any, Literal, cast
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import (
-    MAXIMUM_ADDED_MODELS,
     AgentModelChange,
     AgentModelPreference,
     AgentModelRecord,
-    AgentModelState,
-    AllowedModels,
     ModelSelection,
-    RoutingPolicy,
 )
-from lonora_core.model_routing import model_match_score, text_routes
+from lonora_core.model_routing import model_match_score
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .schema import SettingRow
+from .supervision import personal_agent_id
 from .transactions import SettingsRepository, owned_agent
-
-ALLOWED_KEY = "model_allowed"
 
 
 def agent_model_key(owner_id: str, agent_id: str) -> str:
@@ -76,67 +71,17 @@ async def agent_model_preference(
         return None
 
 
-async def added_models(session: AsyncSession) -> AllowedModels:
-    try:
-        return AllowedModels.model_validate(await SettingsRepository().get(session, ALLOWED_KEY))
-    except ValidationError:
-        return AllowedModels()
-
-
-async def routed_models(session: AsyncSession) -> list[ModelSelection]:
-    """The owner's global text routes, then the global backups."""
-    settings = SettingsRepository()
-    try:
-        routing = RoutingPolicy.model_validate(await settings.get(session, "model_routing"))
-    except ValidationError:
-        routing = RoutingPolicy()
-    chosen = text_routes(routing)
-    for item in (await settings.get(session, "model_backups")).get("choices", []):
-        try:
-            selection = ModelSelection.model_validate(item)
-        except ValidationError:
-            continue
-        if selection not in chosen:
-            chosen.append(selection)
-    return chosen
-
-
-async def allowed_models(session: AsyncSession) -> list[ModelSelection]:
-    """Every model an Agent may choose on its own: routes, backups, the owner's additions."""
-    chosen = await routed_models(session)
-    for selection in (await added_models(session)).added:
-        if selection not in chosen:
-            chosen.append(selection)
-    return chosen
-
-
-async def save_added_models(session: AsyncSession, value: AllowedModels) -> AllowedModels:
-    await SettingsRepository().put(session, ALLOWED_KEY, value.model_dump(mode="json"))
-    return value
-
-
-async def allow_model(session: AsyncSession, selection: ModelSelection) -> bool:
-    """Add one model to the owner's additions (an owner card's confirmation)."""
-    if selection in await allowed_models(session):
-        return False
-    current = await added_models(session)
-    if len(current.added) >= MAXIMUM_ADDED_MODELS:
-        raise LonoraError("allowed_models_full", 409)
-    await save_added_models(session, AllowedModels(added=[*current.added, selection]))
-    return True
-
-
-def same_choice(record: AgentModelRecord, state: AgentModelState) -> bool:
-    return record.mode == state.mode and record.preference == state.preference
+def same_choice(record: AgentModelRecord, preference: AgentModelPreference) -> bool:
+    return record.preference == preference
 
 
 async def apply_agent_model(
     session: AsyncSession,
     owner_id: str,
     agent_id: str,
-    state: AgentModelState,
+    preference: AgentModelPreference,
     *,
-    chosen_by: Literal["owner", "agent"] | None,
+    chosen_by: Literal["owner", "inherited"],
     by_agent_id: str | None = None,
     run_id: str | None = None,
     expected_revision: int | None = None,
@@ -146,8 +91,7 @@ async def apply_agent_model(
     """Store one Agent's model choice; returns the record and whether it changed.
 
     The same choice again changes nothing (no revision, no event), so a replayed or
-    repeated request is harmless. The choice it replaces is kept for Undo. ``chosen_by``
-    is None only when Undo restores the default nobody chose.
+    repeated request is harmless. The choice it replaces is kept as ``previous``.
     """
     await owned_agent(session, owner_id, agent_id, lock=True)
     key = agent_model_key(owner_id, agent_id)
@@ -155,17 +99,16 @@ async def apply_agent_model(
     current = await stored_agent_model(session, owner_id, agent_id)
     if expected_revision is not None and expected_revision != current.revision:
         raise LonoraError("version_conflict", 409)
-    if same_choice(current, state):
+    if same_choice(current, preference):
         return current, False
     record = AgentModelRecord(
         owner_id=owner_id,
         agent_id=agent_id,
         revision=current.revision + 1,
-        mode=state.mode,
-        preference=state.preference,
+        preference=preference,
         chosen_by=chosen_by,
         chosen_by_agent_id=by_agent_id,
-        previous=current.state(),
+        previous=current.preference,
         changed_at=utcnow(),
     )
     payload = record.model_dump(mode="json")
@@ -175,7 +118,7 @@ async def apply_agent_model(
         row.payload = payload
         row.updated_at = utcnow()
     await session.flush()
-    primary = state.preference.primary
+    primary = preference.primary
     emit(
         session,
         owner_id,
@@ -185,11 +128,10 @@ async def apply_agent_model(
         payload={
             "agent_id": agent_id,
             "revision": record.revision,
-            "mode": record.mode,
             "chosen_by": chosen_by,
             "by_agent_id": by_agent_id,
             "via": via,
-            # The owner's message an agent's switch answered, when it answered one.
+            # The owner's message an agent applied, when an agent applied one.
             "source_message_id": source_message_id,
             "provider": primary.provider if primary else None,
             "model": primary.model if primary else None,
@@ -201,33 +143,42 @@ async def apply_agent_model(
 async def change_agent_model(
     session: AsyncSession, owner_id: str, agent_id: str, change: AgentModelChange
 ) -> AgentModelRecord:
-    """The owner's choice from settings or the model card; it wins over any agent's."""
-    from .model_cards import supersede_agent_model_cards
-    from .owner_actions import lock_owner_actions
-
-    # Cards before the agent: the order a card decision takes them in.
-    await lock_owner_actions(session, owner_id)
+    """The owner's choice from an agent's settings."""
     fallbacks = change.fallbacks
     if "fallbacks" not in change.model_fields_set:
         # A choice that names no fallbacks keeps the agent's own, behind its new primary.
         current = await stored_agent_model(session, owner_id, agent_id)
         fallbacks = [item for item in current.preference.fallbacks if item != change.primary]
-    state = AgentModelState(
-        mode=change.mode,
-        preference=AgentModelPreference(primary=change.primary, fallbacks=fallbacks),
-    )
-    record, changed = await apply_agent_model(
+    record, _ = await apply_agent_model(
         session,
         owner_id,
         agent_id,
-        state,
+        AgentModelPreference(primary=change.primary, fallbacks=fallbacks),
         chosen_by="owner",
         expected_revision=change.expected_revision,
     )
-    if changed:
-        # Only a real change ends the pending requests and the Undo about this agent.
-        await supersede_agent_model_cards(session, owner_id, agent_id, "owner_changed_model")
     return record
+
+
+async def inherit_lead_model(session: AsyncSession, owner_id: str, agent_id: str) -> None:
+    """A new agent starts on Lonora's current model (VISION 3.1.2): a snapshot of the
+    Personal Agent's stored choice, kept until the owner assigns another. Without one,
+    nothing is stored and the agent follows the owner's default, as Lonora does."""
+    lead = await personal_agent_id(session, owner_id)
+    if lead is None or lead == agent_id:
+        return
+    preference = (await stored_agent_model(session, owner_id, lead)).preference
+    if preference.primary is None:
+        return
+    await apply_agent_model(
+        session,
+        owner_id,
+        agent_id,
+        preference,
+        chosen_by="inherited",
+        by_agent_id=lead,
+        via="inherited_from_lonora",
+    )
 
 
 async def catalog_models(session: AsyncSession, providers: Iterable[str]) -> list[dict[str, str]]:
@@ -249,18 +200,17 @@ async def catalog_models(session: AsyncSession, providers: Iterable[str]) -> lis
 
 
 def closest_models(
-    query: str, entries: list[dict[str, str]], allowed: list[ModelSelection], limit: int = 6
-) -> list[dict[str, Any]]:
+    query: str, entries: list[dict[str, str]], limit: int = 6
+) -> list[dict[str, str]]:
     """Catalog entries that best match a model name or a guessed id ("Opus" finds the
-    exact Opus ids), allowed models first among equals."""
-    listed = {(item.provider, item.model) for item in allowed}
+    exact Opus ids), in catalog order among equals."""
     scored = [
-        (score, (entry["provider"], entry["model"]) in listed, index, entry)
+        (score, index, entry)
         for index, entry in enumerate(entries)
         if (score := model_match_score(query, entry["provider"], entry["model"], entry["name"]))
     ]
-    scored.sort(key=lambda item: (-item[0], not item[1], item[2]))
-    return [{**entry, "allowed": allowed_now} for _, allowed_now, _, entry in scored[:limit]]
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [entry for _, _, entry in scored[:limit]]
 
 
 async def catalog_has(session: AsyncSession, selection: ModelSelection) -> bool:
@@ -271,3 +221,21 @@ async def catalog_has(session: AsyncSession, selection: ModelSelection) -> bool:
         isinstance(item, dict) and cast(dict[str, Any], item).get("id") == selection.model
         for item in models
     )
+
+
+async def model_label(session: AsyncSession, selection: ModelSelection | None) -> dict[str, Any]:
+    """The model as the owner recognizes it: its catalog name when known."""
+    if selection is None:
+        return {"provider": None, "model": None, "name": None}
+    catalog = await SettingsRepository().get(session, "catalog:" + selection.provider)
+    entries = [
+        cast(dict[str, Any], item)
+        for item in cast(list[Any], catalog.get("models", []))
+        if isinstance(item, dict)
+    ]
+    name = next((item.get("name") for item in entries if item.get("id") == selection.model), None)
+    return {
+        "provider": selection.provider,
+        "model": selection.model,
+        "name": name if isinstance(name, str) and name != selection.model else None,
+    }

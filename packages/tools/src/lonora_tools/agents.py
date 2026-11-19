@@ -41,7 +41,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import OWNER_TRIGGERS
+from .models import model_available, owner_named
+from .provenance import OWNER_TRIGGERS
 
 # A broker's spelling of a symbol may add a suffix ("XAUUSD.r", "XAUUSDm").
 SUFFIX_SEPARATORS = frozenset(".-_#!+")
@@ -253,6 +254,13 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     question = await assigned_market(context, params, spec)
     if question is not None:
         return question
+    if params.model is not None and not await model_available(context, params.model):
+        return {
+            "created": False,
+            "code": "agent_model_not_available",
+            "recovery": "Find the exact id with model_list, or omit model: the new agent "
+            "starts on Lonora's current model.",
+        }
     async with context.db.sessions() as session, session.begin():
         # The order the owner's card decision takes them in: cards, then creation.
         await lock_owner_actions(session, context.owner_id)
@@ -277,6 +285,13 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 else await trading_mode(session, context.owner_id, context.agent_id)
             )
             mandate, key, receipt = False, None, None
+        # Only the owner assigns a model (VISION 12.3): one his words do not name is
+        # dropped, and the new agent starts on Lonora's (3.1.2).
+        dropped = params.model is not None and (
+            message_id is None or not await owner_named(session, run, message_id, params.model)
+        )
+        if params.model is not None and not dropped:
+            spec["model"] = params.model.model_dump(mode="json")
         agent_id = str(receipt.result["agent_id"]) if receipt else context.resource_id
         if receipt is None:
             await check_limits(session, context.owner_id, run.id)
@@ -308,7 +323,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             )
         # Fenced after the conversation lock: the thread-before-run order of admission.
         await require_lease(session, context.lease, lock=True)
-        return await created_result(session, context, row, deduplicated=not created)
+        result = await created_result(session, context, row, deduplicated=not created)
+        if dropped:
+            result["model_dropped"] = "not named by the owner: it starts on Lonora's model"
+        return result
 
 
 def tools() -> list[Tool]:

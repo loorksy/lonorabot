@@ -1,4 +1,4 @@
-/** A card's typed number (GENUI_PLAN §9.6, review M7). The card's hints group thousands
+/** A card's typed number (docs/genui.md, review M7). The card's hints group thousands
  * with «,», so the owner may type the same: «2,400», «2،400», «2 400», Arabic-Indic or
  * Persian digits, «٬» and «٫». Grouping must be exact (1 to 3 digits, then groups of 3);
  * anything else is not a number, so a partial or malformed draft never becomes a value. */

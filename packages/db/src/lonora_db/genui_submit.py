@@ -1,4 +1,4 @@
-"""A generated card's send (GENUI_PLAN §8.2): checked, composed and queued by the server.
+"""A generated card's send (docs/genui.md): checked, composed and queued by the server.
 
 The client posts only the card message, its part, the button's node path and the card's
 values. Everything else is the server's: the intent comes from the stored card's node; the
@@ -56,7 +56,7 @@ SUBMIT = "ui_submit_origin"
 SUBMIT_LIFETIME = timedelta(minutes=30)
 WAITING = ("waiting_input", "waiting_takeover")
 NEVER_RAN_NOTE = "طلب من بطاقة لم يُنفَّذ"
-# Intents the S-A01 slice lists (the capability block, §3.6); a submit is checked again.
+# The intents the capability block lists; a submit is checked again.
 LISTED_INTENTS = ("ask", "alert.create", "alert.off")
 
 
@@ -204,7 +204,7 @@ async def identity_names(
     data: dict[str, Any],
     language: str = "ar",
 ) -> dict[str, str]:
-    """The server's own names for identity fields (§8.3, Identity values), in the
+    """The server's own names for identity fields (docs/genui.md §7), in the
     conversation's language."""
     names: dict[str, str] = {}
     if intent == "alert.off":
@@ -222,7 +222,7 @@ async def identity_names(
             # Read the card's own account directly: the list above is bounded.
             label = await account_label(session, str(data.get("account_id")), owner_id)
             if not label:
-                # The bubble must name the account and cannot (§8.3, account).
+                # The bubble must name the account and cannot (docs/genui.md §7).
                 raise LonoraError("ui_submit_account_unnamed", 409)
             names["account_id"] = str(label)
     return names
@@ -348,7 +348,7 @@ async def submit_card(
     except IntentDataError as error:
         raise LonoraError(str(error), 422) from error
     if intent_name == "alert.create":
-        # The symbol must be one of the card's own checked options (§8.3).
+        # The symbol must be one of the card's own checked options (docs/genui.md §7).
         offered = {
             value
             for _p, n in walk(document.get("blocks", []))
@@ -429,7 +429,7 @@ async def submission_seq(session: AsyncSession, run: RunRow) -> int | None:
 async def decorate(
     session: AsyncSession, thread_id: str, rows: list[MessageRow], items: list[dict[str, Any]]
 ) -> None:
-    """Embed the derived card locks and the never-run marks in a history page (§9.3)."""
+    """Embed the derived card locks and the never-run marks in a history page (docs/genui.md §7)."""
     cards = [row for row in rows if row.role == "assistant" and row.rich_content]
     locks = await card_locks(session, thread_id, cards)
     by_id = {row.id: row for row in rows}
@@ -466,9 +466,21 @@ async def mark_submit_started(session: AsyncSession, run: RunRow) -> None:
         await _updated(session, message)
 
 
-async def _updated(session: AsyncSession, message: MessageRow) -> None:
-    from .messages import message_data
+async def client_row(session: AsyncSession, message: MessageRow) -> dict[str, Any]:
+    """The message as a history page shows it: its reactions, ``superseded_by``, the card's
+    lock and the send's mark and ticks. A client that replaces its copy with a card's
+    ``message.updated`` event keeps them."""
+    from .messages import messages_data
+    from .thread_prefs import consumed, consumed_seq, steered_message_ids
 
+    (item,) = await messages_data(session, [message])
+    await decorate(session, message.thread_id, [message], [item])
+    steered = await steered_message_ids(session, [message.id] if message.role == "user" else [])
+    item["consumed"] = consumed(item, await consumed_seq(session, message.thread_id), steered)
+    return item
+
+
+async def _updated(session: AsyncSession, message: MessageRow) -> None:
     thread = await session.get(ThreadRow, message.thread_id)
     if thread is not None:
         emit(
@@ -476,7 +488,7 @@ async def _updated(session: AsyncSession, message: MessageRow) -> None:
             thread.owner_id,
             "message.updated",
             thread_id=message.thread_id,
-            payload=message_data(message),
+            payload=await client_row(session, message),
         )
 
 
@@ -609,9 +621,8 @@ async def unlock_card(
     parts = dict(state.get("parts", {}))
     parts[str(part)] = {**parts.get(str(part), {}), "unlocked_seq": submit.seq}
     source.ui_state = {**state, "parts": parts, "updated_at": utcnow().isoformat()}
-    from .messages import message_data
-
-    emit(session, owner_id, "message.updated", thread_id=thread.id, payload=message_data(source))
+    payload = await client_row(session, source)
+    emit(session, owner_id, "message.updated", thread_id=thread.id, payload=payload)
     return {"unlocked": True, "cancelled_run_id": run.id if run else None}
 
 

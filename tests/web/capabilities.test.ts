@@ -23,7 +23,7 @@ import {
 const isolated = (value: string) => `⁨${value}⁩`;
 const base: OwnerAction = {
   id: "card",
-  kind: "trust_source",
+  kind: "connect_credential",
   status: "pending",
   status_reason: null,
   source: "agent",
@@ -31,19 +31,7 @@ const base: OwnerAction = {
   thread_id: "thread",
   run_id: "run",
   timeline_seq: 3,
-  facts: {
-    several_accounts: false,
-    source: {
-      kind: "mcp_server",
-      label: "X posts",
-      subscribe: false,
-      tools: ["post_reply", "search_posts", "user_timeline"],
-      writes: ["post_reply"],
-      blocked: [],
-      review: false,
-      tier: null,
-    },
-  },
+  facts: { several_accounts: false, credential: { target: "mcp_server", service: "x" } },
   requires_passkey: false,
   result: {},
   expires_at: "2026-11-15T10:00:00Z",
@@ -53,150 +41,8 @@ const base: OwnerAction = {
   updated_at: "2026-11-08T10:00:00Z",
 };
 
-test("an MCP trust card lists the reviewed tools, the writing ones and two tiers", () => {
-  for (const locale of ["en", "ar"] as const) {
-    const spec = ownerActionCard(base, locale);
-    const text = ownerActionLabels[locale];
-    assert.equal(spec.title, text.trustTitle);
-    assert.equal(spec.hint, text.trustServerHint);
-    assert.ok(spec.lines[0]?.includes(isolated("X posts")), spec.lines[0]);
-    assert.ok(spec.lines[1]?.includes(isolated("user_timeline")), spec.lines[1]);
-    assert.ok(spec.lines[2]?.startsWith(text.trustWrites), spec.lines[2]);
-    assert.ok(spec.lines[2]?.includes(isolated("post_reply")), spec.lines[2]);
-    // Every line starts in the owner's language, never with a Latin name.
-    for (const line of spec.lines) assert.ok(!line.startsWith("⁨"), line);
-    assert.deepEqual(
-      spec.buttons.map((button) => [button.decision, button.tier ?? null]),
-      [
-        ["confirm", "read"],
-        ["confirm", "write_nonfinancial"],
-        ["cancel", null],
-      ],
-    );
-    assert.equal(spec.passkey, false);
-    assert.equal(spec.credential, null);
-  }
-  // A server that offers a tool that can trade or move money is trusted to read only:
-  // its blocked tools are named, its writes are not offered.
-  const source = base.facts.source;
-  assert.ok(source);
-  const trading = {
-    ...base,
-    facts: { ...base.facts, source: { ...source, blocked: ["place_order"] } },
-  };
-  for (const locale of ["en", "ar"] as const) {
-    const spec = ownerActionCard(trading, locale);
-    const text = ownerActionLabels[locale];
-    assert.equal(spec.hint, text.trustServerBlockedHint);
-    assert.ok(!spec.lines.some((line) => line.startsWith(text.trustWrites)));
-    assert.ok(spec.lines.some((line) => line.startsWith(text.trustBlocked)));
-    assert.deepEqual(
-      spec.buttons.map((button) => [button.decision, button.tier ?? null]),
-      [
-        ["confirm", "read"],
-        ["cancel", null],
-      ],
-    );
-  }
-  const review = ownerActionCard(
-    {
-      ...base,
-      facts: {
-        ...base.facts,
-        source: { kind: "mcp_server", label: "X posts", subscribe: false, review: true },
-      },
-    },
-    "en",
-  );
-  assert.equal(review.title, ownerActionLabels.en.trustReviewTitle);
-  const done = ownerActionCard(
-    { ...base, status: "confirmed", result: { tier: "write_nonfinancial" } },
-    "ar",
-  );
-  assert.equal(done.outcome, ownerActionLabels.ar.trustedWrite);
-  assert.deepEqual(done.buttons, []);
-  const reading = ownerActionCard(
-    { ...base, status: "confirmed", result: { tier: "read", writes: 1 } },
-    "en",
-  );
-  assert.equal(reading.outcome, ownerActionLabels.en.trustedRead);
-});
-
-test("a server whose tools only read is one tap: nothing to choose", () => {
-  const reads: OwnerAction = {
-    ...base,
-    facts: {
-      several_accounts: false,
-      source: {
-        kind: "mcp_server",
-        label: "X posts",
-        subscribe: false,
-        tools: ["search_posts"],
-        writes: [],
-        blocked: [],
-        review: false,
-        tier: null,
-      },
-    },
-  };
-  for (const locale of ["en", "ar"] as const) {
-    const spec = ownerActionCard(reads, locale);
-    const text = ownerActionLabels[locale];
-    assert.equal(spec.hint, text.trustServerReadHint);
-    assert.ok(!spec.lines.some((line) => line.startsWith(text.trustWrites)));
-    assert.deepEqual(
-      spec.buttons.map((button) => [button.label, button.tier ?? null]),
-      [
-        [text.trust, "read"],
-        [text.notNow, null],
-      ],
-    );
-  }
-  const done = ownerActionCard(
-    { ...reads, status: "confirmed", result: { tier: "read", writes: 0 } },
-    "ar",
-  );
-  assert.equal(done.outcome, ownerActionLabels.ar.trusted);
-});
-
-test("a repository or feed card is one tap, and a settled one says why", () => {
-  const repo: OwnerAction = {
-    ...base,
-    facts: {
-      several_accounts: false,
-      source: { kind: "github_repo", label: "example/briefings", subscribe: false },
-    },
-  };
-  const spec = ownerActionCard(repo, "en");
-  assert.deepEqual(
-    spec.buttons.map((button) => button.decision),
-    ["confirm", "cancel"],
-  );
-  assert.ok(spec.lines[0]?.includes(isolated("example/briefings")));
-  const feed = ownerActionCard(
-    {
-      ...repo,
-      facts: {
-        several_accounts: false,
-        source: { kind: "feed_domain", label: "analyst.example", subscribe: true },
-      },
-    },
-    "ar",
-  );
-  assert.ok(feed.lines.includes(ownerActionLabels.ar.trustSubscribe));
-  const stale = ownerActionCard(
-    { ...repo, status: "expired", status_reason: "source_already_trusted" },
-    "ar",
-  );
-  assert.equal(stale.outcome, ownerActionLabels.ar.alreadyTrusted);
-});
-
 test("a credential card offers a secure form whose secret is a password field", () => {
-  const card: OwnerAction = {
-    ...base,
-    kind: "connect_credential",
-    facts: { several_accounts: false, credential: { target: "mcp_server", service: "x" } },
-  };
+  const card = base;
   for (const locale of ["en", "ar"] as const) {
     const spec = ownerActionCard(card, locale);
     const text = ownerActionLabels[locale];
@@ -324,6 +170,15 @@ test("capability lines name source, tier and state in both languages", () => {
     const text = capabilityLabels[locale];
     assert.ok(sourceLine(github, locale).startsWith(text.github));
     assert.ok(sourceLine({ ...github, active: false }, locale).endsWith(text.removedState));
+    // A source an agent added because the owner's own message named it says so.
+    const named: TrustedSource = {
+      ...github,
+      kind: "feed_domain",
+      identifier: "analyst.example",
+      label: "analyst.example",
+      added_via: "owner_message",
+    };
+    assert.ok(sourceLine(named, locale).includes(text.owner_message), sourceLine(named, locale));
     const line = serverLine(server, locale);
     assert.ok(line.startsWith(isolated("X posts")) && line.includes(text.read), line);
     // Trusted for reading: the tool that may change something is counted as waiting.
@@ -348,10 +203,11 @@ test("capability lines name source, tier and state in both languages", () => {
     assert.ok(skillLine(skill, locale).includes(isolated("example/briefings")));
     assert.ok(skillLine({ ...skill, undone: true, can_undo: false }, locale).endsWith(text.undone));
     assert.equal(
-      builtInLine({ capability: "web_browse", state: "not_set_up", via: null }, locale),
-      `${text.web_browse}: ${text.not_set_up}`,
+      builtInLine({ capability: "web_browse", state: "ready", via: null }, locale),
+      `${text.web_browse}: ${text.ready}`,
     );
   }
-  assert.ok(ownerActionError("owner_action_tier_required", "ar"));
+  assert.equal(ownerActionError("owner_action_tier_required", "ar"), null);
+  assert.ok(ownerActionError("trusted_source_write_blocked", "ar"));
   assert.ok(ownerActionError("mcp_tools_changed", "en"));
 });

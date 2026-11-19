@@ -15,7 +15,7 @@ signal, a ranking or an order. They live in `packages/tools/src/lonora_tools/mar
 | `market_snapshot` | read-only | Compact multi-timeframe facts for one instrument on one account |
 | `market_sessions` | read-only | DST-correct FX session clock plus broker trading hours |
 | `economic_calendar_read` | read-only | Events from the owner's configured calendar sources |
-| `market_candles_to_workspace` | workspace write, receipt-replayed | Bars as CSV in the Agent's analytical workspace |
+| `market_candles_to_workspace` | workspace write | Bars as CSV in the owner's persistent workspace |
 
 ## market_snapshot
 
@@ -111,19 +111,15 @@ time zone are rejected and counted rather than guessed.
 ## market_candles_to_workspace
 
 Writes the bars of one symbol and timeframe (latest `limit` bars, optional `start` /
-`end`, closed bars only unless `include_forming`) as CSV into the Agent's analytical
-workspace at the given revision (`workspace_inspect` gives it) and returns only the
-path, row counts, time range, freshness and the new revision for `workspace_execute`.
-Columns: `time, close_time, open, high, low, close, volume, closed`, with exact
-broker decimals. The default path is `market/<symbol>_<timeframe>.csv`.
-
-`RunWorkspaceAccess.write_generated` performs the write with the existing workspace
-rules: the current owned Agent, Thread, Run and lease fence; paused Agents and
-helper (subagent) runs refused; path validation; per-file, total-size and file-count
-quotas; optimistic revision. No database lock is held while the broker is read. The
-receipt identity is the request (account, symbol, timeframe, window, path and base
-revision), not the bytes, so a replay of an interrupted call returns the original
-write even if new bars have arrived since.
+`end`, closed bars only unless `include_forming`) as a CSV file in the owner's persistent
+workspace (VISION.md 7.1) and returns only the path, row counts, time range and freshness,
+for analysis with `workspace_run`. Columns: `time, close_time, open, high, low, close,
+volume, closed`, with exact broker decimals. The default path is
+`market/<symbol>_<timeframe>.csv` in the agent's home; an absolute path such as
+`/workspace/shared/...` is allowed. Like every workspace write, it comes only from an
+ordinary run of the agent (not a helper or an observe-only wake). The file is written
+through the workspace supervisor as the agent's own Unix user; a call made again writes
+the broker's current bars.
 
 ## Readable and executable scope of fixed-market agents
 
@@ -131,7 +127,7 @@ Mandate section 4 separates the default instrument (focus), readable scope and
 executable scope; correction 1 opens reading. A fixed-market (bound) agent reads every
 owned account and symbol like any other agent: every read-only tool in the registry
 (`guard_market_tool(..., read=tool.read_only)` in `lonora_tools/market_binding.py`),
-plus `market_candles_to_workspace`, which copies market reads into the agent's own
+plus `market_candles_to_workspace`, which copies market reads into the owner's
 workspace. `list_accounts`, `account_read`, `account_history` and `account_activity`
 are no longer filtered to the bound account or symbol; trade records, decision
 history, opportunity reads, performance reads, position sizing and
@@ -152,7 +148,7 @@ keep the bound account and symbol through the guard and their own handler checks
 The financial executor independently asserts the binding of every leased request,
 and preflight requires a position's or order's symbol to equal the request's symbol,
 so reading another account or symbol cannot widen execution. Signed grants,
-approvals, restrictions and risk limits are untouched.
+approvals and risk limits are untouched.
 
 ## Instrument resolution
 
@@ -177,14 +173,14 @@ symbol a request names is decided by code, never by the model:
   uses the first (shortest name) and lists the others with a note that an order needs
   the owner's choice. The catalogue is cached per account (per broker adapter, five
   minutes) and read again on a miss.
-- **Orders, closes, sizing, grants and restrictions** (`trade_execute`,
-  `trade_close_positions`, `market_position_size`, grant drafts,
-  `trade_restriction_create`) name a symbol the catalogue lists exactly, letter case
-  aside (`order_symbol`, `canonical_broker_symbol`, `restriction_symbol`). They are
+- **Orders, closes, sizing and grants** (`trade_execute`,
+  `trade_close_positions`, `market_position_size`, grant drafts) name a symbol the
+  catalogue lists exactly, letter case aside (`order_symbol`,
+  `canonical_broker_symbol`). They are
   never resolved to another symbol (an exit or a change to an existing ticket is not
   checked against the catalogue at all: preflight requires the ticket's own symbol, and
   a failed or shortened listing never holds back a close), so resolution cannot move an order to another
-  instrument or widen what a grant, a restriction or an agent's binding covers: those
+  instrument or widen what a grant or an agent's binding covers: those
   still compare the exact symbol.
 - **A request that is not listed** fails with `symbol_not_found` (no match, or exactly
   one: `hint` names it and tells the model to repeat the call) or `symbol_ambiguous`

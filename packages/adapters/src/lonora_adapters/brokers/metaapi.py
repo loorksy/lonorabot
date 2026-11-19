@@ -14,6 +14,7 @@ import httpx
 from lonora_contracts.account import AccountState, Order, Position
 from lonora_contracts.market import Candle, Instrument, Quote, TradingHours
 from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_core.broker_endpoints import METAAPI_SDK_DOMAIN
 from lonora_core.chart_controller import validate_timeframe
 from lonora_core.error_logging import safe_exception_message
 from lonora_core.user_error import LonoraError
@@ -104,7 +105,7 @@ def validate_sdk_url(url: str) -> str:
     if (
         parsed.scheme not in {"https", "wss"}
         or not parsed.hostname
-        or not parsed.hostname.endswith(".agiliumtrade.ai")
+        or not parsed.hostname.endswith("." + METAAPI_SDK_DOMAIN)
         or parsed.username
         or parsed.password
         or parsed.port not in {None, 443}

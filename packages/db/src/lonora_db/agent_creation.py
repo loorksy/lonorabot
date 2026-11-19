@@ -22,6 +22,7 @@ from hashlib import sha256
 from typing import Any, cast
 
 from lonora_contracts.domain import AgentCreate, utcnow
+from lonora_contracts.model_routing import AgentModelChange, ModelSelection
 from lonora_core.user_error import LonoraError
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -124,30 +125,6 @@ async def check_creation(session: AsyncSession, owner_id: str, spec: dict[str, A
             raise LonoraError("broker_connection_changed", 409)
 
 
-async def lead_model(session: AsyncSession, owner_id: str, agent_id: str) -> None:
-    """The new agent uses Lonora's current model (3.1.2, 12.3): a copy of Lonora's choice
-    at this moment, attributed to Lonora; nothing when Lonora follows the owner's
-    default routes."""
-    from .agent_models import apply_agent_model, stored_agent_model
-    from .lead import personal_agent_id
-
-    lead = await personal_agent_id(session, owner_id)
-    if lead is None or lead == agent_id:
-        return
-    record = await stored_agent_model(session, owner_id, lead)
-    if record.chosen_by is None:
-        return
-    await apply_agent_model(
-        session,
-        owner_id,
-        agent_id,
-        record.state(),
-        chosen_by="agent",
-        by_agent_id=lead,
-        via="lead_creation",
-    )
-
-
 async def create_root_agent(
     session: AsyncSession,
     owner_id: str,
@@ -194,11 +171,21 @@ async def create_root_agent(
     mode = "full" if spec.get("mode") == "full" else "ask"
     # A new agent: nothing can send for it yet, so no authority lock is held here.
     row.trading_mode = mode
+    from .agent_models import change_agent_model, inherit_lead_model
     from .agent_permissions import initial_permission
 
     # Never a grant and never "No trading" (4.1): the old ladder's "Ask me".
     await initial_permission(session, owner_id, row.id, "supervised")
-    await lead_model(session, owner_id, row.id)
+    if spec.get("model"):
+        await change_agent_model(
+            session,
+            owner_id,
+            row.id,
+            AgentModelChange(primary=ModelSelection.model_validate(spec["model"])),
+        )
+    else:
+        # No model named: Lonora's current one (VISION 3.1.2).
+        await inherit_lead_model(session, owner_id, row.id)
     origin: dict[str, Any] = {
         "owner_id": owner_id,
         "agent_id": row.id,

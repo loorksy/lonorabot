@@ -63,6 +63,8 @@ class MarketWatchRepository(ResourceRepository):
             raise LonoraError("watch_agent_required", 422)
         payload = await self.stored_payload(session, owner_id, agent_id, payload)
         if not thread_id:
+            # A watch set up outside any chat works in a hidden work thread and reports to
+            # its Agent's own conversation (VISION 11.6).
             thread = await create_thread(
                 session,
                 owner_id,
@@ -70,6 +72,7 @@ class MarketWatchRepository(ResourceRepository):
                     agent_id=agent_id,
                     title=str(payload.get("prompt", ""))[:80],
                 ),
+                purpose="work",
             )
             thread_id = thread.id
         return await super().create(

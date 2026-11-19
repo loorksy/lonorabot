@@ -9,8 +9,3 @@ WORKSPACE_SECRET_NAME = r"^[A-Z][A-Z0-9_]{0,63}$"
 class SecretCreate(Contract):
     name: str = Field(min_length=1, max_length=80)
     value: str = Field(min_length=1, max_length=16000)
-
-
-class WorkspaceSecretCreate(Contract):
-    name: str = Field(pattern=WORKSPACE_SECRET_NAME)
-    value: str = Field(min_length=1, max_length=16000)
