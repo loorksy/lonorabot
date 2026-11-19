@@ -110,7 +110,7 @@ export LONORA_ENCRYPTION_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA= LONORA
 
 | Step | State | Note |
 |---|---|---|
-| 1, connecting | pass, partial | W-BROKER's fake MetaApi provisioning API and fake terminal; the MetaApi demo account only with `--broker demo`. Lonora's answer is checked to state the broker's balance. Its questions are checked to come before any card; their wording is the model's. |
+| 1, connecting | pass, partial | W-BROKER's fake MetaApi provisioning API and fake terminal; the MetaApi demo account only with `--broker demo`. Lonora's answer is checked to state the broker's balance; offline, the scripted answer states the figure Lonora was woken with, so a wrong figure in the wake fails it too. Its questions are checked to come before any card; their wording is the model's. |
 | 4a, the news agent tells the others | pass, partial | The speech is given in the news agent's routine; no calendar source is fed. Its peers are the gold agent, a team agent in Full, and the euro agent. |
 | 4c, a connection drop during a close | pass | Fake terminal. The actor is the gold agent, a team agent set to Full by the owner's tap, whose opening order is journaled as its own (3.3.4); a check names it. A close is risk-reducing, so its mode does not decide it (4.1). |
 | 3, the strategy PDF | not written | The feature (owner methods from files, #116) is on main; the step's runner is not written yet. |

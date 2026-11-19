@@ -1076,15 +1076,17 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         elif connection is not None:
             terminal = broker.FakeMetaApiBroker.terminals[connection.payload["account_id"]]
             balance = format(terminal.balance.normalize(), "f")
+        wake_id = stable_id(card.id, "continue-after-card") if card else None
         if stage.model is not None:
-            stage.model.names["$balance"] = balance
+            # The scripted answer states the figure Lonora was woken with, not the broker's
+            # own: the check below then holds what the product showed to the broker.
+            async with stage.api.runtime.db.sessions() as session:
+                woken = await session.get(RunRow, wake_id) if wake_id else None
+            figure = re.search(r"Balance (\S+)", woken.prompt) if woken else None
+            stage.model.names["$balance"] = figure.group(1) if figure else "?"
         await stage.drain()
         async with stage.api.runtime.db.sessions() as session:
-            wake = (
-                await session.get(RunRow, stable_id(card.id, "continue-after-card"))
-                if card
-                else None
-            )
+            wake = await session.get(RunRow, wake_id) if wake_id else None
         reply = await posted(stage, wake) if wake is not None else None
         async with stage.api.runtime.db.sessions() as session:
             # One owner per disposable database: every message is the owner's.
