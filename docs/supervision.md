@@ -46,9 +46,9 @@ ancestors; a queued run stays), switches it to Ask (`set_ask`, the same switch a
 `trading_mode_ask`: Ask, except within an active signed grant's own terms until revoked,
 which `active_signed_grants` counts) or deletes it (`delete`, see `agents-from-chat.md`).
 A team agent is refused (`supervision_required`, `agent_control_lead_only`). It has no
-action that trades, grants, raises a limit or edits memory or instructions. A change Lonora makes returns `owner_line: "required"`, and the
-conversation gate holds an empty reply until Lonora tells the owner in one line what it
-did and why (mandate 3.1.2). `routine_toggle` on another agent's routine follows the
+action that trades, grants or edits memory or instructions. A change Lonora makes
+returns `owner_line: "required"`, and the conversation gate holds an empty reply until
+Lonora tells the owner in one line what it did and why (mandate 3.1.2). `routine_toggle` on another agent's routine follows the
 same rules.
 
 Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
