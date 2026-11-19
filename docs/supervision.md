@@ -28,7 +28,9 @@ either agent.
   agent by its role.
 - **From one sentence.** `supervision_change` (toolset `collaboration`, long-tail)
   grants or revokes supervision for `supervisor_id` (default: the caller) over
-  `supervised_ids`. Oversight for the calling agent itself, or over the Personal Agent,
+  `supervised_ids`. With Lonora as the supervisor it refuses both
+  (`supervision_lead_needs_no_grant`): nothing would change, so no card says it did.
+  Oversight for the calling agent itself, or over the Personal Agent,
   is always a `supervise` card the owner taps, never set straight from a Run, so no
   private memory or owner chat is read before the owner sees the grant. In a Run that
   answers the owner's message ("خلي وكيل المراقبة يشرف على وكيل الذهب ووكيل الفضة", said

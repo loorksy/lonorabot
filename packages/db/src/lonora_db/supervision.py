@@ -10,7 +10,8 @@ private from each other.
 Lonora, the Personal Agent, needs no grant: its lead role (``lead.py``) reads and steers
 every team agent, and no revoked grant takes that away. The ``default`` grants
 migration ``0041_supervision_grants`` stored for it change nothing, so the profiles do not
-show them. Another agent becomes a supervisor only from the owner's message, recorded
+show them and ``supervision_change`` never grants or revokes one with Lonora as the
+supervisor. Another agent becomes a supervisor only from the owner's message, recorded
 as the grant's source, or from the owner's tap on a card. The owner sees every other
 grant on the agents' profiles and in chat and revokes one with one tap; a revoked grant
 ends that supervisor's reads and control at once.

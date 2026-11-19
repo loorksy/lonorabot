@@ -168,15 +168,16 @@ async def stale_reason(
         agent = await session.get(AgentRow, payload["agent_id"])
         return "agent_already_removed" if agent is None or agent.owner_id != owner_id else None
     if kind == "supervise":
-        from .supervision import supervises
+        from .lead import reaches
 
         supervisor = str(payload["supervisor_id"])
         wanted = [str(item) for item in payload["supervised_ids"]]
         names = await agent_names(session, owner_id, {supervisor, *wanted})
         if any(item not in names for item in (supervisor, *wanted)):
             return "supervision_agent_missing"
+        # Lonora already reaches every team agent by its role: a grant would add nothing.
         for item in wanted:
-            if not await supervises(session, owner_id, supervisor, item):
+            if not await reaches(session, owner_id, supervisor, item):
                 return None
         return "supervision_already_set"
     if kind == "supervision_created":
@@ -388,13 +389,14 @@ async def _stopped_grants(
 async def _restorable(
     session: AsyncSession, owner_id: str, grants: list[SupervisionGrantRow]
 ) -> list[SupervisionGrantRow]:
-    """The stopped grants whose pair is not supervised again by now."""
-    from .supervision import supervises
+    """The stopped grants whose pair is not supervised again by now (Lonora's never: its
+    lead role reaches every team agent)."""
+    from .lead import reaches
 
     return [
         grant
         for grant in grants
-        if not await supervises(
+        if not await reaches(
             session, owner_id, grant.supervisor_agent_id, grant.supervised_agent_id
         )
     ]

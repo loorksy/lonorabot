@@ -144,3 +144,120 @@ async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked()
         assert directory[lonora["id"]]["supervises_you"] is True
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_lonora_takes_no_grant_and_no_card_says_its_supervision_changed():
+    """0.4: a grant to Lonora, or a revoke of one, would change nothing, so neither is made
+    and no card says supervision was set or stopped."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.owner_actions import (
+        propose_supervision,
+        raise_supervision_stopped_card,
+        stale_reason,
+    )
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.schema import SupervisionGrantRow
+    from lonora_db.supervision import grant_supervision, revoke_supervision
+    from test_supervision import owner_says
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        gold, silver = await fixture.agent("Gold"), await fixture.agent("Silver")
+        # Silver holds a default grant as migration 0041 stored one; Gold, made later, none.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            stored, _ = await grant_supervision(
+                session, fixture.owner, lonora["id"], silver["id"], via="default"
+            )
+            stored_id = stored.id
+        thread = await fixture.conversation(lonora)
+
+        async def cards() -> list[dict[str, Any]]:
+            response = await fixture.client.get(
+                "/api/owner-actions", params={"thread_id": thread["id"]}
+            )
+            assert response.is_success, response.text
+            return [item for item in response.json() if item["kind"].startswith("supervis")]
+
+        # The owner asks Lonora to stop (or start) supervising: refused with the reason,
+        # nothing revoked, and no Stopped card with Restore, nor an Undo card.
+        told = await owner_says(fixture, lonora, thread, "توقفي عن الإشراف على الذهب والفضة")
+        for action in ("revoke", "grant"):
+            assert (
+                await refused(
+                    told,
+                    "supervision_change",
+                    action=action,
+                    supervised_ids=[gold["id"], silver["id"]],
+                )
+                == "supervision_lead_needs_no_grant"
+            )
+        async with fixture.runtime.db.sessions() as session:
+            kept = await session.get(SupervisionGrantRow, stored_id)
+            assert kept is not None and kept.revoked_at is None
+        assert await cards() == []
+        # Nor does another agent name Lonora as the supervisor.
+        silver_run = await owner_says(
+            fixture, silver, await fixture.conversation(silver), "Let Lonora supervise Gold"
+        )
+        assert (
+            await refused(
+                silver_run,
+                "supervision_change",
+                action="grant",
+                supervisor_id=lonora["id"],
+                supervised_ids=[gold["id"]],
+            )
+            == "supervision_lead_needs_no_grant"
+        )
+
+        # A card naming Lonora as the supervisor is never live: Lonora already reaches both.
+        payload = {"supervisor_id": lonora["id"], "supervised_ids": [gold["id"]]}
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            assert (
+                await stale_reason(session, fixture.owner, "supervise", payload)
+                == "supervision_already_set"
+            )
+            with pytest.raises(LonoraError) as error:
+                await propose_supervision(
+                    session,
+                    fixture.owner,
+                    lonora["id"],
+                    [gold["id"]],
+                    card_id=str(uuid4()),
+                    agent_id=lonora["id"],
+                    thread_id=thread["id"],
+                    run_id=None,
+                )
+            assert error.value.code == "owner_action_not_needed_supervision_already_set"
+        # A Stopped card raised before this change offers no Restore: Lonora still reads.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await revoke_supervision(session, fixture.owner, stored_id, via="owner_message")
+            stopped = await raise_supervision_stopped_card(
+                session,
+                fixture.owner,
+                [stored_id],
+                card_key=str(uuid4()),
+                agent_id=lonora["id"],
+                thread_id=thread["id"],
+                run_id=None,
+            )
+            assert stopped is not None
+            stopped_id = stopped.id
+        (listed,) = await cards()
+        assert listed["id"] == stopped_id and listed["facts"]["supervision"]["active"] is False
+        response = await fixture.client.post(
+            f"/api/owner-actions/{stopped_id}/decision", json={"decision": "confirm"}
+        )
+        assert response.is_success, response.text
+        settled = response.json()
+        assert (settled["status"], settled["status_reason"]) == (
+            "expired",
+            "supervision_already_set",
+        )
+    finally:
+        await fixture.close()
