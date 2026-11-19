@@ -331,6 +331,10 @@ msgstr "A different answer was already recorded."
 msgid "A list named «{name}» already exists"
 msgstr "A list named «{name}» already exists"
 
+#: src/components/ai/AttentionInbox.tsx:43
+msgid "A Mandate card is waiting for your tap"
+msgstr "A Mandate card is waiting for your tap"
+
 #: src/shell/settings/NotifyPages.tsx:30
 msgid "A message in the agent's conversation with an alert"
 msgstr "A message in the agent's conversation with an alert"

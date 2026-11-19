@@ -123,7 +123,7 @@ async def test_mcp_test_is_remote_only_and_broker_test_refuses_a_linked_account(
         assert private.status_code >= 400 and private.status_code != 500, private.text
         stored = await fixture.client.post(
             "/api/mcp",
-            json={"payload": {"name": "plain", "transport": "http", "url": "http://a.example/mcp"}},
+            json={"payload": {"name": "plain", "url": "http://a.example/mcp"}},
         )
         assert stored.status_code == 422, stored.text
         simulation = await fixture.client.post(

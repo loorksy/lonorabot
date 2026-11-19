@@ -331,6 +331,10 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
+#: src/components/ai/AttentionInbox.tsx:43
+msgid "A Mandate card is waiting for your tap"
+msgstr "بطاقة التفويض بانتظار لمستك"
+
 #: src/shell/settings/NotifyPages.tsx:30
 msgid "A message in the agent's conversation with an alert"
 msgstr "رسالة في محادثة الوكيل مع تنبيه"

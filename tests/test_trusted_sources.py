@@ -563,7 +563,7 @@ async def test_a_trusted_mcp_server_runs_without_declarations_and_a_changed_tool
         created = await fixture.request(
             "POST",
             "/mcp",
-            {"payload": {"name": "X posts", "transport": "http", "url": URL, "enabled": True}},
+            {"payload": {"name": "X posts", "url": URL, "enabled": True}},
         )
         connection_id = created["id"]
         assert context.mcp_declarations == ()
@@ -735,7 +735,7 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
             await fixture.request(
                 "POST",
                 "/mcp",
-                {"payload": {"name": "Notes", "transport": "http", "url": URL, "enabled": True}},
+                {"payload": {"name": "Notes", "url": URL, "enabled": True}},
             )
         )["id"]
         with patch.object(mcp, "HttpMcpTransport", server.transport):
@@ -797,7 +797,7 @@ async def saved_server(fixture: Any, name: str) -> str:
         await fixture.request(
             "POST",
             "/mcp",
-            {"payload": {"name": name, "transport": "http", "url": URL, "enabled": True}},
+            {"payload": {"name": name, "url": URL, "enabled": True}},
         )
     )["id"]
 

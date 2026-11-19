@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0146_broker_relay"
-down_revision = "0100_execution_receipts"
+down_revision = "0200_old_workspace_data"
 branch_labels = None
 depends_on = None
 

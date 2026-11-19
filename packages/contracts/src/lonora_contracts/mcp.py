@@ -7,14 +7,12 @@ from .domain import Contract
 
 class McpConnection(Contract):
     name: str = Field(min_length=1, max_length=80)
-    transport: Literal["http", "stdio"] = "http"
     url: str | None = None
     # A server connected by a Secret card: its address (which may carry a key) is a
     # secret in the encrypted store, and the row keeps the address's fingerprint, which
     # the trust checks compare.
     url_secret_id: str | None = None
     endpoint_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    command: list[str] = Field(default_factory=list[str], max_length=16)
     secret_id: str | None = None
     enabled: bool = False
 

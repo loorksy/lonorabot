@@ -6,7 +6,7 @@ import sys
 
 from check_streaming import test_settings
 from lonora_db.client import Database
-from lonora_db.schema import AccountAuthorityRow, AnalyticalWorkspaceRow, WorkspaceOperationRow
+from lonora_db.schema import AccountAuthorityRow, AnalyticalWorkspaceRow
 from sqlalchemy import func, inspect, select
 
 
@@ -17,7 +17,6 @@ async def main() -> None:
             assert not await session.scalar(
                 select(func.count()).select_from(AnalyticalWorkspaceRow)
             )
-            assert not await session.scalar(select(func.count()).select_from(WorkspaceOperationRow))
             assert not await session.scalar(select(func.count()).select_from(AccountAuthorityRow))
         await db.close()
         command = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
@@ -40,7 +39,8 @@ async def main() -> None:
         )
         async with db.engine.connect() as connection:
             tables = await connection.run_sync(lambda conn: inspect(conn).get_table_names())
-            assert "ln_analytical_workspaces" in tables and "ln_workspace_operations" in tables
+            # The old tools' receipts are gone (0200); the snapshots stay for the mover.
+            assert "ln_analytical_workspaces" in tables and "ln_workspace_operations" not in tables
             assert "ln_account_authorities" in tables
         print(
             "PASS: empty disposable PostgreSQL workspace migration upgrade/downgrade/upgrade; existing tables preserved"

@@ -758,7 +758,7 @@ export function McpFormPage() {
               })
             : null;
           await api.post("/mcp", {
-            payload: { name, transport: "http", url, secret_id: secret?.id ?? null, enabled: true },
+            payload: { name, url, secret_id: secret?.id ?? null, enabled: true },
           });
           clearDirty();
           toast(t`The server is added`, { type: "success" });

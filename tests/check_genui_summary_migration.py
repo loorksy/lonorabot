@@ -10,11 +10,12 @@ import asyncio
 import subprocess
 import sys
 from typing import Any
+from uuid import uuid4
 
 from check_trading import database
 from lonora_contracts.visual_response import RichContent
-from lonora_db.schema import AgentRow, MessageRow, OwnerRow, RunRow, ThreadRow
-from sqlalchemy import select
+from lonora_db.schema import MessageRow, OwnerRow, RunRow, ThreadRow
+from sqlalchemy import select, text
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
 BEFORE = "0131_agent_model_owner_only"
@@ -77,13 +78,20 @@ async def main() -> None:
             thread_id=thread.id, seq=2, role="assistant", content="b", rich_content=card("form")
         )
         session.add_all([old, other])
-        agent = AgentRow(owner_id=owner.id, name="Peer")
-        session.add(agent)
-        await session.flush()
+        # Raw SQL: at BEFORE the agents table lacks columns later migrations add (0060's
+        # trading_mode), which the ORM row would write.
+        agent_id = str(uuid4())
+        await session.execute(
+            text(
+                "INSERT INTO ln_agents (id, owner_id, name, avatar, color, instructions, paused,"
+                " created_at) VALUES (:id, :owner, 'Peer', '', '', '', false, now())"
+            ),
+            {"id": agent_id, "owner": owner.id},
+        )
         # A peer run's result card, which the outcome return reads later.
         run = RunRow(
             thread_id=thread.id,
-            agent_id=agent.id,
+            agent_id=agent_id,
             status="completed",
             model_metadata={"rich_content": card("receipt"), "kept": "as is"},
         )
