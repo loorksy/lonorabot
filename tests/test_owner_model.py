@@ -90,6 +90,14 @@ async def lonora(fixture: Any) -> dict[str, Any]:
         return {"id": row.id, "name": row.name}
 
 
+async def lead_turn(fixture: Any, lead: dict[str, Any], text: str) -> tuple[Any, str]:
+    """An owner turn of Lonora in a run of its own: a run still active in her shared
+    conversation (an earlier turn of this test, or another test's) is settled first,
+    or the owner's message would be steered into it and inherit what it read."""
+    await lonora(fixture)
+    return await owner_turn(fixture, lead, text)
+
+
 @pytest.mark.asyncio
 async def test_lonora_writes_observations_and_team_agents_keep_the_owner_rule():
     database()
@@ -185,7 +193,7 @@ async def test_lonora_writes_observations_and_team_agents_keep_the_owner_rule():
             assert latest is not None and latest.source_message_id == message_id
         # Lonora answering the owner's message marks an inference as observed: the
         # revision carries no owner message, so the view never shows it as his words.
-        answer, _ = await owner_turn(fixture, lead, "كيف حالك؟")
+        answer, _ = await lead_turn(fixture, lead, "كيف حالك؟")
         await call(
             registry,
             answer,
@@ -224,7 +232,7 @@ async def test_lonora_observes_only_in_untainted_runs_and_agents_see_observation
         line = {"action": "add", "section": "USER.md", "content": "- Closes gold before news"}
         # Answering the owner, but after reading a web page: no longer his word, and not
         # Lonora's own observation either (6.10).
-        tainted, _ = await owner_turn(fixture, lead, "راجع الأخبار")
+        tainted, _ = await lead_turn(fixture, lead, "راجع الأخبار")
         async with fixture.runtime.db.sessions() as session, session.begin():
             await mark_external_content(session, tainted.lease.run_id, "web_fetch")
         refused = await call(registry, tainted, "memory_write", version=1, operations=[line])
@@ -281,12 +289,12 @@ async def test_a_routine_or_watch_a_tainted_run_made_wakes_without_observations(
         lead = await lonora(fixture)
         schedule = {"prompt": "Review the owner's trading", "interval_seconds": 3600}
         # The reviewer's probe: an owner turn reads a web page, then schedules a routine.
-        tainted, _ = await owner_turn(fixture, lead, "اقرأ هذه الصفحة وراجعها كل ساعة")
+        tainted, _ = await lead_turn(fixture, lead, "اقرأ هذه الصفحة وراجعها كل ساعة")
         async with fixture.runtime.db.sessions() as session, session.begin():
             await mark_external_content(session, tainted.lease.run_id, "web_fetch")
         steered = await call(registry, tainted, "routine_create", **schedule)
-        # The same routine from a clean owner turn.
-        clean, _ = await owner_turn(fixture, lead, "راجع تداولي كل ساعة")
+        # The same routine from a clean owner turn, in its own run.
+        clean, _ = await lead_turn(fixture, lead, "راجع تداولي كل ساعة")
         trusted = await call(registry, clean, "routine_create", **schedule)
         line = {
             "action": "add",
@@ -437,7 +445,7 @@ async def test_what_i_know_lists_origins_and_records_corrections_as_the_owners_w
             operations=[{"action": "add", "section": "USER.md", "content": "- Reads at 07:30"}],
         )
         assert observed.get("owner_profile", observed).get("changed") is True, observed
-        said, _ = await owner_turn(fixture, lead, "I prefer short reports")
+        said, _ = await lead_turn(fixture, lead, "I prefer short reports")
         await call(
             registry,
             said,
@@ -509,7 +517,7 @@ async def test_what_i_know_lists_origins_and_records_corrections_as_the_owners_w
         )
         assert refused["code"] == "owner_profile_line_is_owners_word", refused
         # On his own message it changes.
-        asked, _ = await owner_turn(fixture, lead, "Actually I read at 07:30")
+        asked, _ = await lead_turn(fixture, lead, "Actually I read at 07:30")
         patched = await call(registry, asked, "memory_write", version=1, operations=[back])
         assert patched.get("owner_profile", patched).get("changed") is True, patched
         # An owner revert brings an observed line back as observed, not as his word;
