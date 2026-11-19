@@ -260,7 +260,7 @@ async def main() -> None:
         resolve = next(
             row
             for row in await cards_in(personal["id"])
-            if row["kind"] == "resolve_operation" and row["status"] == "pending"
+            if row["kind"] == "settle_operation" and row["status"] == "pending"
         )
         operation_facts = resolve["facts"]["operation"]
         assert operation_facts["symbol"] == GOLD and operation_facts["by_owner"] is True
@@ -294,6 +294,9 @@ async def main() -> None:
             raise AssertionError("an uncertain operation holds new risk on its market")
         status, missing = await decide(resolve["id"], {"decision": "confirm"})
         assert status == 422 and missing["code"] == "owner_action_outcome_required"
+        # Settle Uncertain Operation has exactly three answers (10.3): no dismissal.
+        status, dismissed = await decide(resolve["id"], {"decision": "cancel"})
+        assert status == 422 and dismissed["code"] == "owner_action_outcome_required"
         status, answered = await decide(
             resolve["id"], {"decision": "confirm", "outcome": "executed"}
         )
@@ -375,12 +378,36 @@ async def main() -> None:
         mine = next(
             row
             for row in await cards_in(thread["id"])
-            if row["kind"] == "resolve_operation" and row["status"] == "pending"
+            if row["kind"] == "settle_operation" and row["status"] == "pending"
         )
         assert mine["facts"]["operation"]["by_agent_name"] == agent["name"]
         status, unknown = await decide(mine["id"], {"decision": "confirm", "outcome": "unknown"})
-        assert status == 200 and unknown["result"] == {"outcome": "unknown"}
+        assert status == 200 and unknown["status"] == "pending", unknown
+        assert unknown["result"] == {"outcome": "unknown"}
         assert "unknown" in (await acknowledgements(thread["id"]))[-1].lower()
+        # Unknown keeps the operation uncertain and held (6.3), so the same card stays
+        # pending: the owner can still answer Executed or Not executed (6.8).
+        await project()
+        again = [
+            row
+            for row in await cards_in(thread["id"])
+            if row["kind"] == "settle_operation"
+            and row["status"] == "pending"
+            and row["facts"]["operation"]["operation_id"]
+            == mine["facts"]["operation"]["operation_id"]
+        ]
+        assert [row["id"] for row in again] == [mine["id"]], again
+        assert again[0]["result"] == {"outcome": "unknown"}
+        async with db.sessions() as session:
+            journal = await session.get(
+                TradingJournalRow, mine["facts"]["operation"]["operation_id"]
+            )
+            assert journal is not None and journal.status == "ambiguous"
+        # A later Executed answer on the same card settles it, with its own line.
+        status, executed = await decide(mine["id"], {"decision": "confirm", "outcome": "executed"})
+        assert status == 200 and executed["status"] == "confirmed", executed
+        assert executed["result"]["outcome"] == "executed"
+        assert "executed" in (await acknowledgements(thread["id"]))[-1].lower()
         print("PASS an agent's uncertain operation raises its card in that agent's conversation")
 
         # A card whose record changed elsewhere is superseded: the owner settles the

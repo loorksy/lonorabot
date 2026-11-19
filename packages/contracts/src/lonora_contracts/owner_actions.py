@@ -19,7 +19,7 @@ from .trading import TradingMode
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
-    "resolve_operation",
+    "settle_operation",
     "grant_authority",
     # The Mandate card (mandate 10.3): the agent's mode read live and one button for the
     # other mode. It stays the agent's switch after a tap.
@@ -46,7 +46,7 @@ CredentialTarget = Literal[
 ]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
 AttestedOutcome = Literal["executed", "not_executed", "unknown"]
-# The owner's statement when the card's optional note is left empty.
+# The statement recorded with a Settle card's answer: the owner's word, never the broker's.
 CARD_ATTESTATION = "Owner attested via chat card; not broker confirmation."
 
 
@@ -77,7 +77,7 @@ class OwnerActionProposal(Contract):
     for a Secret card's label, field labels and the details the agent gave from chat."""
 
     kind: OwnerActionKind
-    # resolve_operation: the uncertain (ambiguous) operation the owner settles.
+    # settle_operation: the uncertain (ambiguous) operation the owner settles.
     operation_id: str | None = Field(default=None, min_length=1, max_length=80)
     # grant_authority: the account the card grants on.
     account_id: str | None = Field(default=None, min_length=1, max_length=36)
@@ -187,7 +187,7 @@ class OwnerActionProposal(Contract):
     def trading_fields(self) -> "OwnerActionProposal":
         grant = self.grant_fields()
         needed = {
-            "resolve_operation": ("operation_id",),
+            "settle_operation": ("operation_id",),
             "grant_authority": (),
         }[self.kind]
         for name in ("operation_id", "account_id"):
@@ -296,9 +296,10 @@ class OwnerActionChallenge(Contract):
 
 
 class OwnerActionDecision(Contract):
-    """The owner's tap. ``outcome`` answers a resolve card; ``proof`` is the passkey
-    assertion a widening card requires (obtained from the card's challenge). A Secret
-    card's values never come here: the card has its own route.
+    """The owner's tap. ``outcome`` answers a Settle Uncertain Operation card (exactly
+    executed, not executed or unknown); ``proof`` is the passkey assertion a widening card
+    requires (obtained from the card's challenge). A Secret card's values never come here:
+    the card has its own route.
 
     ``choose`` changes a pending grant card's own choice (``delegation``: Custom or Full
     delegation) in its stored draft and settles nothing; signing still needs the
@@ -313,8 +314,6 @@ class OwnerActionDecision(Contract):
     trading_mode: TradingMode | None = None
     delegation: GrantDelegation | None = None
     outcome: AttestedOutcome | None = None
-    note: str | None = Field(default=None, max_length=2000)
-    broker_reference: str | None = Field(default=None, max_length=200)
     proof: DeviceProof | None = None
     stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
 

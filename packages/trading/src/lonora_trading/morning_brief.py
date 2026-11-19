@@ -270,7 +270,7 @@ async def brief_facts(
             OwnerActionRow.status == "pending",
             OwnerActionRow.expires_at > now,
             # A Mandate card is the owner's standing switch, with no answer that ends it.
-            OwnerActionRow.kind.not_in(("resolve_operation", "trading_mode")),
+            OwnerActionRow.kind.not_in(("settle_operation", "trading_mode")),
         ),
     )
     # Never waiting, but news once: a Mandate card an agent proposed since the last brief

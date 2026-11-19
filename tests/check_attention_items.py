@@ -566,7 +566,7 @@ async def settle_card(fixture: Fixture) -> None:
     async with fixture.runtime.db.sessions() as session, session.begin():
         card = await session.scalar(
             select(OwnerActionRow).where(
-                OwnerActionRow.kind == "resolve_operation",
+                OwnerActionRow.kind == "settle_operation",
                 OwnerActionRow.subject == "operation:" + operation_id,
             )
         )

@@ -74,7 +74,7 @@ def test_a_stored_lift_card_could_not_be_read_back_and_its_tools_are_gone() -> N
 @pytest.mark.parametrize(
     "arguments",
     [
-        {"kind": "resolve_operation", "operation_id": "op", "account_id": "a"},
+        {"kind": "settle_operation", "operation_id": "op", "account_id": "a"},
         {"kind": "grant_authority", "all_pairs": True, "symbols": ["XAUUSD"]},
         {"kind": "grant_authority", "actions": ["buy", "buy"]},
         {"kind": "grant_authority", "title": "Sign everything"},
@@ -218,16 +218,16 @@ async def test_the_confirmation_line_says_what_still_holds_new_risk(task_db: Fix
             thread=english,
             run_id=None,
             source="system",
-            kind="resolve_operation",
+            kind="settle_operation",
             subject="operation:op-answered",
             payload={"operation_id": "op-answered"},
         )
         answer.result = {"outcome": "unknown"}
         held = await ack(session, answer)
         assert held.content == (
-            "Recorded: the outcome stays unknown. It will not be resent and no longer holds new "
-            "risk on that market. A trade without a confirmed broker result still holds new risk "
-            "there."
+            "Recorded: the outcome stays unknown. It will not be resent; the broker is still "
+            "checked, and new risk on that market stays held until the outcome is known. A trade "
+            "without a confirmed broker result still holds new risk there."
         )
 
 
@@ -334,7 +334,7 @@ async def test_an_uncertain_trade_the_owner_is_already_asked_about_raises_no_sec
             thread=thread,
             run_id=None,
             source="system",
-            kind="resolve_operation",
+            kind="settle_operation",
             subject="operation:op-carded",
             payload={"operation_id": "op-carded"},
         )

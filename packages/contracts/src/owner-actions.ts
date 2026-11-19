@@ -4,7 +4,7 @@ import type { DeviceProof } from "./devices";
 import type { TradingMode } from "./trading";
 
 export type OwnerActionKind =
-  | "resolve_operation"
+  | "settle_operation"
   | "grant_authority"
   | "create_agent"
   | "agent_created"
@@ -266,8 +266,6 @@ export type OwnerActionDecision = {
   /** Grant card, with "choose": Custom or Full delegation. */
   delegation?: GrantDelegation;
   outcome?: AttestedOutcome;
-  note?: string;
-  broker_reference?: string;
   proof?: DeviceProof;
   /** Grant card: stop these other agents' grants on this market (narrowing). */
   stop_authorities?: string[];

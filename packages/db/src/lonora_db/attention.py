@@ -93,7 +93,7 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
             await session.scalars(
                 select(OwnerActionRow).where(
                     OwnerActionRow.owner_id == row.owner_id,
-                    OwnerActionRow.kind == "resolve_operation",
+                    OwnerActionRow.kind == "settle_operation",
                     OwnerActionRow.subject == "operation:" + journal.operation_id,
                 )
             )

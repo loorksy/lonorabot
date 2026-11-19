@@ -30,7 +30,7 @@ async def main():
             fields={'kind':data['kind']}
             if data['kind']=='trading_mode':
                 fields['agent_id']=data['agent']
-            if data['kind']=='resolve_operation':
+            if data['kind']=='settle_operation':
                 operation=str(uuid4())
                 session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
                 await session.flush()
@@ -66,7 +66,7 @@ const copy = {
   ar: {
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     executed: "نُفذت",
-    unknown: "غير معروفة — ارفع التعليق",
+    unknown: "غير معروفة",
     recorded: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     grantTitle: "يتداول بنفسه",
     authorize: "التفويض بمفتاح المرور",
@@ -76,7 +76,7 @@ const copy = {
   en: {
     resolveTitle: "The broker did not confirm this trade",
     executed: "It executed",
-    unknown: "Unknown: release the hold",
+    unknown: "Unknown",
     recorded: "Recorded: it executed (your statement, not broker confirmation).",
     grantTitle: "trade on its own",
     authorize: "Authorize with passkey",
@@ -120,7 +120,7 @@ for (const locale of ["ar", "en"])
     ).json();
     try {
       const uncertain = seedCard({
-        kind: "resolve_operation",
+        kind: "settle_operation",
         account: data.account,
         symbol: data.symbol,
         agent: agent.id,

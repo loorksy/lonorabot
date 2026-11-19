@@ -64,7 +64,7 @@ def attention(task: dict[str, Any]) -> bool:
 DECISION_CARD_KINDS = frozenset(
     {
         "grant_authority",
-        "resolve_operation",
+        "settle_operation",
         "create_agent",
         "supervise",
         "secret",

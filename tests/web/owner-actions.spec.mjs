@@ -30,7 +30,7 @@ async def main():
             fields={'kind':data['kind']}
             if data['kind']=='trading_mode':
                 fields['agent_id']=data['agent']
-            if data['kind']=='resolve_operation':
+            if data['kind']=='settle_operation':
                 operation=str(uuid4())
                 session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
                 await session.flush()
@@ -142,7 +142,7 @@ const copy = {
   en: {
     resolveTitle: "The broker did not confirm this trade",
     notExecuted: "It did not execute",
-    unknown: "Unknown: release the hold",
+    unknown: "Unknown",
     recorded: "Recorded: it did not execute (your statement, not broker confirmation).",
     grantTitle: "trade on its own",
     authorize: "Authorize with passkey",
@@ -155,7 +155,7 @@ const copy = {
   ar: {
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     notExecuted: "لم تُنفذ",
-    unknown: "غير معروفة — ارفع التعليق",
+    unknown: "غير معروفة",
     recorded: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     grantTitle: "يتداول بنفسه",
     authorize: "التفويض بمفتاح المرور",
@@ -579,7 +579,7 @@ for (const locale of ["en", "ar"])
     const state = await setup(context, locale);
     try {
       const seeded = seedCard({
-        kind: "resolve_operation",
+        kind: "settle_operation",
         account: state.account,
         symbol: state.data.symbol,
         agent: state.agent.id,

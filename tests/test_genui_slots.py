@@ -164,7 +164,7 @@ async def test_a_run_working_in_its_own_thread_places_slots_of_its_origin_conver
 @pytest.mark.asyncio
 async def test_a_resolve_card_is_a_settle_slot(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
-    record = await resolve_card(db, owner, agent, thread, "resolve_operation")
+    record = await resolve_card(db, owner, agent, thread, "settle_operation")
     ui, _ = await project(db, owner, agent, thread, card(slot(record, "settle")))
     assert ui is not None
     assert ui["blocks"] == [{"type": "Slot", "card": "settle", "record": record}]
@@ -204,7 +204,7 @@ async def test_a_secret_card_is_a_secret_slot_and_no_other(task_db: Fixture) -> 
     for kind in ("settle", "trade_approval"):
         ui, projector = await project(db, owner, agent, thread, card(slot(record, kind)))
         assert ui is None and "card_fallback_slot" in codes(projector), kind
-    settle = await resolve_card(db, owner, agent, thread, "resolve_operation")
+    settle = await resolve_card(db, owner, agent, thread, "settle_operation")
     ui, projector = await project(db, owner, agent, thread, card(slot(settle, "secret")))
     assert ui is None and "card_fallback_slot" in codes(projector)
 
@@ -351,6 +351,11 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert not imitates_fixed_card("موافقة الشريك على الخطة")
     assert imitates_fixed_card("Approve trade", control=True)
     assert imitates_fixed_card("موافقة على الصفقة", control=True)
+    # The Settle card's Unknown button is a control's word only: a heading or a badge that
+    # says a value is unknown is an ordinary label, a button that says it is refused.
+    assert not imitates_fixed_card("غير معروفة") and not imitates_fixed_card("Unknown")
+    assert imitates_fixed_card("غير معروفة", control=True)
+    assert imitates_fixed_card("Unknown outcome", control=True)
 
 
 @pytest.mark.asyncio
@@ -369,6 +374,18 @@ async def test_body_text_option_values_and_state_may_use_a_fixed_cards_words(
     )
     ui, projector = await project(db, owner, agent, thread, text)
     assert ui is not None, projector.diagnostics
+
+
+@pytest.mark.asyncio
+async def test_a_badge_may_say_a_value_is_unknown(task_db: Fixture) -> None:
+    """«غير معروفة» is the Settle card's button word, refused only as a control's label."""
+    db, owner, agent, thread = task_db
+    text = card('{"type":"Badge","text":"غير معروفة","tone":"warn"}')
+    ui, projector = await project(db, owner, agent, thread, text)
+    assert ui is not None, projector.diagnostics
+    refused = card('{"type":"Button","label":"غير معروفة"}')
+    ui, projector = await project(db, owner, agent, thread, refused)
+    assert ui is None
 
 
 @pytest.mark.asyncio
@@ -396,11 +413,11 @@ async def test_slot_and_row_act_on_one_record_and_a_second_tap_reads_its_current
 
 
 def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() -> None:
-    """FIXED_LABELS and FRAME_MARKS copy what the clients draw; a renamed client string
+    """FIXED_LABELS, FIXED_CONTROL_LABELS and FRAME_MARKS copy what the clients draw; a renamed client string
     fails here instead of silently opening the imitation check."""
     from pathlib import Path
 
-    from lonora_agent.genui_compile import FIXED_LABELS, FRAME_MARKS
+    from lonora_agent.genui_compile import FIXED_CONTROL_LABELS, FIXED_LABELS, FRAME_MARKS
 
     root = Path(__file__).parents[1]
     sources = "\n".join(
@@ -412,7 +429,7 @@ def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() ->
             "apps/mobile/lib/i18n.ts",
         )
     )
-    for label in FIXED_LABELS:
+    for label in FIXED_LABELS + FIXED_CONTROL_LABELS:
         assert f'"{label}"' in sources, label
     for mark in FRAME_MARKS:
         assert mark in sources.lower(), mark

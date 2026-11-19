@@ -110,8 +110,6 @@ FIXED_LABELS = (
     "نُفذت",
     "It did not execute",
     "لم تُنفذ",
-    "Unknown: release the hold",
-    "غير معروفة — ارفع التعليق",
     "Secret",
     "بيانات سرّية",
     "Connect trading account",
@@ -121,6 +119,9 @@ FIXED_LABELS = (
     "New MetaApi API token",
     "رمز MetaApi API جديد",
 )
+# A fixed card's button words that are ordinary as a heading or a badge («غير معروفة»):
+# refused only as an agent's button label, which is what the Settle card's buttons are.
+FIXED_CONTROL_LABELS = ("Unknown", "غير معروفة")
 
 
 @dataclass
@@ -474,6 +475,7 @@ def _plain(text: str) -> str:
 
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
+CONTROL_PLAIN = FIXED_PLAIN | frozenset(_plain(label) for label in FIXED_CONTROL_LABELS)
 MARKS_PLAIN = tuple(_plain(mark) for mark in FRAME_MARKS)
 # The frame's own icon: an agent's node never wears it.
 FRAME_ICON = "shield"
@@ -500,7 +502,7 @@ def imitates_fixed_card(text: str, *, control: bool = False) -> bool:
         return True
     plain = _plain(text)
     if control:
-        return any(plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN)
+        return any(plain == label or plain.startswith(label + " ") for label in CONTROL_PLAIN)
     return plain in FIXED_PLAIN or any(
         _plain(part) in FIXED_PLAIN for part in SEGMENTS.split(text) if part.strip()
     )

@@ -41,7 +41,7 @@ async def slot_records(
             OwnerActionRow.id.in_(wanted),
             OwnerActionRow.owner_id == owner_id,
             OwnerActionRow.thread_id == thread_id,
-            OwnerActionRow.kind == "resolve_operation",
+            OwnerActionRow.kind == "settle_operation",
         )
     )
     found |= {("settle", identity): 0 for identity in settles}

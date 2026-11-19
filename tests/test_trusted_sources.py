@@ -238,7 +238,7 @@ def test_trusted_identifiers_are_canonical_and_bounded() -> None:
         {"kind": "secret", "target": "mcp_server", "name": "X", "url": URL},
         {"kind": "secret", "target": "mcp_server"},
         {"kind": "secret", "target": "news_feed", "name": "Desk", "url": URL},
-        {"kind": "resolve_operation", "operation_id": "op", "source_kind": "github_repo"},
+        {"kind": "settle_operation", "operation_id": "op", "source_kind": "github_repo"},
     ):
         with pytest.raises(ValidationError):
             OwnerActionProposal.model_validate(bad)

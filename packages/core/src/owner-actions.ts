@@ -49,13 +49,11 @@ export const ownerActionLabels = {
     anAgent: "an agent",
     resolveTitle: "The broker did not confirm this trade",
     resolveHint:
-      "It will not be sent again. New risk on this market is held until you answer; any answer, Unknown included, releases this trade's hold. Exits still work.",
+      "It will not be sent again. New risk on this market is held until the outcome is known: Executed or Not executed releases it; Unknown keeps it while the broker is still checked. Exits still work.",
     resolveRecord: "Your answer is recorded as your statement, not as broker confirmation.",
     executed: "It executed",
     notExecuted: "It did not execute",
-    unknown: "Unknown: release the hold",
-    note: "Note (optional)",
-    brokerReference: "Broker ticket (optional)",
+    unknown: "Unknown",
     byYou: "your order",
     by: "by",
     at: "at",
@@ -66,7 +64,7 @@ export const ownerActionLabels = {
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
     recordedUnknown:
-      "Recorded: the outcome stays unknown. It will not be resent and no longer holds new risk on this market.",
+      "Recorded: the outcome stays unknown. It will not be resent; the broker is still checked, and new risk on this market stays held until the outcome is known.",
     cancelled: "Dismissed. Nothing changed.",
     expired: "This card expired. Nothing changed.",
     alreadyEnded: "This pause already ended. Nothing changed.",
@@ -229,10 +227,6 @@ export const ownerActionLabels = {
     brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
     brokerConnected: "Connected. Lonora reported its balance in the conversation.",
     brokerFailed: "Could not connect. Lonora said why in the conversation.",
-    optional: "optional",
-    noteShort: "Note",
-    brokerRefShort: "Broker reference",
-    addNote: "Add a note or the broker reference",
     deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
     expiresIn: "The request expires in",
     statusPending: "Waiting for your decision",
@@ -272,13 +266,11 @@ export const ownerActionLabels = {
     anAgent: "وكيل",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     resolveHint:
-      "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تجيب، وأي إجابة، ومنها «غير معروفة»، ترفع تعليق هذه الصفقة؛ يبقى الخروج متاحًا.",
+      "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُعرف النتيجة: «نُفذت» أو «لم تُنفذ» ترفع التعليق، و«غير معروفة» تبقيه بينما يُراجَع الوسيط؛ يبقى الخروج متاحًا.",
     resolveRecord: "تُسجَّل إجابتك كتصريح منك، لا كتأكيد من الوسيط.",
     executed: "نُفذت",
     notExecuted: "لم تُنفذ",
-    unknown: "غير معروفة — ارفع التعليق",
-    note: "ملاحظة (اختيارية)",
-    brokerReference: "رقم التذكرة لدى الوسيط (اختياري)",
+    unknown: "غير معروفة",
     byYou: "أمرك",
     by: "من",
     at: "في",
@@ -289,7 +281,7 @@ export const ownerActionLabels = {
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     recordedUnknown:
-      "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها، ولم تعد تعلّق المخاطرة الجديدة على هذا السوق.",
+      "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها؛ يُراجَع الوسيط، وتبقى المخاطرة الجديدة على هذا السوق معلّقة حتى تُعرف النتيجة.",
     cancelled: "تم التجاهل. لم يتغير شيء.",
     expired: "انتهت صلاحية هذه البطاقة. لم يتغير شيء.",
     alreadyEnded: "انتهى هذا الإيقاف مسبقًا. لم يتغير شيء.",
@@ -448,10 +440,6 @@ export const ownerActionLabels = {
     brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
     brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
     brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
-    optional: "اختياري",
-    noteShort: "ملاحظة",
-    brokerRefShort: "مرجع الوسيط",
-    addNote: "إضافة ملاحظة أو مرجع الوسيط",
     deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
     expiresIn: "ينتهي الطلب خلال",
     statusPending: "بانتظار قرارك",
@@ -520,8 +508,6 @@ export type OwnerActionSpec = {
   options: OwnerActionOption[];
   /** Shown while pending; empty once the card is settled. */
   buttons: OwnerActionButton[];
-  /** A resolve card offers an optional note and broker ticket. */
-  notes: boolean;
   /** A Secret card's form while it waits (submitted by the client itself). */
   secret: SecretForm | null;
   passkey: boolean;
@@ -590,7 +576,7 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.watchUndone;
       case "stop_tightened":
         return text.stopTightenedLine;
-      case "resolve_operation":
+      case "settle_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted
           : card.result.outcome === "not_executed"
@@ -1065,7 +1051,7 @@ export function ownerActionCard(
       options = grant.options;
       break;
     }
-    case "resolve_operation": {
+    case "settle_operation": {
       title = text.resolveTitle;
       const operation = facts.operation;
       if (operation) {
@@ -1107,6 +1093,11 @@ export function ownerActionCard(
           primary: false,
         },
       ];
+      if (card.result.outcome === "unknown") {
+        // Answered Unknown: still uncertain and held; Executed or Not executed remain.
+        lines.push(text.recordedUnknown);
+        buttons = buttons.filter((button) => button.outcome !== "unknown");
+      }
       break;
     }
     case "create_agent": {
@@ -1302,7 +1293,6 @@ export function ownerActionCard(
     hint: pending ? hint : null,
     options: pending ? options : [],
     buttons: pending ? buttons : [],
-    notes: pending && card.kind === "resolve_operation",
     secret: pending ? form : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),

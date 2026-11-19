@@ -102,7 +102,7 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
 
 - **Placement (10.2.1).** The projector reads the records a card's slots name
   (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
-  `resolve_operation` owner-action card (`settle`) or a `secret` owner-action card, the Secret
+  `settle_operation` owner-action card (`settle`) or a `secret` owner-action card, the Secret
   card (`secret`), of this owner, in the reply's conversation
   (the Run's origin conversation when it works in its own thread, as broker-event and watch
   Runs do). A slot

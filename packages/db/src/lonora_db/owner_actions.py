@@ -53,7 +53,7 @@ from .transactions import owned_thread
 
 # How long a card stays usable.
 LIFETIME = {
-    "resolve_operation": timedelta(days=7),
+    "settle_operation": timedelta(days=7),
     "grant_authority": timedelta(hours=24),
     # An agent's proposal to create an agent, and the Undo card after a creation.
     "create_agent": timedelta(hours=24),
@@ -134,7 +134,7 @@ async def stale_reason(
         if agent is not None and agent.owner_id != owner_id:
             raise LonoraError("agent_not_found", 404)
         return "agent_already_removed" if agent is None else None
-    if kind == "resolve_operation":
+    if kind == "settle_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None or operation.owner_id != owner_id:
             raise LonoraError("operation_not_found", 404)
@@ -463,7 +463,7 @@ def proposal_payload(
     if proposal.kind == "trading_mode":
         assert proposal.agent_id is not None
         return "trading_mode:" + proposal.agent_id, {"agent_id": proposal.agent_id}
-    if proposal.kind == "resolve_operation":
+    if proposal.kind == "settle_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
     if proposal.kind == "secret":
@@ -527,7 +527,7 @@ async def card_facts(
             )
         )
         return facts, False
-    if row.kind == "resolve_operation":
+    if row.kind == "settle_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None:
             return facts, False
@@ -1440,7 +1440,7 @@ async def draft_grant_card(
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo and notice cards keep their own window and never come
 # back; an agent's proposal is the agent's to make again.
-RENEWABLE_KINDS = frozenset({"resolve_operation"})
+RENEWABLE_KINDS = frozenset({"settle_operation"})
 
 
 async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -1509,7 +1509,7 @@ async def thread_cards(
 
 
 def confirmation_code(row: OwnerActionRow) -> str:
-    if row.kind == "resolve_operation":
+    if row.kind == "settle_operation":
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
     if row.kind == "agent_created":
         return "owner_action_undo_" + str(row.result.get("undo", "paused"))
@@ -1544,7 +1544,7 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
     another trade there without a confirmed broker outcome. One fixed clause each."""
     if row.kind == "grant_authority":
         return await grant_notes(session, row)
-    if row.kind != "resolve_operation":
+    if row.kind != "settle_operation":
         return []
     operation = await session.get(TradingJournalRow, row.payload["operation_id"])
     if operation is None:
@@ -1593,7 +1593,18 @@ async def confirmation_agent(session: AsyncSession, row: OwnerActionRow) -> str 
     )
 
 
-async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
+async def keep_pending(session: AsyncSession, row: OwnerActionRow, result: dict[str, Any]) -> None:
+    """An answer that settles nothing (Unknown on a Settle card): recorded on the card,
+    which stays pending; its one line goes to the conversation once."""
+    row.result, row.updated_at = result, utcnow()
+    await session.flush()
+    await owner_action_event(session, row)
+    await confirm_in_thread(session, row, answer="unknown")
+
+
+async def confirm_in_thread(
+    session: AsyncSession, row: OwnerActionRow, *, answer: str | None = None
+) -> None:
     """One server-written line in the card's conversation saying what changed, and what
     still holds new risk there (``still_holding``), read after the effect.
 
@@ -1606,9 +1617,11 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     from .messages import message_data
     from .schema import EffectReceiptRow, MessageRow
 
-    if row.status != "confirmed" or row.thread_id is None:
+    if (row.status != "confirmed" and answer is None) or row.thread_id is None:
         return
-    key = "owner-action-ack:" + row.id
+    # An answer that leaves the card pending has its own line, once.
+    suffix = "" if answer is None else ":" + answer
+    key = "owner-action-ack:" + row.id + suffix
     if await session.get(EffectReceiptRow, key):
         return
     # The agent before its conversation: the order a delete of that agent locks them in.
@@ -1621,7 +1634,7 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     locale = await conversation_locale(session, row.owner_id, thread.id)
     codes = [confirmation_code(row), *await still_holding(session, row)]
     message = MessageRow(
-        id=stable_id(row.id, "owner-action-ack"),
+        id=stable_id(row.id, "owner-action-ack" + suffix),
         thread_id=thread.id,
         agent_id=speaker,
         seq=thread.next_seq,
@@ -1700,7 +1713,7 @@ async def awaiting_owner_answer(session: AsyncSession, owner_id: str, operation_
         select(OwnerActionRow.id)
         .where(
             OwnerActionRow.owner_id == owner_id,
-            OwnerActionRow.kind == "resolve_operation",
+            OwnerActionRow.kind == "settle_operation",
             OwnerActionRow.subject == "operation:" + operation_id,
             OwnerActionRow.status == "pending",
             OwnerActionRow.expires_at > utcnow(),
@@ -1727,7 +1740,7 @@ async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None
         return cast(str, row.payload["account_id"])
     if row.kind == "create_agent":
         return cast(str | None, row.payload["spec"].get("account_id"))
-    if row.kind == "resolve_operation":
+    if row.kind == "settle_operation":
         operation = await session.get(TradingJournalRow, row.payload["operation_id"])
         return operation.account_id if operation else None
     return None

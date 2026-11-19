@@ -49,7 +49,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resolve_operation`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `secret` or `trading_mode` |
+| `kind` | `settle_operation`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `secret` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. |
 | `subject` | The record the card acts on: `operation:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
@@ -59,7 +59,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 | `expires_at`, `decided_at`, `decided_via` | Single use with expiry; `tap` or `passkey` |
 | `result` | What the confirmation did (the attested outcome) |
 
-Lifetimes: grant cards 24 hours, resolve cards 7 days, Mandate cards 3650 days. Expiry
+Lifetimes: grant cards 24 hours, Settle cards 7 days, Mandate cards 3650 days. Expiry
 needs no scheduler: a pending card past `expires_at` reads as expired and is settled as
 expired when next touched.
 
@@ -74,7 +74,7 @@ expired when next touched.
   and that nothing has changed yet.
 - **The runtime raises one with no model involved** (`lonora_gateway.owner_cards`,
   called by the attention projection for each event before its notification):
-  - `trading.operation_updated` moving to `ambiguous`: a three-button resolve card in
+  - `trading.operation_updated` moving to `ambiguous`: a three-button Settle Uncertain Operation card in
     the responsible agent's conversation, or Lonora's for the owner's own orders. The
     same event is the owner's `operation_uncertain` attention item (`action_required`,
     one per operation).
@@ -82,7 +82,7 @@ expired when next touched.
     a second card.
 - **Cards follow their record.** A settled operation supersedes the pending cards about
   it. Confirming a card supersedes any other pending card with the same exact effect. A
-  settled operation also withdraws its `operation_uncertain` item. While its resolve
+  settled operation also withdraws its `operation_uncertain` item. While its Settle
   card waits for an answer (or its
   `operation_uncertain` item is still open), the watchdog's later `operation_unresolved`
   alert for the same operation is not raised: the owner is asked once.
@@ -105,13 +105,16 @@ isolated and labelled as the agent's task ("Its task: …"), never as Lonora's w
 
 | Card | Buttons | Needs |
 | --- | --- | --- |
-| The broker did not confirm this trade | It executed / It did not execute / Unknown: release the hold, optional note and broker ticket | one tap |
+| The broker did not confirm this trade (Settle Uncertain Operation) | It executed / It did not execute / Unknown — exactly these three; it cannot be dismissed (`owner_action_outcome_required`) | one tap |
 | Create an agent? (an agent proposed it without an owner message) | Create agent / Not now | one tap; the agent gets no money authority |
 | Agent created | Undo / Keep it | one tap; Undo removes an agent that has done nothing yet, otherwise pauses it |
 
-Any answer on a resolve card, "Unknown" included, settles the operation and releases
-the hold it puts on its market; the hint and the settled line say so. An owner who is
-not sure yet leaves the card unanswered, and the hold stays.
+"It executed" or "It did not execute" on a Settle card settles the operation (`resolved`,
+the owner's word, never broker confirmation and never an Execution Receipt) and releases
+the hold it puts on its market. "Unknown" is recorded on the journal row
+(`details.owner_answers`) and settles nothing: the operation stays `ambiguous`, keeps its
+hold and is still reconciled from broker evidence, which later confirms it with its one
+Execution Receipt (VISION 6.3). The hint and the settled line say so.
 
 A settled card shows one line instead of buttons ("This operation is already settled.
 Nothing changed."). After a confirmation the server also writes one
@@ -135,9 +138,10 @@ require the owner's session; no tool reaches them. A decision:
    current state: a stale card becomes `expired` with its reason
    (`operation_already_settled`) and changes nothing.
 3. Runs the existing owner function in the same transaction:
-   - Resolve: `attest_operation`, the T2 owner attestation. The note is optional; without
-     one the statement reads "Owner attested via chat card; not broker confirmation."
-     It emits `trading.operation_resolved`, clears the scoped block and never resends.
+   - Settle: `attest_operation`, the owner attestation; the statement reads "Owner
+     attested via chat card; not broker confirmation." Executed or Not executed emits
+     `trading.operation_resolved`, clears the scoped block and never resends. Unknown
+     emits `trading.operation_answered`, keeps the block and never resends.
 
 Only a grant card needs a user-verified passkey assertion (its signing is below): without
 the proof its decision is `owner_action_passkey_required` (403) and the card stays
@@ -324,8 +328,9 @@ asks for one, a grant only when no active scope covers it.
 - `tests/check_owner_actions.py` (PostgreSQL, simulation broker): a card changes nothing
   until the tap and confirming it is idempotent; no tool can confirm and an anonymous
   decision is refused; a card whose record changed elsewhere is superseded; an uncertain
-  trade raises `operation_uncertain` and a resolve card whose answer emits
-  `trading.operation_resolved`, clears the hold and sends nothing; an agent's uncertain
+  trade raises `operation_uncertain` and a Settle card whose Executed / Not executed
+  answer emits `trading.operation_resolved`, clears the hold and sends nothing, while
+  Unknown keeps the same card pending and the hold in place; an agent's uncertain
   operation lands in that agent's conversation; the cap, expiry and crash replay.
 - `tests/check_secret_card_migration.py` (fresh database): the downgrade of `0071`
   refuses while a server's address is in the store and changes nothing, then leaves an
