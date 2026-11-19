@@ -71,7 +71,7 @@ TEXT_CAPS = {"title": 32, "sub": 48, "label": 24, "option": 16, "button": 24}
 # reference to a real server record. The card kind names the record's table and kind
 # (``lonora_db.genui_slots``); the clients draw everything inside from the live record.
 SLOT = "Slot"
-SLOT_CARDS = ("trade_approval", "settle")
+SLOT_CARDS = ("trade_approval", "settle", "secret")
 RECORD_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$")
 
 

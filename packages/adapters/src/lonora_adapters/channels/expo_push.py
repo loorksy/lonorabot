@@ -11,6 +11,7 @@ import httpx
 from lonora_core.user_error import LonoraError
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
 EXPO_BATCH = 100
 EXPO_TIMEOUT_SECONDS = 15
 
@@ -55,3 +56,27 @@ class ExpoPushTransport:
         if len(items) != len(messages):
             raise LonoraError("push_response_invalid", 502)
         return [cast(dict[str, Any], item) if isinstance(item, dict) else {} for item in items]
+
+    async def receipts(self, ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Expo's delivery receipts by ticket id; a ticket Expo no longer keeps is absent."""
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        if self.access_token:
+            headers["Authorization"] = "Bearer " + self.access_token
+        async with httpx.AsyncClient(
+            timeout=EXPO_TIMEOUT_SECONDS, follow_redirects=False, transport=self.http
+        ) as client:
+            response = await client.post(EXPO_RECEIPTS_URL, json={"ids": ids}, headers=headers)
+        if response.status_code >= 400:
+            raise LonoraError("push_receipts_failed", 502)
+        try:
+            data: Any = response.json()["data"]
+        except (ValueError, KeyError, TypeError):
+            raise LonoraError("push_response_invalid", 502) from None
+        if not isinstance(data, dict):
+            raise LonoraError("push_response_invalid", 502)
+        found = cast(dict[str, Any], data)
+        return {
+            str(key): cast(dict[str, Any], value)
+            for key, value in found.items()
+            if isinstance(value, dict)
+        }

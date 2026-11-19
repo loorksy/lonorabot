@@ -28,7 +28,7 @@ from lonora_db.trusted_sources import (
     source_names,
     trust_source,
 )
-from lonora_tools.mcp import advertised_tools
+from lonora_tools.mcp import advertised_tools, server_address
 
 from ..middleware.auth import require_owner, runtime
 from ..runtime import ApiRuntime
@@ -88,8 +88,9 @@ async def restore(
 
 async def review(
     rt: ApiRuntime, owner_id: str, connection_id: str
-) -> tuple[McpConnection, ToolReview, str]:
-    """Read the server's tools now (network IO outside any transaction)."""
+) -> tuple[McpConnection, ToolReview, str, str]:
+    """Read the server's tools now (network IO outside any transaction); also the
+    fingerprint of the address they were read from."""
     if not rt.settings.mcp_owner_trust:
         raise LonoraError("mcp_owner_trust_disabled", 403)
     async with rt.db.sessions() as session:
@@ -97,13 +98,13 @@ async def review(
         if row is None or row.owner_id != owner_id:
             raise LonoraError("mcp_not_found", 404)
         config = McpConnection.model_validate(row.payload)
-    if config.transport != "http" or not config.url:
+    if config.transport != "http" or not (config.url or config.url_secret_id):
         raise LonoraError("mcp_stdio_isolation_required", 403)
-    reviewed = review_tools(await advertised_tools(rt.services(owner_id).secrets, config))
-    digest = review_digest(
-        endpoint_sha256(config.url), reviewed.tools, reviewed.blocked, reviewed.read_only
-    )
-    return config, reviewed, digest
+    secrets = rt.services(owner_id).secrets
+    endpoint = endpoint_sha256(await server_address(secrets, config))
+    reviewed = review_tools(await advertised_tools(secrets, config))
+    digest = review_digest(endpoint, reviewed.tools, reviewed.blocked, reviewed.read_only)
+    return config, reviewed, digest, endpoint
 
 
 @router.post("/mcp/{connection_id}/preview")
@@ -111,7 +112,7 @@ async def preview(
     request: Request, connection_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
     rt = runtime(request)
-    config, reviewed, digest = await review(rt, owner.id, connection_id)
+    config, reviewed, digest, _ = await review(rt, owner.id, connection_id)
     async with rt.db.sessions() as session:
         trusted = await mcp_trust(session, owner.id, connection_id)
     owned = trusted is not None and trusted.added_via != "operator"
@@ -134,7 +135,7 @@ async def trust_mcp(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     rt = runtime(request)
-    config, reviewed, digest = await review(rt, owner.id, connection_id)
+    config, reviewed, digest, endpoint = await review(rt, owner.id, connection_id)
     if digest != body.digest:
         # The server changed what it offers after the preview: the owner reviews it again.
         raise LonoraError("mcp_tools_changed", 409)
@@ -155,7 +156,7 @@ async def trust_mcp(
             connection_id,
             via="owner_ui",
             tier=body.tier,
-            endpoint_sha256=endpoint_sha256(config.url or ""),
+            endpoint_sha256=endpoint,
             tool_hashes=reviewed.tools,
             read_only_tools=reviewed.read_only,
             blocked_tools=reviewed.blocked,
