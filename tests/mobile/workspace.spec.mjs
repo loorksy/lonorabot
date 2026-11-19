@@ -317,6 +317,8 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.getByRole("button", { name: "الحساب", exact: true }).click();
     await page.getByRole("button", { name: "English", exact: true }).click();
     await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+    await page.goto("/models");
+    await expect(page.getByText("Providers", { exact: true })).toBeVisible();
     await page.goto("/integrations");
     await expect(
       page.getByRole("button", { name: "Open Web settings", exact: true }),

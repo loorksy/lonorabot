@@ -23,7 +23,7 @@ here with what its chat path is missing.
 
 `thread.tsx`, `group-thread.tsx`, `artifact.tsx`, `image.tsx`, and the screens opened from a
 conversation's menu: `artifacts.tsx`, `routine.tsx`, `group-settings.tsx`, `skills.tsx`,
-`bot-settings.tsx`.
+`bot-settings.tsx` (the generated-interface route `files` opens `artifacts.tsx`).
 
 `bot-settings.tsx`, with `components/account-authority-settings.tsx` and
 `components/supervision-settings.tsx`, is named in 14.1.4: its removed features are another
@@ -33,8 +33,7 @@ worker's removal.
 
 | Route | Chat path |
 |---|---|
-| `new.tsx` (create an agent from a template) | `agent_create` (`packages/tools/src/lonora_tools/agents.py`): the same service as `POST /agents/create`; without the owner's message it becomes a card |
-| `(settings)/models.tsx` (models and providers, read-only) | `model_list` and `model_request` (`packages/tools/src/lonora_tools/models.py`) |
+| `new.tsx` (create an agent from a template) | `agent_create` (`packages/tools/src/lonora_tools/agents.py`): the same service as `POST /agents/create`; without the owner's message it becomes a card. The avatar and colour, which the screen set at creation, are set in the agent's settings inside its conversation (`bot-settings.tsx`) |
 
 ## Kept, tracked: outside conversations with no complete chat path
 
@@ -45,5 +44,6 @@ worker's removal.
 | `new-group.tsx` | create a group | no tool creates a group |
 | `(settings)/integrations.tsx` | capabilities, trusted MCP servers and sources, skill revocations, delete an integration | no tool revokes or restores a trusted source or deletes an integration |
 | `(settings)/voice.tsx` | voice status, reach-me, ringing device, quiet hours, reply language | `owner_preferences_update` sets reach-me, reply language and quiet hours; nothing chooses the ringing device or reads the voice transport status |
-| `(settings)/account.tsx` | email, server, app language, usage, sign-out | usage works (`usage_read`); the app language and sign-out are device actions with no chat path |
+| `(settings)/models.tsx` | the global model routing (unified or per capability) and which providers are configured, read-only | `model_list` reads one agent's model and the connected providers and `model_request` changes a model; nothing reads the global routing mode or the per-capability routes |
+| `(settings)/account.tsx` | email, server, app language, usage, sign-out | usage works (`usage_read`); the app language and sign-out are device actions with no chat path; the generated-interface route `usage` opens this screen |
 | `(tabs)/settings.tsx` | the hub: the theme and the way to the screens above | the theme is a device setting; it is also the only way to «ما أعرفه عنك» and «ما الذي يعمل», which need another entry before the hub goes |

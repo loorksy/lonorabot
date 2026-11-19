@@ -317,20 +317,6 @@ const STATES = [
     appSettle: 2500,
     app: async () => {},
   },
-  {
-    name: "new-agent-template",
-    ref: (page) =>
-      refRun(page, () => {
-        newType = "عام";
-        newSup = false;
-        newAppearance = defaultAppearance();
-        go("agent-type", { item: null });
-      }),
-    appPath: "/new",
-    appReady: "body",
-    appSettle: 2500,
-    app: async () => {},
-  },
 ];
 
 /* ------------------------------------------------------------------ diff (canvas, no pixelmatch) */

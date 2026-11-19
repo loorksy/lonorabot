@@ -46,6 +46,7 @@ export function flexibleAgentUi(mobile) {
             headers,
             data: { template: "general", name, responsibility: "Flexible general agent" },
           });
+          expect(response.status()).toBe(201);
         } else {
           await page.goto("/app/");
           await page

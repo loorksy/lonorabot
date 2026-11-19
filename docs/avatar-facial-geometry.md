@@ -85,7 +85,7 @@ The screenshots are browser rasterizations at known CSS sizes. At 40px and 64px,
 | Shared geometry, face catalog, motion and contracts | `packages/core/src/trading-avatar-motion.js`, `packages/core/src/trading-avatar-motion.d.ts`, `packages/core/src/avatar-motion.ts` |
 | Shared Web renderer | `packages/ui-web/src/trading-avatar.tsx`, `packages/ui-web/src/agent-avatar.tsx` |
 | Web Studio and profile/create forms | `apps/web/src/components/ai/AvatarStudio.tsx`, `apps/web/src/components/ai/avatar-studio.css`, `apps/web/src/pages/shell/bot-panel.tsx`, `apps/web/src/pages/shell/bot-settings.tsx` |
-| Native Studio and renderer | `apps/mobile/components/avatar-picker.tsx`, `apps/mobile/components/bot-avatar.tsx`, `apps/mobile/app/new.tsx` |
+| Native Studio and renderer | `apps/mobile/components/avatar-picker.tsx`, `apps/mobile/components/bot-avatar.tsx` |
 | Existing-language labels | `apps/web/src/i18n/locales/ar/messages.po`, `apps/web/src/i18n/locales/en/messages.po`, `apps/mobile/lib/i18n.ts` |
 | Automated regression and visual capture | `tests/web/avatar-motion.test.ts`, `tests/web/avatar-studio.spec.mjs`, `tests/mobile/avatar.spec.mjs`, `scripts/capture-avatar-refinement.mjs` |
 | Review artifacts | This report and `docs/visual/avatar-refinement/` |

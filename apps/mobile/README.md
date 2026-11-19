@@ -53,7 +53,7 @@ The export lives in `apps/mobile/dist`. Serve it with an `/api` proxy to Lonora 
 
 - Arabic first and English, with RTL layout and logical Inbox → thread navigation.
 - Live server roster and activity, groups, toolbar search, creation/actions sheets and pull to refresh.
-- Agent creation/profile editing with name, title, description, shared avatar shapes/color, instructions and pause state; group creation with real members.
+- Agent profile editing with name, title, description, shared avatar shapes/color, instructions and pause state (an agent is created from chat, mandate P5); group creation with real members.
 - Continuous existing thread history, older-message pagination, sending, stable retry nonce, server run status, cancellation and takeover resume.
 - Native/Web file selection and real server upload, attachments shown in messages.
 - Editable agent identity/instructions/pause and versioned persistent memory; editable group membership.
