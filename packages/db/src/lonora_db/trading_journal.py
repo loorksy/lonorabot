@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .execution_receipts import post_receipt
 from .schema import RunRow, ThreadRow, TradingJournalRow
 
 # Facts the execution boundary recorded itself: never replaced by a broker receipt.
@@ -129,6 +130,9 @@ async def persist_result(
     row.status = status
     row.result = validated.model_dump(mode="json")
     row.updated_at = utcnow()
+    if status == "confirmed":
+        # The broker's confirmation and its Execution Receipt commit together (11.2).
+        await post_receipt(session, row)
     return True
 
 
