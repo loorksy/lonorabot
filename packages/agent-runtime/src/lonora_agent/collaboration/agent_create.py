@@ -210,6 +210,10 @@ async def delete_created_agent(
     from lonora_trading.ticket_transfer import opened_tickets, wake_lonora
 
     await authority_lock(session, agent_id)
+    from lonora_db.management_task import end_management_task
+
+    # Its Full-mode task ends before the agent's row lock (the task's Runs first).
+    await end_management_task(session, owner_id, agent_id)
     await owned_agent(session, owner_id, agent_id, lock=True)
     await forget_links(session, owner_id, agent_id)
     tickets = await opened_tickets(session, owner_id, agent_id)

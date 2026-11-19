@@ -23,10 +23,12 @@ team agent passes on the owner's request for an agent.
 | `market` | An instrument to assign, as the broker names it |
 | `account_id` | An account to assign, or the one the owner chose among several |
 | `mode` | The mode the owner named (`full` or `ask`), or `ask` to create it in Ask |
+| `model` | Optional, the model the owner named: any catalog model of a connected provider (otherwise `agent_model_not_available`). A model the owner's typed words do not name, or one named outside a turn the owner typed, is dropped (`model_dropped`) |
 
 Every new agent is a flat team agent: `parent_id` null, `scope_mode` flexible, role
-`general`, `template` null, no account or symbol binding. It uses Lonora's current model
-(a copy of Lonora's assignment, attributed to Lonora) until the owner assigns another.
+`general`, `template` null, no account or symbol binding. Without a model the owner
+named, it uses Lonora's current model (`agent_models.inherit_lead_model`, a snapshot of
+Lonora's stored choice) until the owner assigns another.
 No grant and no `AccountAuthority` row is ever created.
 
 ### The assigned market is a method instruction

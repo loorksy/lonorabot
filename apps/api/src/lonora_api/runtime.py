@@ -23,7 +23,6 @@ class ApiRuntime:
                 self.db,
                 owner_id,
                 self.settings.encryption_key.get_secret_value(),
-                workspace_socket=self.settings.workspace_socket,
                 mcp_declarations=self.settings.mcp_declarations,
                 mcp_owner_trust=self.settings.mcp_owner_trust,
                 searxng_url=self.settings.searxng_url,

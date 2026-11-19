@@ -18,7 +18,7 @@ from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote
 from lonora_contracts.runs import Lease
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
@@ -33,7 +33,6 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_db.trading_journal import persist_result, reserve_operation
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.execution import ExecutionService
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import journal_data
@@ -198,7 +197,6 @@ def database() -> Database:
 
 async def checks() -> None:
     db = database()
-    original_controls = await read_controls(db)
     accounts: list[str] = []
     operations: list[str] = []
     agent_id: str | None = None
@@ -228,7 +226,6 @@ async def checks() -> None:
                     },
                 )
                 accounts.append(account.id)
-        await save_controls(db, TradingControl(enabled=True))
         broker.account_id = accounts[0]
 
         def request(account: str | None = None, symbol: str = "FIXTURE") -> TradeRequest:
@@ -361,21 +358,8 @@ async def checks() -> None:
         broker.mode = "confirmed"
         assert await reconcile_ambiguous(db, manager) == 2
 
-        # Emergency-stop and account disable arriving during broker preparation block send.
-        blocked = request()
+        # An account disable arriving during broker preparation blocks send.
         sent_before = broker.sent
-
-        async def stop() -> None:
-            await save_controls(db, TradingControl(emergency_stop=True))
-
-        broker.before = stop
-        result = await service.execute(owner_id, blocked)
-        assert (
-            result.status == "failed"
-            and result.code == "emergency_stop"
-            and broker.sent == sent_before
-        )
-        await save_controls(db, TradingControl(enabled=True))
 
         async def disable() -> None:
             async with db.sessions() as session, session.begin():
@@ -620,7 +604,6 @@ async def checks() -> None:
             "Trading: 19 PostgreSQL/scripted-broker safety scenarios passed; no live broker calls"
         )
     finally:
-        await save_controls(db, original_controls)
         async with db.sessions() as session, session.begin():
             await session.execute(
                 delete(TradingJournalRow).where(TradingJournalRow.operation_id.in_(operations))

@@ -27,6 +27,12 @@ async def main() -> None:
             },
         )
         assert saved["revision"] == 1 and saved["agent_id"] == agent["id"]
+        # The owner's choice; no mode is stored or accepted.
+        assert saved["chosen_by"] == "owner" and "mode" not in saved
+        moded = await fixture.client.put(
+            "/api" + path, json={"mode": "automatic", "expected_revision": 1}
+        )
+        assert moded.status_code == 422
         stale = await fixture.client.put(
             "/api" + path,
             json={"primary": {"provider": "openai", "model": "gpt-4o"}, "expected_revision": 0},

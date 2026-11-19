@@ -25,13 +25,11 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import TradeApprovalRow, TradingJournalRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from sqlalchemy import func, select
 
 GOLD = "XAUUSDm"
@@ -70,10 +68,8 @@ def snapshot() -> dict[str, Any]:
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     registry = load_tools()
     try:
-        await save_controls(db, TradingControl(enabled=True))
         connection = await fixture.request(
             "POST",
             "/trading/connections",
@@ -141,7 +137,7 @@ async def main() -> None:
         assert decided["status"] == "confirmed", decided
         assert decided["result"]["allow_manual_positions"] is False, decided
         # The settled card shows what was signed: no daily loss limit by the owner's
-        # choice, nothing replaced (a first grant), new trading not stopped.
+        # choice, nothing replaced (a first grant).
         cards = cast(
             list[dict[str, Any]],
             await fixture.request("GET", "/owner-actions?thread_id=" + lonora_context.thread_id),
@@ -151,7 +147,7 @@ async def main() -> None:
         assert daily["proposed"] is None and daily["current"] is None, daily
         assert settled["facts"]["replaces"] is None, settled["facts"]
         assert settled["facts"]["grant"]["allow_manual_positions"] is False
-        assert settled["facts"]["global_trading"]["state"] != "stopped", settled["facts"]
+        assert "global_trading" not in settled["facts"], settled["facts"]
         print(
             "PASS a signed grant card keeps showing what was signed: no daily loss limit, nothing replaced"
         )
@@ -321,7 +317,6 @@ async def main() -> None:
             "PASS a trade over a signed grant's own cap becomes an approval card, never a refusal, and the tap sends it under that approval"
         )
     finally:
-        await save_controls(db, original)
         await fixture.close()
 
 

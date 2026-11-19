@@ -6,6 +6,7 @@ reachable by a model.
 """
 
 import hashlib
+from dataclasses import dataclass
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.push import PushDeviceRegistration
@@ -16,6 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import aware
 from .schema import PushDeviceRow, SessionRow
+
+
+@dataclass(frozen=True)
+class PushDevice:
+    id: str
+    device_id: str
+    platform: str
+    token: str
 
 
 def push_token_hash(token: str) -> str:
@@ -82,3 +91,58 @@ async def remove_device(session: AsyncSession, owner_id: str, device_id: str) ->
 
 async def remove_session_devices(session: AsyncSession, session_hash: str) -> None:
     await session.execute(delete(PushDeviceRow).where(PushDeviceRow.session_hash == session_hash))
+
+
+async def live_devices(
+    session: AsyncSession, owner_id: str, cipher: SecretCipher
+) -> list[PushDevice]:
+    """The phones a push may go to: those whose registering session was not signed out.
+
+    An expired session still receives push: a mobile session has an absolute lifetime, and
+    the phone must stay reachable while the app is closed (11.4). The push carries no
+    secret (the agent's name and fixed text), and signing out (revocation) ends it."""
+    rows = await session.scalars(
+        select(PushDeviceRow)
+        .join(SessionRow, SessionRow.token_hash == PushDeviceRow.session_hash)
+        .where(
+            PushDeviceRow.owner_id == owner_id,
+            SessionRow.revoked.is_(False),
+        )
+        .order_by(PushDeviceRow.created_at, PushDeviceRow.id)
+    )
+    devices: list[PushDevice] = []
+    for row in rows:
+        try:
+            token = cipher.decrypt(row.token_ciphertext)
+        except LonoraError:
+            # A row the current key cannot read (a rotated key) reaches no one, and never
+            # stops the other phones; the app registers it again on its next start.
+            continue
+        devices.append(PushDevice(row.id, row.device_id, row.platform, token))
+    return devices
+
+
+async def prune_signed_out(session: AsyncSession, owner_id: str) -> None:
+    """Delete the phones whose sign-in session was signed out (revoked) by any path, so no
+    token outlives a sign-out even when the route's own deletion did not run."""
+    dead = (
+        select(SessionRow.token_hash)
+        .where(SessionRow.owner_id == owner_id)
+        .where(SessionRow.revoked.is_(True))
+    )
+    await session.execute(
+        delete(PushDeviceRow).where(
+            PushDeviceRow.owner_id == owner_id, PushDeviceRow.session_hash.in_(dead)
+        )
+    )
+
+
+async def push_configured(session: AsyncSession) -> bool:
+    """Readiness: push is configured once a phone that was not signed out is registered."""
+    row = await session.scalar(
+        select(PushDeviceRow.id)
+        .join(SessionRow, SessionRow.token_hash == PushDeviceRow.session_hash)
+        .where(SessionRow.revoked.is_(False))
+        .limit(1)
+    )
+    return row is not None

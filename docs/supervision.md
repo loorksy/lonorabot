@@ -20,12 +20,11 @@ recorded it, `created_at`, and `revoked_at` / `revoked_via`. At most one grant p
 active; a revoked grant stays as the record of what was allowed. Rows cascade with
 either agent.
 
-- **Default.** The migration gives each owner's Personal Agent a `default` grant over
-  every other agent. A Personal Agent created later supervises every agent that already
-  exists (`ensure_personal_agent`), and every agent created afterwards is supervised by
-  it from its creation (`agents.create_agent`, so the owner's form, `agent_create`, child
-  agents and fixtures all get it). A revoked default grant is not recreated, and
-  revoking it no longer limits Lonora, whose reads and control are its lead role.
+- **Default.** The migration gave each owner's Personal Agent a `default` grant over
+  every agent that existed then. No grant is made at creation any more: Lonora reads and
+  steers every team agent by its lead role (`lonora_db.lead`), so a stored default grant
+  only shows on the profiles, and revoking it does not limit Lonora. Lonora's profile
+  offers no new grant.
 - **From one sentence.** `supervision_change` (toolset `collaboration`, long-tail)
   grants or revokes supervision for `supervisor_id` (default: the caller) over
   `supervised_ids`. Oversight for the calling agent itself, or over the Personal Agent,
@@ -85,8 +84,8 @@ its lead role whatever its grant (`lonora_db.lead`), so a revoke never ends Lono
 `agent_control` (toolset `collaboration`, long-tail, replay-safe) pauses or resumes the
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
-It has no action that trades, grants, raises a limit, lifts a restriction or edits
-memory or instructions. Lonora alone also has `cancel_run` (ends the agent's started
+It has no action that trades, grants, raises a limit or edits memory or instructions.
+Lonora alone also has `cancel_run` (ends the agent's started
 runs, never Lonora's own run or its ancestors; a queued run stays) and `set_ask` (the
 same switch as `trading_mode_ask`: Ask, except within an active signed grant's own terms
 until revoked, which `active_signed_grants` counts); a team agent gets
@@ -94,9 +93,7 @@ until revoked, which `active_signed_grants` counts); a team agent gets
 the conversation gate holds an empty reply until Lonora tells the owner in one line what
 it did and why (mandate 3.1.2). Lonora steers every team agent's work by its lead role, with or
 without a grant; any other agent only as its supervisor, whatever message its Run
-answers (`supervision_required`). Narrowing an agent's trading with
-`trade_restriction_create` and its `agent_id` still needs that agent's grant or the
-owner's message, also for Lonora; the owner's message counts only while the Run has
+answers (`supervision_required`). The owner's message counts only while the Run has
 read nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on another
 agent's routine follows the same rules.
 
@@ -114,7 +111,7 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
 - **Never Lonora.** No agent pauses the Personal Agent itself, not even from the
   owner's message (`supervision_personal_agent`, 403): it is the owner's entry point,
   and a paused Lonora would leave the owner's chat without a reply. Only the owner
-  pauses it, from its profile. Reading it, messaging it, narrowing it and pausing its
+  pauses it, from its profile. Reading it, messaging it and pausing its
   routines, watches or Tasks stay open to a supervisor.
 - On its own initiative only the supervisor that set a hold lifts it, while it still
   supervises. A hold set from the owner's message is the owner's (`source='owner'`,
@@ -145,15 +142,15 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   refuses while the owner holds a live pause (a holder-less hold has no place in the
   earlier schema), and the downgrade of `0041_supervision_grants` refuses while a grant
   the owner set (not `default`) or revoked, or any live hold, exists: dropping them
-  would bring a revoked default back on the re-upgrade (Lonora reading an agent the
-  owner took away from it) or resume paused work. A refused downgrade changes nothing.
+  would lose the owner's record of who supervises whom (a revoked grant would come back
+  on the re-upgrade) or resume paused work. A refused downgrade changes nothing.
 - **The owner's pause is the owner's.** The owner pausing work a supervisor holds (the
   agent's switch, the routine's switch, the watch list's Pause or Cancel, the Task's
   Pause, an Undo) keeps the hold and makes it the owner's (`source='owner'`, the
   supervisor kept for attribution): from then on only the owner lifts it; the
   supervisor and the paused agent are refused (`supervision_resume_not_yours`,
-  `work_paused_by_owner`), even from the owner's message, the way only the owner lifts
-  a restriction. The owner resuming or cancelling the work releases it. Saving a form
+  `work_paused_by_owner`), even from the owner's message. The owner resuming or
+  cancelling the work releases it. Saving a form
   with the switch unchanged (renaming a paused agent, editing a paused routine's
   schedule) takes nothing over: the Web and Mobile forms send the switch with every
   save. An owner-held pause is not a pause the supervisor holds for the cycle rule.
@@ -170,25 +167,16 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   it; Keep paused dismisses the card. Once the pause ends anywhere the card stops
   offering Resume, and a tap only settles it (`supervision_pause_ended`); a watch past
   its expiry is resumed from the watch list after moving its expiry (`watch_expired`).
-- **Cycle rule.** An agent cannot pause, or narrow with a restriction, an agent that
-  holds an active pause over it: a live hold on it or its work, or a pause that agent
-  recorded on its own initiative that still binds it (`supervision_cycle`). The owner's
+- **Cycle rule.** An agent cannot pause an agent that holds an active pause over it: a
+  live hold on it or its work (`supervision_cycle`). The owner's
   message in the Run wins over the rule. Observing and messaging stay free in every
   direction.
-- Every pause, resume and narrowing of another agent is a `supervision.intervention`
+- Every pause and resume of another agent is a `supervision.intervention`
   event recorded for both agents.
 - Lock order: cards, then the work (agent, routine or watch row), then its hold, then
   the conversation, and the Run's lease last, the order the owner's card decision and
   message admission take. `agent_control` and a supervised `routine_toggle` take the
   owner-actions lock first.
-
-## Narrowing another agent's trading
-
-`trade_restriction_create` for another agent now needs the owner's message in the Run
-or a grant over that agent; for all agents, the owner's message or a grant over every
-other agent (`restriction_supervision_required`, 403). It also passes the cycle rule.
-Narrowing itself stays free, `all_mutations` on others still needs the owner's
-message, a restriction on others is still time-boxed, and only the owner lifts one.
 
 ## Exposure
 
@@ -230,8 +218,8 @@ profile) do not fit and are promoted after first use like any remembered tool.
 
 ## Verification
 
-- `tests/test_supervision.py`: tool metadata (no financial tool, no trading, authority,
-  restriction-lift or memory writer reachable), input shapes, the coordination set and
+- `tests/test_supervision.py`: tool metadata (no financial tool, no trading, authority
+  or memory writer reachable), input shapes, the coordination set and
   card texts; on PostgreSQL, a peer without a grant still gets `thread_not_found`,
   `run_not_found` and `supervision_required`; a grant opens labelled reads of threads,
   decisions, runs and memory (an injected instruction stays inside a labelled record);
@@ -239,10 +227,9 @@ profile) do not fit and are promoted after first use like any remembered tool.
   refused a whole-agent pause by a team supervisor on a routine wake, paused by Lonora on
   its own and from the owner's message; Lonora
   never paused by another agent; the pause card with its facts, Resume as the owner's own
-  and its stale settle; restricting another agent without a grant or owner message is
-  403; supervision from a card and from a sentence with Undo; the supervised agent refused
-  revoking its own oversight and a revoke from chat restored from its card; the Personal
-  Agent's default grant on a new agent.
+  and its stale settle; supervision from a card and from a sentence with Undo; the supervised agent refused
+  revoking its own oversight and a revoke from chat restored from its card; no default
+  grant on a new agent.
 - `tests/test_pauses.py` (the owner's pauses, `lonora_db.pauses`): holds kept by their
   supervisor, the cycle rule and the owner's message overriding it; a rename that keeps
   the switch leaves the supervisor's hold; the owner's pause becoming the owner's
@@ -251,11 +238,11 @@ profile) do not fit and are promoted after first use like any remembered tool.
   cancelled watch staying cancelled; the owner's own pause or cancel never lifted by the
   agent; a deleted supervisor's pauses kept as the owner's.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
-  round trip, a Personal Agent created after other agents, a later agent; a real Run in
+  round trip; no grant at creation; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the
   records through natively offered `agent_inspect` and `session_search`, with nothing of
   the gold agent in its context beforehand, and still answered after the owner revokes
   Lonora's default grant (its lead role).
 - `tests/web/supervision.test.ts` (the supervise, Undo, Restore and pause cards in
   Arabic and English) and Playwright `supervision` (Web and Mobile, Arabic and English):
-  the cards, the profile rows, Stop and Supervise.
+  the cards, the profile rows and Stop.

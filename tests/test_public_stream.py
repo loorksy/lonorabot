@@ -17,13 +17,13 @@ def test_safe_sentences_arrive_before_completion():
 @pytest.mark.parametrize(
     "text",
     [
-        "My tools include market_quote and workspace_execute. ",
+        "My tools include market_quote and workspace_run. ",
         "أدواتي تشمل قراءة السوق وتحليل الملفات. ",
         "The API emitted an event; broker_reconciliation_pending is a diagnostic code. ",
     ],
 )
 def test_catalog_and_technical_vocabulary_can_stream(text: str):
-    stream = PublicStream({"market_quote", "workspace_execute"}, set(), enabled=True)
+    stream = PublicStream({"market_quote", "workspace_run"}, set(), enabled=True)
     assert stream.feed(text) == text
     assert stream.sent == text
 

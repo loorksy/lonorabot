@@ -8,11 +8,11 @@
 # always describes the schema the target release migrated to.
 #
 # Owner controls, authority and money records. If any of them changed while a new version
-# ran, restoring the pre-update backup could undo an owner's pause, restriction or
+# ran, restoring the pre-update backup could undo an owner's pause or
 # revocation, or erase the record of an order already at the broker: the rollback holds.
 # Every part is read only when its table exists, so a table a release dropped never makes
 # the records unreadable.
-CONTROL_TABLES=(ln_trading_restrictions ln_account_authorities ln_supervision_grants ln_supervision_holds ln_owner_actions ln_trade_approvals ln_trading_journal)
+CONTROL_TABLES=(ln_account_authorities ln_supervision_grants ln_supervision_holds ln_owner_actions ln_trade_approvals ln_trading_journal)
 
 # A digest of the rows a query selects, each row hashed on its own so the aggregate stays
 # small whatever the table size; "absent" when the table does not exist; empty (and
@@ -28,8 +28,8 @@ control_part() { # $1 table, $2 row expression over t, $3 WHERE clause (optional
     psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5($2) AS h FROM $1 t ${3:-}) r"
 }
 
-# One sha256 of every owner-control, authority and money record (whole rows), the trading
-# settings rows, the owner's pauses of agents and tasks, the broker connections'
+# One sha256 of every owner-control, authority and money record (whole rows), the owner's
+# pauses of agents and tasks, the broker connections'
 # enabled flags and the owner's own messages. Empty when the database cannot be read.
 control_fingerprint() {
     local table part all=""
@@ -42,7 +42,6 @@ control_fingerprint() {
     for table in "${CONTROL_TABLES[@]}"; do
         control_add "$table" "$table" 't::text' || return 0
     done
-    control_add settings ln_settings 't::text' "WHERE key LIKE 'trading%'" || return 0
     control_add agent_pauses ln_agents "t.id || ':' || t.paused::text" 'WHERE t.paused' || return 0
     control_add connections ln_broker_sessions "t.id || ':' || coalesce(t.payload->>'enabled', '')" || return 0
     # A Task's state lives under state->'task' (lonora_db.tasks).

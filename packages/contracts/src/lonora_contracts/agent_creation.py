@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from .domain import Contract
+from .model_routing import ModelSelection
 from .trading import TradingMode
 
 # How a persistent agent came to exist: the owner's form, or Lonora (from the owner's
@@ -55,6 +56,10 @@ class AgentCreateInput(Contract):
         default=None,
         description="The mode the owner named for it; ask to create it in Ask on your own. "
         "Omit when no mode was named.",
+    )
+    model: ModelSelection | None = Field(
+        default=None,
+        description="Optional: the model the owner named; omit for Lonora's current one.",
     )
 
     @model_validator(mode="after")

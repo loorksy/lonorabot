@@ -1,4 +1,4 @@
-"""The owner's model choice per Agent: Automatic (Lonora chooses) or Fixed (one model).
+"""The owner's model choice per Agent: any model of a connected provider's catalog.
 
 It orders models and never grants authority; changing it repeats nothing.
 """
@@ -13,11 +13,10 @@ from lonora_contracts.model_routing import AgentModelChange, AgentModelRecord, C
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import (
     agent_model_record,
-    allowed_models,
     catalog_models,
     change_agent_model,
+    model_label,
 )
-from lonora_db.model_cards import model_label
 from lonora_db.usage import agent_usage
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.registry import PROVIDERS
@@ -51,8 +50,8 @@ async def update(
 async def summary(
     request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
-    """Everything the model card shows: the choice, the model answering now, the allowed
-    models, the models a Fixed choice can pick, and this agent's usage."""
+    """Everything the model card shows: the choice, the model answering now, the models
+    the owner can pick, and this agent's usage."""
     rt = runtime(request)
     services = rt.services(owner.id)
     async with rt.db.sessions() as session:
@@ -71,13 +70,11 @@ async def summary(
     since = utcnow() - timedelta(days=USAGE_DAYS)
     async with rt.db.sessions() as session:
         record = await agent_model_record(session, owner.id, agent_id)
-        allowed = await allowed_models(session)
         available = await catalog_models(session, connected)
         usage = await agent_usage(session, owner.id, since, agent_id)
         return {
             "record": record.model_dump(mode="json"),
             "current": await model_label(session, current),
-            "allowed": [await model_label(session, item) for item in allowed],
             "available": available,
             "connected_providers": connected,
             "usage": {

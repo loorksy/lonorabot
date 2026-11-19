@@ -14,7 +14,6 @@ from typing import Any, cast
 import pytest
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_tools.loader import load_tools
 from test_proactive_wakes import call, database, retire, simulation
@@ -63,14 +62,11 @@ async def test_a_card_carries_reason_and_tolerance_and_drifts_once_outside() -> 
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow
     from lonora_trading.approval_drift import check_drift
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Validity", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         entry = {**ENTRY, "account_id": connection}
@@ -132,7 +128,6 @@ async def test_a_card_carries_reason_and_tolerance_and_drifts_once_outside() -> 
         assert answer["status"] == "drifted" and answer["code"] == "trade_approval_drifted"
         assert "outside" in answer["recovery"] and asked["approval_id"] in answer["recovery"]
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -143,14 +138,11 @@ async def test_approve_reads_the_quote_and_refuses_a_card_outside_its_band() -> 
     database()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Validity at approve", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         asked = await same_call(
@@ -191,7 +183,6 @@ async def test_approve_reads_the_quote_and_refuses_a_card_outside_its_band() -> 
             row = await session.get(TradeApprovalRow, asked["approval_id"])
             assert row is not None and row.status == "drifted"
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -205,14 +196,11 @@ async def test_a_reused_card_that_ended_is_decided_again_with_its_tolerance(
     database()
     from check_streaming import Fixture
     from lonora_tools import trade
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Validity reuse", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         answers = iter([True])
@@ -225,7 +213,6 @@ async def test_a_reused_card_that_ended_is_decided_again_with_its_tolerance(
         with pytest.raises(ToolRefusal, match="tolerance_required"):
             await same_call(context, "reuse", **ENTRY, account_id=connection, reason="Retest")
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -236,14 +223,11 @@ async def test_the_reason_never_changes_the_operation_and_the_journal_keeps_it()
     from check_streaming import Fixture
     from lonora_db.schema import TradingJournalRow
     from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Annotated", supervised=True)
         async with fixture.runtime.db.sessions() as session, session.begin():
             await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
@@ -260,7 +244,6 @@ async def test_the_reason_never_changes_the_operation_and_the_journal_keeps_it()
             assert row.annotation == {"reason": "First", "tolerance": None}
             assert "reason" not in row.request
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -270,15 +253,12 @@ async def test_the_agent_withdraws_its_own_card() -> None:
     database()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import func, select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Withdraws", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         asked = await call(
@@ -318,7 +298,6 @@ async def test_the_agent_withdraws_its_own_card() -> None:
         )
         assert late.status_code == 409
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -346,15 +325,12 @@ async def test_a_key_lets_an_intentional_second_identical_order_through() -> Non
     from check_streaming import Fixture
     from lonora_db.schema import TradingJournalRow
     from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import func, select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Scales in", supervised=True)
         async with fixture.runtime.db.sessions() as session, session.begin():
             await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
@@ -377,6 +353,5 @@ async def test_a_key_lets_an_intentional_second_identical_order_through() -> Non
             )
         assert sent == 2, sent
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
