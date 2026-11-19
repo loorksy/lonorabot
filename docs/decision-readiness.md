@@ -22,8 +22,7 @@ action/gate behavior while adding optional `readiness`:
 - Execution readiness is BLOCKED or REVALIDATION_REQUIRED, never executable
   permission. Controls, broker recovery, account state and evidence failures
   remain visible; the executor must recheck current authorization, instrument,
-  exposure, risk, quality, idempotency and reconciliation immediately before any
-  mutation.
+  quality, idempotency and reconciliation immediately before any mutation.
 
 An unrelated account/order read failure can block execution without erasing a
 grounded market interpretation. Read-only transient observations have one

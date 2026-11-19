@@ -135,7 +135,10 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
     ran = {row["step"]: row for row in report if row["state"] in {"pass", "known defect"}}
     assert {"4a", "4c", "5", "7a"} <= set(ran)
     # Today's stand-ins are said, never passed off as the step itself.
-    assert all("partial" in ran[step] for step in ("4a", "4c", "5", "7a"))
+    assert all("partial" in ran[step] for step in ("4a", "5", "7a"))
+    # The step's own actor: the gold agent in Full sent the close, no stand-in.
+    assert "partial" not in ran["4c"]
+    assert {row["check"]: row["ok"] for row in ran["4c"]["checks"]}[acceptance.GOLD_SENT]
     # A defect is held strictly: its step fails exactly the checks it names, and a fixed
     # defect (the step passes) must leave the scenario file in the same change.
     for row in report:
