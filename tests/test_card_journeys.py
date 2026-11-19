@@ -18,7 +18,6 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.account import Position
 from lonora_contracts.account_authority import ALL_AUTHORITY_ACTIONS
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
 from test_proactive_wakes import call, database, retire, simulation
@@ -40,15 +39,11 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
     database()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow, TradingJournalRow
-    from lonora_db.trade_approvals import APPROVAL_LIFETIME
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     connection = ""
     try:
-        await save_controls(db, TradingControl(enabled=True))
         connection = await simulation(fixture, [])
         agent = await fixture.agent("Ask me", supervised=True)
         thread = await fixture.conversation(agent)
@@ -59,6 +54,8 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
+            "reason": "Fixture entry",
         }
         tool_call = ToolCall(id="buy-" + uuid4().hex, name="trade_execute", arguments=entry)
         registry = load_tools()
@@ -67,9 +64,10 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
         approval_id = asked["approval_id"]
         async with db.sessions() as session, session.begin():
             row = await session.get(TradeApprovalRow, approval_id, with_for_update=True)
-            assert row is not None and row.expires_at is not None
-            assert row.expires_at - row.created_at == APPROVAL_LIFETIME
-            # Its lifetime ends unapproved.
+            assert row is not None
+            # A new card has no time limit; a card stored before the lifetime was removed
+            # keeps its stored expiry, and past it can never be approved.
+            assert row.expires_at is None
             row.expires_at = utcnow() - timedelta(seconds=1)
         status, refused = await raw(
             fixture, "POST", f"/trading/approvals/{approval_id}/decision", {"decision": "approve"}
@@ -123,7 +121,6 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
             ):
                 item.status = "cancelled"
     finally:
-        await save_controls(db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -259,14 +256,11 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
     from lonora_contracts.owner_actions import GrantDraft
     from lonora_db.owner_actions import grant_proposal
     from lonora_db.schema import AccountAuthorityRow, OwnerActionRow
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     connection = ""
     try:
-        await save_controls(db, TradingControl(enabled=True))
         held = Position(
             id="held-ticket",
             symbol="XAUUSD",
@@ -352,7 +346,6 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
         assert (grant["symbol_scope"], grant["symbols"]) == ("selected", ["XAUUSD"])
         assert grant["all_actions"] and grant["duration"] == "until_stopped"
         assert grant["allow_manual_positions"] is True and grant["full_available"] is False
-        assert drafted["payload"]["daily_loss"] is None
         # Unsigned, it grants nothing; confirming without the passkey is refused.
         assert await active(fixed["id"]) == [] and await level(fixed["id"]) == before
         status, refused = await raw(
@@ -381,7 +374,7 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
         assert replaced["status"] == "superseded"
         assert replaced["superseded_by"] == custom["owner_action"]["id"]
         device = await Device.enroll(fixture)
-        await sign(custom["owner_action"]["id"], device, money_limit="none")
+        await sign(custom["owner_action"]["id"], device)
         [signed] = await active(fixed["id"])
         # The grant is exactly the draft: closing only, on its pair, for 24 hours.
         assert signed.envelope["actions"] == ["close_position"]
@@ -400,13 +393,11 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
                 "thread_id": flexible_thread["id"],
                 "symbols": ["XAUUSD"],
                 "allow_manual_positions": True,
-                "daily_loss_amount": "250",
             },
         )
         assert status == 201, other
         conflicts = other["owner_action"]["facts"]["conflicts"]
         assert [item["authority_id"] for item in conflicts] == [signed.id]
-        assert other["owner_action"]["facts"]["money"]["daily_loss"]["proposed"] == "250"
         decided = await sign(other["owner_action"]["id"], device, stop_authorities=[signed.id])
         assert decided["result"]["stopped_authorities"] == [signed.id]
         assert await active(fixed["id"]) == []
@@ -447,6 +438,5 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
         status, refused = await raw(fixture, "POST", f"/owner-actions/{notice['id']}/renew")
         assert (status, refused["code"]) == (409, "owner_action_not_renewable")
     finally:
-        await save_controls(db, original)
         await retire(fixture, connection)
         await fixture.close()

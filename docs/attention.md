@@ -10,7 +10,7 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 |---|---|---|---|
 | `trade_approval` | `approval_required` | a Trade Approval card becomes pending | the card is no longer pending |
 | `settle_operation` | `operation_uncertain` | an operation becomes ambiguous (its Settle card is raised from the same event) | the operation is no longer ambiguous, or its Settle card ended (answered, superseded or expired) |
-| `secret_request` | `secret_requested` | a `connect_credential` card becomes pending | the card is no longer pending, or its lifetime ran out |
+| `secret_request` | `secret_requested` | a Secret card (`secret`) becomes pending | the card is no longer pending, or its lifetime ran out |
 | `broker_health` | `broker_token_rejected` | the account is disconnected with `broker_credentials_rejected` | the account is no longer disconnected with that problem, or its connection is disabled or removed |
 | `broker_health` | `broker_account_undeployed` | the account is disconnected with `broker_account_undeployed` or `broker_account_not_found` | the same |
 | `broker_health` | `broker_connection_lost` | the account has been disconnected for any other reason for 2 minutes (`LOST_CONNECTION_GRACE`) | the same |
@@ -34,3 +34,26 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 - Broker health items open in Lonora's conversation, with `account_id`, `since` and the
   adapter's `reason_code` in their parameters; the owner text names the problem
   (`lonora_bus/attention_messages.json`).
+
+## Lonora's system alerts
+
+Lonora receives the system alerts (mandate 3.1.5, 9.4): each broker health problem and
+each uncertain operation wakes Lonora once (`lonora_db/system_alerts.py`). On every
+attention tick, `wake_for_alerts` wakes Lonora for each open alert item it has not been
+woken for yet.
+
+- The wake is a Run of Lonora with trigger `broker_event` in a new work thread, with
+  `origin_thread_id` set to Lonora's conversation, so its non-empty answer is posted
+  there (`outcome_return`). Its id is derived from the problem (`alert_key`: the code,
+  account and outage start, or the operation id), so the same problem never wakes
+  Lonora twice: not across gateways, nor when its item is raised again in the same
+  outage after the connection was disabled and enabled.
+- Its prompt is fixed server text that names only server values (the problem, the
+  account or operation id, the adapter's reason code, the start time). No text from a
+  model, a peer, a page or the owner reaches it.
+- It keeps Lonora's normal authority: it is not observe-only.
+- A paused Lonora is not woken (4.7); the owner still has the item, and Lonora is woken
+  for it on the first tick after it resumes, while the problem still stands. A wake
+  that fails is logged and tried again on a later tick.
+- An uncertain operation delivered without its record (its projection kept failing,
+  `quarantine_event`) names no operation, so it wakes nobody; the owner has the item.

@@ -2,6 +2,7 @@ import type { Agent, Artifact, Message } from "@lonora/contracts";
 import { callPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { fill } from "../lib/i18n";
 import { isOutgoingMessage, outgoingUploads } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
 import { useShellColors } from "../lib/theme";
@@ -34,8 +35,14 @@ export function MessageBubble({
   onReactions,
   onQuote,
   onCancelUploads,
+  onCallBack,
+  flash = false,
   mark = null,
 }: {
+  /** A call log: a tap calls the agent back (as Web's call bubble). */
+  onCallBack?: () => void;
+  /** The message a jump landed on: tinted for a moment (as Web's flash). */
+  flash?: boolean;
   /** ✕ on a sent message's upload ring: the message, never posted, is removed. */
   onCancelUploads?: (nonce: string) => void;
   /** Long press: the message menu (reactions and actions). */
@@ -44,7 +51,7 @@ export function MessageBubble({
   onReactions?: (message: Message) => void;
   /** A tap on the quoted message: jump to it. */
   onQuote?: (message: Message) => void;
-  /** Rule N on a card's send that never ran (GENUI_PLAN §8.2), from core `submitMark`. */
+  /** Rule N on a card's send that never ran (docs/genui.md §7), from core `submitMark`. */
   mark?: "superseded" | "not_run" | null;
   message: Message;
   body?: ReactNode;
@@ -85,6 +92,7 @@ export function MessageBubble({
       : null;
   return (
     <Pressable
+      testID={flash ? "message-flash" : undefined}
       onLongPress={() => (onMenu ? onMenu(message) : onReply?.(message))}
       accessibilityActions={[
         ...(onReply ? [{ name: "reply", label: t("reply") }] : []),
@@ -97,9 +105,10 @@ export function MessageBubble({
       style={{
         alignSelf: isOwner ? (rtl ? "flex-start" : "flex-end") : "stretch",
         maxWidth: isOwner ? "88%" : "100%",
-        backgroundColor: isOwner ? shell.chatUser : "transparent",
+        backgroundColor: flash ? shell.muted : isOwner ? shell.chatUser : "transparent",
+        ...(flash ? { borderWidth: 1, borderColor: shell.link } : {}),
         borderRadius: 18,
-        padding: isOwner ? 14 : 0,
+        padding: isOwner || flash ? 14 : 0,
         gap: 8,
       }}
     >
@@ -193,9 +202,23 @@ export function MessageBubble({
         ) : message.content ? (
           <Markdown content={peerOutcome(message.content).body} onChartLink={onChartLink} />
         ) : partLine ? (
-          <Text style={{ color: shell.secondary, fontSize: 14, writingDirection: "auto" }}>
-            {partLine}
-          </Text>
+          call && onCallBack ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={fill(t("callBack"), partLine)}
+              onPress={onCallBack}
+              testID="call-back"
+              style={{ minHeight: 44, justifyContent: "center" }}
+            >
+              <Text style={{ color: shell.link, fontSize: 14, writingDirection: "auto" }}>
+                {partLine}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={{ color: shell.secondary, fontSize: 14, writingDirection: "auto" }}>
+              {partLine}
+            </Text>
+          )
         ) : null))
       )}
       {mark ? (

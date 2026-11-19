@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -192,6 +193,7 @@ class AgentRow(Base):
             "role IN ('personal','general','specialist','delegated','legacy')", name="ln_agent_role"
         ),
         CheckConstraint("scope_mode IN ('fixed_market','flexible')", name="ln_agent_scope_mode"),
+        CheckConstraint("trading_mode IN ('full','ask')", name="ln_agent_trading_mode"),
         CheckConstraint(
             "template IS NULL OR template IN ('trading','general','research','supervisor')",
             name="ln_agent_template",
@@ -221,6 +223,11 @@ class AgentRow(Base):
         ),
     )
     role: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
+    # Full or Ask (mandate 4.1). Only the owner's tap on the Mandate card sets Full.
+    trading_mode: Mapped[str] = mapped_column(String(8), default="ask", server_default="ask")
+    # The owner's standing instruction in chat to manage every position (mandate 3.3.4):
+    # the agent may act on tickets it does not own. Set and revoked from the owner's words.
+    manages_all_positions: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     # The creation template (trading, general, research, supervisor). None for the
     # personal agent and delegated helpers, whose role is their type.
     template: Mapped[str | None] = mapped_column(String(16))
@@ -291,7 +298,7 @@ class MessageRow(Base):
     # Edit and resend (Q21): the original owner message this one replaces; both stay.
     edited_from: Mapped[str | None] = mapped_column(String(36), index=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    # Who wrote it (GENUI_PLAN §8.4): ``owner``, ``ui_submit`` (a card's send, text composed
+    # Who wrote it (docs/genui.md): ``owner``, ``ui_submit`` (a card's send, text composed
     # by the server) or ``ui_follow_up`` (a v1 follow-up tap). Only ``owner`` is the owner's
     # own words for any owner-words check.
     origin: Mapped[str] = mapped_column(String(16), default="owner", server_default="owner")
@@ -511,6 +518,27 @@ class OwnerProfileRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class OwnerSignalRow(Base):
+    """What the owner did, recorded by the server as it happened (8.1): append-only.
+
+    Plain ids, no foreign keys to threads or agents: a signal outlives what it names.
+    The owner model reads these; nothing here grants tools, permissions or authority.
+    """
+
+    __tablename__ = "ln_owner_signals"
+    __table_args__ = (
+        CheckConstraint("kind IN ('thread_read','external_close')", name="ln_owner_signals_kind"),
+        Index("ix_ln_owner_signals_owner_time", "owner_id", "observed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(24))
+    thread_id: Mapped[str | None] = mapped_column(String(36))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class MemoryRevisionRow(Base):
     """One commit's prior and resulting text and its author; revert restores the prior text."""
 
@@ -698,6 +726,23 @@ class AnalyticalWorkspaceRow(Base):
     snapshot: Mapped[bytes] = mapped_column(LargeBinary, default=b"{}")
     active_operation_id: Mapped[str | None] = mapped_column(String(36))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # When the files were copied into the agent's home in the persistent workspace.
+    moved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The last copy attempt: an agent whose copy keeps failing goes to the back.
+    move_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SkillPackageFileRow(Base):
+    """A file of an agent's skill package version (skills/<id>/<version>/...): the agent's
+    private package store. Packages are the agent's own; workspace files are shared."""
+
+    __tablename__ = "ln_skill_package_files"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    path: Mapped[str] = mapped_column(String(512), primary_key=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class WorkspaceOperationRow(Base):
@@ -720,6 +765,88 @@ class WorkspaceOperationRow(Base):
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkspaceRunningRow(Base):
+    """What is running in the owner's workspace (7.1.5): the supervisor's last listing of
+    every agent process, as the scan left it, written by the Gateway."""
+
+    __tablename__ = "ln_workspace_running"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    processes: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    listed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkspaceStopRow(Base):
+    """The owner's tap on "stop" (one process) or "stop all" in What is running (7.1.5),
+    carried out by the Gateway, the only service that reaches the workspace."""
+
+    __tablename__ = "ln_workspace_stops"
+    __table_args__ = (
+        CheckConstraint("(pid IS NULL) = (agent_id IS NULL)", name="ln_workspace_stop_target"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    # Both empty: stop every process of the owner's agents.
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), nullable=True
+    )
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    done_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+
+
+class WorkspaceProcessRow(Base):
+    """A background process an agent started in the owner's workspace (7.1.2), until the
+    agent has been told it ended. The command is stored as the scan left it."""
+
+    __tablename__ = "ln_workspace_processes"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IS NULL OR outcome IN ('exited','stopped','restarted','lost')",
+            name="ln_workspace_process_outcome",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
+    )
+    boot_id: Mapped[str] = mapped_column(String(36))
+    pid: Mapped[int] = mapped_column(Integer)
+    command: Mapped[str] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    # The run whose context first carried the notice: it shows for that whole run.
+    reported_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
+class WorkspaceGivenRow(Base):
+    """A secret value once given to a workspace command, encrypted (workspace_given.py)."""
+
+    __tablename__ = "ln_workspace_given"
+    __table_args__ = (UniqueConstraint("owner_id", "digest", name="ln_workspace_given_digest"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(80))
+    digest: Mapped[str] = mapped_column(String(64))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    given_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class ResourceRow(Base):
@@ -748,6 +875,9 @@ class TradingJournalRow(Base):
     account_id: Mapped[str] = mapped_column(String(120), index=True)
     request_hash: Mapped[str] = mapped_column(String(64))
     request: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # The agent's reason and tolerance: beside the request, never part of
+    # its fingerprint or operation id (mandate 14.3.9).
+    annotation: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="created", index=True)
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -756,6 +886,30 @@ class TradingJournalRow(Base):
     # and its next message seq when an agent Run of that conversation requested it.
     thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
     timeline_seq: Mapped[int | None] = mapped_column(Integer)
+
+
+class ExecutionReceiptRow(Base):
+    """The Execution Receipt of one broker-confirmed operation (mandate 10.3, 11.2).
+
+    Written once, in the transaction that records the broker's confirmation; its facts are
+    read from the journal row, never from model text. It outlives the agent and the
+    conversation (3.1.2): ``agent_id`` is attribution only and the anchor is nullable.
+    """
+
+    __tablename__ = "ln_execution_receipts"
+    __table_args__ = (Index("ln_execution_receipts_thread", "thread_id", "timeline_seq"),)
+    operation_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_trading_journal.operation_id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    # The requesting agent; None for the owner's own order. No foreign key: never deleted.
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    # Where the receipt is posted (presentation only, like the journal's anchor).
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class ScratchpadRow(ResourceRow):
@@ -820,10 +974,6 @@ class TicketRow(ResourceRow):
     __tablename__ = "ln_tickets"
 
 
-class ModelBackupRow(ResourceRow):
-    __tablename__ = "ln_model_backups"
-
-
 class UsageRow(ResourceRow):
     __tablename__ = "ln_usage"
     __table_args__ = (Index("ln_usage_owner_created", "owner_id", "created_at"),)
@@ -835,10 +985,6 @@ class VoiceSessionRow(ResourceRow):
 
 class BrokerSessionRow(ResourceRow):
     __tablename__ = "ln_broker_sessions"
-
-
-class BrokerSubscriptionRow(ResourceRow):
-    __tablename__ = "ln_broker_subscriptions"
 
 
 class MarketWatchRow(ResourceRow):
@@ -853,16 +999,8 @@ class CloudChartRow(ResourceRow):
     __tablename__ = "ln_cloud_charts"
 
 
-class ChartIndicatorRow(ResourceRow):
-    __tablename__ = "ln_chart_indicators"
-
-
 class TradingAccountRow(ResourceRow):
     __tablename__ = "ln_trading_accounts"
-
-
-class FinancialReceiptRow(ResourceRow):
-    __tablename__ = "ln_financial_receipts"
 
 
 class EconomicCalendarRow(ResourceRow):
@@ -902,6 +1040,86 @@ class MarketSnapshotRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class BrokerDealRow(Base):
+    """A broker trade deal of a position that is still open, kept until its trade closes.
+
+    A copy of broker history (mandate 5.5.1), read from a stored cursor: the closed-trade
+    ledger sums a position's deals when its volume reaches zero at the broker.
+    """
+
+    __tablename__ = "ln_broker_deals"
+    __table_args__ = (Index("ln_broker_deals_position", "owner_id", "account_id", "position_id"),)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    deal_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    position_id: Mapped[str] = mapped_column(String(120))
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class ClosedTradeCursorRow(Base):
+    """How far broker deal history of one account has been read into the ledger."""
+
+    __tablename__ = "ln_closed_trade_cursors"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    # Deals up to here are read; ``complete`` is False while a full page is being paged.
+    read_to: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    complete: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ClosedTradeRow(Base):
+    """One closed trade: its position's volume reached zero at the broker (5.5.1).
+
+    Durable record: it survives the agent, the conversation and the connection. The
+    agent id is kept as a value; None means the owner's own ticket (3.3.4).
+    """
+
+    __tablename__ = "ln_closed_trades"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "account_id",
+            "position_id",
+            "closing_deal_id",
+            name="ln_closed_trade_closing_deal",
+        ),
+        Index("ln_closed_trades_agent", "owner_id", "agent_id", "closed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    account_id: Mapped[str] = mapped_column(String(120))
+    position_id: Mapped[str] = mapped_column(String(120))
+    # The deal that closed the trade: the last exit, or a reversal that took a netting
+    # position through zero (one position can hold several trades).
+    closing_deal_id: Mapped[str] = mapped_column(String(120))
+    symbol: Mapped[str] = mapped_column(String(80))
+    side: Mapped[str] = mapped_column(String(8))
+    # What the trade opened; None when unknown (a reversal closed a trade the ledger
+    # never saw open).
+    volume: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    # The journaled order that opened the position, when Lonora's door sent it, and the
+    # judgment label that order carried (5.5.3).
+    opening_operation_id: Mapped[str | None] = mapped_column(String(80))
+    label: Mapped[str | None] = mapped_column(String(40))
+    # Account currency; P&L is never summed across currencies.
+    currency: Mapped[str] = mapped_column(String(16))
+    # Profit + commission + swap of the trade's deals. None when an exit carried no
+    # broker-reported profit, or the ledger never read the opening deal: nothing is
+    # computed in its place.
+    realized_pnl: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deals: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class TradeApprovalRow(Base):
     __tablename__ = "ln_trade_approvals"
     broker_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -923,8 +1141,18 @@ class TradeApprovalRow(Base):
     requests: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="pending")
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    # Past it a pending approval can no longer be approved (Q32); NULL on older rows.
+    # Past it a pending approval can no longer be approved (Q32): kept on stored rows only;
+    # a new card has no time limit (mandate 10.3.1).
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The agent's own words, beside the requests (never inside them).
+    reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # The agent's judgment label (5.5.3), beside the requests like the reason.
+    label: Mapped[str | None] = mapped_column(String(40))
+    # {"tolerance", "reference": {"account_id", "symbol", "side", "price"}}: the
+    # executable side read when the card was made; outside price ± tolerance it drifts.
+    validity: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, server_default=text("'{}'")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -953,56 +1181,6 @@ class TradingOpportunityRow(ResourceRow):
     status: Mapped[str] = mapped_column(String(24), default="forming", index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class TradingRestrictionRow(Base):
-    """Owner restriction narrowing financial admission; enforced at the send boundary."""
-
-    __tablename__ = "ln_trading_restrictions"
-    __table_args__ = (
-        CheckConstraint(
-            "action_class IN ('no_new_entries','no_risk_increase','all_mutations')",
-            name="ln_trading_restriction_action_class",
-        ),
-        CheckConstraint(
-            "source IN ('owner_ui','owner_message','agent')", name="ln_trading_restriction_source"
-        ),
-        CheckConstraint("created_by IN ('owner','agent')", name="ln_trading_restriction_creator"),
-        CheckConstraint(
-            "valid_until IS NULL OR valid_until > valid_from",
-            name="ln_trading_restriction_window",
-        ),
-        Index("ln_trading_restriction_scope", "owner_id", "account_id", "revoked_at"),
-    )
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    owner_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
-    )
-    # Durable brake record: ids are kept as values. NULL agent means "every agent", so a
-    # deleted agent must never turn its restriction into an account-wide one.
-    account_id: Mapped[str] = mapped_column(String(36))
-    agent_id: Mapped[str | None] = mapped_column(String(36))
-    symbol: Mapped[str | None] = mapped_column(String(80))
-    # False when the broker catalog could not be read and the symbol was kept as given.
-    symbol_verified: Mapped[bool] = mapped_column(default=True)
-    action_class: Mapped[str] = mapped_column(String(24))
-    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    source: Mapped[str] = mapped_column(String(16))
-    source_message_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_messages.id", ondelete="SET NULL")
-    )
-    source_run_id: Mapped[str | None] = mapped_column(String(36))
-    reason: Mapped[str] = mapped_column(Text, default="")
-    created_by: Mapped[str] = mapped_column(String(8))
-    created_by_agent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_agents.id", ondelete="SET NULL")
-    )
-    applies_to_owner_manual: Mapped[bool] = mapped_column(default=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    revoked_reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class OwnerActionRow(Base):
@@ -1045,7 +1223,7 @@ class OwnerActionRow(Base):
     # owner: drafted by the owner (a grant card from the mandate sheet).
     source: Mapped[str] = mapped_column(String(8))
     kind: Mapped[str] = mapped_column(String(32))
-    # The record the card acts on ("trading", "restriction:<id>", "operation:<id>", ...).
+    # The record the card acts on ("trading", "operation:<id>", ...).
     subject: Mapped[str] = mapped_column(String(160))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     payload_hash: Mapped[str] = mapped_column(String(64))
@@ -1068,8 +1246,8 @@ class SupervisionGrantRow(Base):
 
     The Personal Agent holds a ``default`` grant over every agent; the owner revokes any
     grant with one tap. A grant lets the supervisor read the supervised agent's threads,
-    runs, memory and records, message it, pause or resume its work and add narrowing
-    pauses. It never trades for it, never uses its grant and never lifts a brake.
+    runs, memory and records, message it and pause or resume its work. It never trades
+    for it, never uses its grant and never lifts a brake.
     """
 
     __tablename__ = "ln_supervision_grants"
@@ -1188,7 +1366,7 @@ class TrustedSourceRow(Base):
             "effect_tier IN ('read','write_nonfinancial')", name="ln_trusted_source_tier"
         ),
         CheckConstraint(
-            "added_via IN ('default','operator','owner_ui','owner_card')",
+            "added_via IN ('default','operator','owner_ui','owner_card','owner_message')",
             name="ln_trusted_source_added_via",
         ),
         CheckConstraint(

@@ -10,7 +10,6 @@
 import type {
   AttestedOutcome,
   CredentialTarget,
-  EffectTier,
   GrantDelegation,
   OwnerAction,
   OwnerActionAccount,
@@ -18,18 +17,10 @@ import type {
   OwnerActionChallenge,
   OwnerActionDecision,
   OwnerActionGrantTerms,
-  OwnerActionLimitField,
+  TradingMode,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
-import {
-  isolate,
-  listSeparator,
-  moneyLimitLabel,
-  moneyLimitsLine,
-  pauseClassLabel,
-  readinessTime,
-  tradingSafetyLabels,
-} from "./trading-readiness";
+import { isolate, listSeparator, readinessTime, tradingSafetyLabels } from "./trading-readiness";
 
 type Language = "ar" | "en";
 
@@ -39,34 +30,22 @@ function language(locale: string): Language {
 
 export const ownerActionLabels = {
   en: {
-    resumeTitle: "Resume trading",
-    resumeStopped: "New trading is stopped",
-    resumeHint:
-      "Resuming widens no authority: each agent still trades only within its level, grants and your limits.",
-    resume: "Resume trading",
-    startTitle: "Start trading",
-    startStopped: "New trading has not been started yet",
-    startHint:
-      "Starting widens no authority: every agent stays within its level, its grant and your limits, and exits are always allowed.",
-    start: "Start trading",
-    started: "Trading started.",
+    mandateTitle: "Trading mode",
+    mandateNow: "Now",
+    modeFull: "Full",
+    modeAsk: "Ask",
+    modeFullLine: "Trades on its own and reports afterwards.",
+    modeAskLine:
+      "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
+    mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
+    mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
+    mandateGrantStays:
+      "Its signed grant still lets it trade within the grant's terms until you revoke it.",
+    mandateGone: "This agent no longer exists.",
     notNow: "Not now",
-    pausedEntries: "New entries paused",
-    pausedRisk: "Only exits allowed",
-    pausedFrozen: "Trading frozen",
-    exitsAllowed: "Closing positions and tightening stops stay allowed.",
-    exitsFrozen: "Exits are frozen too.",
-    lift: "Lift pause",
     keep: "Keep it",
-    allPairs: "all pairs",
-    allAgents: "all agents",
-    yourOrdersToo: "your manual orders too",
-    untilLifted: "until you lift it",
     until: "until",
-    starts: "starts",
-    setByYou: "set by you",
     fromYourMessage: "from your message",
-    setByAgent: "set by",
     anAgent: "an agent",
     resolveTitle: "The broker did not confirm this trade",
     resolveHint:
@@ -80,32 +59,18 @@ export const ownerActionLabels = {
     byYou: "your order",
     by: "by",
     at: "at",
-    limitsTitle: "Change money limits",
-    limitsOneTap: "This allows no more risk, so it takes one tap.",
-    limitsPasskey: "This can allow more risk, so it needs your passkey.",
-    currency: "Currency",
-    tradingDay: "Trading day starts at midnight in",
     notSet: "not set",
-    removed: "removed",
-    apply: "Apply",
-    applyPasskey: "Confirm with passkey",
-    cancel: "Cancel",
     account: "Account",
     simulation: "Simulation",
     brokerAccount: "Broker account",
-    resumed: "Trading resumed.",
-    lifted: "Pause lifted.",
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
     recordedUnknown:
       "Recorded: the outcome stays unknown. It will not be resent and no longer holds new risk on this market.",
-    limitsSaved: "Money limits updated.",
     cancelled: "Dismissed. Nothing changed.",
     expired: "This card expired. Nothing changed.",
     alreadyEnded: "This pause already ended. Nothing changed.",
     alreadySettled: "This operation is already settled. Nothing changed.",
-    alreadyRunning: "Trading is already running.",
-    alreadySet: "These limits are already set.",
     doneElsewhere: "Done from another card.",
     sameOnAnotherCard: "The same grant waits on another card. Nothing changed.",
     noLongerApplies: "This no longer applies. Nothing changed.",
@@ -127,19 +92,7 @@ export const ownerActionLabels = {
     ownExcluded: "Positions you opened yourself are excluded",
     ownIncluded: "Positions you opened yourself are included",
     includeOwn: "Include positions I opened myself",
-    dailyLoss: "Daily loss limit",
-    ofEquity: "of equity",
-    suggested: "suggested",
-    accountLimits: "Account money limits",
-    noMoneyLimitChoice: "No money limit (my choice)",
-    noDailyLossChoice: "No daily loss limit (my choice)",
-    keepCurrentLimit: "Keep my current limit",
-    raiseNeedsCard:
-      "You asked for {amount}: this card never raises the daily loss limit; raising it needs a limits card with your passkey.",
-    tradingStopped: "New trading is stopped",
-    resumeToo: "Resume trading too",
-    conflict:
-      "{agent} already trades {markets} here on its own. Keeping both is fine: the account's limits bind them together.",
+    conflict: "{agent} already trades {markets} here on its own. Keeping both is fine.",
     stopOther: "Stop {agent} trading on its own on this account",
     stoppedOthers: "Stopped on this account: {agents}.",
     replaces: "Replaces its current grant",
@@ -161,19 +114,15 @@ export const ownerActionLabels = {
     delegationCustom: "Custom",
     delegationFull: "Full delegation",
     customMeaning:
-      "Custom: only the markets, actions and time shown here, with the daily loss limit shown; positions you opened yourself only if you switch them on.",
+      "Custom: only the markets, actions and time shown here; positions you opened yourself only if you switch them on.",
     fullMeaning:
-      "Full delegation: every pair on this account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), positions you opened yourself too, until you stop it. This card sets no daily loss limit.",
-    fullLimits:
-      "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
+      "Full delegation: every pair on this account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), positions you opened yourself too, until you stop it.",
     grantHint:
       "Confirm with your passkey. Anything outside this grant still comes to you as an approval card.",
     oneRule:
-      "Every agent can see and use everything you have connected to Lonora, but it places real trades only inside the grant you signed for it with your passkey and within your account limits. Anything that needs you arrives as a one-tap card in the chat, you can stop anything with one tap, and no agent, skill or plugin can ever widen your money authority.",
+      "Every agent can see and use everything you have connected to Lonora, but it places real trades only inside the grant you signed for it with your passkey. Anything that needs you arrives as a one-tap card in the chat, you can stop anything with one tap, and no agent, skill or plugin can ever widen your money authority.",
     authorize: "Authorize with passkey",
     signed: "Signed. It trades on its own inside this grant.",
-    signedStopped:
-      "Signed. New trading is still stopped, so it trades on its own inside this grant once you resume.",
     alreadySigned: "This is already signed. Nothing changed.",
     createTitle: "Create an agent?",
     createHint: "It starts with no money authority. Nothing is created until you tap.",
@@ -237,45 +186,18 @@ export const ownerActionLabels = {
     resumedWork: "Resumed.",
     keptPaused: "Kept paused.",
     watchExpired: "This watch is past its expiry: move its expiry in the watch list to resume it.",
-    trustTitle: "Trust this source?",
-    trustReviewTitle: "This server's tools changed",
-    trustServer: "MCP server",
-    trustRepo: "GitHub repository",
-    trustPublisher: "GitHub publisher",
-    trustFeed: "News feed site",
-    trustTools: "Tools",
-    trustBlocked: "Blocked, can trade or move money",
-    trustWrites: "May change something (only with non-financial writes)",
-    trustSubscribe: "It also subscribes the feed for every agent.",
-    trustHint:
-      "Agents use it without asking again; you can remove it in Capabilities. It never carries money authority.",
-    trustServerHint:
-      "Read only runs just the tools that only read; non-financial writes runs them all. Tools that look like they trade or move money are blocked and never run, and a changed tool waits for your review. Money moves only through your grants.",
-    trustServerReadHint:
-      "Its tools only read. Tools that look like they trade or move money are blocked and never run, and a changed tool waits for your review.",
-    trustServerBlockedHint:
-      "It offers tools that look like they trade or move money. They are blocked, so only its reading tools can run. Money moves only through your grants.",
-    trust: "Trust",
-    trustRead: "Trust: read only",
-    trustWrite: "Trust: non-financial writes",
-    trusted: "Trusted.",
-    trustedRead: "Trusted for reading.",
-    trustedWrite: "Trusted for non-financial writes.",
-    unnamedServer: "Unnamed server",
-    alreadyTrusted: "This source is already trusted. Nothing changed.",
-    serverMissing: "This server is no longer saved. Nothing changed.",
-    serverChanged: "This server's address changed. Nothing changed; review it again.",
-    nothingToTrust: "This server offers no tool that can be trusted.",
-    feedSubscribed: "This feed is already subscribed.",
-    serverChangedAgain: "The server changed again; the newer card replaces this one.",
     connectMcp: "Connect an MCP server",
     connectX: "Connect X",
     connectFeed: "Add a news feed",
     connectBrave: "Connect Brave web search",
     connectCalendar: "Connect an economic calendar",
     connectBroker: "Connect a broker account",
+    connectModel: "Connect a model provider",
+    modelHint:
+      "The key is stored encrypted on your Lonora server and never enters the chat. Your models use it, and so do workspace commands that ask for it.",
+    modelEndpointHint: "It is sent to the address you type, with every request.",
     connectHint:
-      "What you type goes straight to the server: it never enters the chat or reaches an agent.",
+      "What you type is saved encrypted on the server. It never enters the chat, and no agent sees it.",
     connectXHint:
       "Lonora reads X through web search, news feeds or an X MCP server you trust; it never uses your X account.",
     fieldName: "Name",
@@ -283,13 +205,30 @@ export const ownerActionLabels = {
     fieldFeedUrl: "Feed URL",
     fieldToken: "Access token (optional)",
     fieldApiKey: "API key",
-    fieldAccount: "Account ID",
-    fieldBrokerToken: "MetaApi token",
     connect: "Connect",
-    connected: "Connected. Agents see only that it is configured.",
+    connected: "Connected. No agent sees what you typed.",
     alreadyConnected: "This is already connected. Nothing changed.",
-    pauseNewToday: "Stop new trades today",
-    pauseNewTodayHint: "Closing stays allowed",
+    secretNameInUse: "A connection uses one of these names, so nothing was saved.",
+    secretTitle: "Secret",
+    secretAskedBy: "Asked by {agent}",
+    secretWorkspace:
+      "Saved encrypted for your workspace. What you type never enters the chat, and no agent sees it.",
+    secretBroker:
+      "Saved encrypted for your broker connection only. It never enters the chat or the workspace, and no agent sees it.",
+    secretSave: "Save",
+    secretSaved: "Saved encrypted. No agent sees the values.",
+    secretSavesAs: "Saved as {names}",
+    secretReplaces: "Replaces the value saved as {names}",
+    brokerConnectTitle: "Connect trading account",
+    brokerRotateTitle: "New trading password",
+    brokerTokenNew: "New MetaApi API token",
+    brokerTokenTitle: "New MetaApi API token",
+    brokerAccountLine: "Account {login} on server {server} ({platform})",
+    brokerPassword: "Trading (master) password",
+    brokerToken: "MetaApi API token (asked once)",
+    brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
+    brokerConnected: "Connected. Lonora reported its balance in the conversation.",
+    brokerFailed: "Could not connect. Lonora said why in the conversation.",
     optional: "optional",
     noteShort: "Note",
     brokerRefShort: "Broker reference",
@@ -316,33 +255,20 @@ export const ownerActionLabels = {
     stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
-    resumeTitle: "استئناف التداول",
-    resumeStopped: "التداول الجديد متوقف",
-    resumeHint: "الاستئناف لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
-    resume: "استئناف التداول",
-    startTitle: "بدء التداول",
-    startStopped: "لم يبدأ التداول الجديد بعد",
-    startHint:
-      "البدء لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك، والخروج متاح دائمًا.",
-    start: "بدء التداول",
-    started: "بدأ التداول.",
+    mandateTitle: "التفويض",
+    mandateNow: "الآن",
+    modeFull: "وكّله",
+    modeAsk: "يستأذن",
+    modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",
+    modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
+    mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
+    mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
+    mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
+    mandateGone: "لم يعد هذا الوكيل موجودًا.",
     notNow: "ليس الآن",
-    pausedEntries: "الصفقات الجديدة متوقفة",
-    pausedRisk: "الخروج فقط مسموح",
-    pausedFrozen: "التداول مجمّد",
-    exitsAllowed: "يبقى إغلاق المراكز وتقريب وقف الخسارة متاحًا.",
-    exitsFrozen: "الخروج مجمّد أيضًا.",
-    lift: "رفع الإيقاف",
     keep: "إبقاؤه",
-    allPairs: "كل الأزواج",
-    allAgents: "كل الوكلاء",
-    yourOrdersToo: "وأوامرك اليدوية أيضًا",
-    untilLifted: "حتى ترفعه",
     until: "حتى",
-    starts: "يبدأ",
-    setByYou: "وضعته أنت",
     fromYourMessage: "من رسالتك",
-    setByAgent: "وضعه",
     anAgent: "وكيل",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     resolveHint:
@@ -356,32 +282,18 @@ export const ownerActionLabels = {
     byYou: "أمرك",
     by: "من",
     at: "في",
-    limitsTitle: "تغيير الحدود المالية",
-    limitsOneTap: "هذا لا يسمح بمخاطرة أكبر، لذا يتم بلمسة واحدة.",
-    limitsPasskey: "قد يسمح هذا بمخاطرة أكبر، لذا يحتاج مفتاح المرور.",
-    currency: "العملة",
-    tradingDay: "يبدأ يوم التداول عند منتصف الليل بتوقيت",
     notSet: "غير محدد",
-    removed: "يُزال",
-    apply: "تطبيق",
-    applyPasskey: "تأكيد بمفتاح المرور",
-    cancel: "إلغاء",
     account: "الحساب",
     simulation: "محاكاة",
     brokerAccount: "حساب الوسيط",
-    resumed: "استؤنف التداول.",
-    lifted: "رُفع الإيقاف.",
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     recordedUnknown:
       "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها، ولم تعد تعلّق المخاطرة الجديدة على هذا السوق.",
-    limitsSaved: "حُدّثت الحدود المالية.",
     cancelled: "تم التجاهل. لم يتغير شيء.",
     expired: "انتهت صلاحية هذه البطاقة. لم يتغير شيء.",
     alreadyEnded: "انتهى هذا الإيقاف مسبقًا. لم يتغير شيء.",
     alreadySettled: "حُسمت هذه العملية مسبقًا. لم يتغير شيء.",
-    alreadyRunning: "التداول يعمل بالفعل.",
-    alreadySet: "هذه الحدود مضبوطة بالفعل.",
     doneElsewhere: "نُفذ من بطاقة أخرى.",
     sameOnAnotherCard: "التفويض نفسه ينتظر في بطاقة أخرى. لم يتغير شيء.",
     noLongerApplies: "لم يعد هذا ساريًا. لم يتغير شيء.",
@@ -402,18 +314,7 @@ export const ownerActionLabels = {
     ownExcluded: "لا يشمل المراكز التي فتحتها بنفسك",
     ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
     includeOwn: "اشمل المراكز التي فتحتها بنفسي",
-    dailyLoss: "حد الخسارة اليومية",
-    ofEquity: "من حقوق الملكية",
-    suggested: "مقترح",
-    accountLimits: "الحدود المالية للحساب",
-    noMoneyLimitChoice: "بلا حد مالي، بقرار مني",
-    noDailyLossChoice: "بلا حد للخسارة اليومية، بقرار مني",
-    keepCurrentLimit: "أبقِ حدي الحالي",
-    raiseNeedsCard:
-      "طلبت {amount}: هذه البطاقة لا ترفع حد الخسارة اليومية أبدًا؛ رفعه يحتاج بطاقة حدود بمفتاح المرور.",
-    tradingStopped: "التداول الجديد متوقف",
-    resumeToo: "استأنف التداول أيضًا",
-    conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا: حدود الحساب تلزمهما معًا.",
+    conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا.",
     stopOther: "أوقف تداول {agent} بنفسه على هذا الحساب",
     stoppedOthers: "أُوقف على هذا الحساب: {agents}.",
     replaces: "يحل محل تفويضه الحالي",
@@ -435,18 +336,14 @@ export const ownerActionLabels = {
     delegationCustom: "مخصص",
     delegationFull: "تفويض كامل",
     customMeaning:
-      "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط، مع حد الخسارة اليومية الظاهر؛ ولا تُشمل المراكز التي فتحتها بنفسك إلا إذا فعّلتها.",
+      "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط؛ ولا تُشمل المراكز التي فتحتها بنفسك إلا إذا فعّلتها.",
     fullMeaning:
-      "تفويض كامل: كل أزواج هذا الحساب وكل العمليات (الفتح، والإغلاق الكلي أو الجزئي، والأوامر المعلّقة، وتعديل وقف الخسارة وجني الربح، والإلغاء)، والمراكز التي فتحتها بنفسك أيضًا، حتى توقفه. لا تضع هذه البطاقة حدًا للخسارة اليومية.",
-    fullLimits:
-      "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
+      "تفويض كامل: كل أزواج هذا الحساب وكل العمليات (الفتح، والإغلاق الكلي أو الجزئي، والأوامر المعلّقة، وتعديل وقف الخسارة وجني الربح، والإلغاء)، والمراكز التي فتحتها بنفسك أيضًا، حتى توقفه.",
     grantHint: "أكّد بمفتاح المرور. ما يخرج عن هذا التفويض يصلك كبطاقة موافقة.",
     oneRule:
-      "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور وضمن حدود حسابك؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
+      "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
     authorize: "التفويض بمفتاح المرور",
     signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
-    signedStopped:
-      "وُقّع. التداول الجديد ما زال متوقفًا، فيتداول بنفسه ضمن هذا التفويض بعد أن تستأنف.",
     alreadySigned: "هذا موقّع بالفعل. لم يتغير شيء.",
     createTitle: "إنشاء وكيل؟",
     createHint: "يبدأ دون أي صلاحية مالية. لا يُنشأ شيء حتى تلمس.",
@@ -510,44 +407,17 @@ export const ownerActionLabels = {
     resumedWork: "تم الاستئناف.",
     keptPaused: "بقي موقوفًا.",
     watchExpired: "انتهت مدة هذه المراقبة: مدّد مدتها من قائمة المراقبات لاستئنافها.",
-    trustTitle: "الوثوق بهذا المصدر؟",
-    trustReviewTitle: "تغيّرت أدوات هذا الخادم",
-    trustServer: "خادم MCP",
-    trustRepo: "مستودع على GitHub",
-    trustPublisher: "ناشر على GitHub",
-    trustFeed: "موقع موجز الأخبار",
-    trustTools: "الأدوات",
-    trustBlocked: "محظورة، تتداول أو تحرّك المال",
-    trustWrites: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
-    trustSubscribe: "ويشترك أيضًا في الموجز لكل الوكلاء.",
-    trustHint:
-      "يستخدمه الوكلاء دون أن يسألوك مجددًا، وتستطيع إزالته من القدرات. لا يحمل أي صلاحية مالية.",
-    trustServerHint:
-      "القراءة فقط تشغّل الأدوات التي تقرأ فحسب، والكتابة غير المالية تشغّلها كلها. الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك. المال لا يتحرك إلا ضمن تفويضاتك.",
-    trustServerReadHint:
-      "أدواته تقرأ فقط. الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
-    trustServerBlockedHint:
-      "يقدّم أدوات يبدو أنها تتداول أو تحرّك المال. هي محظورة، فلا تعمل إلا أدواته التي تقرأ. المال لا يتحرك إلا ضمن تفويضاتك.",
-    trust: "ثقة",
-    trustRead: "ثقة: قراءة فقط",
-    trustWrite: "ثقة: كتابة غير مالية",
-    trusted: "صار موثوقًا.",
-    trustedRead: "صار موثوقًا للقراءة.",
-    trustedWrite: "صار موثوقًا للكتابة غير المالية.",
-    unnamedServer: "خادم بلا اسم",
-    alreadyTrusted: "هذا المصدر موثوق مسبقًا. لم يتغير شيء.",
-    serverMissing: "لم يعد هذا الخادم محفوظًا. لم يتغير شيء.",
-    serverChanged: "تغيّر عنوان هذا الخادم. لم يتغير شيء؛ راجعه من جديد.",
-    nothingToTrust: "لا يقدّم هذا الخادم أي أداة يمكن الوثوق بها.",
-    feedSubscribed: "هذا الموجز مشترك فيه مسبقًا.",
-    serverChangedAgain: "تغيّر الخادم مجددًا؛ البطاقة الأحدث تحل محل هذه.",
     connectMcp: "ربط خادم MCP",
     connectX: "ربط X",
     connectFeed: "إضافة موجز أخبار",
     connectBrave: "ربط بحث Brave",
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
-    connectHint: "ما تكتبه يذهب مباشرة إلى الخادم: لا يدخل المحادثة ولا يصل إلى أي وكيل.",
+    connectModel: "ربط مزوّد نماذج",
+    modelHint:
+      "يُحفظ المفتاح مشفّراً على خادم Lonora ولا يدخل المحادثة. تستخدمه نماذجك، والأوامر التي تطلبه في مساحة العمل.",
+    modelEndpointHint: "ويُرسَل إلى العنوان الذي تكتبه مع كل طلب.",
+    connectHint: "ما تكتبه يُحفظ مشفّرًا على الخادم. لا يدخل المحادثة، ولا يراه أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
     fieldName: "الاسم",
@@ -555,13 +425,29 @@ export const ownerActionLabels = {
     fieldFeedUrl: "عنوان الموجز",
     fieldToken: "رمز الوصول (اختياري)",
     fieldApiKey: "مفتاح API",
-    fieldAccount: "معرّف الحساب",
-    fieldBrokerToken: "رمز MetaApi",
     connect: "ربط",
-    connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
+    connected: "تم الربط. لا يرى أي وكيل ما كتبته.",
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
-    pauseNewToday: "أوقف الصفقات الجديدة اليوم",
-    pauseNewTodayHint: "الإغلاق مسموح",
+    secretNameInUse: "يستخدم اتصالٌ أحد هذه الأسماء، فلم يُحفظ شيء.",
+    secretTitle: "بيانات سرّية",
+    secretAskedBy: "يطلبها {agent}",
+    secretWorkspace: "تُحفظ مشفّرة لمساحة العمل. ما تكتبه لا يدخل المحادثة، ولا يراه أي وكيل.",
+    secretBroker:
+      "تُحفظ مشفّرة لاتصال الوسيط فقط. لا تدخل المحادثة ولا مساحة العمل، ولا يراها أي وكيل.",
+    secretSave: "حفظ",
+    secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
+    secretSavesAs: "تُحفظ باسم {names}",
+    secretReplaces: "تحلّ محل القيمة المحفوظة باسم {names}",
+    brokerConnectTitle: "ربط حساب التداول",
+    brokerRotateTitle: "كلمة مرور تداول جديدة",
+    brokerTokenNew: "رمز MetaApi API الجديد",
+    brokerTokenTitle: "رمز MetaApi API جديد",
+    brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
+    brokerPassword: "كلمة مرور التداول (الرئيسية)",
+    brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
+    brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
+    brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
+    brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
     optional: "اختياري",
     noteShort: "ملاحظة",
     brokerRefShort: "مرجع الوسيط",
@@ -593,18 +479,18 @@ export function ownerActionText(locale: string): OwnerActionText {
   return ownerActionLabels[language(locale)];
 }
 
-/** What a button sends: confirm (with an outcome for a resolve card, or the tier an MCP
- * server is trusted for) or cancel. */
+/** What a button sends: confirm (with an outcome for a resolve card) or cancel. */
 export type OwnerActionButton = {
-  key: "confirm" | "cancel" | "trust_write" | AttestedOutcome;
+  key: "confirm" | "cancel" | AttestedOutcome | TradingMode;
   label: string;
   decision: "confirm" | "cancel";
   outcome?: AttestedOutcome;
-  tier?: EffectTier;
+  /** The Mandate card: the mode this button shows; the tap applies exactly this mode. */
+  trading_mode?: TradingMode;
   primary: boolean;
 };
-/** An owner switch on a card (a grant card's own positions, money limit, Resume, a
- * conflict); the client keeps its state and ``ownerActionChoices`` sends it. An option
+/** An owner switch on a card (a grant card's own positions, a conflict); the client
+ * keeps its state and ``ownerActionChoices`` sends it. An option
  * with ``choice`` is one of a group of which exactly one is selected (a grant card's
  * Custom or Full delegation): it is shown as a radio, ``initial`` is the server's stored
  * choice, and selecting it sends ``ownerActionChoose`` at once. ``detail`` says plainly
@@ -616,21 +502,15 @@ export type OwnerActionOption = {
   choice?: { group: "delegation"; value: GrantDelegation };
   detail?: string;
 };
-/** One field of a credential card's secure form; its value goes only to the owner API. */
-export type CredentialField = {
-  key: "name" | "url" | "secret" | "account";
+/** One field of a Secret card's form in the owner's language; ``password`` masks it. */
+export type SecretFormField = {
+  key: string;
   label: string;
-  type: "text" | "url" | "password";
+  type: "password" | "text" | "url";
   required: boolean;
-  /** Addresses, ids and keys read left to right inside Arabic text. */
-  ltr: boolean;
-  initial: string;
 };
-export type CredentialForm = {
-  target: CredentialTarget;
-  fields: CredentialField[];
-  submit: string;
-};
+/** A Secret card's form while it waits; ``submitSecret`` posts its values. */
+export type SecretForm = { fields: SecretFormField[]; submit: string };
 export type OwnerActionSpec = {
   title: string;
   /** Server facts, one per line, ready to render with dir="auto". */
@@ -642,10 +522,10 @@ export type OwnerActionSpec = {
   buttons: OwnerActionButton[];
   /** A resolve card offers an optional note and broker ticket. */
   notes: boolean;
-  /** A credential card's secure form while it waits (submitted by the client itself). */
-  credential: CredentialForm | null;
+  /** A Secret card's form while it waits (submitted by the client itself). */
+  secret: SecretForm | null;
   passkey: boolean;
-  /** The settled line ("Trading resumed.", "This card expired. Nothing changed."). */
+  /** The settled line ("Signed. It trades on its own inside this grant.", "This card expired. Nothing changed."). */
   outcome: string | null;
 };
 
@@ -675,15 +555,14 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
+      case "trading_mode":
+        // Still the agent's switch: its lines show the mode now.
+        return null;
       case "grant_authority": {
         const stopped = card.result.stopped_agents ?? [];
-        // The card shows what was signed; while Stop new trading holds, it waits for Resume.
-        const stoppedStill =
-          card.facts.global_trading?.state === "stopped" && card.result.resumed !== true;
-        const signed = stoppedStill ? text.signedStopped : text.signed;
         return stopped.length
-          ? `${signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
-          : signed;
+          ? `${text.signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
+          : text.signed;
       }
       case "create_agent":
         return text.createdLine;
@@ -697,21 +576,16 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.restored;
       case "supervision_paused":
         return text.resumedWork;
-      case "resume_trading":
-        return card.result.started === true ? text.started : text.resumed;
-      case "lift_restriction":
-        return text.lifted;
-      case "set_account_limits":
-        return text.limitsSaved;
-      case "trust_source":
-        // Read only matters only when some tool may change something.
-        return card.result.tier === "write_nonfinancial"
-          ? text.trustedWrite
-          : card.facts.source?.kind === "mcp_server" && card.result.writes
-            ? text.trustedRead
-            : text.trusted;
-      case "connect_credential":
-        return text.connected;
+      case "secret":
+        if (card.facts.secret?.destination === "broker" && !card.facts.secret.connect)
+          // A broker card: the card's own record of how provisioning ended, read on the
+          // server. A credential card converted by 0071 says what it connected.
+          return card.result.provisioning === "failed"
+            ? text.brokerFailed
+            : card.result.provisioning === "connected"
+              ? text.brokerConnected
+              : text.brokerSaved;
+        return card.facts.secret?.connect ? text.connected : text.secretSaved;
       case "watch_changed":
         return text.watchUndone;
       case "stop_tightened":
@@ -725,14 +599,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
     }
   }
   switch (card.status_reason) {
-    case "restriction_already_ended":
-      return text.alreadyEnded;
     case "operation_already_settled":
       return text.alreadySettled;
-    case "trading_already_running":
-      return text.alreadyRunning;
-    case "limits_already_set":
-      return text.alreadySet;
     case "done_by_another_card":
       return text.doneElsewhere;
     case "same_choice_on_another_card":
@@ -761,39 +629,15 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.watchChangedAgain;
     case "watch_removed":
       return text.watchRemoved;
-    case "source_already_trusted":
-      return text.alreadyTrusted;
-    case "mcp_connection_missing":
-      return text.serverMissing;
-    case "mcp_connection_changed":
-      return text.serverChanged;
-    case "mcp_nothing_to_trust":
-      return text.nothingToTrust;
-    case "feed_already_subscribed":
-      return text.feedSubscribed;
-    case "server_changed_again":
-      return text.serverChangedAgain;
     case "credential_already_configured":
       return text.alreadyConnected;
+    case "secret_name_in_use":
+      return text.secretNameInUse;
     case "expired":
       return text.expired;
     default:
       return card.status === "expired" ? text.expired : text.noLongerApplies;
   }
-}
-
-function limitValue(name: OwnerActionLimitField, value: string | null, currency: string | null) {
-  if (value == null) return null;
-  if (name === "currency" || name === "trading_day_timezone") return isolate(value);
-  return isolate(
-    name.endsWith("_percent") ? `${value}%` : currency ? `${value} ${currency}` : value,
-  );
-}
-
-function limitFieldLabel(name: OwnerActionLimitField, locale: string, text: OwnerActionText) {
-  if (name === "currency") return text.currency;
-  if (name === "trading_day_timezone") return text.tradingDay;
-  return moneyLimitLabel(name, locale);
 }
 
 function fill(template: string, values: Record<string, string>): string {
@@ -844,26 +688,24 @@ function sameActions(left: string[], right: string[]): boolean {
 function replacesLine(
   old: OwnerActionGrantTerms,
   grant: NonNullable<OwnerAction["facts"]["grant"]>,
-  currency: string | null,
   text: OwnerActionText,
   lang: Language,
   locale: string,
   now: Date,
 ): string {
-  const value = (amount: string | number, unit = "") => isolate(`${amount}${unit}`);
   const before = [marketsLabel(old.symbol_scope, old.symbols, text, lang)];
   if (!old.all_actions) before.push(`${text.actionsLine}: ${actionsLabel(old.actions, lang)}`);
-  const caps: Array<[string | number | null, string, string]> = [
-    [old.maximum_order_volume, text.capOrderVolume, ""],
-    [old.maximum_symbol_volume, text.capSymbolVolume, ""],
-    [old.maximum_positions, text.capPositions, ""],
-    [old.maximum_pending_orders, text.capPendingOrders, ""],
-    [old.maximum_actions, text.capActions, ""],
-    [old.minimum_equity, text.capEquity, currency ? ` ${currency}` : ""],
+  const caps: Array<[string | number | null, string]> = [
+    [old.maximum_order_volume, text.capOrderVolume],
+    [old.maximum_symbol_volume, text.capSymbolVolume],
+    [old.maximum_positions, text.capPositions],
+    [old.maximum_pending_orders, text.capPendingOrders],
+    [old.maximum_actions, text.capActions],
+    [old.minimum_equity, text.capEquity],
   ];
   const capped = caps.filter(([amount]) => amount != null);
-  for (const [amount, template, unit] of capped)
-    before.push(fill(template, { value: value(amount ?? "", unit) }));
+  for (const [amount, template] of capped)
+    before.push(fill(template, { value: isolate(`${amount ?? ""}`) }));
   if (old.management_mode === "bounded") before.push(text.boundedRule);
   const timed = old.valid_until != null || grant.duration !== "until_stopped";
   if (timed)
@@ -907,8 +749,7 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
         choice: { group: "delegation", value },
         ...(delegation === value
           ? {
-              detail:
-                value === "full" ? `${text.fullMeaning} ${text.fullLimits}` : text.customMeaning,
+              detail: value === "full" ? text.fullMeaning : text.customMeaning,
             }
           : {}),
       });
@@ -944,53 +785,6 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
     // Full delegation always includes them: a line, never a switch.
     else lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
   }
-  const money = facts.money;
-  if (money) {
-    const daily = money.daily_loss;
-    const amount = (value: string) =>
-      isolate(daily.currency ? `${value} ${daily.currency}` : value);
-    // The daily loss has its own line; the account line shows every other limit.
-    const rest = Object.fromEntries(
-      Object.entries(money.limits.limits).filter(([name]) => name !== "max_daily_loss"),
-    );
-    const others = Object.keys(rest).length > 0;
-    if (daily.proposed) {
-      const basis = daily.percent
-        ? ` (${daily.basis === "suggested" ? `${text.suggested}: ` : ""}${isolate(`${daily.percent}%`)} ${text.ofEquity})`
-        : "";
-      // An existing limit is only ever lowered, in one line from the current amount.
-      const from = daily.current ? `${isolate(daily.current)} ${arrow(lang)} ` : "";
-      lines.push(`${text.dailyLoss}: ${from}${amount(daily.proposed)}${basis}`);
-      options.push(
-        daily.current
-          ? { key: "keep_limit", label: text.keepCurrentLimit, initial: false }
-          : {
-              key: "no_money_limit",
-              label: others ? text.noDailyLossChoice : text.noMoneyLimitChoice,
-              initial: false,
-            },
-      );
-    } else if (daily.current) {
-      lines.push(`${text.dailyLoss}: ${amount(daily.current)}`);
-    }
-    if (daily.requested_above)
-      lines.push(fill(text.raiseNeedsCard, { amount: amount(daily.requested_above) }));
-    if (others)
-      lines.push(
-        `${text.accountLimits}: ${moneyLimitsLine({ ...money.limits, limits: rest }, locale)}`,
-      );
-    else if (!daily.proposed && !daily.current)
-      lines.push(`${text.accountLimits}: ${moneyLimitsLine(money.limits, locale)}`);
-  }
-  if (facts.global_trading?.state === "stopped") {
-    lines.push(text.tradingStopped);
-    // Checked when the owner never started trading; after the owner's own Stop it waits.
-    options.push({
-      key: "resume",
-      label: text.resumeToo,
-      initial: facts.global_trading.changed_by === "default",
-    });
-  }
   for (const conflict of facts.conflicts ?? []) {
     const name = conflict.agent_name ? isolate(conflict.agent_name) : text.anAgent;
     lines.push(
@@ -1006,17 +800,7 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
     });
   }
   if (facts.replaces && grant)
-    lines.push(
-      replacesLine(
-        facts.replaces,
-        grant,
-        money?.daily_loss.currency ?? null,
-        text,
-        lang,
-        locale,
-        now,
-      ),
-    );
+    lines.push(replacesLine(facts.replaces, grant, text, lang, locale, now));
   hints.push(text.grantHint);
   if (facts.first_grant) hints.push(text.oneRule);
   return {
@@ -1066,16 +850,11 @@ export function ownerActionChoices(
   if (card.kind !== "grant_authority") return { challenge: {}, decision: {} };
   const options = grantCard(card, "en", "en", new Date()).options;
   // Only switches the card shows now count: one ticked under Custom says nothing after
-  // the owner chose Full delegation, which has no daily loss line to opt out of.
+  // the owner chose Full delegation.
   const value = (key: string, initial: boolean) =>
     options.some((item) => item.key === key) && (chosen[key] ?? initial);
   const initial = (key: string) => options.find((item) => item.key === key)?.initial ?? false;
   const decision: Partial<OwnerActionDecision> = {
-    // Either opt-out leaves the account's daily loss limit exactly as it is.
-    money_limit: value("no_money_limit", false) || value("keep_limit", false) ? "none" : "apply",
-    resume_trading: options.some((item) => item.key === "resume")
-      ? value("resume", initial("resume"))
-      : false,
     stop_authorities: options
       .filter((item) => item.key.startsWith("stop:") && value(item.key, false))
       .map((item) => item.key.slice("stop:".length)),
@@ -1170,156 +949,58 @@ function agentLines(
   return lines;
 }
 
-const SOURCE_LABEL = {
-  mcp_server: "trustServer",
-  github_repo: "trustRepo",
-  github_owner: "trustPublisher",
-  feed_domain: "trustFeed",
-} as const;
-
-/** A trust card's lines: which source, the tools it would trust and those it blocks. */
-function sourceLines(card: OwnerAction, lang: Language, text: OwnerActionText): string[] {
-  const source = card.facts.source;
-  if (!source) return [];
-  const label = source.label
-    ? isolate(source.label)
-    : source.kind === "mcp_server"
-      ? text.unnamedServer
-      : "";
-  const lines = [`${text[SOURCE_LABEL[source.kind]]}: ${label}`];
-  if (source.tools?.length) lines.push(`${text.trustTools}: ${nameList(source.tools, lang)}`);
-  // A server with a blocked tool runs only its reading tools, so no write is listed.
-  if (source.writes?.length && !source.blocked?.length)
-    lines.push(`${text.trustWrites}: ${nameList(source.writes, lang)}`);
-  if (source.blocked?.length) lines.push(`${text.trustBlocked}: ${nameList(source.blocked, lang)}`);
-  if (source.subscribe) lines.push(text.trustSubscribe);
-  return lines;
-}
-
-function credentialTitle(
-  credential: { target: CredentialTarget; service: "x" | null },
+function connectTitle(
+  target: CredentialTarget,
+  service: "x" | null | undefined,
   text: OwnerActionText,
 ): string {
-  if (credential.service === "x") return text.connectX;
+  if (service === "x") return text.connectX;
   return {
     mcp_server: text.connectMcp,
     news_feed: text.connectFeed,
     brave_search: text.connectBrave,
     economic_calendar: text.connectCalendar,
     broker: text.connectBroker,
-  }[credential.target];
+    model_provider: text.connectModel,
+  }[target];
 }
 
-/** The secure form of a credential card: which fields, in the owner's language. */
-export function credentialForm(
-  credential: { target: CredentialTarget; service: "x" | null },
+/** A Secret card's form: the agent's own labels, or ours for a connecting card's role. */
+function secretForm(
+  secret: NonNullable<OwnerAction["facts"]["secret"]>,
   text: OwnerActionText,
-): CredentialForm {
-  const name = (initial: string): CredentialField => ({
-    key: "name",
-    label: text.fieldName,
-    type: "text",
-    required: true,
-    ltr: false,
-    initial,
-  });
-  const url = (label: string): CredentialField => ({
-    key: "url",
-    label,
-    type: "url",
-    required: true,
-    ltr: true,
-    initial: "",
-  });
-  const secret = (label: string, required: boolean): CredentialField => ({
-    key: "secret",
-    label,
-    type: "password",
-    required,
-    ltr: true,
-    initial: "",
-  });
-  const account: CredentialField = {
-    key: "account",
-    label: text.fieldAccount,
-    type: "text",
-    required: true,
-    ltr: true,
-    initial: "",
+): SecretForm {
+  const roles = {
+    token: text.fieldToken,
+    api_key: text.fieldApiKey,
+    server_url: text.fieldServerUrl,
+    feed_url: text.fieldFeedUrl,
   };
-  const fields: CredentialField[] = {
-    mcp_server: [
-      name(credential.service === "x" ? "X" : ""),
-      url(text.fieldServerUrl),
-      secret(text.fieldToken, false),
-    ],
-    news_feed: [name(""), url(text.fieldFeedUrl)],
-    economic_calendar: [name(""), url(text.fieldFeedUrl)],
-    brave_search: [name("Brave Search"), secret(text.fieldApiKey, true)],
-    broker: [account, secret(text.fieldBrokerToken, true)],
-  }[credential.target];
-  return { target: credential.target, fields, submit: text.connect };
+  return {
+    fields: secret.fields.map((field) => ({
+      key: field.key,
+      label: field.label ?? (field.role ? roles[field.role] : field.key),
+      type: field.secret
+        ? "password"
+        : field.role === "feed_url" || field.role === "server_url"
+          ? "url"
+          : "text",
+      required: field.required ?? true,
+    })),
+    submit: secret.connect ? text.connect : text.secretSave,
+  };
 }
-
-/** A minimal POST for the client's API (Web or Mobile); it returns the created record. */
-export type CredentialPost = (path: string, body: unknown) => Promise<{ id: string }>;
 
 /**
- * Submit a credential card's form straight to the owner API and say what it created.
- * The secret goes to /integrations/secrets (stored encrypted, only its id is kept) or,
- * for a broker, to /trading/connections; it is never sent to the card or a chat route.
+ * Save a Secret card: the owner's values go to the card's own route, which stores them
+ * encrypted and settles the card in one transaction; it answers with the card as saved.
  */
-export async function submitCredential(
-  post: CredentialPost,
-  target: CredentialTarget,
-  values: Partial<Record<CredentialField["key"], string>>,
-): Promise<{ resource: "integration" | "mcp" | "broker"; id: string }> {
-  const name = (values.name ?? "").trim();
-  const secret = values.secret ?? "";
-  const stored = async () =>
-    secret
-      ? (await post("/integrations/secrets", { name: name || target, value: secret })).id
-      : null;
-  if (target === "broker") {
-    const account = await post("/trading/connections", {
-      provider: "metaapi",
-      account_id: (values.account ?? "").trim(),
-      region: null,
-      enabled: true,
-      secret_id: null,
-      api_key: secret,
-    });
-    return { resource: "broker", id: account.id };
-  }
-  if (target === "mcp_server") {
-    const secret_id = await stored();
-    const server = await post("/mcp", {
-      payload: {
-        name,
-        url: (values.url ?? "").trim(),
-        transport: "http",
-        command: [],
-        secret_id,
-        enabled: true,
-      },
-      agent_id: null,
-      thread_id: null,
-    });
-    return { resource: "mcp", id: server.id };
-  }
-  const secret_id = target === "brave_search" ? await stored() : null;
-  const integration = await post("/integrations", {
-    payload: {
-      type: target,
-      name,
-      url: target === "brave_search" ? null : (values.url ?? "").trim(),
-      secret_id,
-      enabled: true,
-    },
-    agent_id: null,
-    thread_id: null,
-  });
-  return { resource: "integration", id: integration.id };
+export async function submitSecret<Card>(
+  post: (path: string, body: unknown) => Promise<Card>,
+  cardId: string,
+  values: Record<string, string>,
+): Promise<Card> {
+  return post(`/owner-actions/${encodeURIComponent(cardId)}/secret`, { values });
 }
 
 /** What the agent may do with money, by its level now (a grant may be signed later). */
@@ -1340,16 +1021,41 @@ export function ownerActionCard(
   const facts = card.facts;
   const account = facts.several_accounts ? accountLabel(facts.account, text) : null;
   const lines: string[] = [];
-  let title: string = text.resumeTitle;
+  let title = "";
   let hint: string | null = null;
   let buttons: OwnerActionButton[] = [];
   let options: OwnerActionOption[] = [];
-  let form: CredentialForm | null = null;
+  let form: SecretForm | null = null;
   const pair = (confirm: string, cancel: string): OwnerActionButton[] => [
     { key: "confirm", label: confirm, decision: "confirm", primary: true },
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
   ];
   switch (card.kind) {
+    case "trading_mode": {
+      title = text.mandateTitle;
+      const mode = facts.trading_mode;
+      if (!facts.agent?.exists || !mode) {
+        lines.push(text.mandateGone);
+        break;
+      }
+      const name = facts.agent.name ? `${isolate(facts.agent.name)} · ` : "";
+      lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
+      lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
+      if (facts.active_grant) lines.push(text.mandateGrantStays);
+      // One button for the other mode; the tap applies the mode this button shows.
+      const other: TradingMode = mode === "full" ? "ask" : "full";
+      hint = other === "full" ? text.mandateToFull : text.mandateToAsk;
+      buttons = [
+        {
+          key: other,
+          label: other === "full" ? text.modeFull : text.modeAsk,
+          decision: "confirm",
+          trading_mode: other,
+          primary: true,
+        },
+      ];
+      break;
+    }
     case "grant_authority": {
       const grant = grantCard(card, locale, lang, now);
       title = grant.title;
@@ -1357,62 +1063,6 @@ export function ownerActionCard(
       hint = grant.hint;
       buttons = grant.buttons;
       options = grant.options;
-      break;
-    }
-    case "resume_trading": {
-      const trading = facts.global_trading;
-      // Never started on this install: the card says Start, as the safety sheet does.
-      const start = trading?.changed_by === "default";
-      if (start) title = text.startTitle;
-      if (trading?.state === "stopped")
-        lines.push(
-          start
-            ? text.startStopped
-            : trading.since
-              ? `${text.resumeStopped} · ${tradingSafetyLabels[lang].since} ${readinessTime(trading.since, locale, now)}`
-              : text.resumeStopped,
-        );
-      hint = start ? text.startHint : text.resumeHint;
-      buttons = pair(start ? text.start : text.resume, text.notNow);
-      break;
-    }
-    case "lift_restriction": {
-      const pause = facts.restriction;
-      title =
-        pause?.action_class === "all_mutations"
-          ? text.pausedFrozen
-          : pause?.action_class === "no_risk_increase"
-            ? text.pausedRisk
-            : text.pausedEntries;
-      if (pause) {
-        const who = pause.all_agents
-          ? text.allAgents
-          : pause.agent_name
-            ? isolate(pause.agent_name)
-            : text.anAgent;
-        const scope = [
-          pause.symbol ? isolate(pause.symbol) : text.allPairs,
-          who,
-          ...(pause.includes_owner_manual ? [text.yourOrdersToo] : []),
-          ...(account ? [account] : []),
-        ];
-        lines.push(`${pauseClassLabel(pause.action_class, locale)} · ${scope.join(" · ")}`);
-        const when =
-          pause.state === "scheduled"
-            ? `${text.starts} ${readinessTime(pause.valid_from, locale, now)}`
-            : pause.valid_until
-              ? `${text.until} ${readinessTime(pause.valid_until, locale, now)}`
-              : text.untilLifted;
-        const source =
-          pause.source === "owner_ui"
-            ? text.setByYou
-            : pause.source === "owner_message"
-              ? text.fromYourMessage
-              : `${text.setByAgent} ${pause.set_by_agent_name ? isolate(pause.set_by_agent_name) : text.anAgent}`;
-        lines.push(`${when} · ${source}`);
-        hint = pause.action_class === "all_mutations" ? text.exitsFrozen : text.exitsAllowed;
-      }
-      buttons = pair(text.lift, text.keep);
       break;
     }
     case "resolve_operation": {
@@ -1575,81 +1225,77 @@ export function ownerActionCard(
       buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
-    case "trust_source": {
-      const source = facts.source;
-      title = source?.review ? text.trustReviewTitle : text.trustTitle;
-      lines.push(...sourceLines(card, lang, text));
-      if (source?.kind === "mcp_server" && (!source.writes?.length || source.blocked?.length)) {
-        // Every tool only reads, or the server offers a tool that can trade or move money
-        // (then only its reading tools may run): one tap, nothing to choose.
-        hint = source.blocked?.length ? text.trustServerBlockedHint : text.trustServerReadHint;
-        buttons = [
-          { key: "confirm", label: text.trust, decision: "confirm", tier: "read", primary: true },
-          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
-        ];
-        break;
+    case "secret": {
+      const secret = facts.secret;
+      title = secret?.connect
+        ? connectTitle(secret.connect, secret.service, text)
+        : text.secretTitle;
+      if (secret?.destination === "broker" && secret.account) {
+        // Raised only by the broker tools: every word is ours, the account is server fact.
+        const account = secret.account;
+        title =
+          secret.purpose === "rotate_password"
+            ? text.brokerRotateTitle
+            : secret.purpose === "replace_token"
+              ? text.brokerTokenTitle
+              : text.brokerConnectTitle;
+        lines.push(
+          fill(text.brokerAccountLine, {
+            login: isolate(account.login),
+            server: isolate(account.server),
+            platform: account.platform.toUpperCase(),
+          }),
+        );
+        if (secret.agent_name)
+          lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
+        hint = text.secretBroker;
+        form = {
+          fields: secret.fields.map((field) => ({
+            key: field.key,
+            label:
+              field.key !== "METAAPI_TOKEN"
+                ? text.brokerPassword
+                : secret.purpose === "replace_token"
+                  ? text.brokerTokenNew
+                  : text.brokerToken,
+            type: "password",
+            required: true,
+          })),
+          submit: text.secretSave,
+        };
+      } else if (secret) {
+        // The label, field labels and details are the agent's words; every other word is ours.
+        if (secret.label) lines.push(isolate(secret.label));
+        const details = secret.details ?? {};
+        if (details.name && secret.connect !== "brave_search")
+          lines.push(`${text.fieldName}: ${isolate(details.name)}`);
+        if (secret.agent_name)
+          lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
+        // Where each value goes, and the saved values it would replace: never silently.
+        if (secret.saves_as?.length)
+          lines.push(fill(text.secretSavesAs, { names: nameList(secret.saves_as, lang) }));
+        if (secret.replaces?.length)
+          lines.push(fill(text.secretReplaces, { names: nameList(secret.replaces, lang) }));
+        hint =
+          secret.connect === "model_provider"
+            ? secret.fields.some((field) => field.role === "server_url")
+              ? `${text.modelHint} ${text.modelEndpointHint}`
+              : text.modelHint
+            : secret.destination === "broker"
+              ? text.secretBroker
+              : !secret.connect
+                ? text.secretWorkspace
+                : secret.service === "x"
+                  ? `${text.connectHint} ${text.connectXHint}`
+                  : text.connectHint;
+        form = secretForm(secret, text);
       }
-      if (source?.kind === "mcp_server") {
-        hint = text.trustServerHint;
-        buttons = [
-          {
-            key: "confirm",
-            label: text.trustRead,
-            decision: "confirm",
-            tier: "read",
-            primary: true,
-          },
-          {
-            key: "trust_write",
-            label: text.trustWrite,
-            decision: "confirm",
-            tier: "write_nonfinancial",
-            primary: false,
-          },
-          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
-        ];
-        break;
-      }
-      hint = text.trustHint;
-      buttons = pair(text.trust, text.notNow);
-      break;
-    }
-    case "connect_credential": {
-      const credential = facts.credential;
-      title = credential ? credentialTitle(credential, text) : text.connectMcp;
-      hint =
-        credential?.service === "x" ? `${text.connectHint} ${text.connectXHint}` : text.connectHint;
-      if (credential) form = credentialForm(credential, text);
-      // Connect is the form's own submit: the value goes to the owner API, never here.
+      // Save is the form's own submit: the values go to the card's route, never here.
       buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
       break;
     }
-    case "set_account_limits": {
-      title = text.limitsTitle;
-      const currency = facts.proposed?.currency ?? facts.current?.currency ?? null;
-      // Every field the card would change has a line, its currency and day included.
-      for (const change of facts.changes ?? []) {
-        const from =
-          limitValue(change.name, change.from, facts.current?.currency ?? null) ?? text.notSet;
-        const to = limitValue(change.name, change.to, currency) ?? text.removed;
-        // The arrow points along the reading direction: right to left in Arabic.
-        lines.push(
-          `${limitFieldLabel(change.name, locale, text)}: ${from} ${lang === "ar" ? "←" : "→"} ${to}`,
-        );
-      }
-      if (account) lines.push(`${text.account}: ${account}`);
-      if (facts.no_longer_applies) {
-        // The limits moved on since the card was raised: it can only be dismissed.
-        hint = text.noLongerApplies;
-        buttons = [{ key: "cancel", label: text.cancel, decision: "cancel", primary: false }];
-        break;
-      }
-      hint = card.requires_passkey ? text.limitsPasskey : text.limitsOneTap;
-      buttons = pair(card.requires_passkey ? text.applyPasskey : text.apply, text.cancel);
-      break;
-    }
   }
-  const pending = card.status === "pending";
+  const pending = ownerActionLive(card);
   return {
     title,
     lines,
@@ -1657,10 +1303,19 @@ export function ownerActionCard(
     options: pending ? options : [],
     buttons: pending ? buttons : [],
     notes: pending && card.kind === "resolve_operation",
-    credential: pending ? form : null,
+    secret: pending ? form : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),
   };
+}
+
+/** Whether the card still offers its buttons: a pending card, or a Mandate card the owner
+ * already tapped, which stays the agent's switch while the agent exists. */
+export function ownerActionLive(card: OwnerAction): boolean {
+  return (
+    card.status === "pending" ||
+    (card.kind === "trading_mode" && card.status === "confirmed" && !!card.facts.trading_mode)
+  );
 }
 
 /** A refusal that means the card changed on another screen (a grant card's choice): the
@@ -1709,10 +1364,6 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "This card no longer exists.",
     ar: "لم تعد هذه البطاقة موجودة.",
   },
-  owner_action_limits_invalid: {
-    en: "These limits are not valid for this account.",
-    ar: "هذه الحدود غير صالحة لهذا الحساب.",
-  },
   owner_action_challenge_required: {
     en: "Confirm with your passkey on this card.",
     ar: "أكّد بمفتاح المرور من هذه البطاقة.",
@@ -1745,41 +1396,45 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "This card has no such choice.",
     ar: "لا يوجد هذا الخيار في هذه البطاقة.",
   },
-  execution_policy_passkey_required: {
-    en: "Raising or removing a money limit needs your passkey.",
-    ar: "رفع حد مالي أو إزالته يحتاج مفتاح المرور.",
-  },
-  execution_policy_passkey_not_needed: {
-    en: "This change allows no more risk, so it needs no passkey.",
-    ar: "هذا التغيير لا يسمح بمخاطرة أكبر، فلا يحتاج مفتاح المرور.",
-  },
-  owner_action_tier_required: {
-    en: "Choose what its tools may do.",
-    ar: "اختر ما يُسمح لأدواته بفعله.",
-  },
   trusted_source_write_blocked: {
     en: "This server offers tools that look like they trade or move money, so only its reading tools can run.",
     ar: "يقدّم هذا الخادم أدوات يبدو أنها تتداول أو تحرّك المال، فلا تعمل إلا أدواته التي تقرأ.",
   },
-  owner_action_connection_required: {
-    en: "Fill in the form to connect it.",
-    ar: "املأ النموذج لربطه.",
+  owner_action_secret_values_invalid: {
+    en: "Fill in every required field.",
+    ar: "املأ كل حقل مطلوب.",
   },
-  owner_action_connection_mismatch: {
-    en: "That connection does not match this card.",
-    ar: "هذا الربط لا يطابق هذه البطاقة.",
+  secret_value_too_short: {
+    en: "Each value needs at least 3 characters. Nothing was saved.",
+    ar: "تحتاج كل قيمة إلى 3 أحرف على الأقل. لم يُحفظ شيء.",
+  },
+  owner_action_secret_value_unsendable: {
+    en: "A key or token has a character it cannot be sent with, such as a space or a hidden character from a paste. Type it again.",
+    ar: "في مفتاح أو رمز حرفٌ لا يمكن إرساله، مثل مسافة أو حرف مخفي من النسخ. اكتبه من جديد.",
+  },
+  mcp_url_invalid: {
+    en: "Enter the server's https:// address, without a user name or password in it.",
+    ar: "أدخل عنوان الخادم الذي يبدأ بـ https://، دون اسم مستخدم أو كلمة مرور فيه.",
+  },
+  integration_source_invalid: {
+    en: "Enter the calendar's https:// address, without a user name or password in it.",
+    ar: "أدخل عنوان التقويم الذي يبدأ بـ https://، دون اسم مستخدم أو كلمة مرور فيه.",
   },
   owner_action_not_renewable: {
     en: "This card can no longer be asked again. Nothing changed.",
     ar: "لم يعد ممكنًا طلب هذه البطاقة من جديد. لم يتغير شيء.",
   },
-  owner_action_pause_unsupported: {
-    en: "This card cannot pause new trades.",
-    ar: "لا تستطيع هذه البطاقة إيقاف الصفقات الجديدة.",
-  },
   trade_approval_expired: {
     en: "This request expired. Ask for a new one.",
     ar: "انتهت مدة هذا الطلب. اطلب طلبًا جديدًا.",
+  },
+  trade_approval_quote_unavailable: {
+    en: "The current price could not be read, so this request was not approved. Try again.",
+    ar: "تعذّرت قراءة السعر الحالي، فلم تتم الموافقة على هذا الطلب. حاول مرة أخرى.",
+  },
+  trade_approval_drifted: {
+    en: "The price moved outside this request's range, so it can no longer be approved.",
+    ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
   },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",

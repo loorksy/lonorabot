@@ -75,19 +75,30 @@ export {
   selectionSummary,
 } from "./chat-rows";
 export {
+  availableCommands,
+  COMMAND_ALIAS,
+  type CommandId,
+  type CommandOption,
+  commandQuery,
+  parseCommand,
+  rankCommands,
+} from "./composer-commands";
+export {
   guestCandidates,
-  MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
+  matchesEveryone,
   mentionAddress,
   mentionCandidates,
   mentionQuery,
+  mentionSegments,
   rebaseMentions,
 } from "./composer-mentions";
 export {
   type ConversationItem,
   conversationTimeline,
   nearConversationBottom,
+  SLOT_OWNER_ACTION_KINDS,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export {
@@ -103,7 +114,18 @@ export {
 export { display as genuiDisplay, environment, evaluate, renderTemplate } from "./genui/expr";
 export { DASH as GENUI_DASH } from "./genui/functions";
 export { parseCardNumber } from "./genui/input";
-export { isUiPart, validateUiDocument, validateUiPart } from "./genui/spec";
+export {
+  type CardInline,
+  type CardMarkdownBlock,
+  cardInline,
+  cardMarkdown,
+} from "./genui/markdown";
+export {
+  isUiPart,
+  type UiSlotRef,
+  validateUiDocument,
+  validateUiPart,
+} from "./genui/spec";
 export { cardLock, sendBlocked, submitMark } from "./genui/submit";
 export {
   archivedSummary,
@@ -115,6 +137,7 @@ export {
 } from "./inbox";
 export {
   callPart,
+  commandPart,
   pendingVoiceRich,
   validateAgentRichContent,
   voicePart,
@@ -128,10 +151,6 @@ export {
   orderLineText,
 } from "./order-line";
 export {
-  type CredentialField,
-  type CredentialForm,
-  type CredentialPost,
-  credentialForm,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -144,9 +163,12 @@ export {
   ownerActionChoose,
   ownerActionError,
   ownerActionLabels,
+  ownerActionLive,
   ownerActionText,
   rereadOwnerAction,
-  submitCredential,
+  type SecretForm,
+  type SecretFormField,
+  submitSecret,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,
@@ -202,19 +224,15 @@ export {
   supervisionLabels,
   supervisionRows,
   supervisionText,
-  unsupervisedAgents,
 } from "./supervision";
+export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {
   isolate,
   listSeparator,
-  moneyLimitLabel,
-  moneyLimitsLine,
-  pauseClassLabel,
   readinessTime,
   type TradingSafetyText,
-  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyLabels,

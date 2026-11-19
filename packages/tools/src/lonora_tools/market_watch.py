@@ -6,7 +6,6 @@ from typing import Any
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.market_watch import Watch
 from lonora_core.user_error import ToolRefusal
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.market_watches import (
     MarketWatchRepository,
     WatchAction,
@@ -29,8 +28,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
+from .profile_taint import mark_from
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 async def keyed_watch(
@@ -161,8 +161,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 "task_id": run.model_metadata["task_id"],
                 "task_run_id": run.id,
             }
-        # A watch tainted work created wakes tainted (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "watch", row.id)
+        await mark_from(session, run, "watch", row.id)
         return resource_data(row)
 
 
@@ -252,8 +251,7 @@ async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dic
             agent_id=context.agent_id,
             owner_message=await owner_message_id(session, run) is not None,
         )
-        # Tainted work that resumes or steers a watch taints it (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "watch", row.id)
+        await mark_from(session, run, "watch", row.id)
         return stating(
             {
                 **resource_data(row),
@@ -293,7 +291,7 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             clear_expiry=params.clear_expiry,
             level=params.level,
         )
-        await taint_row_from(session, run, "watch", row.id)
+        await mark_from(session, run, "watch", row.id)
         if row.version != version:
             # An extension the owner did not ask for shows as a notice with Undo (Q31).
             await raise_watch_changed(

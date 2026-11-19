@@ -24,6 +24,9 @@ export type InputRequest = {
   id: string;
   run_id: string;
   message_id: string;
+  /** The thread whose message holds the question: a background run's question is copied
+   * into the conversation it reports to, while the run itself keeps its own thread. */
+  thread_id: string;
   question: string;
   choices: { id: string; label: string; effects?: ChoiceEffect[] }[];
   status: "pending" | "answered" | "cancelled";

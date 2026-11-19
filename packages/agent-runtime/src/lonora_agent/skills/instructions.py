@@ -25,12 +25,12 @@ from lonora_db.skills import (
 )
 from lonora_db.transactions import owned_agent
 from lonora_tools.context import ToolContext
+from lonora_tools.provenance import mark_external_content
 from lonora_tools.registry import ToolRegistry
-from lonora_tools.restrictions import mark_external_content
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..workspace_access import scoped_run
+from ..run_scope import scoped_run
 from .lifecycle import owned_skill, validate_graph
 from .registry import built_in_skills
 

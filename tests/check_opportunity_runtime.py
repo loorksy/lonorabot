@@ -188,13 +188,14 @@ async def main() -> None:
             "PASS versioned forming/confirmed/invalidated history, explicit expiry without SL, source freshness degradation and restart/API persistence"
         )
 
-        await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
         thesis = created[0]
         args = {
             "account_id": account,
             "symbol": symbols[0],
             "action": "buy",
             "volume": "0.1",
+            "tolerance": "5",
+            "reason": "Fixture entry",
             "thesis_id": thesis["id"],
         }
         proposal = await call("trade_execute", args, "entry-once")
@@ -244,15 +245,10 @@ async def main() -> None:
             "volume": "0.04",
             "thesis_id": thesis["id"],
         }
+        # In Ask a partial close of the agent's own position executes without a card.
         partial = await call("trade_execute", partial_args, "partial-close")
-        await f.request(
-            "POST",
-            "/trading/approvals/" + partial["approval_id"] + "/decision",
-            {"decision": "approve"},
-        )
-        assert (await call("trade_execute", partial_args, "partial-close"))["results"][0][
-            "status"
-        ] == "confirmed"
+        assert "approval_id" not in partial, partial
+        assert partial["results"][0]["status"] == "confirmed"
         partial_state = await f.request("GET", "/trading/opportunities/" + thesis["id"])
         assert (
             partial_state["status"] == "acted_on"
@@ -265,13 +261,8 @@ async def main() -> None:
             "position_id": target,
             "thesis_id": thesis["id"],
         }
-        close_card = await call("trade_execute", close_args, "close-real-ticket")
-        await f.request(
-            "POST",
-            "/trading/approvals/" + close_card["approval_id"] + "/decision",
-            {"decision": "approve"},
-        )
         close_result = await call("trade_execute", close_args, "close-real-ticket")
+        assert "approval_id" not in close_result, close_result
         assert close_result["results"][0]["status"] == "confirmed", close_result
         assert [p.id for p in await broker.positions()] == [first_position]
         finished = await f.request("GET", "/trading/opportunities/" + thesis["id"])
@@ -352,6 +343,8 @@ async def main() -> None:
                 "symbol": symbols[0],
                 "action": "buy",
                 "volume": volume,
+                "tolerance": "5",
+                "reason": "Fixture entry",
                 "thesis_id": thesis["id"],
             }
             card = await call("trade_execute", entry_args, key)
@@ -564,7 +557,6 @@ async def main() -> None:
             "PASS an entry that settles after its thesis expired is still its entry, and closing its position completes the thesis"
         )
     finally:
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         await f.close()
 
 

@@ -85,10 +85,6 @@ async def create_agent(
     session.add(row)
     await session.flush()
     session.add(MemoryRow(agent_id=row.id))
-    from .supervision import grant_default
-
-    # Every new agent is supervised by the Personal Agent from the start (revocable).
-    await grant_default(session, owner_id, row)
     return row
 
 

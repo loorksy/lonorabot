@@ -43,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 
 NAME = "model_request"
 LIST_NAME = "model_list"
@@ -188,8 +188,9 @@ async def request_model(context: ToolContext, args: dict[str, Any]) -> dict[str,
             "ok": False,
             "code": "model_provider_not_connected",
             "changed": False,
-            "recovery": "Nothing changed. The owner adds this provider's key in Model "
-            "settings; until then only a connected provider's models are available.",
+            "recovery": "Nothing changed. Ask the owner for its key on a Secret card "
+            "(target model_provider); until then only a connected provider's models are "
+            "available.",
         }
     receipt_key = "model-request:" + context.resource_id
     async with context.db.sessions() as session:

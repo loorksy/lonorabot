@@ -73,9 +73,6 @@ async def main() -> None:
                 }
             },
         )
-        await fixture.request(
-            "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
-        )
         run = await fixture.run(agent, thread)
         context = await fixture.lease(run)
         phase = 0
@@ -150,6 +147,8 @@ async def main() -> None:
                                 "symbol": symbol,
                                 "action": "buy",
                                 "volume": "0.1",
+                                "tolerance": "50",
+                                "reason": "Fixture entry",
                             },
                         ),
                     ]
@@ -223,9 +222,6 @@ async def main() -> None:
                 if row:
                     await session.delete(row)
             await fixture.request("DELETE", "/trading/connections/" + connection_id)
-        await fixture.request(
-            "PUT", "/trading/controls", {"enabled": False, "emergency_stop": False}
-        )
         await fixture.close()
 
 

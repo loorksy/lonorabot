@@ -1,10 +1,10 @@
 """A new order names the account's exact symbol; an exit is never held back by the catalogue."""
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from lonora_contracts.account import Position
@@ -33,7 +33,10 @@ class Context:
     def __init__(self, positions: list[Position], symbols: Any = None, recorded: Any = None):
         @asynccontextmanager
         async def sessions():
-            yield SimpleNamespace(get=AsyncMock(return_value=recorded))
+            # A close-all freezes the set it read (an effect receipt) in its own commit.
+            yield SimpleNamespace(
+                get=AsyncMock(return_value=recorded), add=MagicMock(), begin=nullcontext
+            )
 
         self.db = SimpleNamespace(sessions=sessions)
         broker = SimpleNamespace(

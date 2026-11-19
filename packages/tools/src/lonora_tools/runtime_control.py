@@ -5,12 +5,10 @@ from lonora_contracts.input_request import InputChoice
 from lonora_core.public_reply import public_reply_violation
 from lonora_core.run_state import is_conversational
 from lonora_db.boards import BoardRepository
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import require_lease
 from lonora_db.schema import ThreadRow, TradeApprovalRow
 from lonora_db.tickets import TicketRepository
 from lonora_db.transactions import resource_data
-from lonora_trading.controls import read_controls
 from pydantic import Field, model_validator
 from sqlalchemy import select
 
@@ -54,7 +52,6 @@ async def status(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         }
     return {
         "run_id": context.lease.run_id,
-        "trading": (await read_controls(context.db)).model_dump(),
         "agent_state": live.model_dump(mode="json"),
         "environment": operational,
     }
@@ -67,9 +64,8 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "code": "financial_consent_requires_trade_request",
             "next_tool": "trade_execute",
             # A trade is not the answer to an owner-only control (G0 baseline I07).
-            "guidance": "An order or close is trade_execute. Resuming trading, lifting a "
-            "pause, limits and authority are owner_action_propose cards (through tool_call); "
-            "a pause the owner asks for is trade_restriction_create.",
+            "guidance": "An order or close is trade_execute. Authority is an "
+            "owner_action_propose card (through tool_call).",
         }
     if any(
         public_reply_violation(text)
@@ -154,7 +150,7 @@ async def board_create(context: ToolContext, args: dict[str, Any]) -> dict[str, 
 
 async def ticket_create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        run = await require_lease(session, context.lease, lock=True)
+        await require_lease(session, context.lease, lock=True)
         existing = await session.get(TicketRepository.row_type, context.resource_id)
         row = existing or await TicketRepository().create(
             session,
@@ -163,8 +159,6 @@ async def ticket_create(context: ToolContext, args: dict[str, Any]) -> dict[str,
             agent_id=context.agent_id,
             resource_id=context.resource_id,
         )
-        # A ticket tainted work wrote starts tainted, whoever starts it (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "ticket", row.id)
         return resource_data(row)
 
 
@@ -195,7 +189,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "runtime_status",
-            "Read runtime and global financial controls; this tool cannot enable trading.",
+            "Read this run's runtime state and your live agent state; this tool cannot enable trading.",
             Empty,
             status,
             True,

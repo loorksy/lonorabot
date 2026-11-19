@@ -8,7 +8,6 @@ from check_streaming import Fixture
 from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import AgentCreate, utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.agent_binding import binding_context, require_financial_agent
@@ -16,12 +15,10 @@ from lonora_db.agents import agent_data, create_agent
 from lonora_db.schema import AccountAuthorityRow, AgentRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 
 
 async def main() -> None:
     f = await Fixture().open()
-    controls = await read_controls(f.runtime.db)
     connections: list[str] = []
     try:
         general = await f.request(
@@ -141,7 +138,14 @@ async def main() -> None:
         assert {first, second}.issubset({item["connection_id"] for item in accounts})
         try:
             denied = await call(
-                "trade_execute", {"action": "buy", "volume": "0.1", "stop_loss": "90"}
+                "trade_execute",
+                {
+                    "action": "buy",
+                    "volume": "0.1",
+                    "stop_loss": "90",
+                    "tolerance": "5",
+                    "reason": "Fixture entry",
+                },
             )
             assert denied.get("code") == "agent_analysis_only", denied
         except LonoraError as error:
@@ -220,7 +224,6 @@ async def main() -> None:
             assert envelope.symbols == ["EURUSDm"]
         # The existing lease must use fresh identity; the old signature still permits
         # EURUSDm, while the newly preferred XAUUSDm is not authorized by that grant.
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
         opened = await call(
             "trade_execute",
             {
@@ -229,6 +232,8 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.1",
                 "stop_loss": "90",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
             fixed_context,
         )
@@ -245,6 +250,8 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.1",
                 "stop_loss": "90",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
             fixed_context,
         )
@@ -309,6 +316,8 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.1",
                 "stop_loss": "90",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
             fixed_context,
         )
@@ -376,7 +385,6 @@ async def main() -> None:
             "PASS general agent can propose account-wide scope without automatically activating it"
         )
     finally:
-        await save_controls(f.runtime.db, controls)
         for account in connections:
             await f.request("DELETE", "/trading/connections/" + account)
         await f.close()

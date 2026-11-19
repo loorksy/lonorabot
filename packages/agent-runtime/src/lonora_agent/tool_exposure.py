@@ -16,13 +16,15 @@ from lonora_adapter_kit.types import ModelMessage, ToolCall, ToolDefinition
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
 from lonora_db.lead import LEAD_ROLE
-from lonora_db.schema import AgentRow, ThreadRow
+from lonora_db.schema import AgentRow, RunRow, ThreadRow
 from lonora_db.supervision import supervised_ids
 from lonora_db.threads import thread_options
 from lonora_db.tool_usage import record_tool_use, remembered_tools
 from lonora_tools.base import EXPOSURE_PROFILES, ExposureProfile, ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
+
+from .context.command import owner_command
 
 log = logging.getLogger("lonora.tool_loop")
 
@@ -97,8 +99,18 @@ async def ensure_exposure(
         remembered = await remembered_tools(session, context.owner_id, context.agent_id)
         supervising = bool(await supervised_ids(session, context.owner_id, context.agent_id))
         thread = await session.get(ThreadRow, context.thread_id)
-        # The owner switched on web search for this chat (Q33): its schema is native.
-        web_search = thread is not None and thread_options(thread).web_search
+        run = await session.get(RunRow, context.lease.run_id)
+        # Only the owner's own message turn reads its / command, as the context does.
+        command = (
+            await owner_command(session, run.thread_id, run.input_seq)
+            if run is not None and run.trigger in {"user", "group"}
+            else None
+        )
+        # The owner switched on web search for this chat (Q33), or this message is the
+        # /search command: its schema is native.
+        web_search = (thread is not None and thread_options(thread).web_search) or (
+            command is not None and command["name"] == "search"
+        )
     profiles = run_profiles(agent, task_run, supervises=supervising)
     unavailable = await registry.availability(context)
     native, promoted = registry.exposure(

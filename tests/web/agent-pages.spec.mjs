@@ -103,6 +103,12 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
   const main = page.locator("main");
   await expect(main.locator(".hero h2")).toHaveText(lonora.name);
   await expect(main).toContainText("Supervises");
+  // Lonora leads every team agent by its role: one line, no picker, no "supervises none".
+  await expect(main).toContainText(
+    `\u2068${lonora.name}\u2069 reads and steers every team agent by its role.`,
+  );
+  await expect(main).not.toContainText("It does not supervise any agent now.");
+  await expect(main.getByRole("button", { name: "Add agents to supervise" })).toHaveCount(0);
   await expect(main.getByRole("button", { name: "Stop the agent" })).toHaveCount(0);
   await expect(main.getByRole("button", { name: "Turn the agent on" })).toHaveCount(0);
   await page.goto(`/app/agent/${data.research.id}`);
@@ -114,8 +120,14 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
 test("supervision: add from the picker, remove from the row; never money authority", async ({
   page,
 }) => {
-  await page.goto(`/app/agent/${data.research.id}`);
+  // With no grant, the trader's page names Lonora, its lead.
+  const lonora = (await (await page.request.get("/api/agents")).json()).find(
+    (agent) => agent.role === "personal",
+  );
+  await page.goto(`/app/agent/${data.trader.id}`);
   const main = page.locator("main");
+  await expect(main.locator(".sup-line")).toContainText(lonora.name);
+  await page.goto(`/app/agent/${data.research.id}`);
   await expect(main).toContainText("It does not supervise any agent now.");
   await main.getByRole("button", { name: "Add agents to supervise", exact: true }).click();
   const sheet = page.locator("#dialog");
@@ -144,6 +156,39 @@ test("supervision: add from the picker, remove from the row; never money authori
     .click();
   await revoke;
   await expect(main).toContainText("It does not supervise any agent now.");
+});
+
+test("the trading and safety row opens the agent's sheet in its conversation", async ({ page }) => {
+  await page.goto(`/app/agent/${data.trader.id}`);
+  await page
+    .locator("main")
+    .getByRole("button", { name: /Ask me on every order/ })
+    .click();
+  await expect(page.locator("#dialog").getByTestId("agent-live-state")).toBeVisible();
+  // The conversation opens the sheet once and drops ?sheet=agent, so Back does not reopen it.
+  await expect(page).toHaveURL(new RegExp(`/app/${data.trader.id}$`));
+});
+
+test("a trading agent with no linked account opens the trading settings", async ({ page }) => {
+  await page.route("**/api/trading/connections", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+  await page.route("**/api/agents", async (route) => {
+    const response = await route.fetch();
+    const agents = await response.json();
+    await route.fulfill({
+      response,
+      json: agents.map((agent) =>
+        agent.id === data.trader.id ? { ...agent, trading_account_id: null } : agent,
+      ),
+    });
+  });
+  await page.goto(`/app/agent/${data.trader.id}`);
+  await page
+    .locator("main")
+    .getByRole("button", { name: /No trading account linked/ })
+    .click();
+  await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
 });
 
 test("the call button follows Q58 when no voice provider is configured", async ({ page }) => {
@@ -206,7 +251,7 @@ test("trades: the owner's own close goes through the executor; the order log sho
 test("the chart sheet draws the broker's candles for the agent's pair (Q37)", async ({ page }) => {
   await page.goto(`/app/${data.trader.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const sheet = page.locator("#dialog");
   await expect(sheet).toHaveClass(/expandable/);
   await sheet.getByRole("tab", { name: "15m" }).click();
@@ -535,7 +580,7 @@ test("the card shows the last action: a refused close, then a modify that went t
     const body = route.request().postDataJSON();
     if (body.action === "close_position" && refuse) {
       refuse = false;
-      return route.fulfill({ status: 409, json: { code: "emergency_stop" } });
+      return route.fulfill({ status: 409, json: { code: "broker_observation_unavailable" } });
     }
     return route.continue();
   });
@@ -558,7 +603,7 @@ test("the card shows the last action: a refused close, then a modify that went t
 test("the chart sheet follows a new chart on its pair without reopening", async ({ page }) => {
   await page.goto(`/app/${data.trader.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toBeVisible();
   await expect(body).not.toHaveAttribute("data-chart-id", /.+/);
@@ -609,7 +654,7 @@ test("a streamed scene update re-reads only that scene; a chart moved off the pa
     page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toHaveAttribute("data-chart-id", chart.id);
   await body.getByRole("tab", { name: "15m" }).click();
@@ -688,7 +733,7 @@ test("after a failed chart list, the agent's next scene update lists again", asy
     page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toBeVisible();
   await expect.poll(() => failed).toBe(true);

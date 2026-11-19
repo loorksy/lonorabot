@@ -12,11 +12,12 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .execution_receipts import post_receipt
 from .schema import RunRow, ThreadRow, TradingJournalRow
 
 # Facts the execution boundary recorded itself: never replaced by a broker receipt.
 # execution_evidence: planned/before-send snapshots; risk_assessment: the monetary limit
-# evaluation that admitted the send; admission_block: the boundary decision that stopped it.
+# evaluation older rows recorded; admission_block: the boundary decision that stopped it.
 SERVER_EVIDENCE = ("execution_evidence", "risk_assessment", "admission_block")
 
 
@@ -129,6 +130,9 @@ async def persist_result(
     row.status = status
     row.result = validated.model_dump(mode="json")
     row.updated_at = utcnow()
+    if status == "confirmed":
+        # The broker's confirmation and its Execution Receipt commit together (11.2).
+        await post_receipt(session, row)
     return True
 
 

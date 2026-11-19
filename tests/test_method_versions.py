@@ -553,7 +553,7 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
         )
         assert len(skills["versions"]) == 2 and "untrusted data" in skills["notice"]
         from lonora_db.schema import EffectReceiptRow
-        from lonora_tools.restrictions import external_content_key
+        from lonora_tools.provenance import external_content_key
 
         fresh_lead = replace(
             await fixture.lease(await fixture.run(lonora, await fixture.conversation(lonora))),

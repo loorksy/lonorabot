@@ -43,10 +43,17 @@ test("recorded preference changes read as plain words and never as raw values", 
   assert.equal(preferenceFieldLabel("device_id", "en"), null);
 });
 
+test("quiet hours in the change log read as the settings page names them, and off reads as off", () => {
+  assert.equal(preferenceFieldLabel("quiet_hours", "ar"), "ساعات الهدوء");
+  assert.equal(preferenceValueText("quiet_hours", "22:00-08:00", "ar"), "22:00 – 08:00");
+  assert.equal(preferenceValueText("quiet_hours", null, "ar"), "متوقف");
+  assert.equal(preferenceValueText("quiet_hours", null, "en"), "Off");
+});
+
 test("profile and memory errors explain what to do in the owner's language", () => {
   assert.match(ownerProfileError("memory_user_section_moved", "en") ?? "", /profile/);
   assert.ok(arabic.test(ownerProfileError("owner_profile_too_large", "ar") ?? ""));
-  assert.equal(ownerProfileError("trading_disabled", "en"), null);
+  assert.equal(ownerProfileError("broker_disabled", "en"), null);
 });
 
 test("the notify choice promises only what happens until agents can raise alerts", () => {

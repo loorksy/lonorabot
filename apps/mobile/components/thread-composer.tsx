@@ -51,6 +51,7 @@ export function ThreadComposer({
   onCancelReply,
   editing,
   onCancelEdit,
+  assist = true,
   permissionControl,
 }: {
   draft: string;
@@ -70,13 +71,15 @@ export function ThreadComposer({
   working?: boolean;
   members?: Agent[];
   mentionAll?: boolean;
-  /** A direct chat: at most two guest agents per message (MAX_DIRECT_GUESTS). */
+  /** A direct chat: other agents join as guests. */
   direct?: boolean;
-  /** A direct chat's own agent: never offered as a guest, never counted toward the cap. */
+  /** A direct chat's own agent: never offered as a guest. */
   self?: string | null;
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
+  /** «اقتراحات @» (chat preference): off, no list of agents while writing. */
+  assist?: boolean;
   /** Edit and resend (Q21): the owner's message this send replaces. */
   editing?: Message | null;
   onCancelEdit?: () => void;
@@ -90,13 +93,14 @@ export function ThreadComposer({
   const textBeforeCaret = draft.slice(0, cursor);
   const query = mentionQuery(textBeforeCaret);
   const candidates: Array<Agent | null> =
-    query === null
+    query === null || !assist
       ? []
       : guestCandidates(mentionCandidates(members, query), committed.current, direct, self).slice(
           0,
           6,
         );
-  if (query !== null && mentionAll && "all".startsWith(query.toLowerCase())) candidates.push(null);
+  if (assist && query !== null && mentionAll && "all".startsWith(query.toLowerCase()))
+    candidates.push(null);
   useEffect(() => {
     if (!draft) {
       committed.current = [];

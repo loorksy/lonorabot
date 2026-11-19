@@ -96,9 +96,8 @@ manual and manifest under `share/lonora/system`.
 `check_policy_distribution.py` builds the production wheel offline and exercises
 the real installed-layout fallback; this is also part of `scripts/build.sh`.
 No new runtime, permission engine, memory system or procedure registry exists.
-The optional `lonora-design` procedure uses that existing registry; its compact
-response vocabulary is a separate bounded instruction block. See
-[native visual responses](native-visual-responses.md).
+The generated-interface vocabulary is a separate bounded instruction block. See
+[generated interfaces](genui.md).
 
 ## Verification limits
 
@@ -123,6 +122,10 @@ existing durable Run records, within the same thread and visible message range.
 This is lower-priority conversation content and grants no authority.
 Resumed checkpoints receive the current first-party core in the model request,
 without rewriting canonical history or replacing owner-specific instructions.
+When a checkpointed Run wakes (a Task's external wake or the owner's resume), its
+whole context head, including the constitution files, the owner's instructions,
+the wake context and the labelled context data, is rebuilt from the current
+resources and records; its transcript is kept.
 
 ## Legacy experimental data cleanup
 

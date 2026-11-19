@@ -28,7 +28,6 @@ import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
-from decimal import Decimal
 from io import BytesIO
 from typing import Any, cast
 from unittest.mock import patch
@@ -41,7 +40,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import run_data
@@ -58,14 +57,13 @@ from lonora_db.schema import (
     TradeApprovalRow,
     TradingAccountRow,
     TradingJournalRow,
-    TradingRestrictionRow,
+    TrustedSourceRow,
 )
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.run_dispatch import run_model_choice
 from lonora_gateway.service import Gateway
 from lonora_tools import mcp
 from lonora_trading.broker_recovery import reconcile_broker_account
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import func, select
 
@@ -622,18 +620,16 @@ class Acceptance:
         )
         await self.services.brokers.get(self.owner, self.account)
         self.lonora_thread = await self.conversation(self.lonora)
-        # The first-run default: new trading has not been started yet.
-        await save_controls(self.db, TradingControl(enabled=False))
-        print("PASS setup: one simulation account, Lonora, trading not started, scripted model")
+        print("PASS setup: one simulation account, Lonora, scripted model")
 
     # Journey 1 -----------------------------------------------------------------------
 
     async def gold_agent_trades_on_its_own(self) -> str:
-        """«أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%»: one grant
+        """«أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه»: one grant
         card, one passkey; the agent then trades by itself, and a worker that dies mid-send
         never sends it twice."""
         name = "J1 create a gold agent and let it trade on its own"
-        words = "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%"
+        words = "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه"
         task = "يدير صفقات الذهب على حساب المالك بنفسه ضمن التفويض الموقّع."
         self.model.script(
             words,
@@ -653,7 +649,6 @@ class Acceptance:
                 {
                     "kind": "grant_authority",
                     "agent_id": t.result("j1-create")["agent"]["id"],
-                    "daily_loss_percent": "2",
                 },
             ),
             "أنشأت وكيل الذهب على XAUUSD، وهو يسألك قبل كل صفقة حتى توقّع بطاقة التفويض.",
@@ -684,31 +679,18 @@ class Acceptance:
         assert grant["symbols"] == [GOLD] and grant["symbol_scope"] == "selected", grant
         assert grant["duration"] == "until_stopped" and grant["all_actions"] is True
         assert grant["allow_manual_positions"] is False  # D1: the owner's own excluded.
-        daily = card["facts"]["money"]["daily_loss"]
-        assert daily["proposed"] == "200.00" and daily["basis"] == "requested", daily
-        assert card["facts"]["global_trading"]["state"] == "stopped"  # "Resume too" shows.
         assert card["requires_passkey"] is True
         # Nothing trades before the signature: the agent is still Ask me.
         state = await self.state(gold.id)
-        assert state["trading_readiness"]["state"] in {"stopped", "ask_me"}, state
-        # One tap on Authorize with the passkey (the device enrolls inline the first time),
-        # with "Resume trading too" ticked.
-        decided = await self.passkey(name, card["id"], {"resume_trading": True})
-        assert decided["status"] == "confirmed" and decided["result"]["resumed"] is True, decided
-        assert decided["result"]["daily_loss"] == "200.00"
+        assert state["trading_readiness"]["state"] == "ask_me", state
+        # One tap on Authorize with the passkey (the device enrolls inline the first time).
+        decided = await self.passkey(name, card["id"], {})
+        assert decided["status"] == "confirmed", decided
         assert await self.level(gold.id) == "autonomous"
-        controls = await read_controls(self.db)
-        assert controls.enabled is True and controls.emergency_stop is False
-        policy = await self.request("GET", f"/trading/accounts/{self.account}/execution-policy")
-        assert Decimal(policy["risk"]["max_daily_loss"]) == 200
         # The status line, the card and the records agree.
         readiness = (await self.state(gold.id))["trading_readiness"]
         assert readiness["state"] == "on_its_own", readiness
         assert readiness["params"]["symbols"] == [GOLD], readiness["params"]
-        assert readiness["params"]["money_limit_set"] is True
-        assert readiness["params"].get("daily_loss") == {"amount": "200.00", "currency": "USD"}, (
-            readiness["params"]
-        )
         assert readiness["grants"][0]["allow_manual_positions"] is False
         async with self.db.sessions() as session:
             active = list(
@@ -744,6 +726,8 @@ class Acceptance:
             "symbol": GOLD,
             "volume": "0.1",
             "stop_loss": "1990",
+            "tolerance": "50",
+            "reason": "Fixture entry",
         }
         script = self.model.script(
             "The owner has authenticated automatic management of account",
@@ -846,6 +830,8 @@ class Acceptance:
             "symbol": EURO,
             "volume": "0.1",
             "stop_loss": "1.0900",
+            "tolerance": "0.05",
+            "reason": "Fixture entry",
         }
         self.model.script(
             words,
@@ -907,8 +893,8 @@ class Acceptance:
 
     async def lonora_manages_all_pairs(self) -> None:
         """«خلي لونورا تدير كل أزواجي بنفسها»: one grant card per connected account with
-        all pairs preselected and the account's money limits; a broker event on one of its
-        positions wakes Lonora with its normal authority."""
+        all pairs preselected; a broker event on one of its positions wakes Lonora with its
+        normal authority."""
         name = "J2 let Lonora manage all my pairs"
         connection = await self.request(
             "POST",
@@ -937,7 +923,7 @@ class Acceptance:
                     {"kind": "grant_authority", "account_id": self.second_account},
                 ),
             ),
-            "جهّزت بطاقة تفويض لكل حساب: كل الأزواج، حتى توقفه، مع حدودك المالية.",
+            "جهّزت بطاقة تفويض لكل حساب: كل الأزواج، حتى توقفه.",
         )
         run = await self.work(await self.say(self.lonora_thread, words))
         assert run.status == "completed", (run.status, run.error_code)
@@ -949,11 +935,6 @@ class Acceptance:
             grant = card["facts"]["grant"]
             assert grant["symbol_scope"] == "account" and grant["agent_is_personal"] is True
             assert grant["allow_manual_positions"] is False
-        # The first account keeps the owner's 200 limit; the second gets the D1 suggestion.
-        first = by_account[self.account]["facts"]["money"]["daily_loss"]
-        assert Decimal(first["current"]) == 200 and first["proposed"] is None, first
-        second = by_account[self.second_account]["facts"]["money"]["daily_loss"]
-        assert second["proposed"] == "300.00" and second["basis"] == "suggested", second
         # The gold agent already trades gold on the first account: the card says so.
         names = [item["agent_name"] for item in by_account[self.account]["facts"]["conflicts"]]
         assert names == ["Gold agent"], names
@@ -980,6 +961,8 @@ class Acceptance:
                     "symbol": EURO,
                     "volume": "0.1",
                     "stop_loss": "1.0900",
+                    "tolerance": "0.05",
+                    "reason": "Fixture entry",
                 },
             ),
             "فتحت الصفقة.",
@@ -1065,147 +1048,6 @@ class Acceptance:
         self.watch_name = name
         return watches[0].id
 
-    # Journey 3 -----------------------------------------------------------------------
-
-    async def pause_today_then_resume(self, watch_id: str) -> None:
-        """«أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب»: one restriction for all agents
-        until the end of the day, the watch keeps running, one Lift card; one tap resumes."""
-        name = "J3 stop new trades today, then resume later"
-        words = "أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب"
-        from datetime import datetime, time
-        from zoneinfo import ZoneInfo
-
-        end_of_day = datetime.combine(
-            datetime.now(ZoneInfo("UTC")).date(), time(23, 59, 59), ZoneInfo("UTC")
-        ).isoformat()
-        self.model.script(
-            words,
-            lambda t: call(
-                "j3-pause",
-                "trade_restriction_create",
-                {
-                    "account_id": self.account,
-                    "all_symbols": True,
-                    "all_agents": True,
-                    "action_class": "no_new_entries",
-                    "valid_until": end_of_day,
-                    "reason": "The owner asked: no new trades today; keep watching gold.",
-                },
-            ),
-            "أوقفت الصفقات الجديدة لكل الوكلاء حتى نهاية اليوم؛ الإغلاق وتقريب الوقف مسموحان، "
-            "ومراقبة الذهب مستمرة.",
-        )
-        run = await self.work(await self.say(self.lonora_thread, words))
-        assert run.status == "completed", (run.status, run.error_code)
-        restriction_id = json.loads(
-            next(
-                m.content
-                for m in self.model.sent[-1]
-                if m.role == "tool" and m.tool_call_id == "j3-pause"
-            )
-        )["restriction"]["id"]
-        async with self.db.sessions() as session:
-            restriction = await session.get(TradingRestrictionRow, restriction_id)
-            assert restriction is not None and restriction.agent_id is None
-            assert restriction.source == "owner_message" and restriction.revoked_at is None
-            watch = await session.get(MarketWatchRow, watch_id, populate_existing=True)
-            assert watch is not None and watch.payload["enabled"] is True  # Still watching.
-        await self.project()
-        lifts = await self.pending(self.lonora_thread, "lift_restriction")
-        assert len(lifts) == 1, lifts
-        facts = lifts[0]["facts"]["restriction"]
-        assert facts["action_class"] == "no_new_entries" and facts["valid_until"], facts
-        # The pill on every agent says the same thing as the card and the record.
-        for agent_id in (self.lonora, self.created[0]):
-            readiness = (await self.state(agent_id))["trading_readiness"]
-            assert readiness["state"] == "paused", (agent_id, readiness)
-            assert readiness["params"]["action_class"] == "no_new_entries"
-            assert readiness["params"]["valid_until"] == facts["valid_until"]
-            assert readiness["exits_allowed"] is True
-        # A new entry is held; nothing reaches the broker.
-        before = await self.positions(self.account)
-        self.model.script(
-            "اشترِ 0.01 ذهب الآن",
-            lambda t: call(
-                "j3-buy",
-                "trade_execute",
-                {
-                    "action": "buy",
-                    "account_id": self.account,
-                    "symbol": GOLD,
-                    "volume": "0.01",
-                    "stop_loss": "1990",
-                },
-            ),
-            "الصفقات الجديدة متوقفة اليوم بطلبك.",
-        )
-        await self.refresh_quotes(self.account)
-        refused = await self.work(await self.say(self.lonora_thread, "اشترِ 0.01 ذهب الآن"))
-        assert refused.status == "completed", (
-            refused.status,
-            refused.error_code,
-            [m.content[:300] for m in self.model.sent[-1][-2:]],
-        )
-        result = json.loads(
-            next(
-                m.content
-                for m in self.model.sent[-1]
-                if m.role == "tool" and m.tool_call_id == "j3-buy"
-            )
-        )
-        # Refused with the pause's own code before any approval card (Lonora is Ask me).
-        assert result.get("ok") is False and result.get("reason") == "trading restriction active", (
-            result
-        )
-        assert await self.count(TradeApprovalRow, TradeApprovalRow.run_id == refused.id) == 0
-        assert await self.positions(self.account) == before
-        # Later the owner says «رجّع التداول»: Lonora offers the Lift card (the same one).
-        self.model.script(
-            "رجّع التداول",
-            lambda t: call(
-                "j3-lift",
-                "owner_action_propose",
-                {"kind": "lift_restriction", "restriction_id": restriction_id},
-            ),
-            "اضغط «رفع الإيقاف» على البطاقة.",
-        )
-        run = await self.work(await self.say(self.lonora_thread, "رجّع التداول"))
-        assert run.status == "completed"
-        again = await self.pending(self.lonora_thread, "lift_restriction")
-        assert [card["id"] for card in again] == [lifts[0]["id"]], again  # No second card.
-        lifted = await self.decide(name, lifts[0]["id"], {"decision": "confirm"})
-        assert lifted["status"] == "confirmed" and lifted["decided_via"] == "tap", lifted
-        async with self.db.sessions() as session:
-            restriction = await session.get(
-                TradingRestrictionRow, restriction_id, populate_existing=True
-            )
-            assert restriction is not None and restriction.revoked_at is not None
-        assert (await self.state(self.lonora))["trading_readiness"]["state"] == "on_its_own" or (
-            await self.level(self.lonora)
-        ) == "supervised"
-        line = (await self.lines(self.lonora_thread))[-1]
-        assert any("\u0600" <= char <= "\u06ff" for char in line), line
-        self.journey(name, 1)
-
-    # Journey 12 ----------------------------------------------------------------------
-
-    async def stop_all_from_phone(self) -> None:
-        """The safety pill's Stop new trading (Mobile sends the same request): one tap;
-        exits stay allowed; one Resume clears both stop flags."""
-        name = "J12 stop all new trading from my phone"
-        await self.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": True})
-        self.tap(name)
-        readiness = (await self.state(self.created[0]))["trading_readiness"]
-        assert readiness["state"] == "stopped" and readiness["exits_allowed"] is True, readiness
-        # An exit is still allowed: the gold agent closes its position under Stop.
-        gold_positions = [p for p in await self.positions(self.account) if p["symbol"] == GOLD]
-        assert gold_positions
-        await self.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
-        controls = await read_controls(self.db)
-        assert controls.enabled is True and controls.emergency_stop is False  # One request.
-        assert (await self.state(self.created[0]))["trading_readiness"]["state"] == "on_its_own"
-        self.journey(name, 1)
-
     # Journey 10 (end) ----------------------------------------------------------------
 
     async def stop_watching(self, watch_id: str) -> None:
@@ -1230,52 +1072,6 @@ class Acceptance:
         assert state["watches"] == [] and state.get("watch_count", 0) == 0, state
         self.journey(self.watch_name, 0)
 
-    # Journey 3, two accounts ----------------------------------------------------------
-
-    async def pause_every_account(self) -> None:
-        """With two accounts a pause for "today" is one restriction and one Lift card per
-        account (a restriction is scoped to one account); lifting is one tap per account."""
-        name = "J3b stop new trades today on two accounts, then resume"
-        words = "أوقف الصفقات الجديدة اليوم على كل حساباتي"
-        from datetime import datetime, time
-        from zoneinfo import ZoneInfo
-
-        end_of_day = datetime.combine(
-            datetime.now(ZoneInfo("UTC")).date(), time(23, 59, 59), ZoneInfo("UTC")
-        ).isoformat()
-
-        def pause(call_id: str, account: str) -> tuple[str, str, dict[str, Any]]:
-            return (
-                call_id,
-                "trade_restriction_create",
-                {
-                    "account_id": account,
-                    "all_symbols": True,
-                    "all_agents": True,
-                    "action_class": "no_new_entries",
-                    "valid_until": end_of_day,
-                    "reason": "The owner asked: no new trades today on every account.",
-                },
-            )
-
-        self.model.script(
-            words,
-            lambda t: calls(
-                pause("j3b-first", self.account), pause("j3b-second", self.second_account)
-            ),
-            "أوقفت الصفقات الجديدة على الحسابين حتى نهاية اليوم.",
-        )
-        run = await self.work(await self.say(self.lonora_thread, words))
-        assert run.status == "completed", (run.status, run.error_code)
-        await self.project()
-        lifts = await self.pending(self.lonora_thread, "lift_restriction")
-        assert len(lifts) == 2, lifts
-        assert (await self.state(self.lonora))["trading_readiness"]["state"] == "paused"
-        for card in lifts:
-            await self.decide(name, card["id"], {"decision": "confirm"})
-        assert (await self.state(self.lonora))["trading_readiness"]["state"] == "on_its_own"
-        self.journey(name, 2, "one Lift card per account; the journey list assumes one account")
-
     # Journey 7 -----------------------------------------------------------------------
 
     async def resolve_uncertain_trade(self) -> None:
@@ -1296,6 +1092,8 @@ class Acceptance:
                     "symbol": GOLD,
                     "volume": "0.1",
                     "stop_loss": "1990",
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
                 },
             ),
             "لم يؤكد الوسيط الأمر بعد، ولن أرسله مرة أخرى.",
@@ -1372,49 +1170,49 @@ class Acceptance:
         assert len(await self.positions(self.account)) == before + 1  # Never resent.
         self.journey(name, 1)
 
-    # MCP (D3): the owner's secure form and the trust tap --------------------------------
+    # MCP (D3): the owner's secure form, then his words trust it ------------------------
 
     async def connect_mcp(
-        self, journey: str, card_id: str, name: str, token: str | None, url: str = MCP_URL
+        self, journey: str, card_id: str, name: str, address: str, token: str | None
     ) -> str:
-        """The secure card's form posts the token and server straight to the owner API (one
-        tap: Connect); the server's tools come back on a trust card (one tap: Trust)."""
-        secret_id = None
-        if token is not None:
-            secret_id = (
-                await self.request("POST", "/integrations/secrets", {"name": name, "value": token})
-            )["id"]
-        server = await self.request(
-            "POST",
-            "/mcp",
-            {
-                "payload": {
-                    "name": name,
-                    "transport": "http",
-                    "url": url,
-                    "secret_id": secret_id,
-                    "enabled": True,
-                },
-                "agent_id": None,
-                "thread_id": None,
-            },
+        """The Secret card (one tap: Connect) saves the address and token the owner typed
+        and connects the server the agent named; then the owner names the server in chat and
+        Lonora trusts its tools (VISION 10.3.2: no card)."""
+        values = {"URL": address} | ({"TOKEN": token} if token is not None else {})
+        connected = await self.request(
+            "POST", f"/owner-actions/{card_id}/secret", {"values": values}
         )
-        connected = await self.decide(
-            journey,
-            card_id,
-            {"decision": "confirm", "connected": {"resource": "mcp", "id": server["id"]}},
-        )
+        self.tap(journey)
         assert connected["status"] == "confirmed" and connected["result"]["configured"], connected
-        thread = await self.request("GET", "/owner-actions?thread_id=" + self.lonora_thread)
-        trust = [c for c in thread if c["kind"] == "trust_source" and c["status"] == "pending"]
-        assert len(trust) == 1, trust
-        source = trust[0]["facts"]["source"]
-        assert source["tools"] == ["search_posts"] and source["blocked"] == ["place_order"], source
-        trusted = await self.decide(
-            journey, trust[0]["id"], {"decision": "confirm", "tier": "read"}
+        # Lonora continues after the card (and asks the owner to name the server).
+        for queued in await self.runs(self.lonora, "owner_card"):
+            if queued.status == "queued":
+                await self.work(queued.id)
+        words = "ثق بخادم " + name
+        trusted: dict[str, Any] = {}
+
+        def done(t: Turn) -> ModelReply:
+            trusted.update(t.result("trust-" + name))
+            return ModelReply(text="وثقت بأدوات الخادم للقراءة.")
+
+        self.model.script(
+            words, lambda t: call("trust-" + name, "mcp_trust", {"server": name}), done
         )
-        assert trusted["status"] == "confirmed", trusted
-        return cast(str, server["id"])
+        run = await self.work(await self.say(self.lonora_thread, words))
+        assert run.status == "completed", (run.status, run.error_code)
+        assert trusted["trusted"] is True and trusted["tier"] == "read", trusted
+        assert trusted["tools_trusted"] == 1 and trusted["tools_blocked_moving_money"] == 1
+        server_id = cast(str, connected["result"]["connection_id"])
+        async with self.db.sessions() as session:
+            row = await session.scalar(
+                select(TrustedSourceRow).where(
+                    TrustedSourceRow.identifier == server_id,
+                    TrustedSourceRow.revoked_at.is_(None),
+                )
+            )
+            assert row is not None and row.added_via == "owner_message", row
+        assert await self.pending(self.lonora_thread, "trust_source") == []
+        return server_id
 
     # Journey 4 -----------------------------------------------------------------------
 
@@ -1457,7 +1255,7 @@ class Acceptance:
                     (
                         "j4-connect-x",
                         "owner_action_propose",
-                        {"kind": "connect_credential", "target": "mcp_server", "service": "x"},
+                        {"kind": "secret", "target": "mcp_server", "service": "x"},
                     ),
                 ),
             ),
@@ -1529,10 +1327,8 @@ class Acceptance:
             and c["facts"]["agent"]["name"] in {"News agent", "Desk supervisor"}
         ]
         assert len(created) == 2, created  # One Undo card each, never two.
-        connect = [
-            c for c in cards if c["kind"] == "connect_credential" and c["status"] == "pending"
-        ]
-        assert len(connect) == 1 and connect[0]["facts"]["credential"]["service"] == "x", connect
+        connect = [c for c in cards if c["kind"] == "secret" and c["status"] == "pending"]
+        assert len(connect) == 1 and connect[0]["facts"]["secret"]["service"] == "x", connect
         assert (
             await self.count(
                 AccountAuthorityRow, AccountAuthorityRow.agent_id.in_([news_id, desk_id])
@@ -1543,7 +1339,7 @@ class Acceptance:
         seen: list[str] = []
         tokens: list[str | None] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, tokens)):
-            connection = await self.connect_mcp(name, connect[0]["id"], "X", MCP_TOKEN)
+            connection = await self.connect_mcp(name, connect[0]["id"], "X", MCP_URL, MCP_TOKEN)
             # The news agent reads X on its own next sweep, and tells the gold agent.
             news_thread = await self.conversation(news_id)
             sweep = "صباح الخير، ما المهم في الأخبار و X اليوم؟"
@@ -1607,35 +1403,36 @@ class Acceptance:
             r for r in await self.runs(gold_id) if "Analysts expect gold bid into CPI" in r.prompt
         ]
         assert len(peer) == 1, [r.prompt[:80] for r in await self.runs(gold_id)]
-        # Two owner steps by the vision's own rule: a new credential (one secure card) and
-        # a source outside the trusted list (one tap, remembered).
-        self.journey(name, 2, "the journey list counts the Connect X card alone (1)")
+        # One owner step: a new credential (one secure card). The source outside the
+        # trusted list is trusted by the owner's own words, no card (VISION 10.3.2).
+        self.journey(name, 1)
         return news_id, desk_id, connection
 
     # Journey 6 -----------------------------------------------------------------------
 
     async def add_mcp_server(self) -> None:
-        """«أضف خادم MCP هذا» with its URL: one secure card for the server (and its token, if
-        any), one trust tap; then every agent uses its tools with no declaration and no
-        further card, and a tool that could trade is never trusted."""
+        """«أضف خادم MCP لملاحظاتي»: one Secret card where the owner types the server's
+        address (and its token, if any), then the owner names it in chat; every agent then
+        uses its tools with no declaration and no further card, and a tool that could trade
+        is never trusted."""
         name = "J6 add an MCP server"
-        words = "أضف خادم MCP هذا: " + NOTES_URL
+        words = "أضف خادم MCP لملاحظاتي"
         self.model.script(
             words,
             lambda t: call(
                 "j6-connect",
                 "owner_action_propose",
-                {"kind": "connect_credential", "target": "mcp_server"},
+                {"kind": "secret", "target": "mcp_server", "name": "Notes"},
             ),
             "اربط الخادم من البطاقة؛ سأعرض أدواته لتثق بها.",
         )
         run = await self.work(await self.say(self.lonora_thread, words))
         assert run.status == "completed", (run.status, run.error_code)
-        cards = await self.pending(self.lonora_thread, "connect_credential")
+        cards = await self.pending(self.lonora_thread, "secret")
         assert len(cards) == 1, cards
         seen: list[str] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, [])):
-            connection = await self.connect_mcp(name, cards[0]["id"], "Notes", None, NOTES_URL)
+            connection = await self.connect_mcp(name, cards[0]["id"], "Notes", NOTES_URL, None)
             gold_id = self.created[0]
             gold_thread = await self.conversation(gold_id)
             ask = "ابحث في ملاحظات الخادم الجديد عن الذهب"
@@ -1683,9 +1480,9 @@ class Acceptance:
             if item["kind"] == "mcp_server" and item["active"]
         ]
         assert len(trusted) >= 2, trusted  # X and the notes server, each once.
-        # Two owner steps by the vision's own rule: connecting a new server (one secure
-        # card) and trusting a source outside the list (one tap, remembered).
-        self.journey(name, 2, "the journey list counts one card for both (1)")
+        # One owner step: connecting a new server (one secure card). Trusting it is the
+        # owner's own words, no card (VISION 10.3.2).
+        self.journey(name, 1)
 
     # Journey 5 -----------------------------------------------------------------------
 
@@ -1704,7 +1501,6 @@ class Acceptance:
             "adapted_content": SKILL,
             "review": SKILL_REVIEW,
             "expected_version": 0,
-            "workspace_revision": 0,
         }
         fetched: list[str] = []
 
@@ -1722,7 +1518,6 @@ class Acceptance:
                     "skill_id": "cpi-brief",
                     "expected_version": t.result("j5-import")["resource_version"],
                     "action": "activate",
-                    "workspace_revision": t.result("j5-import")["workspace_revision"],
                 },
             ),
             "ثبّتّ طريقة تلخيص بيانات التضخم وفعّلتها.",
@@ -1966,6 +1761,8 @@ class Acceptance:
                     "symbol": SILVER,
                     "volume": "0.1",
                     "stop_loss": "23",
+                    "tolerance": "1",
+                    "reason": "Fixture entry",
                 },
             ),
             "قرأت عمل وكيل الفضة؛ لا أتداول عنه.",
@@ -2115,17 +1912,13 @@ class Acceptance:
 async def main() -> None:
     fixture = await Fixture().open()
     acceptance = Acceptance(fixture)
-    original = await read_controls(acceptance.db)
     try:
         await acceptance.setup()
         await acceptance.gold_agent_trades_on_its_own()
         await acceptance.approve_one_trade()
         watch = await acceptance.watch_london_session()
-        await acceptance.pause_today_then_resume(watch)
-        await acceptance.stop_all_from_phone()
         await acceptance.stop_watching(watch)
         await acceptance.lonora_manages_all_pairs()
-        await acceptance.pause_every_account()
         await acceptance.resolve_uncertain_trade()
         news, desk, _ = await acceptance.news_agent_and_supervisor()
         await acceptance.add_mcp_server()
@@ -2139,7 +1932,6 @@ async def main() -> None:
         if acceptance.model.unscripted:
             print("unscripted triggers:", *acceptance.model.unscripted, sep="\n  ", file=sys.stderr)
     finally:
-        await save_controls(acceptance.db, original)
         async with acceptance.db.sessions() as session, session.begin():
             for row in await session.scalars(
                 select(AgentRow).where(AgentRow.id.in_(acceptance.set_aside))
@@ -2152,8 +1944,7 @@ async def main() -> None:
 
 # The owner's sentences the browser specs type into the real composer.
 UI_WORDS = {
-    "create_gold": "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%",
-    "pause_today": "أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب",
+    "create_gold": "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه",
     "buy_once": "اشترِ 0.1 ذهب على حسابي بوقف خسارة 150",
 }
 
@@ -2168,12 +1959,6 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
     try:
         await acceptance.provider()
         account, symbol = cast(str, data["account"]), cast(str, data["symbol"])
-        from datetime import datetime, time
-        from zoneinfo import ZoneInfo
-
-        end_of_day = datetime.combine(
-            datetime.now(ZoneInfo("UTC")).date(), time(23, 59, 59), ZoneInfo("UTC")
-        ).isoformat()
         model = acceptance.model
         model.script(
             UI_WORDS["create_gold"],
@@ -2194,26 +1979,9 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                 {
                     "kind": "grant_authority",
                     "agent_id": t.result("ui-create")["agent"]["id"],
-                    "daily_loss_percent": "2",
                 },
             ),
             "أنشأت وكيل الذهب؛ وقّع البطاقة ليتداول بنفسه.",
-        )
-        model.script(
-            UI_WORDS["pause_today"],
-            lambda t: call(
-                "ui-pause",
-                "trade_restriction_create",
-                {
-                    "account_id": account,
-                    "all_symbols": True,
-                    "all_agents": True,
-                    "action_class": "no_new_entries",
-                    "valid_until": end_of_day,
-                    "reason": "The owner asked: no new trades today; keep watching gold.",
-                },
-            ),
-            "أوقفت الصفقات الجديدة لكل الوكلاء حتى نهاية اليوم، والمراقبة مستمرة.",
         )
         model.script(
             UI_WORDS["buy_once"],
@@ -2226,6 +1994,8 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                     "symbol": symbol,
                     "volume": "0.1",
                     "stop_loss": "150",
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
                 },
             ),
             "نُفّذ الشراء بعد موافقتك.",
@@ -2271,21 +2041,12 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                     .order_by(OwnerActionRow.created_at)
                 )
             ]
-            restrictions = list(
-                await session.scalars(
-                    select(TradingRestrictionRow.id).where(
-                        TradingRestrictionRow.account_id == account,
-                        TradingRestrictionRow.source_run_id == run_id,
-                    )
-                )
-            )
         return {
             "run": run_id,
             "status": status,
             "error_code": error_code,
             "agent": created,
             "cards": raised,
-            "restrictions": restrictions,
         }
     finally:
         await fixture.close(cleanup=False)

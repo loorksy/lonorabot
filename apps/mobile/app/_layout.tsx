@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { ChartSheetProvider } from "../components/chart-sheet";
+import { HeadsUp } from "../components/heads-up";
 import { IncomingCallOverlay } from "../components/incoming-call";
 import { PushRegistration } from "../components/shell/notifications";
 import { SheetProvider } from "../components/shell/sheets";
@@ -63,6 +64,7 @@ export default function Layout() {
                         <Stack.Screen name="bot-settings" options={{ presentation: "modal" }} />
                         <Stack.Screen name="group-settings" options={{ presentation: "modal" }} />
                       </ThemedStack>
+                      <HeadsUp />
                       <VoiceOverlay />
                       <IncomingCallOverlay />
                     </View>

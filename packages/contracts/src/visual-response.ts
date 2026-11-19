@@ -122,10 +122,20 @@ export type CallPart = {
   duration_seconds: number;
   missed: boolean;
 };
+/** The / command an owner message is (server-written): the chip in the owner's bubble. */
+export type CommandPart = {
+  type: "command";
+  name: "task" | "search" | "summary" | "skill";
+  argument: string;
+  skill_id?: string | null;
+  /** The skill's name when the message was sent. */
+  skill_name?: string | null;
+};
 export type VisualResponsePart =
   | { type: "text"; text: string }
   | { type: "ui"; document: VisualDocument }
   | UiPart
   | VoicePart
-  | CallPart;
+  | CallPart
+  | CommandPart;
 export type RichContent = { version: 1; parts: VisualResponsePart[] };

@@ -131,15 +131,54 @@ export type Journal = {
   thread_id?: string | null;
   timeline_seq?: number | null;
 };
-export type TradingControls = { enabled: boolean; emergency_stop: boolean };
+/**
+ * The Execution Receipt (mandate 10.3, 11.2) of one broker-confirmed operation
+ * (lonora_db.execution_receipts.receipt_data). Every fact is the broker's: fills give the
+ * ticket, action, volume and fill price; a placed order its ticket and order; a change
+ * its ticket and new values; a cancel its ticket.
+ */
+export type ExecutionReceipt = {
+  operation_id: string;
+  thread_id: string | null;
+  timeline_seq: number | null;
+  /** The requesting agent; null for the owner's own order. */
+  agent_id: string | null;
+  created_at: string;
+  kind: "fill" | "order" | "modify" | "cancel";
+  action: string;
+  symbol: string;
+  ticket: string | null;
+  volume?: string | null;
+  price?: string | null;
+  partial?: boolean;
+  stop_loss?: string | null;
+  take_profit?: string | null;
+  stop_loss_removed?: boolean;
+  take_profit_removed?: boolean;
+  /** The agent's own words, stored beside the request; null for the owner's own order. */
+  reason: string | null;
+  /** Broker-confirmed; "pending" until the resulting account state is read back. */
+  verification: "pending" | "verified" | "unverified" | null;
+};
+/** The agent's one trading switch: Full executes on its own, Ask asks for new risk. */
+export type TradingMode = "full" | "ask";
 export type TradeApproval = {
   timeline_seq?: number | null;
   id: string;
   run_id: string;
   thread_id: string;
   agent_id: string;
-  /** expired: its lifetime (30-60 min) ended unapproved; «طلب جديد» asks the agent again. */
-  status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "expired";
+  /** expired: a card stored with a lifetime ended unapproved («طلب جديد» asks again);
+   * drifted: the quote left reference ± tolerance; withdrawn: ended without a decision. */
+  status:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "completed"
+    | "cancelled"
+    | "expired"
+    | "withdrawn"
+    | "drifted";
   requests: Payload[];
   results: {
     operation_id: string;
@@ -148,39 +187,18 @@ export type TradeApproval = {
     code?: string | null;
     details: Payload;
   }[];
-  /** Past it the card can no longer be approved; null on older approvals. */
+  /** Stored cards only: past it the card can no longer be approved. New cards have none. */
   expires_at?: string | null;
+  /** The agent's own words: shown labelled as the agent's, never as the owner's. */
+  reason?: string;
+  /** Price distance; the card drifts outside reference_price ± tolerance. */
+  tolerance?: string | null;
+  reference_price?: string | null;
   created_at: string;
-};
-/** Owner money limits of one account (lonora_db.trading_readiness.risk_limit_frame). */
-export type MoneyLimitName =
-  | "max_trade_risk"
-  | "max_trade_risk_equity_percent"
-  | "max_daily_loss"
-  | "max_open_risk"
-  | "max_open_risk_equity_percent"
-  | "min_free_margin";
-export type MoneyLimits = {
-  account_id: string;
-  /** False: no money limit is set on this account, so none is enforced. */
-  configured: boolean;
-  currency: string | null;
-  limits: Partial<Record<MoneyLimitName, string>>;
-  not_configured: MoneyLimitName[];
-  trading_day_timezone?: string;
-};
-export type RestrictionActionClass = "no_new_entries" | "no_risk_increase" | "all_mutations";
-/** Stop new trading / Resume, for every agent and the owner's manual orders. */
-export type GlobalTrading = {
-  state: "running" | "stopped";
-  since: string | null;
-  changed_by: "owner" | "default";
 };
 export type TradingReadinessState =
   | "no_trading"
   | "agent_paused"
-  | "stopped"
-  | "paused"
   | "uncertain"
   | "ask_me"
   | "on_its_own";
@@ -193,14 +211,9 @@ export type TradingReadiness = {
   observed_at: string;
   state: TradingReadinessState;
   params: {
-    since?: string | null;
-    action_class?: RestrictionActionClass;
     valid_until?: string | null;
     symbol?: string | null;
-    /**
-     * paused: the account of the strongest pause; on_its_own: the first grant's account.
-     * The line names it when the owner has several accounts.
-     */
+    /** on_its_own: the first grant's account; the line names it when the owner has several. */
     account_id?: string | null;
     count?: number;
     symbol_scope?: "selected" | "account";
@@ -210,9 +223,6 @@ export type TradingReadiness = {
     grant_count?: number;
     /** on_its_own: how many accounts its grants cover. */
     account_count?: number;
-    money_limit_set?: boolean;
-    /** The daily loss limit of the grant's account, when the owner set one. */
-    daily_loss?: { amount: string; currency: string | null } | null;
   };
   level: "analysis" | "supervised" | "autonomous";
   grants: Array<{
@@ -222,24 +232,9 @@ export type TradingReadiness = {
     actions: string[];
     allow_manual_positions: boolean;
     valid_until: string | null;
-    /** Every pair on the account, every action and the owner's own positions, until stopped. */
+    /** Every pair on the account, every action and the owner's own positions, until revoked. */
     full_delegation?: boolean;
   }>;
-  global_trading: GlobalTrading;
-  restrictions: Array<{
-    id: string;
-    account_id: string;
-    symbol: string | null;
-    action_class: RestrictionActionClass;
-    state: "active" | "scheduled";
-    applies_to: "all_agents" | "this_agent";
-    includes_owner_manual: boolean;
-    valid_from: string;
-    valid_until: string | null;
-    source: "owner_ui" | "owner_message" | "agent";
-    created_by_agent_id: string | null;
-  }>;
-  money_limits: MoneyLimits[];
   unresolved_operations: Array<{
     operation_id: string;
     account_id: string;
@@ -260,5 +255,4 @@ export type TradingReadiness = {
     } | null;
   }>;
   unresolved_count: number;
-  exits_allowed: boolean;
 };

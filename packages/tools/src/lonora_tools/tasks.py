@@ -2,7 +2,6 @@ from typing import Any
 
 from lonora_contracts.tasks import TaskControl, TaskCreate, TaskInspect, TaskStepUpdate, TaskWait
 from lonora_core.user_error import LonoraError
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import require_lease
 from lonora_db.schema import TicketRow
 from lonora_db.tasks import control_task, create_task, get_task, snapshot
@@ -12,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -111,8 +110,6 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             agent_id=context.agent_id,
             owner_message=await owner_message_id(session, run) is not None,
         )
-        # Tainted work that resumes or revises a Task taints it (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "ticket", row.id)
         return await snapshot(session, row)
 
 
