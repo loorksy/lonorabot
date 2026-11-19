@@ -1,4 +1,10 @@
-import type { ExecutionReceipt, Message, OwnerAction, TradeApproval, UiSlotCard } from "@lonora/contracts";
+import type {
+  ExecutionReceipt,
+  Message,
+  OwnerAction,
+  TradeApproval,
+  UiSlotCard,
+} from "@lonora/contracts";
 import { isUiPart } from "./genui/spec";
 import { validateRichContent } from "./visual-response";
 
