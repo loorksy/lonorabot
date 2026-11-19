@@ -47,6 +47,8 @@ WAITING = frozenset({"broker_connection_timeout", "broker_login_rejected"})
 # An undeployed account has no terminal to subscribe to: both connections are dropped (the
 # SDK stops subscribing) and MetaApi is asked again, with one account read, after this.
 UNDEPLOYED_RECHECK_SECONDS = 600
+# A historical-candles 429 without MetaApi's retry time waits this long.
+CANDLES_RATE_LIMIT_SECONDS = 60
 
 
 def provider_error(error: Exception, stage: str) -> LonoraError:
@@ -319,6 +321,9 @@ class MetaApiBroker:
                     until = throttled_until(error)
                     if until is not None:
                         wait = max(wait, until - time.time())
+                        # The account is throttled: every path waits, and the recovery
+                        # snapshot keeps the time across a restart.
+                        failure, _ = self.throttled(error, failure)
                     self._account_metadata_failure = failure
                     self._account_metadata_retry_at = monotonic() + wait
                     raise failure from error
@@ -442,7 +447,7 @@ class MetaApiBroker:
                     )
             except Exception as error:
                 failure = self.diagnose(error, kind)
-                slot.failed(failure, throttled_until(error))
+                slot.failed(failure, getattr(failure, "retry_until", None))
                 raise failure from error
             lock = self.lock if kind == "rpc" else self.stream_lock
             async with lock:
@@ -902,6 +907,13 @@ class MetaApiBroker:
         validate_timeframe(timeframe)
         if limit < 1:
             raise LonoraError("candle_limit_invalid")
+        # MetaApi's historical market data is its own REST service with its own limits:
+        # after a 429 it is not asked again before its time.
+        limited_until = getattr(self, "_candles_throttled_until", 0.0)
+        if limited_until > time.time():
+            limited = LonoraError("broker_rate_limited", 429)
+            limited.retry_until = limited_until  # pyright: ignore[reportAttributeAccessIssue]
+            raise limited
         probe = self._history_access()
         try:
             account = await self.resolve_account()
@@ -924,6 +936,10 @@ class MetaApiBroker:
             if failure.code == "broker_market_data_billing_required":
                 self._history_billing_failure = failure
                 self._history_billing_retry_at = monotonic() + MARKET_DATA_BILLING_COOLDOWN_SECONDS
+            if failure.code == "broker_rate_limited" and not isinstance(error, LonoraError):
+                until = throttled_until(error) or time.time() + CANDLES_RATE_LIMIT_SECONDS
+                self._candles_throttled_until = until
+                failure.retry_until = until  # pyright: ignore[reportAttributeAccessIssue]
             raise failure from error
         finally:
             if probe:

@@ -193,6 +193,24 @@ async def test_a_request_no_gateway_took_is_withdrawn_and_never_served_late() ->
         await serving
         assert relayed.value.code == "broker_rate_limited" and relayed.value.status == 429
         assert getattr(relayed.value, "retry_until", None) == 1234.5
+        # Owners' orders are claimed before older reads.
+        async with db.sessions() as session, session.begin():
+            for kind in ("symbols", "execute"):
+                session.add(
+                    BrokerRelayRow(
+                        owner_id=fixture.owner,
+                        connection_id=connection_id,
+                        kind=kind,
+                        arguments={},
+                        state="pending",
+                        created_at=func.now() - text("interval '1 seconds'")
+                        if kind == "symbols"
+                        else func.now(),
+                    )
+                )
+        first = await broker_relay.claim(db, 1)
+        assert [request.kind for request in first] == ["execute"]
+        assert [request.kind for request in await broker_relay.claim(db, 16)] == ["symbols"]
     finally:
         async with db.sessions() as session, session.begin():
             for row in await session.scalars(select(BrokerRelayRow)):
@@ -234,6 +252,7 @@ async def test_an_owner_order_on_a_metaapi_account_is_executed_by_the_gateway() 
             gateway.services.trading.execute = AsyncMock(return_value=done)
             api.trading.execute = AsyncMock()
             assert await execute_order(fixture.runtime.db, fixture.owner, order) == done
+            gateway.services.trading.execute.assert_awaited_once_with(fixture.owner, order)
             # A request naming another connection than its own row is refused.
             from lonora_db import broker_relay
 
@@ -248,7 +267,13 @@ async def test_an_owner_order_on_a_metaapi_account_is_executed_by_the_gateway() 
                     10,
                 )
             assert mismatch.value.code == "broker_relay_invalid"
-        gateway.services.trading.execute.assert_awaited_once_with(fixture.owner, order)
+            # An unexpected failure while executing: the order may have been sent, so the
+            # owner hears that its outcome is not known, never "unavailable".
+            gateway.services.trading.execute = AsyncMock(side_effect=RuntimeError("late"))
+            with pytest.raises(LonoraError) as unknown:
+                await execute_order(fixture.runtime.db, fixture.owner, order)
+            assert unknown.value.code == "broker_gateway_no_answer"
+            assert unknown.value.status == 504
         api.trading.execute.assert_not_awaited()
     finally:
         await remove(fixture, connection_id, simulation_id)

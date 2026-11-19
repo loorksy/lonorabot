@@ -15,7 +15,7 @@ from typing import Any
 
 from lonora_contracts.domain import new_id
 from lonora_core.user_error import LonoraError
-from sqlalchemy import delete, func, or_, select, text, update
+from sqlalchemy import case, delete, func, or_, select, text, update
 
 from .client import Database
 from .schema import BrokerRelayRow
@@ -57,7 +57,8 @@ async def ask(
 ) -> Any:
     """The Gateway's answer, or its error re-raised. ``broker_gateway_unavailable`` when no
     Gateway took the request (nothing was done); ``broker_gateway_no_answer`` when it took
-    it and did not answer in time (it may still be done: an order is in the journal)."""
+    it and did not answer in time, or failed unexpectedly while executing an order (it may
+    still be done: an order that was reserved is in the journal)."""
     request_id = new_id()
     async with db.sessions() as session, session.begin():
         session.add(
@@ -141,7 +142,11 @@ async def claim(db: Database, limit: int) -> list[RelayRequest]:
                         BrokerRelayRow.created_at > func.now() - seconds(CLAIM_SECONDS["execute"]),
                     ),
                 )
-                .order_by(BrokerRelayRow.created_at)
+                # Owners' orders first: slow reads never push one past its window.
+                .order_by(
+                    case((BrokerRelayRow.kind == "execute", 0), else_=1),
+                    BrokerRelayRow.created_at,
+                )
                 .limit(limit)
                 .with_for_update(skip_locked=True)
             )

@@ -159,7 +159,7 @@ export function userError(error: unknown) {
     case "broker_market_data_billing_required":
       return t`Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available.`;
     case "broker_rate_limited":
-      return t`The broker market-data service is rate limited.`;
+      return t`MetaApi is limiting this account's requests for now. Lonora retries at the time MetaApi gives.`;
     case "broker_candles_not_found":
       return t`No candle history was found for this symbol and timeframe.`;
     case "broker_candles_mismatch":

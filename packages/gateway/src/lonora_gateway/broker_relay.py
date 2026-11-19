@@ -48,9 +48,14 @@ class BrokerRelay:
             await answer(self.db, request.id, error=failure)
         except Exception as error:  # noqa: BLE001 - the asker gets a code, never a trace
             log.warning("broker_relay_failed kind=%s type=%s", request.kind, type(error).__name__)
-            await answer(
-                self.db, request.id, error=LonoraError("broker_connection_unavailable", 502)
+            # An order may have reached the broker before an unexpected failure: its outcome
+            # is unknown here (the journal and reconciliation hold it), never "unavailable".
+            failure = (
+                LonoraError("broker_gateway_no_answer", 504)
+                if request.kind == "execute"
+                else LonoraError("broker_connection_unavailable", 502)
             )
+            await answer(self.db, request.id, error=failure)
         else:
             await answer(self.db, request.id, result)
 

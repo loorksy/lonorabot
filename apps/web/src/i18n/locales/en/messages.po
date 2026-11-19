@@ -4377,6 +4377,10 @@ msgstr "Messages reach"
 msgid "MetaApi is limiting requests for now"
 msgstr "MetaApi is limiting requests for now"
 
+#: src/lib/user_error.ts:162
+msgid "MetaApi is limiting this account's requests for now. Lonora retries at the time MetaApi gives."
+msgstr "MetaApi is limiting this account's requests for now. Lonora retries at the time MetaApi gives."
+
 #: src/components/ai/AttentionInbox.tsx:22
 msgid "MetaApi rejected the access token"
 msgstr "MetaApi rejected the access token"
@@ -7615,8 +7619,8 @@ msgid "The broker is refusing the trading login: its server may be down, or the 
 msgstr "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat."
 
 #: src/lib/user_error.ts:162
-msgid "The broker market-data service is rate limited."
-msgstr "The broker market-data service is rate limited."
+#~ msgid "The broker market-data service is rate limited."
+#~ msgstr "The broker market-data service is rate limited."
 
 #: src/lib/user_error.ts:180
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."

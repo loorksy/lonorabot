@@ -437,3 +437,35 @@ async def test_a_new_adapter_starts_inside_a_stored_throttle() -> None:
                 if saved is not None:
                     await session.delete(saved)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_throttled_account_read_throttles_the_account_and_keeps_its_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    adapter: Any = broker(account())
+    adapter.account_instance = None
+    adapter.api.metatrader_account_api.get_account.side_effect = too_many(300)
+    with pytest.raises(LonoraError) as first:
+        await adapter.prepare()
+    until = getattr(first.value, "retry_until", None)
+    # The recovery snapshot stores this time, so a restart does not ask early.
+    assert until is not None and until - datetime.now(UTC).timestamp() > 290
+    assert adapter.account_throttle() is not None
+    assert adapter._slot("rpc").retry_at - 1000.0 > 0
+
+
+@pytest.mark.asyncio
+async def test_a_historical_candles_429_is_not_asked_again_before_its_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    value = account()
+    value.get_historical_candles = AsyncMock(side_effect=too_many(300))
+    adapter: Any = broker(value)
+    for _ in range(3):
+        with pytest.raises(LonoraError) as limited:
+            await adapter.candles("XAUUSDm", "1h", 10)
+        assert limited.value.code == "broker_rate_limited"
+    assert value.get_historical_candles.await_count == 1
