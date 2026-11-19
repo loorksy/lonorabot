@@ -409,7 +409,7 @@
     },
     {
       "v": 2,
-      "kind": "receipt",
+      "kind": "summary",
       "title": "ينتظر قرارك",
       "sub": "طلب معلّق",
       "icon": "check",
