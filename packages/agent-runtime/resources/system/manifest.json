@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "40816bdf1d63f84600c674287e819cc0bd49a799c1f55b6fd215e84bcd524940",
+  "manual_sha256": "e5ca677c073dd2b485738a9e0c5dd6d9257b9bee817fe31162503d5287c1f718",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -111,6 +111,9 @@
     "trade_record_read": "trading",
     "trade_execute": "trading",
     "trade_close_positions": "trading",
+    "positions_manage_all": "trading",
+    "trade_approval_withdraw": "trading",
+    "trading_mode_ask": "trading",
     "owner_action_propose": "trading",
     "board_list": "tasks",
     "board_create": "tasks",
