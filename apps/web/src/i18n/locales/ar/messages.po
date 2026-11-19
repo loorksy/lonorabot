@@ -117,8 +117,8 @@ msgstr "{0} ستُضاف إليها"
 
 #. placeholder {0}: agent.name
 #: src/shell/domain/UpdatesPages.tsx:210
-msgid "{0}, has something new"
-msgstr "{0}، لديه جديد"
+#~ msgid "{0}, has something new"
+#~ msgstr "{0}، لديه جديد"
 
 #. placeholder {0}: Math.round((total / cap) * 100)
 #: src/shell/settings/DevicePages.tsx:165
@@ -213,7 +213,7 @@ msgstr "{reads} قراءة"
 msgid "{seconds} s"
 msgstr "{seconds} ث"
 
-#: src/shell/Shell.tsx:486
+#: src/shell/Shell.tsx:487
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظر} two {أُرسلت رسالتان كانت تنتظر} few {أُرسلت # رسائل كانت تنتظر} many {أُرسلت # رسالة كانت تنتظر} other {أُرسلت # رسالة كانت تنتظر}}"
 
@@ -351,6 +351,10 @@ msgstr "يتوفر إصدار جديد"
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "لا تزال عملية سابقة على هذا السوق بانتظار تحقق الوسيط، لذا لم يُرسل هذا الأمر الجديد. يبقى إغلاق المراكز وإلغاء الأوامر المعلقة وتضييق وقف الخسارة متاحًا."
 
+#: src/shell/domain/UpdatesPages.tsx:154
+msgid "A question is waiting for your answer"
+msgstr "سؤال بانتظار جوابك"
+
 #: src/shell/settings/OwnerPage.tsx:115
 msgid "A removed agent"
 msgstr "وكيل محذوف"
@@ -371,7 +375,7 @@ msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "تنتهي المراقبة تلقائيًا في موعدها، ويمكن إيقافها مؤقتًا أو تمديدها أو إلغاؤها."
 
-#: src/shell/domain/UpdatesPages.tsx:54
+#: src/shell/domain/UpdatesPages.tsx:47
 msgid "A watch was met"
 msgstr "تحققت مراقبة"
 
@@ -705,7 +709,7 @@ msgstr "مكالمات الوكيل"
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
-#: src/shell/domain/UpdatesPages.tsx:30
+#: src/shell/domain/UpdatesPages.tsx:23
 msgid "Agent created"
 msgstr "أُنشئ وكيل"
 
@@ -753,7 +757,6 @@ msgstr "قالب الوكيل"
 
 #: src/conversation/ChatPrefsPage.tsx:35
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:204
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
 #: src/shell/pages.tsx:92
@@ -2545,7 +2548,7 @@ msgstr "تنفيذ مفوَّض"
 msgid "Delegated task"
 msgstr "مهمة مفوّضة"
 
-#: src/shell/domain/UpdatesPages.tsx:32
+#: src/shell/domain/UpdatesPages.tsx:25
 msgid "Delegation changed"
 msgstr "تغيّر التفويض"
 
@@ -3470,7 +3473,7 @@ msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 msgid "Go to the quoted message"
 msgstr "الانتقال إلى الرسالة المقتبسة"
 
-#: src/shell/domain/UpdatesPages.tsx:56
+#: src/shell/domain/UpdatesPages.tsx:49
 msgid "Goal added"
 msgstr "أُضيف هدف"
 
@@ -3887,7 +3890,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "معرفة"
 
-#: src/shell/domain/UpdatesPages.tsx:58
+#: src/shell/domain/UpdatesPages.tsx:51
 msgid "Knowledge added"
 msgstr "أُضيفت معرفة"
 
@@ -3945,8 +3948,8 @@ msgid "Later"
 msgstr "لاحقًا"
 
 #: src/shell/domain/UpdatesPages.tsx:316
-msgid "Latest actions"
-msgstr "آخر الإجراءات"
+#~ msgid "Latest actions"
+#~ msgstr "آخر الإجراءات"
 
 #: src/components/ai/AvatarStudio.tsx:36
 msgid "Laugh"
@@ -4242,7 +4245,6 @@ msgid "Margin"
 msgstr "الهامش"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:228
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
@@ -4579,6 +4581,11 @@ msgstr "الاسم"
 #~ msgid "Needs your action"
 #~ msgstr "يتطلب إجراء"
 
+#: src/shell/FloatingTabBar.tsx:21
+#: src/shell/Welcome.tsx:59
+msgid "Needs your attention"
+msgstr "يحتاج انتباهك"
+
 #: src/shell/FloatingTabBar.tsx:164
 msgid "new"
 msgstr "جديد"
@@ -4704,8 +4711,7 @@ msgstr "التالي"
 msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
-#: src/shell/domain/UpdatesPages.tsx:112
-#: src/shell/domain/UpdatesPages.tsx:335
+#: src/shell/domain/UpdatesPages.tsx:105
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
@@ -4775,8 +4781,8 @@ msgid "No command by that name"
 msgstr "لا يوجد أمر بهذا الاسم"
 
 #: src/shell/domain/UpdatesPages.tsx:310
-msgid "No enabled schedules."
-msgstr "لا توجد مواعيد مفعّلة."
+#~ msgid "No enabled schedules."
+#~ msgstr "لا توجد مواعيد مفعّلة."
 
 #: src/conversation/PermissionMenu.tsx:28
 #: src/conversation/PermissionMenu.tsx:94
@@ -4865,8 +4871,8 @@ msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
 #: src/shell/domain/UpdatesPages.tsx:268
-msgid "No notifications."
-msgstr "لا توجد تنبيهات."
+#~ msgid "No notifications."
+#~ msgstr "لا توجد تنبيهات."
 
 #: src/components/trading/Positions.tsx:105
 msgid "No open positions"
@@ -5114,6 +5120,10 @@ msgstr "لا يُفعَّل شيء قبل توقيعك بمفتاح المرور
 msgid "Nothing is running in the workspace."
 msgstr "لا شيء يعمل في مساحة العمل."
 
+#: src/shell/domain/UpdatesPages.tsx:206
+msgid "Nothing needs you right now."
+msgstr "لا شيء يحتاجك الآن."
+
 #: src/shell/settings/OwnerPage.tsx:347
 msgid "Nothing yet."
 msgstr "لا شيء بعد."
@@ -5139,9 +5149,9 @@ msgid "Notifications"
 msgstr "الإشعارات"
 
 #: src/shell/domain/UpdatesPages.tsx:224
-msgctxt "updates section"
-msgid "Notifications"
-msgstr "التنبيهات"
+#~ msgctxt "updates section"
+#~ msgid "Notifications"
+#~ msgstr "التنبيهات"
 
 #: src/shell/pages.tsx:152
 #: src/shell/settings/SettingsRoot.tsx:355
@@ -5389,7 +5399,7 @@ msgstr "يُفتح"
 msgid "Operation id"
 msgstr "رقم العملية"
 
-#: src/shell/domain/UpdatesPages.tsx:34
+#: src/shell/domain/UpdatesPages.tsx:27
 msgid "Operation resolved"
 msgstr "حُسمت عملية"
 
@@ -6034,8 +6044,12 @@ msgid "Recorded from your statement, not broker confirmation"
 msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسيط"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "Recorded in Updates without any alert"
-msgstr "يُسجَّل في المستجدات دون أي تنبيه"
+#~ msgid "Recorded in Updates without any alert"
+#~ msgstr "يُسجَّل في المستجدات دون أي تنبيه"
+
+#: src/shell/settings/NotifyPages.tsx:20
+msgid "Recorded without any alert"
+msgstr "يُسجَّل دون أي تنبيه"
 
 #: src/conversation/Composer.tsx:1482
 msgid "Recording length"
@@ -6925,14 +6939,14 @@ msgstr "عرض كجدول"
 #~ msgstr "عرض كنص"
 
 #: src/components/genui/UiCard.tsx:476
-#: src/shell/domain/UpdatesPages.tsx:134
+#: src/shell/domain/UpdatesPages.tsx:127
 #: src/shell/lists/UnifiedSearch.tsx:389
 msgid "Show more"
 msgstr "عرض المزيد"
 
 #: src/shell/domain/UpdatesPages.tsx:330
-msgid "Show the full log"
-msgstr "عرض السجل كاملًا"
+#~ msgid "Show the full log"
+#~ msgstr "عرض السجل كاملًا"
 
 #: src/conversation/Conversation.tsx:588
 #~ msgid "Show the interface"
@@ -7046,7 +7060,7 @@ msgstr "مهارة"
 msgid "Skill catalog"
 msgstr "مكتبة المهارات"
 
-#: src/shell/domain/UpdatesPages.tsx:46
+#: src/shell/domain/UpdatesPages.tsx:39
 msgid "Skill created"
 msgstr "أُنشئت مهارة"
 
@@ -7071,7 +7085,7 @@ msgstr "أُعيدت المهارة إلى الإصدار {version}"
 msgid "Skill saved"
 msgstr "حُفظت المهارة"
 
-#: src/shell/domain/UpdatesPages.tsx:48
+#: src/shell/domain/UpdatesPages.tsx:41
 msgid "Skill updated"
 msgstr "حُدّثت مهارة"
 
@@ -7405,11 +7419,11 @@ msgstr "يشرف على"
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:52
+#: src/shell/domain/UpdatesPages.tsx:45
 msgid "Supervision ended"
 msgstr "أُلغي الإشراف"
 
-#: src/shell/domain/UpdatesPages.tsx:50
+#: src/shell/domain/UpdatesPages.tsx:43
 msgid "Supervision started"
 msgstr "بدأ الإشراف"
 
@@ -7497,18 +7511,18 @@ msgid "Task boards"
 msgstr "لوحات المهام"
 
 #: src/conversation/sheets/AgentSheet.tsx:311
-#: src/shell/domain/UpdatesPages.tsx:44
+#: src/shell/domain/UpdatesPages.tsx:37
 msgid "Task cancelled"
 msgstr "أُلغيت المهمة"
 
 #: src/components/ai/AttentionInbox.tsx:35
 #: src/shell/domain/TasksPages.tsx:259
-#: src/shell/domain/UpdatesPages.tsx:42
+#: src/shell/domain/UpdatesPages.tsx:35
 msgid "Task completed"
 msgstr "اكتملت المهمة"
 
 #: src/conversation/Conversation.tsx:453
-#: src/shell/domain/UpdatesPages.tsx:40
+#: src/shell/domain/UpdatesPages.tsx:33
 msgid "Task created"
 msgstr "أُنشئت مهمة"
 
@@ -7729,7 +7743,7 @@ msgstr "مواصفات الوسيط غير متاحة لهذا الرمز الم
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "لم يصل تأكيد الوسيط، ولا تُعرض حالة «منفَّذ» قبل وصول الدليل."
 
-#: src/shell/Shell.tsx:385
+#: src/shell/Shell.tsx:386
 msgid "The call ended."
 msgstr "انتهت المكالمة."
 
@@ -8288,7 +8302,7 @@ msgstr "لن تُرسل هذه العملية مرة أخرى."
 msgid "This page could not be displayed"
 msgstr "تعذّر عرض هذه الصفحة"
 
-#: src/shell/Shell.tsx:335
+#: src/shell/Shell.tsx:336
 msgid "This page is available in the development build only"
 msgstr "هذه الصفحة متاحة في نسخة التطوير فقط"
 
@@ -8696,8 +8710,8 @@ msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
 #: src/shell/domain/UpdatesPages.tsx:263
-msgid "Unread"
-msgstr "غير مقروء"
+#~ msgid "Unread"
+#~ msgstr "غير مقروء"
 
 #: src/shell/lists/ChatList.tsx:183
 msgctxt "chat filter"
@@ -8752,8 +8766,8 @@ msgid "Up to 6 photos and files, 8 MB each"
 msgstr "حتى 6 صور وملفات، 8 ميغابايت لكلٍّ منها"
 
 #: src/shell/domain/UpdatesPages.tsx:274
-msgid "Upcoming"
-msgstr "المواعيد القادمة"
+#~ msgid "Upcoming"
+#~ msgstr "المواعيد القادمة"
 
 #: src/shell/UpdateBar.tsx:44
 msgid "Update"
@@ -8765,8 +8779,8 @@ msgstr "حدّث للحصول على آخر التحسينات."
 
 #: src/shell/FloatingTabBar.tsx:21
 #: src/shell/Welcome.tsx:59
-msgid "Updates"
-msgstr "المستجدات"
+#~ msgid "Updates"
+#~ msgstr "المستجدات"
 
 #: src/shell/domain/FilesPages.tsx:186
 msgid "Upload a file"
@@ -9207,7 +9221,7 @@ msgstr "جارٍ العمل"
 msgid "Working…"
 msgstr "يعمل…"
 
-#: src/shell/Shell.tsx:892
+#: src/shell/Shell.tsx:895
 msgid "Workspace"
 msgstr "مساحة العمل"
 
@@ -9283,7 +9297,7 @@ msgstr "أمس"
 msgid "You"
 msgstr "أنت"
 
-#: src/shell/domain/UpdatesPages.tsx:36
+#: src/shell/domain/UpdatesPages.tsx:29
 msgid "You approved a request"
 msgstr "وافقتَ على طلب"
 
@@ -9316,7 +9330,7 @@ msgstr "وصلت إلى الحد الأقصى للاسم"
 #~ msgid "You reached the usage limit"
 #~ msgstr "وصلت إلى حد الاستهلاك"
 
-#: src/shell/domain/UpdatesPages.tsx:38
+#: src/shell/domain/UpdatesPages.tsx:31
 msgid "You rejected a request"
 msgstr "رفضتَ طلبًا"
 

@@ -44,7 +44,6 @@ export type ShellData = {
   patchInbox: (prefs: ThreadPrefs[]) => void;
   setChatLists: (update: (lists: ChatList[]) => ChatList[]) => void;
   setThreadSettings: (settings: ThreadSettings) => void;
-  clearAttention: (id: string) => void;
 };
 const Context = createContext<ShellData | null>(null);
 
@@ -204,10 +203,6 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     writes.current += 1;
     setThreadSettingsState(settings);
   }, []);
-  const clearAttention = useCallback(
-    (id: string) => setAttention((rows) => rows.filter((row) => row.id !== id)),
-    [],
-  );
   const busyIds = useMemo(
     () =>
       new Set(runs.filter((run) => activeStatuses.includes(run.status)).map((run) => run.agent_id)),
@@ -230,7 +225,6 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       patchInbox,
       setChatLists,
       setThreadSettings,
-      clearAttention,
     }),
     [
       agents,
@@ -248,7 +242,6 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       patchInbox,
       setChatLists,
       setThreadSettings,
-      clearAttention,
     ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;

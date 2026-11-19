@@ -355,11 +355,8 @@ test("a conditional alert is saved for a trading agent and waits in its schedule
       level: "2350",
       prompt: title,
     });
-    // It waits with the agent's schedules; «Upcoming» in Updates lists only schedules.
+    // It waits with the agent's schedules.
     await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}$`));
-    await page.goto("/app/updates");
-    await expect(page.getByText("Upcoming", { exact: true })).toBeVisible();
-    await expect(page.locator(".row", { hasText: title })).toHaveCount(0);
     await page.goto(`/app/routines?agent=${agent.id}`);
     const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
     await expect(toggle).toHaveAttribute("aria-checked", "true");

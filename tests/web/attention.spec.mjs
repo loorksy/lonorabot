@@ -13,14 +13,12 @@ test.afterEach(() => {
   fixtureAgent = undefined;
 });
 
-test("durable notification is shared across views and stays read after reload", async ({
+test("the attention view lists what needs the owner, opens its conversation and decides nothing", async ({
   page,
   context,
 }) => {
   const fixture = JSON.parse(
-    execFileSync(".venv/bin/python", ["tests/check_attention_browser.py", "--uncertain"], {
-      encoding: "utf8",
-    }),
+    execFileSync(".venv/bin/python", ["tests/check_attention_browser.py"], { encoding: "utf8" }),
   );
   fixtureAgent = fixture.agent?.id;
   await context.addCookies(
@@ -32,54 +30,39 @@ test("durable notification is shared across views and stays read after reload", 
     })),
   );
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  // «التنبيهات» on «المستجدات» (UI phase 4b). The page is one skeleton until its alerts load.
+  // «يحتاج انتباهك» (11.7): the page is one skeleton until the server's view loads.
   let release;
   const held = new Promise((resolve) => {
     release = resolve;
   });
-  await page.route("**/api/attention/history", async (route) => {
+  await page.route("**/api/attention/view", async (route) => {
     await held;
     await route.continue();
   });
   await page.goto("/app/updates");
   const main = page.getByRole("main");
   await expect(main.locator(".sk-page[aria-busy='true']")).toBeVisible();
-  await expect(main.getByText("No enabled schedules.")).toHaveCount(0);
   release();
   await expect(main.locator(".sk-page")).toHaveCount(0);
-  const alert = page.locator(`[data-attention-id="${fixture.notification.id}"]`);
-  await expect(
-    alert.getByText("Work stopped after repeated interruptions", { exact: true }),
-  ).toBeVisible();
-  await expect(alert.locator(".dot")).toHaveCount(1);
-  // The watchdog's aging-operation item: owner text and the symbol, never a raw id.
+  await expect(page.getByTestId("attention-view")).toBeVisible();
+  // The uncertain trade: owner text, the agent that placed it and the symbol, no raw id.
   const uncertain = page.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
   await expect(
-    uncertain.getByText("A trade still has no confirmed broker result", { exact: true }),
+    uncertain.getByText("The broker did not confirm a trade — tell Lonora whether it executed", {
+      exact: true,
+    }),
   ).toBeVisible();
+  await expect(uncertain).toHaveAttribute("data-attention-kind", "settle_operation");
   await expect(uncertain.getByText("XAUUSD", { exact: true })).toBeVisible();
-  await expect(uncertain).not.toContainText(fixture.uncertain.parameters.operation_id);
-  // It names the agent that placed the trade, not the Personal Agent, and opens it.
   await expect(uncertain.getByText(fixture.agent.name, { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(alert.locator(".dot")).toHaveCount(1);
+  await expect(uncertain).not.toContainText(fixture.uncertain.parameters.operation_id);
+  // A plain update needs nothing: the view never lists it, and no other section remains.
+  await expect(page.locator(`[data-attention-id="${fixture.informational.id}"]`)).toHaveCount(0);
+  await expect(main.getByRole("button", { name: "Mark all as read" })).toHaveCount(0);
+  await expect(main.getByText("Latest actions")).toHaveCount(0);
+  // A tap opens the agent's conversation, where the Settle card stands; it settles nothing.
   await uncertain.click();
   await expect(page).toHaveURL(new RegExp(`/app/${fixture.agent.id}\\?thread=`));
-  await page.goto("/app/updates");
-  await expect(uncertain.locator(".dot")).toHaveCount(0);
-  // «تحديد الكل كمقروء»: the plain update is read, the critical item stays unread (Q4).
-  const info = page.locator(`[data-attention-id="${fixture.informational.id}"]`);
-  await expect(info.locator(".dot")).toHaveCount(1);
-  const seenAll = page.waitForResponse((response) =>
-    response.url().endsWith("/api/attention/seen-all"),
-  );
-  await page.getByRole("button", { name: "Mark all as read", exact: true }).click();
-  expect((await seenAll).ok()).toBeTruthy();
-  await expect(info.locator(".dot")).toHaveCount(0);
-  await expect(alert.locator(".dot")).toHaveCount(1);
-  const open = (await (await context.request.get("/api/attention")).json()).map((row) => row.id);
-  expect(open).toContain(fixture.notification.id);
-  expect(open).not.toContain(fixture.informational.id);
-  await page.reload();
-  await expect(uncertain.locator(".dot")).toHaveCount(0);
+  const view = await (await context.request.get("/api/attention/view")).json();
+  expect(view.map((row) => row.id)).toContain(fixture.uncertain.id);
 });

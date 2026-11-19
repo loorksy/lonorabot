@@ -67,3 +67,25 @@ woken for yet.
   that fails is logged and tried again on a later tick.
 - An uncertain operation delivered without its record (its projection kept failing,
   `quarantine_event`) names no operation, so it wakes nobody; the owner has the item.
+
+## The attention view
+
+The owner's one "needs your attention" view across all agents (mandate 11.7) is a server
+projection with no model: `GET /attention/view` (`attention_view`, `AttentionViewRow`).
+
+- It lists, newest first:
+  - the open, still-current items of the owner's events above (Trade Approval, Settle,
+    Secret and Mandate cards, broker health problems);
+  - Tasks that need the owner's review (`task_review`);
+  - every run in a conversation that waits on the owner's answer to its question
+    (`waiting_input` with a pending input request), as `owner_question`;
+  - each agent's own unread alert (`owner_notify`, `agent_notification`), as
+    `agent_alert`, with its summary: an alert has no other place outside its chat.
+  - the watchdog's unread items about an operation still unresolved after its
+    threshold (`operation_unresolved`) or work stopped after repeated interruptions
+    (`run_quarantined`), as `system_alert`: they have no other lasting place either.
+- Web and mobile show the same list as the «يحتاج انتباهك» tab. A row opens its
+  conversation, where the fixed card or the question stands; opening it decides
+  nothing. Opening an alert (an agent's or the watchdog's) marks it read, so it leaves
+  the list.
+- The tab's dot shows while an item the view lists is unread (`inAttentionView`).

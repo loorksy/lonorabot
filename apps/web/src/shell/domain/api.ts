@@ -129,5 +129,4 @@ export const domainApi = {
 
   activity: (before?: number) =>
     api.get<ActivityPage>(before ? `/activity?limit=50&before=${before}` : "/activity?limit=50"),
-  seenAll: () => api.post<{ seen: number }>("/attention/seen-all", {}),
 };
