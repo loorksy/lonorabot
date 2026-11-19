@@ -11,7 +11,7 @@ the reader, never its instructions.
 routines or watches, and messages it. It never grants, trades or edits the agent's
 memory or instructions. A whole agent with money standing is paused
 only from the owner's message, and the Personal Agent only by the owner. The hold
-rules and the cycle rule are in ``lonora_db.supervision``.
+rules are in ``lonora_db.pauses``, the cycle rule in ``lonora_db.supervision``.
 
 ``supervision_change`` sets who supervises whom when the owner asks: from the owner's
 message in this run it grants directly (the message is recorded as the source, and the

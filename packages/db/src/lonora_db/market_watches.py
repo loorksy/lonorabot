@@ -161,7 +161,7 @@ async def control_watch(
     initiative (``owner_message``: its run answers the owner's message); it may still
     cancel it, which only narrows and keeps the hold.
     """
-    from .supervision import owner_takes_over, refuse_held
+    from .pauses import owner_takes_over, refuse_held
 
     row = await steered_watch(session, owner_id, watch_id, agent_id)
     by = "agent" if agent_id else "owner"
