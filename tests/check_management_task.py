@@ -15,6 +15,7 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_agent.collaboration.agent_create import delete_created_agent
 from lonora_api.routes.owner_actions import undo_creation
 from lonora_auth.identity import OwnerIdentity
+from lonora_bus.attention import catalogs
 from lonora_contracts.account import Position
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import AgentUpdate, utcnow
@@ -76,6 +77,10 @@ async def mode_tasks(session: Any, agent_id: str) -> int:
         )
         or 0
     )
+
+
+def titles(code: str) -> set[str]:
+    return {catalogs()[locale][code] for locale in ("ar", "en")}
 
 
 async def checks() -> None:
@@ -200,6 +205,8 @@ async def checks() -> None:
         assert kickoff.model_metadata["task_id"] == task_id
         assert "account_id" not in kickoff.model_metadata
         assert is_continuous_task(state, kickoff)
+        # Named for every connected account, not one.
+        assert task.payload["title"] in titles("full_mode_task")
     print("PASS Full starts one continuous account-management task keyed by the agent")
 
     # A second Full tap finds the running task and adds none.
@@ -349,6 +356,8 @@ async def checks() -> None:
         )
         assert len(timers) == 1 and timers[0].run_at == due and timers[0].enabled
         assert timers[0].thread_id == conversation_id
+        # Named for what it does, not for the task that ended (0.4).
+        assert timers[0].title in titles("full_mode_follow_up")
         ended = await session.get(RunRow, timer_run)
         assert ended is not None and ended.status == "cancelled"
     print("PASS ending the task keeps its pending timer as a wake in the conversation")

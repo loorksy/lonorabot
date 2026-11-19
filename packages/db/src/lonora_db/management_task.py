@@ -137,7 +137,7 @@ async def ensure_management_task(
         agent_id,
         thread.id,
         TaskCreate(
-            title=attention_text("account_management_task", locale),
+            title=attention_text("full_mode_task", locale),
             completion_mode="continuous",
             description=DESCRIPTION,
         ),
@@ -329,13 +329,15 @@ async def keep_timer(session: AsyncSession, task: TicketRow, due_at: str) -> Non
     from .schema import RoutineRow
 
     thread = await conversation_thread(session, task.owner_id, task.agent_id or "")
+    locale = await conversation_locale(session, task.owner_id, thread.id)
     when = datetime.fromisoformat(due_at)
     session.add(
         RoutineRow(
             owner_id=task.owner_id,
             agent_id=task.agent_id,
             thread_id=thread.id,
-            title=task.payload.get("title"),
+            # What it is, not the ended task's name (0.4).
+            title=attention_text("full_mode_follow_up", locale),
             prompt=TIMER_PROMPT.format(due_at=when.isoformat()),
             run_at=when,
             next_run_at=when,
