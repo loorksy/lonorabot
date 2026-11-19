@@ -114,8 +114,13 @@ test("«/» lists the commands; a task is sent with its command; summary goes at
 
     // Picked from the list, then sent with its title.
     await composer.fill("/ta");
+    // The row says what to write after the command, as Web.
+    await expect(list.getByRole("button", { name: "/task", exact: true })).toContainText(
+      "Task title",
+    );
     await list.getByRole("button", { name: "/task", exact: true }).click();
     await expect(composer).toHaveValue("/task ");
+    await expect(page.getByTestId("command-hint")).toHaveText("Task title");
     await composer.fill("/task watch 2,425 tonight");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect.poll(() => posted.length).toBe(1);
