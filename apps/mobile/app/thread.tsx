@@ -210,6 +210,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const list = useRef<FlatList<ConversationItem>>(null);
   const following = useRef(around == null);
   const jumped = useRef<number | null>(null);
+  const [jumpAgain, setJumpAgain] = useState(0);
   const shell = useShellColors();
   const [atEnd, setAtEnd] = useState(around == null);
   const [loaded, setLoaded] = useState(false);
@@ -858,6 +859,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       ),
     [runs],
   );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `jumpAgain` repeats a jump to the same message
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
     const index = conversationTimeline(
@@ -878,7 +880,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     // The message the jump landed on is marked for a moment, as on Web.
     const landed = visibleMessages.find((row) => row.seq === around);
     if (landed) setFlash(landed.id);
-  }, [around, loaded, visibleMessages, approvals, ownerActions, receipts, id, undrawn]);
+  }, [around, loaded, visibleMessages, approvals, ownerActions, receipts, id, undrawn, jumpAgain]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -1138,7 +1140,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   // A tap on a quote: the list rests on the quoted message (loaded around it when needed).
   const jumpTo = (message: Message) => {
     jumped.current = null;
-    router.setParams({ around: String(message.seq) });
+    // The same target again leaves the route unchanged: the jump runs again all the same,
+    // and marks the message again, as on Web.
+    if (around === message.seq) setJumpAgain((count) => count + 1);
+    else router.setParams({ around: String(message.seq) });
   };
   // Q22: Retry re-asks only an owner's reply, as the server and Web's error card do; the
   // banner shows one run, so mobile offers it for the newest such failure only.

@@ -435,6 +435,7 @@ export const labels = {
     "Calls are not set up. No voice provider is configured yet. Add an OpenAI key in the model providers to make calls.",
   ],
   callBack: ["{0}. اضغط لمعاودة الاتصال", "{0}. Tap to call back"],
+  tapToCallBack: ["اضغط لمعاودة الاتصال", "Tap to call back"],
   tradeApproval: ["طلب تداول", "Trading request"],
   approve: ["موافقة", "Approve"],
   reject: ["رفض", "Reject"],
