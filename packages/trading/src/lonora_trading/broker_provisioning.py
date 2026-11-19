@@ -9,6 +9,8 @@ restart resumes it:
 - ``pending``: under the owner's connection lock, reuse the token's MetaApi account for
   this login and server or create one; its MetaApi id is recorded before any deploy.
 - ``deploying``: deploy, and wait until MetaApi's terminal is connected to the broker.
+  While MetaApi is still deploying or undeploying the account (it refuses another deploy
+  then: ``broker_provisioning_busy``), a pass only waits.
 - ``reading``: create the connection with MetaApi's stored record of the account (the
   login and server it was given), then read the account through the terminal once for
   balance, currency and trade permission.
@@ -50,11 +52,17 @@ TRANSIENT = frozenset(
         "broker_provisioning_unavailable",
         "broker_provisioning_conflict",
         "broker_rate_limited",
+        # MetaApi still deploying, undeploying or redeploying the account: it takes another
+        # deploy once that is done.
+        "broker_provisioning_busy",
         "broker_connection_timeout",
         "broker_connection_unavailable",
         "broker_identity_unavailable",
     }
 )
+# MetaApi's account states while it is still deploying or undeploying the terminal: it
+# refuses another deploy or redeploy until then.
+BUSY_STATES = frozenset({"DEPLOYING", "UNDEPLOYING"})
 # How long a saved card may take to reach a connected terminal, then a first account read.
 DEPLOY_DEADLINE = timedelta(minutes=15)
 READ_DEADLINE = timedelta(minutes=5)
@@ -504,11 +512,23 @@ async def _deploy(
     try:
         try:
             state = await provisioning.state(account_id)
-            if not result.get("created") and not result.get("password_set"):
+            # While MetaApi is still deploying or undeploying the terminal, this pass only
+            # waits: it would refuse a deploy or redeploy (broker_provisioning_busy).
+            busy = state.state in BUSY_STATES
+            if not busy and not result.get("created") and not result.get("password_set"):
                 # An account that already existed at MetaApi gets the password the owner
                 # just typed, unless it is already deployed and connected with its own.
-                if not (state.deployed and state.connected):
+                # Once MetaApi stores this card's password, each pass stores it again and
+                # redeploys until MetaApi takes the redeploy (``password_set``).
+                stored = result.get("password_stored") is True
+                if stored or not (state.deployed and state.connected):
                     await provisioning.update_password(account_id, await secrets.read(password_id))
+                    if not stored:
+                        async with db.sessions() as session, session.begin():
+                            row = await _card(session, failing.owner_id, failing.card_id)
+                            if row.result.get("provisioning") != "deploying":
+                                return
+                            await _record(session, row, password_stored=True)
                     state = await (
                         provisioning.redeploy(account_id)
                         if state.deployed
@@ -519,7 +539,7 @@ async def _deploy(
                     if row.result.get("provisioning") != "deploying":
                         return
                     await _record(session, row, password_set=True)
-            elif state.state not in {"DEPLOYED", "DEPLOYING"}:
+            elif not busy and state.state != "DEPLOYED":
                 state = await provisioning.deploy(account_id)
         except LonoraError as failure:
             if failure.code not in TRANSIENT or _late(started):
@@ -538,11 +558,14 @@ async def _deploy(
                     await _record(session, row, deployed_at=since)
             waited = since is not None and _late(since, LOGIN_DEADLINE)
             if _late(started) or waited:
-                # Named by what MetaApi reports about the broker login: a refusal whenever
-                # it reports one, a login not made only once the login wait has passed (a
-                # terminal first seen deployed moments ago may still be logging in).
+                # Named by what MetaApi reports: still deploying or undeploying the terminal,
+                # else about the broker login: a refusal whenever it reports one, a login
+                # not made only once the login wait has passed (a terminal first seen
+                # deployed moments ago may still be logging in).
                 code = "broker_connect_timeout"
-                if state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER":
+                if busy:
+                    code = "broker_provisioning_busy"
+                elif state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER":
                     code = "broker_login_rejected"
                 elif waited:
                     code = "broker_login_not_established"
