@@ -67,10 +67,26 @@ async def seed_earlier(fixture: Any, text: str, *, system: bool) -> None:
 
 
 async def lonora(fixture: Any) -> dict[str, Any]:
+    """Lonora, with no run another test left active in her conversation.
+
+    Lonora's conversation is shared by every test of this owner. A run left queued or
+    running there would take this test's owner message as steering, and its earlier
+    window (another agent's message, for one) would make the turn read as tainted.
+    """
     from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.schema import RunRow
+    from sqlalchemy import update
 
     async with fixture.runtime.db.sessions() as session, session.begin():
         row = await ensure_personal_agent(session, fixture.owner)
+        await session.execute(
+            update(RunRow)
+            .where(
+                RunRow.agent_id == row.id,
+                RunRow.status.in_(("queued", "leased", "running", "waiting_input")),
+            )
+            .values(status="cancelled")
+        )
         return {"id": row.id, "name": row.name}
 
 
