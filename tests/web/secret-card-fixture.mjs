@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 
-// An agent's Secret card, raised through the same proposal path its tool uses.
+// An agent's Secret card (its own fields, or one that connects a target), raised through
+// the same proposal path its tool uses.
 export function seedSecretCard(data) {
   const script = `
 import asyncio,json,sys
@@ -19,7 +20,9 @@ async def main():
         async with f.runtime.db.sessions() as session, session.begin():
             agent=await create_agent(session,f.owner,AgentCreate(name=data['agent'],scope_mode='flexible'))
             thread=await conversation_thread(session,f.owner,agent.id)
-            proposal=OwnerActionProposal(kind='secret',label=data['label'],secret_fields=data['fields'])
+            proposal=(OwnerActionProposal(kind='secret',target=data['target'],name=data.get('name'))
+                if data.get('target') else
+                OwnerActionProposal(kind='secret',label=data['label'],secret_fields=data['fields']))
             card,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
             print(json.dumps({'agent':agent.id,'thread':thread.id,'card':card.id}))
     finally:

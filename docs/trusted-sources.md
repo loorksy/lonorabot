@@ -200,7 +200,7 @@ the owner types it into the card with the secret:
 
 | Target | Details from chat | The card asks for | Saved as |
 | --- | --- | --- | --- |
-| `mcp_server` (`service="x"`: "Connect X") | `name` (none for X) | the server's address, and an access token (optional) | `MCP_<NAME>_URL`, `MCP_<NAME>_TOKEN` (workspace) |
+| `mcp_server` (`service="x"`: "Connect X") | `name` (none for X) | the server's address, and an access token (optional; a server that has the owner sign in needs none) | `MCP_<NAME>_URL`, `MCP_<NAME>_TOKEN`; signed in, also `MCP_<NAME>_REFRESH_TOKEN` and any `MCP_<NAME>_CLIENT_SECRET` (workspace) |
 | `brave_search` | `name` (optional) | the API key | `BRAVE_API_KEY` (workspace) |
 | `news_feed`, `economic_calendar` | `name` | the address, which may carry a key | `FEED_<NAME>_URL`, `CALENDAR_<NAME>_URL` (workspace) |
 
@@ -230,6 +230,30 @@ connection in the same transaction:
   too; the item keeps its title and summary.
 - An MCP server saved this way keeps its address in the store too (`url_secret_id`) and
   its fingerprint on the row (`endpoint_sha256`), which the trust checks compare.
+- An MCP server that has the owner sign in (OAuth 2.1 with PKCE, VISION.md 13.1): the
+  owner leaves the token empty. Saving first asks the server, outside any lock, whether
+  it needs a sign-in: an `initialize` without credentials, answered 401 (its tools are
+  not read). If it does, Lonora reads the server's protected-resource metadata (RFC 9728)
+  and its authorization server's metadata (RFC 8414 or OpenID: the issuer must be the one
+  named, and PKCE with S256 offered), registers as a public client (RFC 7591), and
+  answers with the sign-in page while the card keeps waiting: the web app opens it in
+  place, the mobile app in the browser. Metadata that cannot be trusted refuses the
+  sign-in (`mcp_sign_in_unsupported`), and nothing is saved.
+- The authorization server sends the browser back to `/api/mcp/oauth/callback`, which
+  needs no Lonora session (on a phone it is the system browser): the sign-in's state,
+  kept only as a digest and used once within ten minutes, identifies it, and an answer
+  that names another issuer is refused (RFC 9207). The code is exchanged with the PKCE
+  verifier for this server alone (`resource`, RFC 8707). One transaction then saves the
+  address, the access token, the refresh token and any client secret as workspace
+  secrets, connects the server with its sign-in record (`oauth`), settles the card and
+  wakes the agent. The browser goes back to the conversation, or to the mobile app. A
+  sign-in the owner declined, or one that failed, leaves the card waiting, and the card
+  says so. While it waits, the sign-in keeps its verifier, the address, the resource and
+  any client secret encrypted with the store's key.
+- A signed-in server's access token is renewed with its refresh token when less than a
+  minute is left, one renewal at a time. A renewal that is refused ends the sign-in
+  (`mcp_sign_in_expired`), and a server that answers 401 asks for one
+  (`mcp_sign_in_required`): the agent offers a new Secret card.
 - Web search takes one key: a second Brave card saved later settles `expired`
   (`credential_already_configured`) and writes nothing.
 
@@ -293,6 +317,13 @@ preview, and **Set up integrations on the web** opens the web settings.
   with its address and token never leaving the server.
 - `tests/check_trust_migration.py` (fresh database): `0132` settles and retires stored
   trust cards and keeps `owner_message` across a downgrade and upgrade.
+- `tests/test_mcp_oauth.py`: the sign-in protocol (the server's challenge, discovery
+  with its refusals, registration, PKCE, the authorization address, the code exchange and
+  the refresh, the callback's issuer; no redirect followed, responses bounded).
+- `tests/test_mcp_sign_in.py`: a server that has the owner sign in, from the card to the
+  callback (tokens saved as workspace secrets, never in a card, a message, an event or a
+  Run; the agent woken; a second callback does nothing), the renewal before expiry and
+  its refusal, a declined, mixed-up or late sign-in, and a server that needs none.
 - `tests/test_secret_card.py`: the Secret card's own fields and its connecting cards
   (each MCP server's address and token under names of their own, kept when the server is
   removed; a name a connection uses never replaced; a stored address read only on its
@@ -331,6 +362,18 @@ preview, and **Set up integrations on the web** opens the web settings.
   address, remove the connection, connect it again from a new Secret card, and name it
   again so its tools are trusted. The values a Secret card saved stay saved until the
   owner removes them in chat.
+- Lonora registers itself with an MCP server's authorization server (RFC 7591). A
+  server that offers no registration (only clients registered beforehand, or client ID
+  metadata documents) cannot be signed in to (`mcp_sign_in_unsupported`); a token from
+  the server's own settings can be typed into the card instead.
+- A sign-in that ended is not renewed in place: a new Secret card signs in again under
+  new names, and the earlier connection stays until it is removed (no key rotation, as
+  above). A sign-in that is never finished expires after ten minutes; the card still
+  waits, and the owner connects again.
+- The callback is reached by the sign-in's state alone, since a phone's browser has no
+  Lonora session. Someone who saw the sign-in page's address before it was used could
+  finish that sign-in with an account of their own; the state is random, single use
+  and lives ten minutes, and the page goes only to the owner's own browser.
 - An operator declaration (`LONORA_MCP_DECLARATIONS`, `credential_scope: integration`)
   also covers a server whose token is a workspace secret from a Secret card: both are
   scopes an MCP connection may name; a broker or provider value never is.

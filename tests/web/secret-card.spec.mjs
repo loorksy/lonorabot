@@ -97,3 +97,61 @@ for (const locale of ["ar", "en"])
         headers: { "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value },
       });
   });
+
+const signInCopy = {
+  en: {
+    hint: "If the server has you sign in, leave the token empty: Lonora opens its sign-in page and keeps what it returns encrypted.",
+    connect: "Connect",
+  },
+  ar: {
+    hint: "إن كان الخادم يطلب تسجيل الدخول فاترك الرمز فارغًا: تفتح لونورا صفحة الدخول وتحفظ ما تعيده مشفّرًا.",
+    connect: "ربط",
+  },
+};
+
+for (const locale of ["ar", "en"])
+  test(`${locale}: an MCP server that has the owner sign in opens its sign-in page here`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(90000);
+    const text = signInCopy[locale];
+    const data = simulation({ action: "init", empty: true });
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    const suffix = randomUUID().slice(0, 8).toUpperCase();
+    const seeded = seedSecretCard({
+      agent: `Files ${suffix}`,
+      target: "mcp_server",
+      name: "Files",
+    });
+    const signIn = `https://auth.example.test/authorize?client_id=lonora&state=${suffix}`;
+    const sent = [];
+    // The server asks for a sign-in: the card waits, and the answer names its page.
+    await page.route("**/api/owner-actions/*/secret", async (route) => {
+      sent.push(JSON.parse(route.request().postData() ?? "{}"));
+      await route.fulfill({ json: { id: seeded.card, status: "pending", sign_in_url: signIn } });
+    });
+    await page.route("https://auth.example.test/**", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<title>Sign in</title><p>Sign in to Files</p>",
+      }),
+    );
+    await page.goto(`/app/${seeded.agent}`);
+    const card = page.locator(`[data-owner-action="${seeded.card}"]`);
+    await expect(card).toContainText(text.hint);
+    await card.locator('input[name="URL"]').fill("https://files.example.test/mcp");
+    await card.getByRole("button", { name: text.connect, exact: true }).click();
+    // The sign-in page opens in place; the callback brings the owner back here.
+    await page.waitForURL(signIn);
+    await expect(page.getByText("Sign in to Files")).toBeVisible();
+    expect(sent).toEqual([{ values: { URL: "https://files.example.test/mcp" }, return_to: "web" }]);
+  });

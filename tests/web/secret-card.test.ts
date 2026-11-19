@@ -95,11 +95,69 @@ test("the values go only to the card's own route", async () => {
     },
     "card/1",
     { BINANCE_API_KEY: "k", BINANCE_USER: "u" },
+    "web",
   );
   assert.deepEqual(posted, [
-    ["/owner-actions/card%2F1/secret", { values: { BINANCE_API_KEY: "k", BINANCE_USER: "u" } }],
+    [
+      "/owner-actions/card%2F1/secret",
+      { values: { BINANCE_API_KEY: "k", BINANCE_USER: "u" }, return_to: "web" },
+    ],
   ]);
   assert.deepEqual(answer, { id: "card/1", status: "confirmed" });
+});
+
+test("an MCP server's card says it may have the owner sign in, and when that did not finish", () => {
+  const connecting = {
+    label: null,
+    connect: "mcp_server" as const,
+    service: null,
+    details: { name: "Files" },
+    fields: [
+      { key: "URL", label: null, secret: false, role: "server_url" as const, required: true },
+      { key: "TOKEN", label: null, secret: true, role: "token" as const, required: false },
+    ],
+    destination: "workspace" as const,
+    agent_name: null,
+  };
+  const server: OwnerAction = {
+    ...card,
+    facts: { several_accounts: false, secret: connecting },
+  };
+  for (const locale of ["en", "ar"] as const) {
+    const text = ownerActionLabels[locale];
+    const waiting = ownerActionCard(server, locale);
+    assert.ok(waiting.hint?.includes(text.connectServerHint), waiting.hint ?? "");
+    assert.ok(!waiting.lines.includes(text.signInFailed));
+    const failed = ownerActionCard(
+      {
+        ...server,
+        facts: {
+          several_accounts: false,
+          secret: { ...connecting, sign_in_failed: true },
+        },
+      },
+      locale,
+    );
+    assert.ok(failed.lines.includes(text.signInFailed));
+    // The form stays: the owner connects again to sign in again.
+    assert.ok(failed.secret);
+  }
+  // Only an MCP server's card says it.
+  const feed = ownerActionCard(
+    {
+      ...server,
+      facts: {
+        several_accounts: false,
+        secret: {
+          ...connecting,
+          connect: "news_feed",
+          fields: [{ key: "URL", label: null, secret: false, role: "feed_url", required: true }],
+        },
+      },
+    },
+    "en",
+  );
+  assert.ok(!feed.hint?.includes(ownerActionLabels.en.connectServerHint));
 });
 
 test("a Secret card says, in our words, where each value goes and what it replaces", () => {

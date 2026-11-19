@@ -34,7 +34,9 @@ shorter one at every base64 alignment. Its values never pass the decision route:
 card's own route, `POST /owner-actions/{id}/secret`, stores them encrypted and settles
 the card in one transaction, and the card, its events, the conversation and the agent's
 next run keep no value and no name the agent's words shaped. A second submit shows the
-card as it is and writes nothing. The downgrade of `0071` turns the agents' own cards
+card as it is and writes nothing. An MCP server that has the owner sign in keeps its
+card waiting until the sign-in finishes on the callback (`docs/trusted-sources.md`). The
+downgrade of `0071` turns the agents' own cards
 back into the shape the earlier code reads (their values stay saved) and refuses while a
 connection saved from a Secret card keeps its address in the store.
 
