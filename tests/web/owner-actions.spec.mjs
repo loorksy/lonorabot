@@ -506,7 +506,6 @@ for (const locale of ["en", "ar"])
     }
   });
 
-for (const locale of ["en", "ar"])
 const mandateCopy = {
   en: {
     title: "Trading mode",

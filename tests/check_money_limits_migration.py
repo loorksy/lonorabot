@@ -29,6 +29,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
 BEFORE = "0138_skill_package_files"
+# Its own revision, not head: 0063 (later) settles pending grant cards itself.
+REVISION = "0087_end_money_limits"
 AGES = {"quote_max_age_seconds": 15, "account_max_age_seconds": 20}
 OLD_POLICY = {
     **AGES,
@@ -252,7 +254,7 @@ async def main() -> None:
                 )
         await engine.dispose()
 
-        await asyncio.to_thread(alembic, "upgrade", "heads")
+        await asyncio.to_thread(alembic, "upgrade", REVISION)
         async with engine.connect() as connection:
             stripped = await policy(connection, key)
             assert stripped == AGES, stripped
@@ -272,7 +274,7 @@ async def main() -> None:
             check_upgraded(await cards(connection, ids["owner"]), ids, drafts)
             assert await challenges(connection, ids["owner"]) == {"account_activate"}
         await engine.dispose()
-        await asyncio.to_thread(alembic, "upgrade", "heads")
+        await asyncio.to_thread(alembic, "upgrade", REVISION)
         async with engine.begin() as connection:
             assert await policy(connection, key) == AGES
             check_upgraded(await cards(connection, ids["owner"]), ids, drafts)
