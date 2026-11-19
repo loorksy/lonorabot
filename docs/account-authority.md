@@ -122,7 +122,7 @@ followed a Super Bot activation are now keyed on grants:
   never retried and never puts the agent at "action required"; its status shows one
   review-scoped line ("The readiness check after you signed did not finish; that check
   sent nothing.") until a later Run of the agent completes (`review_status` then reads
-  `superseded`). The failed Run stays in Activity.
+  `superseded`). The failed Run stays recorded as failed; no page lists it.
 - The avatar's "trades on its own" marker (`trades_on_its_own` on the agent) is shown
   only while the agent is not paused and holds a grant in force.
 

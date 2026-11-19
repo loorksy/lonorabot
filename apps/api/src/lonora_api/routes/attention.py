@@ -8,7 +8,7 @@ from lonora_db.attention import (
     attention_view,
     policy,
 )
-from lonora_db.schema import AttentionRow, EffectReceiptRow
+from lonora_db.schema import AttentionRow
 from lonora_db.transactions import SettingsRepository
 from sqlalchemy import or_, select
 
@@ -17,35 +17,11 @@ from ..middleware.auth import require_owner, runtime
 router = APIRouter(prefix="/attention")
 
 
-@router.get("/audit")
-async def audit(request: Request, owner: OwnerIdentity = Depends(require_owner)):
-    async with runtime(request).db.sessions() as session:
-        rows = await session.scalars(
-            select(EffectReceiptRow)
-            .where(EffectReceiptRow.key.startswith("attention-source:" + owner.id + ":"))
-            .order_by(EffectReceiptRow.created_at.desc())
-            .limit(100)
-        )
-        return [row.result for row in rows]
-
-
 @router.get("/view")
 async def view(request: Request, owner: OwnerIdentity = Depends(require_owner)):
     """«يحتاج انتباهك»: what needs the owner across all agents (mandate 11.7)."""
     async with runtime(request).db.sessions() as session:
         return await attention_view(session, owner.id)
-
-
-@router.get("/history")
-async def history(request: Request, owner: OwnerIdentity = Depends(require_owner)):
-    async with runtime(request).db.sessions() as session:
-        rows = await session.scalars(
-            select(AttentionRow)
-            .where(AttentionRow.owner_id == owner.id)
-            .order_by(AttentionRow.updated_at.desc())
-            .limit(50)
-        )
-        return [attention_data(row) for row in rows]
 
 
 @router.get("")

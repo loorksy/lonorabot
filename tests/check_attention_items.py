@@ -21,7 +21,12 @@ from lonora_agent.collaboration.outcome_return import return_outcome
 from lonora_contracts.attention import ATTENTION_EVENTS, AttentionCode
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
-from lonora_db.attention import mandatory_current, raise_system_attention, withdraw_ended
+from lonora_db.attention import (
+    attention_data,
+    mandatory_current,
+    raise_system_attention,
+    withdraw_ended,
+)
 from lonora_db.events import emit
 from lonora_db.messages import post_agent_message
 from lonora_db.personal_agent import ensure_personal_agent
@@ -54,6 +59,19 @@ async def items(fixture: Fixture, code: str) -> list[AttentionRow]:
                 .order_by(AttentionRow.created_at)
             )
         )
+
+
+async def attention_rows(fixture: Fixture) -> list[dict[str, Any]]:
+    """Every attention row of the owner, read through the notification contract."""
+    async with fixture.runtime.db.sessions() as session:
+        return [
+            attention_data(row)
+            for row in await session.scalars(
+                select(AttentionRow)
+                .where(AttentionRow.owner_id == fixture.owner)
+                .order_by(AttentionRow.id)
+            )
+        ]
 
 
 async def ready_events(fixture: Fixture, item_id: str) -> int:
@@ -696,7 +714,7 @@ async def view(fixture: Fixture) -> None:
                     due_at=due,
                 )
             )
-    before = await fixture.request("GET", "/attention/history")
+    before = await attention_rows(fixture)
     rows = cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
     by_id = {entry["id"]: entry for entry in rows}
     question = by_id[run["id"]]
@@ -737,7 +755,7 @@ async def view(fixture: Fixture) -> None:
     assert not [key for key in by_id if key.startswith(("stale-review-", "held-alert-"))]
     # Several agents' items in one view.
     assert len({entry["agent_id"] for entry in rows}) > 1
-    assert await fixture.request("GET", "/attention/history") == before
+    assert await attention_rows(fixture) == before
     # Looking at a row makes it seen, and it stays listed until it is answered: opening an
     # item reads it, and reading the conversation up to the question reads the question.
     unopened = [item for item in open_items if item.status != "seen"]
@@ -894,7 +912,7 @@ async def migration(fixture: Fixture) -> None:
         rows["broker_recoveredready"] not in stored and rows["broker_recoveredseen"] not in stored
     )
     # Every stored row reads through the notification contract again.
-    await fixture.request("GET", "/attention/history")
+    await attention_rows(fixture)
     async with fixture.runtime.db.sessions() as session:
         codes = set(await session.scalars(select(AttentionRow.code).distinct()))
     assert codes <= set(get_args(AttentionCode)), codes

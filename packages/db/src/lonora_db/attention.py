@@ -476,8 +476,9 @@ async def notify_owner(
         if (criticals or 0) >= CRITICAL_LIMIT_PER_HOUR:
             request = request.model_copy(update={"importance": "important_change"})
             critical = False
-    # Owner decision Q47: the agent's own delivery rules may keep a non-urgent alert in
-    # Activity only (in-app off, or past its daily limit). The event is still recorded.
+    # Owner decision Q47: the agent's own delivery rules may keep a non-urgent alert from
+    # showing (in-app off, or past its daily limit). No attention item is made: the event
+    # and its receipts record it, and the tool tells the agent to say it in its reply.
     blocked = await delivery_block(
         session,
         owner_id,

@@ -1,7 +1,7 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: a standalone script run by hand.
-/* UI phase 4b, the domain pages: the states side-by-side.mjs captures for «المستجدات»,
-   «المهام» and «تفاصيل المهمة», «الأهداف», «المهام المجدولة», «المعرفة», «المهارات» with
-   «سجل الإصدارات» and «الملفات», plus their forms.
+/* UI phase 4b, the domain pages: the states side-by-side.mjs captures for «يحتاج انتباهك» (the
+   reference's «المستجدات»), «المهام» and «تفاصيل المهمة», «الأهداف», «المهام المجدولة»,
+   «المعرفة», «المهارات» with «سجل الإصدارات» and «الملفات», plus their forms.
 
    The app side is seeded by seed_domain.py through the owner API with the reference's own rows
    (`initial`). Where an owner decision changes the data the reference shows, the reference is
@@ -39,16 +39,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
   const states = [
     {
       name: "updates",
-      ref: async (page) => {
-        await refRun(page, () => {
-          S.activities = [
-            { title: "أُنشئت مهارة", text: "موجز الأخبار · Lonora", time: "" },
-            { title: "أُنشئت مهمة", text: "متابعة الذهب · محلل الذهب", time: "" },
-          ];
-          save();
-          go("updates");
-        });
-      },
+      ref: to("updates", {}),
       appPath: "/app/updates",
       app: async () => {},
     },

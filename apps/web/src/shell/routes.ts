@@ -66,7 +66,7 @@ export const DEV_ROUTES: ReadonlySet<Page> = new Set<Page>(["lab"]);
 const ALIASES: Readonly<Record<string, string>> = {
   board: "/app/tasks",
   notifications: "/app/updates",
-  // The activity log page is gone (P5); an old link reaches «المستجدات».
+  // The activity log page is gone (P5); an old link reaches «يحتاج انتباهك».
   activity: "/app/updates",
   account: "/app/settings",
   capabilities: "/app/integrations",

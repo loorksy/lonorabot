@@ -39,7 +39,7 @@ test("domain pages: the task and skill pages take their id in the path, the rest
   assert.deepEqual(parseRoute("/app/skills/k1"), { kind: "page", page: "skill", item: "k1" });
   assert.deepEqual(parseRoute("/app/tasks"), { kind: "root", root: "tasks" });
   assert.deepEqual(parseRoute("/app/goals"), { kind: "page", page: "goals" });
-  // The activity log page is gone (P5): an old link reaches «المستجدات» instead.
+  // The activity log page is gone (P5): an old link reaches «يحتاج انتباهك» instead.
   assert.deepEqual(parseRoute("/app/activity"), { kind: "alias", to: "/app/updates" });
   assert.deepEqual(parseRoute("/app/task"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/goals/x"), { kind: "not-found" });

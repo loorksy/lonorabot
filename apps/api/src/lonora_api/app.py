@@ -47,7 +47,6 @@ ROUTES = (
     "memory",
     "knowledge",
     "agent_goals",
-    "activity",
     "scratchpad",
     "artifacts",
     "boards",

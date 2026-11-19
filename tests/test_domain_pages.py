@@ -3,8 +3,8 @@
 Pure cases run everywhere: the routine schedule rule with a one-shot ``run_at``, the
 Task's ``due_at`` and ``completion_criteria``, knowledge links, light goals. The
 PostgreSQL cases (LONORA_DATABASE_URL) go through the owner API on the migrated schema:
-routine titles and one-shot firing, «تحديد كمكتملة», light goals, «المعرفة», the
-skills version history and restore, «تحديد الكل كمقروء» and the activity projection.
+routine titles and one-shot firing, «تحديد كمكتملة», light goals, «المعرفة» and the
+skills version history and restore.
 """
 
 import os
@@ -338,37 +338,6 @@ async def test_skill_versions_list_every_save_and_restore_is_a_new_version():
 
 
 @pytest.mark.asyncio
-async def test_activity_comes_from_events():
-    database()
-    from check_streaming import Fixture
-
-    fixture = await Fixture().open()
-    try:
-        agent = await fixture.agent("Notifier")
-        thread = await fixture.conversation(agent)
-        task = await fixture.request(
-            "POST",
-            f"/tasks?agent_id={agent['id']}&thread_id={thread['id']}",
-            {"title": "Close the books"},
-        )
-        await fixture.request(
-            "POST", f"/tasks/{task['id']}/complete", {"expected_version": task["version"]}
-        )
-        feed = await fixture.request("GET", "/activity?limit=100")
-        mine = [row for row in feed["items"] if row["agent_id"] == agent["id"]]
-        assert [(row["code"], row["subject"]) for row in mine[:2]] == [
-            ("task_completed", "Close the books"),
-            ("task_created", "Close the books"),
-        ]
-        # One entry per durable event: no cancelled step before the owner's completion.
-        assert "task_cancelled" not in [row["code"] for row in mine]
-        older = await fixture.request("GET", f"/activity?limit=1&before={mine[0]['id']}")
-        assert int(older["items"][0]["id"]) < int(mine[0]["id"])
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
 async def test_agent_text_files_upload_and_edit_but_other_files_do_not():
     database()
     from check_streaming import Fixture
@@ -529,44 +498,6 @@ async def test_text_edit_never_deletes_outside_its_folder_and_untyped_text_is_te
 
 
 @pytest.mark.asyncio
-async def test_activity_reaches_an_old_action_behind_many_filtered_events():
-    database()
-    from check_streaming import Fixture
-    from lonora_db.schema import EventRow
-
-    fixture = await Fixture().open()
-    try:
-        agent = await fixture.agent("Busy")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            session.add(
-                EventRow(
-                    owner_id=fixture.owner,
-                    agent_id=agent["id"],
-                    kind="task.updated",
-                    payload={"id": "old-task", "status": "completed"},
-                )
-            )
-            await session.flush()
-            for index in range(1700):
-                session.add(
-                    EventRow(
-                        owner_id=fixture.owner,
-                        agent_id=agent["id"],
-                        kind="task.updated",
-                        payload={"id": f"noise-{index}", "status": "running"},
-                    )
-                )
-        feed = await fixture.request("GET", "/activity?limit=5")
-        mine = [row for row in feed["items"] if row["agent_id"] == agent["id"]]
-        assert mine[0]["code"] == "task_completed"
-        # A full page always carries a cursor to the next one.
-        page = await fixture.request("GET", "/activity?limit=1")
-        assert len(page["items"]) == 1 and page["next_before"] == int(page["items"][0]["id"])
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
 async def test_the_agent_context_carries_its_own_goals_and_links_as_untrusted_data():
     database()
     from check_streaming import Fixture
@@ -649,44 +580,6 @@ async def test_routine_updates_keep_unsent_fields_and_a_fired_one_shot_never_ref
             row.enabled = False
         code, body = await status_of(fixture, "PUT", f"/routines/{once['id']}", {"enabled": True})
         assert code == 422 and body["code"] == "run_at_past"
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_an_added_note_appears_in_the_activity_log():
-    database()
-    from check_streaming import Fixture
-    from lonora_memory import semantic
-
-    fixture = await Fixture().open()
-    try:
-        agent = await fixture.agent("Noter")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            from lonora_db.transactions import SettingsRepository
-
-            await SettingsRepository().put(
-                session, "semantic_memory", {"enabled": True, "model": "fixture-embedding"}
-            )
-
-        async def embed(*_: Any) -> list[float]:
-            return [0.1, 0.2]
-
-        original = semantic.embed_text
-        semantic.embed_text = embed  # type: ignore[assignment]
-        try:
-            await semantic.index_note(
-                fixture.runtime.db, cast(Any, None), fixture.owner, agent["id"], "A note", "Guide"
-            )
-        finally:
-            semantic.embed_text = original
-            async with fixture.runtime.db.sessions() as session, session.begin():
-                from lonora_db.transactions import SettingsRepository
-
-                await SettingsRepository().put(session, "semantic_memory", {"enabled": False})
-        feed = await fixture.request("GET", "/activity?limit=20")
-        codes = [row["code"] for row in feed["items"] if row["agent_id"] == agent["id"]]
-        assert "knowledge_added" in codes
     finally:
         await fixture.close()
 
@@ -802,78 +695,5 @@ async def test_one_shot_edges_off_switch_reschedule_text_edit_and_watchdog():
             row = await session.get(RoutineRow, once["id"])
             assert row is not None and row.enabled is False and row.last_run_at is not None
             assert once["id"] not in [i for i, _ in await due_routines(session)]
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_activity_dedupes_repeats_but_its_cursor_still_moves_on():
-    database()
-    from check_streaming import Fixture
-    from lonora_db.schema import EventRow
-
-    fixture = await Fixture().open()
-    try:
-        agent = await fixture.agent("Repeat")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            for _ in range(2):
-                session.add(
-                    EventRow(
-                        owner_id=fixture.owner,
-                        agent_id=agent["id"],
-                        kind="task.updated",
-                        payload={"id": "same-task", "status": "completed"},
-                    )
-                )
-        page = await fixture.request("GET", "/activity?limit=2")
-        assert [row["code"] for row in page["items"]] == ["task_completed"]
-        assert page["next_before"] is not None and page["next_before"] < int(page["items"][0]["id"])
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_editing_a_note_is_not_logged_as_added_knowledge():
-    database()
-    from check_streaming import Fixture
-    from lonora_memory import semantic
-
-    fixture = await Fixture().open()
-    try:
-        agent = await fixture.agent("Editor")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            from lonora_db.transactions import SettingsRepository
-
-            await SettingsRepository().put(
-                session, "semantic_memory", {"enabled": True, "model": "fixture-embedding"}
-            )
-
-        async def embed(*_: Any) -> list[float]:
-            return [0.1, 0.2]
-
-        original = semantic.embed_text
-        semantic.embed_text = embed  # type: ignore[assignment]
-        try:
-            first = await semantic.index_note(
-                fixture.runtime.db, cast(Any, None), fixture.owner, agent["id"], "One", "T"
-            )
-            await semantic.index_note(
-                fixture.runtime.db,
-                cast(Any, None),
-                fixture.owner,
-                agent["id"],
-                "Two",
-                "T",
-                replaces=first["id"],
-            )
-        finally:
-            semantic.embed_text = original
-            async with fixture.runtime.db.sessions() as session, session.begin():
-                from lonora_db.transactions import SettingsRepository
-
-                await SettingsRepository().put(session, "semantic_memory", {"enabled": False})
-        feed = await fixture.request("GET", "/activity?limit=50")
-        codes = [row["code"] for row in feed["items"] if row["agent_id"] == agent["id"]]
-        assert codes.count("knowledge_added") == 1
     finally:
         await fixture.close()
