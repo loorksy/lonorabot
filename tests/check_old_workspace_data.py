@@ -1,4 +1,5 @@
-"""Migration 0146 on real rows, in an empty disposable PostgreSQL database: stored skill
+"""Migration 0146 on real rows, in an empty disposable PostgreSQL database (Lonora has one
+owner, so it runs once per database): stored skill
 manifests that require a removed workspace tool name its replacement, saved stdio MCP
 servers are deleted and the others lose `transport` and `command`, and the old tools'
 receipts table is dropped (14.3.9)."""
@@ -7,6 +8,7 @@ import asyncio
 import subprocess
 import sys
 from typing import Any
+from uuid import uuid4
 
 from check_streaming import test_settings
 from lonora_db.client import Database
@@ -16,6 +18,7 @@ from lonora_db.schema import (
     OwnerRow,
     SkillRow,
     SkillVersionRow,
+    TrustedSourceRow,
 )
 from sqlalchemy import inspect, select
 
@@ -38,7 +41,9 @@ async def main() -> None:
     try:
         await alembic("downgrade", "0087_end_money_limits")
         async with db.sessions() as session, session.begin():
-            owner = OwnerRow(email="old-workspace@example.test", password_hash="fixture")
+            owner = OwnerRow(
+                email=f"old-workspace-{uuid4().hex[:8]}@example.test", password_hash="fixture"
+            )
             session.add(owner)
             await session.flush()
             agent = AgentRow(owner_id=owner.id, name="Old packages")
@@ -52,7 +57,15 @@ async def main() -> None:
                     "package": {
                         "versions": [
                             {"payload": {"name": "stats", "manifest": manifest(OLD)}},
-                            {"payload": {"name": "stats", "manifest": manifest(["web_search"])}},
+                            # No removed name: left exactly as it was, duplicate included.
+                            {
+                                "payload": {
+                                    "name": "stats",
+                                    "manifest": manifest(["web_search", "web_search"]),
+                                }
+                            },
+                            # A non-string entry stays as it is beside a renamed one.
+                            {"payload": {"manifest": {"required_tools": [7, "workspace_update"]}}},
                         ]
                     }
                 },
@@ -85,7 +98,14 @@ async def main() -> None:
             )
             session.add_all([remote, local])
             await session.flush()
-            ids = (skill.id, remote.id, local.id)
+            # Trust on the stdio server (an http server trusted, then edited to stdio while
+            # disabled): it goes with the server.
+            trusted = TrustedSourceRow(
+                owner_id=owner.id, kind="mcp_server", identifier=local.id, added_via="owner_ui"
+            )
+            session.add(trusted)
+            await session.flush()
+            ids = (skill.id, remote.id, local.id, trusted.id)
         await db.close()
         await alembic("upgrade", "head")
         async with db.sessions() as session:
@@ -96,7 +116,14 @@ async def main() -> None:
             versions = skill.state["package"]["versions"]
             assert versions[0]["payload"]["manifest"]["required_tools"] == replaced
             # A manifest without a removed tool is left exactly as it was.
-            assert versions[1]["payload"]["manifest"]["required_tools"] == ["web_search"]
+            assert versions[1]["payload"]["manifest"]["required_tools"] == [
+                "web_search",
+                "web_search",
+            ]
+            assert versions[2]["payload"]["manifest"]["required_tools"] == [
+                7,
+                "workspace_file_write",
+            ]
             saved = await session.get(SkillVersionRow, (ids[0], 1))
             assert saved is not None
             assert saved.payload["manifest"]["required_tools"] == ["workspace_run"]
@@ -112,7 +139,13 @@ async def main() -> None:
             from lonora_contracts.mcp import McpConnection
 
             McpConnection.model_validate(remote_row.payload)
-            assert (await session.scalars(select(McpConnectionRow.id))).all() == [ids[1]]
+            owned = select(McpConnectionRow.id).where(
+                McpConnectionRow.owner_id == remote_row.owner_id
+            )
+            assert (await session.scalars(owned)).all() == [ids[1]]
+            trust = await session.get(TrustedSourceRow, ids[3])
+            assert trust is not None and trust.revoked_at is not None
+            assert trust.revoked_via == "owner_ui"
         async with db.engine.connect() as connection:
             tables = await connection.run_sync(lambda conn: inspect(conn).get_table_names())
         assert "ln_workspace_operations" not in tables

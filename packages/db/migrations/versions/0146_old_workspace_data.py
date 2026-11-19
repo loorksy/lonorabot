@@ -7,10 +7,11 @@
   ``workspace_file_write``, ``workspace_inspect`` and ``workspace_execute`` ->
   ``workspace_run``), in the skill resources, their package versions and the saved
   versions. Package digests cover the files, never the manifest, so they still verify.
-- Saved stdio MCP servers are deleted and every other saved server loses the ``transport``
-  and ``command`` fields, before the contract drops them: the workspace runs a local MCP
-  server as an agent's own process (#197). A stdio server was refused before any review, so
-  none was ever trusted.
+- Saved stdio MCP servers are deleted, with any trust still on them revoked as an owner's
+  deletion of a server does (an http server trusted and later edited to stdio while
+  disabled, or an operator seed), and every other saved server loses the ``transport`` and
+  ``command`` fields, before the contract drops them: a local MCP server is a program an
+  agent runs in the workspace as its own process (#197).
 
 ``ln_analytical_workspaces`` stays: the one-time mover still copies snapshots it has not
 copied yet. The downgrade recreates the receipts table empty; the rewritten names and the
@@ -39,10 +40,11 @@ def renamed(value: Any) -> tuple[Any, bool]:
     if isinstance(value, dict):
         changed, result = False, dict[str, Any]()
         for key, item in cast(dict[str, Any], value).items():
-            if key == "required_tools" and isinstance(item, list):
-                names = [str(name) for name in cast(list[Any], item)]
+            names = cast(list[Any], item) if isinstance(item, list) else []
+            if key == "required_tools" and any(name in REPLACED for name in names):
+                # Only a list that names a removed tool changes; nothing else in it does.
                 tools = list(dict.fromkeys(REPLACED.get(name, name) for name in names))
-                changed = changed or tools != names
+                changed = True
                 result[key] = tools
             else:
                 result[key], moved = renamed(item)
@@ -90,10 +92,32 @@ def upgrade() -> None:
     servers = sa.table(
         "ln_mcp_connections", sa.column("id", sa.String()), sa.column("payload", sa.JSON())
     )
+    trust = sa.table(
+        "ln_trusted_sources",
+        sa.column("owner_id", sa.String()),
+        sa.column("kind", sa.String()),
+        sa.column("identifier", sa.String()),
+        sa.column("revoked_at", sa.DateTime(timezone=True)),
+        sa.column("revoked_via", sa.String()),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
     for row in bind.execute(sa.select(servers)).mappings().all():
-        payload = dict(row["payload"] or {})
+        stored = row["payload"]
+        payload = dict(cast(dict[str, Any], stored)) if isinstance(stored, dict) else {}
         if payload.get("transport") == "stdio":
             bind.execute(sa.delete(servers).where(servers.c.id == row["id"]))
+            # Its trust goes with it, as when the owner deletes a server (revoke_server):
+            # an http server trusted and then edited to stdio, or an operator seed.
+            now = sa.func.now()
+            bind.execute(
+                sa.update(trust)
+                .where(
+                    trust.c.kind == "mcp_server",
+                    trust.c.identifier == row["id"],
+                    trust.c.revoked_at.is_(None),
+                )
+                .values(revoked_at=now, revoked_via="owner_ui", updated_at=now)
+            )
         elif "transport" in payload or "command" in payload:
             payload.pop("transport", None)
             payload.pop("command", None)
