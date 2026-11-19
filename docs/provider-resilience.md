@@ -266,7 +266,7 @@ memory).
 helpers) takes `model` and `agent_id` (Lonora only, for another agent).
 
 - It applies at once only when the server can tie it to the owner's words: the Run
-  answers an owner message (`restrictions.owner_message_id`) and that message, or one the
+  answers an owner message (`provenance.owner_message_id`) and that message, or one the
   owner added while the Run worked, names the requested model (its id, its catalog name,
   or a distinctive word of either such as "Opus"; words many names share such as "pro",
   "flash" or a vendor name do not count). The event records the owner's message

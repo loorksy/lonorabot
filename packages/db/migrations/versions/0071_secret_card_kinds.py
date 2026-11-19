@@ -27,7 +27,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0071_secret_card_kinds"
-down_revision = "0139_workspace_running"
+down_revision = "0087_end_money_limits"
 branch_labels = None
 depends_on = None
 

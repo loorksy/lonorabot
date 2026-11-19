@@ -21,6 +21,8 @@ Fixture = tuple[Database, str, str, str]
 SECRET = "sk-live-" + "7" * 32
 # A secret long enough that the supervisor's 4096-byte cut of a command line ends inside it.
 LONG = "tok-" + "Lq9" * 1400
+# An agent's CLI token a script put on its own command line (7.3.3, 7.2.6).
+CLI_TOKEN = "lnr_" + "Tk7" * 15
 
 
 def now() -> datetime:
@@ -118,7 +120,7 @@ class Supervisor:
         self.stopped_all: list[str] = []
         self.listing = [
             process(101, agent, "python bot.py --key " + SECRET),
-            process(102, agent, "sleep 9"),
+            process(102, agent, "curl -H 'Authorization: Bearer " + CLI_TOKEN + "' x"),
             process(103, agent, ("bot --token " + LONG)[:4096]),
         ]
 
@@ -149,7 +151,13 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
         async def scanned_values(self) -> dict[str, str]:
             return {"BROKER_KEY": SECRET, "LONG_TOKEN": LONG}
 
-    service: Any = SimpleNamespace(owner_id=owner, secrets=Secrets(), given=None)
+    class Tokens:
+        async def values(self) -> list[str]:
+            return [CLI_TOKEN]
+
+    service: Any = SimpleNamespace(
+        owner_id=owner, secrets=Secrets(), given=None, cli_tokens=Tokens()
+    )
     gateway: Any = SimpleNamespace(db=db)
 
     async def workspace_scan(each: Any) -> Any:
@@ -166,6 +174,8 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
         listed = (await running_view(session, owner))["processes"]
     assert listed[0]["command"] == "python bot.py --key [secret:BROKER_KEY]"
     assert all(SECRET not in item["command"] for item in listed)
+    # The same scan as the tools' (terminal.owner_scan): agents' CLI tokens too.
+    assert listed[1]["command"] == "curl -H 'Authorization: Bearer [secret:LONORA_AGENT_TOKEN]' x"
     # A secret the supervisor's cut ended inside is replaced as well, never shown in part.
     assert listed[2]["command"] == "bot --token [secret:LONG_TOKEN]"
     assert all(LONG[:16] not in item["command"] for item in listed)

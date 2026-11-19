@@ -1,6 +1,6 @@
 """Structured event classification; never match human text or invent a market signal."""
 
-from typing import Any, cast
+from typing import Any
 
 from lonora_contracts.attention import AttentionClassification, AttentionCode
 
@@ -10,8 +10,6 @@ ATTENTION_KINDS = frozenset(
         # Owner action cards follow these (lonora_gateway.owner_cards); an operation that
         # becomes ambiguous is also the owner's "operation_uncertain" item.
         "trading.operation_updated",
-        "trading.restriction_created",
-        "trading.restriction_revoked",
         "broker.external_activity",
         "watch.confirmed",
         "watch.forming",
@@ -49,11 +47,6 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
     )
     if kind == "trading.operation_updated":
         resource = str(payload.get("operation_id") or resource)
-    elif kind.startswith("trading.restriction_"):
-        restriction: Any = payload.get("restriction")
-        if isinstance(restriction, dict):
-            identifier = cast(dict[str, Any], restriction).get("id")
-            resource = str(identifier or resource)
     if kind in {"watch.suspended_health", "watch.resumed_health"}:
         transition = str(payload.get("health", {}).get("observed_at") or transition)
     result = AttentionClassification(

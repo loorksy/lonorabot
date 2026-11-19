@@ -58,7 +58,7 @@ class SkillSelection:
         }
 
 
-# An observe-only wake has no financial effects; a helper only reads and computes.
+# An observe-only wake has no financial effects; a helper only reads and reports.
 SCOPE_RISK_CLASSES: dict[ToolScope, frozenset[str]] = {
     "full": frozenset({"read_only", "state_mutating", "external_action", "financial"}),
     "observe_only": frozenset({"read_only", "state_mutating", "external_action"}),
