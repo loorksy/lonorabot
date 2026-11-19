@@ -378,3 +378,30 @@ test("what I know about you shows the learned waking habit, which the owner forg
     brief: "07:00",
   });
 });
+
+/* In Arabic the owner is the one who opens the app, and the brief waits for 3 different days. */
+test("the learned waking habit and its forget toast read right in Arabic", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "ar");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  expect((await context.request.delete("/api/app-opens", { headers: owner.headers })).ok()).toBe(
+    true,
+  );
+  seedOpens();
+  await page.goto("/app/owner");
+  const habit = page.locator(".pf-known .row").filter({
+    hasText: "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو 07:30، ويصلك موجز الصباح الساعة",
+  });
+  await habit.getByRole("button", { name: "انسَ هذه العادة", exact: true }).click();
+  await expect(
+    page.getByText(
+      "نسيتُ هذه العادة. يصلك موجز الصباح الساعة 07:00 حتى تفتح التطبيق في 3 أيام مختلفة.",
+    ),
+  ).toBeVisible();
+  await expect(habit).toHaveCount(0);
+});

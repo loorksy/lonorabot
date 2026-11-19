@@ -116,7 +116,9 @@ test("Expo Arabic what-I-know view lists origins and records corrections", async
   await page.goto("/settings");
   await page.getByTestId("what-i-know").click();
   const habit = page.getByTestId("known-habit");
-  await expect(habit).toContainText("تفتح لونورا أول مرة في يومك عادةً نحو 07:30");
+  await expect(habit).toContainText(
+    "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو 07:30، ويصلك موجز الصباح الساعة",
+  );
   await expect(habit).toContainText("ملاحظة من أول مرة تفتح فيها التطبيق كل يوم");
   await habit.getByRole("button", { name: "انسَ هذه العادة", exact: true }).click();
   await expect(habit).toHaveCount(0);

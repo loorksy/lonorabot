@@ -3365,7 +3365,7 @@ msgstr "انسَ هذه العادة"
 
 #: src/shell/settings/OwnerPage.tsx:193
 msgid "Forgotten. Your morning brief is at 07:00 until you open the app on 3 days."
-msgstr "نسيتُ هذه العادة. يصلك موجز الصباح الساعة 07:00 حتى تفتح التطبيق في 3 أيام."
+msgstr "نسيتُ هذه العادة. يصلك موجز الصباح الساعة 07:00 حتى تفتح التطبيق في 3 أيام مختلفة."
 
 #: src/shell/settings/OwnerPage.tsx:239
 msgid "Form of address"
@@ -9354,7 +9354,7 @@ msgstr "أوقفتَ الرد قبل اكتمال الواجهة"
 
 #: src/shell/settings/OwnerPage.tsx:293
 msgid "You usually first open Lonora around {firstOpen}; your morning brief comes at {brief}."
-msgstr "تفتح لونورا أول مرة في يومك عادةً نحو {firstOpen}، ويصلك موجز الصباح الساعة {brief}."
+msgstr "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو {firstOpen}، ويصلك موجز الصباح الساعة {brief}."
 
 #: src/shell/navigation.tsx:107
 msgid "You will lose the unsaved edits."

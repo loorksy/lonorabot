@@ -603,7 +603,7 @@ export const labels = {
   deleteFact: ["احذف المعلومة", "Delete the fact"],
   nothingKnown: ["لا شيء بعد.", "Nothing yet."],
   habitLine: [
-    "تفتح لونورا أول مرة في يومك عادةً نحو {firstOpen}، ويصلك موجز الصباح الساعة {brief}.",
+    "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو {firstOpen}، ويصلك موجز الصباح الساعة {brief}.",
     "You usually first open Lonora around {firstOpen}; your morning brief comes at {brief}.",
   ],
   habitOrigin: [
