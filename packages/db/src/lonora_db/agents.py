@@ -154,4 +154,8 @@ async def update_agent(
             # Resuming a Full agent starts its continuous task again (4.5.1).
             await session.flush()
             await ensure_management_task(session, owner_id, agent_id)
+            from .messages import answer_kept_messages
+
+            # It answers what the owner sent it while it was paused.
+            await answer_kept_messages(session, owner_id, agent_id)
     return row

@@ -345,6 +345,14 @@ Switching an agent to Full withdraws its pending Trade Approval cards (status
 with fixed server text to decide again under Full. A card for an agent that is deleted
 ends with it.
 
+A pause ends no card (10.3.1.3 names no pause): a paused agent's pending card stays
+pending and drift still watches it. A paused agent sends no new risk (4.7.1), so the
+owner's Approve is refused while it is paused (`trade_approval_agent_paused`, "resume
+the agent first") and the card waits for the resume; Reject still ends it. A broker wake
+of a paused agent whose card is pending, or approved and not yet sent, is held until the
+resume (`claimable_while_paused`), so an Approve given before the pause is kept, never
+spent on the door's refusal.
+
 ## Full mode keeps working (mandate 4.5)
 
 An agent in Full that is not paused runs one continuous account-management Task

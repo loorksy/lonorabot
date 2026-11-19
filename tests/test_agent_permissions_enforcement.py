@@ -129,10 +129,10 @@ async def test_direct_subagent_executor_path_cannot_inherit_authority(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(execution, "require_lease", AsyncMock(return_value=origin("subagent")))
-    monkeypatch.setattr(execution, "require_financial_agent", AsyncMock())
+    monkeypatch.setattr(execution, "acting_agent", AsyncMock())
     with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
         await execution.require_goal_lineage(
-            AsyncMock(), Lease(run_id="run", owner="worker", fence=1), "owner", request()
+            AsyncMock(), Lease(run_id="run", owner="worker", fence=1), "owner"
         )
 
 

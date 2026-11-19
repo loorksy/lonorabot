@@ -14,6 +14,7 @@ from lonora_db.activation_review import dispatch_activation_reviews
 from lonora_db.client import Database
 from lonora_db.item_failures import failure_code
 from lonora_db.management_task import reconcile_management_tasks
+from lonora_db.messages import answer_resumed_kept_messages
 from lonora_db.owner import get_owner
 from lonora_db.task_recovery import retry_due_tasks
 from lonora_db.task_wait import resume_ready_waits
@@ -52,6 +53,9 @@ STEPS = (
     # Full mode's continuous task for an agent no tap reached (an agent already in Full
     # when it shipped), and the end of one left open in Ask or a pause (4.5).
     StepSpec("management_tasks", 60, 120, critical=False),
+    # The owner's messages kept for an agent that is no longer paused: one sent while its
+    # resume committed, which the resume did not see (4.7.1).
+    StepSpec("kept_messages", 5, 120, critical=False),
     StepSpec("activation_reviews", 10, 120, critical=False),
     StepSpec("task_waits", 5, 120),
     StepSpec("outcomes", 10, 120),
@@ -442,6 +446,7 @@ class Gateway:
             "routines": lambda: dispatch_routines(self.db),
             "task_retries": lambda: retry_due_tasks(self.db),
             "management_tasks": lambda: reconcile_management_tasks(self.db),
+            "kept_messages": lambda: answer_resumed_kept_messages(self.db),
             "activation_reviews": lambda: dispatch_activation_reviews(self.db),
             "task_waits": lambda: resume_ready_waits(self.db),
             "outcomes": lambda: return_pending_outcomes(self.db),

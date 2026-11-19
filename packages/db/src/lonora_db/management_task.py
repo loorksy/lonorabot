@@ -333,6 +333,8 @@ async def close_task(session: AsyncSession, found: TicketRow) -> None:
         return
     if task_state(task).control_requested in {"cancel", "complete"}:
         return  # The owner already ended it; its Run stops at its checkpoint.
+    from .cancellation import cancel_locked
+
     for run in runs:
         if run.model_metadata.get("task_id") != task.id:
             continue
@@ -342,11 +344,9 @@ async def close_task(session: AsyncSession, found: TicketRow) -> None:
             # the task could resume it.
             if wait and wait.get("kind") == "timer" and wait.get("due_at"):
                 await keep_timer(session, task, str(wait["due_at"]))
-            run.status = "cancelled"
-            run.updated_at = utcnow()
+            await cancel_locked(session, task.owner_id, run)
         elif run.status == "queued" and not started(run):
-            run.status = "cancelled"
-            run.updated_at = utcnow()
+            await cancel_locked(session, task.owner_id, run)
         else:
             detach(run)
     await keep_watches(session, task)

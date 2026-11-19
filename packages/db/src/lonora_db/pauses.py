@@ -9,17 +9,65 @@ attribution).
 
 Lock order: the owner's controls lock the agent, routine or watch row before its hold;
 a Task's control takes the hold, then the Run, then the Task. Callers keep both
-orders, so a pause or resume never deadlocks with message admission.
+orders, so a pause or resume never deadlocks with message admission. An agent's resume
+then locks each conversation where the owner's messages were kept for it
+(``answer_kept_messages``); admission locks the conversation and never the agent's row.
+Inviting the guests a kept message mentions takes each guest's row FOR KEY SHARE and
+its chat FOR UPDATE NOWAIT; a guest being resumed reads as paused and is skipped.
 """
+
+from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import AgentRow, MarketWatchRow, RoutineRow, SupervisionHoldRow, TicketRow
+from .schema import (
+    AgentRow,
+    MarketWatchRow,
+    RoutineRow,
+    RunRow,
+    SupervisionHoldRow,
+    TicketRow,
+    TradeApprovalRow,
+)
 from .transactions import owned_agent
+
+
+def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
+    """What a paused agent still runs (4.7.1): only the wake for broker activity on its
+    own open positions and pending orders (``wake_for_activity``: ``broker_event_ids``,
+    not observe-only). It takes no new work: the owner's messages are kept and start no
+    run, and every other run of it (its routines, watches, timers, Tasks, peers' asks,
+    Lonora's system alerts) waits until it is resumed."""
+    return (
+        trigger == "broker_event"
+        and bool(metadata.get("broker_event_ids"))
+        and "system_alert" not in metadata
+        and metadata.get("authority") != "observe_only"
+    )
+
+
+def claimable_while_paused(run: Any = RunRow) -> ColumnElement[bool]:
+    """``runs_while_paused`` as a claim condition on ``run`` (``RunRow`` or an alias). A
+    wake whose Trade Approval card is still pending, or approved and not yet sent, waits
+    for the resume too: the card's new risk is never sent while paused, and an Approve
+    given before the pause is kept for the resume instead of spent on a refusal."""
+    authority = run.model_metadata["authority"].as_string()
+    return and_(
+        run.trigger == "broker_event",
+        run.model_metadata["broker_event_ids"].as_string().is_not(None),
+        run.model_metadata["system_alert"].as_string().is_(None),
+        or_(authority.is_(None), authority != "observe_only"),
+        ~exists(
+            select(TradeApprovalRow.id).where(
+                TradeApprovalRow.run_id == run.id,
+                TradeApprovalRow.status.in_(["pending", "approved"]),
+            )
+        ),
+    )
 
 
 async def live_hold(
@@ -73,9 +121,11 @@ async def owner_takes_over(
 ) -> None:
     """The owner itself paused or cancelled (``paused``), or resumed, this work of
     ``agent_id``. The owner's pause is a hold of its own (``source='owner'``, no holder),
-    so the paused agent never lifts it on its own initiative, and a supervisor's hold on
-    it becomes the owner's, never a weaker one: the supervisor stays named, but only the
-    owner lifts it. The owner's resume releases it."""
+    so the paused agent never lifts it on its own initiative, and a hold already on it
+    becomes the owner's control pause, never a weaker one: a supervisor's, and one the
+    owner asked for in chat (its ``source_message_id`` is cleared), are lifted from then
+    on only by the owner's control or card, never from chat. The holder stays named. The
+    owner's resume releases it."""
     hold = await live_hold(session, kind, target_id, lock=True)
     if hold is not None and hold.owner_id != owner_id:
         return
@@ -98,8 +148,8 @@ async def owner_takes_over(
             )
         )
         await session.flush()
-    elif hold.source != "owner":
-        hold.source = "owner"
+    elif hold.source != "owner" or hold.source_message_id is not None:
+        hold.source, hold.source_message_id = "owner", None
         await session.flush()
 
 
@@ -132,9 +182,11 @@ async def refuse_held(
     owner_message: bool = False,
 ) -> None:
     """The paused agent never resumes held work on its own initiative: it asks the
-    supervisor or the owner. In a run that answers the owner's message it resumes a
-    supervisor's hold (released as the owner's); a pause the owner holds is lifted only
-    by the owner. A hold on work that is no longer paused is stale and released."""
+    supervisor or the owner. In a run that answers the owner's untainted message a team
+    agent resumes a supervisor's hold (released as the owner's); Lonora lifts only pauses
+    it made. A pause the owner holds is lifted only by the owner: one the owner asked for
+    in chat also from the owner's message, the owner's own pause from a control only from
+    a control. A hold on work that is no longer paused is stale and released."""
     hold = await live_hold(session, kind, target_id, lock=True)
     if hold is None or hold.owner_id != owner_id:
         return
@@ -142,10 +194,16 @@ async def refuse_held(
         await release_hold(session, hold, "stale")
         return
     if hold.source == "owner":
+        if owner_message and hold.source_message_id is not None:
+            # A pause the owner asked for in chat, lifted when the owner asks in chat.
+            await release_hold(session, hold, "owner")
+            return
         raise LonoraError("work_paused_by_owner", 409)
     if hold.holder_agent_id == agent_id:
         return
-    if not owner_message:
+    agent = await session.get(AgentRow, agent_id)
+    if not owner_message or (agent is not None and agent.role == "personal"):
+        # Lonora lifts only the pauses Lonora made (4.7.2), even from the owner's words.
         raise LonoraError("work_paused_by_supervisor", 409)
     await release_hold(session, hold, "owner")
 
@@ -173,6 +231,10 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
             await session.flush()
             # Resuming a Full agent starts its continuous task again (4.5.1).
             await ensure_management_task(session, owner_id, agent.id)
+            from .messages import answer_kept_messages
+
+            # It answers what the owner sent it while it was paused.
+            await answer_kept_messages(session, owner_id, agent.id)
     elif kind == "routine":
         from .routines import owned_routine
 

@@ -6,11 +6,13 @@ from lonora_core.message_replies import require_same_thread
 from lonora_core.run_state import OWNER_SPOKE, TERMINAL, is_background, is_conversational
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .cancellation import cancel_run
+from .client import Database
 from .events import emit
+from .item_failures import ItemGuard, blocked
 from .reactions import reactions_by_message
 from .rich_response import server_rich_content
 from .runs import OFFER_OBLIGATION, run_data
@@ -30,6 +32,9 @@ from .transactions import owned_agent, owned_thread
 
 # A voice note waiting for its transcript; the receipt is removed once it settles.
 VOICE_NOTE_PENDING = "voice-note:"
+# The owner's latest message to a paused agent in one conversation (the key ends with
+# ``<agent id>:<thread id>``), kept for its resume, which removes it.
+KEPT_FOR_RESUME = "paused-message:"
 VOICE_MEDIA_TYPES = frozenset({"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav"})
 
 
@@ -417,6 +422,8 @@ async def send_message(
         ):
             raise LonoraError("input_answer_expired", 409)
         agent = await owned_agent(session, owner_id, answer_run.agent_id)
+        # A paused agent takes no new work (4.7.1): no answer reaches it, tapped or typed,
+        # until it is resumed; the question stays open for then.
         if agent.paused:
             raise LonoraError("agent_paused", 409)
         answer_question = next(
@@ -597,7 +604,6 @@ async def admit_runs(
     collaboration: Any,
 ) -> list[str]:
     """Start or steer the Runs an owner message asks for; returns their ids."""
-    thread_id = thread.id
     targets: list[str] = []
     if thread.agent_id:
         targets = [thread.agent_id]
@@ -636,137 +642,27 @@ async def admit_runs(
         targets = [answer_run.agent_id]
     run_ids: list[str] = []
     for agent_id in targets:
-        agent = await owned_agent(session, owner_id, agent_id)
-        if agent.paused:
-            continue
-        if answer_run is not None and answer_run.thread_id != thread_id:
-            # A background run's question copied into this conversation: the choice
-            # answers that run directly, whatever else is active here.
-            active: RunRow | None = answer_run
-        else:
-            active = await session.scalar(
-                select(RunRow)
-                .where(
-                    RunRow.thread_id == thread_id,
-                    RunRow.agent_id == agent_id,
-                    RunRow.status.in_(["queued", "leased", "running", "waiting_input"]),
-                )
-                .order_by(RunRow.created_at)
-                .limit(1)
-            )
-            if answer_run and (active is None or active.id != answer_run.id):
-                raise LonoraError("input_answer_expired", 409)
-            if (
-                answer_run is None
-                and thread.agent_id
-                and message.origin == "owner"
-                and not (
-                    request.mention_agent_ids
-                    or request.mention_all
-                    or request.collaboration_session_id
-                )
-            ):
-                routed = await asking_run(
-                    session,
-                    owner_id,
-                    thread,
-                    agent_id,
-                    message,
-                    reply,
-                    idle=not (active is not None and takes_message(active)),
-                )
-                if routed is not None:
-                    active = routed
-        question_history = list(active.execution_state.get("input_requests", [])) if active else []
-        pending_question = next(
-            (item for item in reversed(question_history) if item.get("status") == "pending"),
-            None,
+        run_id = await admit_agent(
+            session, owner_id, thread, message, request, reply, answer_run, agent_id
         )
-        if active and takes_message(active):
-            if message.role == "user" and is_background(active.trigger, active.model_metadata):
-                # Background work the owner writes to (or taps a follow-up for) answers them
-                # from now on (11.5), even a queued run that will read the words only from
-                # its history. The row is locked first (thread before run, as everywhere):
-                # a running Run's own writes to its metadata are never overwritten.
-                await session.get(RunRow, active.id, with_for_update=True, populate_existing=True)
-                active.model_metadata = {**active.model_metadata, OWNER_SPOKE: True}
-            if pending_question and active.status == "waiting_input":
-                updated = [
-                    {
-                        **item,
-                        "status": "answered",
-                        "selected_choice_id": request.input_answer.choice_id
-                        if request.input_answer
-                        else None,
-                        "answer_message_id": message.id,
-                    }
-                    if item.get("id") == pending_question["id"]
-                    else item
-                    for item in question_history
-                ]
-                state: dict[str, Any] = {**active.execution_state, "input_requests": updated}
-                state.pop("pending_input_request", None)
-                # A picked choice that was bound to calls is what the resumed Run answers
-                # for. Any other answer closes the offer: it was open for this message only.
-                state.pop(OFFER_OBLIGATION, None)
-                picked = request.input_answer.choice_id if request.input_answer else None
-                bound = next(
-                    (
-                        choice.get("actions")
-                        for choice in pending_question.get("choices", [])
-                        if picked is not None and choice.get("id") == picked
-                    ),
-                    None,
-                )
-                if bound:
-                    state[OFFER_OBLIGATION] = {
-                        "question_id": pending_question["id"],
-                        "choice_id": picked,
-                        "answer_message_id": message.id,
-                        "actions": bound,
-                        "status": "open",
-                    }
-                active.execution_state = state
-            if active.model_metadata.get("ui_submit_origin") and message.origin == "owner":
-                # A card's send that has not run yet holds the owner's words for it; if
-                # «تعديل» or the lifetime cancels it, they are re-queued (genui_submit).
-                held = list(active.model_metadata.get("folded_message_ids", []))[-20:]
-                active.model_metadata = {
-                    **active.model_metadata,
-                    "folded_message_ids": [*held, message.id],
-                }
-            if active.status == "queued":
-                active.input_seq = message.seq
-                if active.execution_state:
-                    # A queued continuation restores its checkpoint instead of rebuilding history.
-                    session.add(SteeringRow(run_id=active.id, message_id=message.id))
-                    environment = dict(active.execution_state.get("environment", {}))
-                    environment.pop("retry", None)
-                    active.execution_state = {**active.execution_state, "environment": environment}
-            else:
-                session.add(SteeringRow(run_id=active.id, message_id=message.id))
-                if active.status == "waiting_input":
-                    active.status = "queued"
-            run_ids.append(active.id)
-        else:
-            run = RunRow(
-                thread_id=thread_id,
-                agent_id=agent_id,
-                input_seq=message.seq,
-                trigger="group" if thread.group_id else "user",
-            )
-            session.add(run)
-            await session.flush()
-            run_ids.append(run.id)
-            emit(
-                session,
-                owner_id,
-                "run.queued",
-                thread_id=thread_id,
-                agent_id=agent_id,
-                run_id=run.id,
-                payload={"run": run_data(run)},
-            )
+        if run_id is not None:
+            run_ids.append(run_id)
+    await invite_guests(
+        session, owner_id, thread, message, request, collaboration, run_ids[0] if run_ids else None
+    )
+    return run_ids
+
+
+async def invite_guests(
+    session: AsyncSession,
+    owner_id: str,
+    thread: ThreadRow,
+    message: MessageRow,
+    request: MessageCreate,
+    collaboration: Any,
+    host_run_id: str | None,
+) -> None:
+    """A direct chat's @mention invites the guests it names (Q29) into the host's Run."""
     if thread.agent_id and (request.mention_agent_ids or request.mention_all):
         from .collaboration import invite
 
@@ -775,15 +671,25 @@ async def admit_runs(
             participant_ids.extend(
                 p["agent_id"] for p in collaboration.state.get("participants", [])
             )
-        # A paused guest is not invited; the chat's own agent still answers.
+        # A paused guest is not invited, nor one deleted since the message was sent (a
+        # resume admits a kept message later); the chat's own agent still answers.
+        guests = {
+            agent.id: agent
+            for agent in await session.scalars(
+                select(AgentRow).where(
+                    AgentRow.id.in_(participant_ids), AgentRow.owner_id == owner_id
+                )
+            )
+        }
         participant_ids = [
             identifier
             for identifier in dict.fromkeys(participant_ids)
             if identifier != thread.agent_id
-            and not (await owned_agent(session, owner_id, identifier)).paused
+            and identifier in guests
+            and not guests[identifier].paused
         ]
-        if participant_ids and run_ids:
-            host_run = await session.get(RunRow, run_ids[0])
+        if participant_ids and host_run_id:
+            host_run = await session.get(RunRow, host_run_id)
             assert host_run is not None
             await invite(
                 session,
@@ -797,7 +703,313 @@ async def admit_runs(
                 # the owner: its participants are invited into a new session instead.
                 session_id=collaboration.id if collaboration and has_room(collaboration) else None,
             )
+
+
+async def admit_agent(
+    session: AsyncSession,
+    owner_id: str,
+    thread: ThreadRow,
+    message: MessageRow,
+    request: MessageCreate,
+    reply: MessageRow | None,
+    answer_run: RunRow | None,
+    agent_id: str,
+) -> str | None:
+    """Start or steer the Run of one agent the owner's message asks for; returns its id."""
+    thread_id = thread.id
+    agent = await owned_agent(session, owner_id, agent_id)
+    if agent.paused:
+        # A paused agent takes no new work (4.7.1): the owner's message is kept in the
+        # conversation, starts no run and answers no question of a run of it.
+        await keep_for_resume(session, agent_id, thread_id, message)
+        return None
+    if answer_run is not None and answer_run.thread_id != thread_id:
+        # A background run's question copied into this conversation: the choice
+        # answers that run directly, whatever else is active here.
+        active: RunRow | None = answer_run
+    else:
+        active = await session.scalar(
+            select(RunRow)
+            .where(
+                RunRow.thread_id == thread_id,
+                RunRow.agent_id == agent_id,
+                RunRow.status.in_(["queued", "leased", "running", "waiting_input"]),
+            )
+            .order_by(RunRow.created_at)
+            .limit(1)
+        )
+        if answer_run and (active is None or active.id != answer_run.id):
+            raise LonoraError("input_answer_expired", 409)
+        if (
+            answer_run is None
+            and thread.agent_id
+            and message.origin == "owner"
+            and not (
+                request.mention_agent_ids or request.mention_all or request.collaboration_session_id
+            )
+        ):
+            routed = await asking_run(
+                session,
+                owner_id,
+                thread,
+                agent_id,
+                message,
+                reply,
+                idle=not (active is not None and takes_message(active)),
+            )
+            if routed is not None:
+                active = routed
+    question_history = list(active.execution_state.get("input_requests", [])) if active else []
+    pending_question = next(
+        (item for item in reversed(question_history) if item.get("status") == "pending"),
+        None,
+    )
+    if active and takes_message(active):
+        if message.role == "user" and is_background(active.trigger, active.model_metadata):
+            # Background work the owner writes to (or taps a follow-up for) answers them
+            # from now on (11.5), even a queued run that will read the words only from
+            # its history. The row is locked first (thread before run, as everywhere):
+            # a running Run's own writes to its metadata are never overwritten.
+            await session.get(RunRow, active.id, with_for_update=True, populate_existing=True)
+            active.model_metadata = {**active.model_metadata, OWNER_SPOKE: True}
+        if pending_question and active.status == "waiting_input":
+            updated = [
+                {
+                    **item,
+                    "status": "answered",
+                    "selected_choice_id": request.input_answer.choice_id
+                    if request.input_answer
+                    else None,
+                    "answer_message_id": message.id,
+                }
+                if item.get("id") == pending_question["id"]
+                else item
+                for item in question_history
+            ]
+            state: dict[str, Any] = {**active.execution_state, "input_requests": updated}
+            state.pop("pending_input_request", None)
+            # A picked choice that was bound to calls is what the resumed Run answers
+            # for. Any other answer closes the offer: it was open for this message only.
+            state.pop(OFFER_OBLIGATION, None)
+            picked = request.input_answer.choice_id if request.input_answer else None
+            bound = next(
+                (
+                    choice.get("actions")
+                    for choice in pending_question.get("choices", [])
+                    if picked is not None and choice.get("id") == picked
+                ),
+                None,
+            )
+            if bound:
+                state[OFFER_OBLIGATION] = {
+                    "question_id": pending_question["id"],
+                    "choice_id": picked,
+                    "answer_message_id": message.id,
+                    "actions": bound,
+                    "status": "open",
+                }
+            active.execution_state = state
+        if active.model_metadata.get("ui_submit_origin") and message.origin == "owner":
+            # A card's send that has not run yet holds the owner's words for it; if
+            # «تعديل» or the lifetime cancels it, they are re-queued (genui_submit).
+            held = list(active.model_metadata.get("folded_message_ids", []))[-20:]
+            active.model_metadata = {
+                **active.model_metadata,
+                "folded_message_ids": [*held, message.id],
+            }
+        if active.status == "queued":
+            active.input_seq = message.seq
+            if active.execution_state:
+                # A queued continuation restores its checkpoint instead of rebuilding history.
+                session.add(SteeringRow(run_id=active.id, message_id=message.id))
+                environment = dict(active.execution_state.get("environment", {}))
+                environment.pop("retry", None)
+                active.execution_state = {**active.execution_state, "environment": environment}
+        else:
+            session.add(SteeringRow(run_id=active.id, message_id=message.id))
+            if active.status == "waiting_input":
+                active.status = "queued"
+        return active.id
+    run = RunRow(
+        thread_id=thread_id,
+        agent_id=agent_id,
+        input_seq=message.seq,
+        trigger="group" if thread.group_id else "user",
+    )
+    session.add(run)
+    await session.flush()
+    emit(
+        session,
+        owner_id,
+        "run.queued",
+        thread_id=thread_id,
+        agent_id=agent_id,
+        run_id=run.id,
+        payload={"run": run_data(run)},
+    )
+    return run.id
+
+
+async def keep_for_resume(
+    session: AsyncSession, agent_id: str, thread_id: str, message: MessageRow
+) -> None:
+    """Keep the owner's message to a paused agent in one conversation, replacing an
+    earlier one kept there, never a later one (a folded message re-queued after the
+    owner typed another): its resume answers the latest (``answer_kept_messages``)."""
+    key = f"{KEPT_FOR_RESUME}{agent_id}:{thread_id}"
+    kept = await session.get(EffectReceiptRow, key)
+    if kept is None:
+        session.add(EffectReceiptRow(key=key, result={"message_id": message.id}))
+        return
+    previous = await session.get(MessageRow, kept.result["message_id"])
+    if previous is None or previous.seq < message.seq:
+        kept.result = {"message_id": message.id}
+
+
+async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: str) -> list[str]:
+    """The agent was just resumed (whoever resumed it): one run of it in each conversation
+    where the owner's messages to it were kept while it was paused (in a group, those that
+    addressed it), answering the latest of them through that message's own admission, so
+    the owner's message is the run's trigger, and inviting the guests it mentions that are
+    not paused (``invite_guests``); a refused invitation skips the guests and the host
+    still answers. Returns the runs' ids.
+
+    Lock order: the caller holds the agent's row; each thread is locked before its kept
+    message, as admission does, and admission never locks the agent's row. Inviting then
+    takes each guest's row FOR KEY SHARE and its chat FOR UPDATE NOWAIT, so a held chat
+    refuses that invitation instead of waiting; a guest whose resume has not committed
+    reads as paused and is skipped before any lock."""
+    from .genui_submit import SUBMIT
+
+    prefix = f"{KEPT_FOR_RESUME}{agent_id}:"
+    keys = await session.scalars(
+        select(EffectReceiptRow.key)
+        .where(EffectReceiptRow.key.startswith(prefix))
+        .order_by(EffectReceiptRow.key)
+    )
+    run_ids: list[str] = []
+    for key in list(keys):
+        thread = await session.scalar(
+            select(ThreadRow)
+            .where(ThreadRow.id == key.removeprefix(prefix), ThreadRow.owner_id == owner_id)
+            .with_for_update()
+        )
+        kept = await session.get(
+            EffectReceiptRow, key, with_for_update=True, populate_existing=True
+        )
+        if kept is None:
+            continue
+        await session.delete(kept)
+        message = await session.get(MessageRow, kept.result["message_id"]) if thread else None
+        if thread is None or message is None or message.thread_id != thread.id:
+            continue  # The conversation, or the message, was deleted meanwhile.
+        if await session.scalar(
+            select(RunRow.id)
+            .where(
+                RunRow.thread_id == thread.id,
+                RunRow.agent_id == agent_id,
+                RunRow.trigger.in_(["user", "group"]),
+                RunRow.input_seq >= message.seq,
+                # A card's send that ended before it started read nothing: the owner's
+                # words folded into it are what was kept (``requeue_folded``).
+                ~and_(
+                    RunRow.status.in_(TERMINAL),
+                    RunRow.model_metadata[SUBMIT].as_string().is_not(None),
+                    RunRow.model_metadata["ui_submit_started"].as_string().is_(None),
+                ),
+            )
+            .limit(1)
+        ):
+            # Already answered by a run for a later owner message: it was kept while an
+            # earlier resume committed, which missed it.
+            continue
+        mentioned = message.mentions or {}
+        everyone = bool(mentioned.get("all"))
+        request = MessageCreate.model_construct(
+            content=message.content,
+            input_answer=None,
+            mention_agent_ids=list(mentioned.get("agent_ids", [])),
+            mention_all=everyone,
+            # Only «@الكل» names a session; a guest mention's was the server's pick.
+            collaboration_session_id=mentioned.get("session_id") if everyone else None,
+        )
+        reply = await session.get(MessageRow, message.reply_to) if message.reply_to else None
+        run_id = await admit_agent(
+            session, owner_id, thread, message, request, reply, None, agent_id
+        )
+        if run_id is not None:
+            run_ids.append(run_id)
+        collaboration = None
+        if thread.agent_id and (request.mention_agent_ids or everyone):
+            from .collaboration import current_session
+
+            # The guests it mentions join the chat's open session as admission joins them
+            # (the session it was sent in may have ended since); paused ones are skipped.
+            current = await current_session(session, owner_id, thread.id)
+            if current is not None and (everyone or has_room(current)):
+                collaboration = current
+        try:
+            # A refused invitation (``peer_cycle``, ``delegation_depth_exceeded``, a busy
+            # guest) never refuses the resume: the host still answers, the guests are
+            # skipped, and the agent's other conversations are answered.
+            async with session.begin_nested():
+                await invite_guests(
+                    session, owner_id, thread, message, request, collaboration, run_id
+                )
+        except LonoraError:
+            pass
     return run_ids
+
+
+async def answer_resumed_kept_messages(db: Database) -> int:
+    """The gateway's ``kept_messages`` step, for what a resume missed: admission reads the
+    pause without the agent's lock, so a message sent while a resume commits can be kept
+    after that resume listed the records. Each agent that is no longer paused and still
+    has records is answered through ``answer_kept_messages``, in its own transaction
+    under its row lock, as a resume; a deleted agent's records are removed. Returns the
+    number of runs admitted."""
+    kind = "kept_messages"
+    async with db.sessions() as session:
+        keys = list(
+            await session.scalars(
+                select(EffectReceiptRow.key).where(EffectReceiptRow.key.startswith(KEPT_FOR_RESUME))
+            )
+        )
+        kept = {key: key.removeprefix(KEPT_FOR_RESUME).split(":", 1)[0] for key in keys}
+        existing = set(
+            await session.scalars(select(AgentRow.id).where(AgentRow.id.in_(set(kept.values()))))
+        )
+        resumed = list(
+            await session.execute(
+                select(AgentRow.id, AgentRow.owner_id)
+                .where(
+                    AgentRow.id.in_(existing),
+                    AgentRow.paused.is_(False),
+                    ~blocked(kind, AgentRow.id),
+                )
+                .order_by(AgentRow.id)
+            )
+        )
+    gone = [key for key, agent_id in kept.items() if agent_id not in existing]
+    if gone:
+        async with db.sessions() as session, session.begin():
+            await session.execute(delete(EffectReceiptRow).where(EffectReceiptRow.key.in_(gone)))
+    guard = ItemGuard(db, kind)
+    await guard.prepare(agent_id for agent_id, _ in resumed)
+    answered = 0
+    for agent_id, owner_id in resumed:
+
+        async def answer(agent_id: str = agent_id, owner_id: str = owner_id) -> list[str]:
+            async with db.sessions() as session, session.begin():
+                agent = await session.get(
+                    AgentRow, agent_id, with_for_update=True, populate_existing=True
+                )
+                if agent is None or agent.paused:
+                    return []
+                return await answer_kept_messages(session, owner_id, agent_id)
+
+        answered += len(await guard.run(agent_id, owner_id, answer) or [])
+    return answered
 
 
 def has_room(collaboration: Any) -> bool:

@@ -331,10 +331,11 @@ async def held(fixture: Any, target_id: str) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
-    """A paused agent's runs stop, so its exits would too: on its own initiative a
-    supervisor never pauses a whole agent with money standing, and nobody but the owner
-    pauses Lonora. Its routines, watches and Tasks stay pausable, each with a card."""
+async def test_lonora_pauses_a_trading_agent_a_team_supervisor_does_not_and_nobody_pauses_lonora():
+    """A paused agent still reduces the risk of its own positions (4.7.1, 14.3.7), so
+    Lonora may pause a whole agent with money standing; a team supervisor still does not
+    on its own (supervision is not extended before phase 6); nobody but the owner pauses
+    Lonora. Its routines, watches and Tasks stay pausable, each with a card."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
@@ -367,7 +368,7 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
                 RoutineCreate(prompt="Review gold before London", interval_seconds=3600),
             )
             routine_id = routine.id
-        # An unbound agent that trades with the owner's approval has money standing too.
+        # An unbound agent in Ask, with no operations recorded for it.
         permission = await fixture.request("GET", f"/agents/{asker['id']}/permissions")
         await fixture.request(
             "PUT",
@@ -378,11 +379,23 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
             await grant(fixture, lead, supervised)
         lead_thread = await fixture.conversation(lead)
         woke = await wake(fixture, lead, lead_thread)
-        for target in (gold, asker):
-            assert (
-                await refused(woke, "agent_control", agent_id=target["id"], action="pause")
-                == "supervision_pause_trading_agent"
-            )
+        # A team supervisor does not pause a whole trading agent on its own (supervision
+        # is not extended, 0.4); Lonora does, since its exits continue (4.7.1).
+        assert (
+            await refused(woke, "agent_control", agent_id=gold["id"], action="pause")
+            == "supervision_pause_trading_agent"
+        )
+        # money_standing reads no permission ladder (14.3.7): an Ask agent with no bound
+        # account and no recorded operations has nothing standing, so it is pausable.
+        assert (await call(woke, "agent_control", agent_id=asker["id"], action="pause"))["changed"]
+        await call(woke, "agent_control", agent_id=asker["id"], action="resume")
+        lonora_woke = await wake(
+            fixture, {"id": lonora_id}, await fixture.conversation({"id": lonora_id})
+        )
+        paused = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="pause")
+        assert paused["changed"] is True and paused["paused"] is True
+        resumed = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="resume")
+        assert resumed["changed"] is True and resumed["paused"] is False
         # Its work stays pausable, and the owner's conversation with Gold names who did it.
         paused = await call(
             woke,
@@ -398,6 +411,7 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
             item
             for item in await card_list(fixture, gold_thread["id"])
             if item["kind"] == "supervision_paused"
+            and item["facts"]["supervision"]["target"] == "routine"
         )
         assert card["status"] == "pending" and card["requires_passkey"] is False
         assert card["facts"]["supervision"] == {
@@ -430,7 +444,9 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
         cards = [
             item
             for item in await card_list(fixture, gold_thread["id"])
-            if item["kind"] == "supervision_paused" and item["status"] == "pending"
+            if item["kind"] == "supervision_paused"
+            and item["status"] == "pending"
+            and item["facts"]["supervision"]["from_owner_message"]
         ]
         assert [item["facts"]["supervision"]["target"] for item in cards] == ["agent"]
         assert cards[0]["facts"]["supervision"]["from_owner_message"] is True
