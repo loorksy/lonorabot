@@ -16,7 +16,9 @@ expiry stays) and an agent's own card back into the shape the earlier code reads
 label, fields and destination); a broker card raised by the broker tools is the same in
 both. It refuses while a feed, a calendar or an MCP server saved from a Secret card
 exists: its address is in the encrypted store, which the earlier code cannot read.
-Remove those connections first.
+Remove those connections first. Every other connection loses the fields this release
+added (``url_secret_id`` and ``endpoint_sha256``, or ``domain``): they are empty there,
+and the earlier contracts refuse unknown fields.
 """
 
 import json
@@ -103,6 +105,19 @@ def downgrade() -> None:
             f"{stored} connection(s) saved from a Secret card keep their address in the "
             "encrypted store, which the earlier release cannot read: remove them first"
         )
+    bind.execute(
+        sa.text(
+            "UPDATE ln_mcp_connections"
+            " SET payload = (payload::jsonb - 'url_secret_id' - 'endpoint_sha256')::json"
+            " WHERE payload::jsonb ?| array['url_secret_id', 'endpoint_sha256']"
+        )
+    )
+    bind.execute(
+        sa.text(
+            "UPDATE ln_integrations SET payload = (payload::jsonb - 'domain')::json"
+            " WHERE payload::jsonb ? 'domain'"
+        )
+    )
     rows = bind.execute(
         sa.text("SELECT id, payload FROM ln_owner_actions WHERE kind = 'secret'")
     ).all()
