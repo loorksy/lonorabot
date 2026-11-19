@@ -8,10 +8,8 @@ function for its effect: the owner attestation of an uncertain operation
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
-paused (``lonora_db.pauses``; never money authority), and recording what a
-credential card's secure form connected (only which resource; the value went straight to
-the owner API); the agent that asked is woken to continue. A newly connected MCP server's
-tools run once the owner trusts it, by naming it in chat or in Capabilities.
+paused (``lonora_db.pauses``; never money authority). A Secret card's values
+never come here: the card has its own route (``secret_cards``).
 Resuming, creating an agent, setting supervision, choosing a model and Undo are one
 tap.
 
@@ -50,13 +48,11 @@ from lonora_db.agent_creation import (
     undo_plan,
 )
 from lonora_db.authority_lock import authority_lock
-from lonora_db.capability_cards import connected_result
 from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
     agent_names,
     choose_delegation,
     confirm_in_thread,
-    continue_after_card,
     grant_conflicts,
     grant_facts,
     grant_proposal,
@@ -309,12 +305,6 @@ async def decide(
     elif row.kind == "watch_changed":
         # Undo: the expiry the watch had before the agent extended it (owner only).
         result = await undo_watch_change(session, owner.id, row.payload)
-    elif row.kind == "connect_credential":
-        if body.connected is None:
-            raise LonoraError("owner_action_connection_required", 422)
-        result = await connected_result(
-            session, owner.id, row.payload, body.connected.resource, body.connected.id
-        )
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
     created_agent = (
         await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
@@ -352,9 +342,6 @@ async def decide(
     if created_agent is not None:
         # The agent that proposed it hands it its first task, after the line above.
         await start_first_task(session, row, created_agent)
-    if row.kind == "connect_credential":
-        # The agent that asked continues the work that needed this credential.
-        await continue_after_card(session, row)
 
 
 async def choose(
