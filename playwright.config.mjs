@@ -22,7 +22,7 @@ if (
   throw new Error("UI tests refuse a database whose name does not end in _ci, _test or _verify.");
 const root = fileURLToPath(new URL(".", import.meta.url));
 const mobile = process.env.LONORA_UI_TEST_APP === "mobile";
-const port = mobile ? 8831 : 8830;
+const port = Number(process.env.LONORA_UI_TEST_PORT ?? (mobile ? 8831 : 8830));
 // WebAuthn requires a domain RP ID; localhost is its standard development exception.
 const baseURL = `http://localhost:${port}`;
 const output = `${root}.runtime/${mobile ? "mobile" : "web"}-ui-tests`;
@@ -52,7 +52,7 @@ export default defineConfig({
     // separately so regression checks do not replace the production Web build.
     command: mobile
       ? "pnpm --filter @lonora/web exec vite build --outDir ../../.runtime/chart-renderer-ui-tests --emptyOutDir && pnpm --filter @lonora/mobile exec expo export --platform web --output-dir ../../.runtime/mobile-ui-tests && .venv/bin/lonora-api --host 127.0.0.1 --port 8831"
-      : "pnpm --filter @lonora/web exec vite build --outDir ../../.runtime/web-ui-tests --emptyOutDir && .venv/bin/lonora-api --host 127.0.0.1 --port 8830",
+      : `pnpm --filter @lonora/web exec vite build --outDir ../../.runtime/web-ui-tests --emptyOutDir && .venv/bin/lonora-api --host 127.0.0.1 --port ${port}`,
     cwd: root,
     url: `${baseURL}/health`,
     reuseExistingServer: false,
