@@ -421,7 +421,8 @@ async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         if agent_id == context.agent_id:
             agent = await owned_agent(session, context.owner_id, context.agent_id)
         else:
-            # Re-checked on every call: a revoked grant ends the reads at once.
+            # Re-checked on every call: Lonora reaches every team agent by its role; for
+            # any other agent, a revoked grant ends the reads at once.
             agent = await require_supervision(session, context.owner_id, context.agent_id, agent_id)
         data = await SECTIONS[params.section](session, context, agent, params.page)
     return stating(

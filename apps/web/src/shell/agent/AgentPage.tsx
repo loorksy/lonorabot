@@ -133,12 +133,15 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   const [busy, setBusy] = useState(false);
   const level = permissions.value?.effective_level ?? "analysis";
   const accounts = connections.value ?? [];
-  // Lonora supervises every agent by default: the line names a chosen supervisor first.
-  const personalId = data.agents.find((row) => row.role === "personal")?.id;
+  // The line names a chosen supervisor first; otherwise Lonora, which leads every team
+  // agent by its role with or without a grant.
+  const lonora = data.agents.find((row) => row.role === "personal");
   const supervisors = supervision.value?.supervised_by ?? [];
-  const supervisor = (
-    supervisors.find((grant) => grant.supervisor.id !== personalId) ?? supervisors[0]
-  )?.supervisor;
+  const supervisor =
+    supervisors.find((grant) => grant.supervisor.id !== lonora?.id)?.supervisor ??
+    (lonora && lonora.id !== agent.id && agent.role !== "personal"
+      ? { id: lonora.id, name: lonora.name }
+      : undefined);
   const go = (path: string) => nav.go(path);
   const q = `?agent=${encodeURIComponent(agent.id)}`;
 
@@ -480,10 +483,15 @@ function SupervisionSection({
         )}
       </>
     );
+  // Lonora leads every team agent by its role: its page lists only stored grants and
+  // offers no new one.
+  const lead = agent.role === "personal";
   const supervised = new Set(view.supervises.map((grant) => grant.supervised.id));
-  const candidates = data.agents.filter(
-    (row) => row.id !== agent.id && row.role !== "delegated" && !supervised.has(row.id),
-  );
+  const candidates = lead
+    ? []
+    : data.agents.filter(
+        (row) => row.id !== agent.id && row.role !== "delegated" && !supervised.has(row.id),
+      );
   const revoke = async (grantId: string) => {
     try {
       await api.post(`/supervision/${grantId}/revoke`, {});
@@ -513,6 +521,11 @@ function SupervisionSection({
       <h3>
         <Trans>Supervises</Trans>
       </h3>
+      {lead && (
+        <p className="pad muted small">
+          <Trans>{isolate(agent.name)} reads and steers every team agent by its role.</Trans>
+        </p>
+      )}
       {view.supervises.length ? (
         <div className="group">
           {view.supervises.map((grant) => {
@@ -545,7 +558,7 @@ function SupervisionSection({
             );
           })}
         </div>
-      ) : (
+      ) : lead ? null : (
         <p className="pad muted small">
           <Trans>It does not supervise any agent now.</Trans>
         </p>
