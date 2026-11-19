@@ -247,8 +247,8 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
 
         async def card(card_id: str, thread: ThreadRow, kind: str, by: str) -> OwnerActionRow:
             payload: dict[str, Any] = (
-                {"spec": {"account_id": account}}
-                if kind == "create_agent"
+                {"account_id": account}
+                if kind == "grant_authority"
                 else {"target": "news_feed", "service": None}
             )
             return await create_card(
@@ -260,13 +260,15 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
                 run_id=None,
                 source="agent",
                 kind=kind,
-                subject="agent-create" if kind == "create_agent" else "credential:news_feed",
+                subject=("grant:" + by + ":" + account)
+                if kind == "grant_authority"
+                else "credential:news_feed",
                 payload=payload,
             )
 
         by_helper = await card("by-helper", group, "connect_credential", helper.id)
         in_thread = await card("in-thread", conversation, "connect_credential", agent)
-        about_account = await card("about-account", group, "create_agent", agent)
+        about_account = await card("about-account", group, "grant_authority", agent)
         elsewhere = await card("elsewhere", group, "connect_credential", other.id)
         await prepare_delete(session, owner, agent_id=helper.id)
         await prepare_delete(session, owner, thread_id=conversation.id)

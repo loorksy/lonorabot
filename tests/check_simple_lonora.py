@@ -42,6 +42,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.events import emit
+from lonora_db.lead import reaches
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import run_data
 from lonora_db.schema import (
@@ -1334,16 +1335,9 @@ class Acceptance:
             assert all(g.created_via == "owner_message" and g.source_message_id for g in grants), (
                 grants
             )
-            lonora_over = await session.scalar(
-                select(func.count())
-                .select_from(SupervisionGrantRow)
-                .where(
-                    SupervisionGrantRow.supervisor_agent_id == self.lonora,
-                    SupervisionGrantRow.supervised_agent_id.in_([news_id, desk_id]),
-                    SupervisionGrantRow.revoked_at.is_(None),
-                )
-            )
-            assert lonora_over == 2, lonora_over  # Lonora sees them by default.
+            # Lonora sees them by its lead role, with no grant (14.3.15).
+            for agent_id in (news_id, desk_id):
+                assert await reaches(session, self.owner, self.lonora, agent_id), agent_id
         cards = await self.cards(self.lonora_thread)
         # No creation card: Lonora tells the owner in one line (10.3, Q3).
         assert not [c for c in cards if c["kind"] == "agent_created"]
