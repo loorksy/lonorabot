@@ -4,8 +4,10 @@ At head, make an owner, an agent and a run. Step below 0121 and store what earli
 wrote, each manifest carrying ``intents``: an owner skill, a package skill whose state
 holds a package version, two saved skill versions, and a run whose ``skill_snapshot``
 pins a manifest. Upgrade: every copy reads with today's ``SkillManifest`` (``extra="forbid"``)
-and the snapshot reader, nothing else in those rows changed. The downgrade leaves the
-rows readable by the earlier contract (a missing key is []), and the upgrade runs again.
+and the snapshot reader, nothing else in those rows changed. Downgrade: every copy, read
+at 0088, still lacks ``intents`` and validates with the earlier contract (today's manifest,
+its activation a copy of the earlier model: ``intents`` defaults to [], ``extra="forbid"``),
+and the upgrade runs again.
 """
 
 import asyncio
@@ -14,18 +16,28 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 from check_streaming import Fixture, test_settings
 from lonora_agent.skills.snapshot import read_snapshot
+from lonora_contracts.domain import Contract
 from lonora_contracts.skills import AgentSkill, SkillManifest
+from pydantic import Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
 PATH = ROOT / "packages/db/migrations/versions/0121_skill_intents_removed.py"
+
+
+class EarlierActivation(Contract):
+    """``SkillActivation`` before 0121; the rest of the manifest contract is unchanged."""
+
+    mode: Literal["automatic", "explicit", "trigger_based"] = "automatic"
+    intents: list[str] = Field(default_factory=list, max_length=32)
+    triggers: list[str] = Field(default_factory=list, max_length=32)
 
 
 def migration() -> Any:
@@ -155,6 +167,39 @@ async def verify(connection: AsyncConnection, ids: dict[str, str], run: str) -> 
     assert metadata["kept"] == "unchanged"
 
 
+async def verify_earlier(connection: AsyncConnection, ids: dict[str, str], run: str) -> None:
+    """At 0088, every stored manifest validates with the earlier contract, ``intents`` []."""
+    manifests: list[Any] = []
+    for key in ("owner_skill", "package_skill"):
+        row = (
+            await connection.execute(
+                text("SELECT payload, state FROM ln_skills WHERE id = :id"), {"id": ids[key]}
+            )
+        ).one()
+        manifests.append(as_dict(row[0])["manifest"])
+        package: dict[str, Any] = as_dict(row[1]).get("package") or {}
+        manifests.extend(entry["payload"]["manifest"] for entry in package.get("versions", []))
+    versions = await connection.execute(
+        text("SELECT payload FROM ln_skill_versions WHERE skill_id = :id"),
+        {"id": ids["owner_skill"]},
+    )
+    manifests.extend(as_dict(payload)["manifest"] for (payload,) in versions)
+    metadata = as_dict(
+        await connection.scalar(
+            text("SELECT model_metadata FROM ln_runs WHERE id = :id"), {"id": run}
+        )
+    )
+    manifests.extend(entry["manifest"] for entry in metadata["skill_snapshot"]["skills"].values())
+    # The owner skill, the package skill and its version, two saved versions, the snapshot.
+    assert len(manifests) == 6
+    for stored in manifests:
+        assert "intents" not in stored["activation"]
+        SkillManifest.model_validate(stored)
+        earlier = EarlierActivation.model_validate(stored["activation"])
+        assert earlier.intents == []
+        assert earlier.mode == "automatic"
+
+
 async def main() -> None:
     module = migration()
     assert module.revision == "0121_skill_intents_removed"
@@ -179,10 +224,14 @@ async def main() -> None:
         await engine.dispose()
         print("PASS every stored manifest reads with today's contract; nothing else changed")
         await asyncio.to_thread(alembic, "downgrade", before)
+        async with engine.connect() as connection:
+            await verify_earlier(connection, ids, run)
+        await engine.dispose()
+        print("PASS after the downgrade every stored manifest reads with the earlier contract")
         await asyncio.to_thread(alembic, "upgrade", "head")
         async with engine.connect() as connection:
             await verify(connection, ids, run)
-        print("PASS the downgrade keeps the rows readable and the upgrade runs again")
+        print("PASS the upgrade runs again")
     finally:
         await engine.dispose()
 
