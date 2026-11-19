@@ -15,7 +15,7 @@ const simulation = (data) => python(["tests/check_chart_browser.py"], data);
 const worker = (data) => python(["tests/check_simple_lonora.py", "--ui-turn"], data);
 
 const words = {
-  createGold: "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%",
+  createGold: "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه",
 };
 const text = {
   composer: "اكتب رسالة…",
@@ -56,8 +56,8 @@ test("Expo ar: one sentence creates the agent and its grant card", async ({ page
   try {
     await page.goto(`/thread?id=${thread.id}`);
 
-    // «أنشئ وكيل ذهب …»: the grant card, the same server card the Web shows, with the
-    // daily loss from the sentence; no creation card (Lonora says it in one line).
+    // «أنشئ وكيل ذهب …»: the grant card, the same server card the Web shows; no
+    // creation card (Lonora says it in one line).
     await said(words.createGold);
     const created = worker({ thread: thread.id, account: data.account, symbol: data.symbol, name });
     expect(created.status).toBe("completed");
@@ -68,7 +68,6 @@ test("Expo ar: one sentence creates the agent and its grant card", async ({ page
     const grant = page.getByTestId(`owner-action-${raised(created, "grant_authority")[0]}`);
     await expect(grant.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
     await expect(grant.getByText(data.symbol, { exact: false }).first()).toBeVisible();
-    await expect(grant.getByText("200.00", { exact: false }).first()).toBeVisible();
     await expect(grant.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
     await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-native-ar.png") });
   } finally {

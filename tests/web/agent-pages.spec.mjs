@@ -109,6 +109,39 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
   await expect(main.getByRole("button", { name: "Stop the agent", exact: true })).toBeVisible();
 });
 
+test("the trading and safety row opens the agent's sheet in its conversation", async ({ page }) => {
+  await page.goto(`/app/agent/${data.trader.id}`);
+  await page
+    .locator("main")
+    .getByRole("button", { name: /Ask me on every order/ })
+    .click();
+  await expect(page.locator("#dialog").getByTestId("agent-live-state")).toBeVisible();
+  // The conversation opens the sheet once and drops ?sheet=agent, so Back does not reopen it.
+  await expect(page).toHaveURL(new RegExp(`/app/${data.trader.id}$`));
+});
+
+test("a trading agent with no linked account opens the trading settings", async ({ page }) => {
+  await page.route("**/api/trading/connections", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+  await page.route("**/api/agents", async (route) => {
+    const response = await route.fetch();
+    const agents = await response.json();
+    await route.fulfill({
+      response,
+      json: agents.map((agent) =>
+        agent.id === data.trader.id ? { ...agent, trading_account_id: null } : agent,
+      ),
+    });
+  });
+  await page.goto(`/app/agent/${data.trader.id}`);
+  await page
+    .locator("main")
+    .getByRole("button", { name: /No trading account linked/ })
+    .click();
+  await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
+});
+
 test("the call button follows Q58 when no voice provider is configured", async ({ page }) => {
   const status = await (await page.request.get("/api/voice/status")).json();
   test.skip(status.transport_configured, "a voice provider is configured in this environment");

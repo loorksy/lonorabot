@@ -63,9 +63,9 @@ export function useOwnerActions(threadId: string) {
 
 /**
  * One owner action card: server facts in the owner's language and one tap. A grant
- * card, or one that raises or removes a money limit, asks for the passkey (registering
- * this device inline the first time); a grant card's switches go with that tap. Every
- * tap goes to the owner-session route, which re-validates.
+ * card asks for the passkey (registering this device inline the first time); its
+ * switches go with that tap. Every tap goes to the owner-session route, which
+ * re-validates.
  */
 export function OwnerActionCard({
   row,
@@ -473,7 +473,6 @@ export function OwnerActionCard({
 const NOTICE_KINDS = new Set<string>(["watch_changed", "stop_tightened"]);
 const KIND_ICON: Partial<Record<string, IconName>> = {
   grant_authority: "shield",
-  set_account_limits: "scale",
   resolve_operation: "alert",
   supervision_paused: "pause",
   connect_credential: "key",

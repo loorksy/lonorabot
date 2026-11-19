@@ -11,7 +11,7 @@ automatically. Text that agent or others wrote is labelled untrusted: it is data
 the reader, never its instructions.
 
 ``agent_control`` pauses or resumes a team agent, or one of its Tasks, routines or
-watches, messages it, cancels its current run, switches it to Ask or deletes it. It never grants, raises a limit,
+watches, messages it, cancels its current run, switches it to Ask or deletes it. It never grants,
 trades or edits the agent's memory or instructions. A paused agent still reduces the risk of its
 own positions and orders; the Personal Agent is paused only by the owner. The hold
 rules are in ``lonora_db.supervision`` and ``lonora_db.pauses``.
@@ -568,8 +568,7 @@ def tools() -> list[Tool]:
             "owner pauses Lonora itself. Also cancel_run (end its current run), set_ask (as "
             "trading_mode_ask: Ask, except within an active signed grant's own terms until "
             "revoked) or delete it (its open tickets become yours and you are woken with "
-            "them). It never trades, grants, raises limits or edits its memory or "
-            "instructions.",
+            "them). It never trades, grants or edits its memory or instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

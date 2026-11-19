@@ -43,21 +43,6 @@ def authority_data(row: AccountAuthorityRow) -> dict[str, Any]:
     }
 
 
-async def authority_summary(session: AsyncSession, row: AccountAuthorityRow) -> dict[str, Any]:
-    """The grant plus the account's owner money limits, enforced at the executor (T3).
-
-    A grant's own numerical limits are counts and volumes; the money limits (daily loss,
-    risk per trade at the stop, open risk, free-margin floor) belong to the account and
-    bind every agent on it together. An unset limit is reported, never invented.
-    """
-    from .trading_readiness import account_money_limits
-
-    return {
-        **authority_data(row),
-        "money_limits": await account_money_limits(session, row.owner_id, row.account_id),
-    }
-
-
 def changed(session: AsyncSession, row: AccountAuthorityRow) -> None:
     row.updated_at = utcnow()
     emit(
