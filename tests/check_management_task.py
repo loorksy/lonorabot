@@ -41,6 +41,7 @@ from lonora_db.routines import due_query
 from lonora_db.schema import (
     AccountAuthorityRow,
     AgentRow,
+    EventRow,
     MarketWatchRow,
     OwnerActionRow,
     OwnerRow,
@@ -346,6 +347,8 @@ async def checks() -> None:
             "environment": {"wait": {"kind": "timer", "call_id": "t", "due_at": due.isoformat()}}
         },
     )
+    async with db.sessions() as session:
+        fence = (await session.get(RunRow, timer_run)).lease_fence  # type: ignore[union-attr]
     await tap("ask", by="agent")
     async with db.sessions() as session:
         timers = list(
@@ -361,6 +364,13 @@ async def checks() -> None:
         assert timers[0].title in titles("full_mode_follow_up")
         ended = await session.get(RunRow, timer_run)
         assert ended is not None and ended.status == "cancelled"
+        # Cancelled as cancel_run does: its lease is fenced off and clients are told.
+        assert ended.lease_fence == fence + 1 and ended.lease_expires_at is None
+        assert await session.scalar(
+            select(EventRow.cursor).where(
+                EventRow.kind == "run.cancelled", EventRow.run_id == timer_run
+            )
+        )
     print("PASS ending the task keeps its pending timer as a wake in the conversation")
 
     # A pause ends the task and withdraws the card the Run waits on (a paused agent sends
