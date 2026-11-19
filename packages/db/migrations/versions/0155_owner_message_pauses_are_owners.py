@@ -10,7 +10,7 @@ CHECK and keeps the rows as the owner's, so no pause becomes one an agent could 
 from alembic import op
 
 revision = "0155_owner_message_pauses_are_owners"
-down_revision = "0061_trade_approval_validity"
+down_revision = "0100_execution_receipts"
 branch_labels = None
 depends_on = None
 
