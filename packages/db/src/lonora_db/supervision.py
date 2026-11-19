@@ -10,8 +10,8 @@ only the pauses it made (4.7.2). A pause made from the owner's message, and the 
 pausing the same work, make the hold the owner's (``source='owner'``, the agent kept
 for attribution): then only the owner lifts it, from the work itself or the card. The
 owner resuming the work releases it. The paused agent never resumes held work on its own
-initiative. Holds and pause cards an earlier team supervisor left stay readable; the
-owner's Resume lifts them.
+initiative. Migration 0127 ended the holds team supervisors left (14.3.18.6); their
+pause cards stay readable and offer no Resume.
 
 Pausing a whole agent never stops its exits: a paused agent still wakes for its own
 positions and pending orders and sends risk-reducing requests (4.7.1). Only the owner
@@ -40,7 +40,7 @@ from .schema import (
 from .transactions import owned_agent
 
 HoldKind = Literal["agent", "task", "routine", "watch"]
-# agent: the supervisor (or Lonora) on its own; owner: the owner's pause, made by the
+# agent: Lonora on its own; owner: the owner's pause, made by the
 # owner or by an agent from the owner's message (the holder kept for attribution, 4.7.2).
 HoldSource = Literal["agent", "owner"]
 

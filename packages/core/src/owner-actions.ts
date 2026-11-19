@@ -120,16 +120,10 @@ export const ownerActionLabels = {
     authorize: "Authorize with passkey",
     signed: "Signed. It trades on its own inside this grant.",
     alreadySigned: "This is already signed. Nothing changed.",
-    undo: "Undo",
-    task: "Its task",
     agent: "Agent",
-    on: "on",
-    model: "Model",
-    paused: "Paused",
-    kept: "Kept.",
     agentRemoved: "This agent was already removed.",
     connectionChanged: "The broker account changed. Nothing changed.",
-    pauseTitle: "Paused by a supervisor",
+    pauseTitle: "Work paused",
     pausedBy: "Paused by",
     pausedWhat: "What",
     targetAgent: "The whole agent",
@@ -207,7 +201,6 @@ export const ownerActionLabels = {
     statusSuperseded: "Replaced",
     renew: "New request",
     latest: "Show the latest",
-    undone: "Undone",
   },
   ar: {
     mandateTitle: "التفويض",
@@ -297,16 +290,10 @@ export const ownerActionLabels = {
     authorize: "التفويض بمفتاح المرور",
     signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
     alreadySigned: "هذا موقّع بالفعل. لم يتغير شيء.",
-    undo: "تراجع",
-    task: "مهمته",
     agent: "وكيل",
-    on: "على",
-    model: "النموذج",
-    paused: "متوقف",
-    kept: "أُبقي الوكيل.",
     agentRemoved: "أُزيل هذا الوكيل مسبقًا.",
     connectionChanged: "تغيّر حساب الوسيط. لم يتغير شيء.",
-    pauseTitle: "أوقفه مشرف مؤقتًا",
+    pauseTitle: "عمل موقوف مؤقتًا",
     pausedBy: "أوقفه",
     pausedWhat: "ما أُوقف",
     targetAgent: "الوكيل كله",
@@ -381,7 +368,6 @@ export const ownerActionLabels = {
     statusSuperseded: "استُبدل",
     renew: "طلب جديد",
     latest: "عرض الأحدث",
-    undone: "تم التراجع",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -991,7 +977,7 @@ export function ownerActionCard(
       title = text.pauseTitle;
       lines.push(...pauseLines(card, text));
       if (!card.facts.supervision?.active) {
-        // Resumed elsewhere (the supervisor, the owner): the card can only be dismissed.
+        // Resumed elsewhere (Lonora, the owner): the card can only be dismissed.
         hint = text.pauseEnded;
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;

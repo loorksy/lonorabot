@@ -146,7 +146,7 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
   schedule) takes nothing over: the Web and Mobile forms send the switch with every
   save.
 - The paused agent never resumes held work on its own initiative
-  (`work_paused_by_supervisor`); it can still cancel it, which only narrows and keeps
+  (`work_paused_by_lonora`); it can still cancel it, which only narrows and keeps
   the hold. A watch it cancelled stays cancelled when Lonora resumes it: the
   resume only ends the hold (`stays_cancelled_by_the_agent`). A hold on work that is no
   longer paused is stale and released.
@@ -179,8 +179,9 @@ budget, and these tools stay one `tool_call` away.
 ## Owner surfaces
 
 - **Cards** (`packages/core/src/owner-actions.ts`, Web and Mobile): only
-  `supervision_paused` ("Paused by a supervisor", Resume / Keep paused) remains, for
-  pauses an earlier team supervisor made. Names and the paused item's label are server
+  `supervision_paused` ("Work paused", Resume / Keep paused) remains, for pauses
+  that raised it before Lonora's pauses stopped raising cards (a team supervisor's
+  card, whose pause 0127 ended, offers no Resume). Names and the paused item's label are server
   facts, isolated for RTL, and every line starts with a word in the owner's language;
   the confirmation line is fixed text (`owner_action_supervision_paused`).
 - The supervision settings on agent profiles (Web and Mobile) and `/api/supervision` are

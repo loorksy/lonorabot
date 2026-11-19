@@ -52,7 +52,7 @@ test("a pause card names the supervisor, the agent and the item, with one-tap Re
     );
   }
   const english = ownerActionCard(pause, "en");
-  assert.equal(english.title, "Paused by a supervisor");
+  assert.equal(english.title, "Work paused");
   assert.equal(english.lines[2], `What: Routine · ${isolated("Review XAUUSD before London")}`);
   assert.equal(ownerActionCard(pause, "ar").lines[2]?.startsWith("ما أُوقف: مهمة مجدولة"), true);
   const ownerHolds = ownerActionCard(

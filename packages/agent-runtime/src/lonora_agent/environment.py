@@ -187,7 +187,7 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "shadow_execution_forbidden",
         # No agent pauses the owner's entry point, Lonora.
         "supervision_personal_agent",
-        # The owner or a supervisor paused this agent.
+        # The owner or Lonora paused this agent.
         "agent_paused",
         # One Run creates so many agents and no more.
         "agent_create_run_limit",

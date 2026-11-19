@@ -265,7 +265,7 @@ async def test_a_pause_an_earlier_supervisor_left_never_blocks_lonora_and_stays_
 
         # Lonora never lifts another agent's pause on its own (4.7.2): the routine stays.
         code = await refused(lead, "routine_toggle", routine_id=routine_id, enabled=True)
-        assert code in {"work_paused_by_supervisor", "supervision_resume_not_yours"}, code
+        assert code in {"work_paused_by_lonora", "supervision_resume_not_yours"}, code
         async with fixture.runtime.db.sessions() as session:
             kept = await session.get(RoutineRow, routine_id)
             assert kept is not None and kept.enabled is False

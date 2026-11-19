@@ -120,9 +120,9 @@ async def update_agent(
     if request.paused is not None and request.paused != was_paused:
         from .pauses import owner_takes_over
 
-        # The owner's own pause or resume wins over a supervisor's hold on this agent.
+        # The owner's own pause or resume wins over Lonora's hold on this agent.
         # The settings form sends the switch with every save, so only a change counts:
-        # renaming a paused agent leaves a supervisor's pause the supervisor's.
+        # renaming a paused agent leaves Lonora's pause Lonora's.
         await owner_takes_over(
             session, owner_id, "agent", agent_id, paused=request.paused, agent_id=agent_id
         )

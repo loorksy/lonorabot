@@ -122,8 +122,8 @@ async def owner_takes_over(
     """The owner itself paused or cancelled (``paused``), or resumed, this work of
     ``agent_id``. The owner's pause is a hold of its own (``source='owner'``, no holder),
     so the paused agent never lifts it on its own initiative, and a hold already on it
-    becomes the owner's control pause, never a weaker one: a supervisor's, and one the
-    owner asked for in chat (its ``source_message_id`` is cleared), are lifted from then
+    becomes the owner's control pause, never a weaker one: Lonora's, and one the owner
+    asked for in chat (its ``source_message_id`` is cleared), are lifted from then
     on only by the owner's control or card, never from chat. The holder stays named. The
     owner's resume releases it."""
     hold = await live_hold(session, kind, target_id, lock=True)
@@ -154,8 +154,8 @@ async def owner_takes_over(
 
 
 async def owner_holds_for(session: AsyncSession, owner_id: str, holder_id: str) -> None:
-    """A supervisor is being deleted: every pause it holds stays in force as the
-    owner's (its card keeps offering Resume), so nothing it paused is resumed, and no
+    """The agent holding these pauses is being deleted: every pause it holds stays in
+    force as the owner's (its card keeps offering Resume), so nothing it paused is resumed, and no
     pause becomes one the paused agent could lift. The row loses its holder when the
     agent row goes (``ON DELETE SET NULL``)."""
     holds = await session.scalars(
@@ -181,10 +181,9 @@ async def refuse_held(
     *,
     owner_message: bool = False,
 ) -> None:
-    """The paused agent never resumes held work on its own initiative: it asks the
-    supervisor or the owner. In a run that answers the owner's untainted message a team
-    agent resumes a supervisor's hold (released as the owner's); Lonora lifts only pauses
-    it made. A pause the owner holds is lifted only by the owner: one the owner asked for
+    """The paused agent never resumes held work on its own initiative: it asks Lonora or
+    the owner. In a run that answers the owner's untainted message a team agent resumes
+    Lonora's hold (released as the owner's); Lonora lifts only pauses it made. A pause the owner holds is lifted only by the owner: one the owner asked for
     in chat also from the owner's message, the owner's own pause from a control only from
     a control. A hold on work that is no longer paused is stale and released."""
     hold = await live_hold(session, kind, target_id, lock=True)
@@ -204,7 +203,7 @@ async def refuse_held(
     agent = await session.get(AgentRow, agent_id)
     if not owner_message or (agent is not None and agent.role == "personal"):
         # Lonora lifts only the pauses Lonora made (4.7.2), even from the owner's words.
-        raise LonoraError("work_paused_by_supervisor", 409)
+        raise LonoraError("work_paused_by_lonora", 409)
     await release_hold(session, hold, "owner")
 
 

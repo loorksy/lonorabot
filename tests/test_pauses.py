@@ -154,7 +154,7 @@ async def test_pauses_are_held_by_lonora_and_the_owner_wins():
         # The paused agent cannot resume what Lonora paused.
         assert (
             await refused(gold_context, "routine_toggle", routine_id=routine_id, enabled=True)
-            == "work_paused_by_supervisor"
+            == "work_paused_by_lonora"
         )
         # A team agent never pauses Lonora, even from the owner's message.
         owner_context = await owner_says(fixture, gold, gold_thread, "Pause Lonora for now")
@@ -236,7 +236,7 @@ async def test_pauses_are_held_by_lonora_and_the_owner_wins():
                 action="resume",
                 expected_version=await task_version(),
             )
-            == "work_paused_by_supervisor"
+            == "work_paused_by_lonora"
         )
         freed = await call(
             lead_context,
@@ -341,7 +341,7 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
         assert (await held(fixture, routine_id)).source == "agent"
         assert (
             await refused(gold_context, "routine_toggle", routine_id=routine_id, enabled=True)
-            == "work_paused_by_supervisor"
+            == "work_paused_by_lonora"
         )
         # The owner's word to the paused agent lifts Lonora's pause.
         asked = await owner_says(fixture, gold, gold_thread, "Resume your review routine")
@@ -404,7 +404,7 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
         ] == "watch_cancelled"
         assert (
             await refused(gold_context, "watch_resume", watch_id=watch_id)
-            == "work_paused_by_supervisor"
+            == "work_paused_by_lonora"
         )
         lifted = await call(
             lead_context,

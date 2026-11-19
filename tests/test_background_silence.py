@@ -38,7 +38,6 @@ def test_who_is_background():
         "user",
         "group",
         "owner_card",
-        "agent_created",
         "peer",
         "subagent",
         "morning_brief",

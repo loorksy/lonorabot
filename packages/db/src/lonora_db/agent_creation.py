@@ -303,7 +303,7 @@ async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> Ag
     # task's Runs are locked first, as their own work does.
     await end_management_task(session, owner_id, agent_id)
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
-    # The owner's pause: a supervisor's hold on this agent becomes the owner's pause.
+    # The owner's pause: Lonora's hold on this agent becomes the owner's pause.
     await owner_takes_over(session, owner_id, "agent", agent_id, paused=True, agent_id=agent_id)
     if not agent.paused:
         agent.paused = True

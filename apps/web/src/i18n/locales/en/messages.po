@@ -222,7 +222,7 @@ msgstr "{seconds} s"
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
-#: src/conversation/Message.tsx:505
+#: src/conversation/Message.tsx:504
 msgid "{stopper} stopped the reply"
 msgstr "{stopper} stopped the reply"
 
@@ -2915,7 +2915,7 @@ msgid "Edit, then send again"
 msgstr "Edit, then send again"
 
 #: src/components/genui/index.tsx:63
-#: src/conversation/Message.tsx:514
+#: src/conversation/Message.tsx:510
 msgid "Edited"
 msgstr "Edited"
 
@@ -4409,7 +4409,7 @@ msgstr "Message composer"
 
 #: src/conversation/Conversation.tsx:593
 #: src/conversation/Conversation.tsx:619
-#: src/conversation/Message.tsx:650
+#: src/conversation/Message.tsx:646
 msgid "Message options"
 msgstr "Message options"
 
@@ -5111,7 +5111,7 @@ msgstr "Not linked · alerts can reach you in Telegram"
 msgid "Not sent"
 msgstr "Not sent"
 
-#: src/conversation/Message.tsx:696
+#: src/conversation/Message.tsx:692
 msgid "Not sent · tap to retry"
 msgstr "Not sent · tap to retry"
 
@@ -5957,7 +5957,7 @@ msgstr "Ray"
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
-#: src/conversation/Message.tsx:671
+#: src/conversation/Message.tsx:667
 msgid "React to the message"
 msgstr "React to the message"
 
@@ -7903,11 +7903,11 @@ msgid "The message is no longer available."
 msgstr "The message is no longer available."
 
 #: src/conversation/Conversation.tsx:580
-#: src/conversation/Message.tsx:688
+#: src/conversation/Message.tsx:684
 msgid "The message was not sent"
 msgstr "The message was not sent"
 
-#: src/conversation/Message.tsx:662
+#: src/conversation/Message.tsx:658
 msgid "The message was not sent. Options"
 msgstr "The message was not sent. Options"
 
@@ -9384,7 +9384,7 @@ msgstr "You set the markets, actions and duration"
 #~ msgid "You set the markets, actions, duration and money limit"
 #~ msgstr "You set the markets, actions, duration and money limit"
 
-#: src/conversation/Message.tsx:507
+#: src/conversation/Message.tsx:504
 msgid "You stopped the reply"
 msgstr "You stopped the reply"
 

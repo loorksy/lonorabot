@@ -60,8 +60,8 @@ asyncio.run(main())
 }
 
 const copy = {
-  en: { pauseTitle: "Paused by a supervisor", resume: "Resume", resumed: "Resumed." },
-  ar: { pauseTitle: "أوقفه مشرف مؤقتًا", resume: "استئناف", resumed: "تم الاستئناف." },
+  en: { pauseTitle: "Work paused", resume: "Resume", resumed: "Resumed." },
+  ar: { pauseTitle: "عمل موقوف مؤقتًا", resume: "استئناف", resumed: "تم الاستئناف." },
 };
 
 for (const locale of ["ar", "en"])

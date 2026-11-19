@@ -140,19 +140,14 @@ export type OwnerAction = {
     /** trading_mode: the agent the Mandate card switches. */
     agent?: OwnerActionAgent;
     /**
-     * supervision_paused: which supervisor paused which work of which agent. Names are
-     * read on the server.
+     * supervision_paused: who paused which work of which agent (Lonora, or a team
+     * supervisor before grants were deleted). Names are read on the server.
      */
     supervision?: {
       supervisor_name: string | null;
       supervised_names: string[];
       /** The pause still holds. */
       active: boolean;
-      /**
-       * supervision_created: the grants are Lonora's, which leads every team agent by its
-       * role, so Undo would stop nothing (an older card).
-       */
-      lead?: boolean;
       /** supervision_paused: what is paused, and that item's own short label. */
       target?: "agent" | "task" | "routine" | "watch";
       target_label?: string | null;

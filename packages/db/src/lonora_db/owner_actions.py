@@ -54,7 +54,8 @@ from .transactions import owned_thread
 LIFETIME = {
     "settle_operation": timedelta(days=7),
     "grant_authority": timedelta(hours=24),
-    # A supervisor paused an agent's work: who did it, with Resume, while it holds.
+    # Who paused an agent's work (cards raised before Lonora's pauses stopped raising
+    # them), with Resume, while it holds.
     "supervision_paused": timedelta(days=31),
     # The Secret card: a credential, or a connection that needs one.
     "secret": timedelta(days=7),
@@ -558,7 +559,7 @@ async def pause_facts(
         return facts
     names = await agent_names(session, row.owner_id, {hold.holder_agent_id, hold.agent_id})
     facts["supervision"] = {
-        # None once the supervisor is deleted: its pause stays, as the owner's.
+        # None once the holder is deleted: its pause stays, as the owner's.
         "supervisor_name": names.get(hold.holder_agent_id or ""),
         "supervised_names": [names[hold.agent_id]] if hold.agent_id in names else [],
         "active": await _live_pause(session, row.owner_id, row.payload) is not None,
