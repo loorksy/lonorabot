@@ -888,6 +888,30 @@ class TradingJournalRow(Base):
     timeline_seq: Mapped[int | None] = mapped_column(Integer)
 
 
+class ExecutionReceiptRow(Base):
+    """The Execution Receipt of one broker-confirmed operation (mandate 10.3, 11.2).
+
+    Written once, in the transaction that records the broker's confirmation; its facts are
+    read from the journal row, never from model text. It outlives the agent and the
+    conversation (3.1.2): ``agent_id`` is attribution only and the anchor is nullable.
+    """
+
+    __tablename__ = "ln_execution_receipts"
+    __table_args__ = (Index("ln_execution_receipts_thread", "thread_id", "timeline_seq"),)
+    operation_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_trading_journal.operation_id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    # The requesting agent; None for the owner's own order. No foreign key: never deleted.
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    # Where the receipt is posted (presentation only, like the journal's anchor).
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ScratchpadRow(ResourceRow):
     __tablename__ = "ln_scratchpad"
 
@@ -950,10 +974,6 @@ class TicketRow(ResourceRow):
     __tablename__ = "ln_tickets"
 
 
-class ModelBackupRow(ResourceRow):
-    __tablename__ = "ln_model_backups"
-
-
 class UsageRow(ResourceRow):
     __tablename__ = "ln_usage"
     __table_args__ = (Index("ln_usage_owner_created", "owner_id", "created_at"),)
@@ -981,10 +1001,6 @@ class CloudChartRow(ResourceRow):
 
 class TradingAccountRow(ResourceRow):
     __tablename__ = "ln_trading_accounts"
-
-
-class FinancialReceiptRow(ResourceRow):
-    __tablename__ = "ln_financial_receipts"
 
 
 class EconomicCalendarRow(ResourceRow):
@@ -1088,8 +1104,10 @@ class ClosedTradeRow(Base):
     # never saw open).
     volume: Mapped[Any | None] = mapped_column(Numeric(38, 10))
     agent_id: Mapped[str | None] = mapped_column(String(36))
-    # The journaled order that opened the position, when Lonora's door sent it.
+    # The journaled order that opened the position, when Lonora's door sent it, and the
+    # judgment label that order carried (5.5.3).
     opening_operation_id: Mapped[str | None] = mapped_column(String(80))
+    label: Mapped[str | None] = mapped_column(String(40))
     # Account currency; P&L is never summed across currencies.
     currency: Mapped[str] = mapped_column(String(16))
     # Profit + commission + swap of the trade's deals. None when an exit carried no
@@ -1128,6 +1146,8 @@ class TradeApprovalRow(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The agent's own words, beside the requests (never inside them).
     reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # The agent's judgment label (5.5.3), beside the requests like the reason.
+    label: Mapped[str | None] = mapped_column(String(40))
     # {"tolerance", "reference": {"account_id", "symbol", "side", "price"}}: the
     # executable side read when the card was made; outside price ± tolerance it drifts.
     validity: Mapped[dict[str, Any]] = mapped_column(
