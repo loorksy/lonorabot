@@ -150,10 +150,12 @@ async def ticket_agent(
 
 
 def entry_holder(entries: list[TradingJournalRow], target: Position | Order) -> str | None:
-    """``ticket_agent``'s match over the ticket's confirmed entries, oldest first: the entry
-    whose operation id or tag the broker reports on the ticket, else the oldest entry whose
-    order has the ticket id (never a position id in its result: on a netting account that
-    is the position an order added to); None for the owner's own."""
+    """``ticket_agent``'s match over the entries it is given, oldest first (the caller picks
+    their statuses: the door's and the picture's confirmed ones, the brief's SENT_STATUSES;
+    this filters nothing): the entry whose operation id or tag the broker reports on the
+    ticket, else the oldest entry whose order has the ticket id (never a position id in its
+    result: on a netting account that is the position an order added to); None for the
+    owner's own."""
     for entry in entries:
         if target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}:
             return journal_agent(entry)
