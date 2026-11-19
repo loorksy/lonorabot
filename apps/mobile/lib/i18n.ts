@@ -481,6 +481,17 @@ export const labels = {
   cmdChartSub: ["افتح شارت السوق", "Open the market chart"],
   cmdCallSub: ["ابدأ مكالمة صوتية مع {0}", "Start a voice call with {0}"],
   cmdClearSub: ["امسح رسائل هذه المحادثة", "Clear this conversation's messages"],
+  // What a sent «ملخص» with no words after it covers (Web's «summary command» context).
+  cmdSummaryOf: ["المحادثة", "the conversation"],
+  // «مسح» of this one chat, as Web's chat menu says it.
+  clearChatAgent: [
+    "تُخفى رسائل هذه المحادثة عندك، ويبقى الوكيل وسجله.",
+    "This chat's messages are hidden for you. The agent and its record stay.",
+  ],
+  clearChatGroup: [
+    "تُخفى رسائل هذه المحادثة عندك، وتبقى المجموعة بأعضائها.",
+    "This chat's messages are hidden for you. The group stays with its members.",
+  ],
   cmdTaskHint: ["عنوان المهمة", "Task title"],
   cmdSearchHint: ["عمّ تبحث؟", "What are you looking for?"],
   cmdSkillHint: ["على ماذا أطبّقها؟ (اختياري)", "Apply it to what? (optional)"],

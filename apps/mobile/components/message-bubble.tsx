@@ -86,7 +86,8 @@ export function MessageBubble({
   // A voice note or a call log has no text: it is named, never drawn as a blank bubble.
   const voice = voicePart(message);
   const call = callPart(message);
-  const command = commandPart(message);
+  // A command chip marks only the owner's own words, as on Web.
+  const command = isOwner ? commandPart(message) : null;
   const clock = (seconds: number) => {
     const s = Math.max(0, Math.round(seconds || 0));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -247,6 +248,12 @@ export function MessageBubble({
             onAction={onVisualAction}
             onChartLink={onChartLink}
           />
+        ) : command ? (
+          // As Web: after the chip, only the owner's words after the command (a summary of
+          // nothing more names the conversation); the typed «/name» is not shown again.
+          command.argument || command.name === "summary" ? (
+            <Markdown content={command.argument || t("cmdSummaryOf")} onChartLink={onChartLink} />
+          ) : null
         ) : message.content ? (
           <Markdown content={peerOutcome(message.content).body} onChartLink={onChartLink} />
         ) : partLine ? (

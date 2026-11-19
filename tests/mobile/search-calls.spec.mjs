@@ -111,6 +111,12 @@ test("a jump marks its message; a call log calls back; no voice provider says so
     expect(marked.width).toBe(plain.width);
     await quote.click();
     await expect(flashed).toContainText("Line 3");
+    // Tapped again while it shows, the mark starts over (as Web): 2 s after the earlier tap,
+    // past its 1.7 s, it still shows.
+    await page.waitForTimeout(1000);
+    await quote.click();
+    await page.waitForTimeout(1000);
+    expect(await flashed.count()).toBe(1);
 
     // A missed call says it can be called back, as Web.
     await expect(page.getByText("Tap to call back", { exact: true })).toBeVisible();

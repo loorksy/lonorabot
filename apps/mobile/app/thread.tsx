@@ -12,6 +12,7 @@ import type {
   ReactionEmoji,
   Run,
   Thread,
+  ThreadUpdatedPayload,
   TradeApproval,
 } from "@lonora/contracts";
 import {
@@ -104,7 +105,7 @@ import {
 import { projectConversation } from "../lib/conversation-projection";
 import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
-import { chatsWord, fill } from "../lib/i18n";
+import { fill } from "../lib/i18n";
 import { listsApi } from "../lib/lists-api";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
@@ -167,7 +168,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [reply, setReply] = useState<Message | null>(null);
   // The agent's enabled skills, loaded the first time «/» starts a message in its chat.
   const [skills, setSkills] = useState<Skill[]>([]);
+  // The agent whose skills were asked for, and the agent this chat shows now.
   const skillsOf = useRef<string | null>(null);
+  const skillsAgent = useRef<string | null>(null);
   // Edit and resend (Q21): the owner's message the next send replaces.
   const [editing, setEditing] = useState<Message | null>(null);
   // The owner's quick reactions as the server last answered them, until a snapshot carries them.
@@ -184,8 +187,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const toast = useToast();
   const { patchInbox } = useShellData();
   const prefs = useChatPrefs();
-  // The message a search or quote jump landed on (tinted for 1.7 s).
-  const [flash, setFlash] = useState<string | null>(null);
+  // The message a search or quote jump landed on (tinted for 1.7 s). Each jump sets a new
+  // mark, so a second tap on the same quote restarts it, as on Web.
+  const [flash, setFlash] = useState<{ id: string } | null>(null);
   useEffect(() => {
     if (!flash) return;
     const timer = setTimeout(() => setFlash(null), 1700);
@@ -301,8 +305,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     [outboxKey, scope],
   );
   useEffect(() => {
-    const agentId = thread?.group_id ? null : thread?.agent_id;
-    if (skillsOf.current !== agentId) setSkills([]);
+    const agentId = thread?.group_id ? null : (thread?.agent_id ?? null);
+    if (skillsAgent.current !== agentId) {
+      // Another chat: the last agent's skills, and its request still out, are not this one's.
+      skillsAgent.current = agentId;
+      skillsOf.current = null;
+      setSkills([]);
+    }
     if (
       !agentId ||
       skillsOf.current === agentId ||
@@ -313,7 +322,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     void api
       .get<Skill[]>(`/skills?agent_id=${encodeURIComponent(agentId)}`)
       .then((rows) => {
-        if (skillsOf.current === agentId) setSkills(rows);
+        if (skillsAgent.current === agentId) setSkills(rows);
       })
       // Without its skills the chat still offers its commands; the next chat asks again.
       .catch(() => undefined);
@@ -612,6 +621,15 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               setReactions((old) => new Map(old).set(value.message_id as string, rows));
             }
           }
+          // The chat's options as the server set them (from Web or another device): the
+          // web-search globe beside «+» follows them.
+          if (event.kind === "thread.updated") {
+            const value = event.payload as Partial<ThreadUpdatedPayload>;
+            if (value.thread_id === id && value.options) {
+              const options = { web_search: Boolean(value.options.web_search) };
+              setThread((old) => (old && old.id === id ? { ...old, options } : old));
+            }
+          }
           if (
             ![
               "run.delta",
@@ -902,13 +920,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: `jumpAgain` repeats a jump to the same message
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
-    const index = conversationTimeline(
-      visibleMessages,
-      approvals.filter((row) => row.thread_id === id),
-      ownerActions.filter((row) => row.thread_id === id),
-      undrawn,
-      receipts.filter((row) => row.thread_id === id),
-    )
+    const index = [...timeline]
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
     if (index < 0) return;
@@ -919,8 +931,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
     // The message the jump landed on is marked for a moment, as on Web.
     const landed = visibleMessages.find((row) => row.seq === around);
-    if (landed) setFlash(landed.id);
-  }, [around, loaded, visibleMessages, approvals, ownerActions, receipts, id, undrawn, jumpAgain]);
+    if (landed) setFlash({ id: landed.id });
+  }, [around, loaded, timeline, visibleMessages, jumpAgain]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -951,10 +963,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   /** A command that sends nothing opens what the chat already has; «ملخص» is sent at once. */
   const runCommand = (row: CommandRow) => {
     if (row.command === "summary")
-      // Sent at once with the reply it answers, which then leaves the composer (as on Web).
-      void send(undefined, `/${row.name}`, { name: "summary", argument: "" }, reply?.id ?? null)
-        .then(() => updateDraft({ reply: null }))
-        .catch(() => undefined);
+      // Sent at once with the reply it answers; send() takes that reply out of the composer
+      // once the message is queued (as on Web).
+      void send(
+        undefined,
+        `/${row.name}`,
+        { name: "summary", argument: "" },
+        reply?.id ?? null,
+      ).catch(() => undefined);
     else if (row.command === "chart")
       chartSheet.open({ threadId: id, ...(agent ? { botId: agent.id } : {}) });
     else if (row.command === "call") {
@@ -976,7 +992,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               textAlign: rtl ? "right" : "left",
             }}
           >
-            {fill(t("sh_confClear"), chatsWord(locale, 1))}
+            {t(thread?.group_id ? "clearChatGroup" : "clearChatAgent")}
           </Text>
           <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 10 }}>
             <Btn label={t("sh_cancel")} variant="outline" full onPress={() => sheets.close()} />
@@ -1026,9 +1042,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       (!followUp && editing && !draft.trim())
     )
       return;
-    // «/» commands: never in an edit or a message with files, as on Web.
+    // «/» commands: never in an edit or a message with attached files, as on Web and as the
+    // composer's hint: a file still uploading is not attached yet.
     let command = asked ?? null;
-    if (!followUp && !editing && !attachments.length && !uploads.length) {
+    if (!followUp && !editing && !attachments.length) {
       const typed = parseCommand(draft, commands);
       if (typed) {
         const option = typed.option;
@@ -1083,9 +1100,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         handed,
         followUp ? [] : attachments,
       );
-      const nextDraft = followUp
-        ? composerDraft(targetKey)
-        : consumeComposerDraft(targetKey, submittedDraft.revision);
+      // A command sent at once took the composer's reply: queued, it leaves the composer.
+      const nextDraft = !followUp
+        ? consumeComposerDraft(targetKey, submittedDraft.revision)
+        : replyTo
+          ? editComposerDraft(targetKey, { reply: null })
+          : composerDraft(targetKey);
       if (current()) {
         following.current = true;
         setAtEnd(true);
@@ -1094,7 +1114,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           markEditing(targetKey, false);
           setEditing(null);
         }
-        if (!followUp) {
+        if (!followUp || replyTo) {
           setDraft(nextDraft.text);
           setAttachments(nextDraft.attachments);
           setReply(nextDraft.reply);
@@ -1645,7 +1665,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         onMenu={message.id.startsWith("preview:") ? undefined : menu.open}
                         onReactions={menu.reactions}
                         onQuote={jumpTo}
-                        flash={flash === message.id}
+                        flash={flash?.id === message.id}
                         onCallBack={
                           agent && thread && !thread.group_id
                             ? () => void voice.start(agent, thread.id)
