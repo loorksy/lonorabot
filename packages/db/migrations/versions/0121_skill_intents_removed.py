@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0121_skill_intents_removed"
-down_revision = "0138_skill_package_files"
+down_revision = "0087_end_money_limits"
 branch_labels = None
 depends_on = None
 
