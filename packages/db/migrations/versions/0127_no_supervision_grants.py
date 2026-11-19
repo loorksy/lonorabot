@@ -140,8 +140,8 @@ def resume_task(bind: sa.Connection, task_id: str, now: datetime) -> None:
         and run.status == "waiting_takeover"
     ):
         execution = _json(run.execution_state)
-        question = execution.get("pending_input_request")
-        if isinstance(question, dict) and question.get("kind") == "owner_attention":
+        question = _json(execution.get("pending_input_request"))
+        if question.get("kind") == "owner_attention":
             # Frozen release_attention: the work resumes, not the question.
             execution["input_requests"] = [
                 {**item, "status": "cancelled"}
