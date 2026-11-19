@@ -24,7 +24,7 @@ from lonora_db.threads import conversation_thread
 from sqlalchemy import delete, select, text
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0061_trade_approval_validity"
+BEFORE = "0100_execution_receipts"
 
 
 def alembic(*arguments: str) -> None:
