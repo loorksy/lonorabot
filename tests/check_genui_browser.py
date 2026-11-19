@@ -21,6 +21,9 @@ a scripted model, the simulation broker quoting the screenshot's prices.
             trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
             to give the slot; with ``number``, also the agent's own Number field, whose Enter
             must never reach the slot's buttons.
+``tallest_mandate`` the conversation's agent with every line its Mandate card can show: an
+            80-character name (the contract's longest) and an active signed grant; it is in
+            Ask, whose line is the longer.
 """
 
 import asyncio
@@ -461,6 +464,36 @@ async def slots(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+async def tallest_mandate(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.schema import AccountAuthorityRow, AgentRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"])
+            assert thread is not None and thread.agent_id is not None
+            agent = await session.get(AgentRow, thread.agent_id)
+            assert agent is not None and agent.trading_mode == "ask"
+            agent.name = (
+                "وكيل الذهب والفضة والنفط والعملات الرئيسية في جلستي لندن ونيويورك وفي جلسة طوكيو"
+            )
+            session.add(
+                AccountAuthorityRow(
+                    owner_id=thread.owner_id,
+                    agent_id=agent.id,
+                    thread_id=thread.id,
+                    account_id=data["connection"],
+                    status="active",
+                    envelope={"account_id": data["connection"]},
+                    envelope_hash="hash",
+                    activation_expires_at=utcnow(),
+                )
+            )
+        return {}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
     command = sys.argv[1]
     payload = json.loads(sys.stdin.read() or "{}")
@@ -473,5 +506,6 @@ if __name__ == "__main__":
         "pad": pad,
         "records": records,
         "slots": slots,
+        "tallest_mandate": tallest_mandate,
     }[command]
     print(json.dumps(asyncio.run(action(payload))))

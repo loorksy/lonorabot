@@ -89,8 +89,10 @@ HEIGHTS = {
 # journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
 # counts toward the 560 px budget like any block, and is never folded). A Secret card grows
 # with the fields the agent asked for: 305 px and 95 px a field (measured 398 px for one
-# field, 493 for two, 588 for three, 1,063 for eight; a broker card's two fields, 493).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 300, "secret": 305}
+# field, 493 for two, 588 for three, 1,063 for eight; a broker card's two fields, 493). A
+# Mandate card is counted at its tallest: an 80-character name, Ask and a signed grant's line
+# (measured 362 px).
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 365, "secret": 305}
 SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).

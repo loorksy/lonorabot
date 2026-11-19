@@ -137,9 +137,10 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   agent's own field presses the agent's own primary Button only, never a button inside a slot,
   and a sent card dims its own blocks, never a slot.
 - **Budget (10.1.4).** A slot counts its height toward the 560 px resting height and is one
-  of the 6 visible blocks: trade approval 230 px, settle 460 px and mandate 300 px; a Secret
-  card 305 px and 95 px for each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`;
-  `slot_records` reads the field count). Each is measured at 390 px with its frame by the web "Slots" journey. The
+  of the 6 visible blocks: trade approval 230 px, settle 460 px and mandate 365 px (its
+  tallest: the longest name, Ask and a signed grant's line); a Secret card 305 px and 95 px
+  for each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads the
+  field count). Each is measured at 390 px with its frame by the web "Slots" journey. The
   agent's other blocks fold first; a slot is never folded, and a card over 720 px falls back,
   which brings the record's row back (a Secret card of eight fields always does).
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's

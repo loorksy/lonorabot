@@ -516,7 +516,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
     // Each slot fits the height the compiler counts for it at rest at 390 px (SLOT_HEIGHTS in
-    // genui_compile.py: trade approval 230 px, settle 460 px, mandate 300 px, frame included).
+    // genui_compile.py: trade approval 230 px, settle 460 px, mandate 365 px, frame included).
     expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
     expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
     // The Mandate card in its slot: the agent's mode read live and one button for the other
@@ -526,7 +526,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(mandateSlot.locator(`[data-owner-action="${ids.mandate}"]`)).toBeVisible();
     await expect(mandate).toHaveCount(1);
     await expect(mandateSlot).toContainText("التفويض");
-    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(300);
+    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(365);
     // The Secret card in its slot: W-ENV's own form, whose values go straight to the
     // encrypted store; its row steps aside too. The compiler counts it 305 px and 95 px a
     // field (SLOT_HEIGHTS, SLOT_ROW_HEIGHTS): 495 px for these two fields.
@@ -535,6 +535,12 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(page.locator(`[data-owner-action="${ids.secret}"]`)).toHaveCount(1);
     await expect(secretSlot).toContainText("بيانات سرّية");
     expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(305 + 2 * 95);
+    // The Mandate card at its tallest, which is what the compiler counts: the longest name,
+    // Ask's line and the line a signed grant adds.
+    python("tallest_mandate", fixture.input);
+    await page.reload();
+    await expect(mandateSlot).toContainText("صلاحيته الموقّعة تبقى سارية");
+    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(365);
     // Decided elsewhere while this screen still shows it pending: the second tap is refused
     // and the slot shows the record as it is now.
     await page.route("**/api/trading/approvals?*", (route) => route.abort());
