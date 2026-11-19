@@ -96,7 +96,7 @@ async def secret_card(fixture: Fixture) -> None:
             ToolCall(
                 id="call-" + uuid4().hex,
                 name="owner_action_propose",
-                arguments={"kind": "connect_credential", "target": "mcp_server", "service": "x"},
+                arguments={"kind": "secret", "target": "mcp_server", "service": "x"},
             ),
             context,
         )
@@ -503,7 +503,7 @@ async def fallbacks(fixture: Fixture) -> None:
     context = await fixture.lease(await fixture.run(agent, thread))
     cards: list[str] = []
     for target in ("mcp_server", "brave_search"):
-        arguments: dict[str, str] = {"kind": "connect_credential", "target": target}
+        arguments: dict[str, str] = {"kind": "secret", "target": target}
         if target == "mcp_server":
             arguments["service"] = "x"
         card = await load_tools().execute(

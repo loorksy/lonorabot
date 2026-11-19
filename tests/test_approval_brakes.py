@@ -35,6 +35,8 @@ async def test_a_first_trade_on_a_fresh_install_is_asked_with_no_start_card() ->
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
+            "reason": "Fixture entry",
         }
         asked = await call(context, "trade_execute", **entry)
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked

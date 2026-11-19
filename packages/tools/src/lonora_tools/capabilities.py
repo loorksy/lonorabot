@@ -19,6 +19,7 @@ from lonora_charts.capabilities import chart_capabilities
 from lonora_contracts.domain import Contract
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_db.client import Database
+from lonora_db.integrations import has_source, source_host
 from lonora_db.schema import (
     AgentRow,
     IntegrationRow,
@@ -66,8 +67,8 @@ def built_in(
     owner_id: str,
 ) -> list[dict[str, Any]]:
     enabled = [row.payload for row in integrations if row.payload.get("enabled")]
-    calendar = any(item.get("type") == "economic_calendar" and item.get("url") for item in enabled)
-    feeds = sum(1 for item in enabled if item.get("type") == "news_feed" and item.get("url"))
+    calendar = any(item.get("type") == "economic_calendar" and has_source(item) for item in enabled)
+    feeds = sum(1 for item in enabled if item.get("type") == "news_feed" and has_source(item))
     declared = sum(1 for item in infrastructure.mcp_declarations if item.owner_id == owner_id)
 
     def entry(name: str, state: str, via: str | None = None) -> dict[str, Any]:
@@ -252,7 +253,6 @@ def integration_entry(
 ) -> dict[str, Any]:
     config = row.payload
     kind = str(config.get("type"))
-    url = config.get("url")
     deliver = threads.get(str(config.get("thread_id") or ""))
     return {
         "id": row.id,
@@ -261,11 +261,9 @@ def integration_entry(
         "enabled": bool(config.get("enabled")),
         "configured": bool(config.get("secret_id"))
         if kind in {"brave_search", "telegram", "webhook"}
-        else bool(url),
+        else has_source(config),
         # A feed's domain only: its URL may carry a token.
-        "domain": urlsplit(str(url)).hostname
-        if url and kind in {"news_feed", "economic_calendar"}
-        else None,
+        "domain": source_host(config) if kind in {"news_feed", "economic_calendar"} else None,
         "deliver_to_agent_name": agents.get(deliver or "") if deliver else None,
     }
 
@@ -290,10 +288,10 @@ async def listing(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         # The exact timeframes and indicators the chart and market tools accept.
         "charts": chart_capabilities(),
         "guidance": "Use any ready capability without asking. not_connected: offer one "
-        "connect_credential card. A source outside trusted_sources is trusted only when the "
-        "owner names it in chat. Workspace commands run only in an ordinary run, never in a "
-        "helper or an observe-only wake. A ready capability your inventory lists as "
-        "unavailable_now has a service that is not answering at the moment; say so plainly.",
+        "Secret card with its target. A source outside trusted_sources is trusted only "
+        "when the owner names it in chat. Workspace commands run only in an ordinary run, "
+        "never in a helper or an observe-only wake. A ready capability your inventory lists "
+        "as unavailable_now has a service that is not answering at the moment; say so plainly.",
     }
 
 

@@ -39,6 +39,19 @@ async def ensure_personal_agent(session: AsyncSession, owner_id: str) -> AgentRo
     # Lonora supervises every agent by default; the owner revokes any grant in one tap.
     await seed_personal_grants(session, owner_id, row.id)
     thread = await conversation_thread(session, owner_id, row.id)
+    from lonora_contracts.owner_actions import OwnerActionProposal
+
+    from .owner_actions import raise_system_card
+
+    # Lonora starts in Ask and offers its own Mandate card during onboarding (4.3.1).
+    await raise_system_card(
+        session,
+        owner_id,
+        OwnerActionProposal(kind="trading_mode", agent_id=row.id),
+        agent_id=row.id,
+        thread_id=thread.id,
+        run_id=None,
+    )
     emit(session, owner_id, "agent.personal_initialized", agent_id=row.id, thread_id=thread.id)
     return row
 
