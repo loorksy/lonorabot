@@ -355,6 +355,11 @@ export function OwnerPage() {
         {rows.map((row) => {
           const fields = row.changes.filter((item): item is FieldChange => "field" in item);
           const text = row.changes.filter((item): item is LineChange => "change" in item);
+          // Undoing a move away from «النشاط فقط» (Lonora's own, migration 0173, among them) is
+          // refused (reach_me_choice_removed), so that change offers no «استعادة».
+          const undoable = !fields.some(
+            (item) => item.field === "reach_me" && item.before === "activity",
+          );
           const label =
             row.document === "owner_profile"
               ? t`Preferences`
@@ -401,11 +406,11 @@ export function OwnerPage() {
                   <Icon name="undo" />
                   <Trans>Restored</Trans>
                 </span>
-              ) : (
+              ) : undoable ? (
                 <button type="button" className="btn sm outline" onClick={() => void restore(row)}>
                   <Trans>Restore</Trans>
                 </button>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -413,7 +418,7 @@ export function OwnerPage() {
       <Note>
         <Trans>
           One profile all your agents read. Every change is logged with its author, and you can
-          restore any earlier value.
+          restore earlier values.
         </Trans>
       </Note>
     </>

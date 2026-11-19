@@ -160,6 +160,14 @@ def test_undoing_a_change_away_from_activity_only_says_the_choice_is_gone():
     with pytest.raises(LonoraError) as error:
         undone_preferences(stored, IncomingCallPolicy(channel="notify"))
     assert error.value.code == "reach_me_choice_removed"
+    # Refused as a whole: a reply language the same change set is not undone either.
+    with_language = MemoryRevisionRow(
+        previous_content=json.dumps(before),
+        content=json.dumps({**json.loads(after), "reply_language": "ar"}),
+    )
+    with pytest.raises(LonoraError) as error:
+        undone_preferences(with_language, IncomingCallPolicy(channel="notify"))
+    assert error.value.code == "reach_me_choice_removed"
     # A change made while «النشاط فقط» was chosen still undoes what it touched.
     no_quiet = {
         key: None

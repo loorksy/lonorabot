@@ -5247,8 +5247,12 @@ msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "One profile all your agents read, with its change log, is in Settings."
 
 #: src/shell/settings/OwnerPage.tsx:414
-msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
-msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
+#~ msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
+#~ msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
+
+#: src/shell/settings/OwnerPage.tsx:419
+msgid "One profile all your agents read. Every change is logged with its author, and you can restore earlier values."
+msgstr "One profile all your agents read. Every change is logged with its author, and you can restore earlier values."
 
 #: src/conversation/Cards.tsx:528
 msgid "One step"
@@ -5754,7 +5758,7 @@ msgid "Positions"
 msgstr "Positions"
 
 #: src/shell/settings/OwnerPage.tsx:250
-#: src/shell/settings/OwnerPage.tsx:360
+#: src/shell/settings/OwnerPage.tsx:365
 msgid "Preferences"
 msgstr "Preferences"
 
@@ -6300,7 +6304,7 @@ msgid "Responsible agent"
 msgstr "Responsible agent"
 
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:406
+#: src/shell/settings/OwnerPage.tsx:411
 msgid "Restore"
 msgstr "Restore"
 
@@ -6309,7 +6313,7 @@ msgstr "Restore"
 #~ msgid "Restore to version {0}"
 #~ msgstr "Restore to version {0}"
 
-#: src/shell/settings/OwnerPage.tsx:402
+#: src/shell/settings/OwnerPage.tsx:407
 msgid "Restored"
 msgstr "Restored"
 

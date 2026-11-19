@@ -228,13 +228,16 @@ preferences, plain field changes without device identifiers):
   wrote, nothing is saved and the answer is `memory_revert_conflict` (409): undo the
   later change first or edit the text. For preferences only the settings that
   change touched go back (undoing an Agent's "reply in Arabic" leaves a later "message
-  me instead of calling" as it is); a change whose earlier reach-me was the removed
-  "activity only" is not undone (`reach_me_choice_removed`, 409). The document is
-  locked before anything is read.
+  me instead of calling" as it is). Undoing a change that moved the reach-me away from
+  the removed "activity only" (Lonora's own move, migration 0173, among them) saves
+  nothing, not even the other settings that change touched (`reach_me_choice_removed`,
+  409); a change made while "activity only" was chosen that left the reach-me as it was
+  still undoes what it touched. The document is locked before anything is read.
 
 On the web the profile lives in Settings: «الملف الشخصي» (`/app/owner`) edits the name, the
 form of address, the time zone and the profile text, lists what agents wrote and shows the
-change log with «استعادة»; «الإشعارات والتواصل» (`/app/notify-settings`) holds the reach-me
+change log with «استعادة» (not on a change that moved the reach-me away from "activity only",
+since its undo is refused); «الإشعارات والتواصل» (`/app/notify-settings`) holds the reach-me
 choice, quiet hours to the minute and each agent's delivery rules. The Knowledge panel
 links to both. The memory tab of each Agent shows its own history the same way. Labels and error texts come from one table in
 `@lonora/core` (`owner-profile.ts`) in Arabic and English, read by both Web

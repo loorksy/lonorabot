@@ -5241,8 +5241,12 @@ msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع سجل تغييراته، في الإعدادات."
 
 #: src/shell/settings/OwnerPage.tsx:414
-msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
-msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
+#~ msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
+#~ msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
+
+#: src/shell/settings/OwnerPage.tsx:419
+msgid "One profile all your agents read. Every change is logged with its author, and you can restore earlier values."
+msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة قيم سابقة."
 
 #: src/conversation/Cards.tsx:528
 msgid "One step"
@@ -5748,7 +5752,7 @@ msgid "Positions"
 msgstr "الصفقات"
 
 #: src/shell/settings/OwnerPage.tsx:250
-#: src/shell/settings/OwnerPage.tsx:360
+#: src/shell/settings/OwnerPage.tsx:365
 msgid "Preferences"
 msgstr "التفضيلات"
 
@@ -6294,7 +6298,7 @@ msgid "Responsible agent"
 msgstr "الوكيل المسؤول"
 
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:406
+#: src/shell/settings/OwnerPage.tsx:411
 msgid "Restore"
 msgstr "استعادة"
 
@@ -6303,7 +6307,7 @@ msgstr "استعادة"
 #~ msgid "Restore to version {0}"
 #~ msgstr "الرجوع إلى الإصدار {0}"
 
-#: src/shell/settings/OwnerPage.tsx:402
+#: src/shell/settings/OwnerPage.tsx:407
 msgid "Restored"
 msgstr "استُعيدت"
 
