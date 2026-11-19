@@ -8,8 +8,6 @@ type Attention = {
   view: AttentionViewRow[];
   error: unknown;
   seen: (id: string) => Promise<void>;
-  /** Read the open items again (after «تحديد الكل كمقروء»). */
-  refresh: () => void;
 };
 const Context = createContext<Attention | null>(null);
 export function AttentionProvider({
@@ -22,7 +20,6 @@ export function AttentionProvider({
   const [items, setItems] = useState<AttentionNotification[]>([]);
   const [view, setView] = useState<AttentionViewRow[]>([]);
   const [error, setError] = useState<unknown>();
-  const [manual, setManual] = useState(0);
   useEffect(() => {
     const deadlines = items
       .filter((item) => item.parameters.valid_until)
@@ -44,7 +41,6 @@ export function AttentionProvider({
   }, [items]);
   useEffect(() => {
     void revision;
-    void manual;
     let active = true;
     void api
       .get<AttentionNotification[]>("/attention")
@@ -67,7 +63,7 @@ export function AttentionProvider({
     return () => {
       active = false;
     };
-  }, [revision, manual]);
+  }, [revision]);
   return (
     <Context.Provider
       value={{
@@ -79,7 +75,6 @@ export function AttentionProvider({
           setItems((rows) => rows.filter((row) => row.id !== id));
           setView((rows) => rows.filter((row) => row.id !== id));
         },
-        refresh: () => setManual((value) => value + 1),
       }}
     >
       {children}
