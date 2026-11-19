@@ -929,7 +929,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     orderShown.current = row;
     const settle = ownerActions.find(
       (card) =>
-        card.kind === "resolve_operation" &&
+        card.kind === "settle_operation" &&
         card.status === "pending" &&
         card.facts.operation?.operation_id === row.operation_id,
     );

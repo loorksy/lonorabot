@@ -190,7 +190,7 @@ test("«Resolve the operation» rests the list on the operation's own settle car
   test.setTimeout(60000);
   const fixtureData = await fixture(context);
   const card = seedCard({
-    kind: "resolve_operation",
+    kind: "settle_operation",
     account: fixtureData.data.account,
     symbol: fixtureData.data.symbol,
     agent: fixtureData.agent.id,
