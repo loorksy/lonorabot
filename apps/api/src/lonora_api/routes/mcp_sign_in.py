@@ -6,16 +6,19 @@ what identifies it: random, kept only as a digest, used once and only within ten
 minutes. The callback exchanges the code with the PKCE verifier (no lock held), then, in
 one transaction, keeps the tokens as workspace secrets, connects the server and settles
 the card; the agent that asked is woken. A sign-in that does not finish (declined,
-another issuer, a refused exchange) leaves the card waiting, and the card says so. The
-browser always goes back to the app: the web app's conversation, or the mobile app.
+another issuer, a refused exchange, a save that fails) leaves the card waiting, and the
+card says so. The browser always goes back to the app: the card's conversation in the web
+app, or the mobile app. The state and the code never reach the access log.
 """
+
+import logging
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from lonora_adapters.mcp.oauth import Client, exchange_code, issuer_matches
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_core.user_error import LonoraError
-from lonora_db.mcp_sign_ins import fail_sign_in, hidden_values, take_sign_in
+from lonora_db.mcp_sign_ins import fail_sign_in, take_sign_in
 from lonora_db.owner_actions import continue_after_card, settle
 from lonora_db.schema import OwnerActionRow
 from lonora_db.secret_cards import secret_stale_reason
@@ -26,8 +29,22 @@ from ..middleware.auth import runtime
 from .secret_cards import SignedIn, pending_card, save_server, settle_saved
 
 router = APIRouter(prefix="/mcp/oauth")
+CALLBACK_PATH = "/api/mcp/oauth/callback"
 # The mobile app's own scheme (packages/ui-tokens/src/brand.ts).
 APP_SCHEME = "lonora://"
+
+
+class CallbackQueryFilter(logging.Filter):
+    """The access log keeps the callback's path only: its query holds the sign-in's state
+    and code. Every other request is logged as it was."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        parts = record.args
+        if isinstance(parts, tuple) and len(parts) == 5:
+            path = parts[2]
+            if isinstance(path, str) and path.startswith(CALLBACK_PATH + "?"):
+                record.args = (*parts[:2], CALLBACK_PATH, *parts[3:])
+        return True
 
 
 def back_to(settings: Settings, return_to: str | None, card: OwnerActionRow | None) -> str:
@@ -36,7 +53,8 @@ def back_to(settings: Settings, return_to: str | None, card: OwnerActionRow | No
     if return_to == "app":
         return APP_SCHEME + (f"thread?id={card.thread_id}" if card and card.thread_id else "")
     if return_to == "web" and card is not None and card.agent_id:
-        return f"{origin}/app/{card.agent_id}"
+        thread = f"?thread={card.thread_id}" if card.thread_id else ""
+        return f"{origin}/app/{card.agent_id}{thread}"
     return origin + "/app"
 
 
@@ -51,10 +69,11 @@ async def callback(
     rt = runtime(request)
     key = rt.settings.encryption_key.get_secret_value()
     async with rt.db.sessions() as session, session.begin():
-        sign_in = await take_sign_in(session, state)
-        if sign_in is None:
+        taken = await take_sign_in(session, SecretCipher(key), state)
+        if taken is None:
             # Unknown, used or late: nothing to finish.
             return RedirectResponse(back_to(rt.settings, None, None), 303)
+        sign_in, hidden = taken
         plan, owner_id, card_id = dict(sign_in.plan), sign_in.owner_id, sign_in.card_id
         back = RedirectResponse(
             back_to(rt.settings, plan["return_to"], await session.get(OwnerActionRow, card_id)),
@@ -67,7 +86,6 @@ async def callback(
             # Another authorization server's answer (a mix-up): its code is never used.
             sign_in.failure = "mcp_sign_in_failed"
             return back
-        hidden = hidden_values(SecretCipher(key), sign_in)
         sign_in_id = sign_in.id
     client = Client(plan["client_id"], hidden.get("client_secret"), plan["client_method"])
     try:
@@ -84,20 +102,25 @@ async def callback(
             await fail_sign_in(session, sign_in_id, refused.code)
         return back
     store = EncryptedSecretStore(rt.db, key, owner_id)
-    async with rt.db.sessions() as session, session.begin():
-        row = await pending_card(session, owner_id, card_id)
-        if row is None:
-            return back  # Settled meanwhile: nothing is saved.
-        reason = await secret_stale_reason(session, owner_id, row.payload)
-        if reason is not None:
-            await settle(session, row, "expired", reason)
-            return back
-        signed_in = SignedIn(
-            tokens, client, plan["issuer"], plan["token_endpoint"], hidden["resource"]
-        )
-        result = await save_server(
-            session, store, owner_id, row, hidden["address"], None, signed_in
-        )
-        await settle_saved(session, owner_id, row, result)
-        await continue_after_card(session, row)
+    try:
+        async with rt.db.sessions() as session, session.begin():
+            row = await pending_card(session, owner_id, card_id)
+            if row is None:
+                return back  # Settled meanwhile: nothing is saved.
+            reason = await secret_stale_reason(session, owner_id, row.payload)
+            if reason is not None:
+                await settle(session, row, "expired", reason)
+                return back
+            signed_in = SignedIn(
+                tokens, client, plan["issuer"], plan["token_endpoint"], hidden["resource"]
+            )
+            result = await save_server(
+                session, store, owner_id, row, hidden["address"], None, signed_in
+            )
+            await settle_saved(session, owner_id, row, result)
+            await continue_after_card(session, row)
+    except LonoraError as refused:
+        # Nothing was saved: the card waits and says the sign-in did not finish.
+        async with rt.db.sessions() as session, session.begin():
+            await fail_sign_in(session, sign_in_id, refused.code)
     return back

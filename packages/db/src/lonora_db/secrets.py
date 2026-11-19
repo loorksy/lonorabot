@@ -24,13 +24,14 @@ METAAPI_TOKEN = "metaapi_token"
 SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 # Where a connection names its secrets: an MCP server saved from a Secret card also
-# names the secret that holds its address, and one Lonora signed in to its refresh token
-# and any client secret.
+# names the secret that holds its address, and one Lonora signed in to its refresh token,
+# any client secret and any identifier it published other than its address.
 SECRET_KEYS: tuple[str | tuple[str, str], ...] = (
     "secret_id",
     "url_secret_id",
     ("oauth", "refresh_secret_id"),
     ("oauth", "client_secret_id"),
+    ("oauth", "resource_secret_id"),
 )
 REFERENCES: tuple[tuple[Any, tuple[str | tuple[str, str], ...]], ...] = (
     (BrokerSessionRow, ("secret_id",)),

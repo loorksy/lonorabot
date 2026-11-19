@@ -57,13 +57,14 @@ CONNECTING: dict[str, tuple[tuple[tuple[str, str, bool, bool], ...], str]] = {
 }
 # The workspace name each value of a connecting card is saved under ({name}: its name).
 SAVED_AS: dict[str, dict[str, str]] = {
-    # A server Lonora signs in to also keeps its refresh token, and a client secret its
-    # authorization server issued.
+    # A server Lonora signs in to also keeps its refresh token, a client secret its
+    # authorization server issued, and an identifier it published other than its address.
     "mcp_server": {
         "URL": "MCP_{name}_URL",
         "TOKEN": "MCP_{name}_TOKEN",
         "REFRESH_TOKEN": "MCP_{name}_REFRESH_TOKEN",
         "CLIENT_SECRET": "MCP_{name}_CLIENT_SECRET",
+        "RESOURCE": "MCP_{name}_RESOURCE",
     },
     "brave_search": {"API_KEY": "BRAVE_API_KEY"},
     "news_feed": {"URL": "FEED_{name}_URL"},

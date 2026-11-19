@@ -28,7 +28,13 @@ from lonora_db.trusted_sources import (
     source_names,
     trust_source,
 )
-from lonora_tools.mcp import advertised_tools, server_address, signed_in
+from lonora_tools.mcp import (
+    advertised_tools,
+    renewal,
+    same_connection,
+    server_address,
+    signed_in,
+)
 
 from ..middleware.auth import require_owner, runtime
 from ..runtime import ApiRuntime
@@ -89,8 +95,9 @@ async def restore(
 async def review(
     rt: ApiRuntime, owner_id: str, connection_id: str
 ) -> tuple[McpConnection, ToolReview, str, str]:
-    """Read the server's tools now (network IO outside any transaction); also the
-    fingerprint of the address they were read from."""
+    """Read the server's tools now, outside any transaction (a renewal before it holds
+    the connection's row lock for its token request only); also the fingerprint of the
+    address they were read from."""
     if not rt.settings.mcp_owner_trust:
         raise LonoraError("mcp_owner_trust_disabled", 403)
     async with rt.db.sessions() as session:
@@ -103,7 +110,8 @@ async def review(
     secrets = rt.services(owner_id).secrets
     config = await signed_in(rt.db, secrets, owner_id, connection_id, config)
     endpoint = endpoint_sha256(await server_address(secrets, config))
-    reviewed = review_tools(await advertised_tools(secrets, config))
+    renew = renewal(rt.db, secrets, owner_id, connection_id, config)
+    reviewed = review_tools(await advertised_tools(secrets, config, renew))
     digest = review_digest(endpoint, reviewed.tools, reviewed.blocked, reviewed.read_only)
     return config, reviewed, digest, endpoint
 
@@ -147,7 +155,7 @@ async def trust_mcp(
         if (
             row is None
             or row.owner_id != owner.id
-            or McpConnection.model_validate(row.payload) != config
+            or not same_connection(McpConnection.model_validate(row.payload), config)
         ):
             raise LonoraError("mcp_connection_changed", 409)
         trusted, _ = await trust_source(

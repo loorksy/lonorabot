@@ -248,7 +248,8 @@ async def save_server(
     signed_in: SignedIn | None = None,
 ) -> dict[str, Any]:
     """An MCP server from a Secret card: its address and token as workspace secrets
-    under the card's names, and, signed in, its refresh token and client secret too."""
+    under the card's names, and, signed in, its refresh token, any client secret and any
+    identifier it published other than its address too."""
     name = row.payload["details"]["name"]
     names = await free_names(session, owner_id, "mcp_server", name)
     saved: list[str] = []
@@ -267,16 +268,18 @@ async def save_server(
         tokens, client = signed_in.tokens, signed_in.client
         token_id = await keep("TOKEN", tokens.access_token)
         expires = tokens.expires_in
+        refresh_id = await keep("REFRESH_TOKEN", tokens.refresh_token)
+        client_secret_id = await keep("CLIENT_SECRET", client.client_secret)
+        # It shares the address's origin and may share its key: never on the row.
+        resource = None if signed_in.resource == address else signed_in.resource
         oauth = McpOAuth(
             issuer=signed_in.issuer,
             token_endpoint=signed_in.token_endpoint,
-            # The address is kept only in the store: a resource that is the address is
-            # not kept again on the row.
-            resource=None if signed_in.resource == address else signed_in.resource,
+            resource_secret_id=await keep("RESOURCE", resource),
             client_id=client.client_id,
             client_method=client.method,
-            refresh_secret_id=await keep("REFRESH_TOKEN", tokens.refresh_token),
-            client_secret_id=await keep("CLIENT_SECRET", client.client_secret),
+            refresh_secret_id=refresh_id,
+            client_secret_id=client_secret_id,
             expires_at=None if expires is None else utcnow() + timedelta(seconds=expires),
         )
     server = await McpRepository().create(

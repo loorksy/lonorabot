@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import contextlib
 import getpass
+import logging
 import signal
 from collections.abc import Generator
 from pathlib import Path
@@ -17,6 +18,7 @@ from lonora_db.schema import OwnerRow
 from .app import create_app
 from .cli.app import create_cli_app
 from .env import get_settings
+from .routes.mcp_sign_in import CallbackQueryFilter
 from .runtime import ApiRuntime
 
 app = create_app()
@@ -46,6 +48,14 @@ class _Server(uvicorn.Server):
         yield
 
 
+def quiet_sign_in_callbacks() -> None:
+    """The access log keeps an MCP sign-in callback's path, never its state or code.
+    Called once uvicorn has configured its loggers."""
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(item, CallbackQueryFilter) for item in access.filters):
+        access.addFilter(CallbackQueryFilter())
+
+
 def cli_socket_path(path: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     # A socket left by an earlier process would keep its old mode. Removed, uvicorn creates
@@ -67,6 +77,7 @@ async def serve(host: str, port: int) -> None:
             lifespan="off",
         )
     )
+    quiet_sign_in_callbacks()
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):

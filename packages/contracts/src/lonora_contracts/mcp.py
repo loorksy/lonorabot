@@ -10,20 +10,21 @@ class McpOAuth(Contract):
     """A server Lonora signed in to (OAuth, VISION.md 13.1): where and how its access
     token is renewed. The tokens are workspace secrets: the access token is the
     connection's ``secret_id``, the refresh token ``refresh_secret_id``, and a client
-    secret the server issued ``client_secret_id``. ``resource`` is the identifier the
-    server published for itself when it is not its address (the address may carry a key,
-    so it stays only in the store); None means the address."""
+    secret the server issued ``client_secret_id``. ``resource_secret_id`` holds the
+    identifier the server published for itself when it is not its address: it shares the
+    address's origin and may share its key, so it is kept in the store too. None means
+    the address."""
 
     issuer: str = Field(min_length=1, max_length=2048)
     token_endpoint: str = Field(min_length=1, max_length=2048)
-    resource: str | None = Field(default=None, min_length=1, max_length=2048)
+    resource_secret_id: str | None = None
     client_id: str = Field(min_length=1, max_length=8192)
     client_method: Literal["none", "client_secret_basic", "client_secret_post"] = "none"
     client_secret_id: str | None = None
     refresh_secret_id: str | None = None
     expires_at: datetime | None = None
 
-    @field_validator("issuer", "token_endpoint", "resource")
+    @field_validator("issuer", "token_endpoint")
     @classmethod
     def https_only(cls, value: str | None) -> str | None:
         if value is not None and not value.lower().startswith("https://"):

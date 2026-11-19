@@ -86,8 +86,9 @@ def test_the_agent_chooses_fields_and_the_server_the_destination() -> None:
 @pytest.mark.asyncio
 async def test_saved_names_are_free_and_numbered_per_card() -> None:
     """A connecting card's values never take a saved name: one card's names share their
-    number (an MCP server's refresh token and client secret too, which a sign-in saves),
-    and a name with no part from chat (BRAVE_API_KEY) is numbered at its end."""
+    number (an MCP server's refresh token, client secret and published identifier too,
+    which a sign-in saves), and a name with no part from chat (BRAVE_API_KEY) is numbered
+    at its end."""
     from lonora_db.secret_cards import free_names
 
     class Taken:
@@ -112,15 +113,18 @@ async def test_saved_names_are_free_and_numbered_per_card() -> None:
         "TOKEN": "MCP_DESK_FEED_TOKEN",
         "REFRESH_TOKEN": "MCP_DESK_FEED_REFRESH_TOKEN",
         "CLIENT_SECRET": "MCP_DESK_FEED_CLIENT_SECRET",
+        "RESOURCE": "MCP_DESK_FEED_RESOURCE",
     }
     second = {
         "URL": "MCP_DESK_2_URL",
         "TOKEN": "MCP_DESK_2_TOKEN",
         "REFRESH_TOKEN": "MCP_DESK_2_REFRESH_TOKEN",
         "CLIENT_SECRET": "MCP_DESK_2_CLIENT_SECRET",
+        "RESOURCE": "MCP_DESK_2_RESOURCE",
     }
     assert await names("mcp_server", "Desk", ["MCP_DESK_TOKEN"]) == second
     assert await names("mcp_server", "Desk", ["MCP_DESK_REFRESH_TOKEN"]) == second
+    assert await names("mcp_server", "Desk", ["MCP_DESK_RESOURCE"]) == second
     taken = ["BRAVE_API_KEY", "BRAVE_API_KEY_2"]
     assert await names("brave_search", "Brave Search", taken) == {"API_KEY": "BRAVE_API_KEY_3"}
     assert await names("news_feed", "رويترز", []) == {"URL": "FEED_SOURCE_URL"}
