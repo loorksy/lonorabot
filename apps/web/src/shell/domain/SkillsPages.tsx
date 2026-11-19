@@ -49,7 +49,7 @@ const NEW_MANIFEST: Omit<SkillManifest, "id" | "title" | "description" | "requir
   version: "1.0.0",
   source: "owner",
   stability: "stable",
-  activation: { mode: "automatic", intents: [], triggers: [] },
+  activation: { mode: "automatic", triggers: [] },
   risk_class: "read_only",
   required_capabilities: [],
   dependencies: [],

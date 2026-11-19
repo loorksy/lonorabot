@@ -183,7 +183,7 @@ async def main() -> None:
                         "description": "Scripted conflict",
                         "source": "owner",
                         "priority": 100,
-                        "activation": {"mode": "automatic", "intents": ["market"]},
+                        "activation": {"mode": "automatic"},
                         "conflicts": [identity],
                     },
                 },

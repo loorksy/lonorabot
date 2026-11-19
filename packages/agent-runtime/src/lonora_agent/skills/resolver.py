@@ -11,7 +11,6 @@ from .registry import CAPABILITY_TOOLS, SkillDefinition, SkillRegistry
 
 @dataclass(frozen=True)
 class SkillSignals:
-    intents: frozenset[str] = frozenset()
     trigger: str = "user"
     requested: frozenset[str] = frozenset()
     available_tools: frozenset[str] = frozenset()
@@ -104,8 +103,6 @@ def resolve_skills(
         elif activation.mode == "trigger_based":
             if signals.trigger in activation.triggers:
                 candidates[identity] = "run_trigger:" + signals.trigger
-        elif set(activation.intents) & signals.intents:
-            candidates[identity] = "intent:" + sorted(set(activation.intents) & signals.intents)[0]
         elif activation.triggers and signals.trigger in activation.triggers:
             candidates[identity] = "run_trigger:" + signals.trigger
     for unknown in signals.requested - registry.definitions.keys():

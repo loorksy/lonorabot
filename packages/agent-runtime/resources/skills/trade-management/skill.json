@@ -1,15 +1,12 @@
 {
   "id": "trade-management",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "title": "Trade Management",
   "description": "Lonora trade-management workflow.",
   "source": "builtin",
   "stability": "stable",
   "activation": {
-    "mode": "automatic",
-    "intents": [
-      "trade"
-    ],
+    "mode": "explicit",
     "triggers": []
   },
   "risk_class": "financial",

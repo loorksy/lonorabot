@@ -1,15 +1,12 @@
 {
   "id": "chart-analysis",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "title": "Chart Analysis",
   "description": "Lonora chart-analysis workflow.",
   "source": "builtin",
   "stability": "stable",
   "activation": {
-    "mode": "automatic",
-    "intents": [
-      "chart"
-    ],
+    "mode": "explicit",
     "triggers": []
   },
   "risk_class": "read_only",
