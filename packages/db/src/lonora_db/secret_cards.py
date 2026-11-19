@@ -524,6 +524,11 @@ BROKER_CAUSES = {
     "broker_rotation_incomplete": "MetaApi took the new trading password (and the new server, "
     "for a move), but Lonora could not record the change, so the terminal was not "
     "redeployed with it. Rotate again with broker_manage.",
+    "broker_rotation_superseded": "While this card waited for MetaApi to take a redeploy, "
+    "another new-password card for the same connection replaced the password, or the "
+    "connection was disconnected, so the password from this card is no longer the "
+    "connection's and Lonora did not redeploy the terminal with it; this says nothing about "
+    "the login.",
     "broker_credential_change_failed": "The change ended in an error Lonora cannot show, so "
     "how far it got is not known.",
 }
@@ -562,7 +567,7 @@ def broker_prompt(row: OwnerActionRow) -> str:
         cause = BROKER_CAUSES.get(str(result.get("code")))
         because = f"{result.get('code')}.{' ' + cause if cause else ''}"
         login = row.payload["account"]["login"]
-        if result.get("password_stored"):
+        if result.get("password_stored") and result.get("code") != "broker_rotation_superseded":
             # Stored at MetaApi and recorded, but no redeploy with it was confirmed; nothing
             # else redeploys a terminal that is running.
             changed = "password and server" if moved else "password"

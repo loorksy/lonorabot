@@ -292,6 +292,75 @@ async def test_a_new_password_metaapi_cannot_redeploy_yet_still_reaches_the_term
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("meanwhile", ["rotate_password", "disconnect"])
+async def test_a_new_password_replaced_while_its_card_waits_is_never_called_stored(
+    meanwhile: str,
+) -> None:
+    """A new-password card waits while MetaApi refuses its redeploy as busy. Meanwhile a
+    second new-password card for the same connection stores its own password (which
+    deletes the first card's), or the owner disconnects the account. The first card then
+    ends as superseded: its wake never says its password is stored at MetaApi and
+    recorded, nor asks the owner to type it again over the newer one."""
+    database()
+    from check_streaming import Fixture
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
+
+    fixture = await Fixture().open()
+    account = login()
+    world = open_world(fixture, account)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Rotate meanwhile")
+        with installed():
+            connection_id = await connected(world, agent, account)
+            context = await asked(fixture, agent, "I changed my trading password")
+            card = await call(
+                context, "broker_manage", account_id=connection_id, action="rotate_password"
+            )
+            first = card["owner_action"]["id"]
+            world.api.busy = 100
+            await world.save(first, {"PASSWORD": "fixture-first-password"})
+            await world.gateway(1)
+            assert (await world.card(first)).result["password_stored"] is True
+            second = None
+            if meanwhile == "rotate_password":
+                context = await asked(fixture, agent, "I changed it once more")
+                card = await call(
+                    context, "broker_manage", account_id=connection_id, action="rotate_password"
+                )
+                second = card["owner_action"]["id"]
+                world.api.servers[SERVER][account] = "fixture-second-password"
+                await world.save(second, {"PASSWORD": "fixture-second-password"})
+            else:
+                context = await asked(fixture, agent, "disconnect it")
+                await call(context, "broker_manage", account_id=connection_id, action="disconnect")
+            await world.gateway(1)
+            world.api.busy = 0
+            await world.gateway(1)
+        ended = (await world.card(first)).result
+        assert ended["provisioning"] == "failed", ended
+        assert ended["code"] == "broker_rotation_superseded"
+        prompt = await world.wake_prompt(first)
+        assert prompt is not None and "broker_rotation_superseded" in prompt
+        assert "stored at MetaApi and recorded" not in prompt
+        assert "rotate_password again" not in prompt and "same new password" not in prompt
+        if second is not None:
+            # The newer password is the one MetaApi and the connection hold and run.
+            assert (await world.card(second)).result["provisioning"] == "connected"
+            data = next(iter(world.api.accounts.values()))
+            assert data["password"] == data["terminal_password"] == "fixture-second-password"
+            broker = BrokerSecrets(fixture.runtime.db, key(fixture), fixture.owner)
+            secret_id = (await row(fixture, connection_id)).state["password_secret_id"]
+            assert await broker.read(secret_id) == "fixture-second-password"
+        else:
+            assert await row(fixture, connection_id) is None
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_a_new_token_replaces_the_old_only_when_it_sees_every_account() -> None:
     database()
     from check_streaming import Fixture

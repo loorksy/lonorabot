@@ -174,16 +174,20 @@ async def rotate_password(
 
     While MetaApi refuses the redeploy because it is still deploying the account
     (``broker_provisioning_busy``), the card waits and a later pass calls this again: the
-    card records ``password_stored`` with the change, so that pass only redeploys."""
+    card records ``password_stored`` with the change, so that pass only redeploys. A
+    password another card or a disconnect replaced meanwhile is not redeployed
+    (``broker_rotation_superseded``)."""
     from lonora_db.schema import OwnerActionRow
     from lonora_db.secrets import metaapi_password_name
 
     connection_id = str(card.payload["connection_id"])
     moved_to = str(card.payload["account"]["server"]) if card.payload.get("server_from") else None
     new_password = await secrets.named(metaapi_password_name(card.id))
-    if new_password is None:
-        return "broker_secret_required"
     stored = card.result.get("password_stored") is True
+    if new_password is None:
+        # A password this card stored is deleted only once no connection names it: another
+        # card's new password replaced it, or the connection was removed.
+        return "broker_rotation_superseded" if stored else "broker_secret_required"
     sent = False
     old_password: Any = None
     was: str | None = None
@@ -193,6 +197,8 @@ async def rotate_password(
             row = await repository.get(session, owner_id, connection_id)
             payload = BrokerConnection.model_validate(row.payload)
             old_password = row.state.get("password_secret_id")
+        if stored and old_password != new_password:
+            return "broker_rotation_superseded"  # another card's password since an earlier pass
         if payload.provider != "metaapi" or not payload.secret_id:
             return "broker_not_metaapi"
         provisioning = broker_provisioning.provisioning_client(
@@ -242,6 +248,8 @@ async def rotate_password(
         partial: str | None = getattr(failure, "code", "broker_provisioning_timeout")
         if not stored:
             return partial
+        if partial == "broker_sessions_not_found":
+            return "broker_rotation_superseded"  # disconnected since an earlier pass
         # Stored and recorded (``password_stored``), but the terminal was not redeployed
         # with it: the card's code says why.
     else:
