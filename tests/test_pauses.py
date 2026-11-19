@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 
 def database() -> None:
     if not os.environ.get("LONORA_DATABASE_URL"):
-        pytest.skip("Supervision reads use PostgreSQL full-text search.")
+        pytest.skip("The owner pause tests run against PostgreSQL.")
 
 
 async def add_messages(fixture: Any, thread_id: str, messages: list[tuple[str, str | None, str]]):

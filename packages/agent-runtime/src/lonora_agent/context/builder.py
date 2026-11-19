@@ -150,7 +150,7 @@ async def build_context(
         if attachments and await third_party_attachment(
             session, context.owner_id, thread.id, focus
         ):
-            # A file's text is someone else's words: the run no longer stands for the
+            # An attachment is someone else's words: the run no longer stands for the
             # owner's typed message alone (6.10).
             async with context.db.sessions() as marking, marking.begin():
                 await mark_external_content(marking, run.id, "owner_attachment")

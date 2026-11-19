@@ -118,6 +118,8 @@ def main() -> None:
     base = make_url(get_settings().database_url)
     commands = [[sys.executable, "tests/" + script] for script in CHECKS]
     commands.append([sys.executable, "-m", "pytest", "tests/test_task_runtime.py", "-q"])
+    # 6.10: an attachment on the owner's message is not the owner's word.
+    commands.append([sys.executable, "-m", "pytest", "tests/test_attachment_provenance.py", "-q"])
     # UI phase 5: delivery rules, dry-run tests, owner identity and usage, and the
     # composer's / commands (PostgreSQL cases).
     for name in (

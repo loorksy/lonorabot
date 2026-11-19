@@ -1,4 +1,4 @@
-"""6.10, 14.3.8: only the owner's typed words are the owner's words.
+"""6.10, 14.3.5: only the owner's typed words are the owner's words.
 
 A photo, a text file or a PDF attached to the owner's message reaches the model, but what
 it says is not the owner's word: the Run is marked as having read third-party content, so

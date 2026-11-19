@@ -43,7 +43,7 @@ async def third_party_attachment(
     session: AsyncSession, owner_id: str, thread_id: str, input_seq: int
 ) -> bool:
     """Whether the message carries an attachment: a photo, a text file, a PDF's text layer
-    or scanned pages. Only the owner's typed words are the owner's words (6.10, 14.3.8);
+    or scanned pages. Only the owner's typed words are the owner's words (6.10, 14.3.5);
     what a file or picture says is someone else's, whoever uploaded it."""
     message = await session.scalar(
         select(MessageRow).where(MessageRow.thread_id == thread_id, MessageRow.seq == input_seq)

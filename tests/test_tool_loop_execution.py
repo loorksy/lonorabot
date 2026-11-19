@@ -520,8 +520,8 @@ async def test_limited_ticket_and_peer_work_is_never_projected_as_completed(
         )
         assert returned is not None and "status='limited'" in returned.content
         # What the owner sees is filtered where it is written (it replaced the unused
-        # history_visibility helper): a ticket run posts no answer to its thread (a question
-        # it asks still does), and no tool result becomes a message.
+        # history_visibility helper): a ticket run posts no answer to its thread, and no
+        # tool result becomes a message.
         roles = (
             await session.scalars(
                 select(MessageRow.role).where(MessageRow.thread_id.in_([ticket_thread, thread]))
