@@ -77,6 +77,16 @@ test("the agent's suggested reply goes into the composer; web search is the chat
       "Yes, add 0.05",
     );
     await expect(chip).toHaveCount(0);
+    // As Web: the chip is back over an empty composer, and gone while a reply is set.
+    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("");
+    await expect(chip).toBeVisible();
+    await page
+      .getByText("Gold is at 2,425. Shall I add 0.05?", { exact: true })
+      .click({ delay: 900 });
+    await page.getByRole("button", { name: "Reply", exact: true }).click();
+    await expect(chip).toHaveCount(0);
+    await page.getByRole("button", { name: "Cancel reply" }).click();
+    await expect(chip).toBeVisible();
 
     await page.getByRole("button", { name: "Attach file", exact: true }).click();
     await page.getByRole("switch", { name: "Web search" }).click();

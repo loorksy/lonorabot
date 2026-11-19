@@ -109,6 +109,16 @@ export function ThreadComposer({
       setCursor(0);
     }
   }, [draft]);
+  // The agent's suggested reply, as on Web: only over an empty composer with nothing in it
+  // (no files, no reply or edit) while no reply is being written.
+  const showSuggestion =
+    Boolean(suggestion) &&
+    !draft.trim() &&
+    !attachments.length &&
+    !uploads.length &&
+    !reply &&
+    !editing &&
+    !working;
   // A message may be sent while its files upload: it goes out once they are up (as on Web).
   const canSend =
     Boolean(draft.trim() || attachments.length || uploads.length) &&
@@ -125,7 +135,7 @@ export function ThreadComposer({
         backgroundColor: shell.background,
       }}
     >
-      {suggestion && onSuggestion ? (
+      {showSuggestion && suggestion && onSuggestion ? (
         <Pressable
           testID="suggested-reply"
           accessibilityRole="button"

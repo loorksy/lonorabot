@@ -17,6 +17,7 @@ import {
   activeStatuses,
   type ConversationItem,
   conversationTimeline,
+  isUiPart,
   type LiveReplyStream,
   liveAvatarState,
   type MentionAddress,
@@ -834,6 +835,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       ),
     [runs],
   );
+  const timeline = conversationTimeline(
+    visibleMessages,
+    approvals.filter((row) => row.thread_id === id),
+    ownerActions.filter((row) => row.thread_id === id),
+    undrawn,
+  );
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
     const index = conversationTimeline(
@@ -954,15 +961,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     await deliver(intent, outboxKey, id);
   };
   const questions = threadQuestions([...asking, ...runs], id);
-  // The agent's own suggested reply (Q23) under its last plain answer, until the owner sent it.
+  // The agent's own suggested reply (Q23) under its last answer, as on Web: the answer is
+  // conversational (no generated interface, not a question) and nothing (a card) came after it.
   const lastAgent = [...visibleMessages]
     .reverse()
     .find((row) => row.role !== "user" && !row.id.startsWith("preview:"));
   const lastMine = [...visibleMessages].reverse().find((row) => row.role === "user");
   const suggestion =
     lastAgent?.suggested_reply &&
-    visibleMessages.at(-1)?.id === lastAgent.id &&
-    !(lastAgent.rich_content?.parts ?? []).some((part) => part.type !== "text") &&
+    timeline.at(-1)?.kind === "message" &&
+    !(lastAgent.rich_content?.parts ?? []).some(isUiPart) &&
     !questions.has(lastAgent.id) &&
     lastMine?.content.trim() !== lastAgent.suggested_reply
       ? lastAgent.suggested_reply
@@ -1332,12 +1340,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 ref={list}
                 testID="conversation-transcript"
                 inverted
-                data={conversationTimeline(
-                  visibleMessages,
-                  approvals.filter((row) => row.thread_id === id),
-                  ownerActions.filter((row) => row.thread_id === id),
-                  undrawn,
-                ).reverse()}
+                data={[...timeline].reverse()}
                 keyExtractor={(item) => item.id}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
                 keyboardShouldPersistTaps="handled"
@@ -1549,7 +1552,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
-          suggestion={draft ? "" : suggestion}
+          suggestion={suggestion}
           onSuggestion={(text) => updateDraft({ text })}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
