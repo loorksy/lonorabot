@@ -346,6 +346,12 @@ While an active signed grant's own management Task runs for the agent, that Task
 the account and the Full-mode Task does not start; revoking the grant starts it, also
 when a broker connection is deleted. Deleting the agent or a conversation starts none.
 
+The gateway's `management_tasks` step (every minute) catches what no tap reached. An
+agent in Full, not paused, that has never had a mode Task gets one: an agent already in
+Full when this shipped. An open mode Task of an agent in Ask, or paused, ends. A mode
+Task the owner cancelled or completed, or one that failed for good, stays as it is; the
+next Full tap or resume starts a new one.
+
 ## No model cards
 
 The former `agent_model` and `agent_model_changed` kinds are gone: only the owner assigns

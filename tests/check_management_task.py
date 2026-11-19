@@ -27,7 +27,12 @@ from lonora_db.agent_creation import pause_agent
 from lonora_db.agent_permissions import change_permission
 from lonora_db.agents import update_agent
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.management_task import MARKER, live_management_task, open_management_tasks
+from lonora_db.management_task import (
+    MARKER,
+    live_management_task,
+    open_management_tasks,
+    reconcile_management_tasks,
+)
 from lonora_db.obligations import prepare_delete
 from lonora_db.routines import due_query
 from lonora_db.schema import (
@@ -44,6 +49,7 @@ from lonora_db.schema import (
 )
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.tasks import (
+    complete_task,
     create_task,
     is_continuous_task,
     require_completed_task_steps,
@@ -56,7 +62,7 @@ from lonora_session.idempotency import stable_id
 from lonora_trading.execution import ExecutionService, require_task_authority
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.manual_activity import material_state
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -611,6 +617,60 @@ async def checks() -> None:
         )
         assert queued == 0
     print("PASS deleting the agent ends its task")
+
+    # The gateway's catch-up (4.5): an agent already in Full before this task existed
+    # gets its task; a second pass adds none.
+    async with db.sessions() as session, session.begin():
+        legacy = AgentRow(owner_id=owner_id, name="Legacy", trading_mode="full")
+        session.add(legacy)
+        await session.flush()
+        legacy_id = legacy.id
+
+    async def legacy_live() -> TicketRow | None:
+        async with db.sessions() as session, session.begin():
+            return await live_management_task(session, owner_id, legacy_id)
+
+    async def legacy_count() -> int:
+        async with db.sessions() as session:
+            return await mode_tasks(session, legacy_id)
+
+    async def set_agent(**values: Any) -> None:
+        async with db.sessions() as session, session.begin():
+            await session.execute(update(AgentRow).where(AgentRow.id == legacy_id).values(values))
+
+    assert await legacy_live() is None
+    assert await reconcile_management_tasks(db) == 1
+    caught_up = await legacy_live()
+    assert caught_up is not None and await legacy_count() == 1
+    assert await reconcile_management_tasks(db) == 0
+    assert (await legacy_live()).id == caught_up.id and await legacy_count() == 1  # type: ignore[union-attr]
+    print("PASS an agent already in Full gets its task from the gateway, once")
+
+    # The owner's own decision on the task stands: a completed mode task is not restarted.
+    async with db.sessions() as session, session.begin():
+        await complete_task(session, owner_id, caught_up.id, caught_up.version)
+    assert await legacy_live() is None
+    assert await reconcile_management_tasks(db) == 0
+    assert await legacy_live() is None and await legacy_count() == 1
+    print("PASS a mode task the owner completed is not restarted by the gateway")
+
+    # A mode left at Ask, or a pause, written without the tap (a data migration): the
+    # gateway ends the open task.
+    for values in ({"trading_mode": "ask"}, {"paused": True}):
+        async with db.sessions() as session, session.begin():
+            await set_trading_mode(session, owner_id, legacy_id, "full", by="owner_tap")
+        left = await legacy_live()
+        assert left is not None
+        await set_agent(**values)
+        assert await reconcile_management_tasks(db) == 1
+        assert await legacy_live() is None
+        async with db.sessions() as session:
+            row = await session.get(TicketRow, left.id)
+            assert row is not None and task_state(row).status == "cancelled", values
+        assert await reconcile_management_tasks(db) == 0
+        await set_agent(trading_mode="ask", paused=False)
+    print("PASS the gateway ends an open task of an agent in Ask or paused")
+
     print("management task checks passed")
 
 

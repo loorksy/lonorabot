@@ -14,8 +14,10 @@ leaves it. Its Runs are ordinary Runs of the agent under the agent's mode.
   go on outside the task with their Trade Approval cards still decidable, its watches
   move to its conversation, a pending timer becomes a one-shot routine there, and its
   routines are untouched; the agent keeps managing its positions in Ask.
+- ``reconcile_management_tasks``, a gateway step, catches what no transition reached.
 
-Both are called inside the caller's transaction, under the agent's authority lock.
+The first two are called inside the caller's transaction, under the agent's authority
+lock.
 """
 
 from typing import Any
@@ -23,10 +25,11 @@ from typing import Any
 from lonora_bus.attention import attention_text
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskCreate
-from sqlalchemy import or_, select
+from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .authority_lock import authority_lock
+from .client import Database
 from .conversation_locale import conversation_locale
 from .events import emit
 from .schema import AccountAuthorityRow, AgentRow, MarketWatchRow, RunRow, TicketRow
@@ -157,6 +160,72 @@ async def end_management_task(session: AsyncSession, owner_id: str, agent_id: st
     await authority_lock(session, agent_id)
     for row in await open_management_tasks(session, owner_id, agent_id):
         await close_task(session, row)
+
+
+async def reconcile_management_tasks(db: Database) -> int:
+    """The gateway's catch-up for what no Full tap, pause or resume reached; idempotent.
+
+    - An agent in Full, not paused, that has never had a mode task gets one: it was in
+      Full before this task existed.
+    - An open mode task of an agent in Ask, or paused, ends.
+
+    A mode task the owner cancelled or completed, or one that failed for good, stays as
+    it is; the next Full tap or resume starts a new one. Each agent runs in its own
+    transaction, deciding again under its authority lock."""
+    from .item_failures import ItemGuard, blocked
+
+    mode_task = (
+        TicketRow.owner_id == AgentRow.owner_id,
+        TicketRow.agent_id == AgentRow.id,
+        TicketRow.payload[MARKER].as_string() == AgentRow.id,
+    )
+    had_task = exists().where(*mode_task)
+    open_task = exists().where(
+        *mode_task, TicketRow.state["task"]["status"].as_string().not_in(sorted(TERMINAL))
+    )
+    full = and_(AgentRow.trading_mode == "full", AgentRow.paused.is_(False))
+    async with db.sessions() as session:
+        rows = list(
+            await session.execute(
+                select(AgentRow.id, AgentRow.owner_id)
+                .where(
+                    or_(and_(full, ~had_task), and_(~full, open_task)),
+                    ~blocked("management_task", AgentRow.id),
+                )
+                .order_by(AgentRow.id)
+                .limit(50)
+            )
+        )
+    guard = ItemGuard(db, "management_task")
+    await guard.prepare(agent_id for agent_id, _ in rows)
+    changed = 0
+    for agent_id, owner_id in rows:
+
+        async def reconcile(agent_id: str = agent_id, owner_id: str = owner_id) -> bool:
+            async with db.sessions() as session, session.begin():
+                await authority_lock(session, agent_id)
+                agent = await session.get(AgentRow, agent_id, populate_existing=True)
+                if agent is None or agent.owner_id != owner_id:
+                    return False
+                if agent.trading_mode == "full" and not agent.paused:
+                    if await session.scalar(
+                        select(
+                            exists().where(
+                                TicketRow.owner_id == owner_id,
+                                TicketRow.agent_id == agent_id,
+                                TicketRow.payload[MARKER].as_string() == agent_id,
+                            )
+                        )
+                    ):
+                        return False
+                    return await ensure_management_task(session, owner_id, agent_id) is not None
+                if not await open_management_tasks(session, owner_id, agent_id):
+                    return False
+                await end_management_task(session, owner_id, agent_id)
+                return True
+
+        changed += int(bool(await guard.run(agent_id, owner_id, reconcile)))
+    return changed
 
 
 async def close_task(session: AsyncSession, found: TicketRow) -> None:
