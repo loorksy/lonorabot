@@ -25,25 +25,77 @@ plain line of the agent's OPERATING.md that names the account as the owner knows
 (broker · login · server once the broker verified the connection as it now is, else its
 provider and account number). A pause such an agent set on its own (`source='agent'`)
 ended and its work resumed through each item's own control: an unpaused agent with
-`agent.updated`, and a Task as `control_task`'s resume does, each Task it changed with
-`task.updated`:
+`agent.updated`, and a Task by its shape below, read from the Task as it was locked
+(after its thread and the Run that failed it, as `resume_failure` locks them, then its
+Run, as `control_task` does), each Task it changed with `task.updated` (version + 1).
+"Its Run" is the newest live Run among the 20 newest Runs of the Task's agent in the
+Task's thread, the one `control_task` reads; it has "no live Run" when none of them is
+live. "Woken" is one Run of the Task's agent in the Task's thread
+(`ln_tickets.thread_id`, not its origin), queued with fixed server text naming the Task
+(trigger `owner_card`, a stable id, so never twice) after every hold had ended, so an
+agent a supervisor paused was woken too. The text says the Task is no longer held and
+asks the agent to read it (`task_inspect`); it offers a resume (`task_control`) only
+where the live resume takes the Task from the wake, and otherwise says that
+`task_control` cannot resume it from there and asks the agent to tell the owner in one
+line what it was doing and whether it should go on. An agent still paused by the owner
+or Lonora was not woken (`create_run` refuses a paused agent); its Task stayed as its
+shape left it, for the owner, or the agent once it runs again, to resume where the live
+resume takes it. "Taken" and "refused" are the live resume's (`task_control`), for the
+agent and the owner alike, with no hold left.
 
-- a pause asked of a Task whose Run a worker held was withdrawn (the Run reads it at its
-  next checkpoint);
-- a paused Task whose Run waited for takeover was queued again with its Run, also one
-  that had failed before: only a failure still being retried (`retry_control`) is the
-  retry's;
-- a paused Task, or one asked to pause, whose Run held the owner's question resumed the
-  work, not the question (`release_attention`): the question was cancelled, the Run
-  queued without its lease, and the owner-attention wait cleared;
-- a Task paused after a failure, waiting to retry or failed, which the live resume hands
-  to the retry (`resume_failure`), was released as it was, and its agent was woken once
-  in the Task's thread by a Run with fixed server text (trigger `owner_card`, a stable
-  id): the Task, named by its id, is no longer held, and the agent may resume it with
-  `task_control`. An agent still paused by the owner or Lonora was not woken, as
-  `create_run` refuses a paused agent; its Task waits for it as it is;
-- an ended Task, among them one the migration's grant revocation stopped, and work no
-  longer paused were only released.
+- Work neither paused nor asked to pause (`work_paused`), among it a Task that had
+  failed or waited to retry since: the hold was only released, as `control_work`
+  releases a stale one; the Task stayed as it was and no one was woken. It is resumed
+  as it would be without the hold.
+- An ended Task, completed or cancelled (among them one the migration's grant
+  revocation stopped), or failed with no failure the retry resumes: only released, a
+  pause still asked of it left as it was, which never takes effect (a checkpoint ends
+  the Run of an ended Task); the live resume refuses it (`task_terminal`).
+- A Task the live resume hands to the retry (`retry_control`: a failure, and failed,
+  waiting to retry, or paused while waiting to retry), paused or asked to pause: a
+  pause asked of it (`record_failure` keeps the ask) was withdrawn, as `resume_failure`
+  refuses any control asked; nothing else changed. Its agent was woken, with a resume
+  offered, only when the live retry then takes it (`resume_failure`): the Task waiting,
+  failed or paused, with no control asked; its failed Run still failed, of the same
+  lease, agent and thread; a failure the retry resumes (the owner's to resume, the
+  automatic retry's, or a financial reconciliation); an attempt left; and no broker
+  outcome of that Run still unknown (a journal row reserved, submitted or ambiguous by
+  its lease or its execution). The agent or the owner then resumes it, also from the
+  wake, and the retry itself resumes one waiting to retry once it is due. Otherwise no
+  one was woken, and it is refused as it would be without the hold: a terminal failure,
+  one to plan anew until it is revised, another status, or a failed Run since changed
+  (`task_cannot_resume`, `task_run_mismatch`); a reconciliation outside Lonora, or a
+  broker outcome still unknown until it is reconciled (`task_reconciliation_required`);
+  no attempt left, or another control asked (`task_retry_limit`).
+- A paused Task, or one asked to pause, whose Run held the owner's question resumed as
+  `control_task`'s resume resumes it, the work and not the question
+  (`release_attention`): the question was cancelled, the Run queued without its lease,
+  the Task queued, the ask and the owner-attention wait cleared. No one was woken: the
+  work runs.
+- A paused Task whose Run waited for takeover was queued again with its Run, as the live
+  resume does, also one that had failed before. No one was woken: the work runs.
+- Any other paused Task (none the retry's): its Run neither waited for takeover nor held
+  the owner's question (it was queued, held by a worker or waiting for another answer,
+  or the Task's own Run waited behind a newer Run of its agent), or it had no live Run
+  (its Run was cancelled, as the owner's stop of that Run leaves it, or failed with no
+  failure recorded). The live resume refuses it (`task_cannot_resume`,
+  `task_run_not_found`), and no live control resumes a paused Task with no live Run. It
+  stayed as it was, and its agent was woken with no resume offered: from the wake it is
+  refused, the wake's own Run being its newest live Run (`task_cannot_resume`). After
+  the wake it is taken once its newest live Run waits for takeover: its own Run behind a
+  newer Run of its agent once that one ends, or its own queued or working Run at its
+  next checkpoint. Until then it is refused (`task_cannot_resume`); with no live Run it
+  is refused for good (`task_run_not_found`), and the owner can only mark it completed.
+- Any other Task asked to pause, its Run held by a worker, queued again, or waiting for
+  another answer (a Trade Approval or the owner's input) or for takeover: the ask was
+  withdrawn, so it never takes effect with no hold. The live resume refuses this shape
+  (`task_cannot_resume`) and leaves the ask, but nothing waits to be resumed: the Run
+  goes on and reads no pause at its next checkpoint. No one was woken.
+- A Task asked to pause with no live Run left (its Run cancelled, as the owner's stop of
+  that Run leaves it): the ask was withdrawn and its agent was woken with no resume
+  offered. It is refused from the wake (`task_cannot_resume`) and for good after it
+  (`task_run_not_found`), as the same Task never paused; the owner can only mark it
+  completed.
 
 A pause the owner asked for (`owner_message`) became the owner's (`owner`); the owner's
 pauses and Lonora's stayed.

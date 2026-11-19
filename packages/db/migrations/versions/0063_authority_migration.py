@@ -35,24 +35,78 @@
 6. Restrictions ended with their feature (0086, which runs before this update), goals
    in 0068. A pause a supervisor set on its own ends and the work resumes: an agent runs again (with
    ``agent.updated``), a routine is switched back on, a watch resumes as the agent's own
-   control resumes it, and a Task resumes as the live resume does (``control_task``),
-   each Task it changes with ``task.updated``:
+   control resumes it, and a Task by its shape below, read from the Task as it is
+   locked (after its thread and the Run that failed it, as ``resume_failure`` locks them,
+   then its Run, as ``control_task`` does), each Task it changes with ``task.updated``
+   (version + 1). "Its Run" is the newest live Run among the 20 newest Runs of the Task's
+   agent in the Task's thread, the one ``control_task`` reads; it has "no live Run" when
+   none of them is live. "Woken" is one Run of the Task's agent in the Task's thread
+   (``ln_tickets.thread_id``, not its origin), queued with fixed server text naming the
+   Task (trigger ``owner_card``, a stable id, so never twice) after every hold has ended,
+   so an agent a supervisor paused is woken too. The text says the Task is no longer held
+   and asks the agent to read it (``task_inspect``); it offers a resume
+   (``task_control``) only where the live resume takes the Task from the wake, and
+   otherwise says that ``task_control`` cannot resume it from there and asks the agent to
+   tell the owner in one line what it was doing and whether it should go on. An agent
+   still paused by the owner or Lonora is not woken (``create_run`` refuses a paused
+   agent); its Task stays as its shape leaves it, for the owner, or the agent once it
+   runs again, to resume where the live resume takes it. "Taken" and "refused" are the
+   live resume's (``task_control``), for the agent and the owner alike, with no hold left.
 
-   - a pause asked of a Task whose Run a worker holds is withdrawn, which the Run reads at
-     its next checkpoint;
-   - a paused Task whose Run waits for takeover is queued again with its Run, also when it
-     failed once before (only a failure still being retried is the retry's);
-   - a paused Task, or one asked to pause, whose Run holds the owner's question resumes
-     the work, not the question: the question is cancelled, the Run queued without its
-     lease, and the owner-attention wait cleared;
-   - a Task paused after a failure, waiting to retry, or failed (the live resume hands it
-     to the retry, ``resume_failure``, which the migration does not reproduce) is
-     released as it is, and its agent is woken once, in the Task's thread, by a Run with
-     fixed server text naming the Task: it is no longer held, and the agent may resume it
-     (``task_control``). An agent still paused by the owner or Lonora is not woken, as
-     ``create_run`` refuses a paused agent; its Task waits for it as it is;
-   - a Task item 3 stopped, any other ended Task, and work no longer paused are only
-     released.
+   - Work neither paused nor asked to pause (live ``work_paused``), among it a Task that
+     failed or waits to retry since: the hold is only released, as ``control_work``
+     releases a stale one; the Task stays as it is and no one is woken. It is resumed as
+     it would be without the hold.
+   - An ended Task, completed or cancelled (among them one item 3 stopped), or failed with
+     no failure the retry resumes: only released, a pause still asked of it left as it is,
+     which never takes effect (a checkpoint ends the Run of an ended Task); the live
+     resume refuses it (``task_terminal``).
+   - A Task the live resume hands to the retry (live ``retry_control``: a failure, and
+     failed, waiting to retry, or paused while waiting to retry), paused or asked to
+     pause: a pause asked of it (``record_failure`` keeps the ask) is withdrawn, as
+     ``resume_failure`` refuses any control asked; nothing else changes. Its agent is
+     woken, with a resume offered, only when the live retry then takes it (frozen
+     ``resume_failure``): the Task waiting, failed or paused, with no control asked;
+     its failed Run still failed, of the same lease, agent and thread; a failure the retry
+     resumes (the owner's to resume, the automatic retry's, or a financial
+     reconciliation); an attempt left; and no broker outcome of that Run still unknown (a
+     journal row reserved, submitted or ambiguous by its lease or its execution). The
+     agent or the owner then resumes it, also from the wake, and the retry itself resumes
+     one waiting to retry once it is due. Otherwise no one is woken, and it is refused as
+     it would be without the hold: a terminal failure, one to plan anew until it is
+     revised, another status, or a failed Run since changed (``task_cannot_resume``,
+     ``task_run_mismatch``); a reconciliation outside Lonora, or a broker outcome still
+     unknown until it is reconciled (``task_reconciliation_required``); no attempt left,
+     or another control asked (``task_retry_limit``).
+   - A paused Task, or one asked to pause, whose Run holds the owner's question: resumed
+     as the live resume resumes it, the work and not the question: the question is
+     cancelled, the Run queued without its lease, the Task queued, the ask and the
+     owner-attention wait cleared. No one is woken: the work runs.
+   - A paused Task whose Run waits for takeover: queued again with its Run, as the live
+     resume does, also when it failed once before. No one is woken: the work runs.
+   - Any other paused Task (none the retry's): its Run neither waits for takeover nor
+     holds the owner's question (it is queued, held by a worker or waiting for another
+     answer, or the Task's own Run waits behind a newer Run of its agent), or it has no
+     live Run (its Run was cancelled, as the owner's stop of that Run leaves it, or failed
+     with no failure recorded). The live resume refuses it (``task_cannot_resume``,
+     ``task_run_not_found``), and no live control resumes a paused Task with no live Run.
+     It stays as it is, and its agent is woken with no resume offered: from the wake it
+     is refused, the wake's own Run being its newest live Run (``task_cannot_resume``).
+     After the wake it is taken once its newest live Run waits for takeover: its own Run
+     behind a newer Run of its agent once that one ends, or its own queued or working Run
+     at its next checkpoint. Until then it is refused (``task_cannot_resume``); with no
+     live Run it is refused for good (``task_run_not_found``), and the owner can only mark
+     it completed.
+   - Any other Task asked to pause, its Run held by a worker, queued again, or waiting for
+     another answer (a Trade Approval or the owner's input) or for takeover: the ask is
+     withdrawn, so it never takes effect with no hold. The live resume refuses this shape
+     (``task_cannot_resume``) and leaves the ask, but nothing waits to be resumed: the Run
+     goes on and reads no pause at its next checkpoint. No one is woken.
+   - A Task asked to pause with no live Run left (its Run cancelled, as the owner's stop
+     of that Run leaves it): the ask is withdrawn and its agent is woken with no resume
+     offered. It is refused from the wake (``task_cannot_resume``) and for good after it
+     (``task_run_not_found``), as the same Task never paused; the owner can only mark it
+     completed.
 
    A pause the owner holds or asked for (``owner_message``, which becomes ``owner``)
    stays, and so does a pause Lonora made (4.7.2).
@@ -809,7 +863,7 @@ class Migration:
     # -- item 6 --------------------------------------------------------------------------
 
     def end_supervisor_pauses(self, holds: list[Any]) -> None:
-        retried: list[str] = []
+        woken: list[tuple[str, str]] = []
         for hold in holds:
             if hold.target_kind == "agent":
                 for agent in self.rows(
@@ -826,8 +880,9 @@ class Migration:
             elif hold.target_kind == "watch":
                 self.resume_watch(hold.owner_id, hold.target_id)
             elif hold.target_kind == "task":
-                if self.resume_task(hold.target_id):
-                    retried.append(hold.target_id)
+                prompt = self.resume_task(hold.target_id)
+                if prompt is not None:
+                    woken.append((hold.target_id, prompt))
             self.run(
                 "UPDATE ln_supervision_holds SET released_at = :now, released_by = 'owner'"
                 " WHERE id = :id",
@@ -841,8 +896,8 @@ class Migration:
                 ids=[hold.id for hold in holds],
             )
         # After every hold has ended, so an agent a supervisor paused is woken as well.
-        for task_id in retried:
-            self.wake_for_task(task_id)
+        for task_id, prompt in woken:
+            self.wake_for_task(task_id, prompt)
         # A pause the owner asked a supervisor for is the owner's.
         self.run(
             "UPDATE ln_supervision_holds SET source = 'owner'"
@@ -884,31 +939,38 @@ class Migration:
         # The holder's resume goes through the agent's own control (by "agent").
         self.changed_watch(owner_id, watch, {**payload, "enabled": True}, state, "agent")
 
-    def resume_task(self, task_id: str) -> bool:
-        """Frozen control_task(..., 'resume') of the work a supervisor's pause holds (frozen
-        work_paused: paused, or a pause asked): a pause asked of a Task whose Run a worker
-        holds is withdrawn (the Run reads it at its next checkpoint); a paused Task whose Run
-        waits for takeover, or for the owner's question, is queued again, the question
-        cancelled (release_attention). True for a Task the live resume hands to the retry
-        (retry_control, resume_failure): it stays as it is and its agent is woken. An ended
-        Task, and work no longer paused, stay as they are."""
+    def resume_task(self, task_id: str) -> str | None:
+        """The work a supervisor's pause holds resumes (item 6); the fixed text its agent
+        is to be woken with, once every hold has ended, or None when no one is woken.
+
+        Each decision reads the Task locked, after the rows the live controls lock before
+        it: its thread and failed Run (resume_failure), then its newest live Run
+        (control_task). Only work paused, or asked to pause, is the hold's (frozen
+        work_paused): any other hold is stale and only released, as control_work releases
+        one; so is the hold on an ended Task. A Task the live resume hands to the retry
+        (retry_control) has a pause asked of it withdrawn, as resume_failure refuses any
+        control asked, and its agent is woken to resume it only when the live retry then
+        takes it (retry_takes). Otherwise as control_task(..., 'resume'): a Task whose Run
+        holds the owner's question, or a paused one whose Run waits for takeover, is queued
+        again with its Run, the question cancelled (release_attention); any other pause
+        asked of a Task is withdrawn wherever its Run is, so it never takes effect with no
+        hold. A paused Task the live resume refuses (no live Run, or one that neither waits
+        for takeover nor holds the owner's question), and a Task asked to pause with no
+        live Run left, stay so: no live control resumes them from the wake, whose own Run
+        is then their newest live Run, so their agent is woken to tell the owner, with no
+        resume offered."""
         found = self.rows(
             "SELECT thread_id, agent_id, state FROM ln_tickets WHERE id = :id", id=task_id
         )
         if not found:
-            return False
-        task = payload_of(payload_of(found[0].state).get("task"))
-        # Frozen retry_control: only a failure still being retried is the retry's.
-        if task.get("failure") and (
-            task.get("status") == "failed"
-            or task.get("waiting_reason") == "retry_backoff"
-            or task.get("phase") == "retry_paused"
-        ):
-            return task.get("status") not in ("completed", "cancelled")
-        if task.get("status") in TERMINAL_TASKS:
-            return False
-        # Frozen task_runs: the newest live Run of the Task's agent in its conversation,
-        # locked before the Task, as control_task locks them.
+            return None
+        seen = payload_of(payload_of(found[0].state).get("task"))
+        self.run("SELECT 1 FROM ln_threads WHERE id = :id FOR UPDATE", id=found[0].thread_id)
+        self.run(
+            "SELECT 1 FROM ln_runs WHERE id = :id FOR UPDATE",
+            id=str(payload_of(seen.get("failure")).get("run_id") or ""),
+        )
+        # Frozen task_runs: the newest live Run of the Task's agent in its conversation.
         live = next(
             (
                 run
@@ -922,48 +984,117 @@ class Migration:
             ),
             None,
         )
-        if live is None:
-            return False
-        run = self.rows(
-            "SELECT status, execution_state FROM ln_runs WHERE id = :id FOR UPDATE", id=live.id
-        )[0]
+        run = (
+            self.rows(
+                "SELECT id, status, execution_state FROM ln_runs WHERE id = :id FOR UPDATE",
+                id=live.id,
+            )[0]
+            if live is not None
+            else None
+        )
+        if run is not None and run.status not in LIVE_RUNS:
+            run = None
         ticket = self.rows(
-            "SELECT owner_id, agent_id, payload, state FROM ln_tickets WHERE id = :id FOR UPDATE",
+            "SELECT owner_id, agent_id, thread_id, payload, state FROM ln_tickets"
+            " WHERE id = :id FOR UPDATE",
             id=task_id,
         )[0]
         state = payload_of(ticket.state)
         task = payload_of(state.get("task"))
         status, asked = task.get("status"), task.get("control_requested") == "pause"
-        if run.status not in LIVE_RUNS or status in TERMINAL_TASKS:
-            return False
-        execution_state = payload_of(run.execution_state)
+        # Frozen work_paused: a hold on work neither paused nor asked to pause is stale.
+        if (status != "paused" and not asked) or status in ("completed", "cancelled"):
+            return None
+        failure = payload_of(task.get("failure"))
+        # Frozen retry_control: a failure, and failed, waiting to retry or paused while
+        # waiting to retry; an older failure the owner resumed is not the retry's.
+        if failure and (
+            status == "failed"
+            or task.get("waiting_reason") == "retry_backoff"
+            or task.get("phase") == "retry_paused"
+        ):
+            if asked:
+                # record_failure keeps the ask, which resume_failure refuses.
+                task["control_requested"] = None
+                self.save_task(ticket, task_id, state, task)
+            if not self.retry_takes(ticket, task, failure):
+                return None
+            return released_prompt(task_id, True)
+        if status == "failed":
+            return None
+        execution_state = payload_of(run.execution_state) if run is not None else {}
         attention = (
-            run.status == "waiting_input" and attention_question(execution_state) is not None
+            run is not None
+            and run.status == "waiting_input"
+            and attention_question(execution_state) is not None
         )
-        if (status == "paused" or asked) and (
+        if run is not None and (
             attention or (status == "paused" and run.status == "waiting_takeover")
         ):
             released = release_attention(execution_state, run.status)
             if released is None:
-                self.run("UPDATE ln_runs SET status = 'queued' WHERE id = :id", id=live.id)
+                self.run("UPDATE ln_runs SET status = 'queued' WHERE id = :id", id=run.id)
             else:
                 self.run(
                     "UPDATE ln_runs SET status = 'queued', execution_state = CAST(:state AS JSON),"
                     " lease_expires_at = NULL WHERE id = :id",
-                    id=live.id,
+                    id=run.id,
                     state=dump(released),
                 )
             task.update(status="queued", phase="queued", control_requested=None)
             if task.get("waiting_reason") == "owner_attention":
                 task["waiting_reason"] = None
-        elif asked and run.status in ("leased", "running"):
+            self.save_task(ticket, task_id, state, task)
+            return None
+        if asked:
+            # A worker holds its Run, it was queued again, it waits for another answer or
+            # for takeover, or no live Run of it is left: the pause it has not reached is
+            # withdrawn.
             task["control_requested"] = None
-        else:
-            return False
-        self.save_task(ticket, task_id, state, task)
-        return False
+            self.save_task(ticket, task_id, state, task)
+        if status == "paused" or run is None:
+            # The live resume refuses it (task_cannot_resume with a Run it does not take,
+            # task_run_not_found with none), and from the wake, whose Run is then its newest
+            # live Run, too (task_cannot_resume): it stays so, and its agent tells the owner.
+            return released_prompt(task_id, False)
+        return None
 
-    def wake_for_task(self, task_id: str) -> None:
+    def retry_takes(self, ticket: Any, task: dict[str, Any], failure: dict[str, Any]) -> bool:
+        """Frozen resume_failure for the agent's own resume: whether the live retry takes
+        the Task, its ask withdrawn. Only while its failed Run is still failed, of the same
+        lease, agent and conversation; its failure one the retry resumes (neither terminal
+        nor to plan anew, and a reconciliation only a financial one); no control asked; an
+        attempt left; and no broker outcome of that Run still unknown (the frozen
+        unresolved_financial: a journal row reserved, submitted or ambiguous)."""
+        run_id = str(failure.get("run_id") or "")
+        failed = self.rows(
+            "SELECT status, lease_fence, agent_id, thread_id FROM ln_runs WHERE id = :id"
+            " FOR UPDATE",
+            id=run_id,
+        )
+        recovery = failure.get("recovery")
+        # Frozen TaskState and TaskRetryPolicy defaults: the first of three attempts.
+        attempts = payload_of(task.get("retry_policy")).get("maximum_attempts", 3)
+        return (
+            task.get("status") in ("waiting", "failed", "paused")
+            and bool(failed)
+            and failed[0].status == "failed"
+            and (failed[0].lease_fence, failed[0].agent_id, failed[0].thread_id)
+            == (failure.get("lease_fence"), ticket.agent_id, ticket.thread_id)
+            and recovery not in ("modify_plan", "terminal")
+            and (recovery != "reconcile" or failure.get("reconciliation") == "financial")
+            and not task.get("control_requested")
+            and task.get("attempt", 1) < attempts
+            and not self.rows(
+                "SELECT 1 FROM ln_trading_journal"
+                " WHERE status IN ('ambiguous','reserved','submitted') AND :run IN"
+                " (CAST(result AS JSONB) #>> '{details,lease,run_id}',"
+                " CAST(result AS JSONB) #>> '{details,execution,run_id}') LIMIT 1",
+                run=run_id,
+            )
+        )
+
+    def wake_for_task(self, task_id: str, prompt: str) -> None:
         """Frozen end_card's wake (create_run): one Run of the Task's agent in the Task's
         thread with fixed server text, once (a stable id). A paused agent is not woken, as
         create_run refuses it."""
@@ -991,7 +1122,7 @@ class Migration:
             thread=thread.id,
             agent=ticket.agent_id,
             trigger=WAKE_TRIGGER,
-            prompt=released_prompt(task_id),
+            prompt=prompt,
             seq=thread.next_seq - 1,
             metadata=dump(metadata),
             now=self.now,
@@ -1112,13 +1243,19 @@ def release_attention(execution_state: dict[str, Any], status: str) -> dict[str,
     return state
 
 
-def released_prompt(task_id: str) -> str:
-    """Fixed text and the server's own identifier only: nothing a model wrote."""
+def released_prompt(task_id: str, resumable: bool) -> str:
+    """Fixed text and the server's own identifier only: nothing a model wrote. A resume is
+    offered only when the live resume takes the Task from the wake."""
+    offered = (
+        " if the work should go on, resume it with task_control (action resume), otherwise"
+        " tell the owner in one line why not."
+        if resumable
+        else " task_control (action resume) cannot resume it from here, so tell the owner in"
+        " one line what it was doing and whether it should go on."
+    )
     return (
         f"Your Task (task_id={task_id}) is no longer held: the pause a supervising agent put"
-        " on it has ended, and nothing else about it changed. Read it with task_inspect; if"
-        " the work should go on, resume it with task_control (action resume), otherwise"
-        " tell the owner in one line why not."
+        " on it has ended, and nothing else about it changed. Read it with task_inspect;" + offered
     )
 
 
