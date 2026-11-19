@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0173_reach_me_without_activity"
-down_revision = "0088_end_notice_cards"
+down_revision = "0121_skill_intents_removed"
 branch_labels = None
 depends_on = None
 

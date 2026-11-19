@@ -29,7 +29,7 @@ from lonora_db.schema import MemoryRevisionRow
 from sqlalchemy import text
 
 ROOT = Path(__file__).resolve().parents[1]
-PREVIOUS = "0088_end_notice_cards"
+PREVIOUS = "0121_skill_intents_removed"
 
 
 def alembic(action: str, revision: str) -> None:
