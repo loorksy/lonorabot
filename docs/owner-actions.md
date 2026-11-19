@@ -38,14 +38,21 @@ deployed, undeployed or redeployed: `broker_provisioning_busy`), a pass only wai
 card fails as `broker_provisioning_busy` only when the whole wait ends. An account the
 token already had gets the card's password and a redeploy: once MetaApi stores that
 password (`password_stored`), every pass stores the same saved password again and
-redeploys until MetaApi takes the redeploy (`password_set`). The wake names what was
-observed and, for a login MetaApi reports failing, the usual fixes (a wrong password, or
-the server name exactly as the MT5 app shows it now). Every code that can end a broker
-card, or a connection's first account read, has a fixed cause in `BROKER_CAUSES`
-(`lonora_db/secret_cards.py`) saying only what MetaApi or Lonora observed: a MetaApi
-refusal, timeout or busy answer says that nothing at the broker judged the login. Every
-wake but a confirmed connection tells the agent to name no cause beyond that text and to
-quote the account login exactly as written (`tests/test_secret_card.py` walks the codes).
+redeploys until MetaApi takes the redeploy (`password_set`). A redeploy is recorded as
+sent before it goes out (`redeploy_sent`; a busy refusal of the first one clears it): one
+whose answer was lost is not sent again once MetaApi reports the terminal deployed and
+logged in. The pass that redeploys does not read the outcome from that call (MetaApi
+answers once the redeploy is scheduled); the next pass reads the account. A connect card
+that fails with the password stored but no redeploy confirmed says so in its wake: the
+terminal logs in with what it was last deployed with until it is redeployed. The wake
+names what was observed and, for a login MetaApi reports failing, the usual fixes (a
+wrong password, or the server name exactly as the MT5 app shows it now). Every code that
+can end a broker card, or a connection's first account read, has a fixed cause in
+`BROKER_CAUSES` (`lonora_db/secret_cards.py`) saying only what MetaApi or Lonora
+observed: a MetaApi refusal, timeout or busy answer says that nothing at the broker
+judged the login. Every wake but a confirmed connection tells the agent to name no cause
+beyond that text and to quote the account login exactly as written
+(`tests/test_secret_card.py` walks the codes).
 A `broker_connect` for a login with a saved connection on another server of the same
 broker (the server name's part before the first "-") raises a new-password card for that
 connection instead: the card says it moves the connection, MetaApi's account gets the new
@@ -55,7 +62,9 @@ on the connection and the card (`password_stored`), then redeploys; while MetaAp
 the redeploy as busy, the card waits and a later pass only redeploys. A card that ends
 with the password stored but no redeploy confirmed keeps the code of what stopped it, and
 its wake says so and that `broker_manage rotate_password` again (the same new password)
-redeploys it: nothing else redeploys a terminal that is running. The same
+redeploys it: nothing else redeploys a terminal that is running. A card whose password
+another new-password card replaced, or whose connection was disconnected, while it
+waited ends as `broker_rotation_superseded` and says neither. The same
 login number at another broker is another account, and the exact login and server
 already saved are refused. Otherwise the agent chooses its label and fields
 (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
