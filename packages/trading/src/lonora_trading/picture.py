@@ -93,8 +93,7 @@ async def ticket_owners(
         for kind, item in tickets:
             if item.symbol != symbol:
                 continue
-            field = "position_id" if kind == "position" else "order_id"
-            owners[(kind, item.id)] = entry_holder(entries, item, field)
+            owners[(kind, item.id)] = entry_holder(entries, item)
     return owners
 
 
