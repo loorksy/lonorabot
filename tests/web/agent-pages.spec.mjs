@@ -93,7 +93,7 @@ test("the trading agent's page: level, trading and safety, watches, and the on/o
   });
 });
 
-test("Lonora's page has no on/off button (Q38); a research agent has no level badge", async ({
+test("Lonora's page has no on/off button (Q38); a flat team agent shows its level (3.2.1)", async ({
   page,
 }) => {
   const agents = await (await page.request.get("/api/agents")).json();
@@ -105,7 +105,8 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
   await expect(main.getByRole("button", { name: "Turn the agent on" })).toHaveCount(0);
   await page.goto(`/app/agent/${data.research.id}`);
   await expect(main.locator(".hero h2")).toHaveText(data.research.name);
-  await expect(main.locator(".hero .badge")).toHaveCount(0);
+  // No template makes an agent less capable: the agent with no market still trades.
+  await expect(main.locator(".hero .badge")).toHaveCount(1);
   await expect(main.getByRole("button", { name: "Stop the agent", exact: true })).toBeVisible();
 });
 
