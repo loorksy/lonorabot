@@ -229,7 +229,7 @@ async def run_case(
             registry = RecordingRegistry(calls)
 
             async def leased() -> ToolContext:
-                return api.runtime.services(api.owner).tool_context(
+                return api.gateway().tool_context(
                     ids["lonora_id"],
                     ids["thread_id"],
                     await runner.lease(api, run_id),

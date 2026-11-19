@@ -38,6 +38,9 @@ from .watchdog import Watchdog
 
 log = logging.getLogger("lonora.gateway")
 
+# How long a stopping Gateway waits for relayed requests in flight (an owner's order).
+RELAY_DRAIN_SECONDS = 30
+
 # Every maintenance step is its own supervised task with its own interval, iteration
 # timeout and liveness record: a step that raises or hangs never stops another one.
 STEPS = (
@@ -452,6 +455,7 @@ class Gateway:
         self.state = GatewayState.DRAINING
         await write_heartbeat(self.db, self.identity, self.state.value, self.liveness.snapshot())
         await drain(loops)
+        await self.relay.drain(RELAY_DRAIN_SECONDS)
         # Leases this process still holds go back to the queue with their fence kept,
         # so the next gateway resumes that work at once instead of after lease expiry.
         await release_leases(self.db, self.identity)

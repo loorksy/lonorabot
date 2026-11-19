@@ -220,7 +220,7 @@ async def timeout_cause(account: Any) -> str | None:
     try:
         async with asyncio.timeout(10):
             await account.reload()
-        if account.state in {"UNDEPLOYED", "UNDEPLOYING"}:
+        if account.state == "UNDEPLOYED":
             return "broker_account_undeployed"
         if account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED_FROM_BROKER":
             return "broker_login_rejected"
@@ -434,7 +434,9 @@ class MetaApiBroker:
                     # terminal synchronization against a permanently cached state.
                     raise LonoraError(
                         "broker_account_undeployed"
-                        if state in {"UNDEPLOYED", "UNDEPLOYING"}
+                        # UNDEPLOYING passes (a redeploy, or the owner's undeploy
+                        # under way): only a settled UNDEPLOYED stands the adapter down.
+                        if state == "UNDEPLOYED"
                         else "broker_account_not_ready",
                         409,
                     )
@@ -514,6 +516,8 @@ class MetaApiBroker:
         and ask MetaApi again only after ``UNDEPLOYED_RECHECK_SECONDS``."""
         if failure.code != "broker_account_undeployed":
             return
+        if getattr(self, "undeployed_until", 0.0) > time.time():
+            return  # already standing down: MetaApi was not asked again
         self.undeployed_until = time.time() + UNDEPLOYED_RECHECK_SECONDS
         for kind in ("rpc", "streaming"):
             connection = getattr(self, kind, None)

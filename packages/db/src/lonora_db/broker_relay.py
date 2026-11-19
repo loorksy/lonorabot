@@ -3,28 +3,39 @@
 Only the Gateway keeps MetaApi connections, so each account has exactly one subscription
 and one synchronization owner across processes. The API process writes a request row and
 polls for its answer; the Gateway claims each pending row once, answers it with its own
-adapter, and never claims it again. A request nobody claimed before the asker gave up is
-cancelled, atomically against the claim, so it is never served late.
+adapter, and never claims it again. A request nobody claimed within its claim window is
+withdrawn, atomically against the claim, so it is never served late. Every age is the
+database's own clock.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any
 
-from lonora_contracts.domain import new_id, utcnow
+from lonora_contracts.domain import new_id
 from lonora_core.user_error import LonoraError
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, or_, select, text, update
 
 from .client import Database
 from .schema import BrokerRelayRow
 
+log = logging.getLogger(__name__)
 POLL_SECONDS = 0.1
-CLAIM_LIMIT = 16
-KEEP_ANSWERS = timedelta(hours=1)
-# No asker waits longer. An older pending request is never served: its asker is gone (an
-# order is never placed long after the owner's request).
-MAX_WAIT = timedelta(seconds=60)
+KEEP_ANSWERS_SECONDS = 3600
+# How long after it was written a request may still be claimed. An owner's order is
+# claimed at once or never: it is never placed long after the owner asked. The asker
+# withdraws a request still unclaimed at its window and answers that nothing was done.
+CLAIM_SECONDS = {"execute": 5.0}
+READ_CLAIM_SECONDS = 30.0
+
+
+def seconds(value: float) -> Any:
+    return text(f"interval '{float(value)} seconds'")
+
+
+def claim_seconds(kind: str) -> float:
+    return CLAIM_SECONDS.get(kind, READ_CLAIM_SECONDS)
 
 
 @dataclass(frozen=True)
@@ -47,7 +58,6 @@ async def ask(
     """The Gateway's answer, or its error re-raised. ``broker_gateway_unavailable`` when no
     Gateway took the request (nothing was done); ``broker_gateway_no_answer`` when it took
     it and did not answer in time (it may still be done: an order is in the journal)."""
-    wait_seconds = min(wait_seconds, MAX_WAIT.total_seconds())
     request_id = new_id()
     async with db.sessions() as session, session.begin():
         session.add(
@@ -58,33 +68,46 @@ async def ask(
                 kind=kind,
                 arguments=arguments,
                 state="pending",
-                created_at=utcnow(),
+                created_at=func.now(),
             )
         )
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + wait_seconds
-    answered, code, status, result = False, None, None, None
+    started = loop.time()
+    claim_by, deadline = started + claim_seconds(kind), started + wait_seconds
+    row_state, code, status, details, result = "pending", None, None, None, None
     try:
         while True:
             await asyncio.sleep(POLL_SECONDS)
             async with db.sessions() as session:
                 row = await session.get(BrokerRelayRow, request_id)
-                if row is not None and row.state == "answered":
-                    answered = True
-                    code, status, result = row.error_code, row.error_status, row.result
-            if answered or loop.time() >= deadline:
+                if row is not None:
+                    row_state = row.state
+                    code, status = row.error_code, row.error_status
+                    details, result = row.error_details, row.result
+            now = loop.time()
+            if (
+                row_state == "answered"
+                or now >= deadline
+                or (row_state == "pending" and now >= claim_by)
+            ):
                 break
     except asyncio.CancelledError:
         await asyncio.shield(_withdraw(db, request_id))
         raise
-    if not answered:
+    if row_state != "answered":
         if await _withdraw(db, request_id):
             raise LonoraError("broker_gateway_unavailable", 503)
         raise LonoraError("broker_gateway_no_answer", 504)
-    async with db.sessions() as session, session.begin():
-        await session.execute(delete(BrokerRelayRow).where(BrokerRelayRow.id == request_id))
+    try:
+        async with db.sessions() as session, session.begin():
+            await session.execute(delete(BrokerRelayRow).where(BrokerRelayRow.id == request_id))
+    except Exception as error:  # noqa: BLE001 - the answer stands; prune removes the row
+        log.warning("broker_relay_cleanup_failed type=%s", type(error).__name__)
     if code:
-        raise LonoraError(code, status or 502)
+        failure = LonoraError(code, status or 502)
+        if details and "retry_until" in details:
+            failure.retry_until = details["retry_until"]  # pyright: ignore[reportAttributeAccessIssue]
+        raise failure
     return result
 
 
@@ -102,18 +125,24 @@ async def _withdraw(db: Database, request_id: str) -> bool:
     return cancelled is not None
 
 
-async def claim(db: Database) -> list[RelayRequest]:
-    """Pending requests still awaited, each claimed exactly once."""
+async def claim(db: Database, limit: int) -> list[RelayRequest]:
+    """Pending requests still inside their claim window, each claimed exactly once."""
+    if limit <= 0:
+        return []
     async with db.sessions() as session, session.begin():
         rows = list(
             await session.scalars(
                 select(BrokerRelayRow)
                 .where(
                     BrokerRelayRow.state == "pending",
-                    BrokerRelayRow.created_at > utcnow() - MAX_WAIT,
+                    BrokerRelayRow.created_at > func.now() - seconds(READ_CLAIM_SECONDS),
+                    or_(
+                        BrokerRelayRow.kind != "execute",
+                        BrokerRelayRow.created_at > func.now() - seconds(CLAIM_SECONDS["execute"]),
+                    ),
                 )
                 .order_by(BrokerRelayRow.created_at)
-                .limit(CLAIM_LIMIT)
+                .limit(limit)
                 .with_for_update(skip_locked=True)
             )
         )
@@ -128,6 +157,7 @@ async def claim(db: Database) -> list[RelayRequest]:
 async def answer(
     db: Database, request_id: str, result: Any = None, error: LonoraError | None = None
 ) -> None:
+    retry_until = getattr(error, "retry_until", None)
     async with db.sessions() as session, session.begin():
         await session.execute(
             update(BrokerRelayRow)
@@ -137,6 +167,9 @@ async def answer(
                 result=None if error else result,
                 error_code=error.code if error else None,
                 error_status=error.status if error else None,
+                error_details={"retry_until": retry_until}
+                if isinstance(retry_until, (int, float))
+                else None,
             )
         )
 
@@ -145,5 +178,7 @@ async def prune(db: Database) -> None:
     """Rows whose asker is long gone: answered late, cancelled, or abandoned."""
     async with db.sessions() as session, session.begin():
         await session.execute(
-            delete(BrokerRelayRow).where(BrokerRelayRow.created_at < utcnow() - KEEP_ANSWERS)
+            delete(BrokerRelayRow).where(
+                BrokerRelayRow.created_at < func.now() - seconds(KEEP_ANSWERS_SECONDS)
+            )
         )

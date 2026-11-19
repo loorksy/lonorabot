@@ -56,7 +56,7 @@ async def row(fixture: Any, connection_id: str) -> Any:
 
 def open_world(fixture: Any, *accounts: str) -> World:
     api = FakeProvisioningApi(servers={SERVER: dict.fromkeys(accounts, PASSWORD)})
-    services = fixture.runtime.services(fixture.owner)
+    services = fixture.gateway()
 
     def factory(token: str) -> FakeMetaApiProvisioning:
         return FakeMetaApiProvisioning(api, token)

@@ -170,7 +170,6 @@ async def rotate_password(
     so no send uses a connection object from before the change."""
     from lonora_db.secrets import metaapi_password_name
 
-    del brokers  # The version moved: BrokerManager replaces its cached adapter itself.
     connection_id = str(card.payload["connection_id"])
     new_password = await secrets.named(metaapi_password_name(card.id))
     if new_password is None:
@@ -208,6 +207,9 @@ async def rotate_password(
                 stored = True
                 async with asyncio.timeout(METAAPI_SECONDS):
                     await provisioning.redeploy(payload.account_id)
+                # The version moved, so BrokerManager replaces its cached adapter itself;
+                # one made meanwhile that read the account mid-redeploy asks again at once.
+                recheck_after_deploy(brokers, connection_id)
         finally:
             await provisioning.close()
     except (LonoraError, TimeoutError) as failure:

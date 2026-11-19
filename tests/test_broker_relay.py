@@ -8,7 +8,6 @@ once and answers with its own adapter.
 
 import asyncio
 import sys
-from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
@@ -137,10 +136,9 @@ async def test_a_request_no_gateway_took_is_withdrawn_and_never_served_late() ->
 
     database()
     from check_streaming import Fixture
-    from lonora_contracts.domain import utcnow
     from lonora_db import broker_relay
     from lonora_db.schema import BrokerRelayRow
-    from sqlalchemy import select
+    from sqlalchemy import func, select, text
 
     from scripts.agent_eval.broker import FakeTerminal
 
@@ -152,20 +150,49 @@ async def test_a_request_no_gateway_took_is_withdrawn_and_never_served_late() ->
         with pytest.raises(LonoraError) as nobody:
             await broker_relay.ask(db, fixture.owner, connection_id, "symbols", {}, 0.3)
         assert nobody.value.code == "broker_gateway_unavailable"
-        assert await broker_relay.claim(db) == []
-        # A request whose asker is gone (older than any wait) is never claimed.
+        assert await broker_relay.claim(db, 16) == []
+        # An owner's order nobody claimed is withdrawn at its 5 s window, not after the
+        # whole wait, and the owner hears that nothing was done.
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(LonoraError) as unclaimed:
+            await broker_relay.ask(db, fixture.owner, connection_id, "execute", {}, 60)
+        assert unclaimed.value.code == "broker_gateway_unavailable"
+        assert asyncio.get_running_loop().time() - started < 7
+        assert await broker_relay.claim(db, 16) == []
+        # Past its window (the database's clock) a request is never claimed: an order
+        # older than 5 s, a read older than 30 s.
         async with db.sessions() as session, session.begin():
-            session.add(
-                BrokerRelayRow(
-                    owner_id=fixture.owner,
-                    connection_id=connection_id,
-                    kind="execute",
-                    arguments={},
-                    state="pending",
-                    created_at=utcnow() - broker_relay.MAX_WAIT - timedelta(seconds=1),
+            for kind, age in (("execute", 6), ("symbols", 31)):
+                session.add(
+                    BrokerRelayRow(
+                        owner_id=fixture.owner,
+                        connection_id=connection_id,
+                        kind=kind,
+                        arguments={},
+                        state="pending",
+                        created_at=func.now() - text(f"interval '{age} seconds'"),
+                    )
                 )
-            )
-        assert await broker_relay.claim(db) == []
+        assert await broker_relay.claim(db, 16) == []
+        # A rate limit keeps MetaApi's retry time across the relay.
+        limited = LonoraError("broker_rate_limited", 429)
+        limited.retry_until = 1234.5  # pyright: ignore[reportAttributeAccessIssue]
+
+        async def gateway() -> None:
+            requests: list[broker_relay.RelayRequest] = []
+            for _ in range(100):
+                requests = await broker_relay.claim(db, 16)
+                if requests:
+                    break
+                await asyncio.sleep(0.05)
+            await broker_relay.answer(db, requests[0].id, error=limited)
+
+        serving = asyncio.create_task(gateway())
+        with pytest.raises(LonoraError) as relayed:
+            await broker_relay.ask(db, fixture.owner, connection_id, "quote", {"symbol": "X"}, 10)
+        await serving
+        assert relayed.value.code == "broker_rate_limited" and relayed.value.status == 429
+        assert getattr(relayed.value, "retry_until", None) == 1234.5
     finally:
         async with db.sessions() as session, session.begin():
             for row in await session.scalars(select(BrokerRelayRow)):

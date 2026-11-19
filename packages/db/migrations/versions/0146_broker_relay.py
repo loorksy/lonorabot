@@ -30,6 +30,7 @@ def upgrade() -> None:
         sa.Column("result", sa.JSON(), nullable=True),
         sa.Column("error_code", sa.String(120), nullable=True),
         sa.Column("error_status", sa.Integer(), nullable=True),
+        sa.Column("error_details", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
             "state IN ('pending', 'claimed', 'answered', 'cancelled')",

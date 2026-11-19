@@ -1045,6 +1045,7 @@ class BrokerRelayRow(Base):
     result: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
     error_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_details: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -52,7 +52,7 @@ def broker(value: Any, clock: float = 1000) -> MetaApiBroker:
     "state,code",
     [
         ("UNDEPLOYED", "broker_account_undeployed"),
-        ("UNDEPLOYING", "broker_account_undeployed"),
+        ("UNDEPLOYING", "broker_account_not_ready"),
         ("DEPLOYING", "broker_account_not_ready"),
         ("DEPLOY_FAILED", "broker_account_not_ready"),
         ("DELETING", "broker_account_not_ready"),

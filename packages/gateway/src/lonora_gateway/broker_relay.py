@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from lonora_adapters.brokers.relay import READS, perform
+from lonora_adapters.brokers.relay import READ_SECONDS, READS, perform
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_relay import RelayRequest, answer, claim, prune
@@ -21,6 +21,9 @@ from .runtime import OwnerServices
 
 log = logging.getLogger(__name__)
 PRUNE_SECONDS = 300
+# Requests served at once. More wait as pending rows until a slot frees or their claim
+# window ends (their asker is then told nothing was done).
+IN_FLIGHT = 16
 
 
 class BrokerRelay:
@@ -30,7 +33,7 @@ class BrokerRelay:
         self.pruned_at = 0.0
 
     async def iteration(self) -> None:
-        for request in await claim(self.db):
+        for request in await claim(self.db, IN_FLIGHT - len(self.tasks)):
             task = asyncio.create_task(self.serve(request), name="broker-relay:" + request.kind)
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
@@ -61,5 +64,13 @@ class BrokerRelay:
             return result.model_dump(mode="json")
         if request.kind not in READS:
             raise LonoraError("broker_relay_invalid", 400)
-        broker = await services.brokers.get(request.owner_id, request.connection_id)
-        return await perform(broker, request.kind, request.arguments)
+        # A read nobody awaits any more is not finished (an order always is).
+        async with asyncio.timeout(READ_SECONDS):
+            broker = await services.brokers.get(request.owner_id, request.connection_id)
+            return await perform(broker, request.kind, request.arguments)
+
+    async def drain(self, grace: float) -> None:
+        """At shutdown: let requests in flight (an owner's order above all) finish and be
+        answered before the broker connections close."""
+        if self.tasks:
+            await asyncio.wait(set(self.tasks), timeout=grace)
