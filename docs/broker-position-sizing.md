@@ -43,20 +43,10 @@ historical execution costs or a valuation of the entire portfolio.
 
 The existing immutable proposal, approval or signed authority, final preflight,
 controls, journal and independent broker verification still govern every actual
-order. This calculation does not silently add signed per-trade monetary ceilings
-or daily-loss enforcement to older volume-only account grants. Complete monetary
-authorization additionally needs signed currency-qualified limits and final
-revaluation. Daily-loss policy requires complete account-wide deal coverage,
-cost/cash-flow semantics and an explicit day boundary; current bounded history
-cannot prove those facts. Those requirements remain open in the matrix.
+order.
 
 Verification uses deterministic numerical tests and disposable PostgreSQL with
 the simulation adapter, never live funds. The integration check verifies real
 tool admission, symbol isolation, currency mismatch, absent economics and no
 financial journal/approval effects. Production acceptance may inspect current
 read-only broker metadata; an estimate must not be described as a submitted order.
-
-The same arithmetic values risk at the stop when the owner's monetary limits
-(`ExecutionPolicy.risk`) are enforced at the execution boundary; see
-`account-authority.md`. Enforcement uses fresh economics inside the send boundary,
-never a sizing result produced earlier.

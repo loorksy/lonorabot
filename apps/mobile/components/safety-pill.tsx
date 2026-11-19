@@ -2,7 +2,6 @@
 import type { Resource, TradingReadiness } from "@lonora/contracts";
 import {
   isolate,
-  moneyLimitsLine,
   operationStatusText,
   readinessTime,
   tradingReadinessLine,
@@ -27,18 +26,9 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
   const [accounts, setAccounts] = useState<Resource[]>([]);
   const text = tradingSafetyText(locale);
   // With more than one account the line and the sheet name the account of each item.
-  const accountIds = new Set(
-    readiness
-      ? [
-          ...readiness.money_limits.map((item) => item.account_id),
-          ...readiness.grants.map((item) => item.account_id),
-          ...readiness.unresolved_operations.map((item) => item.account_id),
-        ]
-      : [],
-  );
-  const several = accountIds.size > 1;
+  const trading = readiness !== null;
   useEffect(() => {
-    if (!open && !several) return;
+    if (!open && !trading) return;
     let live = true;
     void api
       .get<Resource[]>("/trading/connections")
@@ -49,8 +39,9 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
     return () => {
       live = false;
     };
-  }, [open, several]);
+  }, [open, trading]);
   if (!readiness) return null;
+  const several = accounts.length > 1;
   const accountName = (id: string) => {
     if (!several) return null;
     const index = accounts.findIndex((row) => row.id === id);
@@ -160,14 +151,6 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
                       : text.untilStopped,
                     grant.allow_manual_positions ? text.manualIncluded : text.manualExcluded,
                   ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Text>
-              ))}
-              <Text style={heading}>{text.moneyLimits}</Text>
-              {readiness.money_limits.map((limits) => (
-                <Text key={limits.account_id} style={body}>
-                  {[accountName(limits.account_id), moneyLimitsLine(limits, locale)]
                     .filter(Boolean)
                     .join(" · ")}
                 </Text>
