@@ -902,14 +902,19 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     if (landed) setFlash(landed.id);
   }, [around, loaded, visibleMessages, approvals, ownerActions, receipts, journal, id, undrawn]);
 
-  // The order the sheet shows: drawn again when the chat's cards change, so «حسم العملية»
-  // appears (or goes) with the card even when the sheet opened before the cards were read.
+  // The order the sheet shows: drawn again from the chat's current row when the operation or
+  // the chat's cards change, so its state and «حسم العملية» follow them even when the sheet
+  // opened before the cards were read; an operation no longer drawn as a line closes it.
   const orderShown = useRef<Journal | null>(null);
   const reopenOrder = useRef<((row: Journal) => void) | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the cards are the change signal
   useEffect(() => {
-    if (sheets.current === "order" && orderShown.current) reopenOrder.current?.(orderShown.current);
-  }, [ownerActions]);
+    if (sheets.current !== "order" || !orderShown.current) return;
+    const shown = orderShown.current.operation_id;
+    const row = journal.find((item) => item.operation_id === shown);
+    if (row) reopenOrder.current?.(row);
+    else sheets.close();
+  }, [ownerActions, journal]);
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const agent = agents.find((value) => value.id === thread?.agent_id);

@@ -201,6 +201,70 @@ test("each operation of the chat is a line at its anchor, a confirmed one only i
   }
 });
 
+test("the open sheet follows its operation's current state, and closes once it is confirmed", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(90000);
+  const data = await fixture(context);
+  const now = new Date().toISOString();
+  const ambiguous = {
+    operation_id: randomUUID(),
+    account_id: "account-raw-id",
+    status: "ambiguous",
+    request: { action: "buy", symbol: "XAUUSD", volume: 0.1 },
+    result: {},
+    submitted_at: now,
+    updated_at: now,
+    thread_id: data.thread.id,
+    timeline_seq: 1,
+  };
+  let row = ambiguous;
+  await page.route(`**/api/threads/${data.thread.id}/messages*`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: randomUUID(),
+          thread_id: data.thread.id,
+          agent_id: null,
+          role: "user",
+          seq: 1,
+          content: "Buy gold",
+          attachment_ids: [],
+          reply_to: null,
+          reactions: [],
+          created_at: now,
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/trading/journal?thread_id=*", (route) => route.fulfill({ json: [row] }));
+  try {
+    await page.goto(`/thread?id=${data.thread.id}`);
+    await page.getByRole("button", { name: /XAUUSD: Unconfirmed/ }).click();
+    const evidence = page.getByTestId("order-evidence");
+    await expect(evidence).toContainText("«Filled» is never shown before the evidence");
+    // The owner settles it as executed: the next read redraws the open sheet from it.
+    row = {
+      ...ambiguous,
+      status: "resolved",
+      result: {
+        status: "resolved",
+        details: { resolution: { source: "owner", outcome: "executed" } },
+      },
+    };
+    await expect(evidence).toHaveText("Recorded from your statement, not broker confirmation", {
+      timeout: 30000,
+    });
+    // Confirmed, it is its Execution Receipt: no line, and the sheet closes.
+    row = { ...ambiguous, status: "confirmed", result: { status: "confirmed" } };
+    await expect(page.getByTestId("order-sheet")).toHaveCount(0, { timeout: 30000 });
+    await expect(page.getByTestId("order-line")).toHaveCount(0);
+  } finally {
+    await data.remove();
+  }
+});
+
 test("«Resolve the operation» rests the list on the operation's own settle card", async ({
   page,
   context,
