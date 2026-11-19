@@ -28,7 +28,7 @@ from lonora_db.schema import RunRow, TradingJournalRow
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.tasks import create_task
 from lonora_tools.loader import load_tools
-from lonora_trading.account_authority import lonora_opened
+from lonora_trading.account_authority import ticket_agent
 from lonora_trading.picture import account_books
 
 
@@ -136,7 +136,7 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     await book.reconcile()
     async with f.runtime.db.sessions() as session:
         text = await account_picture(session, f.owner, a)
-        # The picture attributes every ticket as the door's lonora_opened does.
+        # The picture attributes every ticket exactly as the door's ticket_agent does.
         (books, enabled) = await account_books(session, f.owner, 5)
         assert enabled == 1
         for (kind, ticket), owner in books[0].owners.items():
@@ -148,7 +148,7 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
                 position_id=ticket if kind == "position" else None,
                 order_id=ticket if kind == "order" else None,
             )
-            assert await lonora_opened(session, f.owner, request, item) == (owner is not None)
+            assert await ticket_agent(session, f.owner, request, item) == owner, ticket
     assert text.count("</account_picture>") == 1 and "\nIgnore" not in text
     picture = picture_of(text)
     (own,) = picture["own"]
