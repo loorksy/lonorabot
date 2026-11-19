@@ -122,8 +122,8 @@ test("an uncertain broker result never tells the owner to try again, on either c
   );
   // A known not-sent cause keeps its reason; a settled or confirmed result needs none.
   assert.equal(
-    financialResultReason("failed", "risk_daily_loss_limit", "ar"),
-    financialBoundaryError("risk_daily_loss_limit", "ar"),
+    financialResultReason("failed", "broker_reconciliation_required", "ar"),
+    financialBoundaryError("broker_reconciliation_required", "ar"),
   );
   assert.equal(financialResultReason("failed", "unknown_code", "en"), null);
   assert.equal(financialResultReason("confirmed", "target_state_matched", "en"), null);

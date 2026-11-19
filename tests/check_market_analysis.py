@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -20,7 +20,13 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.market import CalendarEvent
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import BrokerSessionRow, RunRow, TradingAccountRow, TradingJournalRow
+from lonora_db.schema import (
+    AgentRow,
+    BrokerSessionRow,
+    RunRow,
+    TradingAccountRow,
+    TradingJournalRow,
+)
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.market_analysis import calendar_available
@@ -503,13 +509,17 @@ async def main() -> None:
             )
         except LonoraError as error:
             assert error.code not in BINDING_CODES, error.code
+        # The owner's standing instruction (3.3.4): the specialist manages the owner's own
+        # positions. A close-all still reaches only its bound market.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, specialist.agent_id)
+            assert managing is not None
+            managing.manages_all_positions = True
         closed = await call("trade_close_positions", {}, actor=specialist)
-        cards = cast(
-            list[dict[str, Any]],
-            await fixture.request("GET", f"/trading/approvals?thread_id={bound_thread['id']}"),
-        )
-        card = next(item for item in cards if item["id"] == closed["approval_id"])
-        assert [item["symbol"] for item in card["requests"]] == [GOLD]
+        assert "approval_id" not in closed, closed
+        assert [item["status"] for item in closed["results"]] == ["confirmed"], closed
+        held = await (await specialist.brokers.get(fixture.owner, primary)).positions()
+        assert GOLD not in {position.symbol for position in held}
         try:
             await specialist.trading.execute(
                 fixture.owner,
@@ -529,7 +539,8 @@ async def main() -> None:
             journal_after = await session.scalar(
                 select(func.count()).select_from(TradingJournalRow)
             )
-        assert journal_after == journal_before
+        # Only the close of the bound market was journaled; nothing on other symbols.
+        assert journal_after == (journal_before or 0) + 1
         print(
             "PASS account-wide exposure is visible; trades, closes, watches, charts and central "
             "execution stay on the bound symbol"

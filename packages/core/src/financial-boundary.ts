@@ -12,11 +12,6 @@ const EXITS_EN =
   "Closing positions, cancelling pending orders and tightening stops remain available.";
 const EXITS_AR = "يبقى إغلاق المراكز وإلغاء الأوامر المعلقة وتقريب وقف الخسارة متاحًا.";
 
-const HISTORY: Text = {
-  en: `Today's broker history could not be read completely, so your daily loss limit could not be checked and no new risk was sent. ${EXITS_EN}`,
-  ar: `تعذّرت قراءة سجل الوسيط لليوم كاملًا، فلم يمكن التحقق من حد الخسارة اليومية ولم تُرسل مخاطرة جديدة. ${EXITS_AR}`,
-};
-
 const messages: Readonly<Record<string, Text>> = {
   broker_reconciliation_required: {
     en: `A previous operation on this market still needs broker verification, so this request was not sent. ${EXITS_EN}`,
@@ -30,41 +25,6 @@ const messages: Readonly<Record<string, Text>> = {
     en: `The broker account state could not be verified, so new risk on this account is paused and this request was not sent. ${EXITS_EN}`,
     ar: `تعذّر التحقق من حالة حساب الوسيط، لذلك توقفت المخاطرة الجديدة على هذا الحساب ولم يُرسل هذا الطلب. ${EXITS_AR}`,
   },
-  risk_trade_limit: {
-    en: "This trade's risk at its stop-loss is above your per-trade limit, so it was not sent. Reduce the size or move the stop closer; exits remain available.",
-    ar: "مخاطرة هذه الصفقة عند وقف الخسارة أعلى من حدك لكل صفقة، لذلك لم تُرسل. قلّل الحجم أو قرّب الوقف؛ يبقى الخروج متاحًا.",
-  },
-  risk_stop_loss_required: {
-    en: "Your risk limits need a stop-loss on this trade, so it was not sent.",
-    ar: "تتطلب حدود المخاطرة لديك وقف خسارة لهذه الصفقة، لذلك لم تُرسل.",
-  },
-  risk_open_limit: {
-    en: "This would take the account's total risk at the stops above your limit, so it was not sent. Exits remain available.",
-    ar: "سيرفع هذا إجمالي مخاطرة الحساب عند الوقف فوق حدك، لذلك لم يُرسل. يبقى الخروج متاحًا.",
-  },
-  risk_open_unbounded: {
-    en: "A position or order without a stop-loss leaves the account's open risk unbounded under your limit, so this was not sent. Add stops or close positions; exits remain available.",
-    ar: "وجود مركز أو أمر بلا وقف خسارة يجعل المخاطرة المفتوحة غير محدودة بالنسبة لحدك، لذلك لم يُرسل هذا الطلب. أضف وقف خسارة أو أغلق مراكز؛ يبقى الخروج متاحًا.",
-  },
-  risk_daily_loss_limit: {
-    en: "Today's loss has reached your daily loss limit, so no new risk was sent. Exits remain available.",
-    ar: "بلغت خسارة اليوم حد الخسارة اليومية لديك، لذلك لم تُرسل مخاطرة جديدة. يبقى الخروج متاحًا.",
-  },
-  risk_free_margin_floor: {
-    en: "This would take free margin below your minimum, so it was not sent. Exits remain available.",
-    ar: "سيُنزل هذا الهامش الحر تحت الحد الأدنى لديك، لذلك لم يُرسل. يبقى الخروج متاحًا.",
-  },
-  risk_limit_currency_mismatch: {
-    en: "Your money limits are set in a different currency than this account, so they could not be checked and no new risk was sent. Update the limits' currency.",
-    ar: "حدودك المالية بعملة تختلف عن عملة هذا الحساب، فتعذّر التحقق منها ولم تُرسل مخاطرة جديدة. حدّث عملة الحدود.",
-  },
-  risk_economics_unavailable: {
-    en: `The broker's tick values for this symbol are unavailable, so your risk limits could not be checked and no new risk was sent. ${EXITS_EN}`,
-    ar: `قيم التكة لهذا الرمز غير متاحة من الوسيط، فتعذّر التحقق من حدود المخاطرة ولم تُرسل مخاطرة جديدة. ${EXITS_AR}`,
-  },
-  risk_daily_history_incomplete: HISTORY,
-  risk_daily_history_unavailable: HISTORY,
-  risk_daily_history_invalid: HISTORY,
   batch_halted_after_unconfirmed_result: {
     en: "Not sent: an earlier operation in this batch has no confirmed result yet.",
     ar: "لم يُرسل: عملية سابقة في هذه الدفعة لا تملك نتيجة مؤكدة بعد.",

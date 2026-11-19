@@ -42,7 +42,6 @@ HELD_CATEGORIES = frozenset(
     {
         "permission_denied",
         "authorization_required",
-        "risk_limit_blocked",
         "health_blocked",
         "ambiguous_mutation",
     }
