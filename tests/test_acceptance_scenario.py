@@ -347,6 +347,10 @@ def test_a_balance_is_read_from_the_agents_words():
     assert acceptance.states("10000", "الرصيد 10,000 دولار")
     assert acceptance.states("10000", "الرصيد ١٠٠٠٠ دولار")
     assert acceptance.states("10123.45", "Balance 10,123.45 USD")
+    assert acceptance.states("10000", "الرصيد ١٠٬٠٠٠ دولار")
+    assert acceptance.states("1000000", "الرصيد 1 000 000 دولار")
+    # A space between two numbers does not join them.
+    assert acceptance.states("10000", "في 2026 10000 دولار")
     assert not acceptance.states("10000", "الرصيد 1000 دولار")
     assert not acceptance.states("10000", "رقم الحساب 100001")
     assert not acceptance.states("?", "?")

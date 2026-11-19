@@ -1158,7 +1158,8 @@ def states(figure: str, text: str) -> bool:
     if not figure.replace(".", "", 1).isdigit():
         return False
     digits = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
-    plain = re.sub(r"(?<=\d)[,٬\u066c\u00a0 ](?=\d{3})", "", digits)
+    # A separator between digits, before exactly three: "10,000", not "2026 10000".
+    plain = re.sub(r"(?<=\d)[,\u066c\u00a0 ](?=\d{3}(?!\d))", "", digits)
     return figure.split(".")[0] in re.findall(r"\d+", plain)
 
 
