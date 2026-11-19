@@ -5,6 +5,7 @@ from typing import Any, cast
 
 from lonora_contracts.agent_state import AgentLiveState, CurrentWork
 from lonora_contracts.domain import utcnow
+from lonora_contracts.market_health import as_of
 from lonora_core.run_state import is_conversational
 from lonora_core.runtime_failure import MODEL_RETRY_REASON
 from lonora_core.user_error import LonoraError
@@ -380,7 +381,8 @@ async def agent_live_state(
                     "observed_at": recovery["observed_at"],
                 }
             )
-        for value in connection.state.get("market_health", {}).values():
+        for stored in connection.state.get("market_health", {}).values():
+            value = as_of(stored, utcnow())
             if value.get("state") != "healthy" and (
                 not fixed_market(agent) or value.get("symbol") == agent.trading_symbol
             ):
