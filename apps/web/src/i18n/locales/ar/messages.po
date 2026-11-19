@@ -331,6 +331,10 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
+#: src/components/ai/AttentionInbox.tsx:43
+msgid "A Mandate card is waiting for your tap"
+msgstr "بطاقة التفويض بانتظار لمستك"
+
 #: src/shell/settings/NotifyPages.tsx:30
 msgid "A message in the agent's conversation with an alert"
 msgstr "رسالة في محادثة الوكيل مع تنبيه"
@@ -4226,7 +4230,7 @@ msgstr "تحديد الكل كمقروء"
 msgid "Mark as completed"
 msgstr "تحديد كمكتملة"
 
-#: src/components/ai/AttentionInbox.tsx:152
+#: src/components/ai/AttentionInbox.tsx:153
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -4824,7 +4828,7 @@ msgstr "لم يُضبط نموذج بعد"
 #~ msgid "No money limit"
 #~ msgstr "دون حد مالي"
 
-#: src/components/ai/AttentionInbox.tsx:113
+#: src/components/ai/AttentionInbox.tsx:114
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -5095,8 +5099,8 @@ msgstr "إشعار"
 msgid "Notification method"
 msgstr "طريقة الإشعار"
 
-#: src/components/ai/AttentionInbox.tsx:75
-#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:76
+#: src/components/ai/AttentionInbox.tsx:78
 #: src/shell/settings/DevicePages.tsx:301
 #: src/shell/settings/NotifyPages.tsx:141
 msgid "Notifications"
@@ -5128,7 +5132,7 @@ msgstr "الإشعارات مفعّلة"
 msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:108
+#: src/components/ai/AttentionInbox.tsx:109
 #: src/shell/settings/NotifyPages.tsx:160
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
@@ -5250,7 +5254,7 @@ msgstr "فتح المكالمة الحالية"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:143
+#: src/components/ai/AttentionInbox.tsx:144
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5400,7 +5404,7 @@ msgstr "سعر الأمر"
 #~ msgid "Organic"
 #~ msgstr "شكل عضوي"
 
-#: src/components/ai/AttentionInbox.tsx:141
+#: src/components/ai/AttentionInbox.tsx:142
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:102
 msgid "Outage and recovery"
