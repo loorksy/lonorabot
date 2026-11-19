@@ -110,7 +110,11 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   message is the run's trigger, so when that latest message is a reply to its wake's
   question, or the next message right after it, it answers that question. Whoever
   resumes it, only the owner's messages get a run, and a conversation where the owner
-  sent it nothing gets none. Lonora may
+  sent it nothing gets none. Admission reads the pause without the agent's lock, so a
+  message sent while a resume commits can be kept after the resume looked: the gateway's
+  `kept_messages` step (every 5 s, `docs/gateway-reliability.md`) answers every kept
+  message of an agent that is no longer paused the same way, and removes those of a
+  deleted agent. Lonora may
   therefore pause a whole trading agent on its own. Supervision is not extended before phase 6 removes it:
   another supervisor still pauses a whole agent with money standing only from the
   owner's message (`supervision_pause_trading_agent`, 403), and pauses its routines,
@@ -266,7 +270,8 @@ profile) do not fit and are promoted after first use like any remembered tool.
   latest message the owner sent it while paused, a kept reply answering its wake's
   question, only group messages that addressed it, nothing where nothing was sent, and
   one run for the owner's message folded into a card's send that expired or was edited
-  while it was paused.
+  while it was paused; the gateway step answering a message kept for an agent no longer
+  paused, once, and removing a deleted agent's.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the

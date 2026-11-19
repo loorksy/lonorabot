@@ -10,7 +10,9 @@ from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .cancellation import cancel_run
+from .client import Database
 from .events import emit
+from .item_failures import ItemGuard, blocked
 from .reactions import reactions_by_message
 from .rich_response import server_rich_content
 from .runs import OFFER_OBLIGATION, run_data
@@ -895,6 +897,57 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
         if run_id is not None:
             run_ids.append(run_id)
     return run_ids
+
+
+async def answer_resumed_kept_messages(db: Database) -> int:
+    """The gateway's ``kept_messages`` step, for what a resume missed: admission reads the
+    pause without the agent's lock, so a message sent while a resume commits can be kept
+    after that resume listed the records. Each agent that is no longer paused and still
+    has records is answered through ``answer_kept_messages``, in its own transaction
+    under its row lock, as a resume; a deleted agent's records are removed. Returns the
+    number of runs admitted."""
+    kind = "kept_messages"
+    async with db.sessions() as session:
+        keys = list(
+            await session.scalars(
+                select(EffectReceiptRow.key).where(EffectReceiptRow.key.startswith(KEPT_FOR_RESUME))
+            )
+        )
+        kept = {key: key.removeprefix(KEPT_FOR_RESUME).split(":", 1)[0] for key in keys}
+        existing = set(
+            await session.scalars(select(AgentRow.id).where(AgentRow.id.in_(set(kept.values()))))
+        )
+        resumed = list(
+            await session.execute(
+                select(AgentRow.id, AgentRow.owner_id)
+                .where(
+                    AgentRow.id.in_(existing),
+                    AgentRow.paused.is_(False),
+                    ~blocked(kind, AgentRow.id),
+                )
+                .order_by(AgentRow.id)
+            )
+        )
+    gone = [key for key, agent_id in kept.items() if agent_id not in existing]
+    if gone:
+        async with db.sessions() as session, session.begin():
+            await session.execute(delete(EffectReceiptRow).where(EffectReceiptRow.key.in_(gone)))
+    guard = ItemGuard(db, kind)
+    await guard.prepare(agent_id for agent_id, _ in resumed)
+    answered = 0
+    for agent_id, owner_id in resumed:
+
+        async def answer(agent_id: str = agent_id, owner_id: str = owner_id) -> list[str]:
+            async with db.sessions() as session, session.begin():
+                agent = await session.get(
+                    AgentRow, agent_id, with_for_update=True, populate_existing=True
+                )
+                if agent is None or agent.paused:
+                    return []
+                return await answer_kept_messages(session, owner_id, agent_id)
+
+        answered += len(await guard.run(agent_id, owner_id, answer) or [])
+    return answered
 
 
 def has_room(collaboration: Any) -> bool:

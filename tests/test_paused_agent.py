@@ -750,3 +750,58 @@ async def test_the_resume_answers_a_message_folded_into_a_send_that_ended_while_
         await settle(fixture, runs)
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_gateway_answers_a_message_kept_while_a_resume_committed() -> None:
+    """Admission reads the pause without the agent's lock, so a message sent while a resume
+    commits can be kept after that resume listed the records. The gateway's kept_messages
+    step answers a record whose agent is no longer paused, through the resume's own path
+    and once, and removes the records of a deleted agent."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.messages import KEPT_FOR_RESUME, answer_resumed_kept_messages
+    from lonora_db.schema import AgentRow, EffectReceiptRow
+    from lonora_tools.provenance import owner_message_id
+
+    fixture = await Fixture().open()
+    try:
+        agent, gone = await fixture.agent("Raced resume"), await fixture.agent("Deleted paused")
+        thread, other = await fixture.conversation(agent), await fixture.conversation(gone)
+        kept: dict[str, Any] = {}
+        for each, conversation in ((agent, thread), (gone, other)):
+            await fixture.request("PATCH", f"/agents/{each['id']}", {"paused": True})
+            sent = await fixture.request(
+                "POST", f"/threads/{conversation['id']}/messages", {"content": "Close the gold"}
+            )
+            assert sent["run_ids"] == [], sent
+            kept[each["id"]] = sent["message"]
+        # The race's outcome: the agent is resumed and its record is still there.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AgentRow, agent["id"], with_for_update=True)
+            assert row is not None
+            row.paused = False
+        await fixture.request("DELETE", f"/agents/{gone['id']}")
+        fixture.agents.remove(gone["id"])
+        record = f"{KEPT_FOR_RESUME}{agent['id']}:{thread['id']}"
+        orphan = f"{KEPT_FOR_RESUME}{gone['id']}:{other['id']}"
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.get(EffectReceiptRow, record) is not None
+            assert await session.get(EffectReceiptRow, orphan) is not None
+
+        await answer_resumed_kept_messages(fixture.runtime.db)
+        runs = await owner_runs(fixture, agent["id"], thread["id"])
+        assert len(runs) == 1 and runs[0].status == "queued", runs
+        assert runs[0].input_seq == kept[agent["id"]]["seq"]
+        async with fixture.runtime.db.sessions() as session:
+            assert await owner_message_id(session, runs[0]) == kept[agent["id"]]["id"]
+            assert await session.get(EffectReceiptRow, record) is None
+            assert await session.get(EffectReceiptRow, orphan) is None
+        # Answered once: the next pass finds nothing to do.
+        await answer_resumed_kept_messages(fixture.runtime.db)
+        assert [run.id for run in await owner_runs(fixture, agent["id"], thread["id"])] == [
+            runs[0].id
+        ]
+        await settle(fixture, runs)
+    finally:
+        await fixture.close()
