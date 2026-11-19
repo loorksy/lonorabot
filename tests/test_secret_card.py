@@ -748,7 +748,7 @@ def test_a_broker_cause_is_true_in_every_path_that_gives_its_code() -> None:
     """A cause holds for every path that produces its code (VISION 0.4). The busy code
     comes from MetaApi reading the account as deploying or undeploying at the deadline,
     with no deploy sent, or from its refusal of a deploy, redeploy or password update; the
-    token code from MetaApi's 401 or 403, or from the SDK's own check before any request
+    token code from MetaApi's 401 or 403, or from the SDK's own check of the token's form
     (a token not in the form of an API access token). A new token card's wake names the
     MetaApi API token every connection uses, not one account's credential."""
     import importlib
@@ -764,19 +764,20 @@ def test_a_broker_cause_is_true_in_every_path_that_gives_its_code() -> None:
         status_code = 401
 
     sdk: Any = importlib.import_module("metaapi_cloud_sdk.clients.method_access_exception")
-    local = sdk.MethodAccessException("get_accounts", "account")  # raised before any request
+    local = sdk.MethodAccessException("get_accounts", "account")  # raised by the SDK itself
     assert {provisioning_error(error).code for error in (local, Refused())} == {
         "broker_token_rejected"
     }
     token = BROKER_CAUSES["broker_token_rejected"]
     assert token.startswith("MetaApi refused the MetaApi API token (unauthorized or forbidden)")
     assert "or the saved token cannot manage MetaApi accounts" in token
-    assert "no request was sent with it" in token and "for this request" not in token
+    assert "the MetaApi SDK refused to send that request with it" in token
+    assert "no request was sent" not in token and "for this request" not in token
 
     card = broker_card("replace_token", {"provisioning": "failed", "code": "broker_token_mismatch"})
     prompt = broker_prompt(card)
     assert prompt.startswith(
-        "Changing the MetaApi API token, which every MetaApi connection uses, failed: "
+        "Making the new MetaApi API token the one every MetaApi connection uses failed: "
         "broker_token_mismatch."
     )
     assert "broker credential" not in prompt and "472790406" not in prompt

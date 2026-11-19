@@ -475,8 +475,8 @@ BROKER_CAUSES = {
     "limited); this says nothing about the login. Try again in a few minutes.",
     "broker_token_rejected": "MetaApi refused the MetaApi API token (unauthorized or "
     "forbidden), or the saved token cannot manage MetaApi accounts (it is not in the form of "
-    "a MetaApi API access token, so no request was sent with it); nothing at the broker "
-    "judged the login.",
+    "a MetaApi API access token, so the MetaApi SDK refused to send that request with it); "
+    "nothing at the broker judged the login.",
     "broker_account_not_found": "MetaApi answered that it has no account with the id Lonora "
     "uses, for the MetaApi API token used; this says nothing about the login.",
     "broker_platform_required": "The card names no MT4 or MT5 platform, so Lonora created no "
@@ -538,7 +538,7 @@ BROKER_CAUSES = {
     "broker_operation_unsettled": "An operation on this account has no confirmed outcome "
     "yet, so Lonora did not go on with the change; it can once that is settled.",
     "broker_token_mismatch": "The new MetaApi API token does not see every connected MetaApi "
-    "account, so Lonora kept the token every connection uses.",
+    "account, so Lonora kept the tokens the connections use.",
     "broker_rotation_incomplete": "MetaApi took the new trading password (and the new server, "
     "for a move), but Lonora could not record the change, so the terminal was not "
     "redeployed with it. Rotate again with broker_manage.",
@@ -599,12 +599,12 @@ def broker_prompt(row: OwnerActionRow) -> str:
                 "one line."
             )
         changing = (
-            "the MetaApi API token, which every MetaApi connection uses,"
+            "Making the new MetaApi API token the one every MetaApi connection uses"
             if purpose == REPLACE_TOKEN
-            else f"the broker credential of account {login}"
+            else f"Changing the broker credential of account {login}"
         )
         return (
-            f"Changing {changing} failed: {because} You never see the values. "
+            f"{changing} failed: {because} You never see the values. "
             f"{OBSERVED_ONLY} Tell the owner in one line what went wrong."
         )
     observed: dict[str, Any] = result.get("observed") or {}

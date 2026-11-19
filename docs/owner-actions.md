@@ -54,8 +54,8 @@ observed: a MetaApi refusal, timeout or busy answer says that nothing at the bro
 judged the login. Every wake but a confirmed connection tells the agent to name no cause
 beyond that text and to quote the account login exactly as written
 (`tests/test_secret_card.py` walks the codes, also those the secret store and the account
-read raise, such as `secret_not_found`). A new-token card's wake names the MetaApi API
-token, which every MetaApi connection uses, not one account's credential.
+read raise, such as `secret_not_found`). A new-token card's wake says that making the new
+MetaApi API token the one every MetaApi connection uses failed, not one account's credential.
 A `broker_connect` for a login with a saved connection on another server of the same
 broker (the server name's part before the first "-") raises a new-password card for that
 connection instead: the card says it moves the connection, MetaApi's account gets the new
