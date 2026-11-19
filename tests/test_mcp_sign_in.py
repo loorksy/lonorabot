@@ -15,7 +15,7 @@ import base64
 import hashlib
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -114,7 +114,7 @@ class Remote:
 
 
 @contextmanager
-def remote(script: Remote) -> Iterator[Remote]:
+def remote(script: Remote) -> Generator[Remote]:
     async def public(url: str) -> str:
         return url
 

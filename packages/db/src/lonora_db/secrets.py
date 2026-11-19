@@ -9,7 +9,7 @@ is not deleted while the connection refers to it.
 """
 
 import re
-from typing import Any
+from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
@@ -44,7 +44,7 @@ def referenced(payload: dict[str, Any], key: str | tuple[str, str]) -> Any:
     if isinstance(key, str):
         return payload.get(key)
     outer = payload.get(key[0])
-    return outer.get(key[1]) if isinstance(outer, dict) else None
+    return cast(dict[str, Any], outer).get(key[1]) if isinstance(outer, dict) else None
 
 
 def require_scope(name: str, scope: str) -> None:
