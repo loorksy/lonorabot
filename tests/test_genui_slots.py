@@ -87,6 +87,7 @@ async def resolve_card(db: Database, owner: str, agent: str, thread: str, kind: 
     async with db.sessions() as session, session.begin():
         row = await session.get(ThreadRow, thread)
         assert row is not None
+        secret = kind == "secret"
         made = await create_card(
             session,
             owner,
@@ -94,12 +95,22 @@ async def resolve_card(db: Database, owner: str, agent: str, thread: str, kind: 
             agent_id=agent,
             thread=row,
             run_id=None,
-            source="system",
+            source="agent" if secret else "system",
             kind=kind,
-            subject="operation:op-1",
-            payload={"operation_id": "op-1"},
+            subject="secret:exchange" if secret else "operation:op-1",
+            payload=SECRET_CARD if secret else {"operation_id": "op-1"},
         )
         return made.id
+
+
+# A Secret card as W-ENV's card stores it: the agent's label and fields, the server's
+# destination (7.2.3).
+SECRET_CARD = {
+    "label": "Exchange",
+    "connect": None,
+    "fields": [{"key": "EXCHANGE_KEY", "label": "Key", "secret": True}],
+    "destination": "workspace",
+}
 
 
 def codes(projector: VisualReplyProjector) -> set[str]:
@@ -184,6 +195,73 @@ async def test_a_slot_of_another_kind_owner_conversation_or_no_record_is_refused
 
 
 @pytest.mark.asyncio
+async def test_a_secret_card_is_a_secret_slot_and_no_other(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    record = await resolve_card(db, owner, agent, thread, "secret")
+    ui, projector = await project(db, owner, agent, thread, card(slot(record, "secret")))
+    assert ui is not None, projector.diagnostics
+    assert ui["blocks"] == [{"type": "Slot", "card": "secret", "record": record}]
+    for kind in ("settle", "trade_approval"):
+        ui, projector = await project(db, owner, agent, thread, card(slot(record, kind)))
+        assert ui is None and "card_fallback_slot" in codes(projector), kind
+    settle = await resolve_card(db, owner, agent, thread, "resolve_operation")
+    ui, projector = await project(db, owner, agent, thread, card(slot(settle, "secret")))
+    assert ui is None and "card_fallback_slot" in codes(projector)
+
+
+async def secret_with_fields(db: Database, owner: str, agent: str, thread: str, count: int):
+    async with db.sessions() as session, session.begin():
+        row = await session.get(ThreadRow, thread)
+        assert row is not None
+        made = await create_card(
+            session,
+            owner,
+            card_id=f"secret-{count}-fields",
+            agent_id=agent,
+            thread=row,
+            run_id=None,
+            source="agent",
+            kind="secret",
+            subject=f"secret:fields:{count}",
+            payload={
+                **SECRET_CARD,
+                "fields": [
+                    {"key": f"KEY_{index}", "label": f"Key {index}", "secret": True}
+                    for index in range(count)
+                ],
+            },
+        )
+        return made.id
+
+
+@pytest.mark.asyncio
+async def test_a_secret_slot_counts_its_fields_and_too_many_fall_back(task_db: Fixture) -> None:
+    """A Secret card grows 95 px a field (10.1.4): its slot counts what the owner will see,
+    the agent's other blocks fold first, and a card the slot alone pushes past 720 px falls
+    back, which brings the card's own row back."""
+    db, owner, agent, thread = task_db
+    note = '{"type":"Note","text":"أحتاج المفاتيح لأقرأ حسابك في المنصة."}'
+    one = await secret_with_fields(db, owner, agent, thread, 1)
+    ui, projector = await project(db, owner, agent, thread, card(note, slot(one, "secret")))
+    assert ui is not None and "budget_folded" not in codes(projector), projector.diagnostics
+    two = await secret_with_fields(db, owner, agent, thread, 2)
+    ui, projector = await project(db, owner, agent, thread, card(note, slot(two, "secret")))
+    # 305 + 2 × 95 = 495 px with the head is over 560 at rest: the note folds, never the
+    # slot, and the card (649 px) stays under 720.
+    assert ui is not None, projector.diagnostics
+    assert "budget_folded" in codes(projector)
+    assert {block["type"] for block in ui["blocks"]} == {"More", "Slot"}
+    three = await secret_with_fields(db, owner, agent, thread, 3)
+    ui, projector = await project(db, owner, agent, thread, card(slot(three, "secret")))
+    assert ui is not None, projector.diagnostics  # 690 px, alone
+    ui, projector = await project(db, owner, agent, thread, card(note, slot(three, "secret")))
+    assert ui is None and "card_fallback_budget" in codes(projector)  # 744 px with its fold
+    eight = await secret_with_fields(db, owner, agent, thread, 8)
+    ui, projector = await project(db, owner, agent, thread, card(slot(eight, "secret")))
+    assert ui is None and "card_fallback_budget" in codes(projector)
+
+
+@pytest.mark.asyncio
 async def test_an_owner_action_of_another_kind_is_not_a_settle_slot(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
     record = await resolve_card(db, owner, agent, thread, "watch_changed")
@@ -236,6 +314,10 @@ async def test_one_record_is_one_slot_and_it_is_never_folded(task_db: Fixture) -
         '{"type":"Note","text":"This is a fixed card from Lonora."}',
         # A label that becomes a fixed card's word only at a state no option selects.
         '{"type":"Button","label":"{1>2 ? \'Wait\' : \'Approve\'}"}',
+        '{"type":"Card","title":"بيانات سرّية","children":[{"type":"Text","text":"المفتاح"}]}',
+        '{"type":"Card","title":"Secret · Binance","children":[{"type":"Text","text":"Key"}]}',
+        '{"type":"Badge","text":"ربط حساب التداول"}',
+        '{"type":"Title","text":"New MetaApi API token"}',
         # The frame's own icon.
         '{"type":"Note","text":"راجع الطلب.","icon":"shield"}',
     ],
@@ -253,6 +335,10 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert imitates_fixed_card("«موافقة»") and imitates_fixed_card("APPROVE")
     assert imitates_fixed_card("الوسيط لم يؤكد هذه الصفقة")
     assert imitates_fixed_card("نُفذت") and imitates_fixed_card("نفذت")
+    # The Secret card's titles, both languages, the broker ones included.
+    assert imitates_fixed_card("Secret") and imitates_fixed_card("Secret · Binance")
+    assert imitates_fixed_card("كلمة مرور تداول جديدة")
+    assert not imitates_fixed_card("Secret of a good entry")
     # Invisible format characters and look-alike letters change nothing (zero-width
     # non-joiner, zero-width space, a Cyrillic А, a right-to-left mark).
     assert imitates_fixed_card("موا\u200cفقة") and imitates_fixed_card("رف\u200bض")

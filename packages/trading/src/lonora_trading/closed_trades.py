@@ -252,6 +252,14 @@ async def opening_entry(
     return None
 
 
+def opening_label(journal: TradingJournalRow | None) -> str | None:
+    """The judgment label the opening order carried beside its request (5.5.3)."""
+    if journal is None or not isinstance(journal.annotation, dict):
+        return None
+    label = journal.annotation.get("label")
+    return label if isinstance(label, str) and label else None
+
+
 async def write_trade(
     session: AsyncSession,
     owner_id: str,
@@ -301,6 +309,7 @@ async def write_trade(
             volume=volume,
             agent_id=journal_agent(journal) if journal is not None else None,
             opening_operation_id=journal.operation_id if journal is not None else None,
+            label=opening_label(journal),
             currency=currency,
             # Without its opening deal the trade's money is not all known.
             realized_pnl=realized(trade.own) if opening is not None else None,

@@ -99,6 +99,7 @@ export {
   type ConversationItem,
   conversationTimeline,
   nearConversationBottom,
+  SLOT_OWNER_ACTION_KINDS,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export {
@@ -151,10 +152,6 @@ export {
   orderLineText,
 } from "./order-line";
 export {
-  type CredentialField,
-  type CredentialForm,
-  type CredentialPost,
-  credentialForm,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -167,11 +164,11 @@ export {
   ownerActionChoose,
   ownerActionError,
   ownerActionLabels,
+  ownerActionLive,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
   type SecretFormField,
-  submitCredential,
   submitSecret,
 } from "./owner-actions";
 export {
