@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .cancellation import cancel_run
 from .events import emit
-from .pauses import runs_while_paused
 from .reactions import reactions_by_message
 from .rich_response import server_rich_content
 from .runs import OFFER_OBLIGATION, run_data
@@ -418,9 +417,9 @@ async def send_message(
         ):
             raise LonoraError("input_answer_expired", 409)
         agent = await owned_agent(session, owner_id, answer_run.agent_id)
-        # A paused agent takes no new work (4.7.1): only a question of the wake for its own
-        # positions and orders is answered now; any other waits for the resume.
-        if agent.paused and not runs_while_paused(answer_run.trigger, answer_run.model_metadata):
+        # A paused agent takes no new work (4.7.1): no answer reaches it, tapped or typed,
+        # until it is resumed; the question stays open for then.
+        if agent.paused:
             raise LonoraError("agent_paused", 409)
         answer_question = next(
             (
@@ -640,9 +639,9 @@ async def admit_runs(
     run_ids: list[str] = []
     for agent_id in targets:
         agent = await owned_agent(session, owner_id, agent_id)
-        if agent.paused and answer_run is None:
+        if agent.paused:
             # A paused agent takes no new work (4.7.1): the owner's message is kept in the
-            # conversation and starts no run.
+            # conversation, starts no run and answers no question of a run of it.
             continue
         if answer_run is not None and answer_run.thread_id != thread_id:
             # A background run's question copied into this conversation: the choice

@@ -438,3 +438,95 @@ async def test_a_paused_agents_card_stays_pending_and_approve_waits_for_the_resu
         await retire(fixture, connection)
         await fixture.close()
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("answer", ["tap", "typed"])
+async def test_no_answer_reaches_a_paused_agents_wake_until_it_is_resumed(answer: str) -> None:
+    """A paused agent takes no new work and the owner's messages to it start nothing
+    (4.7.1): a question its own broker wake asked is answered by neither form while it
+    is paused (a tapped choice is refused, a typed reply or next message is kept), and the
+    question stays open. Once resumed, either form reaches the wake."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MessageRow, RunRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Paused question " + answer)
+        thread = await fixture.conversation(agent)
+        wake_id = await own_wake(fixture, agent["id"], thread["id"])
+        choice = {"id": "close", "label": "Close it"}
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            conversation = await session.get(ThreadRow, thread["id"], with_for_update=True)
+            assert conversation is not None
+            question = MessageRow(
+                thread_id=conversation.id,
+                agent_id=agent["id"],
+                seq=conversation.next_seq,
+                role="assistant",
+                content="Gold hit its stop. Close the rest?",
+            )
+            conversation.next_seq += 1
+            session.add(question)
+            await session.flush()
+            question_id = question.id
+            wake = await session.get(RunRow, wake_id, with_for_update=True)
+            assert wake is not None
+            # The wake's question, copied into the conversation it reports to (11.6).
+            wake.status = "waiting_input"
+            wake.execution_state = {
+                "pending_input_request": {"id": "q1"},
+                "input_requests": [
+                    {
+                        "id": "q1",
+                        "question": question.content,
+                        "choices": [choice],
+                        "run_id": wake_id,
+                        "message_id": question_id,
+                        "thread_id": conversation.id,
+                        "source_message_id": question_id,
+                        "status": "pending",
+                        "selected_choice_id": None,
+                        "answer_message_id": None,
+                    }
+                ],
+            }
+        messages = f"/threads/{thread['id']}/messages"
+        tap = {
+            "content": choice["label"],
+            "reply_to": question_id,
+            "input_answer": {"run_id": wake_id, "question_id": "q1", "choice_id": "close"},
+        }
+
+        async def still_open() -> None:
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.get(RunRow, wake_id)
+                assert row is not None and row.status == "waiting_input"
+                assert row.execution_state["input_requests"][0]["status"] == "pending"
+
+        await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": True})
+        refused = await fixture.client.post("/api" + messages, json=tap)
+        assert refused.status_code == 409 and refused.json()["code"] == "agent_paused", refused.text
+        await still_open()
+        # The next message would answer the question (it is the last one there), and a
+        # reply to it always would: while paused, neither does.
+        for typed in ({"content": "close it"}, {"content": "close it", "reply_to": question_id}):
+            kept = await fixture.request("POST", messages, typed)
+            assert kept["run_ids"] == [] and kept["message"]["content"] == "close it", kept
+            await still_open()
+
+        await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": False})
+        resumed = await fixture.request(
+            "POST",
+            messages,
+            tap if answer == "tap" else {"content": "close it", "reply_to": question_id},
+        )
+        assert resumed["run_ids"] == [wake_id], resumed
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, wake_id, with_for_update=True)
+            assert row is not None and row.status == "queued"
+            assert row.execution_state["input_requests"][0]["status"] == "answered"
+            # Settle it, so no later test claims it.
+            row.status = "cancelled"
+    finally:
+        await fixture.close()
