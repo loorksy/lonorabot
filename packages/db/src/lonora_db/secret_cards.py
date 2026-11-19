@@ -451,6 +451,9 @@ BROKER_CAUSES = {
     "broker_connect_timeout": "MetaApi did not have the account's terminal deployed and "
     "logged in to the broker within the time Lonora waits; nothing at the broker was "
     "confirmed.",
+    "broker_provisioning_busy": "MetaApi was still deploying or undeploying the account's "
+    "terminal when Lonora's wait ran out, and it refuses another deploy until that is done; "
+    "nothing at the broker judged the login. Try again in a few minutes.",
 }
 
 
@@ -480,18 +483,25 @@ def broker_prompt(row: OwnerActionRow) -> str:
             done += " Whether the broker accepts the login shows only when account_read answers."
         if result.get("provisioning") == "connected":
             return done + " You never see it. Tell the owner in one line."
+        if result.get("password_stored"):
+            # Stored at MetaApi and recorded, but no redeploy with it was confirmed; nothing
+            # else redeploys a terminal that is running.
+            cause = BROKER_CAUSES.get(str(result.get("code")))
+            changed = "password and server" if moved else "password"
+            return (
+                f"The new trading {changed} {'are' if moved else 'is'} stored at MetaApi and "
+                f"recorded, but no redeploy of the terminal with {'them' if moved else 'it'} "
+                f"was confirmed: {result.get('code')}.{' ' + cause if cause else ''} Until the "
+                f"terminal is redeployed, it logs in with the {changed} it was last deployed "
+                "with; to redeploy it, call broker_manage rotate_password again, and the owner "
+                "types the same new password. You never see it. Tell the owner in one line."
+            )
         if result.get("code") == "broker_rotation_incomplete":
             return (
                 "MetaApi may already hold the new trading password"
                 + (f" and server {moved}" if moved else "")
                 + ", but Lonora could not record the change. Rotate again with broker_manage. "
                 "You never see it. Tell the owner in one line."
-            )
-        if result.get("code") == "broker_redeploy_failed":
-            return (
-                "The new trading password is stored at MetaApi and recorded, but redeploying "
-                "the terminal with it failed; it reconnects on MetaApi's next deploy. You "
-                "never see it. Tell the owner in one line."
             )
         return (
             f"Changing the broker credential failed: {result.get('code')}. Nothing changed. "

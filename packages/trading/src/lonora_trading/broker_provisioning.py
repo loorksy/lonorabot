@@ -163,7 +163,7 @@ async def advance(
         started = str(result.get("started_at") or row.updated_at.isoformat())
         subject = row.subject
     if payload.get("purpose", "connect") != "connect":
-        await _change_credentials(db, brokers, secrets, owner_id, card_id, payload)
+        await _change_credentials(db, brokers, secrets, owner_id, card_id, payload, started)
         return
     password_id = await secrets.named(metaapi_password_name(card_id))
     token_id = await secrets.named(METAAPI_TOKEN)
@@ -197,8 +197,11 @@ async def _change_credentials(
     owner_id: str,
     card_id: str,
     payload: dict[str, Any],
+    started: str,
 ) -> None:
-    """A rotation or token card (9.3): one pass does it and wakes the agent once."""
+    """A rotation or token card (9.3): one pass does it and wakes the agent once. While
+    MetaApi refuses it because it is still deploying the account, the card waits and the
+    next pass does what is left, until the deadline."""
     from .broker_manage import replace_token, rotate_password
 
     async with db.sessions() as session:
@@ -213,6 +216,8 @@ async def _change_credentials(
             "broker_credential_change_failed card=%s type=%s", card_id, type(error).__name__
         )
         code = "broker_credential_change_failed"
+    if code == "broker_provisioning_busy" and not _late(started):
+        return
     async with db.sessions() as session, session.begin():
         row = await _card(session, owner_id, card_id)
         if row.result.get("provisioning") != "pending":

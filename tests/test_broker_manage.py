@@ -219,6 +219,79 @@ async def test_rotating_the_password_goes_through_metaapi_and_moves_the_version(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("settles", [True, False])
+async def test_a_new_password_metaapi_cannot_redeploy_yet_still_reaches_the_terminal(
+    settles: bool,
+) -> None:
+    """MetaApi stores the new password, then refuses the redeploy because it is still
+    deploying the account (production, 2026-11-19). The card waits instead of ending:
+    the next pass only redeploys, and the password reaches the terminal. Still busy at
+    the deadline, the wake says the password is stored and recorded, that no redeploy
+    was confirmed and why, and how to redeploy it: never that a deploy comes by itself."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import SecretRow
+    from test_broker_connect import backdate
+
+    fixture = await Fixture().open()
+    account = login()
+    world = open_world(fixture, account)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Rotate busy")
+        with installed():
+            connection_id = await connected(world, agent, account)
+            before = await row(fixture, connection_id)
+            old_password = before.state["password_secret_id"]
+            context = await asked(fixture, agent, "I changed my trading password")
+            card = await call(
+                context, "broker_manage", account_id=connection_id, action="rotate_password"
+            )
+            card_id = card["owner_action"]["id"]
+            world.api.servers[SERVER][account] = "fixture-new-password"
+            world.api.busy = 1 if settles else 100
+            await world.save(card_id, {"PASSWORD": "fixture-new-password"})
+            await world.gateway(1)
+            waiting = (await world.card(card_id)).result
+            assert waiting["provisioning"] == "pending" and waiting["password_stored"], waiting
+            assert await world.wake_prompt(card_id) is None  # woken once, at the end
+            data = next(iter(world.api.accounts.values()))
+            assert data["password"] == "fixture-new-password"
+            assert data["terminal_password"] == PASSWORD  # not redeployed yet
+            after = await row(fixture, connection_id)
+            assert after.version == before.version + 1
+            assert after.state["password_secret_id"] != old_password
+            async with fixture.runtime.db.sessions() as session:
+                assert await session.get(SecretRow, old_password) is None
+            if not settles:
+                await backdate(world, card_id, "started_at")
+            await world.gateway(1)
+        result = (await world.card(card_id)).result
+        # The later pass only redeploys: the password is not stored or recorded again.
+        assert world.api.calls.count("update") == 1
+        assert (await row(fixture, connection_id)).version == after.version
+        prompt = await world.wake_prompt(card_id)
+        assert prompt is not None
+        if settles:
+            assert result["provisioning"] == "connected", result
+            assert data["terminal_password"] == "fixture-new-password"
+            assert "new trading password is stored" in prompt
+        else:
+            assert result["provisioning"] == "failed", result
+            assert result["code"] == "broker_provisioning_busy"
+            assert data["terminal_password"] == PASSWORD
+            assert "stored at MetaApi and recorded" in prompt
+            assert "no redeploy of the terminal with it was confirmed" in prompt
+            assert "broker_provisioning_busy" in prompt and "still deploying" in prompt
+            assert "call broker_manage rotate_password again" in prompt
+            assert "next deploy" not in prompt and "reconnects" not in prompt
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_a_new_token_replaces_the_old_only_when_it_sees_every_account() -> None:
     database()
     from check_streaming import Fixture
