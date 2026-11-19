@@ -8,10 +8,8 @@ function for its effect: the owner attestation of an uncertain operation
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
-paused (``lonora_db.supervision``; never money authority), and recording what a
-credential card's secure form connected (only which resource; the value went straight to
-the owner API); the agent that asked is woken to continue. A newly connected MCP server's
-tools run once the owner trusts it, by naming it in chat or in Capabilities.
+paused (``lonora_db.supervision``; never money authority). A Secret card's values
+never come here: the card has its own route (``secret_cards``).
 Resuming, creating an agent, setting supervision, choosing a model and Undo are one
 tap.
 
@@ -50,12 +48,10 @@ from lonora_db.agent_creation import (
     undo_plan,
 )
 from lonora_db.authority_lock import authority_lock
-from lonora_db.capability_cards import connected_result
 from lonora_db.owner_actions import (
     agent_names,
     choose_delegation,
     confirm_in_thread,
-    continue_after_card,
     grant_conflicts,
     grant_facts,
     grant_proposal,
@@ -79,6 +75,7 @@ from lonora_db.supervision import (
     revoke_supervision,
 )
 from lonora_db.threads import conversation_thread
+from lonora_db.trading_mode import set_trading_mode
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import stable_id
 from lonora_trading.owner_controls import attest_operation
@@ -148,6 +145,28 @@ async def renew(
         return await owner_action_data(session, await renew_card(session, owner.id, card_id))
 
 
+async def decide_trading_mode(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow, body: OwnerActionDecision
+) -> None:
+    """The Mandate card (10.3): the tap applies the mode its button showed at the moment of
+    the tap, never a toggle of whatever is stored now. The card stays the agent's switch
+    after a tap; only the owner's tap sets Full (4.2.1)."""
+    if body.decision != "confirm":
+        raise LonoraError("owner_action_decision_unsupported", 422)
+    if body.trading_mode is None:
+        raise LonoraError("owner_action_trading_mode_required", 422)
+    if row.status not in {"pending", "confirmed"}:
+        return  # Expired or superseded: the same answer from the record.
+    reason = await stale_reason(session, owner.id, row.kind, row.payload)
+    if reason is not None:
+        await settle(session, row, "expired", reason)
+        return
+    mode = await set_trading_mode(
+        session, owner.id, row.payload["agent_id"], body.trading_mode, by="owner_tap"
+    )
+    await settle(session, row, "confirmed", None, via="tap", result={"trading_mode": mode})
+
+
 async def grant_challenge(
     session: AsyncSession,
     rt: ApiRuntime,
@@ -206,6 +225,9 @@ async def decide(
 ) -> None:
     if body.decision == "choose":
         await choose(session, owner, row, body)
+        return
+    if row.kind == "trading_mode":
+        await decide_trading_mode(session, owner, row, body)
         return
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
@@ -279,12 +301,6 @@ async def decide(
         result = {"restored": await restore_supervision(session, owner, row)}
     elif row.kind == "supervision_paused":
         result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
-    elif row.kind == "connect_credential":
-        if body.connected is None:
-            raise LonoraError("owner_action_connection_required", 422)
-        result = await connected_result(
-            session, owner.id, row.payload, body.connected.resource, body.connected.id
-        )
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
     created_agent = (
         await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
@@ -322,9 +338,6 @@ async def decide(
     if created_agent is not None:
         # The agent that proposed it hands it its first task, after the line above.
         await start_first_task(session, row, created_agent)
-    if row.kind == "connect_credential":
-        # The agent that asked continues the work that needed this credential.
-        await continue_after_card(session, row)
 
 
 async def choose(

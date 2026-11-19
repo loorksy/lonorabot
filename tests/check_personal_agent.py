@@ -113,7 +113,14 @@ async def checks() -> None:
             f"/agents/{personal_id}/permissions",
             {"level": "supervised", "expected_revision": permission["revision"]},
         )
-        entry = {"account_id": account, "symbol": symbols[0], "action": "buy", "volume": "0.1"}
+        entry = {
+            "account_id": account,
+            "symbol": symbols[0],
+            "action": "buy",
+            "volume": "0.1",
+            "tolerance": "5",
+            "reason": "Fixture entry",
+        }
         trade = await registry.execute(
             ToolCall(id=uuid4().hex, name="trade_execute", arguments=entry), context
         )

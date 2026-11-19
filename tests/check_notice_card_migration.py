@@ -20,7 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0087_end_money_limits"
+BEFORE = "0100_execution_receipts"
 
 
 def alembic(*arguments: str) -> None:

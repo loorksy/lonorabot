@@ -1,7 +1,6 @@
 import { i18n } from "@lingui/core";
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
-  type CredentialForm,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -10,10 +9,10 @@ import {
   ownerActionCard,
   ownerActionChoices,
   ownerActionChoose,
+  ownerActionLive,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
-  submitCredential,
   submitSecret,
   webDeviceProof,
   webDeviceSupported,
@@ -136,6 +135,7 @@ export function OwnerActionCard({
       decision: button.decision,
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
+    if (button.trading_mode) body.trading_mode = button.trading_mode;
     if (button.outcome) {
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();
@@ -170,27 +170,6 @@ export function OwnerActionCard({
         setChoosing(null);
         setBusy(false);
       }
-    }
-  }
-  async function connect(form: CredentialForm, values: Record<string, string>) {
-    setBusy(true);
-    setError(undefined);
-    try {
-      // The value goes straight to the owner API; the card only learns what was created.
-      const connected = await submitCredential(
-        (path, body) => api.post<{ id: string }>(path, body),
-        form.target,
-        values,
-      );
-      const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, {
-        decision: "confirm",
-        connected,
-      } satisfies OwnerActionDecision);
-      if (mounted.current) onChanged(updated);
-    } catch (cause) {
-      if (mounted.current) setError(cause);
-    } finally {
-      if (mounted.current) setBusy(false);
     }
   }
   async function save(values: Record<string, string>) {
@@ -231,7 +210,7 @@ export function OwnerActionCard({
       if (mounted.current) setBusy(false);
     }
   }
-  const settled = row.status !== "pending";
+  const settled = !ownerActionLive(row);
   const notice = NOTICE_KINDS.has(row.kind);
   const kind = ownerActionKindName(row);
   if (notice)
@@ -388,13 +367,6 @@ export function OwnerActionCard({
             {text.addNote}
           </button>
         ))}
-      {spec.credential && (
-        <CredentialFields
-          form={spec.credential}
-          busy={busy}
-          onSubmit={(values) => void connect(spec.credential as CredentialForm, values)}
-        />
-      )}
       {spec.secret && (
         <SecretFields form={spec.secret} busy={busy} onSubmit={(values) => void save(values)} />
       )}
@@ -478,7 +450,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   supervision_created: "eye",
   supervision_stopped: "eye",
   supervision_paused: "pause",
-  connect_credential: "key",
   secret: "key",
 };
 const STATUS_ICON: Record<string, IconName> = {
@@ -655,54 +626,8 @@ function NoticeLine({
   );
 }
 
-/** A credential card's secure form: values stay in this component until they are posted
- * to the owner API, and are cleared as soon as they are sent. */
-function CredentialFields({
-  form,
-  busy,
-  onSubmit,
-}: {
-  form: CredentialForm;
-  busy: boolean;
-  onSubmit: (values: Record<string, string>) => void;
-}) {
-  const initial = () => Object.fromEntries(form.fields.map((field) => [field.key, field.initial]));
-  const [values, setValues] = useState<Record<string, string>>(initial);
-  return (
-    <form
-      className="lonora-owner-action-notes"
-      data-owner-action-form={form.target}
-      onSubmit={(event) => {
-        event.preventDefault();
-        const sent = values;
-        setValues(initial());
-        onSubmit(sent);
-      }}
-    >
-      {form.fields.map((field) => (
-        <label key={field.key}>
-          {field.label}
-          <input
-            name={field.key}
-            type={field.type}
-            dir={field.ltr ? "ltr" : "auto"}
-            required={field.required}
-            autoComplete={field.type === "password" ? "off" : undefined}
-            value={values[field.key] ?? ""}
-            disabled={busy}
-            onChange={(event) => setValues((old) => ({ ...old, [field.key]: event.target.value }))}
-          />
-        </label>
-      ))}
-      <button type="submit" className="primary" disabled={busy} data-owner-action-button="connect">
-        {form.submit}
-      </button>
-    </form>
-  );
-}
-
-/** A Secret card's form: the agent's fields; values stay in this component until they are
- * posted to the card's route, and are cleared as soon as they are sent. */
+/** A Secret card's form: values stay in this component until they are posted to the card's
+ * route, and are cleared as soon as they are sent. */
 function SecretFields({
   form,
   busy,
@@ -720,7 +645,8 @@ function SecretFields({
       data-owner-action-form="secret"
       onSubmit={(event) => {
         event.preventDefault();
-        const sent = values;
+        // An optional field left empty is not sent.
+        const sent = Object.fromEntries(Object.entries(values).filter(([, value]) => value.trim()));
         setValues(empty());
         onSubmit(sent);
       }}
@@ -732,8 +658,9 @@ function SecretFields({
             name={field.key}
             type={field.type}
             dir="ltr"
-            required
-            autoComplete="off"
+            required={field.required}
+            // Never offered to, or filled from, a password manager: not a Lonora login.
+            autoComplete="one-time-code"
             spellCheck={false}
             value={values[field.key] ?? ""}
             disabled={busy}

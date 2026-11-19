@@ -11,7 +11,6 @@ from lonora_contracts.opportunity import (
 )
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, TradingOpportunityRow
 from lonora_db.trading_opportunities import (
@@ -39,8 +38,6 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             run.model_metadata.get("origin_thread_id") or context.thread_id,
             OpportunityCreate.model_validate(args),
         )
-        # An opportunity tainted work saved wakes tainted (docs/genui.md, review round 4).
-        await taint_row_from(session, run, "opportunity", row.id)
         await mark_from(session, run, "opportunity", row.id)
         return opportunity_data(row)
 
@@ -93,7 +90,6 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         updated = await update_opportunity(
             session, context.owner_id, context.agent_id, OpportunityUpdate.model_validate(args)
         )
-        await taint_row_from(session, run, "opportunity", updated.id)
         await mark_from(session, run, "opportunity", updated.id)
         data = opportunity_data(updated)
         session.add(

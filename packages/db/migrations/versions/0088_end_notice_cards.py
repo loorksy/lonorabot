@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0088_end_notice_cards"
-down_revision = "0087_end_money_limits"
+down_revision = "0100_execution_receipts"
 branch_labels = None
 depends_on = None
 
