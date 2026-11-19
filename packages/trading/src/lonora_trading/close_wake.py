@@ -34,7 +34,7 @@ from lonora_db.runs import create_run
 from lonora_db.schema import AgentRow, ClosedTradeRow, EffectReceiptRow, RunRow, TradingJournalRow
 from lonora_db.threads import conversation_thread, create_thread
 from lonora_session.idempotency import broker_operation_tag, stable_id
-from sqlalchemy import exists, literal, or_, select
+from sqlalchemy import ColumnElement, and_, exists, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Closed trades recorded this recently are woken for; older ones are history.
@@ -150,6 +150,22 @@ async def _wake_run(session: AsyncSession, trade: ClosedTradeRow, agent: AgentRo
     return run.id
 
 
+def wakeable(owner_id: str) -> ColumnElement[bool]:
+    """A paused agent starts no Run, so its trades wait until it resumes; a deleted
+    agent's trades wake Lonora, so they wait while Lonora is paused. Filtered in SQL,
+    before the limit, so waiting trades never crowd out a close that can wake."""
+    held = exists().where(AgentRow.id == ClosedTradeRow.agent_id, AgentRow.owner_id == owner_id)
+    paused = exists().where(
+        AgentRow.id == ClosedTradeRow.agent_id,
+        AgentRow.owner_id == owner_id,
+        AgentRow.paused,
+    )
+    lonora_paused = exists().where(
+        AgentRow.owner_id == owner_id, AgentRow.role == "personal", AgentRow.paused
+    )
+    return and_(~paused, or_(held, ~lonora_paused))
+
+
 async def wake_for_closes(db: Database, owner_id: str) -> int:
     """Wake the owner of every newly closed trade once; return how many were woken."""
     woken = 0
@@ -166,8 +182,7 @@ async def wake_for_closes(db: Database, owner_id: str) -> int:
                 # Trades already woken are left out before the limit, so they never
                 # crowd out a new close.
                 ~exists().where(EffectReceiptRow.key == literal(WAKE_KEY) + ClosedTradeRow.id),
-                # A paused agent starts no Run: its trades wait until it resumes.
-                ~exists().where(AgentRow.id == ClosedTradeRow.agent_id, AgentRow.paused),
+                wakeable(owner_id),
             )
             .order_by(ClosedTradeRow.created_at)
             .limit(MAXIMUM_PER_PASS)
@@ -225,6 +240,7 @@ async def _redirect_unread(session: AsyncSession, owner_id: str) -> int:
             EffectReceiptRow.result["consumed"].as_boolean().is_(False),
             ClosedTradeRow.owner_id == owner_id,
             or_(RunRow.id.is_(None), RunRow.status.not_in(sorted(EXECUTING))),
+            wakeable(owner_id),
         )
         .order_by(EffectReceiptRow.created_at)
         .limit(MAXIMUM_PER_PASS)
