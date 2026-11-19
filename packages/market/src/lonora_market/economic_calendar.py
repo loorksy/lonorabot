@@ -190,6 +190,7 @@ async def cache_calendar(
     db: "Database",
     owner_id: str,
     *,
+    read_secret: Callable[[str], Awaitable[str]],
     source: Callable[[str], CalendarSource] = _default_source,
 ) -> int:
     """Refresh the owner's calendar cache (``ln_economic_calendar``), one row per source.
@@ -201,7 +202,7 @@ async def cache_calendar(
     from lonora_db.schema import EconomicCalendarRow
     from sqlalchemy import select
 
-    sources, events = await read_calendar(db, owner_id, source=source)
+    sources, events = await read_calendar(db, owner_id, read_secret=read_secret, source=source)
     now = utcnow()
     start = now - timedelta(hours=CACHE_HOURS_BACK)
     end = now + timedelta(hours=CACHE_HOURS_AHEAD)
