@@ -155,7 +155,7 @@ async def subscribe(context: ToolContext, args: dict[str, Any]) -> dict[str, Any
         if not await feed_trusted(session, context.owner_id, domain):
             site = feed_domain_of(domain)
             if await owner_named(session, run, [site, "www." + site]) is None:
-                return refusal(domain=site)
+                return await refusal(session, run, domain=site)
             # The owner's own words name the site: it joins his trusted list, no card.
             await trust_source(
                 session,

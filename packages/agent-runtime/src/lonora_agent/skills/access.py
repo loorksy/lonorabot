@@ -251,7 +251,7 @@ class RunSkillAccess:
             if trust and not await repository_trusted(session, context, run, owner, repository):
                 from lonora_tools.source_trust import refusal
 
-                return refusal(repository=owner + "/" + repository)
+                return await refusal(session, run, repository=owner + "/" + repository)
         result = await inspect_repository(repository_url, ref)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)

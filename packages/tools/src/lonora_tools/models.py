@@ -43,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .provenance import owner_message_id
+from .provenance import attachment_hint, owner_message_id
 
 NAME = "model_request"
 LIST_NAME = "model_list"
@@ -220,12 +220,13 @@ async def request_model(context: ToolContext, args: dict[str, Any]) -> dict[str,
         message_id = await owner_message_id(session, run)
         if message_id is None or not await owner_named(session, run, message_id, params.model):
             # Only the owner assigns a model: his typed message this run answers names it.
+            hint = await attachment_hint(session, run)
             result: dict[str, Any] = {
                 "ok": False,
                 "code": "model_assignment_requires_owner_message",
                 "changed": False,
                 "recovery": "Nothing changed. Only the owner assigns a model: ask him to "
-                "name it in chat.",
+                "name it in chat." + (" " + hint if hint else ""),
             }
         elif same_choice(record, preference):
             result = {"ok": True, "changed": False, "model": params.model.model_dump(mode="json")}
