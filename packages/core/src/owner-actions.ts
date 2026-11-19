@@ -1400,12 +1400,12 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     ar: "لا تستطيع لونورا استخدام تسجيل الدخول لهذا الخادم. إن كان الخادم يعطيك رمزًا فاكتبه في البطاقة.",
   },
   mcp_sign_in_failed: {
-    en: "The server's sign-in could not start. Try again later.",
-    ar: "تعذّر بدء تسجيل الدخول إلى الخادم. حاول لاحقًا.",
+    en: "The server's sign-in did not work. Try again later.",
+    ar: "لم ينجح تسجيل الدخول إلى الخادم. حاول لاحقًا.",
   },
   mcp_sign_in_required: {
-    en: "This server asks for a sign-in. Ask your agent to connect it again.",
-    ar: "يطلب هذا الخادم تسجيل الدخول. اطلب من وكيلك ربطه من جديد.",
+    en: "This server asks you to sign in. Ask your agent to connect it.",
+    ar: "يطلب هذا الخادم تسجيل الدخول. اطلب من وكيلك ربطه.",
   },
   mcp_sign_in_expired: {
     en: "The sign-in to this server has ended. Ask your agent to connect it again.",

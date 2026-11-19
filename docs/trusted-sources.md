@@ -200,7 +200,7 @@ the owner types it into the card with the secret:
 
 | Target | Details from chat | The card asks for | Saved as |
 | --- | --- | --- | --- |
-| `mcp_server` (`service="x"`: "Connect X") | `name` (none for X) | the server's address, and an access token (optional; a server that has the owner sign in needs none) | `MCP_<NAME>_URL`, `MCP_<NAME>_TOKEN`; signed in, also `MCP_<NAME>_REFRESH_TOKEN` and any `MCP_<NAME>_CLIENT_SECRET` (workspace) |
+| `mcp_server` (`service="x"`: "Connect X") | `name` (none for X) | the server's address, and an access token (optional; a server that has the owner sign in needs none) | `MCP_<NAME>_URL`, `MCP_<NAME>_TOKEN`; signed in, also `MCP_<NAME>_REFRESH_TOKEN`, any `MCP_<NAME>_CLIENT_SECRET` and any `MCP_<NAME>_RESOURCE` (workspace) |
 | `brave_search` | `name` (optional) | the API key | `BRAVE_API_KEY` (workspace) |
 | `news_feed`, `economic_calendar` | `name` | the address, which may carry a key | `FEED_<NAME>_URL`, `CALENDAR_<NAME>_URL` (workspace) |
 
@@ -238,22 +238,33 @@ connection in the same transaction:
   named, and PKCE with S256 offered), registers as a public client (RFC 7591), and
   answers with the sign-in page while the card keeps waiting: the web app opens it in
   place, the mobile app in the browser. Metadata that cannot be trusted refuses the
-  sign-in (`mcp_sign_in_unsupported`), and nothing is saved.
+  sign-in (`mcp_sign_in_unsupported`), and nothing is saved. Every request of a sign-in
+  goes to a public https address, follows no redirect, reads at most 64 KiB as sent
+  (never decompressed) and ends within 15 seconds.
 - The authorization server sends the browser back to `/api/mcp/oauth/callback`, which
   needs no Lonora session (on a phone it is the system browser): the sign-in's state,
   kept only as a digest and used once within ten minutes, identifies it, and an answer
   that names another issuer is refused (RFC 9207). The code is exchanged with the PKCE
   verifier for this server alone (`resource`, RFC 8707). One transaction then saves the
-  address, the access token, the refresh token and any client secret as workspace
-  secrets, connects the server with its sign-in record (`oauth`), settles the card and
-  wakes the agent. The browser goes back to the conversation, or to the mobile app. A
-  sign-in the owner declined, or one that failed, leaves the card waiting, and the card
-  says so. While it waits, the sign-in keeps its verifier, the address, the resource and
-  any client secret encrypted with the store's key.
+  address, the access token, the refresh token, any client secret and any identifier
+  the server published other than its address (it shares the address's origin and may
+  share its key) as workspace secrets, connects the server with its sign-in record
+  (`oauth`, which names them), settles the card and wakes the agent. The browser goes
+  back to the card's conversation, or to the mobile app. A sign-in the owner declined,
+  or one that failed (a refused exchange, a save that failed), leaves the card waiting,
+  and the card says so. While it waits, the sign-in keeps its verifier, the address, the
+  resource and any client secret encrypted with the store's key; once used it keeps
+  none of them, and one nobody finished in time is deleted when the next sign-in starts
+  or any comes back. The access log keeps the callback's path, never its state or code.
 - A signed-in server's access token is renewed with its refresh token when less than a
-  minute is left, one renewal at a time. A renewal that is refused ends the sign-in
-  (`mcp_sign_in_expired`), and a server that answers 401 asks for one
-  (`mcp_sign_in_required`): the agent offers a new Secret card.
+  minute is left, and once when the server refuses it (401), which renews a token the
+  server gave no lifetime. One renewal runs at a time: the connection's row is locked
+  for the token request alone, which ends within its deadline. Only the authorization
+  server's refusal (400 or 401) ends the sign-in (`mcp_sign_in_expired`); a server that
+  is down or busy ends nothing, and the next call renews. A server that still refuses
+  the renewed token asks for a sign-in (`mcp_sign_in_required`). In both cases the agent
+  is told to offer a new Secret card. A renewal changes only when the token expires,
+  which the checks that a server did not change while it was read leave aside.
 - Web search takes one key: a second Brave card saved later settles `expired`
   (`credential_already_configured`) and writes nothing.
 
@@ -319,11 +330,16 @@ preview, and **Set up integrations on the web** opens the web settings.
   trust cards and keeps `owner_message` across a downgrade and upgrade.
 - `tests/test_mcp_oauth.py`: the sign-in protocol (the server's challenge, discovery
   with its refusals, registration, PKCE, the authorization address, the code exchange and
-  the refresh, the callback's issuer; no redirect followed, responses bounded).
+  the refresh, a refused grant told apart from a failing server, the callback's issuer;
+  no redirect followed, bodies read as sent and bounded, one deadline per request).
 - `tests/test_mcp_sign_in.py`: a server that has the owner sign in, from the card to the
   callback (tokens saved as workspace secrets, never in a card, a message, an event or a
-  Run; the agent woken; a second callback does nothing), the renewal before expiry and
-  its refusal, a declined, mixed-up or late sign-in, and a server that needs none.
+  Run, and the address nowhere either; the agent woken; a second callback does nothing;
+  the used sign-in keeps no value), the renewal before expiry, a busy server and a
+  refusal, two runs renewing once, a refused token renewed once, a short-lived token
+  through `mcp_trust` and `mcp_execute`, a confidential client and a published
+  resource kept in the store, a declined, mixed-up, late or unsaved sign-in, a server
+  that needs none, and the access log.
 - `tests/check_mcp_sign_in_migration.py` (fresh database): the downgrade of `0072`
   refuses while a server Lonora signed in to exists and changes nothing, then drops the
   sign-ins and leaves every other server without its empty `oauth`; the upgrade runs
@@ -373,7 +389,12 @@ preview, and **Set up integrations on the web** opens the web settings.
 - A sign-in that ended is not renewed in place: a new Secret card signs in again under
   new names, and the earlier connection stays until it is removed (no key rotation, as
   above). A sign-in that is never finished expires after ten minutes; the card still
-  waits, and the owner connects again.
+  waits, and the owner connects again. Its encrypted values stay until the next sign-in
+  starts or one comes back: nothing sweeps them on a schedule.
+- A signed-in server's refresh token and client secret are workspace secrets, as its
+  access token is: a workspace command that reads them (7.2.5) could spend or copy them.
+  Lonora's own MCP tools are governed by tool pinning and the block on tools that move
+  money, as for every MCP token above.
 - The callback is reached by the sign-in's state alone, since a phone's browser has no
   Lonora session. Someone who saw the sign-in page's address before it was used could
   finish that sign-in with an account of their own; the state is random, single use

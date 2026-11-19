@@ -3,6 +3,7 @@ import test from "node:test";
 import type { OwnerAction } from "../../packages/contracts/src/index";
 import {
   ownerActionCard,
+  ownerActionError,
   ownerActionLabels,
   submitSecret,
 } from "../../packages/core/src/owner-actions";
@@ -158,6 +159,26 @@ test("an MCP server's card says it may have the owner sign in, and when that did
     "en",
   );
   assert.ok(!feed.hint?.includes(ownerActionLabels.en.connectServerHint));
+});
+
+test("every way a server's sign-in can end reads in our words, Arabic first", () => {
+  for (const code of [
+    "mcp_sign_in_unsupported",
+    "mcp_sign_in_failed",
+    "mcp_sign_in_required",
+    "mcp_sign_in_expired",
+  ]) {
+    const arabic = ownerActionError(code, "ar");
+    const english = ownerActionError(code, "en");
+    assert.ok(arabic && english, code);
+    assert.doesNotMatch(arabic, /[A-Za-z_]/, code);
+    assert.ok(!english.includes(code), code);
+  }
+  // A busy server is no ended sign-in: only a refused renewal asks to connect again.
+  assert.ok(!ownerActionError("mcp_sign_in_failed", "en")?.includes("connect"));
+  assert.ok(ownerActionError("mcp_sign_in_expired", "en")?.includes("connect it again"));
+  // Shown before a first connect too (the MCP page's test): no "again".
+  assert.ok(!ownerActionError("mcp_sign_in_required", "en")?.includes("again"));
 });
 
 test("a Secret card says, in our words, where each value goes and what it replaces", () => {
