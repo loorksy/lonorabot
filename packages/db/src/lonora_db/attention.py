@@ -127,14 +127,30 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         return found[0] == row.code or (
             row.code != "broker_connection_lost" and found[0] == "broker_connection_lost"
         )
-    if row.code == "secret_requested":
+    if row.code in {"secret_requested", "mandate_proposed"}:
         card = await session.get(OwnerActionRow, row.parameters.get("owner_action_id", ""))
-        return (
-            card is not None
-            and card.owner_id == row.owner_id
-            and card.status == "pending"
-            and card.expires_at > utcnow()
-        )
+        if (
+            card is None
+            or card.owner_id != row.owner_id
+            or card.status != "pending"
+            or card.expires_at <= utcnow()
+        ):
+            return False
+        if row.code == "mandate_proposed":
+            # Another Mandate card for the same agent, tapped after this one was raised,
+            # already answered what this one asks.
+            return not await session.scalar(
+                select(OwnerActionRow.id)
+                .where(
+                    OwnerActionRow.owner_id == row.owner_id,
+                    OwnerActionRow.kind == "trading_mode",
+                    OwnerActionRow.subject == card.subject,
+                    OwnerActionRow.status == "confirmed",
+                    OwnerActionRow.decided_at > card.created_at,
+                )
+                .limit(1)
+            )
+        return True
     if row.code == "task_review":
         task = await session.get(TicketRow, row.parameters.get("task_id", ""))
         state: dict[str, Any] = task.state.get("task", {}) if task is not None else {}
@@ -758,6 +774,28 @@ async def lock_attention(session: AsyncSession, owner_id: str) -> None:
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": "attention:" + owner_id},
         )
+
+
+async def mandate_already_shown(session: AsyncSession, card: OwnerActionRow) -> bool:
+    """Whether another pending Mandate card for the same agent already has an open item:
+    the agent itself and Lonora can each raise one, and the owner needs one."""
+    others = await session.scalars(
+        select(AttentionRow).where(
+            AttentionRow.owner_id == card.owner_id,
+            AttentionRow.code == "mandate_proposed",
+            AttentionRow.status.in_(["pending", "ready", "seen"]),
+            AttentionRow.parameters["owner_action_id"].as_string() != card.id,
+        )
+    )
+    for item in others:
+        other = await session.get(OwnerActionRow, item.parameters.get("owner_action_id", ""))
+        if (
+            other is not None
+            and other.subject == card.subject
+            and await mandatory_current(session, item)
+        ):
+            return True
+    return False
 
 
 async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:

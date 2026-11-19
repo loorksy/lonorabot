@@ -17,6 +17,7 @@ import type {
   OwnerActionChallenge,
   OwnerActionDecision,
   OwnerActionGrantTerms,
+  TradingMode,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
 import { isolate, listSeparator, readinessTime, tradingSafetyLabels } from "./trading-readiness";
@@ -29,6 +30,18 @@ function language(locale: string): Language {
 
 export const ownerActionLabels = {
   en: {
+    mandateTitle: "Trading mode",
+    mandateNow: "Now",
+    modeFull: "Full",
+    modeAsk: "Ask",
+    modeFullLine: "Trades on its own and reports afterwards.",
+    modeAskLine:
+      "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
+    mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
+    mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
+    mandateGrantStays:
+      "Its signed grant still lets it trade within the grant's terms until you revoke it.",
+    mandateGone: "This agent no longer exists.",
     notNow: "Not now",
     keep: "Keep it",
     until: "until",
@@ -179,6 +192,10 @@ export const ownerActionLabels = {
     connectBrave: "Connect Brave web search",
     connectCalendar: "Connect an economic calendar",
     connectBroker: "Connect a broker account",
+    connectModel: "Connect a model provider",
+    modelHint:
+      "The key is stored encrypted on your Lonora server and never enters the chat. Your models use it, and so do workspace commands that ask for it.",
+    modelEndpointHint: "It is sent to the address you type, with every request.",
     connectHint:
       "What you type is saved encrypted on the server. It never enters the chat, and no agent sees it.",
     connectXHint:
@@ -241,6 +258,16 @@ export const ownerActionLabels = {
     stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
+    mandateTitle: "التفويض",
+    mandateNow: "الآن",
+    modeFull: "وكّله",
+    modeAsk: "يستأذن",
+    modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",
+    modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
+    mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
+    mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
+    mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
+    mandateGone: "لم يعد هذا الوكيل موجودًا.",
     notNow: "ليس الآن",
     keep: "إبقاؤه",
     until: "حتى",
@@ -389,6 +416,10 @@ export const ownerActionLabels = {
     connectBrave: "ربط بحث Brave",
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
+    connectModel: "ربط مزوّد نماذج",
+    modelHint:
+      "يُحفظ المفتاح مشفّراً على خادم Lonora ولا يدخل المحادثة. تستخدمه نماذجك، والأوامر التي تطلبه في مساحة العمل.",
+    modelEndpointHint: "ويُرسَل إلى العنوان الذي تكتبه مع كل طلب.",
     connectHint: "ما تكتبه يُحفظ مشفّرًا على الخادم. لا يدخل المحادثة، ولا يراه أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
@@ -456,10 +487,12 @@ export function ownerActionText(locale: string): OwnerActionText {
 
 /** What a button sends: confirm (with an outcome for a resolve card) or cancel. */
 export type OwnerActionButton = {
-  key: "confirm" | "cancel" | AttestedOutcome;
+  key: "confirm" | "cancel" | AttestedOutcome | TradingMode;
   label: string;
   decision: "confirm" | "cancel";
   outcome?: AttestedOutcome;
+  /** The Mandate card: the mode this button shows; the tap applies exactly this mode. */
+  trading_mode?: TradingMode;
   primary: boolean;
 };
 /** An owner switch on a card (a grant card's own positions, a conflict); the client
@@ -528,6 +561,9 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
+      case "trading_mode":
+        // Still the agent's switch: its lines show the mode now.
+        return null;
       case "grant_authority": {
         const stopped = card.result.stopped_agents ?? [];
         return stopped.length
@@ -931,6 +967,7 @@ function connectTitle(
     brave_search: text.connectBrave,
     economic_calendar: text.connectCalendar,
     broker: text.connectBroker,
+    model_provider: text.connectModel,
   }[target];
 }
 
@@ -1011,6 +1048,31 @@ export function ownerActionCard(
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
   ];
   switch (card.kind) {
+    case "trading_mode": {
+      title = text.mandateTitle;
+      const mode = facts.trading_mode;
+      if (!facts.agent?.exists || !mode) {
+        lines.push(text.mandateGone);
+        break;
+      }
+      const name = facts.agent.name ? `${isolate(facts.agent.name)} · ` : "";
+      lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
+      lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
+      if (facts.active_grant) lines.push(text.mandateGrantStays);
+      // One button for the other mode; the tap applies the mode this button shows.
+      const other: TradingMode = mode === "full" ? "ask" : "full";
+      hint = other === "full" ? text.mandateToFull : text.mandateToAsk;
+      buttons = [
+        {
+          key: other,
+          label: other === "full" ? text.modeFull : text.modeAsk,
+          decision: "confirm",
+          trading_mode: other,
+          primary: true,
+        },
+      ];
+      break;
+    }
     case "grant_authority": {
       const grant = grantCard(card, locale, lang, now);
       title = grant.title;
@@ -1233,17 +1295,21 @@ export function ownerActionCard(
           lines.push(fill(text.secretReplaces, { names: nameList(secret.replaces, lang) }));
         if (secret.sign_in_failed) lines.push(text.signInFailed);
         hint =
-          secret.destination === "broker"
-            ? text.secretBroker
-            : !secret.connect
-              ? text.secretWorkspace
-              : [
-                  text.connectHint,
-                  secret.connect === "mcp_server" ? text.connectServerHint : "",
-                  secret.service === "x" ? text.connectXHint : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
+          secret.connect === "model_provider"
+            ? secret.fields.some((field) => field.role === "server_url")
+              ? `${text.modelHint} ${text.modelEndpointHint}`
+              : text.modelHint
+            : secret.destination === "broker"
+              ? text.secretBroker
+              : !secret.connect
+                ? text.secretWorkspace
+                : [
+                    text.connectHint,
+                    secret.connect === "mcp_server" ? text.connectServerHint : "",
+                    secret.service === "x" ? text.connectXHint : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
         form = secretForm(secret, text);
       }
       // Save is the form's own submit: the values go to the card's route, never here.
@@ -1251,7 +1317,7 @@ export function ownerActionCard(
       break;
     }
   }
-  const pending = card.status === "pending";
+  const pending = ownerActionLive(card);
   return {
     title,
     lines,
@@ -1263,6 +1329,15 @@ export function ownerActionCard(
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),
   };
+}
+
+/** Whether the card still offers its buttons: a pending card, or a Mandate card the owner
+ * already tapped, which stays the agent's switch while the agent exists. */
+export function ownerActionLive(card: OwnerAction): boolean {
+  return (
+    card.status === "pending" ||
+    (card.kind === "trading_mode" && card.status === "confirmed" && !!card.facts.trading_mode)
+  );
 }
 
 /** A refusal that means the card changed on another screen (a grant card's choice): the
@@ -1374,6 +1449,14 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   trade_approval_expired: {
     en: "This request expired. Ask for a new one.",
     ar: "انتهت مدة هذا الطلب. اطلب طلبًا جديدًا.",
+  },
+  trade_approval_quote_unavailable: {
+    en: "The current price could not be read, so this request was not approved. Try again.",
+    ar: "تعذّرت قراءة السعر الحالي، فلم تتم الموافقة على هذا الطلب. حاول مرة أخرى.",
+  },
+  trade_approval_drifted: {
+    en: "The price moved outside this request's range, so it can no longer be approved.",
+    ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
   },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",

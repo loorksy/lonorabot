@@ -95,9 +95,7 @@ async def main() -> None:
             {
                 "payload": {
                     "name": "Fixture server",
-                    "transport": "http",
                     "url": URL,
-                    "command": [],
                     "enabled": False,
                 }
             },
@@ -109,7 +107,6 @@ async def main() -> None:
         row = next(item for item in listed["connections"] if item["connection_id"] == connection_id)
         assert (
             row["name"] == "Fixture server"
-            and row["transport"] == "http"
             and row["enabled"] is False
             and row["credentials_configured"] is False
         )

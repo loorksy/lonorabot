@@ -68,10 +68,9 @@ async def main() -> None:
     head = current()
     engine = create_async_engine(url)
     now = datetime.now(UTC)
-    typed = McpConnection(name="Files", transport="http", url="https://mcp.example.com/mcp")
+    typed = McpConnection(name="Files", url="https://mcp.example.com/mcp")
     signed_in = McpConnection(
         name="Desk",
-        transport="http",
         url_secret_id=str(uuid4()),
         endpoint_sha256="0" * 64,
         secret_id=str(uuid4()),

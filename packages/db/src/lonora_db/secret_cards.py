@@ -8,7 +8,10 @@ A connecting card (``connect``): the server sets its fields and its destination,
 saving it creates the connection. The non-secret details (a name) come from the
 owner's words in chat through the agent's call and are shown on the card as facts. An
 address (an MCP server's, a feed's or a calendar's) may carry a key, so the owner types
-it into the card. Its values are workspace secrets.
+it into the card. Its values are workspace secrets. A model provider's key is saved under
+the provider's usual name (``ANTHROPIC_API_KEY``) and recorded for the router, with an
+OpenAI-compatible endpoint's base URL, which the owner types beside it
+(``lonora_db.model_credentials``).
 
 A broker card (``broker_card_payload``): raised only by the broker tools, with fields the
 server fixes (the trading password, the MetaApi API token). Its values go to the broker
@@ -25,6 +28,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from lonora_contracts.domain import utcnow
+from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
@@ -54,6 +58,17 @@ CONNECTING: dict[str, tuple[tuple[tuple[str, str, bool, bool], ...], str]] = {
     "brave_search": ((("API_KEY", "api_key", True, True),), WORKSPACE),
     "news_feed": ((("URL", "feed_url", True, False),), WORKSPACE),
     "economic_calendar": ((("URL", "feed_url", True, False),), WORKSPACE),
+    "model_provider": ((("API_KEY", "api_key", True, True),), WORKSPACE),
+}
+# An OpenAI-compatible endpoint's card also asks for its base URL, typed with the key.
+ENDPOINT_FIELDS = (("URL", "server_url", True, False), ("API_KEY", "api_key", True, True))
+# The name the owner reads for a fixed model provider; an endpoint is shown by its URL.
+PROVIDER_NAMES = {
+    "anthropic": "Anthropic",
+    "openai": "OpenAI",
+    "deepseek": "DeepSeek",
+    "openrouter": "OpenRouter",
+    "zai": "Z.ai",
 }
 # The workspace name each value of a connecting card is saved under ({name}: its name).
 SAVED_AS: dict[str, dict[str, str]] = {
@@ -97,6 +112,27 @@ def secret_card_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, A
         }
     target = proposal.target
     asked, destination = CONNECTING[target]
+    if target == "model_provider":
+        # The provider's key, saved under its usual name and recorded for the router;
+        # an endpoint's base URL is typed into the card with it.
+        provider = proposal.name
+        assert provider is not None
+        details = {"provider": provider}
+        if provider in PROVIDER_NAMES:
+            details["name"] = PROVIDER_NAMES[provider]
+        else:
+            asked = ENDPOINT_FIELDS
+        return subject_of(target, provider), {
+            "label": None,
+            "connect": target,
+            "service": None,
+            "details": details,
+            "fields": [
+                {"key": key, "label": None, "secret": masked, "role": role, "required": required}
+                for key, role, required, masked in asked
+            ],
+            "destination": destination,
+        }
     name = proposal.name or DEFAULT_NAME.get(target)
     assert name is not None
     return subject_of(target, name), {
@@ -161,6 +197,10 @@ async def secret_stale_reason(
         return None  # Provisioning checks a broker card's values with MetaApi.
     if payload.get("connect") is None:
         keys = [str(field["key"]) for field in payload["fields"]]
+        if set(keys) & set(PROVIDER_KEY_NAMES.values()):
+            # A card raised before these names were reserved: only a model_provider card
+            # sets the router's key.
+            return "secret_name_reserved"
         saved = await session.scalars(
             select(SecretRow.id).where(
                 SecretRow.owner_id == owner_id,
@@ -227,6 +267,18 @@ async def secret_facts(
         )
         facts["saves_as"] = keys
         facts["replaces"] = [key for key in keys if key in saved]
+    elif payload["connect"] == "model_provider":
+        # One name, the provider's usual one; saving replaces the key saved there.
+        name = PROVIDER_KEY_NAMES[payload["details"]["provider"]]
+        held = await session.scalar(
+            select(SecretRow.id).where(
+                SecretRow.owner_id == owner_id,
+                SecretRow.scope == WORKSPACE,
+                SecretRow.name == name,
+            )
+        )
+        facts["saves_as"] = [name]
+        facts["replaces"] = [name] if held is not None else []
     elif payload["destination"] == WORKSPACE:
         target = payload["connect"]
         # A card converted from the credential card (0071) has no details.
@@ -354,6 +406,18 @@ def saved_prompt(row: OwnerActionRow) -> str:
             "The owner saved the values on your Secret card, encrypted as workspace secrets "
             "under the keys you chose; you never see them. Tell the owner in one line what "
             "they are saved for."
+        )
+    if target == "model_provider":
+        catalog = row.result.get("catalog")
+        listed = (
+            f"Its catalog was read: {catalog} models."
+            if isinstance(catalog, int)
+            else "Its catalog could not be read yet; say so."
+        )
+        return (
+            f"The owner connected the model provider {row.payload['details']['provider']} on "
+            f"your Secret card; you never see its key. {listed} Call model_list and tell the "
+            "owner in one line which models became available."
         )
     if target == "mcp_server":
         return (

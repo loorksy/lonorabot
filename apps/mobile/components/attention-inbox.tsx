@@ -39,6 +39,7 @@ export const attentionLabels: Record<AttentionCode, Label> = {
   gateway_degraded: "attentionGatewayDegraded",
   agent_notification: "attentionAgentAlert",
   secret_requested: "attentionSecretRequested",
+  mandate_proposed: "attentionMandateProposed",
 };
 // An agent's summary reads in its own direction, like the web's dir="auto".
 function SummaryText({ text, rtl, color }: { text: string; rtl: boolean; color: string }) {

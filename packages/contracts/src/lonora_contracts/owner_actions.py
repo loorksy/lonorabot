@@ -6,7 +6,7 @@ propose a card; no tool can confirm one. A grant card is confirmed with the pass
 ceremony of the grant it builds from its stored draft.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from pydantic import Field, field_validator, model_validator
 
@@ -14,11 +14,16 @@ from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
 from .agent_secrets import WORKSPACE_SECRET_NAME
 from .devices import DeviceProof
 from .domain import Contract
+from .model_routing import PROVIDER_KEY_NAMES, ProviderId
+from .trading import TradingMode
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
     "resolve_operation",
     "grant_authority",
+    # The Mandate card (mandate 10.3): the agent's mode read live and one button for the
+    # other mode. It stays the agent's switch after a tap.
+    "trading_mode",
     # The Secret card (mandate 10.3, 7.2): the owner's values go straight to the encrypted
     # store; the agent learns which keys were saved.
     "secret",
@@ -34,8 +39,11 @@ GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
 GrantDelegation = Literal["custom", "full"]
 # A Secret card that connects something: the server sets its fields and destination, and
 # saving it creates the connection. "x" names an X MCP server. A trading account is
-# connected with broker_connect's card instead.
-CredentialTarget = Literal["mcp_server", "news_feed", "brave_search", "economic_calendar"]
+# connected with broker_connect's card instead. "model_provider" takes the provider's id
+# as its name.
+CredentialTarget = Literal[
+    "mcp_server", "news_feed", "brave_search", "economic_calendar", "model_provider"
+]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
 AttestedOutcome = Literal["executed", "not_executed", "unknown"]
 # The owner's statement when the card's optional note is left empty.
@@ -110,6 +118,11 @@ class OwnerActionProposal(Contract):
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
+        if self.kind == "trading_mode":
+            # Only the agent whose mode it switches (the proposer's own when omitted).
+            if self.model_dump(exclude={"kind", "agent_id"}, exclude_defaults=True):
+                raise ValueError("owner_action_fields_invalid")
+            return self
         if self.kind == "secret":
             return self.secret_card_fields()
         if any(
@@ -134,6 +147,9 @@ class OwnerActionProposal(Contract):
             keys = [field.key for field in self.secret_fields]
             if len(set(keys)) != len(keys):
                 raise ValueError("owner_action_secret_fields_duplicate")
+            if set(keys) & set(PROVIDER_KEY_NAMES.values()):
+                # The router reads these: only a model_provider card sets them.
+                raise ValueError("owner_action_secret_name_reserved")
             return self
         # A connecting card: the server sets its fields; the agent gives the details.
         needs: set[str] = {
@@ -141,6 +157,7 @@ class OwnerActionProposal(Contract):
             "brave_search": set[str](),
             "news_feed": {"name"},
             "economic_calendar": {"name"},
+            "model_provider": {"name"},
         }[self.target]
         optional = {"name"} if self.target in {"mcp_server", "brave_search"} else set[str]()
         allowed = needs | optional
@@ -150,6 +167,7 @@ class OwnerActionProposal(Contract):
             or self.secret_fields is not None
             or not needs <= given <= allowed
             or (self.service is not None and self.target != "mcp_server")
+            or (self.target == "model_provider" and self.name not in get_args(ProviderId))
         ):
             raise ValueError("owner_action_fields_invalid")
         return self
@@ -294,6 +312,8 @@ class OwnerActionDecision(Contract):
     """
 
     decision: Literal["confirm", "cancel", "choose"]
+    # The Mandate card: the mode its button showed at the moment of the tap.
+    trading_mode: TradingMode | None = None
     delegation: GrantDelegation | None = None
     outcome: AttestedOutcome | None = None
     note: str | None = Field(default=None, max_length=2000)

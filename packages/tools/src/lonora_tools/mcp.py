@@ -122,8 +122,6 @@ async def stored_config(context: ToolContext, connection_id: str) -> McpConnecti
         config = McpConnection.model_validate(row.payload)
         if not config.enabled:
             raise LonoraError("mcp_disabled", 409)
-        if config.transport != "http":
-            raise LonoraError("mcp_stdio_isolation_required", 403)
         named = [config.secret_id, config.url_secret_id]
         if config.oauth is not None:
             oauth = config.oauth
@@ -396,7 +394,6 @@ async def connections(context: ToolContext, args: dict[str, Any]) -> dict[str, A
             {
                 "connection_id": row.id,
                 "name": row.payload.get("name"),
-                "transport": row.payload.get("transport"),
                 "enabled": bool(row.payload.get("enabled")),
                 "credentials_configured": bool(row.payload.get("secret_id")),
                 "trusted_tier": trust.tier if trust is not None else None,

@@ -81,11 +81,9 @@ async def main() -> None:
     assert alembic("upgrade", "head").returncode == 0
     head = current()
     engine = create_async_engine(url)
-    server = McpConnection(name="Files", transport="http", url="https://mcp.example.com/mcp")
+    server = McpConnection(name="Files", url="https://mcp.example.com/mcp")
     feed = Integration(type="news_feed", name="Wire", url="https://news.example.com/rss")
-    vault = McpConnection(
-        name="Vault", transport="http", url_secret_id=str(uuid4()), endpoint_sha256="0" * 64
-    )
+    vault = McpConnection(name="Vault", url_secret_id=str(uuid4()), endpoint_sha256="0" * 64)
     try:
         async with engine.begin() as connection:
             owner_id = await connection.scalar(text("SELECT id FROM ln_owners LIMIT 1")) or str(
@@ -129,7 +127,10 @@ async def main() -> None:
             earlier = await stored(connection, rows)
         for table, payload in earlier.items():
             assert set(payload) == EARLIER[table], (table, sorted(payload))
-            assert payload == {key: saved[table][key] for key in EARLIER[table]}, table
+            # 0200's downgrade gives servers back the fields the earlier contract had.
+            restored = {"transport": "http", "command": None} if table == SERVERS else {}
+            expected = {key: saved[table].get(key, restored.get(key)) for key in EARLIER[table]}
+            assert payload == expected, table
         print("PASS the downgrade leaves every connection with exactly the earlier fields")
 
         assert alembic("upgrade", "head").returncode == 0

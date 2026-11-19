@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0072_mcp_sign_in"
-down_revision = "0071_secret_card_kinds"
+down_revision = "0200_old_workspace_data"
 branch_labels = None
 depends_on = None
 

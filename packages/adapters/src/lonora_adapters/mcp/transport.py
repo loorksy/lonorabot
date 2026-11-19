@@ -109,16 +109,3 @@ class HttpMcpTransport:
 
     async def close(self) -> None:
         await self.client.aclose()
-
-
-class StdioMcpTransport:
-    def __init__(self, command: list[str]):
-        # Owner/imported commands cannot run as the Gateway UID. Do not restore
-        # this transport until a separately authorized isolated host exists.
-        raise LonoraError("mcp_stdio_isolation_required", 403)
-
-    async def request(self, payload: dict[str, Any]) -> dict[str, Any]:
-        raise LonoraError("mcp_stdio_isolation_required", 403)
-
-    async def close(self) -> None:
-        pass

@@ -90,6 +90,7 @@ CHECKS = (
     "check_lossless_downgrades.py",
     "check_agent_model_choice.py",
     "check_agent_model_migration.py",
+    "check_model_card_migration.py",
     "check_trust_migration.py",
     "check_simple_lonora.py",
     "check_gold_journey.py",
@@ -121,6 +122,8 @@ def main() -> None:
     for name in (
         "test_agent_delivery_rules.py",
         "test_connection_tests.py",
+        "test_model_providers.py",
+        "test_model_provider_card.py",
         "test_owner_identity.py",
         "test_owner_profile.py",
         "test_usage_dashboard.py",

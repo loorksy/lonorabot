@@ -105,8 +105,8 @@ async def review(
         if row is None or row.owner_id != owner_id:
             raise LonoraError("mcp_not_found", 404)
         config = McpConnection.model_validate(row.payload)
-    if config.transport != "http" or not (config.url or config.url_secret_id):
-        raise LonoraError("mcp_stdio_isolation_required", 403)
+    if not (config.url or config.url_secret_id):
+        raise LonoraError("mcp_url_required", 422)
     secrets = rt.services(owner_id).secrets
     config = await signed_in(rt.db, secrets, owner_id, connection_id, config)
     endpoint = endpoint_sha256(await server_address(secrets, config))
