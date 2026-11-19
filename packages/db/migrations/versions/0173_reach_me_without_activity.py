@@ -10,7 +10,7 @@ preferences as they are.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import sqlalchemy as sa
 from alembic import op
@@ -31,13 +31,17 @@ def without_activity(content: str) -> str | None:
     """A revision's preferences text with "activity" read as "message", or None when
     the text names no "activity" choice (or is not the canonical JSON)."""
     try:
-        snapshot = json.loads(content)
+        loaded: Any = json.loads(content)
     except ValueError:
         return None
-    if not isinstance(snapshot, dict):
+    if not isinstance(loaded, dict):
         return None
-    reach_me = snapshot.get("reach_me")
-    if not isinstance(reach_me, dict) or reach_me.get("channel") != "activity":
+    snapshot = cast(dict[str, Any], loaded)
+    stored: Any = snapshot.get("reach_me")
+    if not isinstance(stored, dict):
+        return None
+    reach_me = cast(dict[str, Any], stored)
+    if reach_me.get("channel") != "activity":
         return None
     snapshot["reach_me"] = {**reach_me, "channel": "message"}
     # The canonical text preferences_snapshot writes.
