@@ -500,14 +500,15 @@ LITERAL = re.compile(r"'([^']*)'")
 
 # The Mandate card's state line, «الذهب · الآن: وكّله» / "Gold · Now: Full" (the clients'
 # mandateNow and mode words): only that card says an agent's mode is now one or the other.
-# Only its own form counts, a line or a part of one between the name's separators that is
-# «الآن:» and a mode word, so a sentence with the same words («You can now ask me») does not.
+# Only its own form counts: a line, or a part of one between the name's separators, that ends
+# with «الآن:» and a mode word after its start or any punctuation («الذهب، الآن: وكّله»), so a
+# sentence with the same words («You can now ask me», "What to do now: ask") does not.
 MODE_NOW = ("Now", "الآن")
 MODE_WORDS = ("Full", "Ask", "وكّله", "يستأذن")
 STATE_PARTS = re.compile(r"[·•|/\u2013\u2014-]")
 STATE_LINE = re.compile(
-    rf"\W*(?:{'|'.join(map(_folded, MODE_NOW))})[^\w:]*:"
-    rf"\W*(?:{'|'.join(map(_folded, MODE_WORDS))})\W*"
+    rf"(?:^|[^\w\s])\s*(?:{'|'.join(map(_folded, MODE_NOW))})[^\w:]*:"
+    rf"\W*(?:{'|'.join(map(_folded, MODE_WORDS))})\W*$"
 )
 
 
@@ -515,7 +516,7 @@ def shows_frame_mark(text: str) -> bool:
     """Text that says what only the trust frame, or the Mandate card's state line, says."""
     plain = f" {_plain(text)} "
     return any(f" {mark} " in plain for mark in MARKS_PLAIN) or any(
-        STATE_LINE.fullmatch(part)
+        STATE_LINE.search(part)
         for line in text.splitlines()
         for part in STATE_PARTS.split(_folded(line))
     )

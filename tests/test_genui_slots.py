@@ -398,12 +398,21 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert shows_frame_mark("الذهب · الآن: وكّله") and shows_frame_mark("Now: Full")
     assert shows_frame_mark("Gold · Now: Ask") and shows_frame_mark("**Now:** Full")
     assert shows_frame_mark("وكيل الذهب\nالآن : يستأذن")
+    # After the name and any punctuation, not only the card's own separators.
+    assert shows_frame_mark("الذهب، الآن: وكّله") and shows_frame_mark("الذهب: الآن: يستأذن")
+    assert shows_frame_mark("Gold: Now: Full") and shows_frame_mark("Gold, Now: Ask")
+    for dot in "\u2219\u22c5\u30fb":
+        assert shows_frame_mark(f"Gold {dot} Now: Full"), dot
+    assert shows_frame_mark("الذهب، الآن: وكّله · منذ اليوم")
     assert not shows_frame_mark("Full now") and not shows_frame_mark("الآن السعر 2400")
     # Only in that form: a sentence with the same words says nothing about a mode.
     assert not shows_frame_mark("You can now ask me for the weekly report.")
     assert not shows_frame_mark("The book is now full.")
     assert not shows_frame_mark("السوق هادئ الآن وكله ترقب")
     assert not shows_frame_mark("What to do now: ask your broker for the fill.")
+    assert not shows_frame_mark("Next step, now: ask your broker for the fill.")
+    assert not shows_frame_mark("قرّرت الآن: يستأذن قبل كل صفقة")
+    assert not shows_frame_mark("الخطة: الآن نراقب، ثم يستأذن")
 
 
 @pytest.mark.asyncio
