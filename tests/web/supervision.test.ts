@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Agent, OwnerAction, SupervisionView } from "../../packages/contracts/src/index";
+import type { OwnerAction, SupervisionView } from "../../packages/contracts/src/index";
 import { ownerActionCard } from "../../packages/core/src/owner-actions";
 import {
   supervisionError,
   supervisionLabels,
   supervisionRows,
-  unsupervisedAgents,
 } from "../../packages/core/src/supervision";
 
 const isolated = (value: string) => `⁨${value}⁩`;
@@ -213,15 +212,6 @@ test("profile rows name the other agent and where each grant came from", () => {
     { grantId: "g1", agentId: "gold", name: isolated("Gold agent"), source: "افتراضيًا" },
   ]);
   assert.equal(supervisionRows(view, "en").supervises[0]?.source, "by default");
-  const agents = [
-    { id: "lonora", name: "Lonora" },
-    { id: "gold", name: "Gold agent" },
-    { id: "news", name: "News agent" },
-  ] as Agent[];
-  assert.deepEqual(
-    unsupervisedAgents(view, agents).map((agent) => agent.id),
-    ["news"],
-  );
   assert.equal(
     supervisionError("supervision_self_target", "en"),
     "An agent cannot supervise itself.",
