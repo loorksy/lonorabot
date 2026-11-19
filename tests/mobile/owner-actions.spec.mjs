@@ -35,9 +35,9 @@ async def main():
                 fields['operation_id']=operation
             proposal=OwnerActionProposal(**fields)
             if data['kind']=='grant_authority':
-                from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
+                from lonora_contracts.owner_actions import GrantDraft
                 from lonora_db.owner_actions import ALL_ACTIONS
-                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis='suggested',percent='3',equity='10000'))
+                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS))
                 if data.get('delegation')=='full':
                     # Preselected because the owner's own message asked for full delegation.
                     draft=draft.with_delegation('full')
@@ -145,8 +145,7 @@ for (const locale of ["ar", "en"])
       const grantCard = page.getByTestId(`owner-action-${grant.id}`);
       await expect(grantCard.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
       await expect(grantCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
-      for (const option of ["manual", "no_money_limit"])
-        await expect(grantCard.getByTestId(`owner-action-option-${option}`)).toBeVisible();
+      await expect(grantCard.getByTestId("owner-action-option-manual")).toBeVisible();
       // Amendment 1: no grant card offers to resume trading.
       await expect(grantCard.getByTestId("owner-action-option-resume")).toHaveCount(0);
       await expect(
@@ -179,8 +178,6 @@ const delegation = {
     full: "تفويض كامل",
     customMeaning: "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط",
     fullMeaning: "تفويض كامل: كل أزواج هذا الحساب وكل العمليات",
-    fullLimits:
-      "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
     markets: "الأسواق: كل أزواج هذا الحساب",
     ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
     changed: "تغيّرت هذه البطاقة من شاشة أخرى، وهي تعرض الآن الاختيار الحالي؛ راجعها ثم اضغط مجددًا.",
@@ -190,8 +187,6 @@ const delegation = {
     full: "Full delegation",
     customMeaning: "Custom: only the markets, actions and time shown here",
     fullMeaning: "Full delegation: every pair on this account and every action",
-    fullLimits:
-      "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
     markets: "Markets: All pairs on this account",
     ownIncluded: "Positions you opened yourself are included",
     changed:
@@ -263,9 +258,7 @@ for (const locale of ["ar", "en"])
       await expect(full).toHaveAttribute("aria-checked", "true");
       const detail = card.getByTestId("owner-action-choice-detail-full");
       await expect(detail).toContainText(text.fullMeaning);
-      await expect(detail).toContainText(text.fullLimits);
       await expect(card.getByTestId("owner-action-option-manual")).toHaveCount(0);
-      await expect(card.getByTestId("owner-action-option-no_money_limit")).toHaveCount(0);
       await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
       await expect(card.getByText(text.markets, { exact: true })).toBeVisible();
       await expect(card.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
@@ -297,7 +290,7 @@ for (const locale of ["ar", "en"])
         "true",
       );
       await expect(second.getByTestId("owner-action-choice-detail-full")).toContainText(
-        text.fullLimits,
+        text.fullMeaning,
       );
       await second.getByRole("button", { name: text.notNow, exact: true }).click();
       await expect(second.getByText(text.dismissed, { exact: true })).toBeVisible();
