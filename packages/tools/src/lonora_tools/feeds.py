@@ -29,10 +29,12 @@ from .base import Tool
 from .context import ToolContext
 from .source_trust import owner_named, refusal
 
-# Feeds fetched at once in a read of every feed. It paces requests; every feed is read.
+# Feeds fetched at once in a read of every feed. It paces requests; it drops no feed.
 FEED_CONCURRENCY = 10
-# A read of every feed answers within the tool's 60 seconds: a feed still waiting then is
-# reported as timed out, and the feeds that answered are kept.
+# A read of every feed answers within the tool's 60 seconds. Every feed is attempted until
+# then, oldest subscription first: the feeds that answered are kept, a feed still being
+# fetched is reported as news_feed_timeout, and a feed not yet started as
+# news_feed_not_reached (the agent reads it next by its feed_id).
 READ_DEADLINE_SECONDS = 50
 FEED_TIMEOUT_SECONDS = 20
 
@@ -107,21 +109,31 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         if not rows:
             raise LonoraError("news_feed_not_found", 404)
     pace = asyncio.Semaphore(FEED_CONCURRENCY)
+    started: set[int] = set()
 
-    async def paced(url: str) -> dict[str, Any]:
+    async def paced(index: int, url: str) -> dict[str, Any]:
         async with pace:
+            started.add(index)
             return await one_feed(url, params.limit)
 
-    reads = [asyncio.create_task(paced(str(row.payload["url"]))) for row in rows]
-    if reads:
-        await asyncio.wait(reads, timeout=READ_DEADLINE_SECONDS)
-    for read_task in reads:
-        read_task.cancel()
+    reads = [
+        asyncio.create_task(paced(index, str(row.payload["url"]))) for index, row in enumerate(rows)
+    ]
+    try:
+        if reads:
+            await asyncio.wait(reads, timeout=READ_DEADLINE_SECONDS)
+    finally:
+        # Also when the tool itself is cancelled: no feed is fetched after the read ends.
+        for read_task in reads:
+            read_task.cancel()
     results = [
         read_task.result()
         if read_task.done() and not read_task.cancelled()
-        else {"status": "unavailable", "reason": "news_feed_timeout"}
-        for read_task in reads
+        else {
+            "status": "unavailable",
+            "reason": "news_feed_timeout" if index in started else "news_feed_not_reached",
+        }
+        for index, read_task in enumerate(reads)
     ]
     return {
         "feeds": [
