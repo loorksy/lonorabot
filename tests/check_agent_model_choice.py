@@ -331,21 +331,31 @@ async def main() -> None:
         assert guessed["closest"][0] == {**HAIKU.model_dump(), "name": "Claude-Haiku"}
         print("PASS model_list shows the model answering now and exact ids by name")
 
-        # 8. (f) A new agent created without a model starts on Lonora's current model.
-        created = await fixture.request(
-            "POST",
-            "/agents/create",
-            {"template": "research", "name": "Plain " + uuid4().hex[:6]},
-        )
-        assert (await record(created["id"]))["preference"]["primary"] is None
+        # 8. (f) A new agent Lonora creates with no model named starts on Lonora's current
+        # model; there is no creation form (3.1.2), so every creation is agent_create.
+        async def create_from_chat(
+            words: str, name: str, model: ModelSelection | None = None
+        ) -> dict[str, Any]:
+            asked = await owner_says(words, lonora, lonora_thread)
+            arguments: dict[str, Any] = {"name": name}
+            if model is not None:
+                arguments["model"] = model.model_dump()
+            made = await registry.execute(
+                ToolCall(id="create-" + uuid4().hex, name="agent_create", arguments=arguments),
+                asked,
+            )
+            await finish(asked)
+            assert made["created"] is True, made
+            return made
+
+        plain = await create_from_chat("Create an agent called Plain", "Plain " + uuid4().hex[:6])
+        assert (await record(plain["agent"]["id"]))["preference"]["primary"] is None
         await fixture.request(
             "PUT", f"/agents/{lonora['id']}/model", {"primary": OPUS.model_dump()}
         )
-        inherited = await fixture.request(
-            "POST",
-            "/agents/create",
-            {"template": "research", "name": "Inherits " + uuid4().hex[:6]},
-        )
+        inherited = (
+            await create_from_chat("Create an agent called Inherits", "Inherits " + uuid4().hex[:6])
+        )["agent"]
         snapshot = await record(inherited["id"])
         assert snapshot["preference"]["primary"] == OPUS.model_dump(), snapshot
         assert snapshot["chosen_by"] == "inherited"
@@ -359,40 +369,17 @@ async def main() -> None:
             "PUT", f"/agents/{lonora['id']}/model", {"primary": SONNET.model_dump()}
         )
         assert (await record(inherited["id"]))["preference"]["primary"] == OPUS.model_dump()
-        # A model the owner named at creation is the owner's.
-        named_at_creation = await fixture.request(
-            "POST",
-            "/agents/create",
-            {
-                "template": "research",
-                "name": "Named " + uuid4().hex[:6],
-                "model": HAIKU.model_dump(),
-            },
-        )
-        own = await record(named_at_creation["id"])
-        assert own["preference"]["primary"] == HAIKU.model_dump() and own["chosen_by"] == "owner"
 
-        # From chat, a model the owner's words do not name is dropped: Lonora's model.
-        async def create_from_chat(words: str, name: str) -> dict[str, Any]:
-            asked = await owner_says(words, lonora, lonora_thread)
-            made = await registry.execute(
-                ToolCall(
-                    id="create-" + uuid4().hex,
-                    name="agent_create",
-                    arguments={"template": "research", "name": name, "model": HAIKU.model_dump()},
-                ),
-                asked,
-            )
-            await finish(asked)
-            assert made["created"] is True, made
-            return made
-
-        scout = await create_from_chat("Create a research agent called Scout", "Scout")
+        # A model the owner's words do not name is dropped: Lonora's model. One the owner
+        # named at creation is the owner's.
+        scout = await create_from_chat("Create a research agent called Scout", "Scout", HAIKU)
         assert scout["model_dropped"].startswith("not named by the owner"), scout
         dropped = await record(scout["agent"]["id"])
         assert dropped["preference"]["primary"] == SONNET.model_dump(), dropped
         assert dropped["chosen_by"] == "inherited"
-        haiku = await create_from_chat("Create a research agent called Quill on Haiku", "Quill")
+        haiku = await create_from_chat(
+            "Create a research agent called Quill on Haiku", "Quill", HAIKU
+        )
         assert "model_dropped" not in haiku, haiku
         kept = await record(haiku["agent"]["id"])
         assert kept["preference"]["primary"] == HAIKU.model_dump() and kept["chosen_by"] == "owner"
