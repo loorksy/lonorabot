@@ -29,6 +29,7 @@ broken routine can no longer stop broker reconciliation.
 | `watchdog` | 30 s | 120 s | yes |
 | `morning_brief` ([morning-brief.md](morning-brief.md)) | 30 s | 120 s | yes |
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
+| `management_tasks` (Full mode's continuous task catch-up, [owner-actions.md](owner-actions.md)) | 60 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
 | `closed_trades` (the closed-trade ledger from broker deal history) | 30 s | 300 s | no |
