@@ -116,12 +116,16 @@ async def connection_config(context: ToolContext, connection_id: str) -> McpConn
         config = McpConnection.model_validate(row.payload)
         if not config.enabled:
             raise LonoraError("mcp_disabled", 409)
-        if config.secret_id:
-            secret = await session.get(SecretRow, config.secret_id)
+        for secret_id in (config.secret_id, config.url_secret_id):
+            if not secret_id:
+                continue
+            secret = await session.get(SecretRow, secret_id)
             if (
                 secret is None
                 or secret.owner_id != context.owner_id
-                or secret.scope != "integration"
+                # An owner's integration token, or a workspace secret from a Secret card;
+                # never a broker or provider value.
+                or secret.scope not in {"integration", "workspace"}
             ):
                 raise LonoraError("mcp_credential_scope_forbidden", 403)
     return config
@@ -173,9 +177,17 @@ def authority(
     return Authority("trusted", trust.tier, trust.tools[name], trust.id, name in trust.read_only)
 
 
+async def server_address(secrets: SecretStore, config: McpConnection) -> str:
+    """The server's address: on its row, or in the encrypted store when a Secret card
+    saved it (it may carry a key)."""
+    if config.url_secret_id:
+        return await secrets.read(config.url_secret_id)
+    return config.url or ""
+
+
 async def open_connector(secrets: SecretStore, config: McpConnection) -> McpConnector:
     token = await secrets.read(config.secret_id) if config.secret_id else None
-    result = McpConnector(HttpMcpTransport(config.url or "", token))
+    result = McpConnector(HttpMcpTransport(await server_address(secrets, config), token))
     try:
         await result.initialize()
     except BaseException:
@@ -226,9 +238,9 @@ async def connections(context: ToolContext, args: dict[str, Any]) -> dict[str, A
     return {
         "connections": listed,
         "guidance": "Pass connection_id to mcp_tools and mcp_execute. An empty list means the "
-        "owner has not saved an MCP server: offer a connect_credential card. trusted_tier "
-        "null means the owner has not trusted its tools yet: mcp_trust when he names it. "
-        "read: only the tools the server marks read-only run.",
+        "owner has not saved an MCP server: offer a Secret card (target mcp_server). "
+        "trusted_tier null means the owner has not trusted its tools yet: mcp_trust when he "
+        "names it. read: only the tools the server marks read-only run.",
     }
 
 
@@ -264,11 +276,12 @@ def tool_state(
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     config = await connection_config(context, args["connection_id"])
     trust = await trust_for(context, args["connection_id"])
+    url = await server_address(context.secrets, config)
     adapter = await connector(context, config)
     try:
         discovered: list[dict[str, Any]] = []
         for item in await adapter.tools():
-            state = tool_state(context, args["connection_id"], config.url or "", item, trust)
+            state = tool_state(context, args["connection_id"], url, item, trust)
             discovered.append(
                 {
                     **item,
@@ -350,6 +363,8 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             return refusal(connection_id=connection_id)
     config = await connection_config(context, connection_id)
     advertised = await advertised_tools(context.secrets, config)
+    # A server saved from a Secret card keeps its address in the store.
+    url = await server_address(context.secrets, config)
     review = review_tools(advertised)
     if not review.tools:
         raise LonoraError("mcp_nothing_to_trust", 409)
@@ -370,7 +385,7 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             via="owner_message",
             tier=tier,
             agent_id=context.agent_id,
-            endpoint_sha256=endpoint_sha256(config.url or ""),
+            endpoint_sha256=endpoint_sha256(url),
             tool_hashes=review.tools,
             read_only_tools=review.read_only,
             blocked_tools=review.blocked,
@@ -398,7 +413,8 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     connection_id = args["connection_id"]
     config = await connection_config(context, connection_id)
     trust = await trust_for(context, connection_id)
-    grant = authority(context, connection_id, config.url or "", args["name"], trust)
+    url = await server_address(context.secrets, config)
+    grant = authority(context, connection_id, url, args["name"], trust)
     if grant.needs_write_trust:
         # Trusted for reading, and the server did not mark this tool read-only at review.
         raise LonoraError("mcp_tool_needs_write_trust", 403)

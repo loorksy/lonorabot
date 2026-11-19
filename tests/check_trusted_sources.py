@@ -4,11 +4,12 @@
    ``mcp_server`` entry per operator declaration in ``LONORA_MCP_DECLARATIONS`` (its
    endpoint and schema hashes pinned, its tools read-only); running its seed again adds
    nothing; a downgrade drops the table and a re-upgrade seeds again.
-2. Add an MCP server from chat: the agent offers a secure credential card; the owner's
-   form posts the URL and token straight to the owner API and the agent is woken to
-   continue; the owner then names the server in chat and the agent trusts its tools
-   (``mcp_trust``, read only, no card; the tool that can place orders is blocked); the
-   agent's tool runs with no operator declaration. The token never appears in a message,
+2. Add an MCP server from chat: the agent offers a Secret card; the owner types the
+   server's address and token into it, and the card's own route saves them encrypted and
+   connects the server; the agent is woken to continue; the owner then names the server
+   in chat and the agent trusts its tools (``mcp_trust``, read only, no card; the tool
+   that can place orders is blocked); the agent's tool runs with no operator
+   declaration. The token never appears in a message,
    an event, a card or a Run.
 
 The MCP server is scripted; no live server, broker, model provider or real order is used.
@@ -179,36 +180,19 @@ async def connect_and_trust(fixture: Fixture) -> None:
             ToolCall(id="call-" + uuid4().hex, name=tool, arguments=arguments), context
         )
 
-    card = await call(
-        "owner_action_propose", kind="connect_credential", target="mcp_server", service="x"
-    )
+    # The owner types the server's address and token into the Secret card (an address
+    # may carry a key), and saving it connects the server.
+    card = await call("owner_action_propose", kind="secret", target="mcp_server", service="x")
     assert card["owner_must_tap"] and not card["execution_authorized"]
     card_id = card["owner_action"]["id"]
     taps = 0
     with patch.object(mcp, "HttpMcpTransport", transport(calls)):
-        # The owner's secure form: the token goes to the owner API, never to the card.
-        secret = await fixture.request(
-            "POST", "/integrations/secrets", {"name": "X", "value": token}
-        )
-        server = await fixture.request(
-            "POST",
-            "/mcp",
-            {
-                "payload": {
-                    "name": "X",
-                    "url": URL,
-                    "secret_id": secret["id"],
-                    "enabled": True,
-                }
-            },
-        )
         connected = await fixture.request(
-            "POST",
-            f"/owner-actions/{card_id}/decision",
-            {"decision": "confirm", "connected": {"resource": "mcp", "id": server["id"]}},
+            "POST", f"/owner-actions/{card_id}/secret", {"values": {"URL": URL, "TOKEN": token}}
         )
         taps += 1
         assert connected["status"] == "confirmed" and connected["result"]["configured"]
+        server = {"id": connected["result"]["connection_id"]}
         # The agent's work so far, and its continuation after the card, are done.
         async with fixture.runtime.db.sessions() as session, session.begin():
             for row in await session.scalars(
@@ -233,7 +217,7 @@ async def connect_and_trust(fixture: Fixture) -> None:
             list[dict[str, Any]],
             await fixture.request("GET", "/owner-actions?thread_id=" + thread["id"]),
         )
-        assert [item["kind"] for item in cards] == ["connect_credential"], cards
+        assert [item["kind"] for item in cards] == ["secret"], cards
         assert context.mcp_declarations == ()
         result = await call(
             "mcp_execute",
@@ -263,8 +247,8 @@ async def connect_and_trust(fixture: Fixture) -> None:
                 assert token not in dumped, model.__name__
     await fixture.request("DELETE", "/mcp/" + server["id"])
     print(
-        "PASS add an MCP server from chat: one secure card, then the owner's words trust it "
-        "(no card), the tool runs without a declaration, the agent continues, the token "
+        "PASS add an MCP server from chat: one Secret card, then the owner's words trust "
+        "it (no card), the tool runs without a declaration, the agent continues, the token "
         "never leaves the server"
     )
 

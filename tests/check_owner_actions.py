@@ -1,9 +1,9 @@
 """Owner action cards on disposable PostgreSQL with the simulation broker.
 
 Exercises W15-2 end to end through the agent tool, the attention projection (runtime
-cards, no model involved) and the owner-session decision route: a credential card and
-resolving an uncertain operation, with re-validation, idempotency, dedupe, the per-agent
-cap and expiry. No live broker, MetaApi key or real order is involved.
+cards, no model involved) and the owner-session routes: a Secret card (saved on its own
+route) and resolving an uncertain operation, with re-validation, idempotency, dedupe,
+the per-agent cap and expiry. No live broker, MetaApi key or real order is involved.
 """
 
 import asyncio
@@ -150,7 +150,7 @@ async def main() -> None:
         sent = await fixture.request(
             "POST",
             f"/threads/{thread['id']}/messages",
-            {"content": "Connect my broker please", "client_nonce": "cards-" + uuid4().hex},
+            {"content": "Connect my news feed please", "client_nonce": "cards-" + uuid4().hex},
         )
         run = {"id": sent["run_ids"][0], "agent_id": agent["id"], "thread_id": thread["id"]}
         context = await fixture.lease(run)
@@ -172,10 +172,10 @@ async def main() -> None:
                 return error.code
             raise AssertionError("Expected a refusal")
 
-        # 1. A credential card: one tap once the owner's form connected the resource;
-        #    proposing changes nothing; confirming is idempotent.
-        connect = {"kind": "connect_credential", "target": "broker"}
-        connected = {"resource": "broker", "id": account}
+        # 1. A Secret card: one tap saves the owner's value on the card's own route;
+        #    proposing changes nothing; saving again writes nothing.
+        connect = {"kind": "secret", "target": "news_feed", "name": "Desk"}
+        feed = {"values": {"URL": f"https://desk-{uuid4().hex[:8]}.news.example/rss"}}
         proposal = await propose(connect)
         identifier = proposal["owner_action"]["id"]
         assert proposal["owner_must_tap"] is True and proposal["execution_authorized"] is False
@@ -183,27 +183,32 @@ async def main() -> None:
         assert waiting_row.status == "pending" and waiting_row.result == {}
         listed = await cards_in(thread["id"])
         assert [row["id"] for row in listed] == [identifier]
-        assert listed[0]["facts"]["credential"] == {"target": "broker", "service": None}
+        assert listed[0]["facts"]["secret"]["connect"] == "news_feed"
         assert listed[0]["timeline_seq"] is not None and listed[0]["requires_passkey"] is False
+        # Its value never passes the decision route.
+        status, refused = await decide(identifier, {"decision": "confirm"})
+        assert status == 422 and refused["code"] == "owner_action_secret_values_required"
         before = len(await acknowledgements(thread["id"]))
-        status, first = await decide(identifier, {"decision": "confirm", "connected": connected})
+        status, first = await raw("POST", f"/owner-actions/{identifier}/secret", feed)
         assert status == 200 and first["status"] == "confirmed", first
         assert first["decided_via"] == "tap"
         assert first["result"]["configured"] is True, first["result"]
-        status, again = await decide(identifier, {"decision": "confirm", "connected": connected})
+        status, again = await raw("POST", f"/owner-actions/{identifier}/secret", feed)
         assert status == 200 and again["status"] == "confirmed"
         assert again["decided_at"] == first["decided_at"]
         status, conflict = await decide(identifier, {"decision": "cancel"})
         assert status == 409 and conflict["code"] == "owner_action_already_decided"
         posted = await acknowledgements(thread["id"])
         assert len(posted) == before + 1, posted
-        print("PASS a credential card changes nothing until the tap; confirming is idempotent")
+        print(
+            "PASS a Secret card changes nothing until the owner saves it; saving again is a no-op"
+        )
 
         # 2. No tool path can confirm: the agent's registry only proposes, and the
         #    decision route needs the owner's session.
         names = sorted(name for name in registry.tools if "owner_action" in name)
         assert names == ["owner_action_propose"], names
-        another = {"kind": "connect_credential", "target": "news_feed"}
+        another = {"kind": "secret", "target": "economic_calendar", "name": "Week"}
         pending = (await propose(another))["owner_action"]["id"]
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(fixture.app), base_url="https://streaming.test"
@@ -211,7 +216,12 @@ async def main() -> None:
             anonymous = await stranger.post(
                 f"/api/owner-actions/{pending}/decision", json={"decision": "confirm"}
             )
+            saved = await stranger.post(
+                f"/api/owner-actions/{pending}/secret",
+                json={"values": {"URL": "https://calendar.example.test/week.ics"}},
+            )
         assert anonymous.status_code == 401, anonymous.status_code
+        assert saved.status_code == 401, saved.status_code
         replay = await propose(another)
         assert replay["owner_action"]["id"] == pending and replay["already_shown"] is True
         assert (await card(pending)).status == "pending"
@@ -426,18 +436,21 @@ async def main() -> None:
         print("PASS settling an operation elsewhere supersedes its waiting resolve card")
 
         # 8. The per-agent cap and expiry.
-        expiring = {"kind": "connect_credential", "target": "news_feed"}
+        expiring = {"kind": "secret", "target": "news_feed", "name": "Wire"}
         waiting = [(await propose(expiring))["owner_action"]["id"]]
-        for target in ("economic_calendar", "broker", "mcp_server", "brave_search"):
-            waiting.append(
-                (await propose({"kind": "connect_credential", "target": target}))["owner_action"][
-                    "id"
-                ]
-            )
+        for other in (
+            {"kind": "secret", "target": "economic_calendar", "name": "Month"},
+            {"kind": "secret", "target": "mcp_server", "name": "Files"},
+            {"kind": "secret", "target": "brave_search"},
+            {
+                "kind": "secret",
+                "label": "Exchange",
+                "secret_fields": [{"key": "EXCHANGE_KEY", "label": "Key"}],
+            },
+        ):
+            waiting.append((await propose(other))["owner_action"]["id"])
         assert (
-            await propose_error(
-                {"kind": "connect_credential", "target": "mcp_server", "service": "x"}
-            )
+            await propose_error({"kind": "secret", "target": "mcp_server", "service": "x"})
             == "owner_action_limit"
         )
         async with db.sessions() as session, session.begin():
@@ -446,9 +459,10 @@ async def main() -> None:
             row.expires_at = utcnow() - timedelta(seconds=1)
         shown = {row["id"]: row for row in await cards_in(thread["id"])}
         assert shown[waiting[0]]["status"] == "expired"
-        status, late = await decide(
-            waiting[0],
-            {"decision": "confirm", "connected": {"resource": "integration", "id": "unused"}},
+        status, late = await raw(
+            "POST",
+            f"/owner-actions/{waiting[0]}/secret",
+            {"values": {"URL": "https://late.news.example/rss"}},
         )
         assert status == 200 and late["status"] == "expired" and late["status_reason"] == "expired"
         assert (await card(waiting[0])).result == {}

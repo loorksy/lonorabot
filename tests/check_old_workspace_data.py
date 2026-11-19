@@ -39,7 +39,7 @@ async def alembic(*arguments: str) -> None:
 async def main() -> None:
     db = Database.connect(test_settings().database_url)
     try:
-        await alembic("downgrade", "0087_end_money_limits")
+        await alembic("downgrade", "0100_execution_receipts")
         async with db.sessions() as session, session.begin():
             owner = OwnerRow(
                 email=f"old-workspace-{uuid4().hex[:8]}@example.test", password_hash="fixture"
@@ -152,7 +152,7 @@ async def main() -> None:
         assert "ln_analytical_workspaces" in tables
         # Down and up again: the receipts table comes back empty, then goes.
         await db.close()
-        await alembic("downgrade", "0087_end_money_limits")
+        await alembic("downgrade", "0100_execution_receipts")
         async with db.engine.connect() as connection:
             tables = await connection.run_sync(lambda conn: inspect(conn).get_table_names())
         assert "ln_workspace_operations" in tables

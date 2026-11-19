@@ -139,8 +139,10 @@ Lonora (`owner_preferences_require_owner_message`).
 **Owner signals (8.1).** The server appends what the owner does to
 `ln_owner_signals` (`lonora_db/owner_signals.py`): each conversation read (one
 row per tap of «قراءة الكل») and each position closed outside Lonora, at the
-broker's observed time, with whether it carried a stop loss or take profit (the
-broker does not say whether a hand or the order closed it). Lonora's context
+broker's observed time, with its volume, its floating profit at the last snapshot
+before the close (whether he closed a loser or a winner: his reaction to a drawdown)
+and whether it carried a stop loss or take profit (the broker does not say whether
+a hand or the order closed it). Lonora's context
 carries a two-week summary in the owner's time zone (`owner_signals` section); it
 writes its conclusions to USER.md. `owner_model()` returns the whole owner model
 (profile, preferences, signals) in one read. A whole-document write

@@ -3,6 +3,7 @@
 import asyncio
 
 from lonora_adapters.brokers.base import BrokerManager
+from lonora_contracts.account import Position
 from lonora_contracts.broker_activity import BrokerActivity, BrokerRecoverySnapshot
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import RunRequest
@@ -212,6 +213,12 @@ async def wake_for_activity(
                     "change": change.change,
                     "had_stop_loss": bool(closed and closed.stop_loss is not None),
                     "had_take_profit": bool(closed and closed.take_profit is not None),
+                    # Floating profit at the last snapshot before the close: whether the
+                    # owner closed a losing or a winning position (8.1, drawdown reactions).
+                    "volume": str(closed.volume) if closed else None,
+                    "profit_before_close": str(closed.profit)
+                    if isinstance(closed, Position)
+                    else None,
                 },
             )
         groups.setdefault((agent.id, attributed), []).append(change.id)

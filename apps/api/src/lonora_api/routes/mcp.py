@@ -11,7 +11,7 @@ class McpRepository(ResourceRepository):
     row_type = McpConnectionRow
     payload_model = McpConnection
     kind = "mcp"
-    secret_scope = "integration"
+    secret_scopes = ("integration", "workspace")
     secret_scope_refusal = "mcp_credential_scope_forbidden"
 
     async def delete(self, session: AsyncSession, owner_id: str, resource_id: str) -> None:

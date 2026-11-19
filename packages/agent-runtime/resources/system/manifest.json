@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "307d5629416fc37aca18429f1931d1a40994e939162e059189f6a820345e9773",
+  "manual_sha256": "110b02b74bf2b29cacae44f846d6d3126fb549edd71ec6c60a675a532d0a1996",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -54,6 +54,8 @@
     "news_feed_subscribe": "research",
     "telegram_link": "research",
     "capabilities_list": "research",
+    "secrets_list": "research",
+    "secret_delete": "research",
     "subagent_spawn": "collaboration",
     "subagent_inspect": "collaboration",
     "child_agent_create": "collaboration",
@@ -112,6 +114,7 @@
     "trade_execute": "trading",
     "trade_close_positions": "trading",
     "positions_manage_all": "trading",
+    "trade_approval_withdraw": "trading",
     "trading_mode_ask": "trading",
     "owner_action_propose": "trading",
     "board_list": "tasks",
