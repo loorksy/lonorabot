@@ -48,7 +48,6 @@ from lonora_db.agent_creation import (
     undo_plan,
 )
 from lonora_db.authority_lock import authority_lock
-from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
     agent_names,
     choose_delegation,
@@ -311,9 +310,6 @@ async def decide(
         result = {"restored": await restore_supervision(session, owner, row)}
     elif row.kind == "supervision_paused":
         result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
-    elif row.kind == "watch_changed":
-        # Undo: the expiry the watch had before the agent extended it (owner only).
-        result = await undo_watch_change(session, owner.id, row.payload)
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
     created_agent = (
         await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None

@@ -28,10 +28,6 @@ OwnerActionKind = Literal[
     # store; the agent learns which keys were saved.
     "secret",
 ]
-# Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
-# an extended watch (one use, while the watch is as the agent left it); "stop_tightened"
-# only reports a tightened stop loss (undoing it would be a new financial modification).
-NoticeCardKind = Literal["watch_changed", "stop_tightened"]
 GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
 # A grant card's one choice: Custom (the markets, actions, duration and own positions the
 # card shows; owner decision D1 defaults) or Full delegation (every pair on the account,

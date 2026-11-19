@@ -398,12 +398,7 @@ export function OwnerActionCard({
 }
 
 /** Undo-only kinds: a change made without asking, in one centred line with «تراجع» (Q31). */
-const NOTICE_KINDS = new Set<string>([
-  "agent_created",
-  "supervision_created",
-  "watch_changed",
-  "stop_tightened",
-]);
+const NOTICE_KINDS = new Set<string>(["agent_created", "supervision_created"]);
 const KIND_ICON: Partial<Record<string, IconName>> = {
   grant_authority: "shield",
   settle_operation: "alert",
@@ -414,8 +409,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   supervision_stopped: "eye",
   supervision_paused: "pause",
   secret: "key",
-  watch_changed: "radar",
-  stop_tightened: "shield",
 };
 const STATUS_ICON: Record<string, IconName> = {
   pending: "timer",
@@ -545,8 +538,7 @@ function NoticeLine({
   onUndo: (button: OwnerActionButton) => void;
 }) {
   const labels = ownerActionText(i18n.locale);
-  // Only a notice that offers «تراجع» can be undone (Q31): a settled stop_tightened notice
-  // was applied, never undone.
+  // Only a notice that offers «تراجع» can be undone (Q31).
   const undone = noticeUndone(row);
   return (
     <div

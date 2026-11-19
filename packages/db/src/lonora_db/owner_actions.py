@@ -67,10 +67,6 @@ LIFETIME = {
     "supervision_paused": timedelta(days=31),
     # The Secret card: a credential, or a connection that needs one.
     "secret": timedelta(days=7),
-    # Changes an agent made without asking (Q31): Undo of an extended watch, and the
-    # notice of a tightened stop (recorded settled, nothing to tap).
-    "watch_changed": timedelta(days=7),
-    "stop_tightened": timedelta(days=7),
     # The Mandate card has no time limit (10.3): it stays the agent's switch.
     "trading_mode": timedelta(days=3650),
 }
@@ -190,12 +186,6 @@ async def stale_reason(
         if not grants:
             return "supervision_agent_missing"
         return None if await _restorable(session, owner_id, grants) else "supervision_already_set"
-    if kind == "watch_changed":
-        from .notice_cards import watch_change_stale
-
-        return await watch_change_stale(session, owner_id, payload)
-    if kind == "stop_tightened":
-        return "nothing_to_undo"
     if kind == "secret":
         from .secret_cards import secret_stale_reason
 
@@ -559,10 +549,6 @@ async def card_facts(
         return await supervision_facts(session, row, facts), False
     if row.kind == "supervision_paused":
         return await pause_facts(session, row, facts), False
-    if row.kind in {"watch_changed", "stop_tightened"}:
-        from .notice_cards import notice_facts
-
-        return await notice_facts(session, row, facts), False
     if row.kind == "secret":
         from .secret_cards import secret_facts
 
@@ -963,9 +949,7 @@ async def create_card(
     kind: str,
     subject: str,
     payload: dict[str, Any],
-    status: str = "pending",
 ) -> OwnerActionRow:
-    """``status`` "confirmed" records a notice that offers nothing to decide."""
     now = utcnow()
     row = OwnerActionRow(
         id=card_id,
@@ -978,7 +962,7 @@ async def create_card(
         subject=subject,
         payload=payload,
         payload_hash=payload_hash(kind, payload),
-        status=status,
+        status="pending",
         result={},
         # The card sits after everything already in the conversation, like an approval.
         timeline_seq=thread.next_seq,
@@ -1438,8 +1422,8 @@ async def draft_grant_card(
 
 
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
-# record may still need one. Undo and notice cards keep their own window and never come
-# back; an agent's proposal is the agent's to make again.
+# record may still need one. Undo cards keep their own window and never come back; an
+# agent's proposal is the agent's to make again.
 RENEWABLE_KINDS = frozenset({"settle_operation"})
 
 
