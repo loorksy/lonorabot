@@ -102,7 +102,7 @@ from .runtime_notices import (
     notice_message,
     prefers_arabic,
 )
-from .steering import merge_steering, owner_steering_pending
+from .steering import merge_run_notices, merge_steering, owner_steering_pending
 from .stop_gates import task_progress
 from .tasks import task_checkpoint
 from .tool_block import (
@@ -477,8 +477,8 @@ async def execute_tool_loop(
         if halt_reason(state):
             # The boundary handler finishes gracefully with the halt reason.
             continue
-        # Between the block and the next model turn: steering, Task controls,
-        # skill authority and the round budget.
+        # Between the block and the next model turn: steering, Task controls, skill
+        # authority, the round budget and server notices.
         if await merge_steering(context, state, messages):
             await refresh_after_steering()
         await task_checkpoint(context, state, messages)
@@ -505,6 +505,9 @@ async def execute_tool_loop(
                 reason="tool_round_limit",
                 task_run=task_run,
             )
+        # A trade this Run closed is read only while a round can still act on it; on
+        # the last round the notice stays unread and its own Run follows.
+        await merge_run_notices(context, state, messages)
         if executable <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != executable:
             append_notice(messages, "budget", budget_warning(executable))
             state["budget_warned"] = executable
@@ -593,7 +596,12 @@ async def execute_tool_loop(
             len(state["selection"]["visual_errors"]),
         )
         empty = not reply.text.strip() and reply.rich_content is None and not reply.tool_calls
-        if empty and is_conversational(run.trigger):
+        # A close-review wake may end without a reply: nothing needs the owner (11.5).
+        if (
+            empty
+            and is_conversational(run.trigger)
+            and not run.model_metadata.get("closed_trade_id")
+        ):
             # An empty provider turn carries nothing to keep; the notice follows
             # the existing tail instead of an empty assistant message.
             append_notice(messages, "no_answer", NO_ANSWER)
@@ -610,6 +618,12 @@ async def execute_tool_loop(
         pending = list(reply.tool_calls)
         await save()
         if pending:
+            continue
+        if final_limit - int(state.get("rounds", 0)) - 1 > 0 and await merge_run_notices(
+            context, state, messages
+        ):
+            # A trade this Run closed was recorded: answer it before the final reply. With
+            # no round left to act on it, the notice stays unread and its own Run follows.
             continue
         if await merge_steering(context, state, messages):
             await refresh_after_steering()

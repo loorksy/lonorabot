@@ -96,6 +96,7 @@ CHECKS = (
     "check_trust_migration.py",
     "check_simple_lonora.py",
     "check_gold_journey.py",
+    "check_close_wake.py",
 )
 
 

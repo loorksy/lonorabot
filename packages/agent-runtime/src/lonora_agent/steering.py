@@ -6,11 +6,12 @@ from lonora_db.runs import checkpoint, require_lease
 from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
 from lonora_tools.provenance import mark_external_content
+from lonora_trading.close_wake import take_run_notices
 
 from .context.attachments import attachment_context, third_party_attachment
 from .context.command import command_block
 from .offers import merge_answer
-from .runtime_notices import notice_message
+from .runtime_notices import append_notice, notice_message
 from .stop_gates import reset_stop_gate
 from .tool_guardrails import reset_guardrails
 
@@ -65,3 +66,21 @@ async def merge_steering(
             state["messages"] = [message.model_dump(mode="json") for message in messages]
             await checkpoint(session, context.lease, state)
         return bool(fresh)
+
+
+async def merge_run_notices(
+    context: ToolContext, state: dict[str, Any], messages: list[ModelMessage]
+) -> bool:
+    """Deliver the server's notices for this Run (a trade its operation closed, 5.5.2).
+
+    Read and checkpointed in one transaction, so a notice is never lost or read twice.
+    """
+    async with context.db.sessions() as session, session.begin():
+        await require_lease(session, context.lease)
+        texts = await take_run_notices(session, context.lease.run_id)
+        for text in texts:
+            append_notice(messages, "closed_trade", text)
+        if texts:
+            state["messages"] = [message.model_dump(mode="json") for message in messages]
+            await checkpoint(session, context.lease, state)
+    return bool(texts)

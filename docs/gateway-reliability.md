@@ -35,6 +35,7 @@ broken routine can no longer stop broker reconciliation.
 | `closed_trades` (the closed-trade ledger from broker deal history) | 30 s | 300 s | no |
 | `instrument_currencies` (instrument currencies of held symbols, for the account picture) | 30 s | 120 s | no |
 | `calendar` (the owner's economic calendar sources, cached for the account picture) | 600 s | 120 s | no |
+| `close_wakes` (a closed trade wakes its owner for a self-review) | 10 s | 120 s | no |
 | `voice` | 0.5 s | 60 s | no |
 | `incoming` (incoming calls) | 2 s | 60 s | no |
 | `thread_prefs` (keep-archived off: a new message unarchives) | 2 s | 60 s | no |
