@@ -70,11 +70,11 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       "Actual persisted analysis instructions.",
     );
     await page.keyboard.press("Escape");
-    // An analyst with no pair has no chart in its menu (Desktop-37); the chart sheet is
-    // covered with a trading agent's pair in agent-pages.spec.mjs.
+    // Every agent trades (3.2.1), with no pair too: its menu offers the chart, as Lonora's
+    // does. The chart sheet is covered with a pair in agent-pages.spec.mjs.
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await expect(page.getByRole("menuitem", { name: "Agent info" })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Chart" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Chart" })).toBeVisible();
     await page.keyboard.press("Escape");
     await image.evaluate((element) => element.decode());
     await image.screenshot({ path: ".runtime/rakazo-parity/svg-isolated.png" });
