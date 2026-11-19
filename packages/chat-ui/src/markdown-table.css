@@ -31,7 +31,7 @@
 }
 
 .rk-table-tool:hover:not(:disabled) {
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--foreground);
 }
 
@@ -60,7 +60,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--muted);
+  background: var(--legacy-muted);
   font-weight: 600;
   text-align: left;
 }
@@ -145,7 +145,7 @@ button.rk-table-sort {
   min-width: 2.2em;
   text-align: center;
   color: var(--muted-foreground);
-  background: var(--muted);
+  background: var(--legacy-muted);
   border-inline-end: 1px solid var(--border);
   font-size: 0.85em;
   padding-left: 0.3em;

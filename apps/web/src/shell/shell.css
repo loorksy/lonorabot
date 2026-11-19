@@ -1,7 +1,7 @@
 /* The app shell of docs/ui-reference/Lonora-Desktop-37.html: glass top bar, floating tab bar,
    pager, sheets, desktop frame and the interface states. Every value is a reference token
    (@lonora/ui-tokens/reference.css); the alphas and shadows are the reference's own literals.
-   Legacy screens mounted inside keep their palette under .legacy-surface (tokens.css). */
+   Legacy screens mounted inside keep their palette through tokens.css (the --legacy-* names). */
 
 .app-shell {
   height: 100%;
@@ -278,7 +278,7 @@ main.detail.bare {
   padding-top: calc(var(--top-h, 0px) + 62px);
 }
 main.page-enter {
-  animation: enter 0.22s var(--ease) both;
+  animation: enter 0.22s var(--ease) backwards;
 }
 @keyframes enter {
   from {
@@ -407,9 +407,9 @@ nav.tabbar.paging .active.unpeek {
   box-shadow:
     var(--hi),
     0 4px 14px rgba(0, 0, 0, 0.22);
-  /* Its width is set at once; the stretch while paging is a scaleX from the leading edge. */
-  transform-origin: 0 50%;
-  transition: transform 0.42s var(--spring);
+  transition:
+    transform 0.42s var(--spring),
+    width 0.32s var(--ease);
 }
 nav.tabbar.dragging .nav-lens {
   background: color-mix(in srgb, var(--text) 14%, transparent);
@@ -769,6 +769,13 @@ button.row:hover {
   font-weight: 700;
   box-shadow: var(--hi);
 }
+.avatar.big {
+  width: 88px;
+  height: 88px;
+}
+.avatar.initial.big {
+  font-size: var(--fs-xl);
+}
 .avatar.icon-av {
   background: linear-gradient(180deg, var(--fill-2), var(--fill));
   color: var(--text);
@@ -840,6 +847,16 @@ button.row:hover {
   background: radial-gradient(closest-side, rgba(0, 0, 0, 0.45), transparent);
   filter: blur(4px);
   z-index: -1;
+}
+/* The first paint, before the session is known: the mark and one quiet line. */
+.boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  height: 100%;
+  color: var(--muted);
 }
 @keyframes float3d {
   0%,
@@ -1006,8 +1023,9 @@ header.chats-header.search-active .header-search {
   scrollbar-width: none;
 }
 
-/* Chat header: name and presence (phase 3 owns the conversation itself) */
-.chat-head {
+/* Chat header: name and presence (phase 3 owns the conversation itself). Named with its
+   header so it outranks the shared header's gap and padding. */
+.topbar header.chat-head {
   gap: 2px;
   padding-inline: 6px;
 }
@@ -1413,6 +1431,7 @@ html[dir="ltr"] .sheet-page.go-back {
   padding-inline-start: 34px;
   border-radius: var(--r-md);
   background: var(--add-card);
+  list-style: decimal;
   line-height: 2;
   font-size: var(--fs-sm);
 }
@@ -1505,7 +1524,7 @@ html[dir="ltr"] .sheet-page.go-back {
   font-size: var(--fs-sm);
   font-weight: 600;
   text-align: center;
-  transform: translateX(-50%);
+  translate: -50%;
 }
 #toast.show {
   display: flex;
@@ -1514,11 +1533,7 @@ html[dir="ltr"] .sheet-page.go-back {
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%);
+    transform: translateY(-4px);
   }
 }
 #toast .t-ic {
@@ -1738,6 +1753,32 @@ html[dir="ltr"] .sheet-page.go-back {
   display: flex;
   justify-content: center;
   margin: 2px 0 6px;
+}
+.sk-h3 {
+  margin: 14px 6px 2px;
+}
+.sk-h3 .sk-line {
+  height: 10px;
+}
+.sk-group {
+  margin: 8px 0 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--hi);
+}
+.sk-row.in-group {
+  min-height: 60px;
+  padding: 10px 14px;
+}
+.sk-row.in-group + .sk-row.in-group {
+  border-top: 1px solid var(--line);
+}
+.sk-ic {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
 }
 
 /* Pager: pages travel as cards over a darker stage */

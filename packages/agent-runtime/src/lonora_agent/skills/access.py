@@ -19,7 +19,7 @@ from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..context.skills import effective_skill_registry, pin_package_image
+from ..context.skills import effective_skill_registry
 from .provenance import LEGACY_LABEL, skill_provenance
 from .registry import SkillRegistry
 from .resolver import SkillSelection, SkillSignals, resolve_skills
@@ -236,20 +236,27 @@ class RunSkillAccess:
         return await restore_skill(context, self.registry, arguments)
 
     async def inspect_repository(
-        self, context: ToolContext, repository_url: str, ref: str
+        self, context: ToolContext, repository_url: str, ref: str, trust: bool = False
     ) -> dict[str, Any]:
         from lonora_db.trusted_sources import github_trusted
 
+        from .lifecycle import repository_trusted
         from .repository import inspect_repository, repository_identity
 
-        async with context.db.sessions() as session, session.begin():
-            await scoped_run(session, context)
-        result = await inspect_repository(repository_url, ref)
         owner, repository = repository_identity(repository_url)
+        async with context.db.sessions() as session, session.begin():
+            run = await scoped_run(session, context)
+            # Trusting it is asked for (trust=True), and before reading it: once this run
+            # reads the repository, the owner's message no longer counts on its own.
+            if trust and not await repository_trusted(session, context, run, owner, repository):
+                from lonora_tools.source_trust import refusal
+
+                return refusal(repository=owner + "/" + repository)
+        result = await inspect_repository(repository_url, ref)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)
             # Inside the owner's trusted sources an import installs silently; outside
-            # it, the import raises one owner card first.
+            # it, the import is refused until the owner names the repository in chat.
             trusted = await github_trusted(session, context.owner_id, owner, repository)
         return {**result, "source_trusted": trusted}
 
@@ -304,15 +311,10 @@ class RunSkillAccess:
             skills, rejected, signals = await catalog_state(session, context, self.registry, run)
             combined, bundle = select_bundle(skills, rejected, signals, self.active_ids, skill_id)
             expected = acknowledgment(skill_id, bundle)
-            rows = (
-                await session.scalars(select(SkillRow).where(SkillRow.agent_id == context.agent_id))
-            ).all()
-            metadata = pin_package_image(run.model_metadata, rows, combined.selected)
             if receipt is not None:
-                run.model_metadata = metadata
                 return verify_receipt(context, skill_id, receipt, expected)
             run.model_metadata = {
-                **metadata,
+                **run.model_metadata,
                 "skill_snapshot": admission_snapshot(run.model_metadata, combined),
             }
             session.add(

@@ -263,6 +263,7 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     monkeypatch.setattr(builder, "decision_context", AsyncMock(return_value="Decisions listed"))
     monkeypatch.setattr(builder, "operational_context", AsyncMock(return_value=""))
     monkeypatch.setattr(builder, "routing_frame", AsyncMock(return_value="[routing]"))
+    monkeypatch.setattr(builder, "account_picture", AsyncMock(return_value="[picture]"))
     monkeypatch.setattr(
         builder,
         "read_memory_context",
@@ -315,10 +316,12 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     assert "Owner style" in system and "<skill_runtime>" in system
     # Larger server listings are optional system blocks, never the mandatory policy.
     assert "Decisions listed" not in messages[0].content
-    assert messages[1].role == "system" and messages[1].context_origin == "runtime_context"
-    assert messages[1].content.startswith("<lonora_recorded_decisions>\nDecisions listed")
-    assert messages[2].content == "[routing]"
-    data = messages[3]
+    # The account picture is mandatory: never a sheddable runtime_context block.
+    assert messages[1].content == "[picture]" and messages[1].context_origin != "runtime_context"
+    assert messages[2].role == "system" and messages[2].context_origin == "runtime_context"
+    assert messages[2].content.startswith("<lonora_recorded_decisions>\nDecisions listed")
+    assert messages[3].content == "[routing]"
+    data = messages[4]
     assert is_context_message(data) and data.role == "user"
     assert hostile not in data.content
     assert data.content.count(escape_context_text(hostile)) == 10
@@ -352,6 +355,7 @@ class SimpleAgent:
     id = "agent"
     instructions = "Owner style"
     trading_account_id = None
+    role = "general"
 
 
 class SimpleThread:
@@ -1310,20 +1314,20 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_performance_read", "market_position_size", "market_quote",
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_snapshot", "market_structure",
-        "market_symbols", "model_list", "model_request", "news_feed_subscribe",
+        "market_symbols", "model_list", "model_request", "news_feed_subscribe", "telegram_link",
         "capabilities_list", "owner_action_propose", "owner_attention_list",
         "owner_call_request",
         "owner_notify", "peer_send",
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
+        "secret_delete", "secrets_list",
         "skill_package_control", "skill_package_create", "skill_package_import",
         "positions_manage_all", "skill_package_validate", "subagent_spawn", "supervision_change",
         "task_control", "task_inspect", "task_start", "task_step_update", "trading_mode_ask",
         "trade_approval_withdraw",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
-        "trade_restriction_create", "trade_restriction_list", "usage_read", "watch_cancel",
-        "watch_create",
+        "usage_read", "watch_cancel", "watch_create",
         "watch_list", "watch_pause", "watch_resume", "watch_update",
-        "workspace_export", "workspace_file_write", "workspace_stop", "workspace_update",
+        "workspace_export", "workspace_file_write", "workspace_stop",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:
@@ -1335,6 +1339,10 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "consult_model",
         "web_fetch",
         "mcp_execute",
+        # Removed tools whose results earlier Runs stored stay untrusted evidence.
+        "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
     ):
         assert is_external(name), name
 

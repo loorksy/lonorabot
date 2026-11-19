@@ -23,7 +23,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from .context.financial_result import public_broker_ids
 from .display_bindings import unbound_prose
 from .genui_capabilities import UiCapabilities, capabilities
-from .genui_compile import AgentScope, compile_card
+from .genui_compile import AgentScope, compile_card, unusable
 
 START = re.compile(r"^[ \t]*(?:`{3,}|~{3,})[ \t]*lonora-ui\b[^\n]*\n?", re.M | re.I)
 END = re.compile(r"(?m)^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:\r?\n|$)")
@@ -112,6 +112,8 @@ def visual_observation_catalog(messages: list[ModelMessage]) -> str:
                 cast(dict[str, Any], result).get("ok") is False
                 or cast(dict[str, Any], result).get("error")
                 or str(cast(dict[str, Any], result).get("status", "")).lower() in FAILED
+                # An operation the broker has not confirmed is not shown as a fact (10.3).
+                or unusable(result)
             )
         )
     ][-24:]
@@ -240,7 +242,7 @@ class VisualReplyProjector:
         )
         self.scope: AgentScope | None = None
         self.cards: dict[str, dict[str, Any] | None] = {}
-        self.slots: dict[str, frozenset[tuple[str, str]]] = {}
+        self.slots: dict[str, dict[tuple[str, str], int]] = {}
 
     async def slot_scope(self, scope: AgentScope, blocks: list[dict[str, Any]]) -> AgentScope:
         """The scope with the records this card's slots name, read once per record set."""
@@ -250,14 +252,12 @@ class VisualReplyProjector:
         key = "\n".join(ids)
         if key not in self.slots:
             async with self.context.db.sessions() as session:
-                self.slots[key] = frozenset(
-                    await slot_records(
-                        session,
-                        self.context.owner_id,
-                        self.context.lease.run_id,
-                        self.context.thread_id,
-                        ids,
-                    )
+                self.slots[key] = await slot_records(
+                    session,
+                    self.context.owner_id,
+                    self.context.lease.run_id,
+                    self.context.thread_id,
+                    ids,
                 )
         return replace(scope, slot_records=self.slots[key])
 

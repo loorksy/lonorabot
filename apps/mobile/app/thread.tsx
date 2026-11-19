@@ -26,10 +26,12 @@ import {
   projectRunEvents,
   retryableFailure,
   runStatusText,
+  SLOT_OWNER_ACTION_KINDS,
   seedStream,
   stopTargets,
   streamForRun,
   submitMark,
+  threadQuestions,
   turnActivity,
 } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
@@ -51,6 +53,7 @@ import { AgentLiveStatus } from "../components/agent-live-status";
 import { AgentPermissions } from "../components/agent-permissions";
 import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
+import { ChatPrefsBody } from "../components/chat-prefs-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
 import { ExecutionReceiptCard } from "../components/execution-receipt";
 import { CardHost, type CardHostValue } from "../components/genui/host";
@@ -72,6 +75,7 @@ import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
+import { useChatPrefs } from "../lib/chat-prefs";
 import {
   type ComposerDraft,
   composerDraft,
@@ -148,6 +152,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
   const [receipts, setReceipts] = useState<ExecutionReceipt[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  // Background runs working in a hidden thread that asked here: only their questions show.
+  const [asking, setAsking] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
   // Edit and resend (Q21): the owner's message the next send replaces.
@@ -164,6 +170,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
   }, []);
   const toast = useToast();
+  const prefs = useChatPrefs();
+  // The message a search or quote jump landed on (tinted for 1.7 s).
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const timer = setTimeout(() => setFlash(null), 1700);
+    return () => clearTimeout(timer);
+  }, [flash]);
   const menuActions = useRef<() => MessageMenuActions>(() => {
     throw new Error("message_menu_unset");
   });
@@ -303,6 +317,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             return next;
           });
           setRuns((old) => projectRunEvents([...old, ...nextRuns], [], id));
+          setAsking(nextRuns.filter((run) => run.thread_id !== id));
           setLoaded(true);
           setError(null);
         });
@@ -393,6 +408,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setGroups(cached?.groups ?? inbox?.groups ?? []);
     setMessages(cached?.messages ?? []);
     setRuns(cached?.runs ?? []);
+    setAsking([]);
     setApprovals(cached?.approvals ?? []);
     setOwnerActions([]);
     setReceipts([]);
@@ -647,7 +663,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         return approval ? approvalCard(approval) : null;
       }
       const action = ownerActions.find(
-        (row) => row.id === record && row.thread_id === id && row.kind === "settle_operation",
+        (row) =>
+          row.id === record && row.thread_id === id && row.kind === SLOT_OWNER_ACTION_KINDS[card],
       );
       return action ? ownerActionCard(action) : null;
     },
@@ -753,7 +770,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         if (accepted.runs?.length)
           setRuns((old) => {
             const projected = new Map(old.map((run) => [run.id, run]));
-            for (const run of accepted.runs ?? []) {
+            // A background run the message answered works in its own thread: it is
+            // never one of this conversation's runs.
+            for (const run of (accepted.runs ?? []).filter((row) => row.thread_id === targetId)) {
               const prior = projected.get(run.id);
               if (!prior || Date.parse(run.updated_at) >= Date.parse(prior.updated_at))
                 projected.set(run.id, run);
@@ -856,6 +875,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
+    // The message the jump landed on is marked for a moment, as on Web.
+    const landed = visibleMessages.find((row) => row.seq === around);
+    if (landed) setFlash(landed.id);
   }, [around, loaded, visibleMessages, approvals, ownerActions, receipts, id, undrawn]);
 
   if (!ready) return <Loading />;
@@ -952,9 +974,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }
     await deliver(intent, outboxKey, id);
   };
-  const questions = new Map(
-    runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
-  );
+  const questions = threadQuestions([...asking, ...runs], id);
   // «+»: Files or Photos from the system picker (no storage or camera permission), several
   // at once; each file uploads on its own with a ring and a cancel, as on Web.
   const pick = async (kind: "files" | "photos") => {
@@ -1168,13 +1188,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         onActions={() => setActionsVisible(true)}
         onCall={agent && thread ? () => void voice.start(agent, thread.id) : undefined}
         safety={
-          agent ? (
-            <SafetyPill
-              readiness={liveState.state?.trading_readiness ?? null}
-              agents={agents}
-              onChanged={liveState.refresh}
-            />
-          ) : undefined
+          agent ? <SafetyPill readiness={liveState.state?.trading_readiness ?? null} /> : undefined
         }
         avatar={
           agent ? (
@@ -1227,6 +1241,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             label: t("artifacts"),
             icon: "layers",
             onPress: () => router.push({ pathname: "/artifacts", params: { threadId: id } }),
+          },
+          {
+            label: t("chatPrefs"),
+            icon: "settings",
+            onPress: () =>
+              sheets.open({ id: "chat-prefs", title: t("chatPrefs"), body: <ChatPrefsBody /> }),
           },
           {
             label: group ? t("groupSettings") : t("agentSettings"),
@@ -1300,6 +1320,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         ))}
       {thread?.agent_id && (
         <AgentLiveStatus
+          detailed={prefs.agentStatus}
           state={liveState.state}
           error={liveState.error}
           refresh={liveState.refresh}
@@ -1391,6 +1412,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                           }}
                           events={events}
                           connection={connection}
+                          steps={prefs.steps}
+                          stepsOpen={prefs.stepsOpen}
                           agent={agents.find((value) => value.id === responseRun.agent_id)}
                         />
                       ) : null}
@@ -1433,6 +1456,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         onMenu={message.id.startsWith("preview:") ? undefined : menu.open}
                         onReactions={menu.reactions}
                         onQuote={jumpTo}
+                        flash={flash === message.id}
+                        onCallBack={
+                          agent && thread && !thread.group_id
+                            ? () => void voice.start(agent, thread.id)
+                            : undefined
+                        }
                         onCancelUploads={(nonce) => cancelOutgoingUploads(outboxKey, nonce)}
                         body={
                           question?.choices.length ? (
@@ -1538,6 +1567,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
+          assist={prefs.assist}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}

@@ -28,7 +28,7 @@ from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import select, text
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0060_agent_trading_mode"
+BEFORE = "0087_end_money_limits"
 
 
 def alembic(*arguments: str) -> None:

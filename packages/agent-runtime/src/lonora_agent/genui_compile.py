@@ -14,7 +14,7 @@ import json
 import math
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -35,6 +35,7 @@ from lonora_contracts.instrument_names import known_names
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
 from lonora_core.search_fold import fold
 
+from .context.financial_result import FINANCIAL_CALLS
 from .genui_capabilities import UiCapabilities
 
 PRIVATE_KEY = re.compile(
@@ -66,7 +67,7 @@ DEFAULT_WHY = {
     "form": "نموذج قصير يجمع ما يحتاجه الطلب مرة واحدة ويمنع الأخطاء، بدل أسئلة متتالية.",
     "calculator": "حاسبة تفاعلية تجرّب فيها الأرقام بنفسك وترى النتيجة فورًا؛ أوضح من شرح نصي.",
     "diagram": "مستويات وأسهم تُظهر كيف تتصل الأجزاء في نظرة واحدة، أوضح من فقرات.",
-    "receipt": "تأكيد مختصر بالتفاصيل مع زر للخطوة التالية؛ أوضح من فقرة وأسهل من البحث في القوائم.",
+    "summary": "ملخص قصير بالتفاصيل مع زر للخطوة التالية؛ أوضح من فقرة وأسهل من البحث في القوائم.",
 }
 HEIGHTS = {
     "Segmented": 68,
@@ -86,8 +87,11 @@ HEIGHTS = {
 }
 # A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
 # journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
-# counts toward the 560 px budget like any block, and is never folded).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460}
+# counts toward the 560 px budget like any block, and is never folded). A Secret card grows
+# with the fields the agent asked for: 305 px and 95 px a field (measured 398 px for one
+# field, 493 for two, 588 for three, 1,063 for eight; a broker card's two fields, 493).
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "secret": 305}
+SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
 FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
@@ -106,6 +110,14 @@ FIXED_LABELS = (
     "نُفذت",
     "It did not execute",
     "لم تُنفذ",
+    "Secret",
+    "بيانات سرّية",
+    "Connect trading account",
+    "ربط حساب التداول",
+    "New trading password",
+    "كلمة مرور تداول جديدة",
+    "New MetaApi API token",
+    "رمز MetaApi API جديد",
 )
 # A fixed card's button words that are ordinary as a heading or a badge («غير معروفة»):
 # refused only as an agent's button label, which is what the Settle card's buttons are.
@@ -150,7 +162,13 @@ def request_evidence(messages: list[ModelMessage]) -> dict[str, Evidence]:
     return evidence
 
 
-def _failed(data: Any) -> bool:
+# Lifecycle states of a journaled operation (lonora_contracts.trading.OperationStatus).
+OPERATION_STATUSES = frozenset(
+    {"reserved", "submitted", "confirmed", "failed", "ambiguous", "resolved"}
+)
+
+
+def failed(data: Any) -> bool:
     if not isinstance(data, dict):
         return False
     data = cast(dict[str, Any], data)
@@ -159,6 +177,46 @@ def _failed(data: Any) -> bool:
         or bool(data.get("error"))
         or str(data.get("status", "")).lower() in FAILED
     )
+
+
+def unconfirmed(data: Any) -> bool:
+    """A journaled operation the broker has not confirmed: an object naming an
+    ``operation_id`` whose own status (or its ``result``'s, as in a journal excerpt) is not
+    ``confirmed``. An agent can never draw such an operation as done (10.3, 6.10)."""
+    if not isinstance(data, dict) or "operation_id" not in data:
+        return False
+    data = cast(dict[str, Any], data)
+    status = data.get("status")
+    nested = data.get("result")
+    if status is None and isinstance(nested, dict):
+        status = cast(dict[str, Any], nested).get("status")
+    return str(status).lower() != "confirmed"
+
+
+def holds_unconfirmed(data: Any, depth: int = 0) -> bool:
+    """Whether a result names, anywhere within it, an operation the broker has not
+    confirmed."""
+    if depth > 6:
+        return False
+    if unconfirmed(data):
+        return True
+    if isinstance(data, dict):
+        return any(holds_unconfirmed(v, depth + 1) for v in cast(dict[str, Any], data).values())
+    if isinstance(data, list):
+        return any(holds_unconfirmed(v, depth + 1) for v in cast(list[Any], data))
+    return False
+
+
+def unusable(data: Any) -> bool:
+    """Not usable as card evidence: a failed result or an unconfirmed operation."""
+    return failed(data) or unconfirmed(data)
+
+
+def _refuse(data: Any) -> None:
+    if unconfirmed(data):
+        raise ValueError("genui_fact_unconfirmed")
+    if failed(data):
+        raise ValueError("genui_fact_failed")
 
 
 def _scalar(value: Any) -> Any:
@@ -185,13 +243,14 @@ def _bounded(value: Any, depth: int, count: list[int]) -> Any:
         for key, item in cast(dict[str, Any], value).items():
             if PRIVATE_KEY.search(key):
                 raise ValueError("genui_fact_private")
-            if _failed(item):
-                raise ValueError("genui_fact_failed")
+            _refuse(item)
             result[key] = _bounded(item, depth + 1, count)
         return result
     if isinstance(value, list):
         if depth >= 3:
             raise ValueError("genui_fact_too_deep")
+        for item in cast(list[Any], value):
+            _refuse(item)
         return [_bounded(item, depth + 1, count) for item in cast(list[Any], value)]
     count[0] += 1
     if count[0] > MAX_OBJECT_SCALARS:
@@ -206,8 +265,7 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
     if tokens.count("*") > 1:
         raise ValueError("genui_fact_path_invalid")
     for index, token in enumerate(tokens):
-        if _failed(data):
-            raise ValueError("genui_fact_failed")
+        _refuse(data)
         if isinstance(data, dict):
             data = cast(dict[str, Any], data)
             for key in ("observed_at", "timestamp", "updated_at", "as_of"):
@@ -232,11 +290,12 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
         elif isinstance(data, list) and token.isdigit() and int(token) < len(cast(list[Any], data)):
             data = cast(list[Any], data)[int(token)]
         elif isinstance(data, list) and token == "length":
+            for item in cast(list[Any], data):
+                _refuse(item)
             data = len(cast(list[Any], data))
         else:
             raise ValueError("genui_fact_path_unknown")
-    if _failed(data):
-        raise ValueError("genui_fact_failed")
+    _refuse(data)
     if isinstance(data, dict | list):
         return _bounded(data, 0, [0]), observed
     return _scalar(data), observed
@@ -309,18 +368,24 @@ def _numbers(value: Any) -> set[Decimal]:
     return found
 
 
-def _read_values(value: Any) -> set[Decimal]:
-    """Price-like values only: the PRICE_KEYS fields of a quote or account result."""
+# A trade result's own numbers, beside its prices: tickets and volumes.
+TRADE_KEYS = frozenset({"broker_id", "position_id", "order_id", "deal_id", "ticket", "volume"})
+
+
+def _read_values(value: Any, extra: frozenset[str] = frozenset()) -> set[Decimal]:
+    """Price-like values only: the PRICE_KEYS fields of a quote or account result (and
+    ``extra`` fields, for a trade result)."""
     found: set[Decimal] = set()
     if isinstance(value, dict):
         for key, item in cast(dict[str, Any], value).items():
-            if (key in PRICE_KEYS or PRICE_KEY.search(key)) and not isinstance(item, dict | list):
+            listed = key in PRICE_KEYS or key in extra or PRICE_KEY.search(key)
+            if listed and not isinstance(item, dict | list):
                 found |= _numbers(item)
             else:
-                found |= _read_values(item)
+                found |= _read_values(item, extra)
     elif isinstance(value, list):
         for item in cast(list[Any], value):
-            found |= _read_values(item)
+            found |= _read_values(item, extra)
     return found
 
 
@@ -342,8 +407,12 @@ def typed_fact_numbers(
     action data, in any digits. Numbers the owner typed are theirs to show."""
     read: set[Decimal] = set()
     for item in evidence.values():
-        if FACT_TOOLS.match(item.name) and not _failed(item.result):
+        if FACT_TOOLS.match(item.name) and not failed(item.result):
             read |= {n for n in _read_values(item.result) if _significant(n)}
+        elif item.name.startswith("trade_") and not failed(item.result):
+            # A trade's ticket, volume and prices are cited, never typed: typed, they
+            # could state an operation the broker has not confirmed as done (10.3).
+            read |= {n for n in _read_values(item.result, TRADE_KEYS) if _significant(n)}
     said = _numbers(owner)
     shown = {key: value for key, value in head.items() if key not in {"facts", "v"}}
     literals: list[Any] = [shown, state, calc, blocks]
@@ -382,7 +451,10 @@ class AgentScope:
     named_accounts: frozenset[str] = frozenset()
     # ``(card, record id)`` of the records this card's slots name that exist, belong to
     # this owner and sit in this conversation (``lonora_db.genui_slots``).
-    slot_records: frozenset[tuple[str, str]] = frozenset()
+    # Each with its number of rows (a Secret card's fields; 0 for the other cards).
+    slot_records: dict[tuple[str, str], int] = field(
+        default_factory=lambda: dict[tuple[str, str], int]()
+    )
 
 
 # Look-alike letters read as the letter they imitate: Cyrillic and Greek for Latin
@@ -542,22 +614,31 @@ def _owner_urls(messages: list[ModelMessage], evidence: dict[str, Evidence]) -> 
     return urls
 
 
-def estimate_height(blocks: list[dict[str, Any]], visible: list[bool]) -> int:
+def estimate_height(
+    blocks: list[dict[str, Any]],
+    visible: list[bool],
+    slot_rows: dict[tuple[str, str], int] | None = None,
+) -> int:
+    """The card's height at rest; ``slot_rows`` gives each slot's record its rows (a Secret
+    card's fields)."""
     height = 48 + 30 + 22  # header, footer, body padding
     shown = [block for block, on in zip(blocks, visible, strict=True) if on]
     for block in shown:
-        height += _node_height(block)
+        height += _node_height(block, slot_rows or {})
     return height + 14 * max(len(shown) - 1, 0)
 
 
-def _node_height(node: dict[str, Any]) -> int:
+def _node_height(node: dict[str, Any], slot_rows: dict[tuple[str, str], int] | None = None) -> int:
     kind = node["type"]
     if kind == "KeyValue":
         return 37 * len(node["rows"])
     if kind == "Text":
         return 20 * max(1, min(3, math.ceil(len(str(node.get("text", ""))) / 48)))
     if kind == SLOT:
-        return SLOT_HEIGHTS[node["card"]]
+        card = node["card"]
+        return SLOT_HEIGHTS[card] + SLOT_ROW_HEIGHTS.get(card, 0) * (slot_rows or {}).get(
+            (card, node["record"]), 0
+        )
     if kind == "Row":
         return max((_node_height(child) for child in node["children"]), default=0)
     if kind in {"Col", "Card", "Grid"}:
@@ -588,13 +669,23 @@ def compile_card(
     state: dict[str, Any] = dict(data.get("state", {}))
     calc: dict[str, Any] = dict(data.get("calc", {}))
     evidence = request_evidence(messages)
+    if any(
+        item.name in FINANCIAL_CALLS and holds_unconfirmed(item.result)
+        for item in evidence.values()
+    ):
+        # An order or close of this request the broker has not confirmed: the reply is text
+        # only, so no card, cited or not, can read as done (10.3, 6.4).
+        raise CardError("card_fallback_unconfirmed")
 
     # Facts, and the card's one account (the first account-bearing fact, as written).
     facts: dict[str, dict[str, Any]] = {}
     account: str | None = None
     for key, reference in cast(dict[str, dict[str, str]], data.get("facts", {})).items():
         item = evidence.get(reference["call"])
-        if item is None or _failed(item.result):
+        if item is not None and unconfirmed(item.result):
+            # No part of a card may present an operation the broker has not confirmed.
+            raise CardError("card_fallback_unconfirmed")
+        if item is None or failed(item.result):
             facts[key] = {"value": None, "source": item.name if item else "unknown"}
             continue
         call_account = _call_account(item, scope.bound_account)
@@ -605,7 +696,11 @@ def compile_card(
                 raise CardError("card_fallback_account")
         try:
             value, observed = resolve_pointer(item.result, reference["path"])
-        except (ValueError, RecursionError):
+        except ValueError as error:
+            if str(error) == "genui_fact_unconfirmed":
+                raise CardError("card_fallback_unconfirmed") from None
+            value, observed = None, None
+        except RecursionError:
             value, observed = None, None
         if isinstance(value, str):
             value = redact_private_reply(value, public_ids=public_ids)
@@ -657,7 +752,7 @@ def compile_card(
     # Symbols verified this turn on the card's account.
     verified: set[str] = set()
     for item in evidence.values():
-        if _failed(item.result) or not isinstance(item.result, dict):
+        if unusable(item.result) or not isinstance(item.result, dict):
             continue
         if account is not None and _call_account(item, scope.bound_account) != account:
             continue
@@ -669,7 +764,7 @@ def compile_card(
 
     watch_ids: set[str] = set()
     for item in evidence.values():
-        if item.name.startswith("watch_") and not _failed(item.result):
+        if item.name.startswith("watch_") and not unusable(item.result):
             if isinstance(item.record.get("id"), str):
                 watch_ids.add(item.record["id"])
             for watch in cast(list[Any], item.record.get("watches") or []):
@@ -943,16 +1038,18 @@ def compile_card(
             for _p, n in walk([block])
         )
 
+    slot_rows = scope.slot_records
     if final:
         shown = visible_now(blocks)
-        if sum(shown) > 6 or estimate_height(blocks, shown) > RESTING_LIMIT:
+        if sum(shown) > 6 or estimate_height(blocks, shown, slot_rows) > RESTING_LIMIT:
             folded: list[dict[str, Any]] = []
             kept_blocks = list(blocks)
             while kept_blocks:
                 shown = visible_now(kept_blocks)
                 if (
                     sum(shown) + (1 if folded else 0) <= 6
-                    and estimate_height(kept_blocks, shown) + (40 if folded else 0) <= RESTING_LIMIT
+                    and estimate_height(kept_blocks, shown, slot_rows) + (40 if folded else 0)
+                    <= RESTING_LIMIT
                 ):
                     break
                 candidates = [
@@ -969,7 +1066,7 @@ def compile_card(
                 kept_blocks.insert(tail, {"type": "More", "children": folded})
                 diagnostics.add("budget_folded")
             blocks = kept_blocks
-        if estimate_height(blocks, visible_now(blocks)) > HARD_LIMIT:
+        if estimate_height(blocks, visible_now(blocks), slot_rows) > HARD_LIMIT:
             raise CardError("card_fallback_budget")
 
     why = card.why

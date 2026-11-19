@@ -24,14 +24,34 @@ export const SkChips = ({ widths = [48, 84, 70, 64, 80] }: { widths?: number[] }
     ))}
   </div>
 );
-/** Avatar rows (chats, agents, members): the geometry of a 50px row. */
-export function SkRows({ count, size = 50 }: { count: number; size?: number }) {
+/** A section heading («h3») above a group. */
+export const SkHead = ({ width }: { width: number }) => (
+  <div className="sk-h3">
+    <SkLine width={width} />
+  </div>
+);
+/** Rows: avatars (chats, agents, members) or icons (settings-like lists), loose or in a card. */
+export function SkRows({
+  count,
+  size = 50,
+  icon = false,
+  group = false,
+}: {
+  count: number;
+  size?: number;
+  icon?: boolean;
+  group?: boolean;
+}) {
   return (
-    <div className="sk-list">
+    <div className={group ? "sk-group" : "sk-list"}>
       {Array.from({ length: count }, (_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: static shapes
-        <div className="sk-row" key={i}>
-          <span className="sk sk-av" style={{ width: size, height: size }} />
+        <div className={`sk-row${group ? " in-group" : ""}`} key={i}>
+          {icon ? (
+            <span className="sk sk-ic" />
+          ) : (
+            <span className="sk sk-av" style={{ width: size, height: size }} />
+          )}
           <span className="sk-lines">
             <SkLine width={34 + ((i * 13) % 34)} />
             <SkLine width={58 - ((i * 7) % 26)} thin />

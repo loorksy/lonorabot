@@ -122,9 +122,9 @@ async def test_the_owners_own_ticket_is_not_the_agents_unless_an_exception_holds
         with pytest.raises(LonoraError, match="owner_message_required"):
             await call(context, "positions_manage_all", enabled=True)
         # The owner's typed message in this run records it.
-        from lonora_tools import restrictions
+        from lonora_tools import provenance
 
-        monkeypatch.setattr(restrictions, "owner_message_id", AsyncMock(return_value="m1"))
+        monkeypatch.setattr(provenance, "owner_message_id", AsyncMock(return_value="m1"))
         recorded = await call(context, "positions_manage_all", enabled=True)
         assert recorded["manages_all_positions"] is True, recorded
         async with fixture.runtime.db.sessions() as session:

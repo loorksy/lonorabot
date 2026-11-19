@@ -38,5 +38,5 @@ class SkillAccess(Protocol):
     async def view(self, context: "ToolContext", skill_id: str) -> dict[str, Any]: ...
 
     async def inspect_repository(
-        self, context: "ToolContext", repository_url: str, ref: str
+        self, context: "ToolContext", repository_url: str, ref: str, trust: bool = False
     ) -> dict[str, Any]: ...

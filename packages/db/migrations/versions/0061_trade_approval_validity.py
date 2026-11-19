@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0061_trade_approval_validity"
-down_revision = "0060_agent_trading_mode"
+down_revision = "0087_end_money_limits"
 branch_labels = None
 depends_on = None
 

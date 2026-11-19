@@ -4,19 +4,22 @@ for agents (``capabilities_list``).
 It lists the trusted sources, the Skills agents installed or wrote (with where they came
 from and whether the owner undid that version), the saved MCP servers and whether their
 tools are trusted (and which need the write tier), the integrations and
-feeds, and the built-in capabilities with their honest state: ``ready``,
-``not_connected`` (the owner can connect it with one card) or ``not_set_up`` (this server
-lacks the service: a workspace host, a browser, a search service). Presentation only:
-every tool still checks its own boundary when it runs.
+feeds, and the built-in capabilities with their honest state: ``ready`` or
+``not_connected`` (the owner can connect it with one card). Web search (SearXNG), the
+browser, the workspace and the chart renderer are part of every installation's stack, so
+they are always ready. Presentation only: every tool still checks its own boundary when it
+runs, and says when its service does not answer.
 """
 
 from dataclasses import dataclass
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+from lonora_charts.capabilities import chart_capabilities
 from lonora_contracts.domain import Contract
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_db.client import Database
+from lonora_db.integrations import has_source, source_host
 from lonora_db.schema import (
     AgentRow,
     IntegrationRow,
@@ -51,12 +54,8 @@ PROVENANCE = {
 
 @dataclass(frozen=True)
 class Infrastructure:
-    """What this server runs (deployment settings, never owner or model input)."""
+    """What this server's settings declare (never owner or model input)."""
 
-    searxng: bool
-    browser: bool
-    workspace_host: bool
-    chart_renderer: bool
     mcp_declarations: tuple[McpToolDeclaration, ...]
     mcp_owner_trust: bool
 
@@ -68,27 +67,22 @@ def built_in(
     owner_id: str,
 ) -> list[dict[str, Any]]:
     enabled = [row.payload for row in integrations if row.payload.get("enabled")]
-    brave = any(item.get("type") == "brave_search" and item.get("secret_id") for item in enabled)
-    calendar = any(item.get("type") == "economic_calendar" and item.get("url") for item in enabled)
-    feeds = sum(1 for item in enabled if item.get("type") == "news_feed" and item.get("url"))
+    calendar = any(item.get("type") == "economic_calendar" and has_source(item) for item in enabled)
+    feeds = sum(1 for item in enabled if item.get("type") == "news_feed" and has_source(item))
     declared = sum(1 for item in infrastructure.mcp_declarations if item.owner_id == owner_id)
 
     def entry(name: str, state: str, via: str | None = None) -> dict[str, Any]:
         return {"capability": name, "state": state, "via": via}
 
     return [
-        entry(
-            "web_search",
-            "ready" if infrastructure.searxng or brave else "not_connected",
-            "searxng" if infrastructure.searxng else "brave" if brave else None,
-        ),
+        entry("web_search", "ready", "searxng"),
         entry("web_fetch", "ready"),
-        entry("web_browse", "ready" if infrastructure.browser else "not_set_up"),
+        entry("web_browse", "ready"),
         entry("news_feeds", "ready", "subscribed" if feeds else "public_urls"),
         entry("economic_calendar", "ready" if calendar else "not_connected"),
         entry("workspace_files", "ready"),
-        entry("workspace_execution", "ready" if infrastructure.workspace_host else "not_set_up"),
-        entry("chart_images", "ready" if infrastructure.chart_renderer else "not_set_up"),
+        entry("workspace_execution", "ready"),
+        entry("chart_images", "ready"),
         entry(
             "mcp_tools",
             "ready"
@@ -259,7 +253,6 @@ def integration_entry(
 ) -> dict[str, Any]:
     config = row.payload
     kind = str(config.get("type"))
-    url = config.get("url")
     deliver = threads.get(str(config.get("thread_id") or ""))
     return {
         "id": row.id,
@@ -268,22 +261,15 @@ def integration_entry(
         "enabled": bool(config.get("enabled")),
         "configured": bool(config.get("secret_id"))
         if kind in {"brave_search", "telegram", "webhook"}
-        else bool(url),
+        else has_source(config),
         # A feed's domain only: its URL may carry a token.
-        "domain": urlsplit(str(url)).hostname
-        if url and kind in {"news_feed", "economic_calendar"}
-        else None,
+        "domain": source_host(config) if kind in {"news_feed", "economic_calendar"} else None,
         "deliver_to_agent_name": agents.get(deliver or "") if deliver else None,
     }
 
 
 def infrastructure_of(context: ToolContext) -> Infrastructure:
-    executor = getattr(context.workspace_access, "execution_configured", False)
     return Infrastructure(
-        searxng=bool(context.searxng_url),
-        browser=bool(context.browser_url),
-        workspace_host=bool(executor),
-        chart_renderer=context.chart_visual is not None,
         mcp_declarations=context.mcp_declarations,
         mcp_owner_trust=context.mcp_owner_trust,
     )
@@ -299,9 +285,13 @@ async def listing(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         **report,
+        # The exact timeframes and indicators the chart and market tools accept.
+        "charts": chart_capabilities(),
         "guidance": "Use any ready capability without asking. not_connected: offer one "
-        "connect_credential card. not_set_up: this server lacks it; say so plainly. A "
-        "source outside trusted_sources needs one trust_source card.",
+        "Secret card with its target. A source outside trusted_sources is trusted only "
+        "when the owner names it in chat. Workspace commands run only in an ordinary run, "
+        "never in a helper or an observe-only wake. A ready capability your inventory lists "
+        "as unavailable_now has a service that is not answering at the moment; say so plainly.",
     }
 
 
@@ -311,9 +301,9 @@ def tools() -> list[Tool]:
             "capabilities_list",
             "List what every agent can use now: trusted sources, installed Skills and their "
             "origin, MCP servers and their trusted tools, integrations and news feeds, and "
-            "built-in capabilities marked ready, not_connected (one owner card) or "
-            "not_set_up on this server. Use it to answer what you can do or to choose a "
-            "source; it grants nothing.",
+            "built-in capabilities marked ready or not_connected (one owner card), and the "
+            "supported chart timeframes and indicators. Use it to answer what you can do or "
+            "to choose a source; it grants nothing.",
             CapabilitiesInput,
             listing,
             read_only=True,

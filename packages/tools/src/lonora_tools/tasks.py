@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
