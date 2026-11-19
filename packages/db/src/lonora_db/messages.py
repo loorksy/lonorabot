@@ -6,11 +6,12 @@ from lonora_core.message_replies import require_same_thread
 from lonora_core.run_state import TERMINAL, is_conversational
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .cancellation import cancel_run
 from .events import emit
+from .pauses import OWNER_ADDRESSED, claimable_while_paused, runs_while_paused
 from .reactions import reactions_by_message
 from .rich_response import server_rich_content
 from .runs import OFFER_OBLIGATION, run_data
@@ -416,8 +417,10 @@ async def send_message(
             or (thread.agent_id and answer_run.agent_id != thread.agent_id)
         ):
             raise LonoraError("input_answer_expired", 409)
+        # A paused agent still answers the owner (3.2.5) in a run it may run now; a held
+        # run's question waits for its resume.
         agent = await owned_agent(session, owner_id, answer_run.agent_id)
-        if agent.paused:
+        if agent.paused and not runs_while_paused(answer_run.trigger, answer_run.model_metadata):
             raise LonoraError("agent_paused", 409)
         answer_question = next(
             (
@@ -599,6 +602,8 @@ async def admit_runs(
     """Start or steer the Runs an owner message asks for; returns their ids."""
     thread_id = thread.id
     targets: list[str] = []
+    # Whether the owner named the group runs' agents, or they are its fallback answerer.
+    addressed = True
     if thread.agent_id:
         targets = [thread.agent_id]
     elif thread.group_id:
@@ -624,6 +629,7 @@ async def admit_runs(
             )
             if not targets and request.reply_to and reply and reply.agent_id:
                 targets = [a.id for a in agents if a.id == reply.agent_id]
+            addressed = bool(targets)
             if not targets:
                 # Nobody mentioned: the group's lead answers, else the first available member.
                 available = {a.id for a in agents if not a.paused}
@@ -636,9 +642,10 @@ async def admit_runs(
         targets = [answer_run.agent_id]
     run_ids: list[str] = []
     for agent_id in targets:
+        # The owner's message starts a run even of a paused agent (3.2.5, 4.7.1), and that
+        # run may only reduce risk. A group's fallback answerer is never paused. A paused
+        # agent's held runs never take the owner's words: they go to a run it may run.
         agent = await owned_agent(session, owner_id, agent_id)
-        if agent.paused:
-            continue
         if answer_run is not None and answer_run.thread_id != thread_id:
             # A background run's question copied into this conversation: the choice
             # answers that run directly, whatever else is active here.
@@ -650,6 +657,7 @@ async def admit_runs(
                     RunRow.thread_id == thread_id,
                     RunRow.agent_id == agent_id,
                     RunRow.status.in_(["queued", "leased", "running", "waiting_input"]),
+                    claimable_while_paused() if agent.paused else true(),
                 )
                 .order_by(RunRow.created_at)
                 .limit(1)
@@ -658,6 +666,7 @@ async def admit_runs(
                 raise LonoraError("input_answer_expired", 409)
             if (
                 answer_run is None
+                and not agent.paused
                 and thread.agent_id
                 and message.origin == "owner"
                 and not (
@@ -747,6 +756,7 @@ async def admit_runs(
                 agent_id=agent_id,
                 input_seq=message.seq,
                 trigger="group" if thread.group_id else "user",
+                model_metadata={OWNER_ADDRESSED: True} if thread.group_id and addressed else {},
             )
             session.add(run)
             await session.flush()

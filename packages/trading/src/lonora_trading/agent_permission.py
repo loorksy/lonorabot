@@ -9,6 +9,7 @@
   owner gave the agent a standing instruction to manage every position.
 - A risk-increasing request Lonora sends on a ticket owned by an agent in Ask needs the
   exact approval, even when Lonora is in Full.
+- A paused agent sends only risk-reducing requests (4.7.1), whatever its mode.
 
 Until grants and the permission ladder are deleted (0.4, 14.1.1), their old checks run
 here unchanged: a signed grant's path, and "No trading" refusing every mutation.
@@ -38,6 +39,13 @@ async def acting_agent(session: AsyncSession, owner_id: str, agent_id: str) -> A
     return agent
 
 
+def require_pause_allows(agent: AgentRow, *, reduces: bool) -> None:
+    """A paused agent may send only risk-reducing requests (4.7.1). It reads the agent's
+    own row, so every path into the door applies it, with or without a run."""
+    if agent.paused and not reduces:
+        raise LonoraError("agent_paused", 409)
+
+
 async def owner_asked(session: AsyncSession, run: RunRow, owner_message_id: str | None) -> bool:
     """Whether ``owner_message_id`` is the owner's typed message this run answers."""
     if owner_message_id is None:
@@ -64,6 +72,9 @@ async def require_operation_permission(
     level = await effective_permission(session, owner_id, run.agent_id)
     if level == "analysis":
         raise LonoraError("agent_analysis_only", 403)
+    agent = await acting_agent(session, owner_id, run.agent_id)
+    reduces = bool(reducing) or (reducing is None and may_reduce_risk(request))
+    require_pause_allows(agent, reduces=reduces)
     if account_authority_id:
         # A signed grant's old path, unchanged until grants are deleted.
         if level != "autonomous":
@@ -72,7 +83,6 @@ async def require_operation_permission(
             return
         await require_exact_approval(session, owner_id, run, request)
         return
-    agent = await acting_agent(session, owner_id, run.agent_id)
     on_ask_agents_ticket = False
     if (request.position_id or request.order_id) and reducing is not None:
         holder = await ticket_agent(session, owner_id, request, target) if target else None
@@ -88,7 +98,7 @@ async def require_operation_permission(
                 agent.manages_all_positions or await owner_asked(session, run, owner_message_id)
             ):
                 raise LonoraError("ticket_not_owned", 403)
-    if reducing or (reducing is None and may_reduce_risk(request)):
+    if reduces:
         return  # Risk-reducing needs no approval in either mode (4.1).
     if agent.trading_mode == "full" and not on_ask_agents_ticket:
         return

@@ -343,7 +343,8 @@ async def test_refusals_store_nothing() -> None:
         await card.place()
         busy = await card.post(card.body())
         assert busy.status_code == 409 and busy.json()["code"] == "ui_submit_busy", busy.text
-        # Stop the queued send, then pause the agent: the new card is refused as paused.
+        # Stop the queued send, then pause the agent: the owner's input still reaches it
+        # (6.10, 3.2.5), and its run may only reduce risk (4.7.1).
         from lonora_db.cancellation import cancel_run
 
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -352,10 +353,10 @@ async def test_refusals_store_nothing() -> None:
             assert agent is not None
             agent.paused = True
         paused = await card.post(card.body())
-        assert paused.status_code == 409 and paused.json()["code"] == "agent_paused", paused.text
+        assert paused.status_code == 202, paused.text
         assert other != card.message_id
-        # One submission and the second card itself; no refusal stored anything.
-        assert await count() == before + 2
+        # Two submissions and the second card itself; no refusal stored anything.
+        assert await count() == before + 3
     finally:
         if agent_id is not None:
             async with fixture.runtime.db.sessions() as session, session.begin():

@@ -144,7 +144,7 @@ async def update_agent(
     ).items():
         setattr(row, key, value)
     if request.paused is not None and request.paused != was_paused:
-        from .supervision import owner_takes_over
+        from .pauses import owner_takes_over
 
         # The owner's own pause or resume wins over a supervisor's hold on this agent.
         # The settings form sends the switch with every save, so only a change counts:

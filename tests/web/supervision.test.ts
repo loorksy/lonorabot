@@ -170,7 +170,7 @@ test("a pause card names the supervisor, the agent and the item, with one-tap Re
     },
     "en",
   );
-  assert.equal(ownerHolds.hint, "You paused it too, so only you resume it.");
+  assert.equal(ownerHolds.hint, "This pause is yours: only you resume it.");
   assert.ok(ownerHolds.lines[0]?.endsWith("from your message"), ownerHolds.lines[0]);
   const ended = ownerActionCard(
     {
