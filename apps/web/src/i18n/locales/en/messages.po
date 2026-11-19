@@ -4740,6 +4740,10 @@ msgstr "No agents"
 #~ msgid "No agents match"
 #~ msgstr "No agents match"
 
+#: src/shell/settings/NotifyPages.tsx:20
+msgid "No alert, except urgent ones"
+msgstr "No alert, except urgent ones"
+
 #: src/conversation/Cards.tsx:357
 msgid "No answer from the broker"
 msgstr "No answer from the broker"
@@ -6058,8 +6062,8 @@ msgstr "Recorded from your statement, not broker confirmation"
 #~ msgstr "Recorded in Updates without any alert"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "Recorded without any alert"
-msgstr "Recorded without any alert"
+#~ msgid "Recorded without any alert"
+#~ msgstr "Recorded without any alert"
 
 #: src/conversation/Composer.tsx:1482
 msgid "Recording length"

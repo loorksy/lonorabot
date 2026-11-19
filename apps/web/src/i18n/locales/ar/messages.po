@@ -4734,6 +4734,10 @@ msgstr "دون وكلاء"
 #~ msgid "No agents match"
 #~ msgstr "لا يوجد وكلاء مطابقون"
 
+#: src/shell/settings/NotifyPages.tsx:20
+msgid "No alert, except urgent ones"
+msgstr "دون تنبيه، إلا العاجل"
+
 #: src/conversation/Cards.tsx:357
 msgid "No answer from the broker"
 msgstr "لا رد من الوسيط"
@@ -6052,8 +6056,8 @@ msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسي
 #~ msgstr "يُسجَّل في المستجدات دون أي تنبيه"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "Recorded without any alert"
-msgstr "يُسجَّل دون أي تنبيه"
+#~ msgid "Recorded without any alert"
+#~ msgstr "يُسجَّل دون أي تنبيه"
 
 #: src/conversation/Composer.tsx:1482
 msgid "Recording length"
