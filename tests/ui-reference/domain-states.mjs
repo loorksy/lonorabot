@@ -1,13 +1,12 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: a standalone script run by hand.
 /* UI phase 4b, the domain pages: the states side-by-side.mjs captures for «المستجدات»,
    «المهام» and «تفاصيل المهمة», «الأهداف», «المهام المجدولة», «المعرفة», «المهارات» with
-   «سجل الإصدارات», «الملفات» and «سجل الإجراءات», plus their forms.
+   «سجل الإصدارات» and «الملفات», plus their forms.
 
    The app side is seeded by seed_domain.py through the owner API with the reference's own rows
    (`initial`). Where an owner decision changes the data the reference shows, the reference is
    moved to the same data through its own state, never its markup: Gold trades, so its goals are
-   trading plans (Q41) and the light goal sits on «مساعد الأبحاث» on both sides; «سجل الإجراءات»
-   is the server's projection (Q45), so the reference's log gets the same lines. */
+   trading plans (Q41) and the light goal sits on «مساعد الأبحاث» on both sides. */
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 

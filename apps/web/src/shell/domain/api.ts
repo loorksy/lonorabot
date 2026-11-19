@@ -127,7 +127,6 @@ export const domainApi = {
     }),
   deleteFile: (id: string) => api.delete<{ deleted: boolean }>(`/artifacts/${id}`),
 
-  activity: (before?: number) =>
-    api.get<ActivityPage>(before ? `/activity?limit=50&before=${before}` : "/activity?limit=50"),
+  activity: () => api.get<ActivityPage>("/activity?limit=50"),
   seenAll: () => api.post<{ seen: number }>("/attention/seen-all", {}),
 };
