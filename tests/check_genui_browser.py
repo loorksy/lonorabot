@@ -363,11 +363,36 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
                 payload={
                     "label": "Exchange",
                     "connect": None,
-                    "fields": [{"key": "EXCHANGE_KEY", "label": "Key", "secret": True}],
+                    "fields": [
+                        {"key": f"EXCHANGE_KEY_{index}", "label": f"Key {index}", "secret": True}
+                        for index in range(1, data.get("secret_fields", 1) + 1)
+                    ],
                     "destination": "workspace",
                 },
             )
-            return {"approval": approval.id, "settle": settle.id, "secret": secret.id}
+            ids = {"approval": approval.id, "settle": settle.id, "secret": secret.id}
+            if data.get("broker"):
+                # A broker card as broker_connect raises it: two fixed fields and the
+                # account line (lonora_db.secret_cards.broker_card_payload).
+                from lonora_db.secret_cards import broker_card_payload
+
+                subject, payload = broker_card_payload(
+                    login="5001234", server="Demo-Server", platform="mt5", token_needed=True
+                )
+                broker = await create_card(
+                    session,
+                    thread.owner_id,
+                    card_id=uuid4().hex,
+                    agent_id=thread.agent_id,
+                    thread=thread,
+                    run_id=None,
+                    source="agent",
+                    kind="secret",
+                    subject=subject,
+                    payload=payload,
+                )
+                ids["broker"] = broker.id
+            return ids
     finally:
         await fixture.close(cleanup=False)
 

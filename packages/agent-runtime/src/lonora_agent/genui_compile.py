@@ -14,7 +14,7 @@ import json
 import math
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -87,8 +87,11 @@ HEIGHTS = {
 }
 # A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
 # journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
-# counts toward the 560 px budget like any block, and is never folded).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "secret": 400}
+# counts toward the 560 px budget like any block, and is never folded). A Secret card grows
+# with the fields the agent asked for: 305 px and 95 px a field (measured 398 px for one
+# field, 493 for two, 588 for three, 1,063 for eight; a broker card's two fields, 493).
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "secret": 305}
+SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
 FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
@@ -109,7 +112,14 @@ FIXED_LABELS = (
     "لم تُنفذ",
     "Unknown: release the hold",
     "غير معروفة — ارفع التعليق",
+    "Secret",
     "بيانات سرّية",
+    "Connect trading account",
+    "ربط حساب التداول",
+    "New trading password",
+    "كلمة مرور تداول جديدة",
+    "New MetaApi API token",
+    "رمز MetaApi API جديد",
 )
 
 
@@ -440,7 +450,10 @@ class AgentScope:
     named_accounts: frozenset[str] = frozenset()
     # ``(card, record id)`` of the records this card's slots name that exist, belong to
     # this owner and sit in this conversation (``lonora_db.genui_slots``).
-    slot_records: frozenset[tuple[str, str]] = frozenset()
+    # Each with its number of rows (a Secret card's fields; 0 for the other cards).
+    slot_records: dict[tuple[str, str], int] = field(
+        default_factory=lambda: dict[tuple[str, str], int]()
+    )
 
 
 # Look-alike letters read as the letter they imitate: Cyrillic and Greek for Latin
@@ -599,22 +612,31 @@ def _owner_urls(messages: list[ModelMessage], evidence: dict[str, Evidence]) -> 
     return urls
 
 
-def estimate_height(blocks: list[dict[str, Any]], visible: list[bool]) -> int:
+def estimate_height(
+    blocks: list[dict[str, Any]],
+    visible: list[bool],
+    slot_rows: dict[tuple[str, str], int] | None = None,
+) -> int:
+    """The card's height at rest; ``slot_rows`` gives each slot's record its rows (a Secret
+    card's fields)."""
     height = 48 + 30 + 22  # header, footer, body padding
     shown = [block for block, on in zip(blocks, visible, strict=True) if on]
     for block in shown:
-        height += _node_height(block)
+        height += _node_height(block, slot_rows or {})
     return height + 14 * max(len(shown) - 1, 0)
 
 
-def _node_height(node: dict[str, Any]) -> int:
+def _node_height(node: dict[str, Any], slot_rows: dict[tuple[str, str], int] | None = None) -> int:
     kind = node["type"]
     if kind == "KeyValue":
         return 37 * len(node["rows"])
     if kind == "Text":
         return 20 * max(1, min(3, math.ceil(len(str(node.get("text", ""))) / 48)))
     if kind == SLOT:
-        return SLOT_HEIGHTS[node["card"]]
+        card = node["card"]
+        return SLOT_HEIGHTS[card] + SLOT_ROW_HEIGHTS.get(card, 0) * (slot_rows or {}).get(
+            (card, node["record"]), 0
+        )
     if kind == "Row":
         return max((_node_height(child) for child in node["children"]), default=0)
     if kind in {"Col", "Card", "Grid"}:
@@ -1014,16 +1036,18 @@ def compile_card(
             for _p, n in walk([block])
         )
 
+    slot_rows = scope.slot_records
     if final:
         shown = visible_now(blocks)
-        if sum(shown) > 6 or estimate_height(blocks, shown) > RESTING_LIMIT:
+        if sum(shown) > 6 or estimate_height(blocks, shown, slot_rows) > RESTING_LIMIT:
             folded: list[dict[str, Any]] = []
             kept_blocks = list(blocks)
             while kept_blocks:
                 shown = visible_now(kept_blocks)
                 if (
                     sum(shown) + (1 if folded else 0) <= 6
-                    and estimate_height(kept_blocks, shown) + (40 if folded else 0) <= RESTING_LIMIT
+                    and estimate_height(kept_blocks, shown, slot_rows) + (40 if folded else 0)
+                    <= RESTING_LIMIT
                 ):
                     break
                 candidates = [
@@ -1040,7 +1064,7 @@ def compile_card(
                 kept_blocks.insert(tail, {"type": "More", "children": folded})
                 diagnostics.add("budget_folded")
             blocks = kept_blocks
-        if estimate_height(blocks, visible_now(blocks)) > HARD_LIMIT:
+        if estimate_height(blocks, visible_now(blocks), slot_rows) > HARD_LIMIT:
             raise CardError("card_fallback_budget")
 
     why = card.why

@@ -478,7 +478,8 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
   const fixture = await open(page, context);
   const csrf = fixture.cookies.find((row) => row.name === "lonora_csrf").value;
   try {
-    const ids = python("records", fixture.input);
+    // The Secret card asks for two fields: its slot's height grows with them (10.1.4).
+    const ids = python("records", { ...fixture.input, secret_fields: 2 });
     const approval = page.locator(`[data-trade-approval="${ids.approval}"]`);
     const settle = page.locator(`[data-owner-action="${ids.settle}"]`);
     // No message embeds them yet: each fixed card stands in its own row.
@@ -521,12 +522,13 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
     expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
     // The Secret card in its slot: W-ENV's own form, whose values go straight to the
-    // encrypted store; its row steps aside too (SLOT_HEIGHTS secret 400 px).
+    // encrypted store; its row steps aside too. The compiler counts it 305 px and 95 px a
+    // field (SLOT_HEIGHTS, SLOT_ROW_HEIGHTS): 495 px for these two fields.
     const secretSlot = page.locator('.ux .ux-slot[data-slot-card="secret"]');
     await expect(secretSlot.locator(`[data-owner-action="${ids.secret}"]`)).toBeVisible();
     await expect(page.locator(`[data-owner-action="${ids.secret}"]`)).toHaveCount(1);
     await expect(secretSlot).toContainText("بيانات سرّية");
-    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(400);
+    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(305 + 2 * 95);
     // Decided elsewhere while this screen still shows it pending: the second tap is refused
     // and the slot shows the record as it is now.
     await page.route("**/api/trading/approvals?*", (route) => route.abort());
