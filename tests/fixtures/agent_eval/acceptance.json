@@ -10,9 +10,30 @@
    "feature": "connect from chat with MetaApi provisioning (9.2); the broker-destination Secret card (7.2.3, 10.3)",
    "owners": ["W-BROKER", "W-ENV"],
    "needs": [
-    {"pending": "W-BROKER: MetaApi provisioning from chat (9.2), with its provisioning fake in broker.py"},
-    {"pending": "W-ENV: the broker-destination Secret card (7.2.3)"}
-   ]
+    {"tool": "broker_connect"},
+    {"code": "lonora_trading.broker_provisioning:maintain_broker_provisioning"},
+    {"code": "scripts.agent_eval.broker:FakeMetaApiProvisioning"}
+   ],
+   "partial": {
+    "note": "W-BROKER's fake MetaApi provisioning API and fake terminal stand in for the MetaApi demo account, which only --broker demo reaches; Lonora's questions are checked to come before any card, their wording is the model's",
+    "demo_note": "Lonora's questions are checked to come before any card, their wording is the model's",
+    "until": [{"pending": "the live run on the MetaApi demo account (plan step 5)"}]
+   },
+   "given": {"login": "50000077", "server": "Exness-MT5Trial16", "owner_answers": "رقم الحساب $login والسيرفر $server"},
+   "script": {
+    "lonora_id": [
+     [
+      {"text": "أعطني رقم حساب MT5 واسم سيرفر الوسيط، وكلمة المرور تدخلها في البطاقة لا هنا."}
+     ],
+     [
+      {"calls": [{"tool": "broker_connect", "arguments": {"login": "$login", "server": "$server", "platform": "mt5"}}]},
+      {"text": "أدخل كلمة مرور الحساب في البطاقة، وسأربطه عبر MetaApi."}
+     ],
+     [
+      {"text": "ربطت حساب MT5 عبر MetaApi، ورصيده $balance دولار كما قرأته من الوسيط."}
+     ]
+    ]
+   }
   },
   {
    "id": "2",
@@ -23,7 +44,8 @@
    "owners": ["W-AUTH", "W-TEAM"],
    "needs": [
     {"code": "lonora_db.trading_mode:set_trading_mode"},
-    {"pending": "W-TEAM: Lonora's lead powers and the uncapped flat team (3.1.2, 3.3)"}
+    {"code": "lonora_api.routes.owner_actions:decide_trading_mode"},
+    {"pending": "W-TEAM: Lonora creates agents on its own judgment, flat and uncapped (#138, #81; 3.1.2, 3.3)"}
    ]
   },
   {
@@ -90,7 +112,7 @@
    "owners": ["W-AUTH", "W-RECEIPT"],
    "needs": [
     {"code": "lonora_db.trading_mode:set_trading_mode"},
-    {"pending": "W-RECEIPT: the Execution Receipt card (10.3, 11.2)"}
+    {"code": "lonora_db.execution_receipts:receipt_facts"}
    ]
   },
   {
@@ -99,7 +121,9 @@
    "clause": "A connection drop during a close is reconciled without a resend.",
    "feature": "the safety core: journal, never resend, broker truth (6.2-6.4); the agent's own watch wakes it (11.8)",
    "owners": ["(on main: the safety core, 6)", "W-AUTH for the gold agent in Full"],
-   "needs": [{"code": "lonora_db.trading_mode:set_trading_mode"}],
+   "needs": [
+    {"code": "lonora_db.trading_mode:set_trading_mode"}
+   ],
    "given": {
     "position": {"base": "XAUUSD", "side": "buy", "volume": "0.02", "price": "4031.500"},
     "watch": {"symbol": "$XAUUSD", "condition": "above", "level": "4060", "cooldown_seconds": 300, "prompt": "Gold reached the target of the open buy at 4060: manage the position per the method."},
@@ -119,11 +143,11 @@
    "title": "Overnight: the euro agent asks",
    "clause": "The euro agent's request waits as a Trade Approval card, and a push reaches the owner's phone.",
    "feature": "Ask mode and the Trade Approval card with reason and tolerance (4.1, 10.3.1); one Expo push per card (11.4)",
-   "owners": ["W-AUTH", "W-PUSH"],
+   "owners": ["W-AUTH", "W-PUSH (#142 merged)"],
    "needs": [
     {"code": "lonora_db.trading_mode:set_trading_mode"},
     {"code": "lonora_trading.approval_drift:check_drift"},
-    {"pending": "W-PUSH: one Expo push per pending card (11.4)"}
+    {"code": "lonora_adapters.channels.expo_push:ExpoPushTransport"}
    ]
   },
   {
@@ -237,7 +261,7 @@
    "feature": "Lonora's lead powers without a grant (3.1.2), delete with transfer, pauses (4.7)",
    "owners": ["W-TEAM", "W-PAUSE"],
    "needs": [
-    {"pending": "W-TEAM: Lonora creates, pauses and deletes agents on its own judgment (3.1.2)"}
+    {"pending": "W-TEAM: Lonora creates, pauses and deletes agents on its own judgment (#138, #146, #185; 3.1.2)"}
    ]
   }
  ]
