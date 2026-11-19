@@ -816,3 +816,57 @@ async def test_receipts_written_before_the_check_existed_close_and_free_the_wind
     stored = await receipts(db)
     assert all(row.get("delivery") for row in stored)
     assert [row["delivery"] for row in stored if "message" in row] == ["delivered"]
+
+
+async def mandate_card(
+    db: Database, owner_id: str, agent_id: str, thread_id: str, source: str
+) -> None:
+    """A pending Mandate card and its attention item (W-ATTN's mandate_proposed)."""
+    async with db.sessions() as session, session.begin():
+        card_row = OwnerActionRow(
+            owner_id=owner_id,
+            agent_id=agent_id,
+            thread_id=thread_id,
+            run_id=str(uuid4()) if source == "agent" else None,
+            source=source,
+            kind="trading_mode",
+            subject="trading_mode:" + agent_id + ":" + uuid4().hex[:6],
+            payload={"agent_id": agent_id},
+            payload_hash=uuid4().hex,
+            status="pending",
+            timeline_seq=12,
+            expires_at=utcnow() + timedelta(days=30),
+        )
+        session.add(card_row)
+        await session.flush()
+        item = AttentionRow(
+            owner_id=owner_id,
+            agent_id=agent_id,
+            thread_id=thread_id,
+            logical_key=uuid4().hex,
+            coalesce_key=uuid4().hex,
+            importance="action_required",
+            code="mandate_proposed",
+            parameters={"owner_action_id": card_row.id},
+            due_at=utcnow(),
+        )
+        session.add(item)
+        await session.flush()
+        publish_ready(session, item, None)
+
+
+@pytest.mark.asyncio
+async def test_a_mandate_card_an_agent_proposed_pushes_and_the_onboarding_one_does_not(
+    task_db: Fixture,
+) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    # Lonora's own card at onboarding is raised by the system while the owner is in the app.
+    await mandate_card(db, owner_id, agent_id, thread_id, "system")
+    await mandate_card(db, owner_id, agent_id, thread_id, "agent")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+    assert expo.sent[0]["body"] == attention_text("mandate_proposed", "ar")
+    assert expo.sent[0]["data"] == {"thread_id": thread_id, "around": 12}
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 0
