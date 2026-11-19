@@ -69,8 +69,11 @@ async def ticket_owners(
     account_id: str,
     positions: list[Position],
     orders: list[Order],
+    statuses: frozenset[str] = frozenset({"confirmed"}),
 ) -> dict[tuple[str, str], str | None]:
-    """The owner of every ticket, by the journal match the door's ``ticket_agent`` uses."""
+    """The owner of every ticket, by the journal match the door's ``ticket_agent`` uses,
+    over the entries in ``statuses``: the door's confirmed ones unless a caller asks for
+    more."""
     owners: dict[tuple[str, str], str | None] = {}
     tickets = [("position", item) for item in positions] + [("order", item) for item in orders]
     for symbol in sorted({item.symbol for _, item in tickets}):
@@ -80,7 +83,7 @@ async def ticket_owners(
                 .where(
                     TradingJournalRow.owner_id == owner_id,
                     TradingJournalRow.account_id == account_id,
-                    TradingJournalRow.status == "confirmed",
+                    TradingJournalRow.status.in_(sorted(statuses)),
                     TradingJournalRow.request["symbol"].as_string() == symbol,
                     TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
                 )

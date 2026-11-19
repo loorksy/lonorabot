@@ -39,7 +39,9 @@ from an agent's sentence:
   broker-truth state: `confirmed` only when the broker confirmed it and its
   verification is not pending;
 - open positions and pending orders, each with the agent whose journaled order opened
-  it (else the owner);
+  it (else the owner), by the door's own match (`entry_holder`). Every entry that may
+  have reached the broker counts, also one of unknown outcome or one the owner settled;
+  the door and the agent picture count confirmed entries only;
 - pending Trade Approval cards;
 - what else waits for the owner, whatever its date: operations of unknown outcome, other
   pending owner cards, runs waiting for the owner's answer, and action-required alerts

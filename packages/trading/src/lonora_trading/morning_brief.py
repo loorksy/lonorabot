@@ -51,6 +51,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .journal import journal_data
+from .manual_activity import SENT_STATUSES
 from .picture import ticket_owners
 
 TRIGGER = "morning_brief"
@@ -169,9 +170,19 @@ async def brief_facts(
                     "equity": _number(state.equity - Decimal(before["equity"])),
                 }
         accounts.append(item)
-        # Who opened each ticket (3.3.4): the door's own journal match, else the owner.
+        # Who opened each ticket (3.3.4): the door's own journal match, else the owner. Every
+        # entry that may have reached the broker counts, not only a confirmed one: a ticket
+        # the broker reports under the order of an operation the owner settled, or of one
+        # still unsettled, was opened by that order's agent.
         owners = (
-            await ticket_owners(session, owner_id, account_id, snapshot.positions, snapshot.orders)
+            await ticket_owners(
+                session,
+                owner_id,
+                account_id,
+                snapshot.positions,
+                snapshot.orders,
+                SENT_STATUSES,
+            )
             if snapshot
             else {}
         )
