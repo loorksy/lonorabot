@@ -14,6 +14,7 @@ from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_db.agents import agent_data, create_agent
 from lonora_db.events import emit
+from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import AttentionRow, TradingJournalRow
 from lonora_db.threads import conversation_thread
 from lonora_gateway.attention import attention_tick
@@ -23,6 +24,29 @@ def cookies(fixture: Fixture) -> list[dict[str, str]]:
     return [
         {"name": cookie.name, "value": cookie.value or ""} for cookie in fixture.client.cookies.jar
     ]
+
+
+async def critical_item(fixture: Fixture) -> str:
+    """A fresh critical item in Lonora's conversation: work stopped after failures.
+
+    The chat-list seeds (``chat_lists_browser.py``) raise one per spec."""
+    key = "browser-critical-" + uuid4().hex[:12]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        lonora = await ensure_personal_agent(session, fixture.owner)
+        thread = await conversation_thread(session, fixture.owner, lonora.id)
+        row = AttentionRow(
+            owner_id=fixture.owner,
+            agent_id=lonora.id,
+            thread_id=thread.id,
+            logical_key=key,
+            coalesce_key=key,
+            importance="critical",
+            code="run_quarantined",
+            due_at=utcnow(),
+        )
+        session.add(row)
+        await session.flush()
+        return row.id
 
 
 async def main():
