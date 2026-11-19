@@ -78,11 +78,6 @@ test("tasks: create with due time and criterion, then mark as completed", async 
   await page.goto("/app/tasks");
   await page.getByRole("tab", { name: "Completed", exact: true }).click();
   await expect(page.getByRole("button", { name: new RegExp(`${prefix} report`) })).toBeVisible();
-  // The activity log is the server's projection of what happened.
-  await page.goto("/app/activity");
-  await expect(
-    page.locator('[data-activity="task_completed"]').filter({ hasText: `${prefix} report` }),
-  ).toBeVisible();
 });
 
 test("schedules: a titled daily routine and a one-shot, with the switch", async ({
@@ -355,11 +350,8 @@ test("a conditional alert is saved for a trading agent and waits in its schedule
       level: "2350",
       prompt: title,
     });
-    // It waits with the agent's schedules; «Upcoming» in Updates lists only schedules.
+    // It waits with the agent's schedules.
     await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}$`));
-    await page.goto("/app/updates");
-    await expect(page.getByText("Upcoming", { exact: true })).toBeVisible();
-    await expect(page.locator(".row", { hasText: title })).toHaveCount(0);
     await page.goto(`/app/routines?agent=${agent.id}`);
     const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
     await expect(toggle).toHaveAttribute("aria-checked", "true");

@@ -86,7 +86,7 @@ test("the owner profile is edited, logged, restored, and the reach mode saved", 
     )
     .toBe("");
   await page.goto("/app/notify-settings");
-  await page.getByRole("radio", { name: /Activity log only/ }).click();
+  await page.getByRole("radio", { name: /In the conversation only/ }).click();
   await expect
     .poll(
       async () => (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
@@ -135,6 +135,9 @@ test("the profile page reads right to left in Arabic with the reference's labels
   await expect(page.getByText("سجل التغييرات")).toBeVisible();
   await page.goto("/app/notify-settings");
   await expect(page.getByRole("radio", { name: /رسالة/ })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: /في المحادثة فقط/ })).toContainText(
+    "دون تنبيه، إلا العاجل",
+  );
   expect(owner.agent.id).toBeTruthy();
 });
 

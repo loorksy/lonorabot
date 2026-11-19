@@ -38,7 +38,7 @@ for (const [name, summary, direction] of [
       })),
     );
     await page.goto("/");
-    // Activity is the Updates tab of the floating bar.
+    // «يحتاج انتباهك» is a tab of the floating bar.
     await page.getByTestId("tab-updates").click();
     const text = fixture.notification.parameters.summary;
     await expect(page.getByText("نبّهك وكيلك", { exact: true }).first()).toBeVisible();
