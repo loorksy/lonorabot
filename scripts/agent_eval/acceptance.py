@@ -6,25 +6,32 @@ worker who owns that feature and the code that proves the feature is on this com
 never approximated. A step whose feature is present runs from its own seeded state, so it
 passes or fails as soon as its own feature lands, whatever the state of the steps before it.
 
-Two modes:
+Two model modes, and two brokers:
 
 - ``--offline``: scripted model turns (``ScriptedModel``) through Lonora's real loop
   (``execute_run``), the real tool handlers and the real MetaApi adapter over the fake
-  terminal of broker.py. No model, no network. The local gate of every PR runs it.
+  terminal of broker.py. No model. The local gate of every PR runs it.
 - ``--live``: the same steps with the product choosing and calling a real model through the
   providers saved in the database (the owner's server). The harness only presents the
   situation (a watch firing, a dropped reply); a step that depends on the model's choice
   passes when the agent acted within its authority without asking and explained in one
   line. Which choice it made is not asserted. Plumbing assertions are exact in both modes.
 
-The harness induces what the scenario needs: a lost broker reply (the broker applied the
-operation and the connection dropped before the answer), a price move, and the wakes that
-follow. Nothing here reaches a broker, prints a credential or keeps a database: every step
-runs on its own copy of a disposable PostgreSQL template, dropped at the end.
+- the fake terminal and W-BROKER's fake MetaApi provisioning (the default): no broker is
+  reached;
+- ``--broker demo``: step 1 only, against MetaApi itself and the owner's demo account. The
+  login, server, password and token are typed at hidden prompts, the run prints only its
+  table, and it leaves nothing at MetaApi (it asks MetaApi to be sure).
+
+The harness induces what the scenario needs on the fake terminal: a lost broker reply (the
+broker applied the operation and the connection dropped before the answer), a price move,
+and the wakes that follow. No run prints a credential or keeps a database: every step runs
+on its own copy of a disposable PostgreSQL template, dropped at the end.
 
     LONORA_DATABASE_URL=postgresql+asyncpg://.../accept_test \\
     .venv/bin/python scripts/agent_eval/acceptance.py --offline [--steps 4c] [--json]
     .venv/bin/python scripts/agent_eval/acceptance.py --live [--steps 4c]
+    .venv/bin/python scripts/agent_eval/acceptance.py --offline --broker demo --steps 1
 """
 
 import argparse
@@ -100,8 +107,9 @@ from scripts.agent_eval import run as runner  # noqa: E402
 from scripts.agent_eval import runner as harness  # noqa: E402
 
 SCENARIO = bank.FIXTURES / "acceptance.json"
-# --broker demo: the steps that may reach the real MetaApi demo account today (the trading
-# steps need an agent that may trade it, which comes with Full mode), what the owner types
+# --broker demo: the steps that may reach the real MetaApi demo account (the trading steps
+# need what the harness can only induce on the fake terminal: a lost reply, a price move,
+# a position already open), what the owner types
 # for them at hidden prompts, and how long the gateway's provisioning passes may take.
 DEMO_STEPS = frozenset({"1"})
 DEMO_VALUES = ("login", "server", "password", "token")
@@ -220,7 +228,7 @@ class ScriptedAdapter:
             raise AssertionError(f"{self.script.agent}'s scripted turn ended early")
         reply = self.script.replies.pop(0)
         if "text" in reply:
-            return ModelReply(text=reply["text"])
+            return ModelReply(text=resolve(reply["text"], self.script.names))
         calls = [
             ToolCall(
                 id=uuid4().hex,
@@ -1041,13 +1049,6 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
                 if result.get("connection_id")
                 else None
             )
-        await stage.drain()
-        async with stage.api.runtime.db.sessions() as session:
-            wake = (
-                await session.get(RunRow, stable_id(card.id, "continue-after-card"))
-                if card
-                else None
-            )
         balance = "?"
         if connection is not None and demo:
             state = await stage.brokers.account(stage.api.owner, connection.id)
@@ -1055,6 +1056,15 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         elif connection is not None:
             terminal = broker.FakeMetaApiBroker.terminals[connection.payload["account_id"]]
             balance = format(terminal.balance.normalize(), "f")
+        if stage.model is not None:
+            stage.model.names["$balance"] = balance
+        await stage.drain()
+        async with stage.api.runtime.db.sessions() as session:
+            wake = (
+                await session.get(RunRow, stable_id(card.id, "continue-after-card"))
+                if card
+                else None
+            )
         reply = await posted(stage, wake) if wake is not None else None
         async with stage.api.runtime.db.sessions() as session:
             # One owner per disposable database: every message is the owner's.
@@ -1096,9 +1106,11 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
                 "read from the broker" if demo else f"broker balance {balance}",
             ),
             (
-                "Lonora answered that wake in its conversation",
-                reply is not None and reply.thread_id == stage.ids["thread_id"],
-                "answered" if reply is not None else "no answer",
+                "Lonora reported the balance in its conversation",
+                reply is not None
+                and reply.thread_id == stage.ids["thread_id"]
+                and states(balance, reply.content),
+                "reported" if reply is not None else "no answer",
             ),
             (
                 "no password or token in any message or model input",
@@ -1116,6 +1128,16 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
     return checks + cleanup
 
 
+def states(figure: str, text: str) -> bool:
+    """Whether ``text`` states the whole-number part of ``figure``, in Latin or
+    Arabic-Indic digits, with or without thousands separators."""
+    if not figure.replace(".", "", 1).isdigit():
+        return False
+    digits = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    plain = re.sub(r"(?<=\d)[,٬\u066c\u00a0 ](?=\d{3})", "", digits)
+    return figure.split(".")[0] in re.findall(r"\d+", plain)
+
+
 async def removed_demo(stage: Stage, card_id: str) -> list[Check]:
     """--broker demo leaves nothing behind. A connected account is removed by the product's
     own disconnect (9.3); one whose connect failed is removed by the provisioning step's own
@@ -1131,6 +1153,14 @@ async def removed_demo(stage: Stage, card_id: str) -> list[Check]:
     client = broker_provisioning.provisioning_client(stage.demo["token"])
     try:
         left = await client.find(stage.demo["login"], stage.demo["server"])
+    except Exception as failure:  # an unanswered lookup is reported, never lost
+        return [
+            (
+                "nothing is left at MetaApi",
+                False,
+                f"MetaApi did not answer ({type(failure).__name__}): check the account there",
+            )
+        ]
     finally:
         await client.close()
     return [
@@ -1255,7 +1285,11 @@ async def run_step(
         "step": step["id"],
         "state": state,
         "error": error,
-        **({"partial": step["partial"]["note"]} if "partial" in step else {}),
+        **(
+            {"partial": step["partial"].get("demo_note" if demo else "note")}
+            if "partial" in step and step["partial"].get("demo_note" if demo else "note")
+            else {}
+        ),
         **({"defects": step["defects"]} if "defects" in step else {}),
         "checks": [{"check": name, "ok": ok, "seen": seen} for name, ok, seen in checks],
     }

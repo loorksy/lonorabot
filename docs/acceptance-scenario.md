@@ -102,13 +102,14 @@ export LONORA_ENCRYPTION_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA= LONORA
   - It prints no login, server, password, token, account id or balance.
   - The values live in the run's memory and in its disposable database, which is dropped.
 - **The model.** Use `--live` in place of `--offline` (with `LONORA_ACCEPT_PROVIDER_KEY`, as above) to have a real model hold the conversation.
-- **Only step 1 runs on the demo account.** The trading steps need an agent that may trade the new account without asking (Full mode, W-AUTH); until then they run on the fake terminal.
+- **Only step 1 runs on the demo account.** The trading steps need what the harness can induce only on the fake terminal: a lost broker reply, a price move, a position already open.
+- **A demo account, please.** The harness cannot tell a demo account from a live one: MetaApi's account state carries no such flag here. Step 1 places no order: it connects the account, reads its balance, and removes it.
 
 ## Today's state (this commit)
 
 | Step | State | Note |
 |---|---|---|
-| 1, connecting | pass, partial | W-BROKER's fake MetaApi provisioning API and fake terminal; the MetaApi demo account only with `--broker demo`. |
+| 1, connecting | pass, partial | W-BROKER's fake MetaApi provisioning API and fake terminal; the MetaApi demo account only with `--broker demo`. Lonora's answer is checked to state the broker's balance. Its questions are checked to come before any card; their wording is the model's. |
 | 4a, the news agent tells the others | pass, partial | The speech is given in the news agent's routine; no calendar source is fed. Its peers are the gold agent, a team agent in Full, and the euro agent. |
 | 4c, a connection drop during a close | pass | Fake terminal. The actor is the gold agent, a team agent set to Full by the owner's tap, whose opening order is journaled as its own (3.3.4); a check names it. A close is risk-reducing, so its mode does not decide it (4.1). |
 | 3, the strategy PDF | not written | The feature (owner methods from files, #116) is on main; the step's runner is not written yet. |

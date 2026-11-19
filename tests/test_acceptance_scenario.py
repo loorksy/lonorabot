@@ -70,7 +70,8 @@ def test_every_step_names_its_feature_and_its_owner():
         for defect in step.get("defects", []):
             assert set(defect) == {"check", "owner", "defect"} and all(defect.values())
         partial = step.get("partial", {"note": "-", "until": []})
-        assert set(partial) == {"note", "until"} and partial["note"], step["id"]
+        assert {"note", "until"} <= set(partial) <= {"note", "demo_note", "until"}, step["id"]
+        assert partial["note"], step["id"]
         for need in step["needs"] + partial["until"]:
             assert set(need) <= {"pending", "tool", "code"} and len(need) == 1, step["id"]
 
@@ -189,3 +190,12 @@ def test_the_demo_broker_runs_only_the_steps_that_may_reach_it():
     assert done.returncode != 0
     assert "--broker demo runs only steps 1" in done.stderr
     assert "MetaApi demo" not in done.stdout + done.stderr
+
+
+def test_a_balance_is_read_from_the_agents_words():
+    assert acceptance.states("10000", "الرصيد 10,000 دولار")
+    assert acceptance.states("10000", "الرصيد ١٠٠٠٠ دولار")
+    assert acceptance.states("10123.45", "Balance 10,123.45 USD")
+    assert not acceptance.states("10000", "الرصيد 1000 دولار")
+    assert not acceptance.states("10000", "رقم الحساب 100001")
+    assert not acceptance.states("?", "?")

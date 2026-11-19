@@ -15,7 +15,8 @@
     {"code": "scripts.agent_eval.broker:FakeMetaApiProvisioning"}
    ],
    "partial": {
-    "note": "W-BROKER's fake MetaApi provisioning API and fake terminal stand in for the MetaApi demo account, which only the live run reaches",
+    "note": "W-BROKER's fake MetaApi provisioning API and fake terminal stand in for the MetaApi demo account, which only --broker demo reaches; Lonora's questions are checked to come before any card, their wording is the model's",
+    "demo_note": "Lonora's questions are checked to come before any card, their wording is the model's",
     "until": [{"pending": "the live run on the MetaApi demo account (plan step 5)"}]
    },
    "given": {"login": "50000077", "server": "Exness-MT5Trial16", "owner_answers": "رقم الحساب $login والسيرفر $server"},
@@ -29,7 +30,7 @@
       {"text": "أدخل كلمة مرور الحساب في البطاقة، وسأربطه عبر MetaApi."}
      ],
      [
-      {"text": "ربطت حساب MT5 عبر MetaApi وقرأت رصيده من الوسيط."}
+      {"text": "ربطت حساب MT5 عبر MetaApi، ورصيده $balance دولار كما قرأته من الوسيط."}
      ]
     ]
    }
