@@ -37,8 +37,9 @@ or refuses a deploy or redeploy because the account "is in the process of being"
 deployed, undeployed or redeployed: `broker_provisioning_busy`), a pass only waits; the
 card fails as `broker_provisioning_busy` only when the whole wait ends. An account the
 token already had gets the card's password and a redeploy: once MetaApi stores that
-password (`password_stored`), every pass stores the same saved password again and
-redeploys until MetaApi takes the redeploy (`password_set`). A redeploy is recorded as
+password (`password_stored`), a later pass does not send it again but only redeploys,
+until MetaApi takes the redeploy (`password_set`), also when the terminal logged in again
+with its earlier password meanwhile. A redeploy is recorded as
 sent before it goes out (`redeploy_sent`; a busy refusal of the first one clears it): one
 whose answer was lost is not sent again once MetaApi reports the terminal deployed and
 logged in. The pass that redeploys does not read the outcome from that call (MetaApi
@@ -52,7 +53,9 @@ can end a broker card, or a connection's first account read, has a fixed cause i
 observed: a MetaApi refusal, timeout or busy answer says that nothing at the broker
 judged the login. Every wake but a confirmed connection tells the agent to name no cause
 beyond that text and to quote the account login exactly as written
-(`tests/test_secret_card.py` walks the codes).
+(`tests/test_secret_card.py` walks the codes, also those the secret store and the account
+read raise, such as `secret_not_found`). A new-token card's wake names the MetaApi API
+token, which every MetaApi connection uses, not one account's credential.
 A `broker_connect` for a login with a saved connection on another server of the same
 broker (the server name's part before the first "-") raises a new-password card for that
 connection instead: the card says it moves the connection, MetaApi's account gets the new
