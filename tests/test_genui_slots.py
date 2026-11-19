@@ -264,7 +264,7 @@ async def test_a_secret_slot_counts_its_fields_and_too_many_fall_back(task_db: F
 @pytest.mark.asyncio
 async def test_an_owner_action_of_another_kind_is_not_a_settle_slot(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
-    record = await resolve_card(db, owner, agent, thread, "secret")
+    record = await resolve_card(db, owner, agent, thread, "trading_mode")
     ui, projector = await project(db, owner, agent, thread, card(slot(record, "settle")))
     assert ui is None and "card_fallback_slot" in codes(projector)
 
