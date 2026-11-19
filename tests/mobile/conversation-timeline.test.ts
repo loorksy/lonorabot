@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Message, TradeApproval } from "@lonora/contracts";
+import type { ExecutionReceipt, Message, OwnerAction, TradeApproval } from "@lonora/contracts";
 import { conversationTimeline } from "../../packages/core/src/conversation-timeline";
 
 function message(id: string, seq: number, created_at: string): Message {
@@ -63,6 +63,35 @@ test("approval anchors survive older history pagination", () => {
     ["message:oldest", "message:before", "approval:request", "message:after"],
   );
 });
+test("an Execution Receipt sits where the broker confirmed it, once, on web and mobile alike", () => {
+  const receipt: ExecutionReceipt = {
+    operation_id: "op",
+    thread_id: "thread",
+    timeline_seq: 2,
+    agent_id: "agent",
+    created_at: "2026-10-15T10:00:01Z",
+    kind: "fill",
+    action: "buy",
+    symbol: "XAUUSD",
+    ticket: "1001",
+    volume: "0.1",
+    price: "2400.5",
+    reason: null,
+    verification: "pending",
+  };
+  assert.deepEqual(
+    conversationTimeline(messages, [approval], [], new Set(), [receipt, { ...receipt }]).map(
+      (row) => row.id,
+    ),
+    ["message:before", "approval:request", "receipt:op", "message:after"],
+  );
+  // A receipt without an anchor follows the clock, before the next message.
+  const unanchored = { ...receipt, timeline_seq: null };
+  assert.deepEqual(
+    conversationTimeline(messages, [], [], new Set(), [unanchored]).map((row) => row.id),
+    ["message:before", "receipt:op", "message:after"],
+  );
+});
 
 /** A message whose card embeds a fixed card as a trusted slot (mandate 10.2). */
 function slotting(seq: number, card: string, record: string, extra: object = {}): Message {
@@ -75,7 +104,7 @@ function slotting(seq: number, card: string, record: string, extra: object = {})
           type: "ui",
           document: {
             v: 2,
-            kind: "receipt",
+            kind: "summary",
             title: "Waiting for you",
             icon: "check",
             facts: {},
@@ -107,6 +136,26 @@ test("a fixed card's row is shown only while no message embeds its record as a s
   assert.ok(
     ids(conversationTimeline([...messages, asked], [approval], [], new Set([asked.id]))).includes(
       "approval:request",
+    ),
+  );
+  // An owner-action fixed card steps aside for a slot of its own card only.
+  const secret = {
+    id: "secret-card",
+    kind: "secret",
+    thread_id: "thread",
+    created_at: "2026-10-15T10:00:01Z",
+    timeline_seq: 2,
+  } as unknown as OwnerAction;
+  const withSecret = (rows: Message[]) => ids(conversationTimeline(rows, [], [secret]));
+  assert.ok(withSecret(messages).includes("owner_action:secret-card"));
+  assert.ok(
+    !withSecret([...messages, slotting(3, "secret", "secret-card")]).includes(
+      "owner_action:secret-card",
+    ),
+  );
+  assert.ok(
+    withSecret([...messages, slotting(3, "settle", "secret-card")]).includes(
+      "owner_action:secret-card",
     ),
   );
   // A slot of another kind never hides the record.

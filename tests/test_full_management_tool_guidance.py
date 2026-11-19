@@ -14,9 +14,9 @@ def test_financial_tool_guidance_distinguishes_standing_grants_from_approval(nam
 
     # Full executes; Ask asks only for a request that adds risk; a close reduces risk.
     if name == "trade_execute":
-        assert "in full, or for a risk-reducing request, it executes at once" in description
-        assert "in ask, a request that adds risk" in description
-        assert "active signed grant" in description and "trade approval card" in description
+        assert "full or a risk-reducing request executes at once" in description
+        assert "in ask new risk" in description and "needs tolerance" in description
+        assert "signed grant" in description and "trade approval card" in description
     else:
         assert "executes without a card in full and in ask" in description
     assert "reconcile" in description

@@ -151,7 +151,7 @@ async def test_a_card_sits_after_the_conversation_and_expires_without_a_schedule
     task_db: Fixture,
 ) -> None:
     db, owner, agent, thread = task_db
-    change = OwnerActionProposal(kind="connect_credential", target="news_feed")
+    change = OwnerActionProposal(kind="secret", target="news_feed", name="Desk")
     async with db.sessions() as session, session.begin():
         conversation = await session.get(ThreadRow, thread)
         assert conversation is not None
@@ -247,10 +247,26 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
         assert conversation is not None
 
         async def card(card_id: str, thread: ThreadRow, kind: str, by: str) -> OwnerActionRow:
+            # A Secret card that connects a news feed, or a creation card on the account.
             payload: dict[str, Any] = (
                 {"spec": {"account_id": account}}
                 if kind == "create_agent"
-                else {"target": "news_feed", "service": None}
+                else {
+                    "label": None,
+                    "connect": "news_feed",
+                    "service": None,
+                    "details": {"name": "Desk"},
+                    "fields": [
+                        {
+                            "key": "URL",
+                            "label": None,
+                            "secret": False,
+                            "role": "feed_url",
+                            "required": True,
+                        }
+                    ],
+                    "destination": "workspace",
+                }
             )
             return await create_card(
                 session,
@@ -261,14 +277,14 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
                 run_id=None,
                 source="agent",
                 kind=kind,
-                subject="agent-create" if kind == "create_agent" else "credential:news_feed",
+                subject="agent-create" if kind == "create_agent" else "secret:news_feed:desk",
                 payload=payload,
             )
 
-        by_helper = await card("by-helper", group, "connect_credential", helper.id)
-        in_thread = await card("in-thread", conversation, "connect_credential", agent)
+        by_helper = await card("by-helper", group, "secret", helper.id)
+        in_thread = await card("in-thread", conversation, "secret", agent)
         about_account = await card("about-account", group, "create_agent", agent)
-        elsewhere = await card("elsewhere", group, "connect_credential", other.id)
+        elsewhere = await card("elsewhere", group, "secret", other.id)
         await prepare_delete(session, owner, agent_id=helper.id)
         await prepare_delete(session, owner, thread_id=conversation.id)
         await prepare_delete(session, owner, account_id=account)

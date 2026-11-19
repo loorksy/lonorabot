@@ -67,7 +67,6 @@ DECISION_CARD_KINDS = frozenset(
         "resolve_operation",
         "create_agent",
         "supervise",
-        "connect_credential",
         "secret",
     }
 )
