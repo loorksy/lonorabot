@@ -7,7 +7,9 @@ connection signed in this way keeps an ``oauth`` record in its payload (the acce
 is its ``secret_id``).
 
 The downgrade refuses while a connection keeps an ``oauth`` record: the earlier release
-cannot read it. Remove those connections first. It then drops the table.
+cannot read it. Remove those connections first. It then removes the empty ``oauth``
+field every other connection stores (the earlier contract refuses unknown fields) and
+drops the table.
 """
 
 import sqlalchemy as sa
@@ -62,5 +64,11 @@ def downgrade() -> None:
             f"{signed_in} MCP connection(s) were signed in with OAuth, which the earlier "
             "release cannot read: remove them first"
         )
+    op.get_bind().execute(
+        sa.text(
+            "UPDATE ln_mcp_connections SET payload = (payload::jsonb - 'oauth')::json"
+            " WHERE payload::jsonb ? 'oauth'"
+        )
+    )
     op.drop_index("ix_ln_mcp_sign_ins_card_id", "ln_mcp_sign_ins")
     op.drop_table("ln_mcp_sign_ins")

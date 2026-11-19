@@ -324,6 +324,10 @@ preview, and **Set up integrations on the web** opens the web settings.
   callback (tokens saved as workspace secrets, never in a card, a message, an event or a
   Run; the agent woken; a second callback does nothing), the renewal before expiry and
   its refusal, a declined, mixed-up or late sign-in, and a server that needs none.
+- `tests/check_mcp_sign_in_migration.py` (fresh database): the downgrade of `0072`
+  refuses while a server Lonora signed in to exists and changes nothing, then drops the
+  sign-ins and leaves every other server without its empty `oauth`; the upgrade runs
+  again.
 - `tests/test_secret_card.py`: the Secret card's own fields and its connecting cards
   (each MCP server's address and token under names of their own, kept when the server is
   removed; a name a connection uses never replaced; a stored address read only on its
