@@ -314,6 +314,8 @@ test("«Resolve the operation» reaches the settle card drawn in the agent's mes
     await page.goto(`/thread?id=${fixture.thread.id}`);
     await actions;
     const slot = page.getByTestId("ui-slot-settle");
+    // The card has no row of its own: its place is the slot in the agent's message.
+    await expect(page.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(0);
     await page.getByTestId("order-line").click();
     const resolve = page.getByRole("button", { name: "Resolve the operation", exact: true });
     await expect(resolve).toBeVisible();
