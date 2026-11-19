@@ -214,15 +214,16 @@ async def test_a_netting_fill_never_takes_the_position_from_the_agent_that_opene
     task_db: Fixture, tagged: bool
 ):
     """3.3.4: on a netting account the symbol's one position belongs to the agent whose order
-    opened it from flat. B's later fill carries the same position id; the broker's tag of
-    A's order names A, and without a tag the oldest entry on that position does."""
+    opened it from flat. The position carries the ticket of A's order; B's later fill
+    carries the same position id under its own order's ticket. The broker's tag of A's
+    order names A, and without a tag the order whose ticket the position carries does."""
     db, owner, _, _ = task_db
     a, b = await two_agents(db, owner)
     now = utcnow()
     async with db.sessions() as session, session.begin():
         session.add_all(
             [
-                entry(owner, "open-a", a, now - timedelta(minutes=5), position="P1", order="O1"),
+                entry(owner, "open-a", a, now - timedelta(minutes=5), position="P1", order="P1"),
                 entry(owner, "fill-b", b, now, position="P1", order="O2"),
             ]
         )
@@ -242,6 +243,22 @@ async def test_a_netting_fill_never_takes_the_position_from_the_agent_that_opene
         opened.updated_at = now + timedelta(minutes=1)
     async with db.sessions() as session:
         assert await ticket_agent(session, owner, closing("P1"), ticket) == a
+
+
+@pytest.mark.asyncio
+async def test_an_agents_netting_fill_never_takes_the_owners_own_position(task_db: Fixture):
+    """3.3.4: the owner opened the position in the broker terminal, so no entry opened it.
+    B's order later netted into it, and B's result carries the position's id under its own
+    order's ticket. The position stays the owner's: B's close is ticket_not_owned."""
+    db, owner, _, _ = task_db
+    _, b = await two_agents(db, owner)
+    async with db.sessions() as session, session.begin():
+        session.add(entry(owner, "fill-b", b, utcnow(), position="P2", order="O3"))
+    ticket = TICKET.model_copy(update={"id": "P2"})
+    async with db.sessions() as session:
+        assert await ticket_agent(session, owner, closing("P2"), ticket) is None
+        with pytest.raises(LonoraError, match="ticket_not_owned"):
+            await closes(session, owner, b, ticket)
 
 
 @pytest.mark.asyncio
@@ -279,7 +296,7 @@ async def test_an_opening_order_deep_in_the_history_still_names_its_agent(
     a, _ = await two_agents(db, owner)
     start = utcnow() - timedelta(days=30)
     async with db.sessions() as session, session.begin():
-        session.add(entry(owner, "open-a", a, start, position="P1", order="O1"))
+        session.add(entry(owner, "open-a", a, start, position="P1", order="P1"))
         session.add_all(
             entry(owner, f"own-{i}", None, start + timedelta(minutes=i + 1), position=f"Q{i}")
             for i in range(1000)
@@ -309,7 +326,7 @@ async def test_an_opening_order_behind_a_thousand_older_entries_still_names_its_
             for i in range(1000)
         )
         opened = start + timedelta(minutes=1000)
-        session.add(entry(owner, "open-a", a, opened, position="P1", order="O1"))
+        session.add(entry(owner, "open-a", a, opened, position="P1", order="P1"))
     ticket = TICKET.model_copy(
         update={"id": "P1", "operation_id": broker_operation_tag("open-a") if tagged else None}
     )

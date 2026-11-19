@@ -44,8 +44,11 @@ Reconciliation (`reconcile_broker_account`) compares broker snapshots and marks 
 change `external` when no journaled Lonora operation explains it: a stop-loss or
 take-profit hit, a manual close or edit. `attributed_agent` in
 `lonora_trading/manual_activity.py` then reads the journal, newest first: the Agent
-whose sent operation opened the ticket (by the broker id or the operation id the
-ticket carries), else the latest Agent that managed it. The Agent comes from the
+whose sent operation opened the ticket, by the keys the door's `entry_holder` reads
+(the operation id or its broker tag the ticket carries, else its order's ticket:
+`details.order_id`, or the simulation's broker id; never a position id in its result,
+which on a netting account is the position the order added to), else the latest Agent
+that managed it. The Agent comes from the
 executor's own `details.execution.agent_id`, written from the fenced Run, never from
 broker data. Each `BrokerActivity` carries that `agent_id` (None for the owner's
 manual activity).

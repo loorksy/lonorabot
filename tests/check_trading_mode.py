@@ -114,7 +114,8 @@ async def checks() -> None:
                 operation_id=opening.operation_id,
                 status="confirmed",
                 broker_id="mode-position",
-                details={"position_id": "mode-position"},
+                # Opened from flat: the position carries the ticket of the order.
+                details={"order_id": "mode-position", "position_id": "mode-position"},
             ).model_dump(mode="json"),
         )
 

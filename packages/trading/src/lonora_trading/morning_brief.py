@@ -47,15 +47,15 @@ from lonora_db.schema import (
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository
 from lonora_market.sessions import fx_week
-from lonora_session.idempotency import broker_operation_tag, stable_id
+from lonora_session.idempotency import stable_id
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .exposure import ENTRY_ACTIONS
 from .journal import journal_data
-from .manual_activity import SENT_STATUSES, journal_agent
+from .manual_activity import SENT_STATUSES
+from .picture import ticket_owners
 
 TRIGGER = "morning_brief"
 # 07:00 in the owner's time zone until Lonora has seen the owner open the app on at least
@@ -205,6 +205,26 @@ async def brief_facts(
                     "equity": _number(state.equity - Decimal(before["equity"])),
                 }
         accounts.append(item)
+        # Who opened each ticket (3.3.4): the door's own journal match, else the owner. Every
+        # entry that may have reached the broker counts, not only a confirmed one: a ticket
+        # the broker reports under the order of an operation the owner settled, or of one
+        # still unsettled, was opened by that order's agent.
+        owners = (
+            await ticket_owners(
+                session,
+                owner_id,
+                account_id,
+                snapshot.positions,
+                snapshot.orders,
+                SENT_STATUSES,
+            )
+            if snapshot
+            else {}
+        )
+        opened_by = {
+            key: names.get(agent_id, lead) if agent_id else "owner"
+            for key, agent_id in owners.items()
+        }
         for position in snapshot.positions if snapshot else []:
             positions.append(
                 {
@@ -216,7 +236,7 @@ async def brief_facts(
                     "floating_profit": _number(position.profit),
                     "stop_loss": _number(position.stop_loss),
                     "take_profit": _number(position.take_profit),
-                    "_ticket": (account_id, position.id, position.operation_id),
+                    "opened_by": opened_by[("position", position.id)],
                 }
             )
         for order in snapshot.orders if snapshot else []:
@@ -229,22 +249,9 @@ async def brief_facts(
                     "price": _number(order.price),
                     "stop_loss": _number(order.stop_loss),
                     "take_profit": _number(order.take_profit),
-                    "_ticket": (account_id, order.id, order.operation_id),
+                    "opened_by": opened_by[("order", order.id)],
                 }
             )
-    # Who opened each ticket (3.3.4): the agent of the journaled entry order that opened or
-    # placed it, else the owner. The broker reports that order's operation id as is
-    # (simulation) or as its broker tag (MetaApi's clientId), and its ticket as the
-    # journal's broker id.
-    openers = await ticket_openers(
-        session, owner_id, {item["symbol"] for item in positions + orders}
-    )
-    for item in positions + orders:
-        account_id, ticket, operation_id = item.pop("_ticket")
-        agent_id = openers.get((account_id, "op", operation_id or "")) or openers.get(
-            (account_id, "ticket", ticket)
-        )
-        item["opened_by"] = names.get(agent_id, lead) if agent_id else "owner"
     since = record.last_sent_at or now - timedelta(days=1)
     work: dict[str, list[dict[str, Any]]] = {agent.id: [] for agent in agents}
     for row in await session.scalars(
@@ -372,48 +379,6 @@ async def brief_facts(
     }
 
 
-async def ticket_openers(
-    session: AsyncSession, owner_id: str, symbols: set[str]
-) -> dict[tuple[str, str, str], str]:
-    """The agent of each journaled entry order on these symbols, keyed by account and by
-    its operation id, its broker tag and its broker ticket ids; the newest entry wins."""
-    openers: dict[tuple[str, str, str], str] = {}
-    if not symbols:
-        return openers
-    rows = await session.scalars(
-        select(TradingJournalRow)
-        .where(
-            TradingJournalRow.owner_id == owner_id,
-            TradingJournalRow.status.in_(sorted(SENT_STATUSES)),
-            TradingJournalRow.request["symbol"].as_string().in_(sorted(symbols)),
-            TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-        )
-        .order_by(TradingJournalRow.updated_at.desc())
-        .limit(5000)
-    )
-    for row in rows:
-        agent = journal_agent(row)
-        if agent is None:
-            continue
-        details = row.result.get("details", {})
-        keys = [
-            ("op", row.operation_id),
-            ("op", broker_operation_tag(row.operation_id)),
-            *(
-                ("ticket", str(value))
-                for value in (
-                    row.result.get("broker_id"),
-                    details.get("position_id"),
-                    details.get("order_id"),
-                )
-                if value
-            ),
-        ]
-        for kind, value in keys:
-            openers.setdefault((row.account_id, kind, value), agent)
-    return openers
-
-
 async def _count(session: AsyncSession, query: Any) -> int:
     return int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
 
@@ -512,16 +477,31 @@ def baseline(
 async def account_snapshots(
     session: AsyncSession, owner_id: str
 ) -> list[tuple[str, BrokerRecoverySnapshot | None]]:
+    """Each enabled connection's snapshot, by the connection's own id: the id the journal
+    keys its entries by, not the provider's account id in the payload."""
     rows = await session.scalars(
         select(BrokerSessionRow)
         .where(BrokerSessionRow.owner_id == owner_id)
         .order_by(BrokerSessionRow.created_at)
     )
-    return [
-        (str(row.payload.get("account_id", "")), _snapshot(row))
+    return [(row.id, _snapshot(row)) for row in rows if row.payload.get("enabled")]
+
+
+async def connection_baseline(
+    session: AsyncSession, owner_id: str, saved: dict[str, Any]
+) -> dict[str, Any]:
+    """``saved`` with each connection's last reading under the connection's own id. A
+    baseline stored while the brief keyed accounts by the provider's account id in the
+    payload is read from that key, so the first brief after the change still compares
+    each account with its own last reading; that brief stores the new keys."""
+    rows = await session.scalars(
+        select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id)
+    )
+    return saved | {
+        row.id: saved[old]
         for row in rows
-        if row.payload.get("enabled")
-    ]
+        if row.id not in saved and (old := str(row.payload.get("account_id", ""))) in saved
+    }
 
 
 # --- The wake and the plain brief ----------------------------------------------------
@@ -856,6 +836,7 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         if await weekly_wait(session, owner_id, record, now):
             return None
         snapshots = await account_snapshots(session, owner_id)
+        record.baseline = await connection_baseline(session, owner_id, record.baseline)
         # Halve the item bounds until the wake fits its prompt (RunRequest.prompt).
         limit = MAXIMUM_ITEMS
         facts = await brief_facts(session, owner_id, record, today, snapshots, now, limit)

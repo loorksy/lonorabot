@@ -24,6 +24,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.incoming_calls import IncomingCallPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import TradingJournalRow
+from lonora_session.idempotency import broker_operation_tag
 from lonora_tools.base import HELPER_EFFECTS, Tool, run_scope
 from lonora_tools.loader import load_tools
 from lonora_trading.manual_activity import attributed_agent, detect_activity, journal_agent
@@ -50,6 +51,10 @@ def journal(
     updated_at: datetime = NOW,
 ) -> TradingJournalRow:
     execution = {"run_id": "run-" + operation_id, "agent_id": agent_id} if agent_id else None
+    details: dict[str, Any] = {"execution": execution} if execution else {}
+    if broker_id:
+        # MetaApi's result: the order's own ticket, also its broker id.
+        details["order_id"] = broker_id
     return TradingJournalRow(
         operation_id=operation_id,
         owner_id="owner",
@@ -57,11 +62,7 @@ def journal(
         request_hash="h",
         request={"account_id": "acc", **request},
         status=status,
-        result={
-            "status": status,
-            "broker_id": broker_id,
-            "details": {"execution": execution} if execution else {},
-        },
+        result={"status": status, "broker_id": broker_id, "details": details},
         updated_at=updated_at,
     )
 
@@ -110,9 +111,12 @@ def test_the_journal_attributes_tickets_to_the_agent_that_opened_or_manages_them
         "op-open", {"action": "buy", "symbol": "XAUUSD"}, agent_id="gold", broker_id="T1"
     )
     assert journal_agent(opened) == "gold"
-    # The opening operation decides, by broker id or by the operation id it carries.
+    # The opening operation decides, by its order's ticket or by the operation id (or its
+    # broker tag, MetaApi's clientId) the ticket carries.
     assert attributed_agent(position("T1"), None, [opened]) == "gold"
     assert attributed_agent(position("T9", operation_id="op-open"), None, [opened]) == "gold"
+    tagged = position("T8", operation_id=broker_operation_tag("op-open"))
+    assert attributed_agent(tagged, None, [opened]) == "gold"
     # The owner's manual position, and the owner's own order through Lonora, are nobody's.
     owner_order = journal(
         "op-owner", {"action": "buy", "symbol": "XAUUSD"}, agent_id=None, broker_id="T2"
@@ -128,10 +132,45 @@ def test_the_journal_attributes_tickets_to_the_agent_that_opened_or_manages_them
     assert attributed_agent(position("T2"), None, [managed, owner_order]) == "lonora"
     # A reservation never reached the broker and attributes nothing.
     reserved = journal(
-        "op-res", {"action": "buy", "symbol": "XAUUSD"}, agent_id="gold", status="reserved"
+        "op-res",
+        {"action": "buy", "symbol": "XAUUSD"},
+        agent_id="gold",
+        status="reserved",
+        broker_id="T3",
     )
-    reserved.result["broker_id"] = "T3"
     assert attributed_agent(position("T3"), None, [reserved]) is None
+
+
+def test_an_agents_netting_fill_never_takes_the_owners_position_for_its_wake():
+    # On a netting account Gold's order added to the owner's terminal position: the
+    # result names that position, but the order has its own ticket. The position stays
+    # the owner's (3.3.4), as at the door, so the owner's close in the terminal wakes
+    # Lonora observe-only, never Gold with its normal authority.
+    fill = journal(
+        "op-add",
+        {"action": "buy", "symbol": "XAUUSD"},
+        agent_id="gold",
+        broker_id="O2",
+        updated_at=NOW - timedelta(hours=1),
+    )
+    fill.result["details"]["position_id"] = "P1"
+    assert attributed_agent(position("P1"), None, [fill]) is None
+    previous = BrokerRecoverySnapshot(
+        status="connected",
+        reason_code="broker_reconciled",
+        since=NOW - timedelta(hours=1),
+        observed_at=NOW - timedelta(minutes=1),
+        revision=4,
+        positions=[position("P1")],
+    )
+    (change,) = detect_activity("acc", previous, [], [], [fill], revision=5, now=NOW)
+    assert (change.change, change.origin, change.agent_id) == ("closed", "external", None)
+    # A simulation entry's broker id is its order's ticket.
+    simulated = journal(
+        "op-sim", {"action": "buy", "symbol": "XAUUSD"}, agent_id="gold", broker_id="S1"
+    )
+    simulated.result["details"] = {"simulation": True, "execution": {"agent_id": "gold"}}
+    assert attributed_agent(position("S1"), None, [simulated]) == "gold"
 
 
 def test_a_stop_loss_hit_is_external_activity_attributed_to_its_agent():

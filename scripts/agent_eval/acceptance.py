@@ -900,7 +900,12 @@ async def opened_by(stage: Stage, position: dict[str, Any], agent_id: str) -> No
                 status="confirmed",
                 result={
                     "broker_id": position["id"],
-                    "details": {"position_id": position["id"], "execution": {"agent_id": agent_id}},
+                    # Opened from flat: the position carries the ticket of the order.
+                    "details": {
+                        "order_id": position["id"],
+                        "position_id": position["id"],
+                        "execution": {"agent_id": agent_id},
+                    },
                 },
             )
         )
