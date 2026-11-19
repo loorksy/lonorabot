@@ -27,7 +27,9 @@ class SkillAccess(Protocol):
         self, context: "ToolContext", arguments: dict[str, Any]
     ) -> dict[str, Any]: ...
 
-    async def skill_history(self, context: "ToolContext", skill_id: str) -> dict[str, Any]: ...
+    async def skill_history(
+        self, context: "ToolContext", skill_id: str, agent_id: str | None = None
+    ) -> dict[str, Any]: ...
 
     async def restore_skill(
         self, context: "ToolContext", arguments: dict[str, Any]

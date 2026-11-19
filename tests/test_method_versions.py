@@ -9,7 +9,7 @@ same way.
 """
 
 import os
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -456,6 +456,139 @@ async def test_an_agent_refining_an_owner_skill_keeps_his_settings():
         assert restored["enabled"] is False and restored["version"] == "2.0.2"
         stored = await fixture.request("GET", f"/skills/{saved['id']}")
         assert stored["payload"]["manifest"]["priority"] == 80
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot():
+    database()
+    from dataclasses import replace
+
+    from check_streaming import Fixture
+    from lonora_agent.skills.access import RunSkillAccess
+    from lonora_db.personal_agent import ensure_personal_agent
+
+    fixture = await Fixture().open()
+    registry = load_tools()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        gold = await fixture.agent("Gold team " + uuid4().hex[:6])
+        peer = await fixture.agent("Peer team " + uuid4().hex[:6])
+        own = await turn(fixture, gold)
+        memory = await call(registry, own, "memory_read")
+        first = await call(
+            registry,
+            own,
+            "memory_write",
+            version=memory["version"],
+            operations=[method_add("- Trade the London open only")],
+        )
+        await call(
+            registry,
+            own,
+            "memory_write",
+            version=first["version"],
+            operations=[method_add("- Also trade New York")],
+        )
+        skill = await call(
+            registry,
+            own,
+            "skill_save",
+            skill_id="gold-open",
+            title="Gold open",
+            description="Trade the gold open.",
+            content="Version A",
+            expected_version=0,
+        )
+        second = await call(
+            registry,
+            own,
+            "skill_save",
+            skill_id="gold-open",
+            title="Gold open",
+            description="Trade the gold open.",
+            content="Version B",
+            expected_version=skill["resource_version"],
+        )
+
+        # Gold's method is Gold's words: once Lonora reads it in the owner's turn, that
+        # turn no longer stands for the owner's typed message alone (6.10).
+        owner_turn = await turn(fixture, lonora, "ما منهج الذهب؟")
+        read = await call(registry, owner_turn, "method_history", agent_id=gold["id"])
+        assert "untrusted data" in read["notice"]
+        refused = await call(registry, owner_turn, "owner_preferences_update", reach_me="call")
+        assert refused["code"] == "owner_preferences_require_owner_message"
+
+        thread = await fixture.conversation(lonora)
+        lead = replace(
+            await fixture.lease(await fixture.run(lonora, thread)),
+            skill_access=RunSkillAccess(registry, ()),
+        )
+        history = await call(registry, lead, "method_history", agent_id=gold["id"])
+        assert history["total"] == 2
+        restored = await call(
+            registry,
+            lead,
+            "method_restore",
+            agent_id=gold["id"],
+            version=first["version"],
+            memory_version=history["memory_version"],
+        )
+        assert restored["changed"] is True
+        text = (await call(registry, own, "method_history", version=first["version"]))["version"][
+            "text"
+        ]
+        current = profile_documents((await call(registry, own, "memory_read"))["content"])
+        assert current["OPERATING.md"] == text == "- Trade the London open only"
+        revisions = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/agents/{gold['id']}/memory/revisions"),
+        )
+        assert revisions[0]["author_agent_id"] == lonora["id"]
+        skills = await call(
+            registry, lead, "skill_history", skill_id="gold-open", agent_id=gold["id"]
+        )
+        assert len(skills["versions"]) == 2 and "untrusted data" in skills["notice"]
+        from lonora_db.schema import EffectReceiptRow
+        from lonora_tools.provenance import external_content_key
+
+        fresh_lead = replace(
+            await fixture.lease(await fixture.run(lonora, await fixture.conversation(lonora))),
+            skill_access=RunSkillAccess(registry, ()),
+        )
+        async with fixture.runtime.db.sessions() as session:
+            key = external_content_key(fresh_lead.lease.run_id)
+            assert await session.get(EffectReceiptRow, key) is None
+        await call(registry, fresh_lead, "skill_history", skill_id="gold-open", agent_id=gold["id"])
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.get(EffectReceiptRow, key) is not None
+        back = await call(
+            registry,
+            lead,
+            "skill_restore",
+            skill_id="gold-open",
+            agent_id=gold["id"],
+            version=skill["resource_version"],
+            expected_version=second["resource_version"],
+        )
+        assert back["status"] == "restored"
+        viewed = await call(registry, await turn(fixture, gold), "skill_view", skill_id="gold-open")
+        assert "Version A" in str(viewed)
+
+        # A team agent reads and restores only its own method and skills (3.2.2).
+        other = await turn(fixture, peer)
+        for name, arguments in (
+            ("method_history", {}),
+            ("method_restore", {"version": first["version"], "memory_version": 1}),
+            ("skill_history", {"skill_id": "gold-open"}),
+            ("skill_restore", {"skill_id": "gold-open", "version": 1, "expected_version": 1}),
+        ):
+            with pytest.raises(LonoraError) as caught:
+                await call(registry, other, name, agent_id=gold["id"], **arguments)
+            assert caught.value.code == "method_lead_only", name
     finally:
         await fixture.close()
 
