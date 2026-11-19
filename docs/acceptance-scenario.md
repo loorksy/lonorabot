@@ -94,9 +94,10 @@ export LONORA_ENCRYPTION_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA= LONORA
   - Lonora is woken with the balance read from the broker.
 
   The template's own (fake) connection is switched off first, so nothing in the run reaches MetaApi with it.
-- **What it leaves behind.** Nothing.
-  - A connected account is removed by the product's own disconnect (9.3). A failed one is removed by the provisioning step's own cleanup, which the harness waits for. This happens even when a check or a run fails, or the run is interrupted (Ctrl-C): the step's row then says why, and the run still ends with its table.
-  - The harness then asks MetaApi itself, with the owner's token, whether any account for this login and server is left. MetaApi finishes a removal on its own time (the account is first marked as being deleted), so the harness asks again until none is, for up to five minutes. It reports one that is still there, without its id.
+- **What it leaves behind.** Nothing, unless the run is interrupted while the account is being provisioned.
+  - A connected account is removed by the product's own disconnect (9.3). A failed one is removed by the provisioning step's own cleanup, which the harness waits for. This happens even when a check or a run fails, or the run is interrupted (Ctrl-C) after that: the step's row then says why, and the run still ends with its table.
+  - Interrupted while the harness still repeats the provisioning step, neither removal runs: an account MetaApi created is left, and the step's row says at once that it is still there, to be removed at MetaApi.
+  - The harness then asks MetaApi itself, with the owner's token, whether any account for this login and server is left. MetaApi finishes a removal on its own time (the account is first marked as being deleted), so the harness asks again while it is, for up to five minutes. It reports one that is still there, without its id. If this cleanup is itself interrupted (a second Ctrl-C), the row says it did not finish.
   - An account that was already at MetaApi for this login and server before the run is reported as kept, not as left behind: the product reuses it and never removes it. The harness asks MetaApi once before the card is saved to know.
 - **What it prints.** The step table and its checks, and nothing else.
   - While the run goes, its standard output is discarded (the MetaApi SDK prints account ids) and logging is off.

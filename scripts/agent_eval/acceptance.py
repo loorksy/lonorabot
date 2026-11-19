@@ -1148,6 +1148,14 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         ]
     finally:
         if demo and card is not None:
+            # Said even when the cleanup itself is cut short (a second Ctrl-C).
+            stage.cleanup = [
+                (
+                    "nothing is left at MetaApi",
+                    False,
+                    "the cleanup did not finish: check the account there",
+                )
+            ]
             stage.cleanup = await removed_demo(stage, card.id, existed)
     return checks
 
@@ -1164,13 +1172,15 @@ def states(figure: str, text: str) -> bool:
 
 
 async def removed_demo(stage: Stage, card_id: str, existed: bool) -> list[Check]:
-    """--broker demo leaves nothing behind. A connected account is removed by the product's
-    own disconnect (9.3); one whose connect failed is removed by the provisioning step's own
-    cleanup, which ``provision`` waits for. Then MetaApi itself is asked, with the owner's
-    token, whether any account for this login and server is left, until none is or
-    REMOVAL_WAIT has passed: MetaApi finishes a removal on its own time. One that was there
-    before the run (``existed``) is never removed by the product, and is said to be kept.
-    No id is printed."""
+    """--broker demo removes the account it created, or says it is left. A connected account
+    is removed by the product's own disconnect (9.3); one whose connect failed is removed by
+    the provisioning step's own cleanup, which ``provision`` waits for. Then MetaApi itself
+    is asked, with the owner's token, whether any account for this login and server is
+    left. MetaApi finishes a removal on its own time: one being removed (DELETING) is asked
+    about again until it is gone or REMOVAL_WAIT has passed. One in any other state was
+    never asked to go (its connect was interrupted) or failed to, and is reported at once.
+    One that was there before the run (``existed``) is never removed by the product, and is
+    said to be kept. No id is printed."""
     assert stage.demo is not None
     result = await card_result(stage, card_id)
     if result.get("connection_id"):
@@ -1185,7 +1195,12 @@ async def removed_demo(stage: Stage, card_id: str, existed: bool) -> list[Check]
     try:
         while True:
             left = await client.find(stage.demo["login"], stage.demo["server"])
-            if left is None or existed or asyncio.get_running_loop().time() > deadline:
+            if (
+                left is None
+                or existed
+                or left.state != "DELETING"
+                or asyncio.get_running_loop().time() > deadline
+            ):
                 break
             await asyncio.sleep(DEMO_PASS_SECONDS)
     except Exception as failure:  # an unanswered lookup is reported, never lost

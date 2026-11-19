@@ -195,9 +195,13 @@ def test_the_demo_broker_runs_only_the_steps_that_may_reach_it():
 
 
 # --broker demo on W-BROKER's fakes in place of MetaApi: the step body fails after the
-# account is connected, once with an error and once interrupted (Ctrl-C).
+# account is connected, once with an error and once interrupted (Ctrl-C). Then the run is
+# interrupted while MetaApi creates the account (it is created; the answer never reaches
+# the product), and the last time interrupted again while the harness asks MetaApi what is
+# left.
 DEMO_FAILS = """
 import asyncio, json, os
+from datetime import timedelta
 from unittest.mock import patch
 from lonora_adapters.brokers.base import BrokerManager
 from scripts.agent_eval import acceptance, broker
@@ -214,13 +218,15 @@ async def main():
                                      server=server) for n in (1, 2)]
     ids = await acceptance.runner.template(base, acceptance.runner.MODEL)
     client = lambda token: broker.FakeMetaApiProvisioning(api, token)
-    rows = []
+    rows, left, lookups = [], [], []
     try:
         with (
             broker.installed(*terminals),
             patch("lonora_trading.broker_provisioning.provisioning_client", client),
             patch.object(BrokerManager, "provisioning_factory", staticmethod(client), create=True),
             patch.object(acceptance, "DEMO_PASS_SECONDS", 0),
+            # A harness that waited out an account nobody removes would ask again and again.
+            patch.object(acceptance, "REMOVAL_WAIT", timedelta(seconds=5)),
         ):
             for failure in (TimeoutError("the wake's run did not end"),
                             asyncio.CancelledError()):
@@ -228,11 +234,32 @@ async def main():
                     raise failure
                 with patch.object(acceptance, "posted", fails):
                     rows.append(await acceptance.run_step(base, ids, step, False, demo))
+            left.append(len(api.accounts))
+            for again in (False, True):
+                create = api.create_account
+                listing = api.get_accounts_with_infinite_scroll_pagination
+                interrupted = []
+                async def creates(*args, **kwargs):
+                    await create(*args, **kwargs)
+                    interrupted.append(len(api.calls))
+                    raise asyncio.CancelledError()
+                async def lists(*args, again=again, **kwargs):
+                    if interrupted and again:
+                        raise asyncio.CancelledError()
+                    return await listing(*args, **kwargs)
+                with (
+                    patch.object(api, "create_account", creates),
+                    patch.object(api, "get_accounts_with_infinite_scroll_pagination", lists),
+                ):
+                    rows.append(await acceptance.run_step(base, ids, step, False, demo))
+                lookups.append(api.calls[interrupted[0]:].count("list"))
+                left.append(len(api.accounts))
+                api.accounts.clear()  # removed at MetaApi by hand, as the row asks
     finally:
         await acceptance.harness.admin(
             base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
     print(json.dumps({"rows": rows, "creates": api.calls.count("create_account"),
-                      "left": len(api.accounts)}))
+                      "left": left, "lookups": lookups}))
 
 asyncio.run(main())
 """
@@ -240,7 +267,8 @@ asyncio.run(main())
 
 def test_the_demo_broker_says_what_metaapi_holds_when_the_step_fails():
     """A step that raises or is interrupted after the account is connected still removes
-    it and reports what MetaApi holds, in its own row."""
+    it and reports what MetaApi holds, in its own row. One interrupted before it is
+    connected says at once that the account is still there, even when interrupted again."""
     url = make_url(os.environ.get("LONORA_DATABASE_URL") or "sqlite://")
     if not url.drivername.startswith("postgresql"):
         pytest.skip("the demo run needs a disposable PostgreSQL (LONORA_DATABASE_URL)")
@@ -255,17 +283,33 @@ def test_the_demo_broker_says_what_metaapi_holds_when_the_step_fails():
     )
     assert done.returncode == 0, done.stderr[-2000:]
     outcome = json.loads(done.stdout.strip().splitlines()[-1])
-    failed, interrupted = outcome["rows"]
+    failed, interrupted, connecting, twice = outcome["rows"]
     assert failed["error"] == "TimeoutError: the wake's run did not end"
-    assert interrupted["error"] == "interrupted"
+    for row in (interrupted, connecting, twice):
+        assert row["error"] == "interrupted"
     for row in (failed, interrupted):
         assert row["state"] == "fail"
         # The step's own checks were never reached; MetaApi's row is there all the same.
         assert [(check["check"], check["ok"]) for check in row["checks"]] == [
             ("nothing is left at MetaApi", True)
         ], row
-    # Each run created its account at the fake MetaApi, and each was removed.
-    assert outcome["creates"] == 2 and outcome["left"] == 0
+    # Each run created its account at the fake MetaApi. The two connected ones were removed;
+    # the two whose connect was interrupted are still there, and their rows say so.
+    assert outcome["creates"] == 4 and outcome["left"] == [0, 1, 1]
+    seen = "an account for this login and server is still at MetaApi: remove it there"
+    assert connecting["checks"] == [
+        {"check": "nothing is left at MetaApi", "ok": False, "seen": seen}
+    ]
+    # Nobody asked MetaApi to remove it: it is reported at the first lookup, not waited for.
+    assert outcome["lookups"][0] == 1
+    # Interrupted again during that lookup: the row is there, and says so.
+    assert twice["checks"] == [
+        {
+            "check": "nothing is left at MetaApi",
+            "ok": False,
+            "seen": "the cleanup did not finish: check the account there",
+        }
+    ]
 
 
 class MetaApiAnswers:
@@ -320,11 +364,24 @@ async def test_the_demo_cleanup_waits_for_metaapi_to_finish_a_removal(
 async def test_the_demo_cleanup_reports_an_account_still_there_after_the_wait(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    metaapi = MetaApiAnswers("DEPLOYED")
+    metaapi = MetaApiAnswers("DELETING")
     name, ok, seen = await left_at_metaapi(monkeypatch, metaapi, existed=False, wait=0.05)
     assert (name, ok) == ("nothing is left at MetaApi", False)
     assert seen == "an account for this login and server is still at MetaApi: remove it there"
     assert metaapi.finds > 1
+
+
+@pytest.mark.asyncio
+async def test_the_demo_cleanup_reports_an_account_nobody_removes_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """An account that is not being removed (its connect was interrupted, or its removal
+    failed) will not go on its own: it is reported at the first lookup."""
+    metaapi = MetaApiAnswers("DEPLOYING")
+    name, ok, seen = await left_at_metaapi(monkeypatch, metaapi, existed=False, wait=60)
+    assert (name, ok) == ("nothing is left at MetaApi", False)
+    assert seen == "an account for this login and server is still at MetaApi: remove it there"
+    assert metaapi.finds == 1
 
 
 @pytest.mark.asyncio
