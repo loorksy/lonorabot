@@ -180,11 +180,13 @@ async def discovery_and_context(f: Fixture) -> None:
             # One frozen tools array for the whole Run, worker replacement included.
             assert names == offered.setdefault(variant_index, names)
             if phase == 0:
-                assert {"tool_environment", "tool_call"} <= names and "market_quote" not in names
+                # Every agent's market set is eager (3.2.1); the symbol list is not.
+                assert {"tool_environment", "tool_call", "market_quote"} <= names
+                assert "market_symbols" not in names
                 phase += 1
-                return inspect("discover-quote", "market_quote")
+                return inspect("discover-symbols", "market_symbols")
             # Discovery returns the exact schema; it never changes the tools array.
-            assert "market_quote" not in names
+            assert "market_symbols" not in names
             if phase == 1:
                 phase += 1
                 # Worker loss after discovery was durably observed, before the next request.
@@ -192,11 +194,12 @@ async def discovery_and_context(f: Fixture) -> None:
                     raise asyncio.CancelledError()
             if phase == 2:
                 phase += 1
-                discovered = observation(messages, "discover-quote")
+                discovered = observation(messages, "discover-symbols")
                 assert discovered["tool"]["invoke"] == "tool_call"
-                assert discovered["tool"]["input_schema"]["required"] == ["account_id", "symbol"]
-                return response(bridged("quote", "market_quote", account_id=account, symbol=symbol))
-            assert observation(messages, "quote")["ok"]
+                assert discovered["tool"]["input_schema"]["required"] == ["account_id"]
+                return response(bridged("symbols", "market_symbols", account_id=account))
+            listed = observation(messages, "symbols")
+            assert listed["ok"] and symbol in listed["symbols"], listed
             phase += 1
             return response(text="راجعت السعر الحالي مع الاحتفاظ بالسوق والمخاطرة اللذين حددتهما.")
 
@@ -224,7 +227,7 @@ async def discovery_and_context(f: Fixture) -> None:
             calls = [
                 item
                 for item in row.execution_state["messages"]
-                if item["role"] == "tool" and item.get("tool_call_id") == "quote"
+                if item["role"] == "tool" and item.get("tool_call_id") == "symbols"
             ]
             assert len(calls) == 1 and phase == 4
             # The bridged call is recorded as the real tool under the model's id.
@@ -232,9 +235,9 @@ async def discovery_and_context(f: Fixture) -> None:
                 call
                 for item in row.execution_state["messages"]
                 for call in item.get("tool_calls", [])
-                if call["id"] == "quote"
+                if call["id"] == "symbols"
             ]
-            assert [call["name"] for call in proposed] == ["market_quote"]
+            assert [call["name"] for call in proposed] == ["market_symbols"]
     print(
         "PASS Arabic/English/short follow-up context, progressive discovery and worker replacement"
     )
