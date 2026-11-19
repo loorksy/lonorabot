@@ -408,6 +408,10 @@ async def control_task(
     row = await get_task(session, owner_id, request.task_id)
     if agent_id and row.agent_id != agent_id:
         raise LonoraError("task_agent_mismatch", 403)
+    if agent_id and request.action == "cancel":
+        from .management_task import refuse_agent_cancel
+
+        refuse_agent_cancel(row)
     if agent_id is None:
         # The owner's pause, resume or cancel wins over a supervisor's pause of this Task.
         if request.action != "revise":

@@ -22,7 +22,7 @@ from lonora_contracts.account import Position
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import AgentUpdate, utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.tasks import TaskCreate, TaskFailure
+from lonora_contracts.tasks import TaskControl, TaskCreate, TaskFailure
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import revoke
@@ -54,6 +54,7 @@ from lonora_db.schema import (
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.tasks import (
     complete_task,
+    control_task,
     create_task,
     is_continuous_task,
     require_completed_task_steps,
@@ -770,6 +771,70 @@ async def checks() -> None:
         assert revoked is not None and revoked.status == "revoked"
     print("PASS deleting the agent's own conversation hands over to a new own conversation")
 
+    # A grant whose Task took over and then expired: no tap reaches an expiry, so the
+    # gateway starts the mode task; while the grant drives, it starts none.
+    expiring = await grant_takes_over(legacy_id, origin, valid_until=utcnow() + timedelta(hours=1))
+    assert await legacy_live() is None
+    assert await reconcile_management_tasks(db) == 0 and await legacy_live() is None
+    async with db.sessions() as session, session.begin():
+        await session.execute(
+            update(AccountAuthorityRow)
+            .where(AccountAuthorityRow.id == expiring)
+            .values(valid_until=utcnow() - timedelta(seconds=1))
+        )
+    assert await reconcile_management_tasks(db) == 1
+    resumed = await legacy_live()
+    assert resumed is not None, "an expired grant left the Full agent without a task"
+    assert await reconcile_management_tasks(db) == 0
+    assert (await legacy_live()).id == resumed.id  # type: ignore[union-attr]
+    print("PASS the gateway starts the mode task once the grant that took over expires")
+
+    # The agent cannot cancel its own mode task, which nothing would start again while
+    # it stays in Full; it may switch itself to Ask.
+    try:
+        async with db.sessions() as session, session.begin():
+            await control_task(
+                session,
+                owner_id,
+                TaskControl(task_id=resumed.id, action="cancel", expected_version=resumed.version),
+                agent_id=legacy_id,
+            )
+    except LonoraError as error:
+        assert error.code == "management_task_cancel_forbidden", error.code
+    else:
+        raise AssertionError("the agent cancelled its own Full-mode task")
+    assert (await legacy_live()).id == resumed.id  # type: ignore[union-attr]
+    print("PASS the agent cannot cancel its own Full-mode task")
+
+    # Agents a grant's Task drives never fill the gateway's batch: an agent after fifty of
+    # them in id order still gets its task in one pass.
+    late_id = "ffffffff-ffff-4fff-bfff-ffffffffffff"
+    async with db.sessions() as session, session.begin():
+        for index in range(50):
+            driven = AgentRow(
+                id=f"00000000-0000-4000-8000-{index:012d}",
+                owner_id=owner_id,
+                name=f"Driven {index}",
+                trading_mode="full",
+            )
+            session.add(driven)
+            session.add(
+                ThreadRow(
+                    id=f"00000000-0000-4000-9000-{index:012d}",
+                    owner_id=owner_id,
+                    agent_id=driven.id,
+                )
+            )
+        session.add(AgentRow(id=late_id, owner_id=owner_id, name="Late", trading_mode="full"))
+    for index in range(50):
+        await grant_takes_over(
+            f"00000000-0000-4000-8000-{index:012d}", f"00000000-0000-4000-9000-{index:012d}"
+        )
+    assert await reconcile_management_tasks(db) == 1
+    async with db.sessions() as session, session.begin():
+        assert await live_management_task(session, owner_id, late_id) is not None
+        assert await mode_tasks(session, "00000000-0000-4000-8000-000000000000") == 0
+    print("PASS agents a grant's Task drives never starve the gateway's catch-up")
     print("management task checks passed")
 
 
