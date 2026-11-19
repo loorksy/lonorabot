@@ -3725,7 +3725,7 @@ msgstr "Interactive interface"
 #~ msgid "Interactive interfaces"
 #~ msgstr "Interactive interfaces"
 
-#: src/conversation/GenUiPart.tsx:39
+#: src/conversation/GenUiPart.tsx:40
 msgid "Interface"
 msgstr "Interface"
 

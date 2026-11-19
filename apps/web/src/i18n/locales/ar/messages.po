@@ -3719,7 +3719,7 @@ msgstr "واجهة تفاعلية"
 #~ msgid "Interactive interfaces"
 #~ msgstr "الواجهات التفاعلية"
 
-#: src/conversation/GenUiPart.tsx:39
+#: src/conversation/GenUiPart.tsx:40
 msgid "Interface"
 msgstr "واجهة"
 
