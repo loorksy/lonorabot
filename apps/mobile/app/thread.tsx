@@ -332,7 +332,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           .get<Journal[]>(`/trading/journal?thread_id=${encodeURIComponent(id)}`)
           .then((rows) => {
             if (stillLive() && selected.current.id === id && selected.current.scope === scope)
-              setJournal(rows.filter((row) => row.thread_id === id));
+              setJournal(
+                // A confirmed operation is shown once: as its Execution Receipt (10.3).
+                rows.filter((row) => row.thread_id === id && row.status !== "confirmed"),
+              );
           })
           .catch(() => undefined);
         const auxiliary = Promise.all([

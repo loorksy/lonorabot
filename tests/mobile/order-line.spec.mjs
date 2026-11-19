@@ -1,6 +1,7 @@
 // Order lines on mobile, as on Web (Q30): one line per operation of the chat at its anchor,
-// with its durable state; «Filled» only with evidence; the sheet shows the timeline and the
-// evidence, never the raw operation or account id.
+// with its durable state, except a confirmed one, which is its Execution Receipt (10.3);
+// «Filled» only with evidence; the sheet shows the timeline and the evidence, never the raw
+// operation or account id.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
@@ -87,7 +88,7 @@ async function fixture(context) {
   };
 }
 
-test("each operation of the chat is a line at its anchor; the sheet shows the evidence", async ({
+test("each operation of the chat is a line at its anchor, a confirmed one only its receipt; the sheet shows the evidence", async ({
   page,
   context,
 }) => {
@@ -109,14 +110,30 @@ test("each operation of the chat is a line at its anchor; the sheet shows the ev
     uncertainId = randomUUID();
   const journal = [
     {
-      operation_id: filledId,
+      // Broker-confirmed: shown once, as its Execution Receipt, never as an order line.
+      operation_id: randomUUID(),
       account_id: "account-raw-id",
       status: "confirmed",
-      request: { action: "buy", symbol: "XAUUSD", volume: 0.1 },
+      request: { action: "buy", symbol: "XAGUSD", volume: 2 },
       result: {
         status: "confirmed",
-        broker_id: "771234",
-        details: { price: 2400.5, volume: 0.1, verification: { status: "verified" } },
+        broker_id: "771230",
+        details: { price: 30.5, volume: 2, verification: { status: "verified" } },
+      },
+      submitted_at: now,
+      updated_at: now,
+      thread_id: data.thread.id,
+      timeline_seq: 1,
+    },
+    {
+      // Settled by the owner's statement that it was executed: «Filled» on that evidence.
+      operation_id: filledId,
+      account_id: "account-raw-id",
+      status: "resolved",
+      request: { action: "buy", symbol: "XAUUSD", volume: 0.1 },
+      result: {
+        status: "resolved",
+        details: { resolution: { source: "owner", outcome: "executed" } },
       },
       submitted_at: now,
       updated_at: now,
@@ -159,6 +176,7 @@ test("each operation of the chat is a line at its anchor; the sheet shows the ev
     const lines = page.getByTestId("order-line");
     await expect(lines).toHaveCount(2);
     await expect(page.getByText("EURUSD")).toHaveCount(0);
+    await expect(page.getByText("XAGUSD")).toHaveCount(0);
     const filled = page.getByRole("button", { name: /^Order Buy 0\.1 XAUUSD: Filled/ });
     await expect(filled).toBeVisible();
     const uncertain = page.getByRole("button", { name: /XAUUSD: Unconfirmed/ });
@@ -166,8 +184,8 @@ test("each operation of the chat is a line at its anchor; the sheet shows the ev
 
     await filled.click();
     await expect(page.getByText("Trade order", { exact: true })).toBeVisible();
-    await expect(page.getByTestId("order-evidence")).toContainText(
-      "Fill evidence: ticket 771234 · 2400.5",
+    await expect(page.getByTestId("order-evidence")).toHaveText(
+      "Recorded from your statement, not broker confirmation",
     );
     await expect(page.getByTestId("order-sheet")).not.toContainText(filledId);
     await expect(page.getByTestId("order-sheet")).not.toContainText("account-raw-id");
