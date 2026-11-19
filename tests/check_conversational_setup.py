@@ -39,7 +39,6 @@ async def main():
                 },
             )
         )["id"]
-        # The grant card suggests a daily loss from the account's actual equity.
         await f.request(
             "POST",
             f"/trading/connections/{account}/simulation",

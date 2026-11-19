@@ -3245,36 +3245,6 @@ p.pad {
   color: var(--text);
   box-shadow: var(--raise);
 }
-.oa-num {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-.oa-num button {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--text);
-}
-.oa-num button:hover {
-  background: var(--hover);
-}
-.oa-num button svg {
-  width: 15px;
-  height: 15px;
-}
-.oa-num output {
-  min-width: 46px;
-  text-align: center;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
 .oa-link {
   justify-self: start;
   color: var(--muted);
@@ -3318,7 +3288,6 @@ p.pad {
   height: 16px;
   color: var(--muted);
 }
-.oa-keep,
 .oa-warn,
 .oa-hint {
   display: flex;
@@ -3329,16 +3298,12 @@ p.pad {
   line-height: 1.6;
   color: var(--muted);
 }
-.oa-keep svg,
 .oa-warn svg,
 .oa-hint svg {
   width: 15px;
   height: 15px;
   flex: none;
   margin-top: 2px;
-}
-.oa-keep svg {
-  color: var(--accent-ink);
 }
 .oa-warn {
   color: var(--amber);
@@ -3524,87 +3489,6 @@ p.pad {
 .oa-after .btn {
   min-height: 30px;
   padding: 2px 4px;
-}
-.oa-lims {
-  display: grid;
-  gap: 0;
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  padding: 2px 10px;
-}
-.oa-lim {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 10px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--line);
-}
-.oa-lim:last-child {
-  border-bottom: 0;
-}
-.oa-lim .oa-l {
-  font-weight: 500;
-  color: var(--text);
-  font-size: var(--fs-sm);
-}
-.oa-diff {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-inline-start: auto;
-  font-size: var(--fs-sm);
-  font-variant-numeric: tabular-nums;
-}
-.oa-diff > svg {
-  width: 13px;
-  height: 13px;
-  color: var(--muted);
-}
-[dir="ltr"] .oa-diff > svg {
-  transform: scaleX(-1);
-}
-.oa-lim:is(.tight, .loose) .oa-diff .old {
-  color: var(--muted);
-  text-decoration: line-through;
-  text-decoration-color: var(--line-strong);
-}
-.oa-lim.edit .oa-diff .old {
-  color: var(--muted);
-}
-.oa-lim.tight .new,
-.oa-lim.tight .oa-num output {
-  color: var(--accent-ink);
-  font-weight: 700;
-}
-.oa-lim.loose .new,
-.oa-lim.loose .oa-num output {
-  color: var(--amber);
-  font-weight: 700;
-}
-.oa-lim .oa-num button {
-  width: 28px;
-  height: 28px;
-}
-.oa-lim .oa-num output {
-  min-width: 42px;
-}
-.oa-x {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-}
-.oa-x:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-.oa-x svg {
-  width: 15px;
-  height: 15px;
 }
 .oa-people {
   display: flex;
