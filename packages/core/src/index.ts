@@ -98,6 +98,7 @@ export {
   type ConversationItem,
   conversationTimeline,
   nearConversationBottom,
+  SLOT_OWNER_ACTION_KINDS,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export {
