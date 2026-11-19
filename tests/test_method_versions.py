@@ -548,6 +548,9 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
             await fixture.request("GET", f"/agents/{gold['id']}/memory/revisions"),
         )
         assert revisions[0]["author_agent_id"] == lonora["id"]
+        # The agent sees in its own method history that Lonora wrote that version.
+        own_history = await call(registry, own, "method_history")
+        assert own_history["versions"][0]["author_agent_id"] == lonora["id"]
         skills = await call(
             registry, lead, "skill_history", skill_id="gold-open", agent_id=gold["id"]
         )
@@ -575,6 +578,17 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
             expected_version=second["resource_version"],
         )
         assert back["status"] == "restored"
+        from lonora_db.schema import EventRow
+        from sqlalchemy import select
+
+        async with fixture.runtime.db.sessions() as session:
+            recorded = await session.scalar(
+                select(EventRow).where(
+                    EventRow.kind == "skill.restored", EventRow.agent_id == gold["id"]
+                )
+            )
+            # A skill version carries no author: the restore is recorded as Lonora's.
+            assert recorded is not None and recorded.payload["by_agent_id"] == lonora["id"]
         viewed = await call(registry, await turn(fixture, gold), "skill_view", skill_id="gold-open")
         assert "Version A" in str(viewed)
 

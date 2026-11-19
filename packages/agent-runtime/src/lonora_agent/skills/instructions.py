@@ -13,6 +13,7 @@ from typing import Any
 from lonora_contracts.domain import utcnow
 from lonora_contracts.skills import AgentSkill
 from lonora_core.user_error import LonoraError
+from lonora_db.events import emit
 from lonora_db.lead import is_lead
 from lonora_db.schema import EffectReceiptRow, SkillRow, SkillVersionRow
 from lonora_db.skill_controls import read_skill_controls
@@ -255,6 +256,7 @@ async def restore_skill(
         if receipt := await session.get(EffectReceiptRow, context.effect_key):
             return receipt.result
         # From here on, the Skill's own agent: its catalog, revocations and graph.
+        actor = context.agent_id
         context = await as_target(session, context, arguments.get("agent_id"))
         row = await owned_skill(session, context, skill_id)
         if row is None:
@@ -277,6 +279,22 @@ async def restore_skill(
         await validate_graph(session, context, registry, payload, row.id)
         row.payload, row.version, row.updated_at = payload, row.version + 1, utcnow()
         record_version(session, row)
+        if actor != context.agent_id:
+            # Lonora restored a team agent's Skill (3.1.2): the version is recorded as hers
+            # in the agent's history of events, since a version row carries no author.
+            emit(
+                session,
+                context.owner_id,
+                "skill.restored",
+                agent_id=context.agent_id,
+                run_id=context.lease.run_id,
+                payload={
+                    "skill_id": row.id,
+                    "version": row.version,
+                    "restored_version": arguments["version"],
+                    "by_agent_id": actor,
+                },
+            )
         result = summary(row, "restored", restored_version=arguments["version"])
         session.add(EffectReceiptRow(key=context.effect_key, result=result))
         return result

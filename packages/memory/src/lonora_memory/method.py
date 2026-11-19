@@ -69,6 +69,8 @@ def version_data(row: MemoryRevisionRow, *, current: bool, text: bool) -> dict[s
         "version": row.version,
         "created_at": row.created_at.isoformat(),
         "author": row.author,
+        # The agent that wrote it: the method's own agent, or Lonora restoring it (3.1.2).
+        "author_agent_id": row.author_agent_id,
         "from_owner_message": row.source_message_id is not None,
         "change": row.change,
         "chars": len(method),
