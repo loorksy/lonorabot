@@ -8,6 +8,7 @@ import type {
   Message,
   MessageReaction,
   OwnerAction,
+  PermissionState,
   ReactionEmoji,
   Run,
   Thread,
@@ -17,17 +18,20 @@ import {
   accumulateStream,
   activeStatuses,
   type ConversationItem,
+  commandQuery,
   conversationTimeline,
   type LiveReplyStream,
   liveAvatarState,
   type MentionAddress,
   mergeOwnerAction,
   needsTimeSeparator,
+  parseCommand,
   projectRunEvents,
   retryableFailure,
   runStatusText,
   SLOT_OWNER_ACTION_KINDS,
   seedStream,
+  showsTradingControl,
   stopTargets,
   streamForRun,
   submitMark,
@@ -64,7 +68,7 @@ import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
 import { Icon } from "../components/shell/icon";
-import { GroupBox, Row } from "../components/shell/kit";
+import { Btn, GroupBox, Row } from "../components/shell/kit";
 import { useSheets } from "../components/shell/sheets";
 import { useToast } from "../components/shell/toast";
 import { ThreadComposer } from "../components/thread-composer";
@@ -76,6 +80,7 @@ import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
 import { useChatPrefs } from "../lib/chat-prefs";
+import { type CommandRow, commandRows, type Skill, sentCommand } from "../lib/commands";
 import {
   type ComposerDraft,
   composerDraft,
@@ -98,6 +103,8 @@ import {
 import { projectConversation } from "../lib/conversation-projection";
 import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
+import { chatsWord, fill } from "../lib/i18n";
+import { listsApi } from "../lib/lists-api";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
@@ -117,6 +124,7 @@ import {
   waitsForNetwork,
 } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
+import { useShellData } from "../lib/shell-data";
 import { useShellColors, useTheme } from "../lib/theme";
 import { useVoiceSession } from "../lib/voice-session";
 
@@ -156,6 +164,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [asking, setAsking] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
+  // The agent's enabled skills, loaded the first time «/» starts a message in its chat.
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const skillsOf = useRef<string | null>(null);
   // Edit and resend (Q21): the owner's message the next send replaces.
   const [editing, setEditing] = useState<Message | null>(null);
   // The owner's quick reactions as the server last answered them, until a snapshot carries them.
@@ -170,6 +181,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
   }, []);
   const toast = useToast();
+  const { patchInbox } = useShellData();
   const prefs = useChatPrefs();
   // The message a search or quote jump landed on (tinted for 1.7 s).
   const [flash, setFlash] = useState<string | null>(null);
@@ -215,6 +227,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [atEnd, setAtEnd] = useState(around == null);
   const [loaded, setLoaded] = useState(false);
   const [permissionRevision, setPermissionRevision] = useState(0);
+  // The agent's authority as its control last read it (the / list's /chart, as on Web).
+  const [permission, setPermission] = useState<PermissionState | null>(null);
   const permissionAgent = useRef(thread?.agent_id);
   permissionAgent.current = thread?.agent_id;
   // One live-state read for the header's safety pill and the background-activity strip.
@@ -285,6 +299,24 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       }),
     [outboxKey, scope],
   );
+  useEffect(() => {
+    const agentId = thread?.group_id ? null : thread?.agent_id;
+    if (skillsOf.current !== agentId) setSkills([]);
+    if (
+      !agentId ||
+      skillsOf.current === agentId ||
+      commandQuery(draft.split(/\s/)[0] ?? "") === null
+    )
+      return;
+    skillsOf.current = agentId;
+    void api
+      .get<Skill[]>(`/skills?agent_id=${encodeURIComponent(agentId)}`)
+      .then((rows) => {
+        if (skillsOf.current === agentId) setSkills(rows);
+      })
+      // Without its skills the chat still offers its commands; the next chat asks again.
+      .catch(() => undefined);
+  }, [draft, thread?.agent_id, thread?.group_id]);
   const reportError = useRef(errorText);
   reportError.current = errorText;
   const say = useRef(t);
@@ -887,7 +919,89 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const agent = agents.find((value) => value.id === thread?.agent_id);
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
-  const send = async (mentions?: MentionAddress, followUp?: string) => {
+  const commands = commandRows(
+    t,
+    {
+      group: Boolean(thread?.group_id),
+      symbol: agent?.trading_symbol,
+      // As Web: a trading agent, or one that shows the trading control (Lonora, an account,
+      // a level above analysis, a grant).
+      trading: agent
+        ? agent.template === "trading" ||
+          showsTradingControl({
+            role: agent.role,
+            trading_account_id: agent.trading_account_id,
+            level: permission?.effective_level,
+            grants: permission?.active_authorities.length,
+          })
+        : false,
+      name: title,
+      callable: Boolean(agent && !agent.paused),
+    },
+    thread?.group_id ? [] : skills,
+  );
+  /** A command that sends nothing opens what the chat already has; «ملخص» is sent at once. */
+  const runCommand = (row: CommandRow) => {
+    if (row.command === "summary")
+      // Sent at once with the reply it answers, which then leaves the composer (as on Web).
+      void send(undefined, `/${row.name}`, { name: "summary", argument: "" }, reply?.id ?? null)
+        .then(() => updateDraft({ reply: null }))
+        .catch(() => undefined);
+    else if (row.command === "chart")
+      chartSheet.open({ threadId: id, ...(agent ? { botId: agent.id } : {}) });
+    else if (row.command === "call") {
+      if (agent && thread) void voice.start(agent, thread.id);
+    } else if (row.command === "clear") confirmClear();
+  };
+  /** «مسح»: asks, then hides this chat's history for the owner, as the list's «مسح» does. */
+  const confirmClear = () =>
+    sheets.open({
+      id: "clear-chat",
+      title: t("sh_clearMessagesQ"),
+      body: (
+        <View style={{ gap: 16 }}>
+          <Text
+            style={{
+              color: shellTheme.text,
+              fontSize: 16,
+              lineHeight: 26,
+              textAlign: rtl ? "right" : "left",
+            }}
+          >
+            {fill(t("sh_confClear"), chatsWord(locale, 1))}
+          </Text>
+          <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 10 }}>
+            <Btn label={t("sh_cancel")} variant="outline" full onPress={() => sheets.close()} />
+            <Btn
+              label={t("sh_clear")}
+              variant="danger"
+              full
+              onPress={() => {
+                sheets.close();
+                void listsApi
+                  .clear(id)
+                  .then((prefs) => {
+                    patchInbox([prefs]);
+                    setMessages([]);
+                    setStreams({});
+                    // The draft's quote and files belonged to the cleared history.
+                    updateDraft({ text: "", attachments: [], reply: null });
+                    void snapshot();
+                  })
+                  .catch((reason) => setError(errorText(reason)));
+              }}
+            />
+          </View>
+        </View>
+      ),
+    });
+  const send = async (
+    mentions?: MentionAddress,
+    followUp?: string,
+    asked?: ReturnType<typeof sentCommand>,
+    /** The reply a command sent at once answers (a follow-up has none otherwise). */
+    replyTo: string | null = null,
+  ) => {
     if (
       sendLocks.current.has(outboxKey) ||
       uploading ||
@@ -897,13 +1011,37 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       (!followUp && editing && !draft.trim())
     )
       return;
+    // «/» commands: never in an edit or a message with files, as on Web.
+    let command = asked ?? null;
+    if (!followUp && !editing && !attachments.length && !uploads.length) {
+      const typed = parseCommand(draft, commands);
+      if (typed) {
+        const option = typed.option;
+        if (option.argument && option.command !== "skill" && !typed.argument) {
+          // An LRM keeps the «/» before the command's name inside Arabic text.
+          setError(
+            fill(
+              t(option.command === "task" ? "cmdTaskMissing" : "cmdSearchMissing"),
+              `\u200e/${option.name}`,
+            ),
+          );
+          return;
+        }
+        command = sentCommand(option, typed.argument);
+        if (!command) {
+          updateDraft({ text: "", reply: null, attachments: [] });
+          runCommand(option);
+          return;
+        }
+      }
+    }
     const submittedDraft = composerDraft(outboxKey);
     const content = followUp?.trim() || draft.trim() || t("attach");
     const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
     // Files still uploading go with the message, which waits for them.
     const handed = followUp ? [] : handOver(outboxKey);
     const edit = followUp ? null : editing;
-    const reply_to = followUp || edit ? null : (reply?.id ?? null);
+    const reply_to = edit ? null : followUp ? replyTo : (reply?.id ?? null);
     const targetKey = outboxKey,
       targetId = id;
     const body = {
@@ -914,6 +1052,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       mention_all: mentions?.all ?? false,
       collaboration_session_id: mentions?.collaboration_session_id,
       ...(edit ? { edited_from: edit.id } : {}),
+      ...(command ? { command } : {}),
     };
     const fingerprint = JSON.stringify([targetId, body, handed.map((file) => file.id)]);
     sendLocks.current.add(targetKey);
@@ -1556,6 +1695,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 agent={agent}
                 threadId={id}
                 revision={permissionRevision}
+                onState={setPermission}
                 pendingTrade={approvals.some(
                   (row) =>
                     row.thread_id === id && row.agent_id === agent.id && row.status === "pending",
@@ -1572,6 +1712,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
+          commands={commands}
+          onCommand={runCommand}
           assist={prefs.assist}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
