@@ -456,9 +456,7 @@ test("Global models opens the models page; voice and trading keep their settings
       context_window: null,
     });
     const catalog = [];
-    await page.route("**/api/providers/openai/models", (route) =>
-      route.fulfill({ json: catalog }),
-    );
+    await page.route("**/api/providers/openai/models", (route) => route.fulfill({ json: catalog }));
     await page.goto("/app/models");
     await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
     // No model yet: the page says a provider is connected in chat (Q14 (b)). No key form,
@@ -467,7 +465,9 @@ test("Global models opens the models page; voice and trading keep their settings
       page.getByText("Models appear here after you connect a model provider in chat."),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Global routing" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Providers and official catalog" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Providers and official catalog" })).toHaveCount(
+      0,
+    );
     await expect(page.getByLabel("API key")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Model providers/ })).toHaveCount(0);
     await page.goto("/app/providers");
