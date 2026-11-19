@@ -17,7 +17,6 @@ from lonora_db.agent_binding import (
 )
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.authority_lock import authority_lock
-from lonora_db.notice_cards import raise_stop_tightened
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AccountAuthorityRow,
@@ -29,7 +28,6 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_db.steering import user_interrupt_pending
-from lonora_db.threads import report_thread
 from lonora_db.trade_approvals import (
     approval_event,
     drifted_prompt,
@@ -734,50 +732,6 @@ async def covering_grants(
         ]
 
 
-def tightened_stop(request: TradeRequest, before: dict[str, Any] | None) -> bool:
-    """A stop loss moved toward the price (or set where there was none) on a position."""
-    if (
-        request.action != "modify_position"
-        or request.stop_loss is None
-        or request.clear_stop_loss
-        or before is None
-    ):
-        return False
-    previous = before.get("stop_loss")
-    if previous is None:
-        return True
-    side = direction(str(before.get("side", "")))
-    if side == "buy":
-        return request.stop_loss > Decimal(str(previous))
-    return side == "sell" and request.stop_loss < Decimal(str(previous))
-
-
-async def stop_notice(
-    context: ToolContext, request: TradeRequest, before: dict[str, Any] | None
-) -> None:
-    """The one-line notice of a stop the agent tightened under its grant (Q31): no Undo.
-    The trade is already confirmed, so a lost lease only skips the notice."""
-    assert request.position_id is not None and request.stop_loss is not None
-    try:
-        async with context.db.sessions() as session, session.begin():
-            run = await require_lease(session, context.lease)
-            await raise_stop_tightened(
-                session,
-                context.owner_id,
-                operation_id=request.operation_id,
-                account_id=request.account_id,
-                symbol=request.symbol,
-                position_id=request.position_id,
-                previous_stop_loss=None if before is None else before.get("stop_loss"),
-                stop_loss=str(request.stop_loss.normalize()),
-                agent_id=context.agent_id,
-                thread_id=await report_thread(session, run),
-                run_id=run.id,
-            )
-    except LonoraError:
-        return
-
-
 async def direct_execution(
     context: ToolContext,
     requests: list[TradeRequest],
@@ -818,9 +772,6 @@ async def direct_execution(
                 operation_id=request.operation_id, status="failed", code=error.code
             )
         results.append(result.model_dump(mode="json"))
-        before = expected.get(target_key(request))
-        if identifier and result.status == "confirmed" and tightened_stop(request, before):
-            await stop_notice(context, request, before)
         if result.status != "confirmed" and not independent:
             # Never advance a dependent batch after uncertain/blocked financial state.
             results.extend(halted_receipts(requests[index + 1 :], result))

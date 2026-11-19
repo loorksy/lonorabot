@@ -1018,6 +1018,34 @@ class MarketSnapshotRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class BrokerRelayRow(Base):
+    """A MetaApi request the API process hands to the Gateway, the only process that keeps
+    a MetaApi connection (one subscription per account). ``state`` is pending, claimed,
+    answered or cancelled; a claimed request is never claimed again."""
+
+    __tablename__ = "ln_broker_relay"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('pending', 'claimed', 'answered', 'cancelled')",
+            name="broker_relay_state",
+        ),
+        Index(
+            "ix_ln_broker_relay_pending", "created_at", postgresql_where=text("state = 'pending'")
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    connection_id: Mapped[str] = mapped_column(String(36))
+    kind: Mapped[str] = mapped_column(String(40))
+    arguments: Mapped[dict[str, Any]] = mapped_column(JSON)
+    state: Mapped[str] = mapped_column(String(12), default="pending")
+    result: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_details: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class BrokerDealRow(Base):
     """A broker trade deal of a position that is still open, kept until its trade closes.
 

@@ -350,7 +350,7 @@ async def test_the_owner_saves_values_the_agent_never_sees() -> None:
                     agent_id=agent["id"],
                     thread_id=context.thread_id,
                     source="agent",
-                    kind="resolve_operation",
+                    kind="settle_operation",
                     subject="operation:" + other_id,
                     payload={"operation_id": other_id},
                     payload_hash=other_id,

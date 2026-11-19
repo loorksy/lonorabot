@@ -485,7 +485,7 @@ async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixtur
                 owner_id=owner,
                 agent_id=lonora,
                 source="system",
-                kind="resolve_operation",
+                kind="settle_operation",
                 subject="op-unknown",
                 payload={},
                 payload_hash="h",

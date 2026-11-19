@@ -43,7 +43,7 @@ class World:
         from lonora_adapters.storage.broker_secrets import BrokerSecrets
         from lonora_trading.broker_provisioning import maintain_broker_provisioning
 
-        services = self.fixture.runtime.services(self.fixture.owner)
+        services = self.fixture.gateway()
         secrets = BrokerSecrets(self.fixture.runtime.db, key(self.fixture), self.fixture.owner)
 
         def client(token: str) -> FakeMetaApiProvisioning:

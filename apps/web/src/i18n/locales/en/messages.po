@@ -283,7 +283,7 @@ msgstr "30 days"
 msgid "7 days"
 msgstr "7 days"
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:37
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
 
@@ -331,7 +331,7 @@ msgstr "A different answer was already recorded."
 msgid "A list named «{name}» already exists"
 msgstr "A list named «{name}» already exists"
 
-#: src/components/ai/AttentionInbox.tsx:43
+#: src/components/ai/AttentionInbox.tsx:44
 msgid "A Mandate card is waiting for your tap"
 msgstr "A Mandate card is waiting for your tap"
 
@@ -359,7 +359,7 @@ msgstr "A removed agent"
 msgid "A short tone when a reply arrives"
 msgstr "A short tone when a reply arrives"
 
-#: src/components/ai/AttentionInbox.tsx:38
+#: src/components/ai/AttentionInbox.tsx:39
 msgid "A trade still has no confirmed broker result"
 msgstr "A trade still has no confirmed broker result"
 
@@ -514,7 +514,7 @@ msgstr "Activity log"
 msgid "Activity log only"
 msgstr "Activity log only"
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:36
 msgid "Activity updated"
 msgstr "Activity updated"
 
@@ -1178,7 +1178,7 @@ msgstr "Back to the permissions"
 #~ msgid "Back to workspace"
 #~ msgstr "Back to workspace"
 
-#: src/components/ai/AttentionInbox.tsx:40
+#: src/components/ai/AttentionInbox.tsx:41
 msgid "Background service is running late"
 msgstr "Background service is running late"
 
@@ -1275,7 +1275,7 @@ msgstr "Broker"
 msgid "Broker account"
 msgstr "Broker account"
 
-#: src/components/ai/AttentionInbox.tsx:25
+#: src/components/ai/AttentionInbox.tsx:26
 msgid "Broker account changed"
 msgstr "Broker account changed"
 
@@ -1320,8 +1320,8 @@ msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
 
 #: src/components/trading/TradingJournal.tsx:65
-msgid "Broker reference (optional)"
-msgstr "Broker reference (optional)"
+#~ msgid "Broker reference (optional)"
+#~ msgstr "Broker reference (optional)"
 
 #: src/components/goals/TradingGoals.tsx:79
 #~ msgid "Broker result"
@@ -1713,7 +1713,7 @@ msgstr "Check the fields"
 msgid "Check the highlighted fields."
 msgstr "Check the highlighted fields."
 
-#: src/lib/user_error.ts:188
+#: src/lib/user_error.ts:192
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -1996,7 +1996,7 @@ msgstr "Closing and tightening the stop loss are always allowed."
 msgid "Cloud chart"
 msgstr "Cloud chart"
 
-#: src/components/ai/AttentionInbox.tsx:28
+#: src/components/ai/AttentionInbox.tsx:29
 msgid "Collaboration result is ready"
 msgstr "Collaboration result is ready"
 
@@ -2796,7 +2796,7 @@ msgstr "Due"
 msgid "Due time"
 msgstr "Due time"
 
-#: src/components/trading/TradingJournal.tsx:91
+#: src/components/trading/TradingJournal.tsx:11
 msgid "Durable trading journal"
 msgstr "Durable trading journal"
 
@@ -3591,7 +3591,7 @@ msgstr "Hour"
 msgid "How to reach you"
 msgstr "How to reach you"
 
-#: src/lib/user_error.ts:207
+#: src/lib/user_error.ts:211
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "I paused at this run's step budget. Send a message and I continue from here."
 
@@ -3611,7 +3611,7 @@ msgstr "Image attachment"
 msgid "Immediately"
 msgstr "Immediately"
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:190
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -3755,7 +3755,7 @@ msgstr "Interactive interface"
 #~ msgid "Interactive interfaces"
 #~ msgstr "Interactive interfaces"
 
-#: src/conversation/GenUiPart.tsx:39
+#: src/conversation/GenUiPart.tsx:40
 msgid "Interface"
 msgstr "Interface"
 
@@ -3815,12 +3815,12 @@ msgid "It stops executing and only analyses and follows"
 msgstr "It stops executing and only analyses and follows"
 
 #: src/components/trading/TradingJournal.tsx:51
-msgid "It was executed"
-msgstr "It was executed"
+#~ msgid "It was executed"
+#~ msgstr "It was executed"
 
 #: src/components/trading/TradingJournal.tsx:52
-msgid "It was not executed"
-msgstr "It was not executed"
+#~ msgid "It was not executed"
+#~ msgstr "It was not executed"
 
 #: src/shell/NewChatSheet.tsx:27
 msgid "Its own role, model and permissions"
@@ -4186,6 +4186,14 @@ msgctxt "model"
 msgid "Lonora's model"
 msgstr "Lonora's model"
 
+#: src/lib/user_error.ts:188
+msgid "Lonora's server did not answer in time. If this was an order, check your trades before trying again."
+msgstr "Lonora's server did not answer in time. If this was an order, check your trades before trying again."
+
+#: src/lib/user_error.ts:186
+msgid "Lonora's server is not running right now, so nothing reached the broker. Try again shortly."
+msgstr "Lonora's server is not running right now, so nothing reached the broker. Try again shortly."
+
 #: src/shell/FloatingTabBar.tsx:138
 msgid "Main navigation"
 msgstr "Main navigation"
@@ -4236,7 +4244,7 @@ msgstr "Mark all as read"
 msgid "Mark as completed"
 msgstr "Mark as completed"
 
-#: src/components/ai/AttentionInbox.tsx:153
+#: src/components/ai/AttentionInbox.tsx:154
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -4394,6 +4402,14 @@ msgstr "Messages cleared"
 #: src/shell/settings/IntegrationsPage.tsx:427
 msgid "Messages reach"
 msgstr "Messages reach"
+
+#: src/components/ai/AttentionInbox.tsx:25
+msgid "MetaApi is limiting requests for now"
+msgstr "MetaApi is limiting requests for now"
+
+#: src/lib/user_error.ts:162
+msgid "MetaApi is limiting this account's requests for now. Lonora retries at the time MetaApi gives."
+msgstr "MetaApi is limiting this account's requests for now. Lonora retries at the time MetaApi gives."
 
 #: src/components/ai/AttentionInbox.tsx:22
 msgid "MetaApi rejected the access token"
@@ -4834,7 +4850,7 @@ msgstr "No model is set up yet"
 #~ msgid "No money limit"
 #~ msgstr "No money limit"
 
-#: src/components/ai/AttentionInbox.tsx:114
+#: src/components/ai/AttentionInbox.tsx:115
 msgid "No new notifications"
 msgstr "No new notifications"
 
@@ -4850,7 +4866,7 @@ msgstr "No open positions"
 msgid "No open trade."
 msgstr "No open trade."
 
-#: src/components/trading/TradingJournal.tsx:95
+#: src/components/trading/TradingJournal.tsx:15
 msgid "No operations yet"
 msgstr "No operations yet"
 
@@ -5105,8 +5121,8 @@ msgstr "Notification"
 msgid "Notification method"
 msgstr "Notification method"
 
-#: src/components/ai/AttentionInbox.tsx:76
-#: src/components/ai/AttentionInbox.tsx:78
+#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:79
 #: src/shell/settings/DevicePages.tsx:301
 #: src/shell/settings/NotifyPages.tsx:141
 msgid "Notifications"
@@ -5138,7 +5154,7 @@ msgstr "Notifications on"
 msgid "Notifications restored"
 msgstr "Notifications restored"
 
-#: src/components/ai/AttentionInbox.tsx:109
+#: src/components/ai/AttentionInbox.tsx:110
 #: src/shell/settings/NotifyPages.tsx:160
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
@@ -5260,7 +5276,7 @@ msgstr "Open active call"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:144
+#: src/components/ai/AttentionInbox.tsx:145
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5410,7 +5426,7 @@ msgstr "Order price"
 #~ msgid "Organic"
 #~ msgstr "Organic"
 
-#: src/components/ai/AttentionInbox.tsx:142
+#: src/components/ai/AttentionInbox.tsx:143
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:102
 msgid "Outage and recovery"
@@ -5457,7 +5473,7 @@ msgstr "Page not found"
 msgid "Pair"
 msgstr "Pair"
 
-#: src/lib/user_error.ts:205
+#: src/lib/user_error.ts:209
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 
@@ -6000,8 +6016,8 @@ msgstr "Reconnecting…"
 #~ msgstr "Record a fresh market decision before virtual entry."
 
 #: src/components/trading/TradingJournal.tsx:74
-msgid "Record resolution"
-msgstr "Record resolution"
+#~ msgid "Record resolution"
+#~ msgstr "Record resolution"
 
 #: src/conversation/Cards.tsx:379
 msgid "Recorded from your statement, not broker confirmation"
@@ -6172,8 +6188,8 @@ msgid "Reply with a message"
 msgstr "Reply with a message"
 
 #: src/components/ai/AttentionInbox.tsx:21
-#: src/components/ai/AttentionInbox.tsx:32
 #: src/components/ai/AttentionInbox.tsx:33
+#: src/components/ai/AttentionInbox.tsx:34
 msgid "Request updated"
 msgstr "Request updated"
 
@@ -6831,11 +6847,15 @@ msgstr "Set up the voice provider"
 msgid "Settings"
 msgstr "Settings"
 
+#: src/components/trading/TradingJournal.tsx:38
+msgid "Settle this operation on its card in the conversation."
+msgstr "Settle this operation on its card in the conversation."
+
 #: src/shell/settings/AuthFlow.tsx:272
 msgid "Setup token"
 msgstr "Setup token"
 
-#: src/components/ai/AttentionInbox.tsx:27
+#: src/components/ai/AttentionInbox.tsx:28
 msgid "Setup validity changed"
 msgstr "Setup validity changed"
 
@@ -7193,8 +7213,8 @@ msgid "Status: {text}"
 msgstr "Status: {text}"
 
 #: src/components/trading/TradingJournal.tsx:53
-msgid "Still unknown"
-msgstr "Still unknown"
+#~ msgid "Still unknown"
+#~ msgstr "Still unknown"
 
 #: src/conversation/Composer.tsx:1113
 #: src/pages/ActivityList.tsx:259
@@ -7458,7 +7478,7 @@ msgstr "Task boards"
 msgid "Task cancelled"
 msgstr "Task cancelled"
 
-#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:35
 #: src/shell/domain/TasksPages.tsx:259
 #: src/shell/domain/UpdatesPages.tsx:42
 msgid "Task completed"
@@ -7475,12 +7495,12 @@ msgstr "Task created"
 msgid "Task details"
 msgstr "Task details"
 
-#: src/components/ai/AttentionInbox.tsx:30
+#: src/components/ai/AttentionInbox.tsx:31
 msgid "Task is retrying through a model outage"
 msgstr "Task is retrying through a model outage"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/ai/AttentionInbox.tsx:29
+#: src/components/ai/AttentionInbox.tsx:30
 #: src/conversation/sheets/AgentSheet.tsx:287
 msgid "Task needs review"
 msgstr "Task needs review"
@@ -7510,7 +7530,7 @@ msgstr "Task when triggered"
 msgid "Tasks"
 msgstr "Tasks"
 
-#: src/components/trading/TradingJournal.tsx:122
+#: src/components/trading/TradingJournal.tsx:44
 #: src/conversation/Cards.tsx:455
 msgid "Technical details"
 msgstr "Technical details"
@@ -7643,10 +7663,10 @@ msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
 #: src/components/trading/TradingJournal.tsx:39
-msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
-msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+#~ msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+#~ msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 
-#: src/components/ai/AttentionInbox.tsx:39
+#: src/components/ai/AttentionInbox.tsx:40
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 
@@ -7659,8 +7679,8 @@ msgid "The broker is refusing the trading login: its server may be down, or the 
 msgstr "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat."
 
 #: src/lib/user_error.ts:162
-msgid "The broker market-data service is rate limited."
-msgstr "The broker market-data service is rate limited."
+#~ msgid "The broker market-data service is rate limited."
+#~ msgstr "The broker market-data service is rate limited."
 
 #: src/lib/user_error.ts:180
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
@@ -7840,7 +7860,7 @@ msgstr "The messages of {0} are hidden for you; the chats stay in the list."
 msgid "The microphone is not available on this page."
 msgstr "The microphone is not available on this page."
 
-#: src/lib/user_error.ts:203
+#: src/lib/user_error.ts:207
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -7937,7 +7957,7 @@ msgstr "The reply did not arrive in time; the connection may be weak."
 msgid "The reply timed out"
 msgstr "The reply timed out"
 
-#: src/lib/user_error.ts:209
+#: src/lib/user_error.ts:213
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -8207,7 +8227,7 @@ msgstr "This item changed. Reload it before saving."
 #~ msgid "This key is set on the server and cannot be deleted here."
 #~ msgstr "This key is set on the server and cannot be deleted here."
 
-#: src/lib/user_error.ts:201
+#: src/lib/user_error.ts:205
 msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 msgstr "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 
@@ -8289,15 +8309,15 @@ msgstr "This question is no longer waiting for an answer."
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "This skill is no longer in the current catalog. Reload the list."
 
-#: src/lib/user_error.ts:192
+#: src/lib/user_error.ts:196
 msgid "This step was interrupted and picked up again. Nothing was repeated."
 msgstr "This step was interrupted and picked up again. Nothing was repeated."
 
-#: src/lib/user_error.ts:197
+#: src/lib/user_error.ts:201
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "This task cannot resume in its current state. Review its plan or retry limit."
 
-#: src/lib/user_error.ts:194
+#: src/lib/user_error.ts:198
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
@@ -8380,7 +8400,7 @@ msgstr "today so far"
 msgid "Tokens"
 msgstr "Tokens"
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:194
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 
@@ -9015,7 +9035,7 @@ msgstr "Watch cancelled"
 msgid "Watch condition changed"
 msgstr "Watch condition changed"
 
-#: src/components/ai/AttentionInbox.tsx:26
+#: src/components/ai/AttentionInbox.tsx:27
 msgid "Watch confirmed — review current evidence"
 msgstr "Watch confirmed — review current evidence"
 
@@ -9091,8 +9111,8 @@ msgid "What are you looking for?"
 msgstr "What are you looking for?"
 
 #: src/components/trading/TradingJournal.tsx:46
-msgid "What happened at the broker"
-msgstr "What happened at the broker"
+#~ msgid "What happened at the broker"
+#~ msgstr "What happened at the broker"
 
 #: src/shell/settings/OwnerPage.tsx:267
 msgid "What I know about you"
@@ -9145,7 +9165,7 @@ msgstr "Why this interface?"
 msgid "Wink"
 msgstr "Wink"
 
-#: src/components/ai/AttentionInbox.tsx:37
+#: src/components/ai/AttentionInbox.tsx:38
 msgid "Work stopped after repeated interruptions"
 msgstr "Work stopped after repeated interruptions"
 
@@ -9314,11 +9334,11 @@ msgstr "You: {0}"
 msgid "You: {text}"
 msgstr "You: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:41
+#: src/components/ai/AttentionInbox.tsx:42
 msgid "Your agent alerted you"
 msgstr "Your agent alerted you"
 
-#: src/components/ai/AttentionInbox.tsx:42
+#: src/components/ai/AttentionInbox.tsx:43
 msgid "Your agent needs a secret from you"
 msgstr "Your agent needs a secret from you"
 
@@ -9375,8 +9395,8 @@ msgstr "Your session ended"
 #~ msgstr "Your statement"
 
 #: src/components/trading/TradingJournal.tsx:57
-msgid "Your statement (optional)"
-msgstr "Your statement (optional)"
+#~ msgid "Your statement (optional)"
+#~ msgstr "Your statement (optional)"
 
 #: src/shell/settings/AuthFlow.tsx:70
 msgid "Your team of agents"

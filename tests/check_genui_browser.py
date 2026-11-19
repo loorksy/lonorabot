@@ -345,7 +345,7 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
                 thread=thread,
                 run_id=None,
                 source="system",
-                kind="resolve_operation",
+                kind="settle_operation",
                 subject="operation:" + operation,
                 payload={"operation_id": operation},
             )

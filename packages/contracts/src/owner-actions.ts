@@ -4,7 +4,7 @@ import type { DeviceProof } from "./devices";
 import type { TradingMode } from "./trading";
 
 export type OwnerActionKind =
-  | "resolve_operation"
+  | "settle_operation"
   | "grant_authority"
   | "create_agent"
   | "agent_created"
@@ -14,10 +14,6 @@ export type OwnerActionKind =
   | "supervision_paused"
   /** The Secret card: the owner's values go straight to the encrypted store. */
   | "secret"
-  /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
-  | "watch_changed"
-  /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
-  | "stop_tightened"
   /** The Mandate card: the agent's mode read live and one button for the other mode. */
   | "trading_mode";
 /**
@@ -205,22 +201,6 @@ export type OwnerAction = {
       /** A broker card: connect the account, store its new password, or a new token. */
       purpose?: "connect" | "rotate_password" | "replace_token";
     };
-    /** watch_changed: the agent's extension; active while Undo still restores it. */
-    watch?: {
-      symbol: string | null;
-      kind: string | null;
-      previous_expires_at: string | null;
-      /** null: the agent removed the end (the watch runs until cancelled). */
-      expires_at: string | null;
-      active: boolean;
-    };
-    /** stop_tightened: the position's stop loss before and after (no Undo). */
-    stop?: {
-      symbol: string;
-      position_id: string;
-      previous_stop_loss: string | null;
-      stop_loss: string;
-    };
   };
   /** Confirming needs the owner's passkey: it signs a grant. */
   requires_passkey: boolean;
@@ -230,7 +210,6 @@ export type OwnerAction = {
     delegation?: GrantDelegation;
     stopped_agents?: string[];
     allowed_added?: boolean;
-    undone?: boolean;
     agent_id?: string;
     agent_name?: string;
     undo?: "deleted" | "paused";
@@ -249,8 +228,6 @@ export type OwnerAction = {
     /** A broker card: how provisioning stands (9.2). */
     provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
-    /** watch_changed Undo: the watch's expiry now. */
-    expires_at?: string | null;
   };
   expires_at: string;
   decided_at: string | null;
@@ -266,8 +243,6 @@ export type OwnerActionDecision = {
   /** Grant card, with "choose": Custom or Full delegation. */
   delegation?: GrantDelegation;
   outcome?: AttestedOutcome;
-  note?: string;
-  broker_reference?: string;
   proof?: DeviceProof;
   /** Grant card: stop these other agents' grants on this market (narrowing). */
   stop_authorities?: string[];

@@ -37,6 +37,9 @@ class BrokerRecoverySnapshot(Contract):
     observed_at: datetime
     last_success_at: datetime | None = None
     reconciled_at: datetime | None = None
+    # Until when MetaApi throttles the account: a new adapter (a restart, another process)
+    # waits it out instead of subscribing at once.
+    throttled_until: datetime | None = None
     revision: int = Field(default=0, ge=0)
     external_revision: int = Field(default=0, ge=0)
     unresolved_operations: list[str] = Field(default_factory=list[str], max_length=1000)

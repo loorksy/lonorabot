@@ -24,7 +24,13 @@ from sqlalchemy import select
 
 from .candle_store import merge_candle, merge_history
 from .candles import validate_candle_series
-from .health import assess_candles, assess_quote, record_market_health, timeframe_age_seconds
+from .health import (
+    assess_candles,
+    assess_quote,
+    forget_quote_health,
+    record_market_health,
+    timeframe_age_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -395,6 +401,8 @@ class MarketRuntime:
                 del self.tasks[key]
                 self.versions.pop(key, None)
                 self.last_events.pop(key, None)
+                if key not in wanted and key[0] in connections:
+                    await forget_quote_health(self.db, self.owner_id, *key)
         for connection_id, symbol in sorted(wanted - self.tasks.keys()):
             key = (connection_id, symbol)
             self.versions[key] = connections[connection_id].version

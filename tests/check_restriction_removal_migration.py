@@ -81,7 +81,8 @@ async def main() -> None:
 
         await asyncio.to_thread(alembic, "upgrade", "heads")
         async with engine.connect() as connection:
-            assert await cards(connection, ids["owner"]) == {"resolve_operation"}
+            # The other card stays: 0101 has since named it settle_operation.
+            assert await cards(connection, ids["owner"]) == {"settle_operation"}
             assert "ln_trading_restrictions" not in await tables(connection)
             paused = await connection.scalar(
                 text("SELECT paused FROM ln_agents WHERE id = :agent"), ids

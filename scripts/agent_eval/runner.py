@@ -23,6 +23,7 @@ from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.runs import Lease
 from lonora_db.events import emit
 from lonora_db.schema import RunRow
+from lonora_gateway.runtime import OwnerServices
 from lonora_providers.registry import model_adapter
 from sqlalchemy import text
 from sqlalchemy.engine import URL, make_url
@@ -74,6 +75,7 @@ class Api:
             transport=httpx.ASGITransport(self.app), base_url="https://g0-eval.test"
         )
         self.owner = ""
+        self._gateway: OwnerServices | None = None
 
     async def request(self, method: str, path: str, body: Any = None) -> Any:
         response = await self.client.request(method, "/api" + path, json=body)
@@ -89,8 +91,26 @@ class Api:
         self.client.headers["X-CSRF-Token"] = login["csrf"]
         self.owner = login["owner"]["id"]
 
+    def gateway(self) -> OwnerServices:
+        """The Gateway's services for the owner. Agents' tools and Gateway steps run in the
+        Gateway, which alone keeps MetaApi connections; the API runtime relays to it."""
+        if self._gateway is None:
+            settings = self.settings
+            self._gateway = OwnerServices.create(
+                self.runtime.db,
+                self.owner,
+                settings.encryption_key.get_secret_value(),
+                mcp_declarations=settings.mcp_declarations,
+                mcp_owner_trust=settings.mcp_owner_trust,
+                searxng_url=settings.searxng_url,
+                browser_url=settings.browser_url,
+            )
+        return self._gateway
+
     async def close(self) -> None:
         await self.client.aclose()
+        if self._gateway is not None:
+            await self._gateway.close()
         await self.runtime.close()
 
 

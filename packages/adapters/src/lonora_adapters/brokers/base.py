@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -13,12 +14,16 @@ from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
+from lonora_db.schema import BrokerSessionRow
 
 
 class BrokerManager:
-    def __init__(self, db: Database, secrets: "BrokerSecrets"):
+    def __init__(self, db: Database, secrets: "BrokerSecrets", *, relay: bool = False):
         # The broker destination (7.2.3): only this layer and provisioning read it.
         self.db, self._secrets = db, secrets
+        # The API process: a MetaApi account is read through the Gateway, which alone
+        # keeps its connection (one subscription and synchronization owner per account).
+        self.relay = relay
         self.market: MarketRuntime | None = None
         self.lock = asyncio.Lock()
         self.closed = False
@@ -46,6 +51,10 @@ class BrokerManager:
             from .simulation import SimulationBroker
 
             broker: BrokerAdapter = SimulationBroker(self.db, owner_id, connection_id)
+        elif self.relay:
+            from .relay import RelayedBroker
+
+            broker = RelayedBroker(self.db, owner_id, connection_id)
         else:
             from .metaapi import MetaApiBroker
 
@@ -57,8 +66,25 @@ class BrokerManager:
                 await self._secrets.read(config.secret_id),
                 connection_id,
             )
+            # A throttle MetaApi gave before a restart, or to another process, still holds.
+            recovery = cast(dict[str, Any], row.state.get("broker_recovery") or {})
+            throttled = recovery.get("throttled_until")
+            if isinstance(throttled, str):
+                broker.carry_throttle(datetime.fromisoformat(throttled).timestamp())
         self.connections[connection_id] = (version, broker)
         return broker
+
+    async def relayed(self, owner_id: str, connection_id: str) -> bool:
+        """Whether this process hands the connection's broker work to the Gateway."""
+        if not self.relay:
+            return False
+        async with self.db.sessions() as session:
+            row = await session.get(BrokerSessionRow, connection_id)
+        return (
+            row is not None
+            and row.owner_id == owner_id
+            and row.payload.get("provider") != "simulation"
+        )
 
     async def provisioning(self, owner_id: str, connection_id: str) -> Any:
         """A MetaApi provisioning client on this connection's token (account-entity calls
@@ -83,8 +109,12 @@ class BrokerManager:
         async with self.db.sessions() as session:
             saved = await BrokerSessionRepository().get(session, owner_id, connection_id)
             version = saved.version
-        account = await (await self.get(owner_id, connection_id)).account()
+        broker = await self.get(owner_id, connection_id)
+        account = await broker.account()
         account.id = connection_id
+        # A connection linked without its region (an older link) records the region MetaApi
+        # reports, so its next adapter asks the account's own region, not the SDK default.
+        region = getattr(broker, "region", None)
         identity = {
             "broker": account.broker,
             "login": account.login,
@@ -103,6 +133,13 @@ class BrokerManager:
             semantic = {key: value for key, value in identity.items() if key != "observed_at"}
             changed = any(previous_identity.get(key) != value for key, value in semantic.items())
             saved.state = {**saved.state, "broker_identity": identity}
+            if (
+                isinstance(region, str)
+                and saved.payload.get("provider") == "metaapi"
+                and not saved.payload.get("region")
+            ):
+                # Not a credential or identity change: the version and the adapter stay.
+                saved.payload = {**saved.payload, "region": region}
             if changed:
                 emit(
                     session,

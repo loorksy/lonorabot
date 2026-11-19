@@ -38,7 +38,7 @@ const base: OwnerAction = {
 };
 const resolve: OwnerAction = {
   ...base,
-  kind: "resolve_operation",
+  kind: "settle_operation",
   source: "system",
   facts: {
     several_accounts: false,
@@ -76,7 +76,8 @@ test("every pending card has its one-tap buttons in both languages", () => {
         ["confirm", "unknown"],
       ],
     );
-    assert.equal(answer.notes, true);
+    // Settle Uncertain Operation: exactly these three answers, no free-text fields (10.3).
+    assert.equal("notes" in answer, false);
   }
   const en = ownerActionCard(resolve, "en", now);
   assert.equal(en.title, "The broker did not confirm this trade");
@@ -87,20 +88,24 @@ test("every pending card has its one-tap buttons in both languages", () => {
   assert.equal(ar.title, "الوسيط لم يؤكد هذه الصفقة");
   assert.deepEqual(
     ar.buttons.map((button) => button.label),
-    ["نُفذت", "لم تُنفذ", "غير معروفة — ارفع التعليق"],
+    ["نُفذت", "لم تُنفذ", "غير معروفة"],
   );
   // "Unknown" settles the card and releases the hold: the label and hint say so, so it
   // is never mistaken for "wait".
-  assert.equal(en.buttons[2]?.label, "Unknown: release the hold");
-  assert.match(en.hint ?? "", /any answer, Unknown included, releases this trade's hold/);
-  assert.match(ar.hint ?? "", /وأي إجابة، ومنها «غير معروفة»، ترفع تعليق هذه الصفقة/);
+  assert.equal(en.buttons[2]?.label, "Unknown");
+  // Unknown keeps the hold while the broker is still checked (6.3).
+  assert.match(en.hint ?? "", /Unknown keeps it while the broker is still checked/);
+  assert.match(ar.hint ?? "", /و«غير معروفة» تبقيه بينما يُراجَع الوسيط/);
   for (const locale of ["en", "ar"]) {
     const settled = ownerActionCard(
       { ...resolve, status: "confirmed", result: { outcome: "unknown" } },
       locale,
       now,
     );
-    assert.match(settled.outcome ?? "", /no longer holds new risk|لم تعد تعلّق المخاطرة الجديدة/);
+    assert.match(
+      settled.outcome ?? "",
+      /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
+    );
   }
 });
 
@@ -606,10 +611,8 @@ test("no card resumes or starts trading, and no refusal names a Stop (amendment 
     assert.equal(financialBoundaryError(code, "en"), null, code);
 });
 
-test("M5: a settled stop_tightened notice reads as applied, only an Undo reads as undone", async () => {
+test("M5: only a confirmed Undo notice reads as undone", async () => {
   const { noticeUndone } = await import("../../packages/core/src/owner-actions");
-  assert.equal(noticeUndone({ kind: "stop_tightened", status: "confirmed" }), false);
-  assert.equal(noticeUndone({ kind: "watch_changed", status: "confirmed" }), true);
   assert.equal(noticeUndone({ kind: "agent_created", status: "confirmed" }), true);
   assert.equal(noticeUndone({ kind: "agent_created", status: "pending" }), false);
 });
@@ -633,5 +636,19 @@ test("the Mandate card says a signed grant still applies within its own terms", 
       now,
     );
     assert.ok(granted.lines.includes(ownerActionLabels[locale].mandateGrantStays));
+  }
+});
+
+test("a Settle card answered Unknown stays pending with Executed and Not executed live", () => {
+  for (const locale of ["en", "ar"]) {
+    const card = ownerActionCard({ ...resolve, result: { outcome: "unknown" } }, locale, now);
+    assert.deepEqual(
+      card.buttons.map((button) => button.outcome),
+      ["executed", "not_executed"],
+    );
+    assert.match(
+      card.lines.join(" "),
+      /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
+    );
   }
 });

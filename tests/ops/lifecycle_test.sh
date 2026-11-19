@@ -421,7 +421,7 @@ ok 'restore failing after DROP: marker kept, update, daily backup and unconfirme
 lonora update v3-broken >"$work/hold.log" 2>&1 &
 updater=$!
 wait_phase gateway "$updater" || { show "$work/hold.log"; fail 'hold update ended early'; }
-dc exec -T db psql -U lonora -d lonora -qc "INSERT INTO ln_owner_actions (id, owner_id, agent_id, source, kind, subject, payload, payload_hash, status, result, expires_at, created_at, updated_at) VALUES ('card-during-gate', '$owner_id', 'agent-probe', 'system', 'resolve_operation', 'operation:op-probe', '{}', 'probe', 'pending', '{}', now() + interval '1 day', now(), now())" >/dev/null
+dc exec -T db psql -U lonora -d lonora -qc "INSERT INTO ln_owner_actions (id, owner_id, agent_id, source, kind, subject, payload, payload_hash, status, result, expires_at, created_at, updated_at) VALUES ('card-during-gate', '$owner_id', 'agent-probe', 'system', 'settle_operation', 'operation:op-probe', '{}', 'probe', 'pending', '{}', now() + interval '1 day', now(), now())" >/dev/null
 status=0; wait "$updater" || status=$?
 [[ "$status" == 2 ]] || { show "$work/hold.log"; fail "control write hold exit status ($status)"; }
 grep -q 'ROLLBACK HELD: owner controls' "$work/hold.log" || { show "$work/hold.log"; fail 'control write hold reason'; }

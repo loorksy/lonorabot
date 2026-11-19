@@ -48,7 +48,6 @@ from lonora_db.agent_creation import (
     undo_plan,
 )
 from lonora_db.authority_lock import authority_lock
-from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
     agent_names,
     choose_delegation,
@@ -56,6 +55,7 @@ from lonora_db.owner_actions import (
     grant_conflicts,
     grant_facts,
     grant_proposal,
+    keep_pending,
     live_status,
     lock_owner_actions,
     owned_card,
@@ -230,6 +230,9 @@ async def decide(
     if row.kind == "trading_mode":
         await decide_trading_mode(session, owner, row, body)
         return
+    if row.kind == "settle_operation" and (body.decision != "confirm" or body.outcome is None):
+        # Settle Uncertain Operation: exactly Executed / Not executed / Unknown (10.3).
+        raise LonoraError("owner_action_outcome_required", 422)
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
         # Idempotent per card: the same decision again answers from the record.
@@ -255,17 +258,17 @@ async def decide(
         raise LonoraError("owner_action_secret_values_required", 422)
     via = "tap"
     result: dict[str, Any] = {}
-    if row.kind == "resolve_operation":
-        if body.outcome is None:
-            raise LonoraError("owner_action_outcome_required", 422)
+    if row.kind == "settle_operation":
+        assert body.outcome is not None  # refused above without one
+        if body.outcome == "unknown" and row.result.get("outcome") == "unknown":
+            return  # Unknown again: already recorded; the card stays as it is.
         await attest_operation(
             session,
             owner.id,
             row.payload["operation_id"],
             OperationResolution(
                 outcome=body.outcome,
-                statement=(body.note or "").strip() or CARD_ATTESTATION,
-                broker_reference=body.broker_reference,
+                statement=CARD_ATTESTATION,
             ),
             {
                 "kind": "owner",
@@ -277,6 +280,11 @@ async def decide(
             },
         )
         result = {"outcome": body.outcome}
+        if body.outcome == "unknown":
+            # Still uncertain, still held, still reconciled (6.3): the card stays the
+            # owner's way to answer Executed or Not executed later (6.8).
+            await keep_pending(session, row, {**row.result, **result})
+            return
     elif row.kind == "grant_authority":
         if body.proof is None:
             raise LonoraError("owner_action_passkey_required", 403)
@@ -302,9 +310,6 @@ async def decide(
         result = {"restored": await restore_supervision(session, owner, row)}
     elif row.kind == "supervision_paused":
         result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
-    elif row.kind == "watch_changed":
-        # Undo: the expiry the watch had before the agent extended it (owner only).
-        result = await undo_watch_change(session, owner.id, row.payload)
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
     created_agent = (
         await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None

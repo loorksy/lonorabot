@@ -100,14 +100,8 @@ export type OperationResolutionRecord = {
   basis?: string;
   outcome?: "executed" | "not_executed" | "unknown";
   statement?: string;
-  broker_reference?: string | null;
   resolved_at?: string;
   broker_confirmed?: false;
-};
-export type OperationResolution = {
-  outcome: "executed" | "not_executed" | "unknown";
-  statement: string;
-  broker_reference?: string | null;
 };
 export type Journal = {
   operation_id: string;

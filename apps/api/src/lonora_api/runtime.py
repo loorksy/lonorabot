@@ -27,6 +27,8 @@ class ApiRuntime:
                 mcp_owner_trust=self.settings.mcp_owner_trust,
                 searxng_url=self.settings.searxng_url,
                 browser_url=self.settings.browser_url,
+                # The Gateway alone keeps MetaApi connections; this process asks it.
+                relay_brokers=True,
                 chart_visual=ChartVisualRuntime(
                     self.settings.chart_renderer_url,
                     str(self.settings.chart_browser_executable)

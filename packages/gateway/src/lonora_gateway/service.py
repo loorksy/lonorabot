@@ -21,6 +21,7 @@ from lonora_tools.loader import load_tools
 from lonora_tools.terminal import owner_scan
 from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
 
+from .broker_relay import BrokerRelay
 from .connection_manager import close_connections, maintain_voice
 from .event_dispatch import dispatch_channels
 from .heartbeat import write_heartbeat
@@ -37,6 +38,9 @@ from .watchdog import Watchdog
 
 log = logging.getLogger("lonora.gateway")
 
+# How long a stopping Gateway waits for relayed requests in flight (an owner's order).
+RELAY_DRAIN_SECONDS = 30
+
 # Every maintenance step is its own supervised task with its own interval, iteration
 # timeout and liveness record: a step that raises or hangs never stops another one.
 STEPS = (
@@ -50,6 +54,9 @@ STEPS = (
     StepSpec("reconcile", 10, 300),
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
+    # MetaApi reads and owner orders the API process hands over: the Gateway alone keeps
+    # MetaApi connections (one subscription and synchronization owner per account).
+    StepSpec("broker_relay", 0.2, 60),
     # The currencies of newly held symbols, for the account picture (5.4).
     StepSpec("instrument_currencies", 30, 120, critical=False),
     # The owner's economic calendar sources, cached for the account picture (5.4).
@@ -126,6 +133,7 @@ class Gateway:
         self.stop = asyncio.Event()
         self.state = GatewayState.STARTING
         self.services: dict[str, OwnerServices] = {}
+        self.relay = BrokerRelay(db, self.service)
         self.runtime = AgentRuntime(load_tools(), lease_seconds, maximum_rounds)
         self.liveness = Liveness()
         self.watchdog = Watchdog(
@@ -428,6 +436,7 @@ class Gateway:
             "reconcile": self.reconcile,
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
+            "broker_relay": self.relay.iteration,
             "instrument_currencies": self.instrument_currencies,
             "calendar": self.calendar,
             "broker_provisioning": self.broker_provisioning,
@@ -482,6 +491,7 @@ class Gateway:
         self.state = GatewayState.DRAINING
         await write_heartbeat(self.db, self.identity, self.state.value, self.liveness.snapshot())
         await drain(loops)
+        await self.relay.drain(RELAY_DRAIN_SECONDS)
         # Leases this process still holds go back to the queue with their fence kept,
         # so the next gateway resumes that work at once instead of after lease expiry.
         await release_leases(self.db, self.identity)

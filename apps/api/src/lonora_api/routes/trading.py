@@ -7,7 +7,6 @@ from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.trading import (
     TERMINAL_STATUSES,
-    OperationResolution,
     TradeRequest,
     TradeResult,
 )
@@ -19,7 +18,6 @@ from lonora_db.transactions import owned_thread, resource_data
 from lonora_trading.accounts import account_snapshot
 from lonora_trading.connections import connect_account
 from lonora_trading.journal import journal_data
-from lonora_trading.owner_controls import attest_operation
 from lonora_trading.simulation import import_simulation
 
 from ..middleware.auth import require_owner, runtime
@@ -100,7 +98,12 @@ async def simulation(
 async def execute(
     request: Request, body: TradeRequest, owner: OwnerIdentity = Depends(require_owner)
 ) -> TradeResult:
-    return await runtime(request).services(owner.id).trading.execute(owner.id, body)
+    services = runtime(request).services(owner.id)
+    if await services.brokers.relayed(owner.id, body.account_id):
+        from lonora_adapters.brokers.relay import execute_order
+
+        return await execute_order(services.db, owner.id, body)
+    return await services.trading.execute(owner.id, body)
 
 
 @router.get("/journal")
@@ -125,34 +128,6 @@ async def receipts(
     async with runtime(request).db.sessions() as session:
         await owned_thread(session, owner.id, thread_id)
         return await thread_receipts(session, owner.id, thread_id)
-
-
-@router.post("/journal/{operation_id}/resolve")
-async def resolve(
-    request: Request,
-    operation_id: str,
-    body: OperationResolution,
-    owner: OwnerIdentity = Depends(require_owner),
-) -> dict[str, Any]:
-    """Owner attestation for an uncertain operation; it clears the block, never resends.
-
-    The authenticated owner session (cookie with CSRF, or bearer token) is the actor. The
-    original receipt and evidence stay on the row and the attestation is a durable event.
-    """
-    async with runtime(request).db.sessions() as session, session.begin():
-        row = await attest_operation(
-            session,
-            owner.id,
-            operation_id,
-            body,
-            {
-                "kind": "owner",
-                "owner_id": owner.id,
-                "authentication": "owner_session",
-                "session_ref": owner.token_hash[:16],
-            },
-        )
-        return journal_data(row)
 
 
 class ApprovalDecision(Contract):

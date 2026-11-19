@@ -115,6 +115,9 @@ def recovery(status: str, reason: str, age: timedelta) -> dict[str, Any]:
             timedelta(hours=1),
             "broker_connection_lost",
         ),
+        # MetaApi throttling is told apart from a lost link, after the same grace.
+        ("disconnected", "broker_rate_limited", timedelta(seconds=119), None),
+        ("disconnected", "broker_rate_limited", LOST_CONNECTION_GRACE, "broker_rate_limited"),
         # A connected account with unresolved operations is reconciling, not a problem.
         ("degraded", "broker_reconciliation_pending", timedelta(hours=1), None),
         ("connected", "broker_reconciled", timedelta(hours=1), None),

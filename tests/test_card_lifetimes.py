@@ -1,5 +1,4 @@
-"""Card lifetimes (WP-F cards): the newer card, «طلب جديد», trade approval expiry and the
-notice cards' pure rules.
+"""Card lifetimes (WP-F cards): the newer card, «طلب جديد» and trade approval expiry.
 
 These cases run on the in-memory schema, those marked ``postgres`` only on
 ``LONORA_TASK_TEST_DATABASE_URL``. The
@@ -90,7 +89,7 @@ async def resolve_card(
         thread=thread,
         run_id=None,
         source="system",
-        kind="resolve_operation",
+        kind="settle_operation",
         subject="operation:" + identifier,
         payload={"operation_id": identifier},
     )
@@ -160,13 +159,13 @@ async def test_renew_raises_a_fresh_card_only_while_the_subject_still_needs_a_de
         cards = await session.scalar(
             select(func.count())
             .select_from(OwnerActionRow)
-            .where(OwnerActionRow.kind == "resolve_operation")
+            .where(OwnerActionRow.kind == "settle_operation")
         )
         assert cards == 2
 
 
 @pytest.mark.asyncio
-async def test_undo_and_notice_cards_are_never_renewed(task_db: Fixture) -> None:
+async def test_undo_cards_are_never_renewed(task_db: Fixture) -> None:
     db, owner, agent, thread_id = task_db
     async with db.sessions() as session, session.begin():
         thread = await session.get(ThreadRow, thread_id)
