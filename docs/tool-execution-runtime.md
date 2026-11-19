@@ -480,10 +480,11 @@ continuous work, so unfinished work is never marked completed.
 ## The end of a conversation turn
 
 A Task has declared steps; a conversation has none, so a reply could end the owner's
-request with one named step left untaken. `conversation_gate.py` checks a text reply of a
-Run the owner started by typing (`owner_started`; a Task Run is never checked) and
-continues the turn in five cases, read from the request's own calls and results. A wake
-is checked for the last case only, over the calls since its last input or finished reply:
+request with one named step left untaken. `conversation_gate.py` checks a reply of a
+Run the owner started by typing (`owner_started`) and continues the turn in five cases,
+read from the request's own calls and results. Every other Run, a wake or a Task Run, is
+checked for the last case only, over the calls since its last input or finished reply. A
+reply is empty only with neither text nor an interface (rich content):
 
 | Condition | What was seen | What the notice asks |
 |---|---|---|
@@ -493,7 +494,8 @@ is checked for the last case only, over the calls since its last input or finish
 | `changes_all_failed` | Every change of the request failed, and one failure names how to repeat it (`repeat_with`) or a read to make first | Take the step, or say that the change was not made |
 | `lead_action_unreported` | A lead action changed the team (`owner_line: "required"` in its result: Lonora's `agent_control`, or `trading_mode_ask` on another agent) and the reply is empty. Checked first, whatever else the request contains: it asks for words, never a call | Tell the owner in one line what was done and why |
 
-The gate reads call names, arguments and result fields, and whether the reply is empty. It
+The gate reads call names, arguments and result fields, and whether the reply is empty
+(no text and no interface). It
 never reads what the owner or the model wrote, never issues a call, and its notices carry
 tool names but no failure code. Except for `lead_action_unreported`, it holds the reply, whatever else the request contains, when the request made any
 financial call, when any result is a permission refusal, needs the owner's authorization,

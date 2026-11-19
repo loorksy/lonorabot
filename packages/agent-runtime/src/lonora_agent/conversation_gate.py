@@ -2,8 +2,8 @@
 
 A Task has steps to finish; a conversation has none, so a reply could end a request with
 one named step left untaken. This gate reads the request's own tool calls and results and
-continues the turn, at most twice per owner message, in five cases (on a wake, only the
-last):
+continues the turn, at most twice per owner message, in five cases (on any other Run, a
+wake or a Task Run, only the last):
 
 - ``choice_not_carried_out``: the owner picked a choice of a question, the choice was
   bound to calls when it was offered (``offers``), and fewer calls of those tools have
@@ -20,7 +20,7 @@ last):
   never a call.
 
 It reads structure only: call names, arguments and result fields, and whether the reply
-is empty. It never reads what the owner or the model wrote, never issues a call, and the
+is empty (no text and no interface). It never reads what the owner or the model wrote, never issues a call, and the
 first four cases never continue past a refusal for permission, a financial call, an
 uncertain outcome or an exhausted retry. Each continuation is recorded in the Run's state.
 """
@@ -315,11 +315,18 @@ def _changes_all_failed(
 OWNER_LINE = "owner_line"
 
 
+def _replied(message: ModelMessage) -> bool:
+    """A finished reply says something: text, or an interface (rich content) the owner
+    sees. A turn with neither never reaches the gate in a conversation (the loop's
+    no-answer notice); on a wake it does."""
+    return bool(message.content.strip() or message.rich_content)
+
+
 def _lead_action_unreported(
     exchanges: list[Exchange], request: list[ModelMessage] | None
 ) -> Finding | None:
     """A lead action changed something, and the reply that ends the turn is empty."""
-    if not request or request[-1].role != "assistant" or request[-1].content.strip():
+    if not request or request[-1].role != "assistant" or _replied(request[-1]):
         return None
     for call, result in exchanges:
         if result is not None and result.get(OWNER_LINE) == "required":
@@ -394,7 +401,7 @@ def _wake_gate(state: dict[str, Any], messages: list[ModelMessage]) -> StopGateV
             or (
                 messages[i].role == "assistant"
                 and not messages[i].tool_calls
-                and bool(messages[i].content.strip())
+                and _replied(messages[i])
             )
         ),
         -1,

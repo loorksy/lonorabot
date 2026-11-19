@@ -312,6 +312,21 @@ def test_a_lead_action_with_an_empty_reply_continues_until_the_owner_hears_one_l
     assert not gate(started(), OWNER, *unchanged, empty).continue_turn
 
 
+def test_an_interface_reply_after_a_lead_action_is_a_reply():
+    # In a conversation the only text-less reply that reaches the gate carries an
+    # interface; asking again would replace a reply the owner sees. A wake's earlier
+    # interface reply also ends that turn's span.
+    paused = {"changed": True, "paused": True, "owner_line": "required"}
+    calls = exchange("agent_control", paused, agent_id="gold", action="pause")
+    card = ModelMessage(role="assistant", content="", rich_content={"version": 2, "parts": []})
+    assert not gate(started(), OWNER, *calls, card).continue_turn
+    wake = ModelMessage(role="user", content='<runtime_wake>{"kind":"team"}</runtime_wake>')
+    assert not gate({"owner_started": False}, wake, *calls, card).continue_turn
+    lookup = exchange("market_quote", NOT_FOUND, symbol="gold")
+    empty = ModelMessage(role="assistant", content="")
+    assert not gate({}, wake, *calls, card, *lookup, empty).continue_turn
+
+
 def test_a_lead_action_on_a_wake_with_an_empty_reply_continues_once():
     # Mandate 3.1.2 and line 705: Lonora acts "without asking, and explains why in one line",
     # also when a wake, not the owner, started the run. Nothing else is checked there.
