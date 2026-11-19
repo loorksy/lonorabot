@@ -111,10 +111,12 @@ refused (`agent_control_lead_only`), and Lonora is never deleted. Both paths run
   (`picture.ticket_openers`: confirmed entries, oldest first, the broker tag first, a
   netting fill never taking the position), are read from each account's last broker
   observation (`lonora_trading.ticket_transfer`). Lonora gets one
-  server-written `broker_event` per account (`transferred_from`, the tickets, symbols and
-  volumes), under its own mode, in a work thread whose result returns to its
-  conversation. With nothing open, there is no wake. Later broker activity on those
-  tickets wakes Lonora with its normal authority, not observe-only.
+  server-written `broker_event` per account (`transferred_from`, the deleted agent's name
+  quoted as data so Lonora names it to the owner without an id, and the tickets, symbols
+  and volumes, at most 50 listed), under its own mode, in a work thread whose result
+  returns to its conversation. With nothing open, there is no wake. Later broker activity
+  on those tickets wakes Lonora with its normal authority, not observe-only. The delete's
+  result and its receipt list at most the same 50 tickets, with `transferred_count`.
 - **Its pending Trade Approval cards are withdrawn** (status `withdrawn`): never approved
   or executed. Its continuous account-management task ends (4.5).
 - **Its records survive.** The journal and its Trade Approvals keep the

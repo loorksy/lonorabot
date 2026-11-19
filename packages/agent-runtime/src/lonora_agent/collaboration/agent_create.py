@@ -207,17 +207,19 @@ async def delete_created_agent(
     first. Its open positions and pending orders transfer to Lonora, which is woken with
     them (mandate 3.1.2)."""
     from lonora_db.personal_agent import ensure_personal_agent
-    from lonora_trading.ticket_transfer import opened_tickets, wake_lonora
+    from lonora_trading.ticket_transfer import listed, opened_tickets, wake_lonora
 
     await authority_lock(session, agent_id)
     from lonora_db.management_task import end_management_task
 
     # Its Full-mode task ends before the agent's row lock (the task's Runs first).
     await end_management_task(session, owner_id, agent_id)
-    await owned_agent(session, owner_id, agent_id, lock=True)
+    agent = await owned_agent(session, owner_id, agent_id, lock=True)
+    name = agent.name
     await forget_links(session, owner_id, agent_id)
     tickets = await opened_tickets(session, owner_id, agent_id)
     withdrawn = await delete_agent(session, owner_id, agent_id)
     lonora = await ensure_personal_agent(session, owner_id)
-    await wake_lonora(session, owner_id, lonora, agent_id, tickets)
-    return {"transferred": tickets, "withdrawn_approvals": withdrawn}
+    await wake_lonora(session, owner_id, lonora, agent_id, tickets, name)
+    # Bounded like the wake: an agent with hundreds of tickets never floods the result.
+    return {"name": name, **listed(tickets), "withdrawn_approvals": withdrawn}
