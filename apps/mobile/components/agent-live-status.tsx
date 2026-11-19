@@ -18,7 +18,7 @@ export function AgentLiveStatus({
   state: AgentLiveState | null;
   error: unknown;
   refresh: () => Promise<void>;
-  /** «حالة الوكيل التفصيلية» (chat preference): off, only a problem shows. */
+  /** «حالة الوكيل التفصيلية» (chat preference): off, only a problem, a pending decision, or a running watch, task or wait shows. */
   detailed?: boolean;
 }) {
   const { t, errorText, rtl, locale } = useSession();

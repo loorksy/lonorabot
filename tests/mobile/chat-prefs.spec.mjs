@@ -56,7 +56,12 @@ test("the chat experience switches persist and the conversation follows them", a
     await page.getByText("Chat experience", { exact: true }).click();
     await expect(page.getByText("The agent's work steps", { exact: true })).toBeVisible();
     await page.getByRole("switch", { name: "@ suggestions" }).click();
+    // The activity line shows by default; off, an idle agent with nothing running has none.
+    await expect(page.getByTestId("agent-live-state")).toHaveCount(1);
+    await page.getByRole("switch", { name: "Detailed agent status" }).click();
     await page.reload();
+    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+    await expect(page.getByTestId("agent-live-state")).toHaveCount(0);
 
     await composer.fill("@Pe");
     await expect(page.getByRole("button", { name: `@${two.agent.name}`, exact: true })).toHaveCount(

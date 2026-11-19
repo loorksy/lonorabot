@@ -452,8 +452,8 @@ export const labels = {
   ],
   prefAgentStatus: ["حالة الوكيل التفصيلية", "Detailed agent status"],
   prefAgentStatusSub: [
-    "سطر عمل الوكيل تحت الرأس. عند الإيقاف يظهر للمشكلات وما يحتاج قرارك فقط",
-    "The agent's activity line under the header. When off, only problems and what needs you",
+    "سطر عمل الوكيل تحت الرأس. عند الإيقاف يظهر للمشكلات وما يحتاج قرارك والمتابعات والمهام الجارية فقط",
+    "The agent's activity line under the header. When off, only problems, what needs you, and running watches or tasks",
   ],
   prefAssist: ["اقتراحات @", "@ suggestions"],
   prefAssistSub: ["قائمة الوكلاء أثناء الكتابة", "The list of agents while you write"],
