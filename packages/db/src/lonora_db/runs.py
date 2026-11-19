@@ -5,6 +5,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunFailure, RunRequest
 from lonora_core.run_state import (
     BACKGROUND_KEY,
+    OUTCOME_THREAD,
     OWNER_SPOKE,
     assert_transition,
     is_background,
@@ -191,6 +192,8 @@ async def create_run(
                 # only admission marks the owner's words reaching it.
                 BACKGROUND_KEY,
                 OWNER_SPOKE,
+                # Only ``outcome_thread`` names the hidden thread of a Run's helpers.
+                OUTCOME_THREAD,
             }
         },
     )

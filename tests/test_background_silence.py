@@ -573,13 +573,15 @@ async def test_the_background_mark_is_set_only_by_the_server():
                     "agent_id": agent["id"],
                     "thread_id": conversation["id"],
                     "trigger": trigger,
-                    "metadata": {"background": True},
+                    # Nor can a caller name the hidden thread of a Run's helpers.
+                    "metadata": {"background": True, "outcome_thread_id": conversation["id"]},
                 },
             )
             assert created["background"] is False
             async with fixture.runtime.db.sessions() as session:
                 row = await session.get(RunRow, created["id"])
                 assert row is not None and "background" not in row.model_metadata
+                assert "outcome_thread_id" not in row.model_metadata
             await ended(fixture, row, status="cancelled")
     finally:
         await fixture.close()

@@ -2,7 +2,7 @@ from typing import Any, cast
 
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import RunRequest
-from lonora_core.run_state import TERMINAL, is_background, may_end_silent
+from lonora_core.run_state import OUTCOME_THREAD, TERMINAL, is_background, may_end_silent
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
@@ -22,9 +22,6 @@ from lonora_db.threads import create_thread, origin_read_threads, wake_origin
 from sqlalchemy import String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
-
-# The hidden thread of a background Run in a conversation that holds its helpers' outcomes.
-OUTCOME_THREAD = "outcome_thread_id"
 
 
 def outcome_receipt(run_id: str, fence: int) -> str:
