@@ -29,6 +29,15 @@ type Session = {
   locale: Locale;
   rtl: boolean;
   login: (server: string, email: string, password: string) => Promise<void>;
+  /** Whether the server already has its owner (GET /onboarding), as Web reads at start. */
+  setupStatus: (server: string) => Promise<boolean>;
+  /** First run, as Web's «إعداد Lonora»: create the owner with the setup token, then sign in. */
+  initializeOwner: (
+    server: string,
+    email: string,
+    password: string,
+    token: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   changeServer: (server: string) => Promise<void>;
   changeLocale: (locale: Locale) => Promise<void>;
@@ -110,6 +119,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setOwner(result.owner);
   };
 
+  const reach = (value: string) => {
+    let normalized: string;
+    try {
+      normalized = normalizeServer(value);
+    } catch {
+      throw new ApiError("invalid_server", 0);
+    }
+    configureApi(normalized, null, expire);
+  };
+  const setupStatus = async (value: string) => {
+    reach(value);
+    return (await api.get<{ owner_initialized: boolean }>("/onboarding")).owner_initialized;
+  };
+  const initializeOwner = async (value: string, email: string, password: string, token: string) => {
+    reach(value);
+    await api.post("/onboarding", { email: email.trim(), password, bootstrap_token: token });
+    await login(value, email, password);
+  };
+
   const logout = async () => {
     cancelSessionRequests();
     try {
@@ -186,6 +214,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         locale,
         rtl: locale === "ar",
         login,
+        setupStatus,
+        initializeOwner,
         logout,
         changeLocale,
         changeServer,
