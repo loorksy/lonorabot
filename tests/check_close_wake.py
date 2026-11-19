@@ -3,7 +3,7 @@
 Done when a stop-loss hit and the agent's own close both end with a new memory
 revision. A stop-loss hit (no Run of the agent closed it) starts a broker_event Run;
 the agent's own close, while its closing Run still executes, reaches that Run as a
-notice, never a second Run. A paused agent is woken for its own trade; the owner's
+notice, never a second Run. A paused agent's trade waits until it resumes; the owner's
 own trade wakes nobody; a notice its Run never read becomes a Run; each trade wakes once.
 """
 
@@ -20,7 +20,6 @@ from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_db.memory import read_memory
 from lonora_db.personal_agent import ensure_personal_agent
-from lonora_db.runs import claim_next
 from lonora_db.schema import (
     AgentRow,
     ClosedTradeRow,
@@ -354,25 +353,24 @@ async def unread_notice(f: Fixture, account: str) -> None:
 
 async def paused_and_owner(f: Fixture, account: str) -> None:
     agent = await f.agent("Gold paused")
-    async with f.runtime.db.sessions() as session, session.begin():
-        row = await session.get(AgentRow, agent["id"])
-        assert row
-        row.paused = True
+
+    async def pause(value: bool) -> None:
+        async with f.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AgentRow, agent["id"])
+            assert row
+            row.paused = value
+
+    await pause(True)
     await closed(f, account, agent["id"], "sl-paused", "5")
     await closed(f, account, None, "owner-terminal", "9")  # the owner's own trade
+    # A paused agent starts no Run: its trade waits, and the owner's wakes nobody.
+    assert await wake_for_closes(f.runtime.db, f.owner) == 0
+    assert await runs_of(f, agent["id"], "broker_event") == []
+    await pause(False)
     assert await wake_for_closes(f.runtime.db, f.owner) == 1
     (run,) = await runs_of(f, agent["id"], "broker_event")
-    assert "You are paused" in run.prompt
-    # A paused agent's own-trade wake is claimed and runs; its other work stays held.
-    claimed: list[str] = []
-    for _ in range(20):
-        async with f.runtime.db.sessions() as session, session.begin():
-            row = await claim_next(session, "close-worker", 120, "work")
-        if row is None:
-            break
-        claimed.append(row.id)
-    assert run.id in claimed, claimed
-    print("PASS a paused agent is woken for its own trade; the owner's trade wakes nobody")
+    assert CLOSED in run.prompt and "paused" not in run.prompt
+    print("PASS a paused agent's trade waits until it resumes; the owner's trade wakes nobody")
 
 
 async def main() -> None:

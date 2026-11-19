@@ -16,8 +16,9 @@ Where the wake goes (the lead's map Q5):
 A trade the owner owns (no agent-attributed journaled opening order) wakes nobody for a
 review; a trade of an agent that no longer exists wakes Lonora, which answers for a
 deleted agent's tickets (3.1.2). The woken Run replies to the owner only when something
-needs them: a review alone posts nothing (11.5). A paused agent is woken for its own trade (4.7.1; ``runs_while_paused``) and may
-only reduce risk. A wake never carries ``observe_only``: the ticket was the agent's own.
+needs them: a review alone posts nothing (11.5). A paused agent starts no Run, so its
+trade waits, unwoken, and wakes it when it resumes within the window. A wake never carries
+``observe_only``: the ticket was the agent's own.
 """
 
 import json
@@ -43,11 +44,6 @@ MAXIMUM_PER_PASS = 50
 EXECUTING = frozenset({"queued", "leased", "running"})
 WAKE_KEY = "close-wake:"
 NOTICE_KEY = "run-notice:"
-PAUSED_SENTENCE = (
-    " You are paused: only risk-reducing requests are sent (a full or partial close, "
-    "cancelling a pending order, adding a stop loss, or moving a stop loss toward the "
-    "market); take no new work."
-)
 
 
 def _amount(value: Any) -> str | None:
@@ -127,7 +123,7 @@ def wake_text(trade: ClosedTradeRow, agent: AgentRow) -> str:
         if agent.id != trade.agent_id
         else ""
     )
-    return close_text(trade) + inherited + (PAUSED_SENTENCE if agent.paused else "")
+    return close_text(trade) + inherited
 
 
 async def _wake_run(session: AsyncSession, trade: ClosedTradeRow, agent: AgentRow) -> str:
@@ -170,6 +166,8 @@ async def wake_for_closes(db: Database, owner_id: str) -> int:
                 # Trades already woken are left out before the limit, so they never
                 # crowd out a new close.
                 ~exists().where(EffectReceiptRow.key == literal(WAKE_KEY) + ClosedTradeRow.id),
+                # A paused agent starts no Run: its trades wait until it resumes.
+                ~exists().where(AgentRow.id == ClosedTradeRow.agent_id, AgentRow.paused),
             )
             .order_by(ClosedTradeRow.created_at)
             .limit(MAXIMUM_PER_PASS)
@@ -181,6 +179,8 @@ async def wake_for_closes(db: Database, owner_id: str) -> int:
                 # The agent that owned it no longer exists: Lonora answers for the
                 # deleted agent's tickets (3.1.2), so Lonora is woken.
                 agent = await ensure_personal_agent(session, owner_id)
+            if agent.paused:
+                continue  # Lonora is paused: the trade waits until it resumes.
             text = wake_text(trade, agent)
             run = await closing_run(session, trade)
             if run is not None and run.agent_id == agent.id and run.status in EXECUTING:
@@ -243,6 +243,8 @@ async def _redirect_unread(session: AsyncSession, owner_id: str) -> int:
         agent = await session.get(AgentRow, trade.agent_id) if trade.agent_id else None
         if agent is None or agent.owner_id != owner_id:
             agent = await ensure_personal_agent(session, owner_id)
+        if agent.paused:
+            continue  # The notice stays unread until the agent resumes.
         run_id = await _wake_run(session, trade, agent)
         receipt.result = {**receipt.result, "consumed": True, "redirected_run_id": run_id}
         moved += 1
