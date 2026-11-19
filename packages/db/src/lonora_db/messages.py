@@ -647,6 +647,22 @@ async def admit_runs(
         )
         if run_id is not None:
             run_ids.append(run_id)
+    await invite_guests(
+        session, owner_id, thread, message, request, collaboration, run_ids[0] if run_ids else None
+    )
+    return run_ids
+
+
+async def invite_guests(
+    session: AsyncSession,
+    owner_id: str,
+    thread: ThreadRow,
+    message: MessageRow,
+    request: MessageCreate,
+    collaboration: Any,
+    host_run_id: str | None,
+) -> None:
+    """A direct chat's @mention invites the guests it names (Q29) into the host's Run."""
     if thread.agent_id and (request.mention_agent_ids or request.mention_all):
         from .collaboration import invite
 
@@ -662,8 +678,8 @@ async def admit_runs(
             if identifier != thread.agent_id
             and not (await owned_agent(session, owner_id, identifier)).paused
         ]
-        if participant_ids and run_ids:
-            host_run = await session.get(RunRow, run_ids[0])
+        if participant_ids and host_run_id:
+            host_run = await session.get(RunRow, host_run_id)
             assert host_run is not None
             await invite(
                 session,
@@ -677,7 +693,6 @@ async def admit_runs(
                 # the owner: its participants are invited into a new session instead.
                 session_id=collaboration.id if collaboration and has_room(collaboration) else None,
             )
-    return run_ids
 
 
 async def admit_agent(
@@ -835,7 +850,8 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
     """The agent was just resumed (whoever resumed it): one run of it in each conversation
     where the owner's messages to it were kept while it was paused (in a group, those that
     addressed it), answering the latest of them through that message's own admission, so
-    the owner's message is the run's trigger. Returns the runs' ids.
+    the owner's message is the run's trigger, and inviting the guests it mentions that are
+    not paused (``invite_guests``). Returns the runs' ids.
 
     Lock order: the caller holds the agent's row; each thread is locked before its kept
     message, as admission does, and admission never locks the agent's row."""
@@ -884,11 +900,14 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
             # earlier resume committed, which missed it.
             continue
         mentioned = message.mentions or {}
+        everyone = bool(mentioned.get("all"))
         request = MessageCreate.model_construct(
+            content=message.content,
             input_answer=None,
             mention_agent_ids=list(mentioned.get("agent_ids", [])),
-            mention_all=bool(mentioned.get("all")),
-            collaboration_session_id=mentioned.get("session_id"),
+            mention_all=everyone,
+            # Only «@الكل» names a session; a guest mention's was the server's pick.
+            collaboration_session_id=mentioned.get("session_id") if everyone else None,
         )
         reply = await session.get(MessageRow, message.reply_to) if message.reply_to else None
         run_id = await admit_agent(
@@ -896,6 +915,16 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
         )
         if run_id is not None:
             run_ids.append(run_id)
+        collaboration = None
+        if thread.agent_id and (request.mention_agent_ids or everyone):
+            from .collaboration import current_session
+
+            # The guests it mentions join the chat's open session as admission joins them
+            # (the session it was sent in may have ended since); paused ones are skipped.
+            current = await current_session(session, owner_id, thread.id)
+            if current is not None and (everyone or has_room(current)):
+                collaboration = current
+        await invite_guests(session, owner_id, thread, message, request, collaboration, run_id)
     return run_ids
 
 

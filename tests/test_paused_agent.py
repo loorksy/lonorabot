@@ -805,3 +805,76 @@ async def test_the_gateway_answers_a_message_kept_while_a_resume_committed() -> 
         await settle(fixture, runs)
     finally:
         await fixture.close()
+
+
+async def peer_runs(fixture: Any, agent_id: str) -> list[Any]:
+    """The runs a guest invitation started for the agent."""
+    from lonora_db.schema import RunRow
+    from sqlalchemy import select
+
+    async with fixture.runtime.db.sessions() as session:
+        return list(
+            await session.scalars(
+                select(RunRow)
+                .where(RunRow.agent_id == agent_id, RunRow.trigger == "peer")
+                .order_by(RunRow.created_at)
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_resume_invites_the_guests_its_kept_message_mentions_that_are_not_paused() -> (
+    None
+):
+    """The owner @mentions guests in a paused agent's direct chat: nothing runs and nobody
+    is invited while it is paused. Its resume admits the kept message as admission would
+    have, guests included: one that is not paused is invited into the resumed run, a
+    paused one is not. A paused guest mentioned in the chat of an agent that is not paused
+    is not carried over either: nothing reaches it on its own resume."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.collaboration import current_session
+
+    fixture = await Fixture().open()
+    try:
+        host, guest = await fixture.agent("Paused host"), await fixture.agent("Free guest")
+        sleeper, other_host = await fixture.agent("Paused guest"), await fixture.agent("Host")
+        thread, other = await fixture.conversation(host), await fixture.conversation(other_host)
+        for each in (host, sleeper):
+            await fixture.request("PATCH", f"/agents/{each['id']}", {"paused": True})
+        # Mentioned where the host answers: the host runs, the paused guest is not invited.
+        elsewhere = await fixture.request(
+            "POST",
+            f"/threads/{other['id']}/messages",
+            {"content": "What do you think?", "mention_agent_ids": [sleeper["id"]]},
+        )
+        assert [run["agent_id"] for run in elsewhere["runs"]] == [other_host["id"]]
+        sent = await fixture.request(
+            "POST",
+            f"/threads/{thread['id']}/messages",
+            {"content": "Your views?", "mention_agent_ids": [guest["id"], sleeper["id"]]},
+        )
+        assert sent["run_ids"] == [], sent
+        assert await peer_runs(fixture, guest["id"]) == []
+
+        await fixture.request("PATCH", f"/agents/{host['id']}", {"paused": False})
+        runs = await owner_runs(fixture, host["id"], thread["id"])
+        assert len(runs) == 1 and runs[0].input_seq == sent["message"]["seq"], runs
+        invited = await peer_runs(fixture, guest["id"])
+        assert [run.parent_run_id for run in invited] == [runs[0].id]
+        assert await peer_runs(fixture, sleeper["id"]) == []
+        async with fixture.runtime.db.sessions() as session:
+            joined = await current_session(session, fixture.owner, thread["id"])
+            assert joined is not None
+            assert [p["agent_id"] for p in joined.state["participants"]] == [guest["id"]]
+
+        await fixture.request("PATCH", f"/agents/{sleeper['id']}", {"paused": False})
+        assert await peer_runs(fixture, sleeper["id"]) == []
+        for conversation in (thread, other):
+            assert await owner_runs(fixture, sleeper["id"], conversation["id"]) == []
+        await settle(
+            fixture,
+            [*runs, *invited, *await owner_runs(fixture, other_host["id"], other["id"])],
+        )
+    finally:
+        await fixture.close()

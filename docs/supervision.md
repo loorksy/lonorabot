@@ -101,14 +101,20 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   with `agent_paused` (a tapped choice, a card's send, an invitation) is not kept, so the
   clients say only to resume it and try again:
   «هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة.» ("This agent is paused: resume
-  it, then try again."). Nothing is queued while it is paused. When it is resumed (the owner's switch or Resume on its
-  pause card, or `agent_control`), it gets one run in each conversation where the owner
+  it, then try again."). Nothing is queued while it is paused. When it is resumed (the
+  owner's switch or Resume on its pause card, or `agent_control`), it gets one run in
+  each conversation where the owner
   sent it messages while it was paused (in a group, the messages that addressed it; an
   owner message folded into a card's send that the lifetime or «تعديل» cancels while it
   is paused counts too, `requeue_folded`),
   admitted as the latest of them would have been (`answer_kept_messages`): the owner's
   message is the run's trigger, so when that latest message is a reply to its wake's
-  question, or the next message right after it, it answers that question. Whoever
+  question, or the next message right after it, it answers that question. The guests
+  that message @mentions in its direct chat are invited into that run as admission
+  invites them (`invite_guests`), except a paused one. A paused guest mentioned
+  elsewhere is not carried over: a guest is invited only if it is not paused when the
+  message is admitted (when it is sent, or when the resume of the chat's own agent
+  admits it), and its own resume never answers that mention. Whoever
   resumes it, only the owner's messages get a run, and a conversation where the owner
   sent it nothing gets none. Admission reads the pause without the agent's lock, so a
   message sent while a resume commits can be kept after the resume looked: the gateway's
@@ -271,7 +277,9 @@ profile) do not fit and are promoted after first use like any remembered tool.
   question, only group messages that addressed it, nothing where nothing was sent, and
   one run for the owner's message folded into a card's send that expired or was edited
   while it was paused; the gateway step answering a message kept for an agent no longer
-  paused, once, and removing a deleted agent's.
+  paused, once, and removing a deleted agent's; the resume inviting the guests the kept
+  message mentions that are not paused, and a paused guest mentioned in another agent's
+  chat getting nothing on its own resume.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the
