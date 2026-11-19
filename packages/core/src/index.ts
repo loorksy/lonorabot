@@ -166,6 +166,7 @@ export {
   rereadOwnerAction,
   type SecretForm,
   type SecretFormField,
+  type SecretSaved,
   submitSecret,
 } from "./owner-actions";
 export {

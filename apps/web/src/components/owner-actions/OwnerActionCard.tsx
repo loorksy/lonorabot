@@ -12,6 +12,7 @@ import {
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
+  type SecretSaved,
   submitSecret,
   webDeviceProof,
   webDeviceSupported,
@@ -179,10 +180,17 @@ export function OwnerActionCard({
     try {
       // The values go only to the card's own route, which stores them encrypted.
       const updated = await submitSecret(
-        (path, body) => api.post<OwnerAction>(path, body),
+        (path, body) => api.post<SecretSaved<OwnerAction>>(path, body),
         row.id,
         values,
+        "web",
       );
+      if (updated.sign_in_url?.startsWith("https://")) {
+        // The server asks for a sign-in: its page opens here and comes back to this
+        // conversation, where the card shows what happened.
+        window.location.assign(updated.sign_in_url);
+        return;
+      }
       if (mounted.current) onChanged(updated);
     } catch (cause) {
       if (mounted.current) setError(cause);

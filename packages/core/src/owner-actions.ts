@@ -229,6 +229,9 @@ export const ownerActionLabels = {
       "What you type is saved encrypted on the server. It never enters the chat, and no agent sees it.",
     connectXHint:
       "Lonora reads X through web search, news feeds or an X MCP server you trust; it never uses your X account.",
+    connectServerHint:
+      "If the server has you sign in, leave the token empty: Lonora opens its sign-in page and keeps what it returns encrypted.",
+    signInFailed: "The server's sign-in did not finish. Connect again to retry.",
     fieldName: "Name",
     fieldServerUrl: "Server URL",
     fieldFeedUrl: "Feed URL",
@@ -473,6 +476,9 @@ export const ownerActionLabels = {
     connectHint: "ما تكتبه يُحفظ مشفّرًا على الخادم. لا يدخل المحادثة، ولا يراه أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
+    connectServerHint:
+      "إن كان الخادم يطلب تسجيل الدخول فاترك الرمز فارغًا: تفتح لونورا صفحة الدخول وتحفظ ما تعيده مشفّرًا.",
+    signInFailed: "لم يكتمل تسجيل الدخول إلى الخادم. اضغط «ربط» لتحاول مجددًا.",
     fieldName: "الاسم",
     fieldServerUrl: "عنوان الخادم",
     fieldFeedUrl: "عنوان الموجز",
@@ -1116,15 +1122,26 @@ function secretForm(
 }
 
 /**
+ * What saving a Secret card answers: the card as saved; or, for an MCP server that asks
+ * for a sign-in, the card still waiting and the server's sign-in page.
+ */
+export type SecretSaved<Card> = Card & { sign_in_url?: string };
+
+/**
  * Save a Secret card: the owner's values go to the card's own route, which stores them
- * encrypted and settles the card in one transaction; it answers with the card as saved.
+ * encrypted and settles the card in one transaction. ``returnTo`` is the app a sign-in's
+ * browser comes back to: this web app, or the mobile app.
  */
 export async function submitSecret<Card>(
-  post: (path: string, body: unknown) => Promise<Card>,
+  post: (path: string, body: unknown) => Promise<SecretSaved<Card>>,
   cardId: string,
   values: Record<string, string>,
-): Promise<Card> {
-  return post(`/owner-actions/${encodeURIComponent(cardId)}/secret`, { values });
+  returnTo: "web" | "app",
+): Promise<SecretSaved<Card>> {
+  return post(`/owner-actions/${encodeURIComponent(cardId)}/secret`, {
+    values,
+    return_to: returnTo,
+  });
 }
 
 /** What the agent may do with money, by its level now (a grant may be signed later). */
@@ -1414,14 +1431,19 @@ export function ownerActionCard(
           lines.push(fill(text.secretSavesAs, { names: nameList(secret.saves_as, lang) }));
         if (secret.replaces?.length)
           lines.push(fill(text.secretReplaces, { names: nameList(secret.replaces, lang) }));
+        if (secret.sign_in_failed) lines.push(text.signInFailed);
         hint =
           secret.destination === "broker"
             ? text.secretBroker
             : !secret.connect
               ? text.secretWorkspace
-              : secret.service === "x"
-                ? `${text.connectHint} ${text.connectXHint}`
-                : text.connectHint;
+              : [
+                  text.connectHint,
+                  secret.connect === "mcp_server" ? text.connectServerHint : "",
+                  secret.service === "x" ? text.connectXHint : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
         form = secretForm(secret, text);
       }
       // Save is the form's own submit: the values go to the card's route, never here.
@@ -1612,6 +1634,22 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   news_feed_url_invalid: {
     en: "Enter a public https:// feed address.",
     ar: "أدخل عنوان موجز عامًا يبدأ بـ https://.",
+  },
+  mcp_sign_in_unsupported: {
+    en: "Lonora cannot use this server's sign-in. If the server gives you a token, type it into the card.",
+    ar: "لا تستطيع لونورا استخدام تسجيل الدخول لهذا الخادم. إن كان الخادم يعطيك رمزًا فاكتبه في البطاقة.",
+  },
+  mcp_sign_in_failed: {
+    en: "The server's sign-in could not start. Try again later.",
+    ar: "تعذّر بدء تسجيل الدخول إلى الخادم. حاول لاحقًا.",
+  },
+  mcp_sign_in_required: {
+    en: "This server asks for a sign-in. Ask your agent to connect it again.",
+    ar: "يطلب هذا الخادم تسجيل الدخول. اطلب من وكيلك ربطه من جديد.",
+  },
+  mcp_sign_in_expired: {
+    en: "The sign-in to this server has ended. Ask your agent to connect it again.",
+    ar: "انتهى تسجيل الدخول إلى هذا الخادم. اطلب من وكيلك ربطه من جديد.",
   },
 };
 

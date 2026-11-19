@@ -227,6 +227,8 @@ export type OwnerAction = {
        * which of them replace a value already saved (read now). */
       saves_as?: string[];
       replaces?: string[];
+      /** An MCP server's card: the server's sign-in did not finish (declined or refused). */
+      sign_in_failed?: boolean;
       /** A broker card (raised only by the connect tool): the account the password is for. */
       account?: { login: string; server: string; platform: "mt4" | "mt5" };
       /** A broker card: connect the account, store its new password, or a new token. */

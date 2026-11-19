@@ -9,10 +9,11 @@ import {
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
+  type SecretSaved,
   submitSecret,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { ApiError } from "../lib/api-error";
 import { deviceProof, deviceSupported } from "../lib/device-proof";
@@ -143,7 +144,19 @@ export function OwnerActionCard({
       );
       setValues({});
       // The values go only to the card's own route, which stores them encrypted.
-      onChange(await submitSecret((path, body) => api.post<OwnerAction>(path, body), row.id, sent));
+      const saved = await submitSecret(
+        (path, body) => api.post<SecretSaved<OwnerAction>>(path, body),
+        row.id,
+        sent,
+        "app",
+      );
+      if (saved.sign_in_url?.startsWith("https://")) {
+        // The server asks for a sign-in: its page opens in the browser, which comes back
+        // to this conversation; the card shows what happened.
+        await Linking.openURL(saved.sign_in_url);
+        return;
+      }
+      onChange(saved);
     });
   const register = () =>
     run(async () => {
