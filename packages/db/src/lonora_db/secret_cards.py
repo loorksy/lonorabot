@@ -454,9 +454,11 @@ BROKER_CAUSES = {
     "broker_connect_timeout": "MetaApi did not have the account's terminal deployed and "
     "logged in to the broker within the time Lonora waits; nothing at the broker was "
     "confirmed.",
-    "broker_provisioning_busy": "MetaApi was still deploying or undeploying the account's "
-    "terminal when Lonora's wait ran out, and it refuses another deploy until that is done; "
-    "nothing at the broker judged the login. Try again in a few minutes.",
+    "broker_provisioning_busy": "When Lonora's wait ran out, MetaApi was still deploying, "
+    "redeploying or undeploying the account's terminal: it reported the account as deploying "
+    "or undeploying, or refused Lonora's request because the account was in the process of "
+    "being deployed, redeployed or undeployed. Nothing at the broker judged the login. Try "
+    "again in a few minutes.",
     # MetaApi's answers to Lonora's requests about the account at MetaApi.
     "broker_provisioning_rejected": "MetaApi refused the request and gave no reason Lonora "
     "can show; nothing at the broker judged the login, so do not name a cause.",
@@ -471,9 +473,10 @@ BROKER_CAUSES = {
     "judged the login. Try again in a few minutes.",
     "broker_rate_limited": "MetaApi refused the request because Lonora made too many (rate "
     "limited); this says nothing about the login. Try again in a few minutes.",
-    "broker_token_rejected": "MetaApi refused the MetaApi API token for this request "
-    "(unauthorized, forbidden, or a token that cannot manage accounts); nothing at the "
-    "broker judged the login.",
+    "broker_token_rejected": "MetaApi refused the MetaApi API token (unauthorized or "
+    "forbidden), or the saved token cannot manage MetaApi accounts (it is not in the form of "
+    "a MetaApi API access token, so no request was sent with it); nothing at the broker "
+    "judged the login.",
     "broker_account_not_found": "MetaApi answered that it has no account with the id Lonora "
     "uses, for the MetaApi API token used; this says nothing about the login.",
     "broker_platform_required": "The card names no MT4 or MT5 platform, so Lonora created no "
@@ -499,6 +502,11 @@ BROKER_CAUSES = {
     "the account (unauthorized or forbidden); this says nothing about the broker login.",
     "broker_account_undeployed": "MetaApi reported the account's terminal as not deployed "
     "when Lonora read it; this says nothing about the login.",
+    "broker_account_not_ready": "MetaApi reported the account's terminal as neither deployed "
+    "nor undeployed (still deploying or undeploying, for example) when Lonora read it, so "
+    "nothing was read through it; this says nothing about the login.",
+    "broker_candles_invalid": "MetaApi answered Lonora's read of the account with data Lonora "
+    "could not read as valid; this says nothing about the login.",
     "broker_connection_timeout": "MetaApi did not answer Lonora's read of the account within "
     "the time Lonora waits; this says nothing about the login.",
     "broker_connection_unavailable": "MetaApi could not be reached, or gave no usable "
@@ -514,6 +522,16 @@ BROKER_CAUSES = {
     "step's result; this says nothing about the login.",
     "broker_sessions_not_found": "The saved connection this step needs is no longer in "
     "Lonora, so the step was not taken; this says nothing about the login.",
+    # Lonora's broker store, read for the trading password or the MetaApi API token.
+    "secret_not_found": "A credential this step reads (the trading password or the MetaApi "
+    "API token) was not among the owner's saved credentials when Lonora read it, so nothing "
+    "that needed it was sent; this says nothing about the login.",
+    "secret_scope_forbidden": "A credential this step reads (the trading password or the "
+    "MetaApi API token) is saved in Lonora but not as a broker credential, so Lonora did not "
+    "use it and sent nothing that needed it; this says nothing about the login.",
+    "secret_decryption_failed": "A credential this step reads (the trading password or the "
+    "MetaApi API token) could not be decrypted with Lonora's current encryption key, so "
+    "nothing that needed it was sent; this says nothing about the login.",
     # Changing a saved connection's password or token.
     "broker_not_metaapi": "The saved connection is not a MetaApi connection with a token, so "
     "Lonora sent nothing to MetaApi.",
@@ -580,9 +598,14 @@ def broker_prompt(row: OwnerActionRow) -> str:
                 f"the same new password. You never see it. {OBSERVED_ONLY} Tell the owner in "
                 "one line."
             )
+        changing = (
+            "the MetaApi API token, which every MetaApi connection uses,"
+            if purpose == REPLACE_TOKEN
+            else f"the broker credential of account {login}"
+        )
         return (
-            f"Changing the broker credential of account {login} failed: {because} You never "
-            f"see the values. {OBSERVED_ONLY} Tell the owner in one line what went wrong."
+            f"Changing {changing} failed: {because} You never see the values. "
+            f"{OBSERVED_ONLY} Tell the owner in one line what went wrong."
         )
     observed: dict[str, Any] = result.get("observed") or {}
     named = f"account {observed.get('login')} on {observed.get('server')}"

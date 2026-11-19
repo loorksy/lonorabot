@@ -621,15 +621,21 @@ def test_every_code_that_ends_a_broker_card_has_a_fixed_cause_in_its_wake() -> N
     a connect, new password or new token card, or a connection's first account read, has
     a fixed cause saying only what MetaApi or Lonora observed, and the wake says to name no
     other and to quote the login as written. A code added to TRANSIENT, REFUSALS, the
-    adapter's mapping or these steps without a cause fails here."""
+    adapter's mapping, these steps, the secret store or the account read without a cause
+    fails here."""
     import inspect
     import re
 
-    from lonora_adapters.brokers import metaapi_provisioning
+    from lonora_adapters.brokers import metaapi, metaapi_provisioning
+    from lonora_adapters.brokers.base import BrokerManager
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
     from lonora_db.secret_cards import BROKER_CAUSES, OBSERVED_ONLY, broker_prompt
+    from lonora_security.secrets import SecretCipher
     from lonora_trading import broker_manage, broker_provisioning
 
     literal = re.compile(r'"(broker_[a-z_]+)"')
+    # Any code a LonoraError is raised with, whatever its prefix (secret_not_found).
+    raised = re.compile(r'LonoraError\(\s*"([a-z][a-z0-9_]*)"')
     sources = (
         inspect.getsource(broker_provisioning),
         inspect.getsource(broker_manage),
@@ -638,25 +644,61 @@ def test_every_code_that_ends_a_broker_card_has_a_fixed_cause_in_its_wake() -> N
     )
     ending = {code for source in sources for code in literal.findall(source)}
     ending |= broker_provisioning.TRANSIENT | metaapi_provisioning.REFUSALS
-    # A connection's first account read (a linked card's read_code), and what other layers
-    # raise into these steps: MetaApi's account record behind the connection, Lonora's
-    # connection records.
-    reading = {
-        "broker_login_rejected",
-        "broker_login_not_established",
-        "broker_connection_timeout",
-        "broker_connection_unavailable",
-        "broker_connection_closed",
-        "broker_rate_limited",
-        "broker_account_undeployed",
-        "broker_account_not_found",
-        "broker_credentials_rejected",
-        "broker_request_rejected",
-        "broker_disabled",
-        "broker_connection_changed",
-        "broker_secret_required",
-        "broker_sessions_not_found",
+
+    def codes(pattern: re.Pattern[str], *items: Any) -> set[str]:
+        return {code for item in items for code in pattern.findall(inspect.getsource(item))}
+
+    # The secret store, read for the password or the token by these steps and by the
+    # account read, and a connection's first account read (a linked card's read_code):
+    # BrokerManager, then MetaApi's terminal through the broker adapter.
+    stored = codes(raised, BrokerSecrets.read, SecretCipher.decrypt)
+    terminal = (
+        metaapi.MetaApiBroker.resolve_account,
+        metaapi.MetaApiBroker.refuse_if_undeployed,
+        metaapi.MetaApiBroker.refuse_if_throttled,
+        metaapi.MetaApiBroker.throttled,
+        vars(metaapi.MetaApiBroker)["_prepare_connection"],
+        metaapi.MetaApiBroker.read_rpc,
+        metaapi.timeout_cause,
+    )
+    # BrokerManager's other "broker_" literals are state keys, not codes.
+    reading = stored | codes(
+        raised, BrokerManager.account, BrokerManager.get, BrokerManager.connect
+    )
+    reading |= codes(raised, *terminal) | codes(literal, *terminal)
+
+    class Answer(Exception):
+        def __init__(self, status: int | None, message: str = ""):
+            super().__init__(message)
+            self.status_code = status
+
+    # One MetaApi answer for each branch the adapter maps for an account read.
+    answers: list[Exception] = [Answer(status) for status in (None, 400, 401, 403, 404, 429)]
+    answers += [Answer(400, "No accounts deployed"), TimeoutError()]
+    answers.append(ValidationError.from_exception_data("AccountState", []))
+    reading |= {
+        metaapi.provider_error(error, stage).code
+        for error in answers
+        for stage in ("account", "rpc")
     }
+    # Lonora's connection records: the repository's not-found code is built from its kind.
+    reading.add("broker_sessions_not_found")
+    assert {
+        "secret_not_found",
+        "secret_scope_forbidden",
+        "secret_decryption_failed",
+    } <= stored
+    assert {
+        "broker_disabled",
+        "broker_secret_required",
+        "broker_connection_changed",
+        "broker_connection_closed",
+        "broker_login_rejected",
+        "broker_credentials_rejected",
+        "broker_connection_timeout",
+    } <= reading
+    # And what other layers raise into these steps: MetaApi's account record behind the
+    # connection, Lonora's connection records.
     ending |= reading | {"broker_account_already_connected", "broker_identity_unavailable"}
     assert {
         "broker_provisioning_rejected",
@@ -674,11 +716,13 @@ def test_every_code_that_ends_a_broker_card_has_a_fixed_cause_in_its_wake() -> N
         for prompt in (
             failed("connect", code=code),
             failed("rotate_password", code=code),
-            failed("replace_token", code=code),
             failed("rotate_password", code=code, password_stored=True),
         ):
             assert f"{code}." in prompt and BROKER_CAUSES[code] in prompt, code
             assert OBSERVED_ONLY in prompt and "account 472790406 " in prompt, prompt
+        token = failed("replace_token", code=code)
+        assert f"{code}." in token and BROKER_CAUSES[code] in token, code
+        assert OBSERVED_ONLY in token, token
     for code in sorted(reading):
         linked = broker_card(
             "connect",
@@ -698,3 +742,41 @@ def test_every_code_that_ends_a_broker_card_has_a_fixed_cause_in_its_wake() -> N
     assert "wrong password" not in rejected and "Name no cause beyond" in rejected
     busy = failed("connect", code="broker_provisioning_busy")
     assert "still deploying" in busy and "Try again in a few minutes" in busy
+
+
+def test_a_broker_cause_is_true_in_every_path_that_gives_its_code() -> None:
+    """A cause holds for every path that produces its code (VISION 0.4). The busy code
+    comes from MetaApi reading the account as deploying or undeploying at the deadline,
+    with no deploy sent, or from its refusal of a deploy, redeploy or password update; the
+    token code from MetaApi's 401 or 403, or from the SDK's own check before any request
+    (a token not in the form of an API access token). A new token card's wake names the
+    MetaApi API token every connection uses, not one account's credential."""
+    import importlib
+
+    from lonora_adapters.brokers.metaapi_provisioning import provisioning_error
+    from lonora_db.secret_cards import BROKER_CAUSES, broker_prompt
+
+    busy = BROKER_CAUSES["broker_provisioning_busy"]
+    assert "reported the account as deploying or undeploying, or refused" in busy
+    assert "refuses another deploy" not in busy  # not observed when only a state was read
+
+    class Refused(Exception):
+        status_code = 401
+
+    sdk: Any = importlib.import_module("metaapi_cloud_sdk.clients.method_access_exception")
+    local = sdk.MethodAccessException("get_accounts", "account")  # raised before any request
+    assert {provisioning_error(error).code for error in (local, Refused())} == {
+        "broker_token_rejected"
+    }
+    token = BROKER_CAUSES["broker_token_rejected"]
+    assert token.startswith("MetaApi refused the MetaApi API token (unauthorized or forbidden)")
+    assert "or the saved token cannot manage MetaApi accounts" in token
+    assert "no request was sent with it" in token and "for this request" not in token
+
+    card = broker_card("replace_token", {"provisioning": "failed", "code": "broker_token_mismatch"})
+    prompt = broker_prompt(card)
+    assert prompt.startswith(
+        "Changing the MetaApi API token, which every MetaApi connection uses, failed: "
+        "broker_token_mismatch."
+    )
+    assert "broker credential" not in prompt and "472790406" not in prompt
