@@ -188,7 +188,7 @@ async def wake_for_activity(
 
     A change on a ticket the journal attributes to an Agent (a stop-loss or take-profit
     hit, a manual close of its position) wakes that Agent with its normal authority:
-    its grant, the account limits and pauses still decide at the executor. A paused
+    its grant and pauses still decide at the executor. A paused
     Agent is woken too, for its own positions and orders only, and may only reduce risk
     (4.7.1). A ticket of an Agent that no longer exists transferred to the Personal Agent
     (3.1.2): it wakes the Personal Agent the same way, as its own. Unattributed activity is
@@ -263,8 +263,8 @@ async def wake_for_activity(
             prompt = (
                 f"Broker activity on positions or orders you own or manage on account_id="
                 f"{account_id}. Use account_activity and current account state to reassess them "
-                "and decide what to do next. Your normal authority applies; your grant, account "
-                "limits and pauses decide at execution. Never resend an uncertain operation."
+                "and decide what to do next. Your normal authority applies; your grant and "
+                "pauses decide at execution. Never resend an uncertain operation."
             )
             if agent.paused:
                 prompt += (
