@@ -43,6 +43,9 @@ const card: OwnerAction = {
 
 test("an endpoint card is ours: its title, the saved name, its address and key typed", () => {
   assert.equal(ownerActionLabels.ar.connectModel, "ربط مزوّد نماذج");
+  // The key is a workspace secret: commands in the workspace that name it receive it.
+  assert.match(ownerActionLabels.ar.modelHint, /مساحة العمل/);
+  assert.match(ownerActionLabels.en.modelHint, /workspace/);
   for (const locale of ["ar", "en"] as const) {
     const text = ownerActionLabels[locale];
     const spec = ownerActionCard(card, locale);

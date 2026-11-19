@@ -181,7 +181,7 @@ export const ownerActionLabels = {
     connectBroker: "Connect a broker account",
     connectModel: "Connect a model provider",
     modelHint:
-      "The key is stored encrypted on your Lonora server and never enters the chat. Your models use it.",
+      "The key is stored encrypted on your Lonora server and never enters the chat. Your models use it, and so do workspace commands that ask for it.",
     modelEndpointHint: "It is sent to the address you type, with every request.",
     connectHint:
       "What you type is saved encrypted on the server. It never enters the chat, and no agent sees it.",
@@ -391,7 +391,8 @@ export const ownerActionLabels = {
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
     connectModel: "ربط مزوّد نماذج",
-    modelHint: "يُحفظ المفتاح مشفّراً على خادم Lonora ولا يدخل المحادثة. تستخدمه نماذجك.",
+    modelHint:
+      "يُحفظ المفتاح مشفّراً على خادم Lonora ولا يدخل المحادثة. تستخدمه نماذجك، والأوامر التي تطلبه في مساحة العمل.",
     modelEndpointHint: "ويُرسَل إلى العنوان الذي تكتبه مع كل طلب.",
     connectHint: "ما تكتبه يُحفظ مشفّرًا على الخادم. لا يدخل المحادثة، ولا يراه أي وكيل.",
     connectXHint:
