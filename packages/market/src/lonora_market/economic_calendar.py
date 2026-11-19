@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -40,6 +40,7 @@ def _default_source(url: str) -> CalendarSource:
 
 async def configured_sources(db: "Database", owner_id: str) -> list["IntegrationRow"]:
     """The owner's enabled economic calendar integrations that have a source URL."""
+    from lonora_db.integrations import has_source
     from lonora_db.schema import IntegrationRow
     from sqlalchemy import select
 
@@ -56,7 +57,7 @@ async def configured_sources(db: "Database", owner_id: str) -> list["Integration
         for row in rows
         if row.payload.get("type") == "economic_calendar"
         and row.payload.get("enabled")
-        and row.payload.get("url")
+        and has_source(row.payload)
     ]
 
 
@@ -64,18 +65,23 @@ async def read_calendar(
     db: "Database",
     owner_id: str,
     *,
+    read_secret: Callable[[str], Awaitable[str]],
     source: Callable[[str], CalendarSource] = _default_source,
     timeout_seconds: float = 20,
 ) -> tuple[list[dict[str, Any]], list[tuple[str, CalendarEvent]]]:
     """Read every enabled owner calendar integration; failures stay per source.
 
     Returns public source status (never the configured URL) and events tagged
-    with the integration ID that a calendar watch can reference.
+    with the integration ID that a calendar watch can reference. A calendar saved from
+    a Secret card keeps its address in the encrypted store (``read_secret``).
     """
+    from lonora_db.integrations import source_url
+
     configured = await configured_sources(db, owner_id)
 
-    async def fetch(url: str) -> list[CalendarEvent] | str:
+    async def fetch(row: "IntegrationRow") -> list[CalendarEvent] | str:
         try:
+            url = await source_url(row.payload, read_secret)
             async with asyncio.timeout(timeout_seconds):
                 return await source(url).events()
         except LonoraError as error:
@@ -90,7 +96,7 @@ async def read_calendar(
             logger.warning("calendar_source_failed type=%s", type(error).__name__)
             return "calendar_source_failed"
 
-    results = await asyncio.gather(*(fetch(str(row.payload["url"])) for row in configured))
+    results = await asyncio.gather(*(fetch(row) for row in configured))
     sources: list[dict[str, Any]] = []
     events: list[tuple[str, CalendarEvent]] = []
     for row, result in zip(configured, results, strict=True):
@@ -161,3 +167,79 @@ def select_events(
         for integration_id, event in matches[:limit]
     ]
     return page, len(matches)
+
+
+# Words sources use for an event's impact, folded to the three levels the picture uses.
+IMPACT_WORDS = {
+    "high": ("high", "3", "red", "h"),
+    "medium": ("medium", "moderate", "med", "2", "orange", "m"),
+    "low": ("low", "1", "yellow", "l", "0", "none", "holiday"),
+}
+# Cached events reach from a day back to a week ahead; a source has at most 1000.
+CACHE_HOURS_BACK = 24
+CACHE_HOURS_AHEAD = 24 * 7
+
+
+def normalized_impact(raw: str) -> str | None:
+    """``low``, ``medium`` or ``high``; None for a word no source convention names."""
+    word = raw.strip().casefold()
+    return next((level for level, words in IMPACT_WORDS.items() if word in words), None)
+
+
+async def cache_calendar(
+    db: "Database",
+    owner_id: str,
+    *,
+    read_secret: Callable[[str], Awaitable[str]],
+    source: Callable[[str], CalendarSource] = _default_source,
+) -> int:
+    """Refresh the owner's calendar cache (``ln_economic_calendar``), one row per source.
+
+    A source that cannot be read keeps its last events and records why; the row of a
+    source the owner removed or disabled is deleted. Returns the events cached.
+    """
+    from lonora_contracts.domain import utcnow
+    from lonora_db.schema import EconomicCalendarRow
+    from sqlalchemy import select
+
+    sources, events = await read_calendar(db, owner_id, read_secret=read_secret, source=source)
+    now = utcnow()
+    start = now - timedelta(hours=CACHE_HOURS_BACK)
+    end = now + timedelta(hours=CACHE_HOURS_AHEAD)
+    cached = 0
+    async with db.sessions() as session, session.begin():
+        rows = {
+            row.id: row
+            for row in await session.scalars(
+                select(EconomicCalendarRow)
+                .where(EconomicCalendarRow.owner_id == owner_id)
+                .with_for_update()
+            )
+        }
+        for status in sources:
+            identifier = str(status["integration_id"])
+            row = rows.pop(identifier, None)
+            if row is None:
+                row = EconomicCalendarRow(id=identifier, owner_id=owner_id, payload={}, state={})
+                session.add(row)
+            row.payload = {"name": status.get("name")}
+            if status["status"] != "ok":
+                row.state = {**row.state, "status": "unavailable", "reason": status["reason"]}
+                row.updated_at = now
+                continue
+            kept = [
+                {
+                    "name": event.name,
+                    "currency": event.currency.strip().upper(),
+                    "impact": normalized_impact(event.impact),
+                    "scheduled_at": event.scheduled_at.isoformat(),
+                }
+                for integration_id, event in events
+                if integration_id == identifier and start <= event.scheduled_at <= end
+            ]
+            row.state = {"status": "ok", "fetched_at": now.isoformat(), "events": kept}
+            row.updated_at = now
+            cached += len(kept)
+        for row in rows.values():
+            await session.delete(row)
+    return cached

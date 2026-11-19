@@ -6,6 +6,7 @@ clients draw everything inside the slot from the live record, never from the car
 """
 
 from collections.abc import Iterable
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +16,9 @@ from .schema import OwnerActionRow, RunRow, TradeApprovalRow
 
 async def slot_records(
     session: AsyncSession, owner_id: str, run_id: str | None, thread_id: str, ids: Iterable[str]
-) -> set[tuple[str, str]]:
-    """``(card, record id)`` for every named record a slot of this reply may show. The reply's
+) -> dict[tuple[str, str], int]:
+    """``(card, record id)`` for every named record a slot of this reply may show, with the
+    rows its card draws that change its height (a Secret card's fields; 0 otherwise). The reply's
     conversation is its Run's origin conversation when the Run works in its own thread (a
     broker event, a watch): its reply, approvals and cards land there (``outcome_return``)."""
     wanted = sorted(set(ids))
@@ -24,8 +26,8 @@ async def slot_records(
     origin = run.model_metadata.get("origin_thread_id") if run is not None else None
     thread_id = origin if isinstance(origin, str) and origin else thread_id
     if not wanted or not thread_id:
-        return set()
-    found: set[tuple[str, str]] = set()
+        return {}
+    found: dict[tuple[str, str], int] = {}
     approvals = await session.scalars(
         select(TradeApprovalRow.id).where(
             TradeApprovalRow.id.in_(wanted),
@@ -33,7 +35,7 @@ async def slot_records(
             TradeApprovalRow.thread_id == thread_id,
         )
     )
-    found |= {("trade_approval", identity) for identity in approvals}
+    found |= {("trade_approval", identity): 0 for identity in approvals}
     settles = await session.scalars(
         select(OwnerActionRow.id).where(
             OwnerActionRow.id.in_(wanted),
@@ -42,5 +44,18 @@ async def slot_records(
             OwnerActionRow.kind == "resolve_operation",
         )
     )
-    found |= {("settle", identity) for identity in settles}
+    found |= {("settle", identity): 0 for identity in settles}
+    secrets = await session.execute(
+        select(OwnerActionRow.id, OwnerActionRow.payload).where(
+            OwnerActionRow.id.in_(wanted),
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.thread_id == thread_id,
+            OwnerActionRow.kind == "secret",
+        )
+    )
+    for identity, payload in secrets.all():
+        fields: Any = payload.get("fields")
+        found[("secret", identity)] = (
+            len(cast(list[Any], fields)) if isinstance(fields, list) else 0
+        )
     return found
