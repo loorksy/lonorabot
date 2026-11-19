@@ -8,7 +8,7 @@ function for its effect: the owner attestation of an uncertain operation
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
-paused (``lonora_db.supervision``; never money authority), and recording what a
+paused (``lonora_db.pauses``; never money authority), and recording what a
 credential card's secure form connected (only which resource; the value went straight to
 the owner API); the agent that asked is woken to continue. A newly connected MCP server's
 tools run once the owner trusts it, by naming it in chat or in Capabilities.

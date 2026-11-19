@@ -666,6 +666,7 @@ async def admit_runs(
                 raise LonoraError("input_answer_expired", 409)
             if (
                 answer_run is None
+                and not agent.paused
                 and thread.agent_id
                 and message.origin == "owner"
                 and not (

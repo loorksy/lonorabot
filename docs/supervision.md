@@ -85,16 +85,16 @@ its lead role whatever its grant (`lonora_db.lead`), so a revoke never ends Lono
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
 It has no action that trades, grants, raises a limit or edits memory or instructions.
-Lonora alone also has `cancel_run` (ends the agent's started
-runs, never Lonora's own run or its ancestors; a queued run stays) and `set_ask` (the
-same switch as `trading_mode_ask`: Ask, except within an active signed grant's own terms
-until revoked, which `active_signed_grants` counts); a team agent gets
-`agent_control_lead_only`. A change Lonora makes returns `owner_line: "required"`, and
-the conversation gate holds an empty reply until Lonora tells the owner in one line what
-it did and why (mandate 3.1.2). Lonora steers every team agent's work by its lead role, with or
-without a grant; any other agent only as its supervisor, whatever message its Run
-answers (`supervision_required`). The owner's message counts only while the Run has
-read nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on another
+Lonora alone also has `cancel_run` (ends the agent's started runs, never Lonora's own
+run or its ancestors; a queued run stays) and `set_ask` (the same switch as
+`trading_mode_ask`: Ask, except within an active signed grant's own terms until revoked,
+which `active_signed_grants` counts); a team agent gets `agent_control_lead_only`. A
+change Lonora makes returns `owner_line: "required"`, and the conversation gate holds an
+empty reply until Lonora tells the owner in one line what it did and why (mandate
+3.1.2). Lonora steers every team agent's work by its lead role, with or without a grant;
+any other agent only as its supervisor, whatever message its Run answers
+(`supervision_required`). The owner's message counts only while the Run has read
+nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on another
 agent's routine follows the same rules.
 
 Holds (`ln_supervision_holds`) record each pause a supervisor sets:

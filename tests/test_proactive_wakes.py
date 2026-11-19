@@ -822,25 +822,18 @@ async def test_a_fixed_market_agent_reads_and_trades_every_account_but_watches_i
         assert decisions["decisions"][0]["recorded_by"]["you"] is False
         # The focus account still defaults to the focus symbol.
         assert (await call(context, "trade_record_history"))["records"] == []
-        # Its orders are not bound (3.1.2, 6.9): with trading on, new risk in Ask asks for
+        # Its orders are not bound (3.1.2, 6.9): new risk in Ask asks for
         # its tolerance, on another account too; nothing is sent.
-        from lonora_contracts.trading import TradingControl
-        from lonora_trading.controls import read_controls, save_controls
 
-        original = await read_controls(fixture.runtime.db)
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
-        try:
-            with pytest.raises(LonoraError, match="tolerance_required"):
-                await call(
-                    context,
-                    "trade_execute",
-                    account_id=secondary,
-                    symbol="XAUUSD",
-                    action="buy",
-                    volume="0.1",
-                )
-        finally:
-            await save_controls(fixture.runtime.db, original)
+        with pytest.raises(LonoraError, match="tolerance_required"):
+            await call(
+                context,
+                "trade_execute",
+                account_id=secondary,
+                symbol="XAUUSD",
+                action="buy",
+                volume="0.1",
+            )
         with pytest.raises(LonoraError, match="agent_trading_account_mismatch"):
             await call(
                 context,
