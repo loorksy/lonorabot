@@ -138,6 +138,13 @@ async def decide(
     pending_calls = run.execution_state.get("pending", [])
     if run.execution_state and not any(call.get("id") == row.call_id for call in pending_calls):
         raise LonoraError("trade_approval_run_unavailable", 409)
+    if decision == "approve":
+        agent = await session.get(AgentRow, row.agent_id)
+        if agent is not None and agent.paused:
+            # A pause ends no card (10.3.1.3) and a paused agent sends no new risk (4.7.1):
+            # the card stays pending, drift still watches it, and Approve waits for the
+            # resume. Reject still ends it.
+            raise LonoraError("trade_approval_agent_paused", 409)
     row.status, row.updated_at = desired, utcnow()
     wake_waiting_run(session, row, run)
     approval_event(session, row)
@@ -204,16 +211,8 @@ WITHDRAWN_TRIGGER = "owner_card"
 
 def withdrawn_prompt(row: TradeApprovalRow, mode: str) -> str:
     """Fixed text and the server's own identifier only: nothing a model wrote."""
-    current = "Full" if mode == "full" else "Ask"
-    if row.validity.get("withdrawn_by") == "pause":
-        return (
-            f"You were paused, which withdrew your pending Trade Approval card (approval_id="
-            f"{row.id}). Nothing was approved or sent. While paused you send only "
-            "risk-reducing requests; once you are resumed, re-check the market, the account "
-            f"and your reasons with fresh data, and decide again under your mode ({current})."
-        )
     return (
-        f"Your trading mode is now {current}: your pending Trade "
+        f"Your trading mode is now {'Full' if mode == 'full' else 'Ask'}: your pending Trade "
         f"Approval card (approval_id={row.id}) was withdrawn. Nothing was approved or sent. "
         "Re-check the market, the account and your reasons now with fresh data, and decide "
         "again under your current mode."
@@ -221,14 +220,12 @@ def withdrawn_prompt(row: TradeApprovalRow, mode: str) -> str:
 
 
 async def withdraw_pending(
-    session: AsyncSession, owner_id: str, agent_id: str, mode: str, *, paused: bool = False
+    session: AsyncSession, owner_id: str, agent_id: str, mode: str
 ) -> list[TradeApprovalRow]:
-    """Withdraw every pending Trade Approval card of the agent: on a mode change (4.2.3),
-    or when the agent is paused (``paused``: a paused agent sends no new risk, 4.7.1, so
-    no Approve may wait on its card). A withdrawn card is never approved or executed; the
-    run waiting on it continues and reads the outcome, and a card no run waits on wakes
-    its agent with fixed text. Locks are taken in the order a decision takes them
-    (``locked_approval``)."""
+    """Withdraw every pending Trade Approval card of the agent (4.2.3). A withdrawn card is
+    never approved or executed; the run waiting on it continues and reads the outcome, and
+    a card no run waits on wakes its agent with fixed text. Locks are taken in the order a
+    decision takes them (``locked_approval``)."""
     identifiers = list(
         await session.scalars(
             select(TradeApprovalRow.id)
@@ -248,9 +245,6 @@ async def withdraw_pending(
             continue  # Its conversation was deleted: it can no longer be decided anyway.
         if row.status != "pending":
             continue
-        if paused:
-            # Why it ended, for the run that reads it after the resume.
-            row.validity = {**row.validity, "withdrawn_by": "pause"}
         await end_card(session, row, run, "withdrawn", withdrawn_prompt(row, mode))
         withdrawn.append(row)
     return withdrawn

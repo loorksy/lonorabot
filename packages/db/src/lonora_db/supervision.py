@@ -513,12 +513,12 @@ async def control_work(
         # Taken before the agent's row lock, in the order a mode change takes them.
         await authority_lock(session, agent_id)
         if action == "pause":
-            from .pauses import end_on_pause
+            from .management_task import end_management_task
 
-            # Pausing withdraws the agent's pending cards and ends its Full-mode task
-            # (4.5.2), before the agent's row lock: the task's Runs are locked first, as
-            # their own work does. A refusal below rolls the whole transaction back.
-            await end_on_pause(session, owner_id, agent_id)
+            # Pausing ends the Full-mode task (4.5.2), before the agent's row lock: the
+            # task's Runs are locked first, as their own work does. A refusal below rolls
+            # the whole transaction back.
+            await end_management_task(session, owner_id, agent_id)
     # A pause asked for in the owner's words is the owner's (4.7.2). Only an untainted
     # owner message stands for them (6.10): injected text never speaks as the owner.
     asked_by_owner = owner_message_id

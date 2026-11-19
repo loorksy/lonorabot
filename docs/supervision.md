@@ -243,8 +243,9 @@ profile) do not fit and are promoted after first use like any remembered tool.
   pause the owner asks for over a supervisor's lifted by the owner's next words; a
   deleted supervisor's pauses kept as the owner's.
 - `tests/test_paused_agent.py`: what a paused agent runs (only its own broker wakes, not
-  the owner's messages or Lonora's system alerts), the door refusing its new risk, and a
-  pause withdrawing its pending Trade Approval cards.
+  the owner's messages or Lonora's system alerts), the door refusing its new risk, and
+  its pending Trade Approval card staying pending, with Approve refused until the resume
+  and a wake whose card is approved held.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the

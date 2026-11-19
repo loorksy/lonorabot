@@ -3,11 +3,13 @@
 A paused agent takes no new work: its routines, watches and timers are held, the owner's
 messages to it are kept and start no run, and only a broker event on its own positions
 and pending orders starts a run of it. Through the door it sends only risk-reducing
-requests, in either mode. Runs on the real migrated PostgreSQL schema and the simulation
-broker (skipped without ``LONORA_DATABASE_URL``).
+requests, in either mode, and its pending Trade Approval card stays pending until the
+resume. Runs on the real migrated PostgreSQL schema and the simulation broker (skipped
+without ``LONORA_DATABASE_URL``).
 """
 
 from datetime import timedelta
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -325,88 +327,114 @@ async def test_a_system_alert_wake_queued_before_the_pause_is_held() -> None:
         await fixture.close()
 
 
+async def own_wake(fixture: Any, agent_id: str, conversation_id: str) -> str:
+    """A wake for broker activity on the agent's own tickets, in its work thread and
+    reporting to its conversation (``wake_for_activity``), made before the pause."""
+    from lonora_contracts.domain import ThreadCreate
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.runs import create_run
+    from lonora_db.threads import create_thread
+
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        work = await create_thread(
+            session, fixture.owner, ThreadCreate(agent_id=agent_id), purpose="work"
+        )
+        run = await create_run(
+            session,
+            fixture.owner,
+            RunRequest(
+                thread_id=work.id,
+                agent_id=agent_id,
+                trigger="broker_event",
+                prompt="Broker activity on positions or orders you opened.",
+                metadata={"origin_thread_id": conversation_id, "broker_event_ids": ["e1"]},
+            ),
+        )
+        return run.id
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("by", ["owner", "lonora"])
-async def test_pausing_withdraws_the_agents_pending_trade_approval_cards(by: str) -> None:
-    """10.3.1.3, 4.7.1: a paused agent sends no new risk, so its pending Trade Approval
-    card ends on the pause: withdrawn, never executed, and no longer approvable, so the
-    owner never spends an Approve the door would refuse. The run waiting on it is held
-    while paused and, once resumed, reads why the card ended and decides again. The
-    owner's pause and Lonora's withdraw it alike."""
+async def test_a_paused_agents_card_stays_pending_and_approve_waits_for_the_resume() -> None:
+    """10.3.1.3 names no pause among the ways a card ends, and a paused agent sends no
+    new risk (4.7.1): the card stays pending, the owner's Approve is refused with a true
+    line until the resume, and a wake whose card was approved before the pause is held,
+    so that Approve is kept for the resume instead of spent on the door's refusal."""
     database()
     from check_streaming import Fixture
     from lonora_db.pauses import claimable_while_paused
-    from lonora_db.personal_agent import ensure_personal_agent
     from lonora_db.schema import RunRow, TradeApprovalRow, TradingJournalRow
-    from lonora_db.supervision import control_work
     from sqlalchemy import select
-    from test_mandate_card import agent_run, same_call
+    from test_mandate_card import same_call
 
     fixture = await Fixture().open()
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        agent = await fixture.agent("Paused card " + by, supervised=True)
-        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        agent = await fixture.agent("Paused card", supervised=True)
+        thread = await fixture.conversation(agent)
+        wake_id = await own_wake(fixture, agent["id"], thread["id"])
+        async with fixture.runtime.db.sessions() as session:
+            wake = await session.get(RunRow, wake_id)
+            assert wake is not None
+            run = {"id": wake_id, "agent_id": agent["id"], "thread_id": wake.thread_id}
+        context = await fixture.lease(run)
         entry = {
             "action": "buy",
             "account_id": connection,
             "symbol": "XAUUSD",
             "volume": "0.1",
-            "tolerance": "2",
+            "tolerance": "5",
             "reason": "Fixture entry",
         }
         asked = await same_call(context, entry)
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
-        async with fixture.runtime.db.sessions() as session, session.begin():
+        approval = f"/api/trading/approvals/{asked['approval_id']}/decision"
+
+        async def park() -> None:
             # The runtime parks a run that waits on a card.
-            waiting = await session.get(RunRow, context.lease.run_id, with_for_update=True)
-            assert waiting is not None
-            waiting.status = "waiting_input"
-        if by == "owner":
-            await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": True})
-        else:
             async with fixture.runtime.db.sessions() as session, session.begin():
-                lonora = await ensure_personal_agent(session, fixture.owner)
-                await control_work(
-                    session,
-                    fixture.owner,
-                    actor_id=lonora.id,
-                    agent_id=agent["id"],
-                    kind="agent",
-                    target_id=None,
-                    action="pause",
-                    owner_message_id=None,
-                    run_id=None,
-                )
+                waiting = await session.get(RunRow, wake_id, with_for_update=True)
+                assert waiting is not None
+                waiting.status = "waiting_input"
+
+        await park()
+        await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": True})
+        refused = await fixture.client.post(approval, json={"decision": "approve"})
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["code"] == "trade_approval_agent_paused", refused.text
         async with fixture.runtime.db.sessions() as session:
             card = await session.get(TradeApprovalRow, asked["approval_id"])
-            assert card is not None and card.status == "withdrawn"
-            assert card.validity["withdrawn_by"] == "pause"
-            run = await session.get(RunRow, context.lease.run_id)
-            assert run is not None and run.status == "queued"
-            # Woken to read the outcome, but held while the agent is paused.
-            assert not await session.scalar(
-                select(RunRow.id).where(RunRow.id == run.id, claimable_while_paused())
-            )
-        late = await fixture.client.post(
-            f"/api/trading/approvals/{asked['approval_id']}/decision", json={"decision": "approve"}
-        )
-        assert late.status_code == 409, late.text
+            assert card is not None and card.status == "pending"
+            held = await session.get(RunRow, wake_id)
+            assert held is not None and held.status == "waiting_input"
+
+        # Resumed, the owner approves; paused again before it is sent, the wake waits.
         await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": False})
-        context = await fixture.lease({"id": context.lease.run_id, **agent_run(context)})
-        answer = await same_call(context, entry)
-        assert answer.get("status") == "withdrawn", answer
-        assert answer["recovery"].startswith("You were paused"), answer["recovery"]
-        assert "(Ask)" in answer["recovery"], answer["recovery"]
+        approved = await fixture.client.post(approval, json={"decision": "approve"})
+        assert approved.status_code == 200, approved.text
+        await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": True})
         async with fixture.runtime.db.sessions() as session:
+            card = await session.get(TradeApprovalRow, asked["approval_id"])
+            assert card is not None and card.status == "approved"
+            queued = await session.get(RunRow, wake_id)
+            assert queued is not None and queued.status == "queued"
+            assert not await session.scalar(
+                select(RunRow.id).where(RunRow.id == wake_id, claimable_while_paused())
+            )
             sent = await session.scalar(
                 select(TradingJournalRow.operation_id).where(
                     TradingJournalRow.owner_id == fixture.owner,
                     TradingJournalRow.account_id == connection,
                 )
             )
-        assert sent is None, "a paused agent's card was executed"
+        assert sent is None, "a paused agent's approved card was sent"
+
+        # Once resumed, the kept Approve is sent.
+        await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": False})
+        context = await fixture.lease(run)
+        done = await same_call(context, entry)
+        assert done.get("status") == "confirmed", done
     finally:
         await retire(fixture, connection)
         await fixture.close()
+

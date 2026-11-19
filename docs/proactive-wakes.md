@@ -182,7 +182,8 @@ Delivery is in-app only until Wave 3. See
   the Personal Agent observe-only.
 - An attributed wake of a paused Agent runs while it is paused, for its own tickets
   only; its other runs (routines, watches, timers, Tasks, the owner's messages) wait for
-  the resume.
+  the resume. So does the wake itself while its Trade Approval card is pending or
+  approved and not yet sent.
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
   runs and memory through its default, revocable supervision grant, on demand.

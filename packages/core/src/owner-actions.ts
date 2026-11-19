@@ -1392,6 +1392,10 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "The price moved outside this request's range, so it can no longer be approved.",
     ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
   },
+  trade_approval_agent_paused: {
+    en: "This agent is paused, so this request cannot be approved now. Resume the agent first.",
+    ar: "هذا الوكيل متوقف مؤقتًا، فلا يمكن الموافقة على هذا الطلب الآن. استأنف الوكيل أولًا.",
+  },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",
     ar: "هذا الطلب ما زال بانتظارك أو سبقت الإجابة عليه.",

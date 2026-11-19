@@ -16,11 +16,19 @@ from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from sqlalchemy import ColumnElement, and_, or_, select
+from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import AgentRow, MarketWatchRow, RoutineRow, RunRow, SupervisionHoldRow, TicketRow
+from .schema import (
+    AgentRow,
+    MarketWatchRow,
+    RoutineRow,
+    RunRow,
+    SupervisionHoldRow,
+    TicketRow,
+    TradeApprovalRow,
+)
 from .transactions import owned_agent
 
 
@@ -39,28 +47,23 @@ def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
 
 
 def claimable_while_paused(run: Any = RunRow) -> ColumnElement[bool]:
-    """``runs_while_paused`` as a claim condition on ``run`` (``RunRow`` or an alias)."""
+    """``runs_while_paused`` as a claim condition on ``run`` (``RunRow`` or an alias). A
+    wake whose Trade Approval card is still pending, or approved and not yet sent, waits
+    for the resume too: the card's new risk is never sent while paused, and an Approve
+    given before the pause is kept for the resume instead of spent on a refusal."""
     authority = run.model_metadata["authority"].as_string()
     return and_(
         run.trigger == "broker_event",
         run.model_metadata["broker_event_ids"].as_string().is_not(None),
         run.model_metadata["system_alert"].as_string().is_(None),
         or_(authority.is_(None), authority != "observe_only"),
+        ~exists(
+            select(TradeApprovalRow.id).where(
+                TradeApprovalRow.run_id == run.id,
+                TradeApprovalRow.status.in_(["pending", "approved"]),
+            )
+        ),
     )
-
-
-async def end_on_pause(session: AsyncSession, owner_id: str, agent_id: str) -> None:
-    """What pausing the whole agent ends, in the caller's transaction under the agent's
-    authority lock and before its row lock (the order a mode change takes them): its
-    pending Trade Approval cards, withdrawn and never executed (a paused agent sends no
-    new risk, 4.7.1, so no Approve may wait on one), and its Full-mode task (4.5.2)."""
-    from .management_task import end_management_task
-    from .trade_approvals import withdraw_pending
-    from .trading_mode import trading_mode
-
-    mode = await trading_mode(session, owner_id, agent_id)
-    await withdraw_pending(session, owner_id, agent_id, mode, paused=True)
-    await end_management_task(session, owner_id, agent_id)
 
 
 async def live_hold(

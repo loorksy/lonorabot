@@ -312,11 +312,16 @@ within the grant's own terms until the owner revokes it.
 
 Switching an agent to Full withdraws its pending Trade Approval cards (status
 `withdrawn`): a withdrawn card is never approved or executed, and the agent is woken
-with fixed server text to decide again under Full. Pausing an agent (the owner's
-switch, the owner's creation Undo, or Lonora's pause) withdraws them the same way
-(`end_on_pause`, `validity.withdrawn_by = "pause"`): a paused agent sends no new risk
-(4.7.1), so no Approve waits on its card; the woken Run is held until the resume and then
-reads that the pause withdrew it. A card for an agent that is deleted ends with it.
+with fixed server text to decide again under Full. A card for an agent that is deleted
+ends with it.
+
+A pause ends no card (10.3.1.3 names no pause): a paused agent's pending card stays
+pending and drift still watches it. A paused agent sends no new risk (4.7.1), so the
+owner's Approve is refused while it is paused (`trade_approval_agent_paused`, "resume
+the agent first") and the card waits for the resume; Reject still ends it. A broker wake
+of a paused agent whose card is pending, or approved and not yet sent, is held until the
+resume (`claimable_while_paused`), so an Approve given before the pause is kept, never
+spent on the door's refusal.
 
 ## Full mode keeps working (mandate 4.5)
 
@@ -334,10 +339,9 @@ Ending the Task (`close_task`) keeps what the agent set up:
 
 - A Run of the Task that is working, waiting for the owner (a question or a Trade
   Approval card), queued after a wake, or failed leaves the Task and goes on as an
-  ordinary Run of the agent. Its cards stay decidable and end only as 10.3.1.3 says (on
-  a pause they were withdrawn just before); a request it is sending is decided under the
-  agent's mode; a watch it creates afterwards belongs to the agent's conversation. A
-  paused agent's Runs wait for its resume.
+  ordinary Run of the agent. Its cards stay decidable and end only as 10.3.1.3 says; a
+  request it is sending is decided under the agent's mode; a watch it creates afterwards
+  belongs to the agent's conversation. A paused agent's Runs wait for the owner's resume.
 - The kickoff Run that never started is cancelled. A Run suspended on its own
   `task_wait` (or held by the owner's pause of the Task) is cancelled; a pending timer
   becomes a one-shot routine in the agent's conversation at the same time, held while the
