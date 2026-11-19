@@ -1,7 +1,7 @@
 """Owner integrations and the secret values they use, owner session only.
 
-A secret is posted here directly by the owner's form (a settings page or a credential
-card in chat) and stored encrypted; only its id goes into an integration or MCP
+A secret is posted here directly by the owner's settings form and stored encrypted (in
+chat, the Secret card saves it instead); only its id goes into an integration or MCP
 connection, and no agent, transcript or event ever sees the value. A news feed the owner
 adds trusts its domain (the owner added it), so agents may subscribe more feeds there;
 removing the last feed of a site removes that site from the trusted list too (it stays
@@ -13,8 +13,7 @@ from typing import Any
 from fastapi import Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.agent_secrets import SecretCreate
-from lonora_core.user_error import LonoraError
-from lonora_db.integrations import IntegrationRepository, feed_host
+from lonora_db.integrations import IntegrationRepository, feed_site
 from lonora_db.schema import IntegrationRow, ResourceRow
 from lonora_db.trusted_sources import feed_trusted, revoke_feed_sites, trust_source
 from sqlalchemy import select
@@ -43,34 +42,29 @@ class OwnerIntegrationRepository(IntegrationRepository):
             thread_id=thread_id,
             resource_id=resource_id,
         )
-        if row.payload.get("type") == "news_feed":
-            domain = feed_host(str(row.payload["url"]))
+        domain = feed_site(row.payload) if row.payload.get("type") == "news_feed" else None
+        if domain is not None:
             if not await feed_trusted(session, owner_id, domain):
                 await trust_source(session, owner_id, "feed_domain", domain, via="owner_ui")
         return row
 
     async def delete(self, session: AsyncSession, owner_id: str, resource_id: str) -> None:
         row = await self.get(session, owner_id, resource_id, lock=True)
-        url = str(row.payload.get("url") or "") if row.payload.get("type") == "news_feed" else ""
+        host = feed_site(row.payload) if row.payload.get("type") == "news_feed" else None
         await super().delete(session, owner_id, resource_id)
-        if not url:
+        if host is None:
             return
         others = await session.scalars(
             select(IntegrationRow).where(
                 IntegrationRow.owner_id == owner_id, IntegrationRow.id != resource_id
             )
         )
-        remaining: list[str] = []
-        for other in others:
-            if other.payload.get("type") == "news_feed":
-                try:
-                    remaining.append(feed_host(str(other.payload.get("url") or "")))
-                except LonoraError:
-                    continue
-        try:
-            host = feed_host(url)
-        except LonoraError:
-            return
+        remaining = [
+            site
+            for other in others
+            if other.payload.get("type") == "news_feed"
+            and (site := feed_site(other.payload)) is not None
+        ]
         await revoke_feed_sites(session, owner_id, host, remaining)
 
 

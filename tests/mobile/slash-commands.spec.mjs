@@ -154,6 +154,14 @@ test("«/» lists the commands; a task is sent with its command; summary goes at
     // The cleared history does not come back (the unsent commands of this test stay on the
     // device, failed, as any unsent message does).
     await expect(page.getByText("/search gold news", { exact: true })).toHaveCount(0);
+
+    // «اقتراحات @» off (chat preference): no command list either, as on Web.
+    await page.evaluate(() =>
+      localStorage.setItem("lonora.chatPrefs", JSON.stringify({ assist: false })),
+    );
+    await page.reload();
+    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("/");
+    await expect(page.getByRole("list", { name: "Commands" })).toHaveCount(0);
   } finally {
     await data.remove();
   }

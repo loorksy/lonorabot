@@ -57,6 +57,7 @@ export function ThreadComposer({
   onCancelEdit,
   commands = [],
   onCommand,
+  assist = true,
   permissionControl,
 }: {
   draft: string;
@@ -86,6 +87,8 @@ export function ThreadComposer({
   /** The / commands this chat offers (lib/commands), and what picking one does. */
   commands?: CommandRow[];
   onCommand?: (row: CommandRow) => void;
+  /** «اقتراحات @» (chat preference): off, no list of agents while writing. */
+  assist?: boolean;
   /** Edit and resend (Q21): the owner's message this send replaces. */
   editing?: Message | null;
   onCancelEdit?: () => void;
@@ -99,15 +102,17 @@ export function ThreadComposer({
   const textBeforeCaret = draft.slice(0, cursor);
   const query = mentionQuery(textBeforeCaret);
   const candidates: Array<Agent | null> =
-    query === null
+    query === null || !assist
       ? []
       : guestCandidates(mentionCandidates(members, query), committed.current, direct, self).slice(
           0,
           6,
         );
-  if (query !== null && mentionAll && "all".startsWith(query.toLowerCase())) candidates.push(null);
-  // «/» at the start of a message: the chat's commands, best match first (never in an edit).
-  const commandTyped = editing ? null : commandQuery(textBeforeCaret);
+  if (assist && query !== null && mentionAll && "all".startsWith(query.toLowerCase()))
+    candidates.push(null);
+  // «/» at the start of a message: the chat's commands, best match first (never in an edit);
+  // as Web, «اقتراحات @» off hides this list too.
+  const commandTyped = editing || !assist ? null : commandQuery(textBeforeCaret);
   const ranked = commandTyped === null ? null : rankCommands(commands, commandTyped);
   // A bare command that takes words: what to write after it, as Web's ghost text.
   const typedCommand = editing || attachments.length ? null : parseCommand(draft, commands);
