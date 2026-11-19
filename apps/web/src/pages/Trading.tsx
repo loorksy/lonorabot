@@ -6,7 +6,6 @@ import { Orders } from "../components/trading/Orders";
 import { Positions } from "../components/trading/Positions";
 import { TradeActionCard } from "../components/trading/TradeActionCard";
 import { TradingJournal } from "../components/trading/TradingJournal";
-import { TradingStatus } from "../components/trading/TradingStatus";
 import { useMarket } from "../hooks/useMarket";
 import { useTrading } from "../hooks/useTrading";
 import { api } from "../lib/api";
@@ -24,7 +23,6 @@ export function Trading() {
       <h1>
         <Trans>Trading</Trans>
       </h1>
-      <TradingStatus />
       <BrokerConnection />
       <div className="row">
         <label>

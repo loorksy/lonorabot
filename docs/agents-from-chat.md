@@ -46,17 +46,17 @@ connection version is recorded and re-checked when the agent is created.
 
 ### Owner message or card
 
-- **The run answers the owner's message** (a `user` or `group` run, the same rule as
-  `trade_restriction_create`): the agent is created at once, and that message is
-  recorded as its source. The owner's message stands for the owner's intent only while
-  the Run has read nothing someone else wrote (`restrictions.owner_message_id`): once a
+- **The run answers the owner's message** (a `user` or `group` run): the agent is
+  created at once, and that message is recorded as its source. The owner's message
+  stands for the owner's intent only while the Run has read nothing someone else wrote
+  (`provenance.owner_message_id`): once a
   tool returned third-party or other-agent content into the Run (a web page, search
   excerpt, feed, MCP result, peer's memory, stored file or another model; the list the
   context engine labels untrusted, recorded per Run by the registry) or another agent's
   message reached it, it is treated like a wake and raises the card instead. The same
   rule governs every tool that acts on the owner's word: supervision, `agent_control`,
-  the owner profile and reach-me, model switches, narrowing other agents and lifting a
-  hold. Supervision over Lonora (`supervises` naming the Personal Agent) is always a card.
+  the owner profile and reach-me, model switches and lifting a hold. Supervision over
+  Lonora (`supervises` naming the Personal Agent) is always a card.
 - **The responsibility it writes stays its writing.** The new agent's instructions are
   the responsibility the creating agent wrote; while they still match it
   (`instructions_sha256` in the origin record) the context shows them as a labelled

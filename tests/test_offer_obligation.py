@@ -33,8 +33,8 @@ from lonora_db.schema import MessageRow, RunRow
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
+from lonora_tools.provenance import mark_external_content
 from lonora_tools.registry import ToolRegistry
-from lonora_tools.restrictions import mark_external_content
 from lonora_tools.runtime_control import tools as runtime_tools
 from pydantic import BaseModel
 from sqlalchemy import func, select

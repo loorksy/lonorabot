@@ -14,6 +14,7 @@ import httpx
 from lonora_contracts.account import AccountState, Order, Position
 from lonora_contracts.market import Candle, Instrument, Quote, TradingHours
 from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_core.broker_endpoints import METAAPI_SDK_DOMAIN
 from lonora_core.chart_controller import validate_timeframe
 from lonora_core.error_logging import safe_exception_message
 from lonora_core.user_error import LonoraError
@@ -104,7 +105,7 @@ def validate_sdk_url(url: str) -> str:
     if (
         parsed.scheme not in {"https", "wss"}
         or not parsed.hostname
-        or not parsed.hostname.endswith(".agiliumtrade.ai")
+        or not parsed.hostname.endswith("." + METAAPI_SDK_DOMAIN)
         or parsed.username
         or parsed.password
         or parsed.port not in {None, 443}
@@ -193,6 +194,21 @@ def configure_sdk_transport() -> None:
     websocket_module.socketio = SimpleNamespace(AsyncClient=ProxySocketClient)
     websocket_module.MetaApiWebsocketClient._reconnect = reconnect
     http_module._lonora_transport_configured = True
+
+
+async def refused_by_broker(account: Any) -> bool:
+    """Mandate 9.4: after synchronization timed out, a fresh read of the account (not the
+    cached metadata) tells a terminal the broker refuses (a changed password, or the
+    broker's server down) apart from a lost link. A brief broker restart that has already
+    passed reads CONNECTED and keeps the timeout."""
+    try:
+        async with asyncio.timeout(10):
+            await account.reload()
+        return (
+            account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED_FROM_BROKER"
+        )
+    except Exception:
+        return False
 
 
 class MetaApiBroker:
@@ -412,6 +428,10 @@ class MetaApiBroker:
                     if connection is not None:
                         await self._discard_locked(kind, connection)
                     failure = self.diagnose(error, kind)
+                    if failure.code == "broker_connection_timeout" and await refused_by_broker(
+                        account
+                    ):
+                        failure = LonoraError("broker_login_rejected", 409)
                     slot.failed(failure)
                     raise failure from error
 

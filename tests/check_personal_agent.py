@@ -6,7 +6,6 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import AgentCreate, utcnow
-from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import assert_market_binding, binding_context
 from lonora_db.agents import create_agent
 from lonora_db.personal_agent import (
@@ -24,7 +23,6 @@ async def checks() -> None:
     connections: list[str] = []
     original_name = "Lonora"
     personal_id = ""
-    controls = await f.request("GET", "/trading/controls")
     try:
 
         async def bootstrap() -> str:
@@ -116,27 +114,6 @@ async def checks() -> None:
             {"level": "supervised", "expected_revision": permission["revision"]},
         )
         entry = {"account_id": account, "symbol": symbols[0], "action": "buy", "volume": "0.1"}
-        # New trading has not been started: the entry is not sent and no approval is asked
-        # (the owner is never asked to approve what Stop new trading would refuse); the
-        # owner gets the one-tap Start trading card instead. After the owner's own Stop
-        # it is the owner's brake: the refusal, no card.
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
-        try:
-            first = await registry.execute(
-                ToolCall(id=uuid4().hex, name="trade_execute", arguments=entry), context
-            )
-        except LonoraError as error:
-            assert error.code == "trading_disabled", error.code
-        else:
-            assert first["code"] == "trading_not_started", first
-            assert first["owner_action"]["kind"] == "resume_trading", first
-        async with f.runtime.db.sessions() as session:
-            assert not list(
-                await session.scalars(
-                    select(TradeApprovalRow).where(TradeApprovalRow.run_id == context.lease.run_id)
-                )
-            )
-        await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
         trade = await registry.execute(
             ToolCall(id=uuid4().hex, name="trade_execute", arguments=entry), context
         )
@@ -195,7 +172,6 @@ async def checks() -> None:
             "PASS specialist discovery is structured, no-specialist fallback stays Personal; account owner unique; inbox returns durable newest message"
         )
     finally:
-        await f.request("PUT", "/trading/controls", controls)
         if personal_id:
             await f.request("PATCH", f"/agents/{personal_id}", {"name": original_name})
             async with f.runtime.db.sessions() as session, session.begin():

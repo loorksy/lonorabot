@@ -67,7 +67,10 @@ def test_lonora_never_waits_on_web_search_and_drops_the_retired_overlay() -> Non
     assert "CORE_SERVICES=(db api caddy gateway)" in script
     assert "RESEARCH_SERVICES=(searxng browser)" in script
     # An installation that listed the old overlay stops merging it on its next update.
-    assert "RETIRED_OVERLAYS=(infra/research/compose.research.yml)" in script
+    assert (
+        "RETIRED_OVERLAYS=(infra/research/compose.research.yml infra/analysis/compose.workspace.yml)"
+        in script
+    )
     assert "    retire_overlays\n}" in script
 
 
@@ -87,18 +90,20 @@ def run_retire(tmp_path: Path, env: str) -> tuple[str, str]:
     return (tmp_path / ".env").read_text(), done.stdout
 
 
-def test_an_update_drops_only_the_retired_overlay_and_keeps_every_secret(tmp_path: Path) -> None:
+def test_an_update_drops_only_the_retired_overlays_and_keeps_every_secret(tmp_path: Path) -> None:
+    # Both retired: research (now in the stack) and analysis (the owner's workspace replaced
+    # the analytical workspace's host bridge). An overlay of the operator's own stays.
     before = (
         "LONORA_ENCRYPTION_KEY=secret-value\n"
         "LONORA_COMPOSE_OVERLAYS=infra/research/compose.research.yml "
-        "infra/analysis/compose.workspace.yml\n"
+        "infra/analysis/compose.workspace.yml infra/custom/compose.extra.yml\n"
         "LONORA_DOMAIN=example.com\n"
     )
     after, said = run_retire(tmp_path, before)
     assert after.splitlines() == [
         "LONORA_ENCRYPTION_KEY=secret-value",
         "LONORA_DOMAIN=example.com",
-        "LONORA_COMPOSE_OVERLAYS=infra/analysis/compose.workspace.yml",
+        "LONORA_COMPOSE_OVERLAYS=infra/custom/compose.extra.yml",
     ]
     assert "removed from LONORA_COMPOSE_OVERLAYS" in said and "secret-value" not in said
     assert (tmp_path / ".env").stat().st_mode & 0o777 == 0o600
@@ -111,9 +116,13 @@ def test_compose_never_merges_a_retired_overlay(tmp_path: Path) -> None:
     """An installation updated by an older lonora keeps the overlay in .env and on disk."""
     (tmp_path / ".env").write_text(
         "LONORA_COMPOSE_OVERLAYS=infra/research/compose.research.yml "
-        "infra/analysis/compose.workspace.yml\n"
+        "infra/analysis/compose.workspace.yml infra/custom/compose.extra.yml\n"
     )
-    for name in ("infra/research/compose.research.yml", "infra/analysis/compose.workspace.yml"):
+    for name in (
+        "infra/research/compose.research.yml",
+        "infra/analysis/compose.workspace.yml",
+        "infra/custom/compose.extra.yml",
+    ):
         (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / name).write_text("services: {}\n")
     functions = (
@@ -128,5 +137,38 @@ def test_compose_never_merges_a_retired_overlay(tmp_path: Path) -> None:
         ["bash", "-c", functions], cwd=tmp_path, capture_output=True, text=True, check=True
     )
     arguments = done.stdout.split("\n")
-    assert "infra/analysis/compose.workspace.yml" in arguments
+    assert "infra/custom/compose.extra.yml" in arguments
     assert "infra/research/compose.research.yml" not in arguments
+    assert "infra/analysis/compose.workspace.yml" not in arguments
+
+
+def test_a_rollback_gives_the_previous_release_its_overlays_back(tmp_path: Path) -> None:
+    """The update saves the overlays line in the rollback bundle before retiring any; a
+    rollback that restores the previous release's files restores that line with them."""
+    before = (
+        "LONORA_ENCRYPTION_KEY=secret-value\n"
+        "LONORA_COMPOSE_OVERLAYS=infra/analysis/compose.workspace.yml\n"
+    )
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state/overlays.env").write_text(
+        "LONORA_COMPOSE_OVERLAYS=infra/analysis/compose.workspace.yml\n"
+    )
+    after, _ = run_retire(tmp_path, before)
+    assert "LONORA_COMPOSE_OVERLAYS=\n" in after
+    functions = (
+        "set -euo pipefail; STATE=state; "
+        "source <(sed -n -e '/^restore_overlays() {/,/^}/p' "
+        + str(ROOT / "infra/compose/lonora")
+        + "); restore_overlays"
+    )
+    subprocess.run(["bash", "-c", functions], cwd=tmp_path, check=True)
+    assert (tmp_path / ".env").read_text().splitlines() == before.splitlines()
+    assert (tmp_path / ".env").stat().st_mode & 0o777 == 0o600
+    script = (ROOT / "infra/compose/lonora").read_text()
+    assert 'local saved=(infra "$STATE/image.env" "$STATE/overlays.env")' in script
+    assert script.count("restore_overlays") == 3
+    # Before each bundle is extracted, a line left by an earlier update is removed.
+    assert script.count('rm -f "$STATE/overlays.env"\n') == 2
+    for at in (script.index("back_to_hold() {"), script.index("rollback() {")):
+        body = script[at : script.index("\n}\n", at)]
+        assert body.index('rm -f "$STATE/overlays.env"') < body.index('tar -xzf "$ROLLBACK_BUNDLE"')

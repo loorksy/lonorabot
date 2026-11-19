@@ -207,7 +207,7 @@ def _author(
     scope: HistoryScope, role: str, agent_id: str | None, origin: str | None = "owner"
 ) -> dict[str, Any]:
     if role == "user" and agent_id is None:
-        # Card words are never «the owner said» (GENUI_PLAN §8.4).
+        # Card words are never «the owner said» (docs/genui.md).
         if origin in {"ui_submit", "ui_follow_up"}:
             return {"author": "owner_via_card"}
         return {"author": "owner"}

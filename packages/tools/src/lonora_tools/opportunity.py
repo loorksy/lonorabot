@@ -26,6 +26,7 @@ from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
+from .profile_taint import mark_from
 
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -38,8 +39,9 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             run.model_metadata.get("origin_thread_id") or context.thread_id,
             OpportunityCreate.model_validate(args),
         )
-        # An opportunity tainted work saved wakes tainted (GENUI_PLAN §8.5, review round 4).
+        # An opportunity tainted work saved wakes tainted (docs/genui.md, review round 4).
         await taint_row_from(session, run, "opportunity", row.id)
+        await mark_from(session, run, "opportunity", row.id)
         return opportunity_data(row)
 
 
@@ -92,6 +94,7 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             session, context.owner_id, context.agent_id, OpportunityUpdate.model_validate(args)
         )
         await taint_row_from(session, run, "opportunity", updated.id)
+        await mark_from(session, run, "opportunity", updated.id)
         data = opportunity_data(updated)
         session.add(
             EffectReceiptRow(key=key, result={"intent": intent, "version": data["version"]})

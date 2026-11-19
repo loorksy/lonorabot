@@ -9,7 +9,7 @@ event, a message or a run.
 import json
 import os
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -341,16 +341,26 @@ async def test_the_owner_saves_values_the_agent_never_sees() -> None:
         assert key + "_X" not in await workspace(fixture)
 
         # Only a Secret card takes values.
-        other_card = await call(
-            context,
-            "owner_action_propose",
-            kind="trust_source",
-            source_kind="feed_domain",
-            identifier="desk-" + uuid4().hex[:8] + ".news.example",
-        )
+        other_id = str(uuid4())
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                OwnerActionRow(
+                    id=other_id,
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=context.thread_id,
+                    source="agent",
+                    kind="resolve_operation",
+                    subject="operation:" + other_id,
+                    payload={"operation_id": other_id},
+                    payload_hash=other_id,
+                    status="pending",
+                    result={},
+                    expires_at=datetime.now(UTC) + timedelta(days=1),
+                )
+            )
         refused = await fixture.client.post(
-            f"/api/owner-actions/{other_card['owner_action']['id']}/secret",
-            json={"values": {"K": "v"}},
+            f"/api/owner-actions/{other_id}/secret", json={"values": {"K": "v"}}
         )
         assert refused.status_code == 409 and refused.json()["code"] == "owner_action_not_secret"
         with pytest.raises(LonoraError):
@@ -420,9 +430,9 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
             )
             assert done.json()["status"] == "confirmed"
             result = done.json()["result"]
-            # Its tools were read before the transaction (no such host): what follows is
-            # settled in the transaction that saved the server.
-            assert result["review"] in {"unread", "disabled"}
+            # Saving reads nothing from the server: its tools are trusted when the owner
+            # names it (mcp_trust), never on a card.
+            assert "review" not in result
             assert result["saved"] == facts["saves_as"]
             # A saved card shows the names it saved, not the next free ones.
             assert done.json()["facts"]["secret"]["saves_as"] == result["saved"]

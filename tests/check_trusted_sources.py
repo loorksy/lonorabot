@@ -4,11 +4,12 @@
    ``mcp_server`` entry per operator declaration in ``LONORA_MCP_DECLARATIONS`` (its
    endpoint and schema hashes pinned, its tools read-only); running its seed again adds
    nothing; a downgrade drops the table and a re-upgrade seeds again.
-2. Add an MCP server from chat: the agent gives its address and offers a Secret card;
-   the owner's token goes to the card's own route, which saves it encrypted and connects
-   the server; the server reads the new server's tools and raises the trust card (the tool that can place orders is listed as
-   blocked); the owner taps Trust (read only); the agent's tool runs with no operator
-   declaration, and the agent is woken to continue. The token never appears in a message,
+2. Add an MCP server from chat: the agent offers a Secret card; the owner types the
+   server's address and token into it, and the card's own route saves them encrypted and
+   connects the server; the agent is woken to continue; the owner then names the server
+   in chat and the agent trusts its tools (``mcp_trust``, read only, no card; the tool
+   that can place orders is blocked); the agent's tool runs with no operator
+   declaration. The token never appears in a message,
    an event, a card or a Run.
 
 The MCP server is scripted; no live server, broker, model provider or real order is used.
@@ -192,22 +193,31 @@ async def connect_and_trust(fixture: Fixture) -> None:
         taps += 1
         assert connected["status"] == "confirmed" and connected["result"]["configured"]
         server = {"id": connected["result"]["connection_id"]}
+        # The agent's work so far, and its continuation after the card, are done.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for row in await session.scalars(
+                select(RunRow).where(RunRow.thread_id == thread["id"]).with_for_update()
+            ):
+                row.status = "completed"
+        # The owner names the server in chat: the run that answers him trusts it, no card.
+        sent = await fixture.request(
+            "POST",
+            f"/threads/{thread['id']}/messages",
+            {"content": "Trust the X server for my news", "client_nonce": "x-" + uuid4().hex},
+        )
+        context = await fixture.lease(
+            {"id": sent["run_ids"][0], "agent_id": agent["id"], "thread_id": thread["id"]}
+        )
+        trusted = await call("mcp_trust", server="X")
+        assert trusted["trusted"] is True and trusted["tier"] == "read", trusted
+        assert trusted["tools_trusted"] == 1 and trusted["tools_blocked_moving_money"] == 1
+        [row] = await sources(fixture, "mcp_server", server["id"])
+        assert row.added_via == "owner_message" and row.blocked_tools == ["place_order"]
         cards = cast(
             list[dict[str, Any]],
             await fixture.request("GET", "/owner-actions?thread_id=" + thread["id"]),
         )
-        trust = next(
-            item for item in cards if item["kind"] == "trust_source" and item["status"] == "pending"
-        )
-        assert trust["facts"]["source"]["tools"] == ["search_posts"]
-        assert trust["facts"]["source"]["blocked"] == ["place_order"]
-        trusted = await fixture.request(
-            "POST",
-            f"/owner-actions/{trust['id']}/decision",
-            {"decision": "confirm", "tier": "read"},
-        )
-        taps += 1
-        assert trusted["status"] == "confirmed"
+        assert [item["kind"] for item in cards] == ["secret"], cards
         assert context.mcp_declarations == ()
         result = await call(
             "mcp_execute",
@@ -217,7 +227,7 @@ async def connect_and_trust(fixture: Fixture) -> None:
         )
         assert result["result"]["content"][0]["text"] == "analyst posts"
         assert calls.count("tools/call") == 1
-    assert taps == 2
+    assert taps == 1
     async with fixture.runtime.db.sessions() as session:
         woken = await session.scalar(
             select(func.count())
@@ -237,8 +247,9 @@ async def connect_and_trust(fixture: Fixture) -> None:
                 assert token not in dumped, model.__name__
     await fixture.request("DELETE", "/mcp/" + server["id"])
     print(
-        "PASS add an MCP server from chat: one Secret card, one trust tap, the tool runs "
-        "without a declaration, the agent continues, the token never leaves the server"
+        "PASS add an MCP server from chat: one Secret card, then the owner's words trust "
+        "it (no card), the tool runs without a declaration, the agent continues, the token "
+        "never leaves the server"
     )
 
 

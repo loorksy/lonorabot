@@ -191,7 +191,7 @@ async def main() -> None:
             seeded = await seed(connection, owner, ids)
         await engine.dispose()
 
-        await asyncio.to_thread(alembic, "upgrade", "head")
+        await asyncio.to_thread(alembic, "upgrade", module.revision)
         async with engine.connect() as connection:
             read = {
                 name: AgentModelRecord.model_validate(
@@ -231,10 +231,13 @@ async def main() -> None:
             assert back[ids["card_confirmed"]] == ("agent_model", "confirmed", None)
             assert len(back) == 4
         await engine.dispose()
-        await asyncio.to_thread(alembic, "upgrade", "head")
+        await asyncio.to_thread(alembic, "upgrade", module.revision)
         async with engine.connect() as connection:
             assert len(await cards(connection, "ln_owner_actions", ids)) == 1
         print("PASS the downgrade puts back exactly what was there; the upgrade runs again")
+        # Later migrations (for example 0150, which settles the Stop card seeded above as
+        # the other kind) are theirs to check; the chain still runs to head from here.
+        await asyncio.to_thread(alembic, "upgrade", "head")
     finally:
         await engine.dispose()
 

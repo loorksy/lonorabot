@@ -5,10 +5,9 @@ from pydantic import Field, model_validator
 
 from .domain import Contract, new_id
 
-
-class TradingControl(Contract):
-    enabled: bool = False
-    emergency_stop: bool = False
+# The agent's one trading switch (mandate 4.1): "full" executes on its own and reports
+# afterwards; "ask" raises a Trade Approval card for every risk-increasing request.
+TradingMode = Literal["full", "ask"]
 
 
 class TradeRequest(Contract):
