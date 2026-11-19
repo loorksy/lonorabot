@@ -52,6 +52,10 @@ async def calendar(f: Fixture, agent_id: str) -> Any:
         return picture_of(await account_picture(session, f.owner, agent_id))["calendar"]
 
 
+def secrets(f: Fixture) -> Any:
+    return f.runtime.services(f.owner).secrets.read
+
+
 async def main() -> None:
     assert [normalized_impact(word) for word in ("High", " 3 ", "Medium", "low", "??")] == [
         "high",
@@ -113,7 +117,12 @@ async def main() -> None:
             # Feed text that tries to speak as the system: it must never reach it.
             event(INJECTED, "USD", "high", 5),
         ]
-        assert await cache_calendar(f.runtime.db, f.owner, source=lambda _: Source(feed)) == 7
+        assert (
+            await cache_calendar(
+                f.runtime.db, f.owner, read_secret=secrets(f), source=lambda _: Source(feed)
+            )
+            == 7
+        )
         listed = await calendar(f, agent["id"])
         names = [item["currency"] for item in listed["high_impact_next_24h"]]
         # US payrolls (1 h), ECB (3 h), the injected USD event (5 h); by currency and time.
@@ -136,7 +145,12 @@ async def main() -> None:
         print("PASS feed text never enters the system picture; unmatched symbols are listed")
 
         # A source that fails keeps its last events and says so.
-        assert await cache_calendar(f.runtime.db, f.owner, source=lambda _: Source(None)) == 0
+        assert (
+            await cache_calendar(
+                f.runtime.db, f.owner, read_secret=secrets(f), source=lambda _: Source(None)
+            )
+            == 0
+        )
         listed = await calendar(f, agent["id"])
         assert listed["sources"][0]["status"] == "unavailable", listed
         assert [item["currency"] for item in listed["high_impact_next_24h"]] == names
@@ -178,7 +192,9 @@ async def main() -> None:
             saved = await session.get(IntegrationRow, integration.id)
             assert saved
             saved.payload = {**saved.payload, "enabled": False}
-        await cache_calendar(f.runtime.db, f.owner, source=lambda _: Source(feed))
+        await cache_calendar(
+            f.runtime.db, f.owner, read_secret=secrets(f), source=lambda _: Source(feed)
+        )
         async with f.runtime.db.sessions() as session:
             assert not list(await session.scalars(select(EconomicCalendarRow)))
         assert await calendar(f, agent["id"]) == "calendar not connected"
