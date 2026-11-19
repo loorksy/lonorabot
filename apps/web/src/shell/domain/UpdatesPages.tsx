@@ -7,7 +7,6 @@ import {
   isBrokerHealth,
 } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
-import { useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { useAttentionLabels } from "../../components/ai/AttentionInbox";
 import { api } from "../../lib/api";
@@ -22,7 +21,6 @@ import { useToast } from "../Toast";
 import { domainApi } from "./api";
 import { useLoad } from "./hooks";
 import { routineTitle, scheduleFacts, useScheduleDetails } from "./SchedulesPages";
-import { Empty } from "./ui";
 
 function activityTitle(code: ActivityCode): string {
   switch (code) {
