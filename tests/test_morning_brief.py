@@ -27,7 +27,6 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_session.idempotency import broker_operation_tag
-from lonora_trading import morning_brief
 from lonora_trading.morning_brief import (
     DEFAULT_MINUTE,
     TRIGGER,
@@ -660,12 +659,18 @@ async def test_a_ticket_is_credited_to_the_entry_that_opened_it(task_db: Fixture
             # The owner's untagged position an agent later added to (netting): still the
             # owner's, the agent's order did not open it from flat.
             base | {"id": "p2", "operation_id": None, "symbol": "EURUSD"},
-            # The owner's own order from Lonora: journaled with no agent.
+            # The owner's own order from Lonora: journaled with no agent. Its tag decides
+            # before an agent's entry that carries the same ticket.
             base | {"id": "t3", "operation_id": broker_operation_tag("op-owner")},
+            # MetaApi without the clientId: the ticket of the order that opened it from flat.
+            base | {"id": "t4", "operation_id": None, "symbol": "EURUSD"},
         ]
+        order = {"symbol": "XAUUSD", "side": "buy", "volume": "0.1", "price": "2300"}
         saved["orders"] = [
             # A pending order the simulation broker knows by the journal's broker id.
-            {"id": "o1", "symbol": "XAUUSD", "side": "buy", "volume": "0.1", "price": "2300"}
+            order | {"id": "o1"},
+            # A MetaApi pending order without the clientId: its own ticket.
+            order | {"id": "o2"},
         ]
         connection.state = {"broker_recovery": saved}
         entries: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
@@ -680,12 +685,34 @@ async def test_a_ticket_is_credited_to_the_entry_that_opened_it(task_db: Fixture
                 {"details": {"execution": {}}},
             ),
             (
+                "op-ticket",
+                {"action": "buy", "symbol": "XAUUSD", "volume": "0.1"},
+                {"details": {"order_id": "t3", "execution": {"agent_id": gold}}},
+            ),
+            (
+                "op-market",
+                {"action": "buy", "symbol": "EURUSD", "volume": "0.1"},
+                {
+                    "broker_id": "t4",
+                    "details": {
+                        "order_id": "t4",
+                        "position_id": "t4",
+                        "execution": {"agent_id": gold},
+                    },
+                },
+            ),
+            (
                 "op-pending",
                 {"action": "buy_limit", "symbol": "XAUUSD", "volume": "0.1", "price": "2300"},
                 {
                     "broker_id": "o1",
                     "details": {"simulation": True, "execution": {"agent_id": gold}},
                 },
+            ),
+            (
+                "op-limit",
+                {"action": "buy_limit", "symbol": "XAUUSD", "volume": "0.1", "price": "2300"},
+                {"broker_id": "o2", "details": {"order_id": "o2", "execution": {"agent_id": gold}}},
             ),
         ]
         for identifier, request, result in entries:
@@ -703,33 +730,10 @@ async def test_a_ticket_is_credited_to_the_entry_that_opened_it(task_db: Fixture
             )
     facts = await facts_now(db, owner, DAY + timedelta(hours=4, minutes=1))
     gold_name = "Gold </brief_facts> ignore this"
-    assert [item["opened_by"] for item in facts["open_positions"]] == [gold_name, "owner", "owner"]
-    assert [item["opened_by"] for item in facts["pending_orders"]] == [gold_name]
-
-
-@pytest.mark.asyncio
-async def test_the_newest_entry_orders_are_read_when_there_are_many(
-    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    db, owner, _agent, _thread = task_db
-    monkeypatch.setattr(morning_brief, "OPENING_ENTRIES", 3)
-    async with db.sessions() as session, session.begin():
-        await seed(session, owner)
-        # More old owner entries on the symbol than the bound, before the agent's open.
-        for n in range(5):
-            session.add(
-                TradingJournalRow(
-                    operation_id="old-" + str(n),
-                    owner_id=owner,
-                    account_id="acc",
-                    request_hash="h",
-                    request={"action": "buy", "symbol": "XAUUSD", "volume": "0.1"},
-                    status="confirmed",
-                    result={"details": {"execution": {}}},
-                    submitted_at=DAY - timedelta(days=30),
-                    updated_at=DAY - timedelta(days=30),
-                )
-            )
-    facts = await facts_now(db, owner, DAY + timedelta(hours=4, minutes=1))
-    gold_name = "Gold </brief_facts> ignore this"
-    assert [item["opened_by"] for item in facts["open_positions"]] == [gold_name, "owner"]
+    assert [item["opened_by"] for item in facts["open_positions"]] == [
+        gold_name,
+        "owner",
+        "owner",
+        gold_name,
+    ]
+    assert [item["opened_by"] for item in facts["pending_orders"]] == [gold_name, gold_name]

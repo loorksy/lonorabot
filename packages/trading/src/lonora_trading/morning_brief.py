@@ -50,9 +50,8 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .exposure import ENTRY_ACTIONS
 from .journal import journal_data
-from .manual_activity import SENT_STATUSES, ticket_openers
+from .picture import ticket_owners
 
 TRIGGER = "morning_brief"
 # 07:00 in the owner's time zone until Lonora has seen the owner open the app on at least
@@ -63,8 +62,6 @@ WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
 MAXIMUM_ITEMS = 40
 PROMPT_LIMIT = 30000
-# The most recent entry orders read to find who opened each open ticket (3.3.4).
-OPENING_ENTRIES = 5000
 # Attention codes whose fact the brief already counts: approvals, unsettled operations,
 # a pending owner card's own item (the Secret card's), and a broker health problem, which
 # is an account the snapshot shows disconnected.
@@ -172,6 +169,16 @@ async def brief_facts(
                     "equity": _number(state.equity - Decimal(before["equity"])),
                 }
         accounts.append(item)
+        # Who opened each ticket (3.3.4): the door's own journal match, else the owner.
+        owners = (
+            await ticket_owners(session, owner_id, account_id, snapshot.positions, snapshot.orders)
+            if snapshot
+            else {}
+        )
+        opened_by = {
+            key: names.get(agent_id, lead) if agent_id else "owner"
+            for key, agent_id in owners.items()
+        }
         for position in snapshot.positions if snapshot else []:
             positions.append(
                 {
@@ -183,7 +190,7 @@ async def brief_facts(
                     "floating_profit": _number(position.profit),
                     "stop_loss": _number(position.stop_loss),
                     "take_profit": _number(position.take_profit),
-                    "_ticket": (account_id, position.id, position.operation_id),
+                    "opened_by": opened_by[("position", position.id)],
                 }
             )
         for order in snapshot.orders if snapshot else []:
@@ -196,21 +203,9 @@ async def brief_facts(
                     "price": _number(order.price),
                     "stop_loss": _number(order.stop_loss),
                     "take_profit": _number(order.take_profit),
-                    "_ticket": (account_id, order.id, order.operation_id),
+                    "opened_by": opened_by[("order", order.id)],
                 }
             )
-    # Who opened each ticket (3.3.4): the agent of the earliest journaled entry order that
-    # names it, else the owner (also for the owner's own journaled order).
-    openers = await journaled_openers(
-        session, owner_id, {item["symbol"] for item in positions + orders}
-    )
-    for item in positions + orders:
-        account_id, ticket, operation_id = item.pop("_ticket")
-        tagged = (account_id, "op", operation_id or "")
-        agent_id = (
-            openers[tagged] if tagged in openers else openers.get((account_id, "ticket", ticket))
-        )
-        item["opened_by"] = names.get(agent_id, lead) if agent_id else "owner"
     since = record.last_sent_at or now - timedelta(days=1)
     work: dict[str, list[dict[str, Any]]] = {agent.id: [] for agent in agents}
     for row in await session.scalars(
@@ -336,30 +331,6 @@ async def brief_facts(
             (approvals, unsettled, owner_cards, questions, attention, disconnected)
         ),
     }
-
-
-async def journaled_openers(
-    session: AsyncSession, owner_id: str, symbols: set[str]
-) -> dict[tuple[str, str, str], str | None]:
-    """Who opened each ticket on these symbols (3.3.4), from the journaled entry orders."""
-    if not symbols:
-        return {}
-    rows = await session.scalars(
-        select(TradingJournalRow)
-        .where(
-            TradingJournalRow.owner_id == owner_id,
-            TradingJournalRow.status.in_(sorted(SENT_STATUSES)),
-            TradingJournalRow.request["symbol"].as_string().in_(sorted(symbols)),
-            TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-        )
-        # The newest entries, by when they were sent (updated_at moves on a later receipt),
-        # then read oldest first so the earliest entry naming a ticket wins.
-        .order_by(
-            func.coalesce(TradingJournalRow.submitted_at, TradingJournalRow.updated_at).desc()
-        )
-        .limit(OPENING_ENTRIES)
-    )
-    return ticket_openers(list(rows)[::-1])
 
 
 async def _count(session: AsyncSession, query: Any) -> int:
