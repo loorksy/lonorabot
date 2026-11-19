@@ -19,3 +19,4 @@
 - 2026-11-19T10:35Z (after the pause, main dcf86b43): #205 6530e7a1 CLEAN; #214 be2cb660 CLEAN; #81 d111e89d CLEAN (rebase, 4 conflicts); #206 9b285666 CLEAN (rebase, 2 conflicts).
   - Existing on main: web never shows background failures, and a background model/quota failure raises no attention item.
 - Conflicts with dcf86b43 on heads already reviewed: #203 2, #110 6, #148 6, and the W-TEAM stack #138/#146/#185/#193/#198 50-75 each (they need restacking on main).
+- 2026-11-19T10:37Z: #156 3f28e107 CLEAN (merge of #110 resolved correctly); rebase needed, 8 conflicts with dcf86b43.
