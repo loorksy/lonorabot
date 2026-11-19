@@ -1,8 +1,8 @@
 """«سجل الإجراءات»: owner-visible actions projected from durable events (Q45).
 
 Every entry comes from one row of ``ln_events``; nothing is synthesised. The projection
-keeps only actions the owner would recognise (an agent created, authority or limits
-changed, an approval decided, an operation resolved, a
+keeps only actions the owner would recognise (an agent created, authority changed, an
+approval decided, an operation resolved, a
 task created or finished, a skill saved, supervision granted or revoked, a watch
 triggered, a goal or knowledge entry added) and names them with a stable ``code`` that
 the clients label. The subject is the agent's name, or the task's or skill's own name.
@@ -18,7 +18,6 @@ from .schema import AgentRow, EventRow, SkillRow, TicketRow
 DIRECT: dict[str, str] = {
     "agent.created": "agent_created",
     "account_authority.updated": "authority_changed",
-    "trading.execution_policy_updated": "limits_changed",
     "trading.operation_resolved": "operation_resolved",
     "task.created": "task_created",
     "skills.created": "skill_created",
