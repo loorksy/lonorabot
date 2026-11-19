@@ -1,10 +1,18 @@
 """Restore a Run's checkpoint before the loop's first round, including checkpoints written
-by earlier releases, and apply the owner resume or external wake it carries."""
+by earlier releases, and apply the owner resume or external wake it carries.
+
+A checkpoint keeps the context it was built with. A continuous Task can sleep across
+releases, edits of the agent's instructions and memory, and account changes, so every
+wake rebuilds the context head (system blocks and labelled context data) from the
+current server state and keeps the Run's own transcript after it."""
 
 import json
+import logging
 from typing import Any, cast
 
+from lonora_adapter_kit.context_sections import is_context_message
 from lonora_adapter_kit.types import ModelMessage, ToolCall
+from lonora_core.user_error import LonoraError
 from lonora_db.schema import RunRow
 from lonora_db.tasks import ATTENTION_RESUMED
 from lonora_tools.base import ToolScope
@@ -12,7 +20,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 
 from .context.builder import build_context
-from .context.skills import selected_skill_ids
+from .context.skills import refresh_skill_context, selected_skill_ids
 from .context_engine import DELEGATED_KEY, DELEGATED_TRIGGERS
 from .continuation import slice_limit
 from .environment import environment_state
@@ -26,6 +34,8 @@ from .tool_exposure import ensure_exposure
 from .tool_guardrails import reset_guardrails
 from .tool_intent import start_budget_epoch
 from .uncertain_outcome import record_request_start
+
+log = logging.getLogger(__name__)
 
 
 async def restore_checkpoint(
@@ -65,6 +75,67 @@ async def restore_checkpoint(
     return messages, pending, exposure
 
 
+async def refresh_context_head(
+    context: ToolContext,
+    registry: ToolRegistry,
+    state: dict[str, Any],
+    messages: list[ModelMessage],
+) -> None:
+    """Replace the checkpoint's context head with one built now; keep the transcript.
+
+    The head is every system message (``build_context`` writes them; the routing frame is
+    also replaced on every turn by ``refresh_routing_context``), the labelled context
+    data that leads the transcript, and the notice that build-time admission left
+    guidance out, which follows that data. Compaction records index the transcript
+    without the system messages and the context data, so they stay valid; a notice that
+    appears or goes changes the transcript, and a record that no longer matches it is
+    ignored, never half applied. Skills the Run
+    viewed stay in its procedures and its authority checks, as after owner steering.
+
+    A head that cannot be built now (a resource, the skill catalog or the window
+    changed) leaves the frozen one in place: the wake is delivered, never failed for
+    it. A lost lease still ends the pass.
+    """
+    viewed = list(state.get("viewed_skill_ids", []))
+    try:
+        fresh = await build_context(context, registry)
+        body = [message for message in messages if message.role != "system"]
+        rebuilt = (
+            [message for message in fresh if message.role == "system"]
+            + _leading_data([message for message in fresh if message.role != "system"])
+            + body[len(_leading_data(body)) :]
+        )
+        selected = await refresh_skill_context(context, registry, rebuilt, retained_ids=viewed)
+        if selected is None:
+            selected = await selected_skill_ids(context)
+    except LonoraError as error:
+        if error.code == "stale_lease":
+            raise
+        log.warning("context_head_refresh_failed code=%s", error.code)
+        return
+    messages[:] = rebuilt
+    state["instruction_skill_ids"] = sorted(set(selected) | set(viewed))
+
+
+def _leading_data(transcript: list[ModelMessage]) -> list[ModelMessage]:
+    """The context data that leads a transcript, with the guidance-omission notice after it."""
+    count = 0
+    while count < len(transcript) and is_context_message(transcript[count]):
+        count += 1
+    if count < len(transcript) and _guidance_notice(transcript[count]):
+        count += 1
+    return transcript[:count]
+
+
+def _guidance_notice(message: ModelMessage) -> bool:
+    return (
+        message.role == "user"
+        and message.context_origin == "runtime_context"
+        and message.content.startswith("<context_omitted>")
+        and '"omitted_guidance"' in message.content
+    )
+
+
 def resume_after_attention(
     state: dict[str, Any], messages: list[ModelMessage], maximum_rounds: int
 ) -> bool:
@@ -90,12 +161,13 @@ def resume_after_attention(
 
 def consume_wake(
     state: dict[str, Any], messages: list[ModelMessage], pending: list[ToolCall]
-) -> list[ToolCall]:
-    """Deliver a new external wake once; return the proposals it superseded."""
+) -> list[ToolCall] | None:
+    """Deliver a new external wake once; return the proposals it superseded, or None
+    when there was no new wake."""
     environment = environment_state(state)
     wake = environment.get("last_wake")
     if not wake or environment.get("consumed_wake") == wake:
-        return []
+        return None
     # A previous release may have committed the wake before upgrading its
     # worker. Close its pre-wait proposals before adding the new observation.
     superseded = list(pending)
