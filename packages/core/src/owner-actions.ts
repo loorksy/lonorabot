@@ -177,6 +177,8 @@ export const ownerActionLabels = {
     targetTask: "Task",
     pauseHint: "The agent cannot resume it on its own. Resume lifts the pause now.",
     pauseOwnerHolds: "This pause is yours: only you resume it.",
+    pauseOwnerAsked:
+      "You asked for this pause: it stays until you resume it here or ask for that in chat.",
     pauseEnded: "This pause already ended.",
     resumeWork: "Resume",
     keepPaused: "Keep paused",
@@ -386,6 +388,7 @@ export const ownerActionLabels = {
     targetTask: "مهمة",
     pauseHint: "لا يستطيع الوكيل استئنافه بنفسه. الاستئناف يرفع الإيقاف الآن.",
     pauseOwnerHolds: "هذا الإيقاف لك: لا يستأنفه غيرك.",
+    pauseOwnerAsked: "طلبت هذا الإيقاف: يبقى حتى تستأنفه من هنا أو تطلب ذلك في المحادثة.",
     pauseEnded: "انتهى هذا الإيقاف مسبقًا.",
     resumeWork: "استئناف",
     keepPaused: "إبقاؤه موقوفًا",
@@ -1162,7 +1165,13 @@ export function ownerActionCard(
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
-      hint = card.facts.supervision.owner_holds ? text.pauseOwnerHolds : text.pauseHint;
+      // The owner's pause from a control is lifted only by the owner's control or this
+      // card; one the owner asked for in chat also when the owner asks in chat.
+      hint = !card.facts.supervision.owner_holds
+        ? text.pauseHint
+        : card.facts.supervision.from_owner_message
+          ? text.pauseOwnerAsked
+          : text.pauseOwnerHolds;
       buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
