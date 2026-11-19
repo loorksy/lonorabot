@@ -1357,6 +1357,7 @@ async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
         return PublicResponse(200, {"content-type": "application/rss+xml"}, RSS)
 
     others: list[str] = []
+    added_feeds: list[str] = []
     try:
         # Five hundred older integrations of another kind come first: the feeds after them
         # are still found, by read and by the duplicate check alike.
@@ -1380,6 +1381,8 @@ async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
                     url=f"https://{domain}/rss/{index}",
                     name=f"Feed {index}",
                 )
+                if added.get("feed_id"):
+                    added_feeds.append(added["feed_id"])
                 assert added["status"] == "subscribed", added
             again = await call(
                 context, "news_feed_subscribe", url=f"https://{domain}/rss/11", name="Again"
@@ -1390,10 +1393,10 @@ async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
         assert sorted(feed["name"] for feed in mine) == sorted(f"Feed {i}" for i in range(12))
         assert all(feed["status"] == "ok" for feed in mine)
     finally:
-        report = await fixture.request("GET", "/capabilities")
-        for item in report["integrations"]:
-            if item.get("domain") == domain:
-                await fixture.request("DELETE", "/integrations/" + item["id"])
+        # By id: Capabilities lists the owner's oldest 200 integrations, here only the
+        # webhooks. The route removes the trusted domain with its last feed.
+        for feed_id in added_feeds:
+            await fixture.request("DELETE", "/integrations/" + feed_id)
         async with fixture.runtime.db.sessions() as session, session.begin():
             for identity in others:
                 row = await session.get(IntegrationRow, identity)
@@ -1418,6 +1421,7 @@ async def test_a_slow_feed_never_costs_the_agent_the_feeds_that_answered(
     domain = "slow-" + uuid4().hex[:8] + ".analyst.example"
     monkeypatch.setattr(feeds, "READ_DEADLINE_SECONDS", 0.5)
     slow: list[bool] = []
+    added_feeds: list[str] = []
 
     async def public(url: str, method: str = "GET", *, maximum_bytes: int = 0) -> Any:
         from lonora_security.public_http import PublicResponse
@@ -1435,6 +1439,8 @@ async def test_a_slow_feed_never_costs_the_agent_the_feeds_that_answered(
                 added = await call(
                     context, "news_feed_subscribe", url=f"https://{domain}/{path}", name=path
                 )
+                if added.get("feed_id"):
+                    added_feeds.append(added["feed_id"])
                 assert added["status"] == "subscribed", added
             slow.append(True)
             read = await call(context, "news_feed_read")
@@ -1443,10 +1449,8 @@ async def test_a_slow_feed_never_costs_the_agent_the_feeds_that_answered(
         assert mine["slow"]["status"] == "unavailable", mine
         assert mine["slow"]["reason"] == "news_feed_timeout"
     finally:
-        report = await fixture.request("GET", "/capabilities")
-        for item in report["integrations"]:
-            if item.get("domain") == domain:
-                await fixture.request("DELETE", "/integrations/" + item["id"])
+        for feed_id in added_feeds:
+            await fixture.request("DELETE", "/integrations/" + feed_id)
         await fixture.close()
 
 
