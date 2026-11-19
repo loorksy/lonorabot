@@ -99,7 +99,12 @@ async def simulation(
 async def execute(
     request: Request, body: TradeRequest, owner: OwnerIdentity = Depends(require_owner)
 ) -> TradeResult:
-    return await runtime(request).services(owner.id).trading.execute(owner.id, body)
+    services = runtime(request).services(owner.id)
+    if await services.brokers.relayed(owner.id, body.account_id):
+        from lonora_adapters.brokers.relay import execute_order
+
+        return await execute_order(services.db, owner.id, body)
+    return await services.trading.execute(owner.id, body)
 
 
 @router.get("/journal")

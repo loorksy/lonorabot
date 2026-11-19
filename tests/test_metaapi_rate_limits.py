@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from lonora_adapters.brokers import metaapi
+from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.brokers.metaapi import MetaApiBroker
 from lonora_adapters.brokers.metaapi_lifecycle import subscribe_locked_until, throttled_until
 from lonora_core.user_error import LonoraError
@@ -213,9 +214,11 @@ async def test_a_connection_linked_without_its_region_records_metaapis() -> None
                 },
             )
             version = row.version
-        brokers = fixture.runtime.services(fixture.owner).brokers
+        # The Gateway's manager: only the Gateway keeps MetaApi connections.
+        brokers = BrokerManager(fixture.runtime.db, secrets)
         with installed(terminal):
             await brokers.account(fixture.owner, row.id)
+        await brokers.close()
         async with fixture.runtime.db.sessions() as session:
             saved = await session.get(BrokerSessionRow, row.id)
             assert saved is not None
@@ -419,12 +422,12 @@ async def test_a_new_adapter_starts_inside_a_stored_throttle() -> None:
                     "throttled_until": until.isoformat(),
                 },
             }
+        brokers = BrokerManager(fixture.runtime.db, secrets)
         with installed(terminal):
-            adapter: Any = await fixture.runtime.services(fixture.owner).brokers.get(
-                fixture.owner, row.id
-            )
+            adapter: Any = await brokers.get(fixture.owner, row.id)
             with pytest.raises(LonoraError) as caught:
                 await adapter.read_rpc("get_account_information")
+        await brokers.close()
         assert caught.value.code == "broker_rate_limited"
         assert terminal.calls == []  # nothing reached the account
     finally:

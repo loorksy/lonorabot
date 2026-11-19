@@ -21,6 +21,7 @@ from lonora_tools.loader import load_tools
 from lonora_tools.terminal import owner_scan
 from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
 
+from .broker_relay import BrokerRelay
 from .connection_manager import close_connections, maintain_voice
 from .event_dispatch import dispatch_channels
 from .heartbeat import write_heartbeat
@@ -50,6 +51,9 @@ STEPS = (
     StepSpec("reconcile", 10, 300),
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
+    # MetaApi reads and owner orders the API process hands over: the Gateway alone keeps
+    # MetaApi connections (one subscription and synchronization owner per account).
+    StepSpec("broker_relay", 0.2, 60),
     # Accounts the owner connected from chat: provision, deploy, connect, report.
     StepSpec("broker_provisioning", 10, 900),
     # The closed-trade ledger from broker deal history (mandate 5.5.1).
@@ -120,6 +124,7 @@ class Gateway:
         self.stop = asyncio.Event()
         self.state = GatewayState.STARTING
         self.services: dict[str, OwnerServices] = {}
+        self.relay = BrokerRelay(db, self.service)
         self.runtime = AgentRuntime(load_tools(), lease_seconds, maximum_rounds)
         self.liveness = Liveness()
         self.watchdog = Watchdog(
@@ -395,6 +400,7 @@ class Gateway:
             "reconcile": self.reconcile,
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
+            "broker_relay": self.relay.iteration,
             "broker_provisioning": self.broker_provisioning,
             "closed_trades": self.closed_trades,
             "opportunities": self.opportunities,
