@@ -14,6 +14,7 @@ from typing import Any
 
 from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.runs import RunRequest
+from lonora_core.run_state import SYSTEM_ALERT
 from lonora_session.idempotency import stable_id
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -165,7 +166,7 @@ async def start_wake(session: AsyncSession, item: AttentionRow, prompt: str) -> 
             prompt=prompt,
             metadata={
                 "origin_thread_id": conversation.id,
-                "system_alert": item.code,
+                SYSTEM_ALERT: item.code,
                 "attention_id": item.id,
                 **(
                     {"account_id": item.parameters["account_id"]}

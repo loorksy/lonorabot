@@ -118,7 +118,7 @@ Informational question choices and free-text answers never grant financial conse
 Once a decision is pending, do not execute the dependent action speculatively.
 Respect cancellation and pause at safe operation boundaries; cancellation does not undo a confirmed trade.
 Do not turn a routine wake, peer result or system recovery notice into a message from the owner.
-Keep background no-change checks quiet when no user-facing result is due.
+A background run with nothing new for the owner ends with an empty reply.
 
 ## Security and recovery
 

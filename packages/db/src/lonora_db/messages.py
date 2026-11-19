@@ -3,7 +3,7 @@ from typing import Any, cast
 from lonora_contracts.domain import MessageCommand, MessageCreate
 from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
-from lonora_core.run_state import TERMINAL, is_conversational
+from lonora_core.run_state import OWNER_SPOKE, TERMINAL, is_background, is_conversational
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 from sqlalchemy import delete, select
@@ -683,6 +683,13 @@ async def admit_runs(
             None,
         )
         if active and takes_message(active):
+            if message.role == "user" and is_background(active.trigger, active.model_metadata):
+                # Background work the owner writes to (or taps a follow-up for) answers them
+                # from now on (11.5), even a queued run that will read the words only from
+                # its history. The row is locked first (thread before run, as everywhere):
+                # a running Run's own writes to its metadata are never overwritten.
+                await session.get(RunRow, active.id, with_for_update=True, populate_existing=True)
+                active.model_metadata = {**active.model_metadata, OWNER_SPOKE: True}
             if pending_question and active.status == "waiting_input":
                 updated = [
                     {

@@ -32,7 +32,9 @@ from lonora_db.schema import (
     MarketWakeReceiptRow,
     MarketWatchRow,
     RunRow,
+    TicketRow,
 )
+from lonora_db.tasks import task_state
 from lonora_db.threads import background_origin
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import or_, select
@@ -389,6 +391,27 @@ async def observe_stream_indicator(
     )
 
 
+def resumes_task(task_run: RunRow, task: TicketRow | None, watch_id: str) -> bool:
+    """Whether a confirmation resumes its Task now: ``resume_ready_waits`` wakes only a
+    Task run waiting on this very watch, its Task waiting with no control pending;
+    otherwise the Task is not told (11.5)."""
+    if task is None or not task.state.get("task"):
+        return False
+    state = task_state(task)
+    environment: object = task_run.execution_state.get("environment")
+    wait: object = (
+        cast(dict[str, Any], environment).get("wait") if isinstance(environment, dict) else None
+    )
+    return (
+        state.status == "waiting"
+        and state.control_requested is None
+        and task_run.status == "waiting_takeover"
+        and isinstance(wait, dict)
+        and cast(dict[str, Any], wait).get("kind") == "watch"
+        and cast(dict[str, Any], wait).get("source_id") == watch_id
+    )
+
+
 async def check_watches(
     db: Database,
     brokers: BrokerManager,
@@ -617,25 +640,40 @@ async def check_watch(
             detector_state = metadata["observation"].get("state")
             if detector_state == "forming" and state["lifecycle"] == "pending":
                 state["lifecycle"] = "forming"
-        if previous_lifecycle != state["lifecycle"]:
-            emit(
-                session,
-                row.owner_id,
-                "watch." + state["lifecycle"],
-                agent_id=row.agent_id,
-                thread_id=row.thread_id,
-                payload={
-                    "watch_id": row.id,
-                    "state": state["lifecycle"],
-                    "transition_id": stable_id(
-                        row.id,
-                        previous_lifecycle + ":" + state["lifecycle"] + ":" + observation,
-                    ),
-                    "account_id": config.account_id,
-                    "symbol": config.symbol,
-                    "observation": metadata.get("observation"),
-                },
-            )
+        transition: dict[str, Any] | None = (
+            {
+                "watch_id": row.id,
+                "state": state["lifecycle"],
+                "transition_id": stable_id(
+                    row.id,
+                    previous_lifecycle + ":" + state["lifecycle"] + ":" + observation,
+                ),
+                "account_id": config.account_id,
+                "symbol": config.symbol,
+                "observation": metadata.get("observation"),
+            }
+            if previous_lifecycle != state["lifecycle"]
+            else None
+        )
+
+        def announce(woken: str | None) -> None:
+            # Emitted once the wake is decided: a confirmation that woke its agent is the
+            # agent's to report (11.5) and names the run it woke; one whose wake is spent
+            # stays the owner's item.
+            if transition is not None:
+                emit(
+                    session,
+                    row.owner_id,
+                    "watch." + state["lifecycle"],
+                    agent_id=row.agent_id,
+                    thread_id=row.thread_id,
+                    payload={
+                        **transition,
+                        **({"wakes_agent": True, "woken_run_id": woken} if woken else {}),
+                    },
+                )
+
+        woken: str | None = None
         matched = confirmed and (config.kind != "dynamic" or previous_lifecycle != "confirmed")
         if matched and watch_can_trigger(
             config.enabled, last_triggered, config.cooldown_seconds, now
@@ -646,12 +684,18 @@ async def check_watch(
                 # resident scheduler. Do not create a competing watch Run.
                 task_run_id = row.state.get("task_run_id")
                 task_run = await session.get(RunRow, task_run_id) if task_run_id else None
+                task = (
+                    await session.get(TicketRow, str(task_run.model_metadata.get("task_id") or ""))
+                    if task_run is not None
+                    else None
+                )
                 if task_run_id and (
                     task_run is None or task_run.status in {"completed", "failed", "cancelled"}
                 ):
                     row.state = state
                     stop_watch(row, "task_terminal")
                     row.version += 1
+                    announce(None)
                     return triggered
                 run = (
                     None
@@ -691,6 +735,15 @@ async def check_watch(
                         },
                     )
                 )
+                woken = (
+                    (
+                        task_run_id
+                        if task_run is not None and resumes_task(task_run, task, row.id)
+                        else None
+                    )
+                    if task_run_id
+                    else (run.id if run else None)
+                )
                 state["last_triggered"] = now.isoformat()
                 if config.kind == "calendar":
                     state["seen_events"] = (
@@ -698,6 +751,7 @@ async def check_watch(
                         + cast(list[str], metadata.get("event_ids", []))
                     )[-1000:]
                 triggered += 1
+        announce(woken)
         row.state = state
     return triggered
 

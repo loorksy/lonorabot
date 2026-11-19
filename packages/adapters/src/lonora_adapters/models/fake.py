@@ -21,6 +21,7 @@ class ScriptedModelAdapter:
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
         self.requests.append(list(messages))
         if not self.replies:

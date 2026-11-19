@@ -55,6 +55,17 @@ def stopped_reply(stop_reason: Any, text: str, has_calls: bool) -> dict[str, Any
     return {"stop_reason": stop_reason}
 
 
+# The model ended its own turn: Anthropic's end_turn and stop_sequence, OpenAI's stop.
+FINISHED_STOPS = frozenset({"end_turn", "stop_sequence", "stop"})
+
+
+def chosen_silence(allow_empty: bool, stop_reason: Any) -> bool:
+    """A reply with no text and no call is the model's own choice only where the caller
+    allows one (a background run, VISION 11.5) and the model ended its turn; a turn that
+    ended for calls it does not carry, or with a gateway's error, is a broken response."""
+    return allow_empty and stop_reason in FINISHED_STOPS
+
+
 class BaseModelAdapter:
     def __init__(self, api_key: str, base_url: str, client: httpx.AsyncClient | None = None):
         self.api_key = api_key

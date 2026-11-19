@@ -2,14 +2,18 @@ from typing import Any
 
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.message_preview import model_content, voice_part
+from lonora_core.run_state import OWNER_SPOKE
 from lonora_db.runs import checkpoint, require_lease
+from lonora_db.schema import AgentRow
 from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
 from lonora_tools.provenance import mark_external_content
 from lonora_trading.close_wake import take_run_notices
+from sqlalchemy import select
 
 from .context.attachments import attachment_context, third_party_attachment
 from .context.command import command_block
+from .context.history import peer_content
 from .offers import merge_answer
 from .runtime_notices import append_notice, notice_message
 from .stop_gates import reset_stop_gate
@@ -27,6 +31,14 @@ async def merge_steering(
 ) -> bool:
     async with context.db.sessions() as session, session.begin():
         fresh = await consume_steering(session, context.lease)
+        names = {
+            agent.id: agent.name
+            for agent in await session.scalars(
+                select(AgentRow).where(
+                    AgentRow.id.in_([row.agent_id for row in fresh if row.agent_id])
+                )
+            )
+        }
         for row in fresh:
             notes, images = (
                 # The message's own thread: an answer may come from the conversation a
@@ -41,14 +53,15 @@ async def merge_steering(
                 session, context.owner_id, row.thread_id, row.seq
             ):
                 await mark_external_content(session, context.lease.run_id, "owner_attachment")
-            messages.append(
-                ModelMessage(
-                    role="user",
-                    content=model_content(row.content, row.rich_content)
-                    + ("\n\n" + notes if notes else ""),
-                    images=images,
-                )
+            content = model_content(row.content, row.rich_content) + (
+                "\n\n" + notes if notes else ""
             )
+            if row.role != "user":
+                # An agent's message (a helper's or a peer's returned outcome, another
+                # agent in a group) is information, never an order: it reaches the model
+                # in the data frame history gives it (6.10).
+                content = peer_content(names.get(row.agent_id or "", row.agent_id or ""), content)
+            messages.append(ModelMessage(role="user", content=content, images=images))
             block = command_block(row.rich_content) if row.role == "user" else ""
             if block:
                 # A / command sent while the reply was running: the turn is told what was
@@ -63,6 +76,9 @@ async def merge_steering(
             ):
                 reset_stop_gate(state)
                 reset_guardrails(state)
+                # The owner wrote to this Run: from now on it answers them, even if it is
+                # background work that could otherwise end silent (VISION 11.5).
+                state[OWNER_SPOKE] = True
             state["messages"] = [message.model_dump(mode="json") for message in messages]
             await checkpoint(session, context.lease, state)
         return bool(fresh)
