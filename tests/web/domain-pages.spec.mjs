@@ -272,6 +272,7 @@ test("skills: create, edit, version history, restore and undo", async ({ page, o
     title: `${prefix} brief`,
     description: "Summarise news",
     required_tools: ["web_search"],
+    activation: { mode: "explicit", triggers: [] },
   });
   await expect(page).toHaveURL(new RegExp(`/app/skills/${skill.id}$`));
   form = page.locator('form[data-form="skill"]');

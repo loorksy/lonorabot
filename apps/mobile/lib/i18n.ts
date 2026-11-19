@@ -164,7 +164,6 @@ export const labels = {
   skillsDependencies: ["المهارات المطلوبة", "Dependencies"],
   skillsTools: ["الأدوات المطلوبة", "Required tools"],
   skillsActivation: ["التفعيل", "Activation"],
-  skillsAutomatic: ["تلقائي", "Automatic"],
   skillsExplicit: ["عند الطلب", "On request"],
   skillsTriggered: ["بحدث", "On event"],
   skillsReadOnly: ["للقراءة فقط", "Read only"],

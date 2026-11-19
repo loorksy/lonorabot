@@ -148,8 +148,7 @@ async def read_skill_context(
     available = registry.names(scope)
     signals = SkillSignals(
         # Description-first discovery; explicit requests, durable triggers and
-        # already viewed pins still apply without routing by owner keywords.
-        intents=frozenset(),
+        # already viewed pins apply, never routing by owner keywords.
         trigger=run.trigger,
         scope=scope,
         requested=frozenset(requested),
