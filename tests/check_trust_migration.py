@@ -131,7 +131,8 @@ async def main() -> None:
             )
             assert marker == 0
             live = await cards(connection, "ln_owner_actions", ids)
-            assert live == {ids["card_other"]: ("resolve_operation", "pending", None)}, live
+            # Untouched by this migration; 0101 has since named it settle_operation.
+            assert live == {ids["card_other"]: ("settle_operation", "pending", None)}, live
             retired = await cards(connection, module.RETIRED, ids)
             assert retired == {
                 ids["card_pending"]: ("trust_source", "superseded", "trust_cards_removed"),

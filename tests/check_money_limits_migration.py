@@ -93,9 +93,13 @@ async def challenges(connection: AsyncConnection, owner: str) -> set[str]:
 
 
 def check_upgraded(
-    found: dict[str, dict[str, Any]], ids: dict[str, str], drafts: dict[str, dict[str, Any]]
+    found: dict[str, dict[str, Any]],
+    ids: dict[str, str],
+    drafts: dict[str, dict[str, Any]],
+    settle: str = "settle_operation",
 ) -> None:
-    assert {card["kind"] for card in found.values()} == {"grant_authority", "resolve_operation"}
+    # At head 0101 names the settle card settle_operation; below it, resolve_operation.
+    assert {card["kind"] for card in found.values()} == {"grant_authority", settle}
     for name, status in (
         ("grant_old", "superseded"),
         ("grant_new", "pending"),
@@ -109,9 +113,10 @@ def check_upgraded(
     assert found[ids["grant_old"]]["status_reason"] == "same_choice_on_another_card"
     assert found[ids["grant_new"]]["status_reason"] is None
     resolve = found[ids["resolve"]]
+    # Untouched by 0087; 0101 renames it and recomputes its hash for the kind it has now.
     assert (resolve["payload"], resolve["payload_hash"], resolve["status"]) == (
         {},
-        "hash",
+        payload_hash(settle, {}),
         "pending",
     )
 
@@ -269,7 +274,7 @@ async def main() -> None:
         await asyncio.to_thread(alembic, "downgrade", BEFORE)
         async with engine.connect() as connection:
             assert await policy(connection, key) == AGES
-            check_upgraded(await cards(connection, ids["owner"]), ids, drafts)
+            check_upgraded(await cards(connection, ids["owner"]), ids, drafts, "resolve_operation")
             assert await challenges(connection, ids["owner"]) == {"account_activate"}
         await engine.dispose()
         await asyncio.to_thread(alembic, "upgrade", "heads")
