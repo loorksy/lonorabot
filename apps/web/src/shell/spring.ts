@@ -57,6 +57,13 @@ export function springTo({
 }
 export type SpringHandle = ReturnType<typeof springTo>;
 
+/** An under-damped spring from 0 to 1 over t seconds (damping ratio zeta, natural frequency omega): it overshoots, then settles. */
+export function springCurve({ zeta: z, omega: w }: { zeta: number; omega: number }) {
+  const wd = w * Math.sqrt(1 - z * z);
+  return (t: number) =>
+    1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + ((z * w) / wd) * Math.sin(wd * t));
+}
+
 /** Rubber band past the first or last page. */
 export const rubber = (x: number, width: number) => {
   const d = width * 0.5;

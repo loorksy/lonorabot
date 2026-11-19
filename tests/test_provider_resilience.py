@@ -38,8 +38,6 @@ from lonora_contracts.model_routing import (
     AgentModelChange,
     AgentModelPreference,
     AgentModelRecord,
-    AgentModelState,
-    AllowedModels,
     Capability,
     ModelSelection,
     RoutingPolicy,
@@ -50,11 +48,9 @@ from lonora_core.model_routing import names_model
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import (
     agent_model_record,
-    allowed_models,
     apply_agent_model,
     change_agent_model,
     closest_models,
-    save_added_models,
 )
 from lonora_db.client import Database
 from lonora_db.messages import send_message
@@ -965,39 +961,34 @@ async def test_agent_preference_orders_candidates_and_never_needs_a_migration(
 
 
 @pytest.mark.asyncio
-async def test_automatic_agents_fall_back_on_allowed_models_and_a_run_choice_leads(
+async def test_a_run_choice_leads_and_the_owners_model_is_backed_by_the_global_routes(
     task_db: Fixture,
 ) -> None:
     db, owner, agent, _ = task_db
-    extra = ModelSelection(provider="deepseek", model="allowed-extra")
+    assigned = ModelSelection(provider="deepseek", model="owner-assigned")
     chosen = ModelSelection(provider="zai", model="helper-choice")
     await configure(db, BACKUP)
-    async with db.sessions() as session, session.begin():
-        await save_added_models(session, AllowedModels(added=[extra]))
-        assert await allowed_models(session) == [PRIMARY, BACKUP, extra]
     router = Scripted().router(db)
-    # Automatic (no record yet): Lonora may fall back on every allowed model.
+    # No record yet: the owner's routes and backups, and no list of other models.
     route = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id=agent)
-    assert route.choices == [PRIMARY, BACKUP, extra]
+    assert route.choices == [PRIMARY, BACKUP]
     led = await router.route(
         Capability.CONVERSATION, owner_id=owner, agent_id=agent, run_choice=chosen
     )
-    assert led.choices == [chosen, PRIMARY, BACKUP, extra]
+    assert led.choices == [chosen, PRIMARY, BACKUP]
     # Requests without an agent keep the global routes only.
     assert (await router.route(Capability.BACKGROUND)).choices == [PRIMARY, BACKUP]
     async with db.sessions() as session, session.begin():
-        record = await change_agent_model(
-            session, owner, agent, AgentModelChange(mode="fixed", primary=extra)
-        )
-        assert record.mode == "fixed" and record.chosen_by == "owner"
+        record = await change_agent_model(session, owner, agent, AgentModelChange(primary=assigned))
+        assert record.chosen_by == "owner" and record.previous == AgentModelPreference()
         # The same choice again changes nothing: no revision, no event.
         same, changed = await apply_agent_model(
-            session, owner, agent, record.state(), chosen_by="agent"
+            session, owner, agent, record.preference, chosen_by="owner"
         )
         assert not changed and same.revision == record.revision
-    fixed = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id=agent)
-    # Fixed: the owner's model leads and only the owner's routes back it up.
-    assert fixed.choices == [extra, PRIMARY, BACKUP]
+    owned = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id=agent)
+    # The owner's model leads and only the owner's routes back it up.
+    assert owned.choices == [assigned, PRIMARY, BACKUP]
 
 
 @pytest.mark.asyncio
@@ -1052,45 +1043,42 @@ def test_the_owners_words_name_a_model_by_id_name_or_a_distinctive_word() -> Non
     assert names_model("use Gemini", flash, "Google: Gemini 2.5 Flash")
 
 
-def test_a_model_name_finds_the_exact_catalog_ids_allowed_first() -> None:
+def test_a_model_name_finds_the_exact_catalog_ids() -> None:
     entries = [
         {"provider": "anthropic", "model": "claude-3-opus-20240229", "name": "Claude Opus 3"},
         {"provider": "anthropic", "model": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5"},
         {"provider": "anthropic", "model": "claude-opus-4-1-20250805", "name": "Claude Opus 4.1"},
         {"provider": "openai", "model": "gpt-5", "name": "GPT-5"},
     ]
-    allowed = [ModelSelection(provider="anthropic", model="claude-opus-4-1-20250805")]
-    found = closest_models("Opus", entries, allowed)
+    found = closest_models("Opus", entries)
     assert [item["model"] for item in found] == [
-        "claude-opus-4-1-20250805",
         "claude-3-opus-20240229",
+        "claude-opus-4-1-20250805",
     ]
-    assert found[0]["allowed"] is True and found[1]["allowed"] is False
     # A guessed id ranks the entry sharing most of its words first.
-    guess = closest_models("anthropic claude-opus-4.1", entries, [])
+    guess = closest_models("anthropic claude-opus-4.1", entries)
     assert guess[0]["model"] == "claude-opus-4-1-20250805"
     # A bare version number names nothing.
-    assert closest_models("4.5", entries, []) == []
+    assert closest_models("4.5", entries) == []
 
 
-def test_model_choice_records_written_before_modes_read_as_the_owner_chose() -> None:
-    legacy: dict[str, Any] = {
+def test_a_model_record_has_no_mode_and_only_the_owner_or_inheritance_chose() -> None:
+    record: dict[str, Any] = {
         "owner_id": "o",
         "agent_id": "a",
-        "revision": 1,
+        "revision": 2,
         "preference": {"primary": PRIMARY.model_dump(), "fallbacks": []},
+        "chosen_by": "inherited",
+        "previous": {"primary": BACKUP.model_dump(), "fallbacks": []},
     }
-    assert AgentModelRecord.model_validate(legacy).mode == "fixed"
-    unset: dict[str, Any] = {**legacy, "preference": {"primary": None, "fallbacks": []}}
-    assert AgentModelRecord.model_validate(unset).mode == "automatic"
-    assert AgentModelChange.model_validate({"primary": PRIMARY.model_dump()}).mode == "fixed"
-    assert AgentModelChange.model_validate({"mode": "automatic"}).primary is None
+    assert AgentModelRecord.model_validate(record).previous == AgentModelPreference(primary=BACKUP)
+    # The removed concepts are refused, never read silently.
+    for removed in ({"mode": "fixed"}, {"chosen_by": "agent"}):
+        with pytest.raises(ValidationError):
+            AgentModelRecord.model_validate({**record, **removed})
     with pytest.raises(ValidationError):
-        AgentModelChange(mode="fixed")
-    with pytest.raises(ValidationError):
-        AllowedModels(added=[PRIMARY, PRIMARY])
-    state = AgentModelState(mode="automatic", preference=AgentModelPreference(primary=BACKUP))
-    assert AgentModelState.model_validate(state.model_dump(mode="json")) == state
+        AgentModelChange.model_validate({"mode": "automatic"})
+    assert AgentModelChange.model_validate({}).primary is None
 
 
 # --- 6. Run-level backoff, escalation and compaction --------------------------------

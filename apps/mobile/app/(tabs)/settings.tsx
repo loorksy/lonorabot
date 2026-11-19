@@ -51,6 +51,12 @@ export default function Settings() {
           </Text>
         </View>
         <SettingsGroup>
+          <SettingsRow
+            title={t("whatIKnow")}
+            icon="eye"
+            testID="what-i-know"
+            onPress={() => router.push("/owner")}
+          />
           <SettingsRow title={t("account")} icon="agent" onPress={() => router.push("/account")} />
           <SettingsRow title={t("models")} icon="settings" onPress={() => router.push("/models")} />
           <SettingsRow
@@ -59,6 +65,15 @@ export default function Settings() {
             onPress={() => router.push("/integrations")}
           />
           <SettingsRow title={t("voice")} icon="activity" onPress={() => router.push("/voice")} />
+        </SettingsGroup>
+        <SettingsGroup>
+          <SettingsRow
+            testID="what-is-running"
+            title={t("running_title")}
+            detail={t("running_subtitle")}
+            icon="activity"
+            onPress={() => router.push("/running")}
+          />
         </SettingsGroup>
         <SettingsGroup>
           <SettingsRow

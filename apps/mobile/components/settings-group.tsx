@@ -158,7 +158,9 @@ export function SettingsRow({
       {content}
     </Pressable>
   ) : (
-    <View style={layout}>{content}</View>
+    <View testID={testID} style={layout}>
+      {content}
+    </View>
   );
 }
 export function SettingsSwitch({

@@ -226,7 +226,7 @@ async def create_root_agent(
         ),
         agent_id=agent_id,
     )
-    from .agent_models import change_agent_model
+    from .agent_models import change_agent_model, inherit_lead_model
     from .agent_permissions import initial_permission
 
     # Never a grant: "Ask me" or "No trading", written so it does not follow a default.
@@ -238,6 +238,9 @@ async def create_root_agent(
             row.id,
             AgentModelChange(primary=ModelSelection.model_validate(spec["model"])),
         )
+    else:
+        # No model named: Lonora's current one (VISION 3.1.2).
+        await inherit_lead_model(session, owner_id, row.id)
     origin: dict[str, Any] = {
         "owner_id": owner_id,
         "agent_id": row.id,

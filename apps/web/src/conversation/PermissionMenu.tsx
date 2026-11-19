@@ -2,11 +2,11 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentModelSummary, AgentPermissionLevel, PermissionState } from "@lonora/contracts";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Agent } from "../lib/api";
 import { api } from "../lib/api";
 import { userError } from "../lib/user_error";
-import { usePopover } from "../shell/lists/Popover";
+import { usePopover, usePopoverPage } from "../shell/lists/Popover";
 import { useNavigation } from "../shell/navigation";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
@@ -63,7 +63,6 @@ export function PermissionChip({
       <button
         type="button"
         className="mode-chip"
-        aria-haspopup="dialog"
         onClick={() => window.dispatchEvent(new CustomEvent("lonora:members-permissions"))}
       >
         <Icon name="users" />
@@ -163,7 +162,7 @@ export function PermissionChip({
             threadId={threadId}
           />,
           t`Permission level`,
-          { cls: "mode-pop", above: true },
+          { cls: "mode-pop", morph: true },
         )
       }
     >
@@ -197,6 +196,12 @@ function PermissionMenu({
   });
   const [summary, setSummary] = useState<AgentModelSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  const modelRow = useRef<HTMLButtonElement>(null);
+  const toLadder = () => {
+    setPage({ kind: "ladder" });
+    requestAnimationFrame(() => modelRow.current?.focus({ preventScroll: true }));
+  };
+  usePopoverPage(page.kind !== "ladder", toLadder);
   const level = permission.effective_level;
   const path = `/agents/${encodeURIComponent(agent.id)}`;
   useEffect(() => {
@@ -236,8 +241,10 @@ function PermissionMenu({
     if (level === "autonomous") return setPage({ kind: "down", level: next });
     void setLevel(next);
   };
-  const auto = summary?.record.mode === "automatic";
-  const modelValue = auto ? t`Automatic` : (summary?.current.name ?? summary?.current.model ?? "—");
+  const auto = summary ? !summary.record.preference.primary : false;
+  const modelValue = auto
+    ? t({ message: "Your default model", context: "model" })
+    : (summary?.current.name ?? summary?.current.model ?? "—");
   const grant = permission?.active_authorities.length ? permission.active_authorities[0] : null;
   return (
     <div className="mp-pages" data-page={page.kind === "ladder" ? "1" : "2"}>
@@ -265,6 +272,7 @@ function PermissionMenu({
         ))}
         <div className="pop-sep" />
         <button
+          ref={modelRow}
           type="button"
           className="pop-row mp-model-row"
           role="menuitem"
@@ -309,7 +317,7 @@ function PermissionMenu({
                 type="button"
                 className="icon mp-back"
                 aria-label={t`Back`}
-                onClick={() => setPage({ kind: "ladder" })}
+                onClick={toLadder}
               >
                 <Icon name="back" />
               </button>
@@ -351,12 +359,7 @@ function PermissionMenu({
                 </small>
               </span>
             </button>
-            <button
-              type="button"
-              className="pop-opt"
-              role="menuitem"
-              onClick={() => setPage({ kind: "ladder" })}
-            >
+            <button type="button" className="pop-opt" role="menuitem" onClick={toLadder}>
               <span className="pop-opt-body">
                 <strong>
                   <Trans>Keep «{levelName("autonomous")}»</Trans>
@@ -373,7 +376,7 @@ function PermissionMenu({
             agent={agent}
             summary={summary}
             onSummary={setSummary}
-            onBack={() => setPage({ kind: "ladder" })}
+            onBack={toLadder}
           />
         ) : null}
       </div>
@@ -397,12 +400,11 @@ function ModelPage({
   const popover = usePopover();
   const toast = useToast();
   const path = `/agents/${encodeURIComponent(agent.id)}/model`;
-  const auto = summary?.record.mode === "automatic";
+  const auto = summary ? !summary.record.preference.primary : false;
   const current = summary?.current;
   const choose = async (choice: { provider: string; model: string } | null) => {
     try {
       await api.put(path, {
-        mode: choice ? "fixed" : "automatic",
         primary: choice ?? null,
         expected_revision: summary?.record.revision,
       });
@@ -414,7 +416,7 @@ function ModelPage({
       toast(userError(error), { type: "error" });
     }
   };
-  const models = summary?.allowed.length ? summary.allowed : (summary?.available ?? []);
+  const models = summary?.available ?? [];
   return (
     <>
       <div className="mp-head">
@@ -438,9 +440,7 @@ function ModelPage({
         onClick={() => void choose(null)}
       >
         <span className="pop-opt-body">
-          <strong>
-            <Trans>Automatic</Trans>
-          </strong>
+          <strong>{t({ message: "Your default model", context: "model" })}</strong>
           <small>
             {auto && current?.name
               ? t`Running on «${current.name}» now · the routing picks the best fit for each task`

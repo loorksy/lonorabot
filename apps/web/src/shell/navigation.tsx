@@ -10,12 +10,14 @@ import {
   useRef,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { usePopover } from "./lists/Popover";
 import { parseRoute, type ShellRoute } from "./routes";
 import { useSheets } from "./sheets/SheetHost";
 
 /* Navigation model of the reference: every go() is a history entry; scroll is remembered per
-   entry; Back closes the sheet first, then asks about unsaved edits, then pops. Dirty forms are
-   any main-page form marked data-form (never the composer); they clear on submit or discard. */
+   entry; Back closes the popover menu first, then the sheet, then asks about unsaved edits,
+   then pops. Dirty forms are any main-page form marked data-form (never the composer); they
+   clear on submit or discard. */
 let dirty = false;
 let allowLeave = false;
 let pendingNav: (() => void) | null = null;
@@ -49,10 +51,16 @@ window.addEventListener("beforeunload", (event) => {
   if (dirty) event.preventDefault();
 });
 // Registered at module load, before the router's own listener: a Back while a form is dirty
-// re-pushes the entry we are on and asks first; the router never sees that pop. An open sheet
-// closes first through its own history layer.
+// re-pushes the entry we are on and asks first; the router never sees that pop. An open popover
+// or sheet closes first through its own history layer.
 window.addEventListener("popstate", (event) => {
-  if (!dirty || allowLeave || document.getElementById("dialog")?.matches("[open]")) return;
+  if (
+    !dirty ||
+    allowLeave ||
+    document.getElementById("dialog")?.matches("[open]") ||
+    document.querySelector(".pop[role=menu]")
+  )
+    return;
   window.history.pushState(current.state, "", current.href);
   event.stopImmediatePropagation();
   askToLeave?.("leave", () => {
@@ -77,6 +85,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const sheets = useSheets();
+  const popover = usePopover();
   const route = useMemo(() => parseRoute(location.pathname), [location.pathname]);
   useEffect(() => {
     void location;
@@ -149,6 +158,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     };
   }, [go]);
   const back = useCallback(() => {
+    if (popover.back()) return;
     if (sheets.isOpen()) {
       sheets.close();
       return;
@@ -164,7 +174,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     const state = window.history.state as { idx?: number } | null;
     if (typeof state?.idx === "number" && state.idx > 0) navigate(-1);
     else navigate("/app");
-  }, [navigate, sheets]);
+  }, [navigate, sheets, popover]);
   const value = useMemo<Navigation>(
     () => ({ route, key: location.key, go, back }),
     [route, location.key, go, back],
@@ -189,23 +199,14 @@ export function useScrollMemory(ref: React.RefObject<HTMLElement | null>, key: s
     const saved = scrollMemory.get(key);
     if (saved !== undefined) element.scrollTop = saved;
   }, [ref, key]);
-  useEffect(() => {
+  // Saved as it scrolls, from the commit on (where the page places itself counts too): by the
+  // time the entry changes, its scroller has left the page.
+  useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
-    let frame = 0;
-    const save = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        scrollMemory.set(key, element.scrollTop);
-      });
-    };
+    const save = () => scrollMemory.set(key, element.scrollTop);
     element.addEventListener("scroll", save, { passive: true });
-    return () => {
-      element.removeEventListener("scroll", save);
-      if (frame) cancelAnimationFrame(frame);
-      scrollMemory.set(key, element.scrollTop);
-    };
+    return () => element.removeEventListener("scroll", save);
   }, [ref, key]);
 }
 export const rememberedScroll = (key: string) => scrollMemory.get(key);

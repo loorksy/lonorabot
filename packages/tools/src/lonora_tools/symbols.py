@@ -1,9 +1,9 @@
 """The account's own symbol for an instrument request.
 
 Reads resolve a common name or canonical code to the symbol the account really lists
-(``read_symbol``). Anything that leads to an order, a grant or a restriction names a
-symbol the catalogue lists exactly, letter case aside (``order_symbol``,
-``canonical_broker_symbol``, ``restriction_symbol``): it is never rewritten to another
+(``read_symbol``). Anything that leads to an order or a grant names a symbol the
+catalogue lists exactly, letter case aside (``order_symbol``,
+``canonical_broker_symbol``): it is never rewritten to another
 symbol. A request that is not listed fails with the account's real candidates and the
 next call, so the model continues in the same run instead of asking the owner for a
 broker's symbol name.
@@ -37,8 +37,8 @@ CHECK_THE_SYMBOL = (
     "for a symbol name."
 )
 ASK_WHICH_CONTRACT = (
-    "Several different contracts on this account match. Never choose one for an order, "
-    "a grant or a restriction: ask the owner which, describing each choice in plain "
+    "Several different contracts on this account match. Never choose one for an order "
+    "or a grant: ask the owner which, describing each choice in plain "
     "words (what one lot is, the smallest order), never as a question about symbol "
     "names; then repeat the call with the chosen exact symbol."
 )
@@ -180,39 +180,26 @@ async def canonical_broker_symbol(broker: Any, symbol: str, *, require_exists: b
         return symbol
 
 
-async def restriction_symbol(broker: Any | None, symbol: str) -> tuple[str, bool]:
-    """A restriction symbol in the broker's spelling, and whether the catalog confirmed it.
-
-    Enforcement matches the stored symbol exactly (ignoring case), so a symbol that a
-    readable catalog does not list would never match a trade: that is an error the model
-    or owner corrects (``symbol_not_found`` / ``symbol_ambiguous``). Only when the catalog
-    cannot be read (no broker, a failed or empty listing) is the symbol kept as given and
-    marked unverified, because recording an owner's narrowing must not depend on broker
-    availability.
-    """
-    if broker is None:
-        return symbol, False
-    try:
-        names = await broker.symbols()
-    except Exception:
-        return symbol, False
-    if not isinstance(names, list) or not names:
-        return symbol, False
-    try:
-        return catalog_symbol(cast(list[object], names), symbol), True
-    except SymbolNotResolved as error:
-        raise await _described(broker, error) from None
-
-
 async def order_symbol(broker: Any, symbol: str) -> str:
     """The symbol an order, a close or a sizing names, in the broker's spelling.
 
     A readable catalogue must list it exactly (letter case aside); it is never resolved
-    to another symbol. An unreadable catalogue leaves it as given: the executor's own
-    preflight still requires the broker's exact instrument, and an exit is not held back
-    by a failed listing.
+    to another symbol (``symbol_not_found`` / ``symbol_ambiguous``). An unreadable
+    catalogue leaves it as given: the executor's own preflight still requires the
+    broker's exact instrument, and an exit is not held back by a failed listing.
     """
-    return (await restriction_symbol(broker, symbol))[0]
+    if broker is None:
+        return symbol
+    try:
+        names = await broker.symbols()
+    except Exception:
+        return symbol
+    if not isinstance(names, list) or not names:
+        return symbol
+    try:
+        return catalog_symbol(cast(list[object], names), symbol)
+    except SymbolNotResolved as error:
+        raise await _described(broker, error) from None
 
 
 @dataclass

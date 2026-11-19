@@ -16,7 +16,6 @@ from lonora_contracts.trading import (
     TradeRequest,
     TradeResult,
 )
-from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
 from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
@@ -25,14 +24,12 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
 from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_journal import anchor_operation, persist_result, reserve_operation
-from lonora_db.trading_restrictions import restriction_lock
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import management_target, require_account_execution
-from .admission import may_reduce_risk, require_operation_scope, risk_reducing
+from .admission import AdmissionBlocked, may_reduce_risk, require_operation_scope, risk_reducing
 from .agent_permission import acting_agent, require_operation_permission
-from .controls import read_controls
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .idempotency import trade_fingerprint
 from .journal import execution_evidence
@@ -40,7 +37,6 @@ from .manual_activity import material_state
 from .operation_events import operation_event
 from .preflight import preflight
 from .reconciliation import send_lock_key
-from .restrictions import AdmissionBlocked, require_unrestricted
 from .risk_limits import assess_risk, risk_operations
 from .verification import verify_effect
 
@@ -170,19 +166,15 @@ class ExecutionService:
             connection_version = connection.version
         if authorization:
             await authorization()
-        controls = await read_controls(self.db)
-        if not may_reduce_risk(request):
-            require_trading(controls)
         broker = await self.brokers.get(owner_id, request.account_id)
         planned_snapshot = await preflight(broker, request)
-        # Global OFF/Emergency Stop and unresolved operations stop new risk, not exits.
+        # Unresolved operations stop new risk, not exits.
         # The final decision is repeated against a fresh target inside before_send.
         planned_reducing = risk_reducing(
             request,
             management_target(planned_snapshot, request),
             positions=planned_snapshot.positions,
         )
-        require_trading(controls, risk_reducing=planned_reducing)
         async with self.db.sessions() as session, session.begin():
             if lease:
                 origin = await require_lease(session, lease)
@@ -225,15 +217,6 @@ class ExecutionService:
                 reducing=planned_reducing,
                 recovery=connection.state.get("broker_recovery"),
                 send_locked=False,
-            )
-            # Fail fast on an owner restriction; the decisive check repeats at the send
-            # boundary, so a restriction created while this request waits still applies.
-            await require_unrestricted(
-                session,
-                owner_id,
-                request,
-                agent_id=leased_run.agent_id if leased_run else None,
-                reducing=planned_reducing,
             )
             journal, fresh = await reserve_operation(
                 session,
@@ -282,8 +265,6 @@ class ExecutionService:
                 },
             ).model_dump(mode="json")
 
-        # Restrictions govern agent-originated operations; None is the owner's manual path.
-        restricted_agent = leased_run.agent_id if leased_run else None
         send_authorized = False
         quality: ExecutionQuality | None = None
         before_snapshot: ExecutionSnapshot | None = None
@@ -335,7 +316,6 @@ class ExecutionService:
                     before_send=observed,
                 )
                 raise LonoraError(quality.reasons[0], 409)
-            require_trading(await read_controls(self.db), risk_reducing=reducing)
             # Owner monetary limits, from fresh broker economics under this account's send
             # lock. Risk-reducing requests are never blocked by a limit.
             risk = None
@@ -463,13 +443,6 @@ class ExecutionService:
                             snapshot,
                             expected_target,
                         )
-                # Owner restrictions: held shared against concurrent creation, so this
-                # operation either commits its send authorization before a restriction
-                # exists or sees it here. Queued work is decided now, not when queued.
-                await restriction_lock(session, owner_id, request.account_id, shared=True)
-                await require_unrestricted(
-                    session, owner_id, request, agent_id=restricted_agent, reducing=reducing
-                )
                 row = await session.get(
                     TradingJournalRow, request.operation_id, with_for_update=True
                 )

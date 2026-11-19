@@ -11,6 +11,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
+from lonora_db.owner_signals import record_signal
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run
 from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, TradingJournalRow
@@ -194,6 +195,24 @@ async def wake_for_activity(
             payload=change.model_dump(mode="json"),
         )
         session.add(EffectReceiptRow(key=key, result={"event_id": change.id, "agent_id": agent.id}))
+        if change.resource == "position" and change.change in {"closed", "partial_close"}:
+            # Which positions the owner closes, and when (8.1). The broker does not say
+            # whether a hand or the position's own stop or target closed it: both facts go in.
+            closed = change.previous or change.current
+            record_signal(
+                session,
+                owner_id,
+                "external_close",
+                agent_id=change.agent_id,
+                observed_at=change.observed_at,
+                details={
+                    "symbol": change.symbol,
+                    "ticket": change.ticket,
+                    "change": change.change,
+                    "had_stop_loss": bool(closed and closed.stop_loss is not None),
+                    "had_take_profit": bool(closed and closed.take_profit is not None),
+                },
+            )
         groups.setdefault((agent.id, attributed), []).append(change.id)
     for (agent_id, attributed), pending_ids in groups.items():
         agent = agents[agent_id]

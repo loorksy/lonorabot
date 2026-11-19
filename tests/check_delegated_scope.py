@@ -119,7 +119,6 @@ async def main() -> None:
         )
         descendant_thread = await f.conversation(grandchild_data)
         descendant_context = await f.lease(await f.run(grandchild_data, descendant_thread))
-        await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
         await denied(
             descendant_context.trading.execute(
                 f.owner,
@@ -178,7 +177,6 @@ async def main() -> None:
             "PASS parent deletion retains permanent nonfinancial scope; specialist child exact binding remains intact"
         )
     finally:
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         await f.close()
 
 

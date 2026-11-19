@@ -1,9 +1,9 @@
-"""The v2 card functions, values only (GENUI_PLAN §7.3), mirroring
+"""The v2 card functions, values only (docs/genui.md), mirroring
 ``packages/core/src/genui/functions.ts``.
 
 A bad argument returns None. The formatters (Fmt, Money, Pct, Signed, DayLabel, Plural)
 return plain text without grouping or currency: the server only reads it for the privacy
-guards, and display text is formatted on the client (§2.3). ``Random`` is client-only.
+guards, and display text is formatted on the client (docs/genui.md §1). ``Random`` is client-only.
 """
 
 from __future__ import annotations

@@ -40,8 +40,15 @@ SKIPPED_TOOLS = frozenset(
         "runtime_status",
         "memory_read",
         "memory_write",
+        "method_history",
+        "method_restore",
+        "skill_save",
+        "skill_history",
+        "skill_restore",
         "owner_preferences_update",
         "scratchpad_write",
+        "knowledge_note_add",
+        "knowledge_note_delete",
         # A quick reaction is a gesture in the conversation, not an observation.
         "message_react",
     }
@@ -52,12 +59,19 @@ EFFECT_TOOLS = frozenset({"trade_execute", "trade_close_positions"})
 EXTERNAL_TOOLS = frozenset(
     {
         "artifact_read",
+        # The owner's workspace: program output, process command lines, file contents.
+        "workspace_run",
+        "workspace_processes",
+        "workspace_file_read",
+        # The former analytical workspace's tools: earlier Runs stored their results.
         "workspace_read",
         "workspace_inspect",
         "workspace_execute",
         "skill_repository_inspect",
         "search_internal",
         "session_search",
+        # Stored knowledge notes: text the owner or an agent saved, possibly from elsewhere.
+        "knowledge_note_list",
         # Third-party calendar and news feeds (event names, headlines, summaries).
         "economic_calendar_read",
         "news_feed_read",

@@ -176,6 +176,17 @@ async def test_a_team_agents_memory_reaches_itself_lonora_and_the_owner_only():
         assert {item["thread_id"] for item in found["results"]} == {gold_thread["id"]}
         page = await call(lead, "agent_inspect", agent_id=gold["id"], section="memory")
         assert SENTINEL in page["memory"] and page["editable"] is False
+        # Knowledge notes follow the same rule: the agent and Lonora, never a peer.
+        note = await call(mine, "knowledge_note_add", content=f"{SENTINEL} gold note")
+        assert note["ok"] is True
+        assert await refused(peer, "knowledge_note_list", agent_id=gold["id"]) == (
+            "knowledge_note_agent_not_allowed"
+        )
+        assert await refused(
+            peer, "knowledge_note_add", content="planted", agent_id=gold["id"]
+        ) == ("knowledge_note_agent_not_allowed")
+        notes = await call(lead, "knowledge_note_list", agent_id=gold["id"])
+        assert [item["content"] for item in notes["notes"]] == [f"{SENTINEL} gold note"]
         # The owner reads it through the owner API.
         memory = await fixture.request("GET", f"/agents/{gold['id']}/memory")
         assert SENTINEL in memory["content"]
