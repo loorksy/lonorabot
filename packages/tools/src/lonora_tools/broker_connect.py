@@ -1,14 +1,18 @@
 """Connect the owner's trading account from chat (VISION.md 9.2)."""
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from lonora_contracts.domain import Contract
-from lonora_core.user_error import ToolRefusal
-from lonora_db.broker_sessions import BrokerSessionRepository, current_broker_identity
+from lonora_core.user_error import LonoraError, ToolRefusal
+from lonora_db.broker_sessions import (
+    BrokerSessionRepository,
+    broker_identity_key,
+    current_broker_identity,
+)
 from lonora_db.owner_actions import propose_effect
 from lonora_db.runs import require_lease
 from lonora_db.schema import SecretRow
-from lonora_db.secret_cards import broker_card_payload
+from lonora_db.secret_cards import ROTATE_PASSWORD, broker_card_payload
 from lonora_db.secrets import BROKER, METAAPI_TOKEN
 from lonora_session.idempotency import stable_id
 from lonora_trading.broker_provisioning import (
@@ -71,12 +75,41 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 409,
                 details={"hint": "That account is being connected; you are woken when done."},
             )
-        await repository.assert_unique(
-            session,
-            context.owner_id,
-            {"provider": "metaapi", "account_id": "provisioning:" + run.id},
-            identity={"login": login, "server": server, "platform": platform},
-        )
+        typed = {"login": login, "server": server, "platform": platform}
+        moved = await connected_elsewhere(repository, session, context.owner_id, typed)
+        if moved is not None:
+            # The owner names another server for a connected login (a demo account moved
+            # between servers): that connection's MetaApi account moves to it, with the
+            # password typed on the card. Never a second connection on the new server.
+            connection_id, server_from = moved
+            subject, payload = broker_card_payload(
+                login=login,
+                server=server,
+                platform=platform,
+                token_needed=False,
+                purpose=ROTATE_PASSWORD,
+                connection_id=connection_id,
+            )
+            payload["server_from"] = server_from
+        else:
+            try:
+                await repository.assert_unique(
+                    session,
+                    context.owner_id,
+                    {"provider": "metaapi", "account_id": "provisioning:" + run.id},
+                    identity=typed,
+                )
+            except LonoraError as failure:
+                raise ToolRefusal(
+                    failure.code,
+                    failure.status,
+                    details={
+                        "hint": "This login and server are already connected. For a new "
+                        "password, use broker_manage rotate_password with its connection_id "
+                        "from list_accounts; for another server, call broker_connect with "
+                        "the server exactly as the owner's MT5 app shows it."
+                    },
+                ) from None
         row, created = await propose_effect(
             session,
             context.owner_id,
@@ -92,10 +125,36 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         return {
             **card_summary(row, created, thread.id, False),
             "asks_for": [field["key"] for field in payload["fields"]],
-            "next": "The server provisions and deploys the account after the owner saves. "
-            "You are woken with what MetaApi and the broker answered. Do not ask for the "
+            "next": (
+                f"This login is connected on server {moved[1]}: after the owner saves, "
+                f"MetaApi's account moves to {server} with the new password and redeploys."
+                if moved
+                else "The server provisions and deploys the account after the owner saves."
+            )
+            + " You are woken with what MetaApi and the broker answered. Do not ask for the "
             "password in chat.",
         }
+
+
+async def connected_elsewhere(
+    repository: BrokerSessionRepository, session: Any, owner_id: str, typed: dict[str, str]
+) -> tuple[str, str] | None:
+    """A MetaApi connection of the owner for this login and platform on another server:
+    its id and server. The last recorded identity counts even after a credential change,
+    since a change of password or server keeps the login."""
+    login, server, platform = broker_identity_key(typed) or ("", "", "")
+    for row in await repository.all_connections(session, owner_id):
+        saved = row.state.get("broker_identity")
+        identity = cast(dict[str, Any], saved) if isinstance(saved, dict) else {}
+        known = broker_identity_key(identity)
+        if (
+            row.payload.get("provider") == "metaapi"
+            and known is not None
+            and (known[0], known[2]) == (login, platform)
+            and known[1] != server
+        ):
+            return row.id, str(identity["server"])
+    return None
 
 
 def tools() -> list[Tool]:
@@ -108,8 +167,8 @@ def tools() -> list[Tool]:
             "app shows it now, then call with them; platform mt4/mt5 only when the server "
             "name does not say. The server shows a card for the main trading password (and "
             "the MetaApi API token the first time), provisions and deploys the account, and "
-            "wakes you with what MetaApi and the broker answered. Only on the owner's own "
-            "request.",
+            "wakes you with what MetaApi and the broker answered. A connected login on "
+            "another server is moved to this one. Only on the owner's own request.",
             BrokerConnectInput,
             connect,
             search_terms="link add broker trading account metatrader exness login password "

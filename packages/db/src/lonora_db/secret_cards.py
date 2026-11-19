@@ -457,6 +457,12 @@ def broker_prompt(row: OwnerActionRow) -> str:
             "is redeploying with it.",
             REPLACE_TOKEN: "The new MetaApi token now serves every connected account.",
         }[purpose]
+        if row.payload.get("server_from"):
+            done = (
+                f"MetaApi now has the account on server {row.payload['account']['server']} "
+                f"(it had {row.payload['server_from']}) with the new trading password, and "
+                "the terminal is redeploying with them."
+            )
         if purpose == ROTATE_PASSWORD:
             done += " Whether the broker accepts the login shows only when account_read answers."
         if result.get("provisioning") == "connected":

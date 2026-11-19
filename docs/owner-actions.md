@@ -31,7 +31,10 @@ read answered in time (the card says "Saved, waiting for the broker login"), or
 the broker 3 minutes after it was first seen deployed fails as `broker_login_rejected`
 (MetaApi reports DISCONNECTED_FROM_BROKER) or `broker_login_not_established`
 (DISCONNECTED, no reason given); the wake names what was observed and the usual fixes
-(the server name exactly as the MT5 app shows it now, the main password). Otherwise the agent chooses its label and fields
+(the server name exactly as the MT5 app shows it now, the main password). A
+`broker_connect` for a login already connected on another server raises a new-password
+card for that connection instead, which moves its MetaApi account to the new server;
+never a second connection. Otherwise the agent chooses its label and fields
 (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
 `secret: false` only unmasks a field while it is typed). The server sets the
 destination: an agent's card saves to the owner's `workspace` secrets, and the card

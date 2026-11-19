@@ -165,9 +165,11 @@ async def _close_adapter(brokers: Any, connection_id: str) -> None:
 async def rotate_password(
     db: Database, brokers: Any, secrets: BrokerSecrets, owner_id: str, card: Any
 ) -> str | None:
-    """Store the owner's new password at MetaApi and redeploy with it (Q7). Returns a
-    failure code, or None when done. The connection's version moves under the send lock,
-    so no send uses a connection object from before the change."""
+    """Store the owner's new password at MetaApi and redeploy with it (Q7), with the
+    card's server name when the owner named another one (a reconnect to the server the
+    account is on now). Returns a failure code, or None when done. The connection's
+    version moves under the send lock, so no send uses a connection object from before
+    the change."""
     from lonora_db.secrets import metaapi_password_name
 
     connection_id = str(card.payload["connection_id"])
@@ -193,7 +195,9 @@ async def rotate_password(
                 await refuse_unsettled(db, owner_id, connection_id)
                 async with asyncio.timeout(METAAPI_SECONDS):
                     await provisioning.update_password(
-                        payload.account_id, await secrets.read(new_password)
+                        payload.account_id,
+                        await secrets.read(new_password),
+                        server=card.payload["account"]["server"],
                     )
                 sent = True
                 # MetaApi holds the new password now: record it and move the version at once.

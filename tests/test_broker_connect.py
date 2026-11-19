@@ -751,3 +751,62 @@ async def test_a_connection_whose_first_read_never_answers_is_linked_not_connect
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_reconnect_with_the_server_the_account_moved_to_moves_the_same_account() -> None:
+    """The owner names another server for a connected login: the card is for that
+    connection, and MetaApi's account gets the new server and password and redeploys.
+    No second MetaApi account and no second connection; the old server is not kept."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import BrokerSessionRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    account = login()
+    moved_to = "Fixture-MT5Trial2"
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Moved")
+        with installed():
+            first = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(first, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway()
+            connected = (await world.card(first)).result
+            assert connected["provisioning"] == "connected", connected
+            metaapi_id = connected["metaapi_account_id"]
+            # Exness moves the demo account; the old server no longer has the login.
+            api.servers[SERVER].pop(account)
+            api.servers[moved_to] = {account: PASSWORD + "-main"}
+            shown = await connect(fixture, agent, account, server=moved_to)
+            assert shown["asks_for"] == ["PASSWORD"] and SERVER in shown["next"]
+            card_id = shown["owner_action"]["id"]
+            card = await world.card(card_id)
+            assert card.payload["purpose"] == "rotate_password"
+            assert card.payload["connection_id"] == connected["connection_id"]
+            assert card.payload["account"]["server"] == moved_to
+            assert card.payload["server_from"] == SERVER
+            assert (await world.save(card_id, {"PASSWORD": PASSWORD + "-main"})).status_code == 200
+            await world.gateway(1)
+        assert (await world.card(card_id)).result["provisioning"] == "connected"
+        assert api.accounts[metaapi_id]["server"] == moved_to
+        assert api.accounts[metaapi_id]["connectionStatus"] == "CONNECTED"
+        assert [create["login"] for create in api.creates].count(account) == 1
+        assert {"redeploy", "update"} <= set(api.calls)
+        async with fixture.runtime.db.sessions() as session:
+            rows = [
+                row
+                for row in await session.scalars(select(BrokerSessionRow))
+                if account in str(row.state.get("broker_identity"))
+            ]
+        assert [row.id for row in rows] == [connected["connection_id"]]
+        prompt = await world.wake_prompt(card_id)
+        assert prompt is not None and f"on server {moved_to} (it had {SERVER})" in prompt
+        assert "Whether the broker accepts the login shows only when account_read" in prompt
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
