@@ -182,8 +182,17 @@ async def test_lonora_takes_no_grant_and_no_card_says_its_supervision_changed():
                 "/api/owner-actions", params={"thread_id": thread["id"]}
             )
             assert response.is_success, response.text
-            return [item for item in response.json() if item["kind"].startswith("supervis")]
+            return [
+                item
+                for item in response.json()
+                if item["kind"].startswith("supervis") and item["id"] not in earlier
+            ]
 
+        # The database is shared: cards other tests left in Lonora's conversation (a
+        # supervisor pausing Lonora's routine, a supervision set from its chat) are not this
+        # test's.
+        earlier: set[str] = set()
+        earlier = {item["id"] for item in await cards()}
         # The owner asks Lonora to stop (or start) supervising: refused with the reason,
         # nothing revoked, and no Stopped card with Restore, nor an Undo card.
         told = await owner_says(fixture, lonora, thread, "توقفي عن الإشراف على الذهب والفضة")
