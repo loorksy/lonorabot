@@ -294,9 +294,9 @@ test("Q58: with no voice provider the call button warns and points to chat", asy
     "No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key",
   );
   await expect(page).toHaveURL(`/app/${agent.id}`);
-  // The provider screens are removed (P5): the sheet only closes.
+  // The provider screens are removed (P5): the sheet only tells, and closes.
   await expect(sheet.getByRole("button", { name: "Set up the voice provider" })).toHaveCount(0);
-  await sheet.getByRole("button", { name: "Close", exact: true }).click();
+  await sheet.getByLabel("Close").click();
   await expect(page).toHaveURL(`/app/${agent.id}`);
   // Nothing was dialled and no microphone was asked for.
   expect(sessions).toHaveLength(0);

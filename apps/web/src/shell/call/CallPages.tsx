@@ -409,19 +409,12 @@ export function useCallStarter() {
       id: "voice-not-configured",
       title: t`Calls are not set up`,
       body: (
-        <>
-          <p>
-            <Trans>
-              No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key to
-              make calls.
-            </Trans>
-          </p>
-          <div className="actions">
-            <button type="button" className="btn" onClick={() => sheets.close()}>
-              <Trans>Close</Trans>
-            </button>
-          </div>
-        </>
+        <p>
+          <Trans>
+            No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key to make
+            calls.
+          </Trans>
+        </p>
       ),
     });
   /** True when the voice provider is configured (otherwise the warning is open). */

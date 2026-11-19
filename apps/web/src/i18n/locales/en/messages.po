@@ -901,7 +901,7 @@ msgstr "Animals & nature"
 msgid "Another answer"
 msgstr "Another answer"
 
-#: src/shell/call/CallPages.tsx:584
+#: src/shell/call/CallPages.tsx:577
 msgctxt "call"
 msgid "Answer"
 msgstr "Answer"
@@ -1914,7 +1914,6 @@ msgstr "Click the install icon in the address bar."
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
 #: src/pages/shell/bot-settings.tsx:154
-#: src/shell/call/CallPages.tsx:421
 #: src/shell/sheets/SheetHost.tsx:587
 #: src/shell/sheets/SheetHost.tsx:615
 msgid "Close"
@@ -2492,7 +2491,7 @@ msgstr "Days of {month} elapsed"
 #~ msgid "Decision evidence"
 #~ msgstr "Decision evidence"
 
-#: src/shell/call/CallPages.tsx:590
+#: src/shell/call/CallPages.tsx:583
 msgctxt "call"
 msgid "Decline"
 msgstr "Decline"
@@ -3630,13 +3629,13 @@ msgstr "In-app messages"
 msgid "In-app notifications"
 msgstr "In-app notifications"
 
-#: src/shell/call/CallPages.tsx:576
+#: src/shell/call/CallPages.tsx:569
 #: src/shell/pages.tsx:170
 msgid "Incoming call"
 msgstr "Incoming call"
 
 #. placeholder {0}: agent.name
-#: src/shell/call/CallPages.tsx:560
+#: src/shell/call/CallPages.tsx:553
 msgid "Incoming call from {0}"
 msgstr "Incoming call from {0}"
 
@@ -4966,7 +4965,7 @@ msgstr "No usage in this period."
 #~ msgid "No voice provider is configured yet. Add an OpenAI key in the model providers to make calls."
 #~ msgstr "No voice provider is configured yet. Add an OpenAI key in the model providers to make calls."
 
-#: src/shell/call/CallPages.tsx:414
+#: src/shell/call/CallPages.tsx:413
 msgid "No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key to make calls."
 msgstr "No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key to make calls."
 
@@ -6127,7 +6126,7 @@ msgstr "Reply to {0}"
 msgid "Reply to your message"
 msgstr "Reply to your message"
 
-#: src/shell/call/CallPages.tsx:594
+#: src/shell/call/CallPages.tsx:587
 msgid "Reply with a message"
 msgstr "Reply with a message"
 
@@ -8083,8 +8082,8 @@ msgstr "This broker connection is disabled."
 msgid "This browser does not let a page choose the audio output."
 msgstr "This browser does not let a page choose the audio output."
 
-#: src/shell/call/CallPages.tsx:533
-#: src/shell/call/CallPages.tsx:551
+#: src/shell/call/CallPages.tsx:526
+#: src/shell/call/CallPages.tsx:544
 msgid "This call has ended."
 msgstr "This call has ended."
 
@@ -8387,7 +8386,7 @@ msgstr "Trades"
 
 #: src/components/ai/AgentAvatar.tsx:23
 #: src/shell/call/CallPages.tsx:67
-#: src/shell/call/CallPages.tsx:568
+#: src/shell/call/CallPages.tsx:561
 msgid "Trades on its own"
 msgstr "Trades on its own"
 

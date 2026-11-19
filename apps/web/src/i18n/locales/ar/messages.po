@@ -901,7 +901,7 @@ msgstr "حيوانات وطبيعة"
 msgid "Another answer"
 msgstr "إجابة أخرى"
 
-#: src/shell/call/CallPages.tsx:584
+#: src/shell/call/CallPages.tsx:577
 msgctxt "call"
 msgid "Answer"
 msgstr "رد"
@@ -1914,7 +1914,6 @@ msgstr "اضغط أيقونة التثبيت في شريط العنوان."
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
 #: src/pages/shell/bot-settings.tsx:154
-#: src/shell/call/CallPages.tsx:421
 #: src/shell/sheets/SheetHost.tsx:587
 #: src/shell/sheets/SheetHost.tsx:615
 msgid "Close"
@@ -2492,7 +2491,7 @@ msgstr "الأيام المنقضية من {month}"
 #~ msgid "Decision evidence"
 #~ msgstr "أدلة القرار"
 
-#: src/shell/call/CallPages.tsx:590
+#: src/shell/call/CallPages.tsx:583
 msgctxt "call"
 msgid "Decline"
 msgstr "رفض"
@@ -3624,13 +3623,13 @@ msgstr "رسائل داخل التطبيق"
 msgid "In-app notifications"
 msgstr "إشعارات داخل التطبيق"
 
-#: src/shell/call/CallPages.tsx:576
+#: src/shell/call/CallPages.tsx:569
 #: src/shell/pages.tsx:170
 msgid "Incoming call"
 msgstr "مكالمة واردة"
 
 #. placeholder {0}: agent.name
-#: src/shell/call/CallPages.tsx:560
+#: src/shell/call/CallPages.tsx:553
 msgid "Incoming call from {0}"
 msgstr "مكالمة واردة من {0}"
 
@@ -4960,7 +4959,7 @@ msgstr "لا استهلاك في هذه الفترة."
 #~ msgid "No voice provider is configured yet. Add an OpenAI key in the model providers to make calls."
 #~ msgstr "لم يُضبط مزود الصوت بعد. أضف مفتاح OpenAI في مزودي الذكاء الاصطناعي لإجراء المكالمات."
 
-#: src/shell/call/CallPages.tsx:414
+#: src/shell/call/CallPages.tsx:413
 msgid "No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key to make calls."
 msgstr "لم يُعدّ مزوّد صوت بعد. اطلب من لونورا في المحادثة ربط مفتاح OpenAI لإجراء المكالمات."
 
@@ -6121,7 +6120,7 @@ msgstr "ردّ على {0}"
 msgid "Reply to your message"
 msgstr "ردّ على رسالتك"
 
-#: src/shell/call/CallPages.tsx:594
+#: src/shell/call/CallPages.tsx:587
 msgid "Reply with a message"
 msgstr "الرد برسالة"
 
@@ -8077,8 +8076,8 @@ msgstr "اتصال الوسيط هذا معطّل."
 msgid "This browser does not let a page choose the audio output."
 msgstr "لا يتيح هذا المتصفح اختيار مخرج الصوت."
 
-#: src/shell/call/CallPages.tsx:533
-#: src/shell/call/CallPages.tsx:551
+#: src/shell/call/CallPages.tsx:526
+#: src/shell/call/CallPages.tsx:544
 msgid "This call has ended."
 msgstr "انتهت هذه المكالمة."
 
@@ -8381,7 +8380,7 @@ msgstr "الصفقات"
 
 #: src/components/ai/AgentAvatar.tsx:23
 #: src/shell/call/CallPages.tsx:67
-#: src/shell/call/CallPages.tsx:568
+#: src/shell/call/CallPages.tsx:561
 msgid "Trades on its own"
 msgstr "يتداول بنفسه"
 
