@@ -54,6 +54,7 @@ export function ThreadComposer({
   suggestion,
   onSuggestion,
   onWebSearchOff,
+  assist = true,
   permissionControl,
 }: {
   draft: string;
@@ -85,6 +86,8 @@ export function ThreadComposer({
   onSuggestion?: (text: string) => void;
   /** The chat's web search is on: a globe beside «+» turns it off, as on Web. */
   onWebSearchOff?: () => void;
+  /** «اقتراحات @» (chat preference): off, no list of agents while writing. */
+  assist?: boolean;
   /** Edit and resend (Q21): the owner's message this send replaces. */
   editing?: Message | null;
   onCancelEdit?: () => void;
@@ -98,13 +101,14 @@ export function ThreadComposer({
   const textBeforeCaret = draft.slice(0, cursor);
   const query = mentionQuery(textBeforeCaret);
   const candidates: Array<Agent | null> =
-    query === null
+    query === null || !assist
       ? []
       : guestCandidates(mentionCandidates(members, query), committed.current, direct, self).slice(
           0,
           6,
         );
-  if (query !== null && mentionAll && "all".startsWith(query.toLowerCase())) candidates.push(null);
+  if (assist && query !== null && mentionAll && "all".startsWith(query.toLowerCase()))
+    candidates.push(null);
   useEffect(() => {
     if (!draft) {
       committed.current = [];

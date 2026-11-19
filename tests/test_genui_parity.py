@@ -43,7 +43,24 @@ SETTLE = "\n".join(
 )
 # The records the slot card names, as ``lonora_db.genui_slots`` finds them in this
 # conversation (tests/test_genui_slots.py checks the lookup against real rows).
-SLOT_RECORDS = {("trade_approval", "parity-approval"), ("settle", "parity-settle")}
+SLOT_RECORDS = {
+    ("trade_approval", "parity-approval"): 0,
+    ("settle", "parity-settle"): 0,
+    ("secret", "parity-secret"): 1,  # a Secret card with one field
+}
+# The Secret card: its own words around the slot (W-ENV's form does the rest).
+SECRET = (
+    SLOTS.replace(
+        '"trade_approval","record":"parity-approval"', '"secret","record":"parity-secret"'
+    )
+    .replace("طلب معلّق", "مفتاح المنصة")
+    .replace("الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك.", "أحتاج مفتاح المنصة لأقرأ رصيدك.")
+    .replace(
+        "الطلب في مكانه من الشرح، فتقرر وأنت تقرأ.",
+        "البطاقة في مكانها من الشرح، فتحفظ المفتاح وأنت تقرأ.",
+    )
+    .replace("طلب موافقة بانتظار قرارك.", "أحتاج مفتاح المنصة؛ احفظه في بطاقة البيانات السرّية.")
+)
 COMPILED = FIXTURES / "parity-compiled.json"
 OWNER = "احسب حجم الصفقة لرصيد 10000 كما في https://example.com/position-size"
 
@@ -54,7 +71,7 @@ async def compiled_documents() -> list[dict[str, Any]]:
     documents: list[dict[str, Any]] = []
     history = [ModelMessage(role="user", content=OWNER)]
 
-    async def records(*_args: Any) -> set[tuple[str, str]]:
+    async def records(*_args: Any) -> dict[tuple[str, str], int]:
         return SLOT_RECORDS
 
     for text, past in (
@@ -62,6 +79,7 @@ async def compiled_documents() -> list[dict[str, Any]]:
         (reply(), messages()),
         (reply(SLOTS), history),
         (reply(SETTLE), history),
+        (reply(SECRET), history),
     ):
         with patch("lonora_agent.visual_response.slot_records", records):
             projection, projector = await project(text, history=past)
