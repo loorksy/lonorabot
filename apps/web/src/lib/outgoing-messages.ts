@@ -1,10 +1,19 @@
 import { pendingVoiceRich } from "@lonora/core";
 import { ApiError, type Message } from "./api";
+import type { DraftUpload } from "./composer-drafts";
 
+/** A file a message was sent with before its upload finished. */
+export type PendingFile = { id: string; name: string; size: number; media_type: string };
 export type OutgoingMessage = Message & {
   /** queued: offline, never answered by the server; flushes by itself (owner decision Q6). */
   delivery: "sending" | "queued" | "failed";
   retry_nonce: string;
+  /**
+   * Files still uploading: the message is posted once they are all up. On a failed row
+   * they are files that never arrived (the upload failed, or the page was reloaded and
+   * their bytes are gone), so the row can only be deleted.
+   */
+  uploading?: PendingFile[];
 };
 /**
  * Whether the API itself answered a send (owner decision Q6). A proxy's 502 or 504 with no
@@ -33,6 +42,23 @@ const empty: OutgoingIntent[] = [];
 let version = 0;
 /** Changes whenever any outbox changes (the chat list's waiting and failed marks). */
 export const outgoingVersion = () => version;
+// The running uploads of a sent message, by its nonce. Never saved: a File cannot be.
+const handles = new Map<string, DraftUpload[]>();
+const noUploads: readonly DraftUpload[] = [];
+const uploadListeners = new Set<() => void>();
+let uploadVersion = 0;
+export const outgoingUploads = (nonce: string): readonly DraftUpload[] =>
+  handles.get(nonce) ?? noUploads;
+/** Changes whenever a sent message's upload moves (the bubble's ring). */
+export const outgoingUploadVersion = () => uploadVersion;
+export function subscribeOutgoingUploads(listener: () => void) {
+  uploadListeners.add(listener);
+  return () => uploadListeners.delete(listener);
+}
+function uploadMoved() {
+  uploadVersion += 1;
+  for (const listener of uploadListeners) listener();
+}
 
 export function outgoingKey(ownerId: string, threadId: string) {
   return JSON.stringify([ownerId, threadId]);
@@ -107,6 +133,7 @@ export function enqueueOutgoing(
   fingerprint: string,
   body: Record<string, unknown>,
   afterSeq = 0,
+  uploads: DraftUpload[] = [],
 ): OutgoingIntent {
   const prior = outgoingMessages(key).find((row) => row.fingerprint === fingerprint);
   if (prior) {
@@ -139,10 +166,67 @@ export function enqueueOutgoing(
       reply_to: typeof body.reply_to === "string" ? body.reply_to : null,
       attachment_ids: Array.isArray(body.attachment_ids) ? [...body.attachment_ids] : [],
       created_at: new Date().toISOString(),
+      ...(uploads.length
+        ? {
+            uploading: uploads.map(({ id, name, size, media_type }) => ({
+              id,
+              name,
+              size,
+              media_type,
+            })),
+          }
+        : {}),
     },
   };
+  if (uploads.length) {
+    handles.set(nonce, uploads);
+    for (const upload of uploads) upload.moved = uploadMoved;
+  }
   save(key, [...outgoingMessages(key), intent]);
   return intent;
+}
+/**
+ * Waits for a sent message's uploads, then puts their files on the message. Null when the
+ * message has gone meanwhile (its uploads were cancelled). A failed upload fails the row,
+ * which keeps the files it never got.
+ */
+export async function settleOutgoingUploads(
+  key: string,
+  nonce: string,
+): Promise<OutgoingIntent | null> {
+  const find = () => outgoingMessages(key).find((row) => row.nonce === nonce) ?? null;
+  const held = handles.get(nonce);
+  if (!held) return find();
+  let rows: { id: string }[];
+  try {
+    rows = await Promise.all(held.map((upload) => upload.done));
+  } catch (cause) {
+    handles.delete(nonce);
+    for (const upload of held) upload.cancel();
+    if (find()) failOutgoing(key, nonce, "failed");
+    uploadMoved();
+    throw cause;
+  }
+  handles.delete(nonce);
+  const row = find();
+  if (!row) return null;
+  const attachment_ids = [...row.message.attachment_ids, ...rows.map((file) => file.id)];
+  const { uploading: _uploading, ...message } = row.message;
+  const next: OutgoingIntent = {
+    ...row,
+    body: { ...row.body, attachment_ids },
+    message: { ...message, attachment_ids },
+  };
+  save(
+    key,
+    outgoingMessages(key).map((item) => (item.nonce === nonce ? next : item)),
+  );
+  return next;
+}
+/** ✕ on a bubble's ring: the uploads stop and the message, never posted, is removed. */
+export function cancelOutgoingUploads(key: string, nonce: string) {
+  for (const upload of handles.get(nonce) ?? []) upload.cancel();
+  dropOutgoing(key, nonce);
 }
 export function failOutgoing(
   key: string,
@@ -158,6 +242,7 @@ export function failOutgoing(
 }
 /** «حذف» on a failed message: it leaves the outbox (it never reached the server). */
 export function dropOutgoing(key: string, nonce: string) {
+  handles.delete(nonce);
   save(
     key,
     outgoingMessages(key).filter((row) => row.nonce !== nonce),
@@ -233,6 +318,8 @@ export function isOutgoingMessage(message: Message): message is OutgoingMessage 
 // Session reset removes persisted private drafts/outbox for the departing principal.
 if (typeof window !== "undefined")
   window.addEventListener("lonora:session-reset", () => {
+    for (const held of handles.values()) for (const upload of held) upload.cancel();
+    handles.clear();
     entries.clear();
     loaded.clear();
     try {

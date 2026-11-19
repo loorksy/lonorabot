@@ -19,7 +19,7 @@ from sqlalchemy.orm import aliased
 
 from .agent_on_its_own import agents_on_their_own
 from .events import emit
-from .owner_words import RETRY_OF_SUBMIT, ui_submit_provenance
+from .owner_words import submit_provenance_of
 from .runs import aware, failure_data, run_data
 from .schema import MessageRow, RunRow, ThreadRow, TradeApprovalRow, TradingJournalRow
 from .transactions import owned_agent, owned_thread
@@ -145,9 +145,7 @@ async def retry_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow
     # can never spend the signed grant either. The retry gets a provenance-only mark naming
     # the send's own Run, never the send's queue key (``ui_submit_origin``), so none of the
     # send's queue rules apply to it. Only the failed Run's own mark counts (no parents).
-    if ui_submit_provenance(row):
-        send = row.model_metadata.get(RETRY_OF_SUBMIT) or row.id
-        retry.model_metadata = {**retry.model_metadata, RETRY_OF_SUBMIT: send}
+    retry.model_metadata = {**retry.model_metadata, **submit_provenance_of(row)}
     session.add(retry)
     await session.flush()
     emit(

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .owner_words import submit_provenance_of
 from .schema import AgentRow, RunRow, TradeApprovalRow
 from .transactions import owned_thread
 from .voice_provenance import carry_voice_handoff
@@ -191,6 +192,8 @@ async def renew_approval(session: AsyncSession, owner_id: str, approval_id: str)
     source = await session.get(RunRow, row.run_id)
     if source is not None:
         await carry_voice_handoff(session, source, run)
+        # A card's send asked again keeps its provenance-only mark (6.10).
+        run.model_metadata = {**run.model_metadata, **submit_provenance_of(source)}
         await session.flush()
     return run
 

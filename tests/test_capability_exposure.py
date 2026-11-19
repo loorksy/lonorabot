@@ -20,7 +20,6 @@ from lonora_agent.skills.system_policy import policy_bundle
 from lonora_agent.tool_batch import plan_segments
 from lonora_agent.tool_exposure import remember_use, run_profiles
 from lonora_agent.tool_loop import execute_tool_loop
-from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.model_routing import Capability, ModelSelection
@@ -46,6 +45,7 @@ from test_tool_loop_execution import (
     results,
     saved_run,
 )
+from workspace_fake import FakeWorkspace
 
 ROOT = Path(__file__).parents[1]
 
@@ -389,22 +389,22 @@ async def test_an_interrupted_bridged_mutation_is_uncertain_and_never_resent(
 def test_bridged_trading_calls_are_planned_exactly_like_direct_ones():
     """Wave 1 integration: E2 bridge resolution happens before E1 planning.
 
-    Financial tools (T2 executor) and the T3 restriction writer stay serial
+    Financial tools (T2 executor) and a state writer (memory) stay serial
     barriers whether the model called them natively or through tool_call; the
     T4 evidence reads still form a parallel segment.
     """
     catalog = load_tools()
     account = {"account_id": "acct", "symbol": "XAUUSD"}
     trade = {"account_id": "acct", "symbol": "XAUUSD", "action": "buy", "volume": "0.1"}
-    restriction = {"action_class": "no_new_entries", "reason": "Owner asked to pause"}
+    note = {"content": "Owner prefers London session entries"}
     block = [
         ToolCall(id="quote", name="market_quote", arguments=account),
         bridge("entry", "trade_execute", trade),
         bridge("snapshot", "market_snapshot", account),
         ToolCall(id="sessions", name="market_sessions", arguments={}),
-        bridge("pause", "trade_restriction_create", restriction),
+        bridge("pause", "memory_write", note),
         bridge("flatten", "trade_close_positions", account),
-        bridge("limits", "trade_restriction_list", {}),
+        bridge("limits", "trade_record_history", {}),
         ToolCall(id="calendar", name="economic_calendar_read", arguments={}),
     ]
     resolved = catalog.resolve_calls(block)
@@ -424,7 +424,7 @@ def test_bridged_trading_calls_are_planned_exactly_like_direct_ones():
     for name in ("trade_execute", "trade_close_positions"):
         tool = catalog.tools[name]
         assert tool.financial and not tool.runs_in_parallel() and tool.dispatch_timeout() is None
-    writer = catalog.tools["trade_restriction_create"]
+    writer = catalog.tools["memory_write"]
     assert not writer.read_only and not writer.financial and not writer.runs_in_parallel()
 
 
@@ -623,7 +623,7 @@ async def test_trading_identities_get_the_market_working_set(
     assert "web_search" not in offered
     # No SearXNG, browser, workspace, executor or MCP declaration in this context.
     assert exposure["unavailable"]["web_browse"] == "browser_unconfigured"
-    assert exposure["unavailable"]["workspace_execute"] == "workspace_unconfigured"
+    assert exposure["unavailable"]["workspace_run"] == "workspace_unavailable"
     assert exposure["unavailable"]["mcp_execute"] == "mcp_tool_not_authorized"
     inventory = model.kwargs[0]["capability_inventory"]
     assert "web_browse=browser_unconfigured" in inventory
@@ -842,7 +842,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             db=None,
             searxng_url=None,
             browser_url=None,
-            workspace_access=None,
+            workspace=None,
             mcp_declarations=(),
             mcp_owner_trust=False,
         ),
@@ -850,13 +850,14 @@ async def test_availability_reflects_configured_backends_and_fails_open(
     assert await catalog.availability(bare) == {
         "web_search": "research_provider_not_configured",
         "web_browse": "browser_unconfigured",
-        "workspace_export": "workspace_unconfigured",
-        "workspace_inspect": "workspace_unconfigured",
-        "workspace_read": "workspace_unconfigured",
-        "workspace_update": "workspace_unconfigured",
-        "workspace_execute": "workspace_unconfigured",
-        "skill_package_validate": "workspace_unconfigured",
-        "market_candles_to_workspace": "workspace_unconfigured",
+        "workspace_run": "workspace_unavailable",
+        "workspace_processes": "workspace_unavailable",
+        "workspace_stop": "workspace_unavailable",
+        "workspace_file_read": "workspace_unavailable",
+        "workspace_file_write": "workspace_unavailable",
+        "workspace_export": "workspace_unavailable",
+        "skill_package_validate": "workspace_unavailable",
+        "market_candles_to_workspace": "workspace_unavailable",
         "mcp_execute": "mcp_tool_not_authorized",
         "economic_calendar_read": "economic_calendar_not_configured",
     }
@@ -867,14 +868,12 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             db=None,
             searxng_url="http://searxng.internal",
             browser_url="http://browser.internal",
-            workspace_access=RunWorkspaceAccess(None),
+            workspace=FakeWorkspace().client(),
             mcp_declarations=(),
             mcp_owner_trust=False,
         ),
     )
     assert await catalog.availability(files_only) == {
-        "workspace_execute": "workspace_execution_unconfigured",
-        "skill_package_validate": "workspace_execution_unconfigured",
         "mcp_execute": "mcp_tool_not_authorized",
         "economic_calendar_read": "economic_calendar_not_configured",
     }
@@ -896,7 +895,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             db=None,
             searxng_url=None,
             browser_url="http://browser.internal",
-            workspace_access=RunWorkspaceAccess(cast(Any, object())),
+            workspace=FakeWorkspace().client(),
             mcp_declarations=(declaration,),
         ),
     )

@@ -50,7 +50,14 @@ import {
 import { type EdgeOptions, useScrollChrome } from "./chrome";
 import { DesktopList } from "./DesktopList";
 import { DesktopRail } from "./DesktopRail";
-import { mergePrefs, type ShellData, ShellDataProvider, useShellData } from "./data";
+import {
+  mergePrefs,
+  ownerDisplayName,
+  ownerInitial,
+  type ShellData,
+  ShellDataProvider,
+  useShellData,
+} from "./data";
 import { FloatingTabBar, tabLabel } from "./FloatingTabBar";
 import { EASE, flip } from "./flip";
 import { LargeTitle } from "./LargeTitle";
@@ -72,6 +79,7 @@ import { isRoot, type Root, rootPath, type ShellRoute, sectionOf } from "./route
 import { useShortcutsSheet } from "./ShortcutsSheet";
 import { MaintenanceOverlay, PageErrorBoundary } from "./StatePage";
 import { AppLockProvider } from "./settings/AppLock";
+import { useOwnerProfile } from "./settings/owner";
 import { SheetProvider, useSheets } from "./sheets/SheetHost";
 import { ToastProvider, useToast } from "./Toast";
 import { bareDetail, bareSection, TopBar } from "./TopBar";
@@ -113,6 +121,7 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
   const voice = useVoice();
   const navigate = useNavigate();
   const { agents, loading, error: agentError } = useAgents();
+  const [ownerProfile, setOwnerProfile] = useOwnerProfile();
   const [groups, setGroups] = useState<Resource[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [inbox, setInbox] = useState<InboxEntry[]>([]);
@@ -209,6 +218,8 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
   const value = useMemo<ShellData>(
     () => ({
       owner,
+      ownerProfile,
+      setOwnerProfile,
       agents,
       agentsLoading: loading,
       groups,
@@ -230,6 +241,8 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
     }),
     [
       owner,
+      ownerProfile,
+      setOwnerProfile,
       agents,
       loading,
       groups,
@@ -286,11 +299,20 @@ function ShellLists() {
 
 function ShellBody() {
   const nav = useNavigation();
-  const { route } = nav;
   const location = useLocation();
   const navigate = useNavigate();
   const desktop = useDesktop();
   const data = useShellData();
+  // A conversation whose agent or group does not exist is the not-found page, not a chat.
+  const asked = nav.route;
+  const missing =
+    !data.error &&
+    (asked.kind === "chat"
+      ? !data.agentsLoading && !data.agents.some((row) => row.id === asked.agentId)
+      : asked.kind === "group" &&
+        !data.groupsLoading &&
+        !data.groups.some((row) => row.id === asked.groupId));
+  const route: ShellRoute = missing ? { kind: "not-found" } : asked;
   const { owner, connected, revision, events } = useClient();
   const attention = useAttention();
   const voice = useVoice();
@@ -341,7 +363,7 @@ function ShellBody() {
       ? turnActivity(currentRun, events).avatar
       : liveAvatarState(liveState)
     : undefined;
-  const section = sectionOf(route);
+  const section = sectionOf(route, location.search);
   const conversation = route.kind === "chat" || route.kind === "group";
   /* Phase 6: the call screen is the expanded call. On /app/call it is open; leaving the route
      folds it; expanding it anywhere else (the strip, the header's call) opens the route and
@@ -381,10 +403,34 @@ function ShellBody() {
   }, [onCallRoute, voice.target, voice.minimized]);
   const home = desktop && route.kind === "root" && route.root === "chats";
   const net = useNetworkPhase(connected);
-  const menu = useChatMenu({ agent, group, memberAgents });
   const [maintenance, setMaintenance] = useState(false);
   const [forcedUpdate, setForcedUpdate] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const appRef = useRef<HTMLDivElement>(null);
+  const toggleList = useCallback(() => {
+    // The list pane leaves and returns with opacity and a slide; the grid changes at once.
+    const list = appRef.current?.querySelector<HTMLElement>(".desktop-list");
+    if (!list || reducedMotion()) return setCollapsed((value) => !value);
+    // Toward the rail: its side is the inline start.
+    const slide = getComputedStyle(list).direction === "rtl" ? 24 : -24;
+    if (collapsed) {
+      flushSync(() => setCollapsed(false));
+      list.animate(
+        [
+          { opacity: 0, transform: `translateX(${slide}px)` },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 220, easing: EASE },
+      );
+    } else
+      list.animate(
+        [
+          { opacity: 1, transform: "none" },
+          { opacity: 0, transform: `translateX(${slide}px)` },
+        ],
+        { duration: 220, easing: EASE },
+      ).onfinish = () => setCollapsed(true);
+  }, [collapsed]);
   const [desktopQuery, setDesktopQuery] = useState("");
   const [desktopTab, setDesktopTab] = useState<SearchTab>("all");
   const chatsBadge = unreadBadgeTotal(data.inbox);
@@ -397,6 +443,13 @@ function ShellBody() {
     : group
       ? String(group.state?.thread_id ?? "")
       : undefined;
+  const menu = useChatMenu({
+    agent,
+    group,
+    memberAgents,
+    threadId: openThread,
+    liveTasks: liveState?.tasks?.length ?? 0,
+  });
   const reading = useRef("");
   const { patchInbox } = data;
   useEffect(() => {
@@ -501,7 +554,7 @@ function ShellBody() {
     if (!search.expanded) return;
     const outside = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (sheets.isOpen() || target?.closest(".header-search,#view-scroll")) return;
+      if (sheets.isOpen() || target?.closest(".header-search,.search-surface,.sk-page")) return;
       clearSearch();
     };
     document.addEventListener("pointerdown", outside);
@@ -522,20 +575,6 @@ function ShellBody() {
   useEffect(() => {
     if (connected) setMaintenance(false);
   }, [connected]);
-  const retryMaintenance = useCallback(async () => {
-    try {
-      const response = await fetch("/ready", { credentials: "include" });
-      if (response.ok) {
-        setMaintenance(false);
-        data.refresh();
-        return;
-      }
-    } catch {
-      /* still down */
-    }
-    navigator.vibrate?.([10, 50, 10]);
-    toast(t`Maintenance is still in progress. Try again shortly`, { type: "warn" });
-  }, [data, toast]);
   useEffect(() => {
     if (voice.error instanceof ApiError && voice.error.code === "voice_permission_denied")
       permission("mic");
@@ -553,6 +592,7 @@ function ShellBody() {
       if (mod && event.key.toLowerCase() === "k") {
         event.preventDefault();
         if (!isDesktop() && !(route.kind === "root" && route.root === "chats")) nav.go("/app");
+        if (collapsed) toggleList();
         setTimeout(
           () =>
             (
@@ -601,10 +641,11 @@ function ShellBody() {
     openShortcuts,
     sheets,
     clearSearch,
+    collapsed,
+    toggleList,
   ]);
 
   /* Chrome refs and the pager */
-  const appRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const topRef = useRef<HTMLElement>(null);
@@ -687,7 +728,8 @@ function ShellBody() {
   const title = routeTitle(route, agent, group);
   const onNewTask = useCallback(() => nav.go("/app/tasks?new=1"), [nav]);
   const onOpenChart = useCallback((id: string) => menu.openChart(id), [menu]);
-  // The conversation's own controls ask the shell for the call, the chart and the members.
+  // The conversation's own controls ask the shell for the call, the chart, the members and
+  // the clear confirm.
   useEffect(() => {
     const call = () => {
       if (voice.target) voice.expand();
@@ -695,13 +737,16 @@ function ShellBody() {
     };
     const chart = () => menu.openChart();
     const members = () => menu.openInfo();
+    const clear = () => menu.confirmClear();
     window.addEventListener("lonora:start-call", call);
     window.addEventListener("lonora:open-chart", chart);
     window.addEventListener("lonora:members-permissions", members);
+    window.addEventListener("lonora:clear-chat", clear);
     return () => {
       window.removeEventListener("lonora:start-call", call);
       window.removeEventListener("lonora:open-chart", chart);
       window.removeEventListener("lonora:members-permissions", members);
+      window.removeEventListener("lonora:clear-chat", clear);
     };
   }, [voice, agent, location.search, menu]);
   const header = conversation ? (
@@ -715,12 +760,11 @@ function ShellBody() {
       net={net}
       voiceActive={Boolean(voice.target)}
       onBack={nav.back}
-      onInfo={menu.openInfo}
+      onInfo={menu.openSettings}
       onCall={() => {
         if (agent) void starter.start(agent, new URLSearchParams(location.search).get("thread"));
       }}
       onMenu={menu.openMenu}
-      menuReady={menu.ready}
     />
   ) : undefined;
   const mainClass = [
@@ -743,7 +787,7 @@ function ShellBody() {
       {route.kind === "root" ? (
         home ? (
           <Welcome
-            name={owner.email.split("@")[0]}
+            name={ownerDisplayName(data.ownerProfile, owner)}
             onNewChat={openNewChat}
             onNewTask={onNewTask}
             onNewGroup={() => nav.go("/app/new-group")}
@@ -826,32 +870,9 @@ function ShellBody() {
             chatsBadge={chatsBadge}
             updatesDot={attention.items.length > 0}
             collapsed={collapsed}
-            onToggleCollapsed={() => {
-              // The list pane leaves and returns with opacity and a slide; the grid changes at once.
-              const list = appRef.current?.querySelector<HTMLElement>(".desktop-list");
-              if (!list || reducedMotion()) return setCollapsed((value) => !value);
-              // Toward the rail: its side is the inline start.
-              const slide = getComputedStyle(list).direction === "rtl" ? 24 : -24;
-              if (collapsed) {
-                flushSync(() => setCollapsed(false));
-                list.animate(
-                  [
-                    { opacity: 0, transform: `translateX(${slide}px)` },
-                    { opacity: 1, transform: "none" },
-                  ],
-                  { duration: 220, easing: EASE },
-                );
-              } else
-                list.animate(
-                  [
-                    { opacity: 1, transform: "none" },
-                    { opacity: 0, transform: `translateX(${slide}px)` },
-                  ],
-                  { duration: 220, easing: EASE },
-                ).onfinish = () => setCollapsed(true);
-            }}
+            onToggleCollapsed={toggleList}
             onSection={switchTab}
-            ownerInitial={owner.email.slice(0, 1).toUpperCase()}
+            ownerInitial={ownerInitial(ownerDisplayName(data.ownerProfile, owner))}
             onOwner={() => nav.go("/app/owner")}
           />
           <DesktopList
@@ -931,7 +952,14 @@ function ShellBody() {
       )}
       <UpdateBar revision={revision} forced={import.meta.env.DEV && forcedUpdate} />
       <HeadsUp currentThreadId={conversation ? openThread : undefined} />
-      {maintenance && <MaintenanceOverlay retry={() => void retryMaintenance()} />}
+      {maintenance && (
+        <MaintenanceOverlay
+          onReady={() => {
+            setMaintenance(false);
+            data.refresh();
+          }}
+        />
+      )}
     </>
   );
 }

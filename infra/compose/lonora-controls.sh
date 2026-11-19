@@ -8,11 +8,11 @@
 # always describes the schema the target release migrated to.
 #
 # Owner controls, authority and money records. If any of them changed while a new version
-# ran, restoring the pre-update backup could undo an owner's pause, restriction or
+# ran, restoring the pre-update backup could undo an owner's pause or
 # revocation, or erase the record of an order already at the broker: the rollback holds.
 # Every part is read only when its table exists, so a table a release dropped never makes
 # the records unreadable.
-CONTROL_TABLES=(ln_trading_restrictions ln_account_authorities ln_supervision_grants ln_supervision_holds ln_owner_actions ln_trade_approvals ln_trading_journal)
+CONTROL_TABLES=(ln_account_authorities ln_supervision_grants ln_supervision_holds ln_owner_actions ln_trade_approvals ln_trading_journal)
 
 # A digest of the rows a query selects, each row hashed on its own so the aggregate stays
 # small whatever the table size; "absent" when the table does not exist; empty (and

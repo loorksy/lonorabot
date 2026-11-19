@@ -30,7 +30,8 @@ export type SymbolName =
   | "check"
   | "stop"
   | "refresh"
-  | "globe";
+  | "globe"
+  | "edit";
 
 const paths: Partial<Record<SymbolName, string>> = {
   eye: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z",
@@ -42,6 +43,7 @@ const paths: Partial<Record<SymbolName, string>> = {
   "mic-off":
     "m3 3 18 18M9 9v3a3 3 0 0 0 5 2M15 9V6a3 3 0 0 0-5-2M5 10v2a7 7 0 0 0 12 5M19 10v2M12 19v3M8 22h8",
   minimize: "M6 12h12",
+  edit: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z",
 
   search: "m21 21-5.2-5.2",
   activity: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",

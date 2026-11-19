@@ -15,8 +15,8 @@
     }
   ],
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#0b0c10",
+  "theme_color": "#0b0c10",
   "lang": "ar",
   "dir": "rtl"
 }

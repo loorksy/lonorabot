@@ -5,7 +5,8 @@ from .domain import Contract
 
 class GroupCreate(Contract):
     name: str = Field(min_length=1, max_length=80)
-    member_ids: list[str] = Field(min_length=1, max_length=12)
+    # No cap on how many agents a group holds (mandate P1, 3.3.2).
+    member_ids: list[str] = Field(min_length=1)
     participation: str = "mentions_or_lead"
     # What the group is for, shown under its name and searched with it.
     purpose: str = Field(default="", max_length=160)
