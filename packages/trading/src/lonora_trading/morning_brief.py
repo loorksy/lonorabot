@@ -452,6 +452,23 @@ async def account_snapshots(
     return [(row.id, _snapshot(row)) for row in rows if row.payload.get("enabled")]
 
 
+async def connection_baseline(
+    session: AsyncSession, owner_id: str, saved: dict[str, Any]
+) -> dict[str, Any]:
+    """``saved`` with each connection's last reading under the connection's own id. A
+    baseline stored while the brief keyed accounts by the provider's account id in the
+    payload is read from that key, so the first brief after the change still compares
+    each account with its own last reading; that brief stores the new keys."""
+    rows = await session.scalars(
+        select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id)
+    )
+    return saved | {
+        row.id: saved[old]
+        for row in rows
+        if row.id not in saved and (old := str(row.payload.get("account_id", ""))) in saved
+    }
+
+
 # --- The wake and the plain brief ----------------------------------------------------
 
 WAKE_TEXT = (
@@ -769,6 +786,7 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         if await weekly_wait(session, owner_id, record, now):
             return None
         snapshots = await account_snapshots(session, owner_id)
+        record.baseline = await connection_baseline(session, owner_id, record.baseline)
         # Halve the item bounds until the wake fits its prompt (RunRequest.prompt).
         limit = MAXIMUM_ITEMS
         facts = await brief_facts(session, owner_id, record, today, snapshots, now, limit)

@@ -264,6 +264,34 @@ async def test_a_written_brief_is_kept_and_the_next_day_shows_the_change(task_db
 
 
 @pytest.mark.asyncio
+async def test_a_baseline_under_the_provider_account_id_still_gives_the_change(
+    task_db: Fixture,
+) -> None:
+    # The brief before accounts were keyed by connection stored the baseline under the
+    # provider's account id in the payload: the next brief still compares the account
+    # with its own last reading, then stores it under the connection's id.
+    db, owner, _agent, _thread = task_db
+    async with db.sessions() as session, session.begin():
+        await seed(session, owner)
+        session.add(
+            MorningBriefRow(
+                owner_id=owner,
+                brief_minute=DEFAULT_MINUTE,
+                last_local_date="2026-11-11",
+                last_sent_at=DAY - timedelta(hours=20),
+                baseline={"provider-acc": {"balance": "900", "equity": "910"}},
+            )
+        )
+    facts = await facts_now(db, owner, DAY + timedelta(hours=4, minutes=1))
+    assert facts["first_brief"] is False
+    assert facts["accounts"][0]["since_last_brief"] == {"balance": "100", "equity": "95"}
+    async with db.sessions() as session:
+        record = await session.get(MorningBriefRow, owner)
+    assert record is not None
+    assert record.baseline == {"acc": {"balance": "1000", "equity": "1005"}}
+
+
+@pytest.mark.asyncio
 async def test_after_downtime_one_brief_and_a_paused_lonora_does_not_silence_it(
     task_db: Fixture,
 ) -> None:
