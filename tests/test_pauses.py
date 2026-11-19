@@ -959,25 +959,32 @@ async def test_a_pause_the_owner_asked_for_stays_the_owners():
         # Lead pauses on its own; the owner then asks for the same pause: it is the owner's,
         # Lead stays named, and the owner's words are its source, so the owner lifts it by
         # asking in chat again. The change is recorded as an intervention.
+        async def owner_pauses_recorded() -> int:
+            async with fixture.runtime.db.sessions() as session:
+                return int(
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(EventRow)
+                        .where(
+                            EventRow.kind == "supervision.intervention",
+                            EventRow.agent_id == gold["id"],
+                            EventRow.payload["source"].as_string() == "owner_message",
+                            EventRow.payload["action"].as_string() == "pause",
+                        )
+                    )
+                    or 0
+                )
+
         await control("pause", words=None)
         assert (await held(fixture, gold["id"])).source == "agent"
+        # The owner's earlier pause is already recorded: count the conversion's own event.
+        before = await owner_pauses_recorded()
         again = await control("pause", words=words_2)
         assert again["changed"] is False and again["paused_by"] == "owner"
         taken = await held(fixture, gold["id"])
         assert taken.source == "owner" and taken.holder_agent_id == lead["id"]
         assert taken.source_message_id == words_2
-        async with fixture.runtime.db.sessions() as session:
-            recorded = await session.scalar(
-                select(func.count())
-                .select_from(EventRow)
-                .where(
-                    EventRow.kind == "supervision.intervention",
-                    EventRow.agent_id == gold["id"],
-                    EventRow.payload["source"].as_string() == "owner_message",
-                    EventRow.payload["action"].as_string() == "pause",
-                )
-            )
-            assert recorded, "the owner's pause left no intervention"
+        assert await owner_pauses_recorded() == before + 1, "the conversion left no intervention"
         with pytest.raises(LonoraError, match="supervision_resume_not_yours"):
             await control("resume", words=None)
         assert (await control("resume", words=words_3))["changed"] is True
