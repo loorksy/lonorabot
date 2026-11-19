@@ -25,6 +25,7 @@ MODULES = {
     "feeds": "research",
     "telegram": "research",
     "capabilities": "research",
+    "secrets": "research",
     "subagent": "collaboration",
     "market": "market",
     "market_analysis": "market",
