@@ -74,9 +74,10 @@ or a channel.
   was not written to by the owner: `create_run` marks it `background`, and a caller never
   can. A run the owner's words were given to is not background either. Not background: the owner's messages and taps (`user`, `group`, `owner_card`,
   `agent_created`), peer requests and subagent tasks (they owe the agent that asked an
-  answer), Lonora's system-alert wakes (`system_alert`: Lonora reports a broker problem or
-  an uncertain operation and offers to fix it, 3.1.5 and 9.4, so a blank reply is nudged
-  for an answer), the morning brief (11.1) and the weekly report (5.5.6).
+  answer), Lonora's system-alert wakes (`system_alert`: their fixed prompt tells Lonora of
+  a broker problem or an uncertain operation and asks it to decide what the owner needs to
+  hear, 3.1.5 and 9.4, so a blank reply is nudged for an answer), the morning brief (11.1)
+  and the weekly report (5.5.6).
 - **What the agent is told.** Every background `<wake>` frame carries one fixed sentence
   (`BACKGROUND` in `lonora_agent/context/routine.py`): if nothing is new for the owner, end
   with an empty reply, which posts nothing and notifies no one. The core policy, the

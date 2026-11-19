@@ -52,7 +52,7 @@ def test_who_is_background():
     # Background work the owner's words were given to answers them.
     assert not is_background("routine", {"owner_spoke": True})
     assert not is_background("follow_up", {"background": True, "owner_spoke": True})
-    # Lonora's system-alert wake reports the problem and offers to fix it (3.1.5, 9.4).
+    # Lonora's system-alert wake always answers (3.1.5, 9.4).
     assert not is_background("broker_event", {"system_alert": "broker_connection_lost"})
     # A subagent's run owes its parent an answer; every other work trigger is background.
     assert BACKGROUND_TRIGGERS == WORK_TRIGGERS - {"subagent"}
@@ -301,8 +301,8 @@ async def test_an_empty_background_reply_posts_nothing(case: str):
 
 @pytest.mark.asyncio
 async def test_a_system_alert_wake_always_reports():
-    """Lonora reports a broker problem and offers to fix it (3.1.5, 9.4): its alert wake is
-    not background, so a blank reply is nudged for an answer, and the answer is posted."""
+    """Lonora's wake for a broker problem (3.1.5, 9.4) is not background: the silence tool
+    refuses, a blank reply is nudged for an answer, and the answer is posted."""
     database()
     from check_streaming import Fixture
     from lonora_agent.collaboration.outcome_return import return_outcome

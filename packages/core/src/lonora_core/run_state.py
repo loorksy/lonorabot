@@ -50,9 +50,10 @@ OWNER_SPOKE = "owner_spoke"
 # The hidden work thread of a background Run in a conversation that holds its helpers'
 # outcomes (11.5). Only ``outcome_thread`` sets it, on that Run; a caller never can.
 OUTCOME_THREAD = "outcome_thread_id"
-# Set on Lonora's wake for a system alert (``lonora_db/system_alerts.py``). Lonora reports
-# a broker problem or an uncertain operation and offers to fix it (3.1.5, 9.4): that wake
-# always answers. A caller who sets it only makes its own run answer.
+# Set on Lonora's wake for a system alert (``lonora_db/system_alerts.py``), whose fixed
+# prompt tells Lonora of a broker problem or an uncertain operation and asks it to decide
+# what the owner needs to hear (3.1.5, 9.4): that wake always answers. A caller who sets
+# it only makes its own run answer.
 SYSTEM_ALERT = "system_alert"
 
 
