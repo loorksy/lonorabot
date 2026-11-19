@@ -205,6 +205,78 @@ async def renew_approval(session: AsyncSession, owner_id: str, approval_id: str)
     return run
 
 
+# The run a withdrawal starts when no run waits on the card: fixed server text.
+WITHDRAWN_TRIGGER = "owner_card"
+
+
+def withdrawn_prompt(row: TradeApprovalRow, mode: str) -> str:
+    """Fixed text and the server's own identifier only: nothing a model wrote."""
+    return (
+        f"Your trading mode is now {'Full' if mode == 'full' else 'Ask'}: your pending Trade "
+        f"Approval card (approval_id={row.id}) was withdrawn. Nothing was approved or sent. "
+        "Re-check the market, the account and your reasons now with fresh data, and decide "
+        "again under your current mode."
+    )
+
+
+async def withdraw_pending(
+    session: AsyncSession, owner_id: str, agent_id: str, mode: str
+) -> list[TradeApprovalRow]:
+    """Withdraw every pending Trade Approval card of the agent (4.2.3). A withdrawn card is
+    never approved or executed; the run waiting on it continues and reads the outcome, and
+    a card no run waits on wakes its agent with fixed text. Locks are taken in the order a
+    decision takes them (``locked_approval``)."""
+    from lonora_contracts.runs import RunRequest
+
+    from .runs import create_run
+
+    identifiers = list(
+        await session.scalars(
+            select(TradeApprovalRow.id)
+            .where(
+                TradeApprovalRow.owner_id == owner_id,
+                TradeApprovalRow.agent_id == agent_id,
+                TradeApprovalRow.status == "pending",
+            )
+            .order_by(TradeApprovalRow.id)
+        )
+    )
+    withdrawn: list[TradeApprovalRow] = []
+    for identifier in identifiers:
+        try:
+            row, run = await locked_approval(session, owner_id, identifier)
+        except LonoraError:
+            continue  # Its conversation was deleted: it can no longer be decided anyway.
+        if row.status != "pending":
+            continue
+        row.status, row.updated_at = "withdrawn", utcnow()
+        approval_event(session, row)
+        withdrawn.append(row)
+        if run is not None and run.status == "waiting_input":
+            wake_waiting_run(session, row, run)
+            continue
+        if run is not None and run.status not in {"completed", "failed", "cancelled"}:
+            # Still active: it reads the withdrawn card itself when it next waits on it,
+            # so a second wake would decide the same request twice.
+            continue
+        run_id = stable_id(row.id, "withdrawn")
+        if row.thread_id is None or await session.get(RunRow, run_id) is not None:
+            continue
+        await create_run(
+            session,
+            owner_id,
+            RunRequest(
+                thread_id=row.thread_id,
+                agent_id=agent_id,
+                trigger=WITHDRAWN_TRIGGER,
+                prompt=withdrawn_prompt(row, mode),
+                metadata={"withdrawn_trade_approval_id": row.id},
+            ),
+            run_id,
+        )
+    return withdrawn
+
+
 async def require_approved_target_current(
     session: AsyncSession,
     owner_id: str,

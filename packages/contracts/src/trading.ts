@@ -131,6 +131,8 @@ export type Journal = {
   thread_id?: string | null;
   timeline_seq?: number | null;
 };
+/** The agent's one trading switch: Full executes on its own, Ask asks for new risk. */
+export type TradingMode = "full" | "ask";
 export type TradeApproval = {
   timeline_seq?: number | null;
   id: string;
@@ -138,7 +140,7 @@ export type TradeApproval = {
   thread_id: string;
   agent_id: string;
   /** expired: its lifetime (30-60 min) ended unapproved; «طلب جديد» asks the agent again. */
-  status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "expired";
+  status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "expired" | "withdrawn";
   requests: Payload[];
   results: {
     operation_id: string;

@@ -10,6 +10,7 @@ import {
   ownerActionCard,
   ownerActionChoices,
   ownerActionChoose,
+  ownerActionLive,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
@@ -136,6 +137,7 @@ export function OwnerActionCard({
       decision: button.decision,
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
+    if (button.trading_mode) body.trading_mode = button.trading_mode;
     if (button.outcome) {
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();
@@ -231,7 +233,7 @@ export function OwnerActionCard({
       if (mounted.current) setBusy(false);
     }
   }
-  const settled = row.status !== "pending";
+  const settled = !ownerActionLive(row);
   const notice = NOTICE_KINDS.has(row.kind);
   const kind = ownerActionKindName(row);
   if (notice)
