@@ -42,23 +42,15 @@ def sidecar(root: Path, key: object) -> Path | None:
 async def third_party_attachment(
     session: AsyncSession, owner_id: str, thread_id: str, input_seq: int
 ) -> bool:
-    """Whether the message carries text someone else wrote: a text file, or a PDF's text
-    layer or scanned pages (6.10). The owner's own photos are not counted."""
+    """Whether the message carries an attachment: a photo, a text file, a PDF's text layer
+    or scanned pages. Only the owner's typed words are the owner's words (6.10, 14.3.8);
+    what a file or picture says is someone else's, whoever uploaded it."""
     message = await session.scalar(
         select(MessageRow).where(MessageRow.thread_id == thread_id, MessageRow.seq == input_seq)
     )
     for artifact_id in message.attachment_ids if message else []:
         artifact = await session.get(ArtifactRow, artifact_id)
-        if artifact is None or artifact.owner_id != owner_id:
-            continue
-        payload = artifact.payload
-        media = str(payload.get("media_type", ""))
-        if (
-            media.startswith("text/")
-            or media == "application/json"
-            or payload.get("text_key")
-            or payload.get("page_image_keys")
-        ):
+        if artifact is not None and artifact.owner_id == owner_id:
             return True
     return False
 
