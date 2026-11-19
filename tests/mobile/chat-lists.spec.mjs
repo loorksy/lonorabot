@@ -280,7 +280,8 @@ test("search browses recent content and finds a message; the new-chat sheet lead
   await expect(row(page, key(alpha))).toBeVisible();
   await page.getByRole("button", { name: "New chat", exact: true }).click();
   const sheet = page.getByRole("dialog");
-  await expect(sheet.getByRole("button", { name: /^New agent/ })).toBeVisible();
+  // P5: an agent is created from chat; the sheet has no «New agent» row.
+  await expect(sheet.getByRole("button", { name: /^New agent/ })).toHaveCount(0);
   await expect(sheet.getByTestId(`new-chat-agent-${alpha.id}`)).toBeVisible();
   await sheet.getByRole("button", { name: "Manage agents" }).click();
   await expect(page.getByTestId(`agent-row-${alpha.id}`)).toBeVisible();
@@ -369,39 +370,6 @@ test("offline: the network strip says so and a restored connection clears it", a
   await expect(page.getByTestId("network-strip")).toContainText("عاد الاتصال", {
     timeout: 20000,
   });
-});
-
-test("«وكيل جديد» posts /api/agents/create with the template, never /api/agents", async ({
-  page,
-  context,
-}) => {
-  const fixture = seed({ action: "init" });
-  await signIn(context, fixture, "ar");
-  const posts = [];
-  page.on("request", (request) => {
-    if (request.method() === "POST") posts.push(new URL(request.url()).pathname);
-  });
-  await page.goto("/agents");
-  await page.getByRole("button", { name: "إنشاء وكيل" }).click();
-  await page.getByTestId("template-research").click();
-  await page.getByRole("button", { name: "التالي", exact: true }).click();
-  const name = `Mob ${Date.now() % 100000}`;
-  await page.getByLabel("اسم الوكيل").fill(name);
-  await page.getByLabel("الوصف", { exact: true }).fill("يجمع المعلومات");
-  await page.getByRole("button", { name: "إنشاء الوكيل" }).click();
-  await expect.poll(() => posts.includes("/api/agents/create")).toBe(true);
-  expect(posts).not.toContain("/api/agents");
-  let created;
-  await expect
-    .poll(async () => {
-      const agents = await (await context.request.get("/api/agents")).json();
-      created = agents.find((agent) => agent.name === name);
-      return Boolean(created);
-    })
-    .toBe(true);
-  // The template is saved on the agent (Q9).
-  expect(created.template).toBe("research");
-  await context.request.delete(`/api/agents/${created.id}`, { headers: seeded.headers });
 });
 
 test("opening an unread chat reads it on the server; the row and the tab badge follow", async ({

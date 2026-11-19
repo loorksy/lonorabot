@@ -54,28 +54,24 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toMatch(
       /Bearer|"token"|"session"/,
     );
-    await page.getByRole("button", { name: "محادثة جديدة", exact: true }).click();
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: /^وكيل جديد/ })
-      .click();
-    // Owner decision Q9: a template first, then the agent's name and description and its pair.
-    await page.getByTestId("template-trading").click();
-    await page.getByRole("button", { name: "التالي", exact: true }).click();
-    await page.getByLabel("اسم الوكيل", { exact: true }).fill(prefix);
-    await page
-      .getByLabel("الوصف", { exact: true })
-      .fill("Monitor positions and summarize market data.");
-    await page.getByRole("button", { name: "اختر حساب الوسيط", exact: true }).click();
-    await page.getByTestId(`broker-choice-${broker.account}`).click();
-    await page.getByRole("button", { name: "اختر زوج التداول", exact: true }).click();
-    await page.getByRole("button", { name: broker.symbol, exact: true }).click();
-    const created = page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/api/agents/create") && response.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "إنشاء الوكيل", exact: true }).click();
-    const agent = await (await created).json();
+    // P5: an agent is created from chat (agent_create, the same service as POST
+    // /agents/create); the app has no creation screen. The owner then opens its chat.
+    const createdResponse = await context.request.post("/api/agents/create", {
+      headers,
+      data: {
+        template: "trading",
+        name: prefix,
+        responsibility: "Monitor positions and summarize market data.",
+        market: broker.symbol,
+        account_id: broker.account,
+      },
+    });
+    expect(createdResponse.status()).toBe(201);
+    const agent = await createdResponse.json();
+    const opened = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    await page.goto(`/thread?id=${opened.id}`);
     owned.agents.add(agent.id);
     expect(agent.template).toBe("trading");
     await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toBeVisible();
@@ -321,8 +317,6 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.getByRole("button", { name: "الحساب", exact: true }).click();
     await page.getByRole("button", { name: "English", exact: true }).click();
     await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
-    await page.goto("/models");
-    await expect(page.getByText("Providers", { exact: true })).toBeVisible();
     await page.goto("/integrations");
     await expect(
       page.getByRole("button", { name: "Open Web settings", exact: true }),

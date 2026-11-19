@@ -540,7 +540,6 @@ export const labels = {
   voiceNote: ["رسالة صوتية", "Voice message"],
   voiceCall: ["اتصال صوتي", "Voice call"],
   missedVoiceCall: ["مكالمة صوتية فائتة", "Missed voice call"],
-  providers: ["المزودون", "Providers"],
   configured: ["تم الإعداد", "Configured"],
   openWebSettings: ["فتح الإعدادات في الويب", "Open Web settings"],
   nativeVoiceHint: [
@@ -618,13 +617,8 @@ export const labels = {
   language: ["اللغة", "Language"],
   account: ["الحساب", "Account"],
   logout: ["تسجيل الخروج", "Sign out"],
-  models: ["توجيه النماذج العام", "Global model routing"],
   unified: ["موحّد", "Unified"],
   custom: ["مخصص", "Custom"],
-  configureWeb: [
-    "يمكنك إعداد النماذج والتكاملات والتداول من واجهة الويب.",
-    "Configure models, integrations and trading in the Web interface.",
-  ],
   notConfigured: ["لم يُضبط بعد", "Not configured"],
   usage: ["استخدام الرموز", "Token usage"],
   inputTokens: ["الإدخال", "Input"],
