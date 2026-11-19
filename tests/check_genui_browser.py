@@ -14,8 +14,9 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``card``    the same for a card the journey writes (``owner``, ``lead``, ``document``).
 ``pad``     ``count`` plain assistant messages at the end of the thread, so an earlier
             message falls outside the newest history page.
-``records`` a pending Trade Approval, a resolve card for an uncertain operation and the agent's
-            Mandate card in the conversation, as their own paths raise them; prints ids.
+``records`` a pending Trade Approval, a resolve card for an uncertain operation, the agent's
+            Mandate card and a Secret card in the conversation, as their own paths raise
+            them; prints ids.
 ``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
             trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
             to give the slot; with ``number``, also the agent's own Number field, whose Enter
@@ -349,6 +350,27 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
                 subject="operation:" + operation,
                 payload={"operation_id": operation},
             )
+            # A Secret card an agent asked for, as W-ENV's card stores it (7.2.3).
+            secret = await create_card(
+                session,
+                thread.owner_id,
+                card_id=uuid4().hex,
+                agent_id=thread.agent_id,
+                thread=thread,
+                run_id=None,
+                source="agent",
+                kind="secret",
+                subject="secret:exchange",
+                payload={
+                    "label": "Exchange",
+                    "connect": None,
+                    "fields": [
+                        {"key": f"EXCHANGE_KEY_{index}", "label": f"Key {index}", "secret": True}
+                        for index in range(1, data.get("secret_fields", 1) + 1)
+                    ],
+                    "destination": "workspace",
+                },
+            )
             mandate = await create_card(
                 session,
                 thread.owner_id,
@@ -361,7 +383,34 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
                 subject="trading_mode:" + thread.agent_id,
                 payload={"agent_id": thread.agent_id},
             )
-            return {"approval": approval.id, "settle": settle.id, "mandate": mandate.id}
+            ids = {
+                "approval": approval.id,
+                "settle": settle.id,
+                "secret": secret.id,
+                "mandate": mandate.id,
+            }
+            if data.get("broker"):
+                # A broker card as broker_connect raises it: two fixed fields and the
+                # account line (lonora_db.secret_cards.broker_card_payload).
+                from lonora_db.secret_cards import broker_card_payload
+
+                subject, payload = broker_card_payload(
+                    login="5001234", server="Demo-Server", platform="mt5", token_needed=True
+                )
+                broker = await create_card(
+                    session,
+                    thread.owner_id,
+                    card_id=uuid4().hex,
+                    agent_id=thread.agent_id,
+                    thread=thread,
+                    run_id=None,
+                    source="agent",
+                    kind="secret",
+                    subject=subject,
+                    payload=payload,
+                )
+                ids["broker"] = broker.id
+            return ids
     finally:
         await fixture.close(cleanup=False)
 

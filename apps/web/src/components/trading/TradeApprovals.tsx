@@ -15,6 +15,7 @@ const rank: Record<string, number> = {
   rejected: 1,
   expired: 1,
   withdrawn: 1,
+  drifted: 1,
   completed: 2,
   cancelled: 2,
 };
@@ -126,9 +127,9 @@ function requestLine(request: Approval["requests"][number]) {
 
 /**
  * A trade approval in the conversation (reference cardMarkup approval, Desktop-37 3761-3775):
- * «طلب موافقة · SYMBOL», the request, «موافقة» / «رفض»; decided, it is one line. An approval
- * lives 30-60 minutes on the server (Q32); an expired one offers «طلب جديد», which asks the
- * agent again (it never creates an approvable request by itself).
+ * «طلب موافقة · SYMBOL», the request, «موافقة» / «رفض»; decided, it is one line. A card has
+ * no time limit; a stored card that expired offers «طلب جديد», which asks the agent again
+ * (it never creates an approvable request by itself).
  */
 export function TradeApprovalCard({
   row,
@@ -148,7 +149,8 @@ export function TradeApprovalCard({
       status === "rejected" ||
       status === "cancelled" ||
       status === "expired" ||
-      status === "withdrawn";
+      status === "withdrawn" ||
+      status === "drifted";
     return (
       <div className="mcard is-done" data-trade-approval={row.id} data-trade-status={status}>
         <div className={`oa-line ${bad ? "st-cancelled" : "st-confirmed"}`}>
@@ -182,39 +184,42 @@ export function TradeApprovalCard({
             </button>
           )}
         </div>
-        {row.results.map((result) => (
-          <div
-            key={result.operation_id}
-            className={`od-ev ${result.status === "confirmed" ? "ok" : result.status === "failed" ? "bad" : "warn"}`}
-            data-trade-result={result.status}
-          >
-            <Icon name={result.status === "confirmed" ? "check" : "alert"} />
-            <span>
-              <span>{operationStatusLabel(result.status, result.details)}</span>
-              {result.broker_id && (
-                <>
-                  {" · "}
-                  {brokerTicketLabel(i18n.locale)} <b className="ltr">{result.broker_id}</b>
-                </>
-              )}
-              {resultReason(result) && (
-                <>
-                  {" · "}
-                  <span>{resultReason(result)}</span>
-                </>
-              )}
-              {/* The broker's own receipt fields, as it returned them. */}
-              {Object.entries(result.details ?? {})
-                .filter(([key]) => RECEIPT_FIELDS.includes(key))
-                .map(([key, value]) => (
-                  <span key={key}>
+        {/* A confirmed result is shown once: as its Execution Receipt (10.3). */}
+        {row.results
+          .filter((result) => result.status !== "confirmed")
+          .map((result) => (
+            <div
+              key={result.operation_id}
+              className={`od-ev ${result.status === "failed" ? "bad" : "warn"}`}
+              data-trade-result={result.status}
+            >
+              <Icon name="alert" />
+              <span>
+                <span>{operationStatusLabel(result.status, result.details)}</span>
+                {result.broker_id && (
+                  <>
                     {" · "}
-                    <b className="ltr">{String(value)}</b>
-                  </span>
-                ))}
-            </span>
-          </div>
-        ))}
+                    {brokerTicketLabel(i18n.locale)} <b className="ltr">{result.broker_id}</b>
+                  </>
+                )}
+                {resultReason(result) && (
+                  <>
+                    {" · "}
+                    <span>{resultReason(result)}</span>
+                  </>
+                )}
+                {/* The broker's own receipt fields, as it returned them. */}
+                {Object.entries(result.details ?? {})
+                  .filter(([key]) => RECEIPT_FIELDS.includes(key))
+                  .map(([key, value]) => (
+                    <span key={key}>
+                      {" · "}
+                      <b className="ltr">{String(value)}</b>
+                    </span>
+                  ))}
+              </span>
+            </div>
+          ))}
       </div>
     );
   }
@@ -291,6 +296,28 @@ export function TradeApprovalCard({
           </dl>
         </div>
       ))}
+      {row.tolerance && (
+        <dl className="oa-dl">
+          <div>
+            <dt>
+              <Trans>Valid while the price stays within</Trans>
+            </dt>
+            <dd className="ltr">
+              {row.reference_price
+                ? `${row.reference_price} ± ${row.tolerance}`
+                : `± ${row.tolerance}`}
+            </dd>
+          </div>
+        </dl>
+      )}
+      {row.reason && (
+        <div className="mcard-reason" data-trade-reason>
+          <span className="oa-line-kind">
+            <Trans>In the agent's words</Trans>
+          </span>
+          <p dir="auto">{row.reason}</p>
+        </div>
+      )}
       <div className="mcard-actions">
         <button
           type="button"

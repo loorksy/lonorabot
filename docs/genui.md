@@ -43,9 +43,9 @@ The server contract `lonora_contracts.genui` is the single source of the set (ma
   both clients draw.
 
 - **Trusted slots (`Slot {card, record}`, mandate 10.2):** a fixed card placed inside the
-  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval`, `settle` and `mandate`); `record` is
-  the record's id. The agent chooses only where the slot sits; section 4a says what the server
-  and the clients do with it.
+  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval`, `settle`, `mandate` and
+  `secret`); `record` is the record's id. The agent chooses only where the slot sits; section
+  4a says what the server and the clients do with it.
 
 `scripts/export_genui_catalog.py` generates `packages/contracts/src/genui-catalog.ts` (node
 types, props, server rows, actions, routes, tones; `--check` in `scripts/build.sh`). Each part
@@ -102,11 +102,10 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
 
 - **Placement (10.2.1).** The projector reads the records a card's slots name
   (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
-  `resolve_operation` owner-action card (`settle`) or a `trading_mode` owner-action card, the
-  Mandate card (`mandate`), of this owner, in the reply's conversation
-  (the Run's origin conversation when it works in its own thread, as broker-event and watch
-  Runs do). A slot
-  whose record is missing, of another kind, another owner's or another conversation's is
+  `resolve_operation` owner-action card (`settle`), a `trading_mode` owner-action card, the
+  Mandate card (`mandate`), or a `secret` owner-action card, the Secret card (`secret`), of
+  this owner, in the reply's conversation (the Run's origin conversation when it works in its
+  own thread, as broker-event and watch Runs do). A slot whose record is missing, of another kind, another owner's or another conversation's is
   refused (`slot_refused`) and the card shows its fallback. A record appears once per card.
 - **Protection (10.2.2).** A slot sits at the top level only (`slot_nested` drops it from a
   container); it takes no `when`, text or style (dropped as `prop_dropped`), so the stored node
@@ -129,10 +128,12 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   settles or switches a mode (6.10): only the fixed card inside the slot does. Enter in the
   agent's own field presses the agent's own primary Button only, never a button inside a slot,
   and a sent card dims its own blocks, never a slot.
-- **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 460 px, mandate 300
-  px, its frame included, measured at 390 px by the web "Slots" journey) toward the 560 px resting
-  height and is one of the 6 visible blocks. The agent's other blocks fold first; a slot is
-  never folded, and a card over 720 px falls back, which brings the record's row back.
+- **Budget (10.1.4).** A slot counts its height toward the 560 px resting height and is one
+  of the 6 visible blocks: trade approval 230 px, settle 460 px and mandate 300 px; a Secret
+  card 305 px and 95 px for each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`;
+  `slot_records` reads the field count). Each is measured at 390 px with its frame by the web "Slots" journey. The
+  agent's other blocks fold first; a slot is never folded, and a card over 720 px falls back,
+  which brings the record's row back (a Secret card of eight fields always does).
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
   standalone row while a loaded assistant message of the conversation draws it as a slot
   (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is
@@ -172,9 +173,20 @@ earlier Runs in the thread end (rule Q), reads the thread up to its claim (rule 
 invisible to every other Run until it ends and for good if it never started (rules V and N),
 takes its ticks from its own Run (rule T), and is cancelled if it has not started 30 minutes
 after the send (rule L). Both clients post a card send at once, never through the
-auto-flushed outbox or offline queue; a retry after a failure is the owner's tap. A Run
-started by a card send, its retry, and work it creates are tainted
-(`lonora_db/genui_taint.py`). A card's `message.updated` events carry the message as a history
+auto-flushed outbox or offline queue; a retry after a failure is the owner's tap. A card's
+send is input to the agent's own judgment (mandate 6.10): the Run it starts carries
+`ui_submit_origin`, its own mark only (`account_authority.provisional_voice`). In Full that
+Run's trades send like any other Run's; in Ask its trades that add risk ask the owner. Its
+retry, and a «طلب جديد» renewal of an approval it raised, ask the same request again and
+carry a provenance-only mark, `ui_submit_retry_of` naming the send's Run
+(`owner_words.submit_provenance_of`, read by `owner_words.ui_submit_provenance`; a retry the
+previous release queued keeps its old `ui_tainted` mark, read on retries only):
+like that Run it never spends a grant and has no owner words, but it carries none of the
+send's queue rules. It is not the send's queued Run (`ui_submit_origin`), so its start or
+end never marks the send started, visible or «لم يُنفَّذ», rule L never cancels it, «تعديل»
+never cancels it, and a corrected send is never refused as busy because of it (it waits
+behind the retry, rule Q). The mark never spreads: Runs it starts and the agent's later
+watches, routines and wakes are ordinary Runs. A card's `message.updated` events carry the message as a history
 page shows it (`genui_submit.client_row`). In the model's context, card words are labelled as
 card words, never as the owner's own (`lonora_db/owner_words.py`), and the submission's
 validated data is marked as data (`<ui_submit>`).

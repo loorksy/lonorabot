@@ -8,12 +8,11 @@ for API keys, and nothing in a request depends on the plan behind the key.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
 from lonora_adapter_kit.types import ModelMessage
-from lonora_adapters.models.compatible_endpoint import compatible_endpoint
 from lonora_contracts.model_routing import Capability, ModelSelection, ProviderId, RoutingPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -22,6 +21,7 @@ from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.default_model import choose_default_model
 from lonora_providers.registry import PROVIDERS, model_adapter
 from lonora_providers.router import GlobalModelRouter
+from lonora_security.network import compatible_endpoint
 from test_model_context import router_db as router_db
 
 KEY = "fixture-not-a-real-key"
@@ -135,9 +135,10 @@ async def test_each_provider_lists_its_catalog_and_runs_a_turn_with_an_api_key(
     [
         "https://llm.example.test/v1",
         "https://llm.example.test:8443/v1/",
-        "http://localhost:11434/v1",
-        "http://127.0.0.1:8000/v1",
         "http://10.0.0.5:8000/v1",
+        "http://192.168.1.20:11434/v1",
+        "http://llmhost:11434/v1",
+        "http://lonora-ollama-1:11434/v1",
         "http://ollama:11434/v1",
     ],
 )
@@ -153,6 +154,33 @@ def test_an_owner_endpoint_is_accepted_over_https_or_on_the_owners_network(url: 
         "http://134744072/v1",  # 8.8.8.8 as one integer
         "http://0x8080808/v1",  # and in hex
         "http://0/v1",
+        # Lonora itself: this container, a cloud metadata address, Lonora's services.
+        "http://localhost:11434/v1",
+        "https://localhost/v1",
+        "http://127.0.0.1:8000/v1",
+        "http://[::1]:8000/v1",
+        "http://[::ffff:127.0.0.1]:8000/v1",
+        "http://169.254.169.254/latest",
+        "https://169.254.169.254/v1",
+        "http://postgres:5432/v1",
+        "http://db:5432/v1",
+        "http://api:8000/v1",
+        "http://gateway/v1",
+        # The same, spelled another way: numeric loopback, a trailing dot, metadata names.
+        "https://127.1/v1",
+        "https://2130706433/v1",
+        "https://0x7f.1/v1",
+        "https://localhost./v1",
+        "https://api./v1",
+        "http://instance-data/latest",
+        # A Lonora service by its Docker container name.
+        "http://lonora-api-1/v1",
+        "http://workspace-net:8080/v1",
+        "http://lonora-workspace-net-1/v1",
+        "http://lonora-db-1:5432/v1",
+        "http://lonora-gateway-1/v1",
+        "http://myproject-api-2:8000/v1",
+        "https://metadata.google.internal/v1",
         "ftp://llm.example.test/v1",
         "https://user:pass@llm.example.test/v1",
         "https://llm.example.test/v1?key=x",
@@ -266,3 +294,72 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
             assert answer.json()["code"] == "provider_not_supported", path
     finally:
         await fixture.close()
+
+
+def test_lonoras_own_services_are_never_an_owner_endpoint() -> None:
+    """Every service in the repository's Compose files is refused as an endpoint host."""
+    from pathlib import Path
+
+    import yaml
+    from lonora_security.network import LONORA_SERVICES
+
+    root = Path(__file__).resolve().parents[1]
+    services: set[str] = set()
+    for path in [root / "docker-compose.yml", *root.glob("infra/**/*compose*.yml")]:
+        document: dict[str, Any] = yaml.safe_load(path.read_text()) or {}
+        services |= set(cast(dict[str, Any], document.get("services") or {}))
+    assert services and services <= LONORA_SERVICES
+
+
+@pytest.mark.asyncio
+async def test_a_rotation_while_the_key_is_read_never_pairs_a_key_with_another_url(
+    router_db: Database,
+) -> None:
+    """R-SEC M1 on #174: a card saved between reading the record and decrypting the key
+    keeps the secret's id. The record is read again after the key; the pair is used only
+    when nothing changed, so the new key never goes to the replaced address."""
+    from datetime import UTC, datetime, timedelta
+
+    from lonora_db.model_credentials import CONNECTION_SETTING
+    from lonora_db.schema import SecretRow
+    from lonora_db.transactions import SettingsRepository
+
+    setting = CONNECTION_SETTING + "openai_compatible"
+    first = datetime(2026, 11, 12, tzinfo=UTC)
+    async with router_db.sessions() as session, session.begin():
+        session.add(
+            SecretRow(
+                id="card-key",
+                owner_id="owner",
+                scope="workspace",
+                name="OPENAI_COMPATIBLE_API_KEY",
+                ciphertext="old",
+                updated_at=first,
+            )
+        )
+        await SettingsRepository().put(
+            session, setting, {"secret_id": "card-key", "url": "https://old.example/v1"}
+        )
+
+    class Rotating:
+        """The owner saves a new card (same secret id) while the old key is decrypted."""
+
+        reads = 0
+
+        async def read(self, secret_id: str) -> str:
+            self.reads += 1
+            if self.reads == 1:
+                async with router_db.sessions() as session, session.begin():
+                    row = await session.get(SecretRow, secret_id)
+                    assert row is not None
+                    row.updated_at = first + timedelta(seconds=1)
+                    await SettingsRepository().put(
+                        session, setting, {"secret_id": secret_id, "url": "https://new.example/v1"}
+                    )
+            return "sk-new-key-2222"
+
+    credentials = ProviderCredentials(router_db, Rotating())  # type: ignore[arg-type]
+    assert await credentials.connection("openai_compatible") == (
+        "sk-new-key-2222",
+        "https://new.example/v1",
+    )

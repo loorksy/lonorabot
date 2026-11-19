@@ -173,13 +173,6 @@ async def return_outcome(db: Database, run_id: str) -> None:
             session.add(message)
             await session.flush()
             returned_message = message
-            # A tainted peer's outcome taints the Run it returns to (docs/genui.md), so
-            # neither that Run nor its follow-up spends the signed grant on card words.
-            from lonora_db.genui_taint import TAINT, own_taint, run_taint
-
-            taint = await run_taint(session, child)
-            if taint is not None and own_taint(parent) is None:
-                parent.model_metadata = {**parent.model_metadata, TAINT: taint}
             emit(
                 session,
                 thread.owner_id,

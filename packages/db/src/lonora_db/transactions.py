@@ -59,8 +59,8 @@ class ResourceRepository:
     row_type: type[ResourceRow]
     payload_model: type[BaseModel] | None = None
     kind: str
-    # The scope of the secret a resource's ``secret_id`` may name; None: no secret.
-    secret_scope: str | None = None
+    # The scopes of the secret a resource's ``secret_id`` may name; empty: no secret.
+    secret_scopes: tuple[str, ...] = ()
     secret_scope_refusal = "secret_scope_forbidden"
 
     async def list(
@@ -110,15 +110,18 @@ class ResourceRepository:
             board = await session.get(BoardRow, board_id)
             if board is None or board.owner_id != owner_id:
                 raise LonoraError("board_id_not_found", 404)
-        secret_id = payload.get("secret_id")
-        if secret_id:
+        # The secrets a connection names: its token, and an MCP server's stored address.
+        for key in ("secret_id", "url_secret_id"):
+            secret_id = payload.get(key)
+            if not secret_id:
+                continue
             # Shared lock: a delete of this secret waits for this write, then sees it used.
             secret = await session.get(SecretRow, secret_id, with_for_update={"read": True})
             if secret is None or secret.owner_id != owner_id:
                 raise LonoraError("secret_id_not_found", 404)
-            # A connection uses only a secret of its own scope: a workspace or broker
-            # value is never sent to a feed, search or chat service.
-            if secret.scope != self.secret_scope:
+            # A connection names only a secret of a scope it may use: a broker value goes
+            # only to a broker connection, and no connection names a provider key.
+            if secret.scope not in self.secret_scopes:
                 raise LonoraError(self.secret_scope_refusal, 403)
         if self.kind in {"charts", "watches", "cloud_charts", "market_watches"} and payload.get(
             "account_id"

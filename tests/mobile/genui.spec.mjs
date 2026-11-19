@@ -324,6 +324,7 @@ test("Expo: a slot is the live record in its trust frame, and its row steps asid
     python("slots", { ...input, record: ids.approval });
     python("slots", { ...input, card: "settle", record: ids.settle });
     python("slots", { ...input, card: "mandate", record: ids.mandate });
+    python("slots", { ...input, card: "secret", record: ids.secret });
     await page.reload();
     // The Mandate card in its slot: the agent's mode read live, one button for the other.
     const mandate = page.getByTestId("ui-slot-mandate");
@@ -331,6 +332,11 @@ test("Expo: a slot is the live record in its trust frame, and its row steps asid
     await expect(mandate.getByText("التفويض", { exact: true })).toBeVisible();
     await expect(mandate.getByRole("button", { name: "وكّله", exact: true })).toBeVisible();
     await expect(page.getByText("التفويض", { exact: true })).toHaveCount(1);
+    // The Secret card in its slot: W-ENV's own native form, once on the screen.
+    const secretSlot = page.getByTestId("ui-slot-secret");
+    await expect(secretSlot).toBeVisible();
+    await expect(secretSlot.getByTestId(`owner-action-${ids.secret}`)).toBeVisible();
+    await expect(page.getByTestId(`owner-action-${ids.secret}`)).toHaveCount(1);
     // The settle card too: drawn in its slot from the live record, its row gone.
     const settle = page.getByTestId("ui-slot-settle");
     await expect(settle).toBeVisible();
