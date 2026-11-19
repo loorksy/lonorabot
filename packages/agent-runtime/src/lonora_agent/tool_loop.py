@@ -477,9 +477,8 @@ async def execute_tool_loop(
         if halt_reason(state):
             # The boundary handler finishes gracefully with the halt reason.
             continue
-        # Between the block and the next model turn: server notices, steering, Task
-        # controls, skill authority and the round budget.
-        await merge_run_notices(context, state, messages)
+        # Between the block and the next model turn: steering, Task controls, skill
+        # authority, the round budget and server notices.
         if await merge_steering(context, state, messages):
             await refresh_after_steering()
         await task_checkpoint(context, state, messages)
@@ -506,6 +505,9 @@ async def execute_tool_loop(
                 reason="tool_round_limit",
                 task_run=task_run,
             )
+        # A trade this Run closed is read only while a round can still act on it; on
+        # the last round the notice stays unread and its own Run follows.
+        await merge_run_notices(context, state, messages)
         if executable <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != executable:
             append_notice(messages, "budget", budget_warning(executable))
             state["budget_warned"] = executable

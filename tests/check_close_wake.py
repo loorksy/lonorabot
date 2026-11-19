@@ -291,12 +291,9 @@ async def lonora_paused(f: Fixture, account: str) -> None:
     print("PASS while Lonora is paused, deleted agents' trades wait and crowd out no close")
 
 
-async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
-    agent = await f.agent("Gold manager")
+async def closing_operation(f: Fixture, account: str, agent: Any, run: Any) -> str:
+    """The journaled close this Run sent; the ledger names it on the trade's exit deal."""
     operation = new_id()
-    thread = await f.conversation(agent)
-    run = await f.run(agent, thread)
-    ctx = await f.lease(run)  # the closing Run is executing
     async with f.runtime.db.sessions() as session, session.begin():
         session.add(
             # As the simulation broker journals a close: no broker order id in its
@@ -320,6 +317,15 @@ async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
                 },
             )
         )
+    return operation
+
+
+async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
+    agent = await f.agent("Gold manager")
+    thread = await f.conversation(agent)
+    run = await f.run(agent, thread)
+    ctx = await f.lease(run)  # the closing Run is executing
+    operation = await closing_operation(f, account, agent, run)
     before = await revisions(f, agent["id"])
     await closed(f, account, agent["id"], new_id(), "40", operation_id=operation)
     assert await wake_for_closes(f.runtime.db, f.owner) == 1
@@ -333,6 +339,39 @@ async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
     assert await wake_for_closes(f.runtime.db, f.owner) == 0  # read: nothing redirected
     path = "after a tool block" if read_first else "before its final reply"
     print("PASS the agent's own close reaches its still-executing Run", path, "; it reviews")
+
+
+async def last_round_notice(f: Fixture, account: str) -> None:
+    """A notice recorded during the Run's last budgeted round is not read there: no round
+    is left to run memory_write, so it stays unread and its own Run follows."""
+    agent = await f.agent("Gold last round")
+    thread = await f.conversation(agent)
+    run = await f.run(agent, thread)
+    ctx = await f.lease(run)
+    operation = await closing_operation(f, account, agent, run)
+    trades: list[str] = []
+    seen: list[list[ModelMessage]] = []
+    review = reviewer(await memory_version(f, agent["id"]), seen, read_first=True)
+
+    async def complete(*args: Any, **kwargs: Any) -> Any:
+        if not seen:
+            # The ledger records the close, and close_wakes leaves the notice, while the
+            # Run's last budgeted round runs.
+            trades.append(
+                await closed(f, account, agent["id"], new_id(), "6", operation_id=operation)
+            )
+            assert await wake_for_closes(f.runtime.db, f.owner) == 1
+        return await review(*args, **kwargs)
+
+    with patch.object(ctx.router, "complete", complete):
+        await execute_run(ctx, load_tools(), 120, 2)
+    assert not any(CLOSED in m.content for messages in seen for m in messages), (
+        "the notice was read with no round left for the review"
+    )
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    (woken,) = await runs_of(f, agent["id"], "broker_event")
+    assert woken.model_metadata["closed_trade_id"] == trades[0] and CLOSED in woken.prompt
+    print("PASS a notice from the Run's last round stays unread; its own Run follows")
 
 
 async def unread_notice(f: Fixture, account: str) -> None:
@@ -406,6 +445,7 @@ async def main() -> None:
         await stop_loss_hit(f, account)
         await own_close(f, account, read_first=True)
         await own_close(f, account, read_first=False)
+        await last_round_notice(f, account)
         await unread_notice(f, account)
         await paused_and_owner(f, account)
         await many_woken(f, account)
