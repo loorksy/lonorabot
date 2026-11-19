@@ -10,10 +10,11 @@ and its instructions and memory, read-only. Nothing is injected into context
 automatically. Text that agent or others wrote is labelled untrusted: it is data for
 the reader, never its instructions.
 
-``agent_control`` pauses or resumes a team agent, or one of its Tasks, routines or
-watches, messages it, cancels its current run, switches it to Ask or deletes it. It never grants,
-trades or edits the agent's memory or instructions. A paused agent still reduces the risk of its
-own positions and orders; the Personal Agent is paused only by the owner. The hold
+``agent_control`` lets Lonora pause or resume a team agent, or one of its Tasks,
+routines or watches, cancel its started runs, switch it to Ask or delete it; its
+``message`` action is any agent's peer request (``peer_send``). It never grants, trades
+or edits the agent's memory or instructions. A paused agent still reduces the risk of
+its own positions and orders; the Personal Agent is paused only by the owner. The hold
 rules are in ``lonora_db.supervision`` and ``lonora_db.pauses``.
 """
 
@@ -475,9 +476,9 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 
 async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict[str, Any]:
-    """Lonora's own powers over a team agent (mandate 3.1.2, 4.2.2): cancel its current
-    run, switch it to Ask, or delete it (its tickets transfer to Lonora). None needs a
-    grant, a card or the owner's message; a team agent is refused, whatever its grants."""
+    """Lonora's own powers over a team agent (mandate 3.1.2, 4.2.2): cancel its started
+    runs, switch it to Ask, or delete it (its tickets transfer to Lonora). None needs a
+    card or the owner's message; a team agent is refused."""
     from lonora_core.run_state import ACTIVE
     from lonora_db.cancellation import cancel_run
     from lonora_db.trading_mode import switch_to_ask
@@ -561,14 +562,16 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "agent_control",
-            "Lonora only: steer a team agent. Pause or resume it, or one of its Tasks, "
-            "routines or watches (target, target_id), or message it. resume lifts a pause "
-            "you made on your own, or one the owner tells you to lift; never another agent's. A paused agent still "
-            "wakes for its own positions and orders and only reduces their risk. Only the "
-            "owner pauses Lonora itself. Also cancel_run (end its current run), set_ask (as "
-            "trading_mode_ask: Ask, except within an active signed grant's own terms until "
-            "revoked) or delete it (its open tickets become yours and you are woken with "
-            "them). It never trades, grants or edits its memory or instructions.",
+            "Lonora steers a team agent: pause or resume it, or one of its Tasks, routines "
+            "or watches (target, target_id); cancel_run ends its started runs (a queued one "
+            "stays); set_ask switches it to Ask as trading_mode_ask does; delete removes it "
+            "(its open positions and pending orders become yours and you are woken with "
+            "them). resume lifts a pause you made on your own and, when the owner asks in "
+            "chat, one the owner asked for in chat; never the agent's own or one the owner "
+            "set with a control. A paused agent still wakes for its own positions and "
+            "orders and only reduces their risk. Only the owner pauses Lonora. message, for "
+            "any agent, is the same peer request as peer_send. It never trades, grants or "
+            "edits memory or instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

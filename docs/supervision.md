@@ -40,8 +40,8 @@ from each other as before (wall 5 of correction 1). Migration
 
 `agent_control` (toolset `collaboration`, long-tail, replay-safe) is Lonora's: it pauses
 or resumes a team agent itself or one of its Tasks, routines or watches (`target`,
-`target_id`), messages it (`action: message`, the same peer request as `peer_send`),
-cancels its current run (`cancel_run`: its started runs, never Lonora's own run or its
+`target_id`), messages it (`action: message`, the same peer request as `peer_send`, open to any agent),
+cancels its started runs (`cancel_run`, never Lonora's own run or its
 ancestors; a queued run stays; each is recorded as Lonora's, `model_metadata.cancelled_by`
 and the `run.cancelled` payload, so the web says «أوقفت لونورا الرد», never that the
 owner stopped it, and a cut interface says only that the reply stopped), switches it to Ask (`set_ask`, the same switch as
