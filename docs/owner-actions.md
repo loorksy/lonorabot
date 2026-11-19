@@ -38,7 +38,9 @@ card as it is and writes nothing. An MCP server that has the owner sign in keeps
 card waiting until the sign-in finishes on the callback (`docs/trusted-sources.md`). The
 downgrade of `0071` turns the agents' own cards
 back into the shape the earlier code reads (their values stay saved) and refuses while a
-connection saved from a Secret card keeps its address in the store.
+connection saved from a Secret card keeps its address in the store. Every other
+connection loses the fields `0071` added, which are empty there: the earlier contracts
+refuse unknown fields.
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -310,6 +312,10 @@ asks for one, a grant only when no active scope covers it.
   trade raises `operation_uncertain` and a resolve card whose answer emits
   `trading.operation_resolved`, clears the hold and sends nothing; an agent's uncertain
   operation lands in that agent's conversation; the cap, expiry and crash replay.
+- `tests/check_secret_card_migration.py` (fresh database): the downgrade of `0071`
+  refuses while a server's address is in the store and changes nothing, then leaves an
+  MCP server and a news feed with exactly the earlier release's fields and values; the
+  upgrade runs again.
 - `tests/test_owner_actions.py`: classification, proposal fields, no tool importing a
   decision, runtime-card idempotency and expiry, the confirmation line per post-decision
   state in English and Arabic, delete settlement and the fallback speaker, and the single
