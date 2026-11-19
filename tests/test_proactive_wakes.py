@@ -731,7 +731,7 @@ async def test_a_paused_agent_still_wakes_for_its_own_tickets():
     from check_streaming import Fixture
     from lonora_contracts.broker_activity import BrokerActivity
     from lonora_db.personal_agent import ensure_personal_agent
-    from lonora_db.schema import AgentRow, RunRow
+    from lonora_db.schema import AgentRow, EventRow, RunRow
     from lonora_trading.broker_recovery import wake_for_activity
     from sqlalchemy import select
 
@@ -780,6 +780,20 @@ async def test_a_paused_agent_still_wakes_for_its_own_tickets():
         assert len(runs) == 1 and runs[0].agent_id == gold["id"]
         assert "authority" not in runs[0].model_metadata
         assert "You are paused" in runs[0].prompt
+        # The woken agent reports its own ticket, so that change raises no owner item;
+        # the owner's activity no paused Lonora was woken for stays the owner's (11.5).
+        async with fixture.runtime.db.sessions() as session:
+            events = {
+                row.payload["ticket"]: row.payload["wakes_agent"]
+                for row in await session.scalars(
+                    select(EventRow).where(
+                        EventRow.owner_id == fixture.owner,
+                        EventRow.kind == "broker.external_activity",
+                        EventRow.payload["account_id"].as_string() == connection,
+                    )
+                )
+            }
+        assert events == {"T-paused": True, "T-owner": False}, events
     finally:
         if personal_paused:
             async with fixture.runtime.db.sessions() as session, session.begin():

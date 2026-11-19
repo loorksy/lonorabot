@@ -138,7 +138,7 @@ async def activity_wake(
 
     ``broker_recovery.wake_for_activity`` wakes the agent that opened a position its
     stop-loss or take-profit closed; the review joins that wake instead of a second Run.
-    An observe-only wake (the owner's own activity, or a paused or deleted agent's) is
+    An observe-only wake (the owner's own activity, or a deleted or delegated agent's) is
     left alone: it has no financial effects, and the review's own Run keeps the agent's
     normal authority.
     """

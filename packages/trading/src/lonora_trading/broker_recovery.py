@@ -203,7 +203,11 @@ async def wake_for_activity(
             thread_id=thread.id,
             # The agent woken below reports the change or stays silent (VISION 11.5);
             # only a change no agent is woken for stays the owner's attention item.
-            payload={**change.model_dump(mode="json"), "wakes_agent": not agent.paused},
+            # A paused agent is still woken for its own tickets (4.7.1), as below.
+            payload={
+                **change.model_dump(mode="json"),
+                "wakes_agent": attributed or not agent.paused,
+            },
         )
         session.add(EffectReceiptRow(key=key, result={"event_id": change.id, "agent_id": agent.id}))
         if change.resource == "position" and change.change in {"closed", "partial_close"}:
