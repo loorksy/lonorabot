@@ -133,9 +133,9 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
     assert done.returncode == 0, done.stderr[-2000:]
     assert {row["step"] for row in report} == set(STEPS)
     ran = {row["step"]: row for row in report if row["state"] in {"pass", "known defect"}}
-    assert {"4a", "4c", "5", "7a"} <= set(ran)
+    assert {"1", "4a", "4c", "5", "7a"} <= set(ran)
     # Today's stand-ins are said, never passed off as the step itself.
-    assert all("partial" in ran[step] for step in ("4a", "5", "7a"))
+    assert all("partial" in ran[step] for step in ("1", "4a", "5", "7a"))
     # The step's own actor: the gold agent in Full sent the close, no stand-in.
     assert "partial" not in ran["4c"]
     assert {row["check"]: row["ok"] for row in ran["4c"]["checks"]}[acceptance.GOLD_SENT]
@@ -162,3 +162,30 @@ def test_a_refusal_raised_or_answered_counts_against_authority():
     ]
     for code in ("agent_analysis_only", "approval_required"):
         assert error_class(code, classify(code, None)["category"]) == "permission"
+
+
+def test_the_demo_broker_runs_only_the_steps_that_may_reach_it():
+    """--broker demo refuses a step it may not run before any value is asked for."""
+    assert acceptance.DEMO_STEPS <= set(acceptance.RUNNERS)
+    url = "postgresql+asyncpg://nobody@127.0.0.1:5432/accept_refused_test"
+    done = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/agent_eval/acceptance.py"),
+            "--offline",
+            "--broker",
+            "demo",
+            "--steps",
+            "4c",
+        ],
+        env={**os.environ, "LONORA_DATABASE_URL": url},
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        # No controlling terminal: a prompt would have to come through stdin/stderr.
+        start_new_session=True,
+        timeout=120,
+    )
+    assert done.returncode != 0
+    assert "--broker demo runs only steps 1" in done.stderr
+    assert "MetaApi demo" not in done.stdout + done.stderr
