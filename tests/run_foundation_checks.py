@@ -119,7 +119,8 @@ def main() -> None:
     commands = [[sys.executable, "tests/" + script] for script in CHECKS]
     commands.append([sys.executable, "-m", "pytest", "tests/test_task_runtime.py", "-q"])
     # UI phase 5: delivery rules, dry-run tests, owner identity and usage, and the
-    # composer's / commands (PostgreSQL cases).
+    # composer's / commands; the owner's app opens and the learned brief time (PostgreSQL
+    # cases).
     for name in (
         "test_agent_delivery_rules.py",
         "test_connection_tests.py",
@@ -130,6 +131,7 @@ def main() -> None:
         "test_usage_dashboard.py",
         "test_slash_commands.py",
         "test_usage_tool.py",
+        "test_app_opens.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:
