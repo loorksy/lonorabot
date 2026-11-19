@@ -1345,7 +1345,8 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
 @pytest.mark.asyncio
 async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
     """Mandate P1, 13.1: no cap on what an agent reads. Reading every feed used to stop at
-    the ten oldest subscriptions, so the eleventh feed and later never reached the agent."""
+    the ten oldest subscriptions, so the eleventh feed and later never reached the agent.
+    The owner sees every feed agents read in Capabilities, where he removes it."""
     database()
     from check_streaming import Fixture
 
@@ -1396,9 +1397,11 @@ async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
         mine = [feed for feed in read["feeds"] if feed["domain"] == domain]
         assert sorted(feed["name"] for feed in mine) == sorted(f"Feed {i}" for i in range(12))
         assert all(feed["status"] == "ok" for feed in mine)
+        shown = await fixture.request("GET", "/capabilities")
+        listed = [item for item in shown["integrations"] if item["domain"] == domain]
+        assert sorted(item["name"] for item in listed) == sorted(f"Feed {i}" for i in range(12))
     finally:
-        # By id: Capabilities lists the owner's oldest 200 integrations, here only the
-        # webhooks. The route removes the trusted domain with its last feed.
+        # By id, through the route, which removes the trusted domain with its last feed.
         for feed_id in added_feeds:
             await fixture.request("DELETE", "/integrations/" + feed_id)
         async with fixture.runtime.db.sessions() as session, session.begin():
