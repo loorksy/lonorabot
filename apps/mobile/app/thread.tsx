@@ -17,6 +17,7 @@ import {
   accumulateStream,
   activeStatuses,
   conversationTimeline,
+  embeddedSlots,
   type LiveReplyStream,
   liveAvatarState,
   type MentionAddress,
@@ -902,11 +903,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             settle
               ? () => {
                   // The list as it is now: answers may have arrived while the sheet was open.
-                  const index = timelineRef.current.findIndex(
-                    (item) => item.id === `owner_action:${settle.id}`,
-                  );
+                  const rows = timelineRef.current;
+                  let index = rows.findIndex((item) => item.id === `owner_action:${settle.id}`);
                   // A card drawn inside a message (a trusted slot) has no row of its own: the
-                  // sheet stays, and the card is where the agent put it.
+                  // list goes to the message that carries it, as on Web.
+                  if (index < 0)
+                    index = rows.findIndex(
+                      (item) =>
+                        item.kind === "message" &&
+                        embeddedSlots([item.message]).has(`settle:${settle.id}`),
+                    );
                   if (index < 0) return;
                   sheets.close();
                   following.current = false;

@@ -97,6 +97,7 @@ export {
 export {
   type ConversationItem,
   conversationTimeline,
+  embeddedSlots,
   nearConversationBottom,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";

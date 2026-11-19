@@ -5,6 +5,14 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
+const genui = (command, input = {}) =>
+  JSON.parse(
+    execFileSync(".venv/bin/python", ["tests/check_genui_browser.py", command], {
+      input: JSON.stringify(input),
+      encoding: "utf8",
+    }),
+  );
+
 // Cards as the runtime raises them (no model): through lonora_db.owner_actions only.
 function seedCard(data) {
   const script = `
@@ -14,7 +22,7 @@ sys.path.insert(0,'tests')
 from check_streaming import Fixture
 from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import OwnerActionProposal
-from lonora_db.owner_actions import propose,raise_system_card
+from lonora_db.owner_actions import raise_system_card
 from lonora_db.schema import TradingJournalRow
 async def main():
     data=json.load(sys.stdin)
@@ -22,22 +30,12 @@ async def main():
     try:
         async with f.runtime.db.sessions() as session, session.begin():
             fields={'kind':data['kind']}
-            if data['kind']=='resolve_operation':
-                operation=str(uuid4())
-                session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
-                await session.flush()
-                fields['operation_id']=operation
+            operation=str(uuid4())
+            session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
+            await session.flush()
+            fields['operation_id']=operation
             proposal=OwnerActionProposal(**fields)
-            if data['kind']=='grant_authority':
-                from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
-                from lonora_db.owner_actions import ALL_ACTIONS
-                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis='suggested',percent='3',equity='10000'))
-                if data.get('delegation')=='full':
-                    # Preselected because the owner's own message asked for full delegation.
-                    draft=draft.with_delegation('full')
-                row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
-            else:
-                row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
+            row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             print(json.dumps({'id':row.id if row else None,'operation_id':fields.get('operation_id')}))
     finally:
         await f.close(cleanup=False)
@@ -245,4 +243,72 @@ test("«Resolve the operation» rests the list on the operation's own settle car
   } finally {
     await fixtureData.remove();
   }
+});
+
+test("«Resolve the operation» reaches the settle card drawn in the agent's message (a slot)", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(90000);
+  const fixture = genui("setup");
+  await context.addCookies(
+    fixture.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const input = { thread_id: fixture.thread.id, connection: fixture.connection };
+  const ids = genui("records", input);
+  genui("slots", { ...input, card: "settle", record: ids.settle });
+  const saved = await (
+    await context.request.get(`/api/threads/${fixture.thread.id}/messages`)
+  ).json();
+  const card = (
+    await (await context.request.get(`/api/owner-actions?thread_id=${fixture.thread.id}`)).json()
+  ).find((row) => row.id === ids.settle);
+  const now = new Date().toISOString();
+  const last = Math.max(...saved.map((row) => row.seq));
+  const filler = Array.from({ length: 40 }, (_, index) => ({
+    id: randomUUID(),
+    thread_id: fixture.thread.id,
+    agent_id: fixture.agent.id,
+    role: "assistant",
+    seq: last + index + 1,
+    content: `Line ${index + 1}`,
+    attachment_ids: [],
+    reply_to: null,
+    reactions: [],
+    created_at: now,
+  }));
+  await page.route(`**/api/threads/${fixture.thread.id}/messages*`, (route) =>
+    route.fulfill({ json: [...saved, ...filler] }),
+  );
+  await page.route("**/api/trading/journal?thread_id=*", (route) =>
+    route.fulfill({
+      json: [
+        {
+          operation_id: card.facts.operation.operation_id,
+          account_id: fixture.connection,
+          status: "ambiguous",
+          request: { action: "sell", symbol: "XAGUSD", volume: "1" },
+          result: {},
+          submitted_at: now,
+          updated_at: now,
+          thread_id: fixture.thread.id,
+          timeline_seq: last + 40,
+        },
+      ],
+    }),
+  );
+  await page.goto(`/thread?id=${fixture.thread.id}`);
+  const slot = page.getByTestId("ui-slot-settle");
+  // The card has no row of its own: its place is the slot in the agent's message.
+  await expect(page.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(0);
+  await page.getByTestId("order-line").click();
+  await page.getByRole("button", { name: "Resolve the operation", exact: true }).click();
+  await expect(page.getByTestId("order-sheet")).toHaveCount(0);
+  await expect(slot).toBeInViewport();
 });
