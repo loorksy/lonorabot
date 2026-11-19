@@ -191,6 +191,76 @@ test("a setup token shorter than the server's says so, and the submit key sends 
   expect(sent).toEqual([]);
 });
 
+test("the submit key sends nothing while the address is still being checked", async ({
+  page,
+  baseURL,
+}) => {
+  let release = () => undefined;
+  let held = null;
+  await page.route("**/api/onboarding", async (route) => {
+    if (held) await held;
+    return route.fallback();
+  });
+  const logins = [];
+  await page.route("**/api/auth/login", (route) => {
+    logins.push(route.request().method());
+    return route.fallback();
+  });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  const password = page.getByLabel("Password", { exact: true });
+  await password.fill(credentials.password);
+  const signIn = page.getByRole("button", { name: "Sign in", exact: true });
+  await expect(signIn).toBeEnabled();
+  // The same server written another way is another address: it is checked again.
+  held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page
+    .getByRole("textbox", { name: "Lonora server URL", exact: true })
+    .fill(`${new URL(baseURL).origin}/`);
+  await password.press("Enter");
+  await expect(signIn).toBeDisabled();
+  expect(logins).toEqual([]);
+  release();
+  await expect(signIn).toBeEnabled();
+  expect(logins).toEqual([]);
+  // Once the address has answered, the same key does send.
+  const signedIn = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/auth/login") && response.request().method() === "POST",
+  );
+  await password.press("Enter");
+  expect((await signedIn).status()).toBe(200);
+  expect(logins).toEqual(["POST"]);
+});
+
+test("the submit key sends nothing while a sign-in is under way", async ({ page }) => {
+  let release = () => undefined;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  const logins = [];
+  await page.route("**/api/auth/login", async (route) => {
+    logins.push(route.request().method());
+    await held;
+    return route.fulfill({ status: 401, json: { code: "unauthorized" } });
+  });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  const password = page.getByLabel("Password", { exact: true });
+  await password.fill(credentials.password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect.poll(() => logins).toEqual(["POST"]);
+  await expect(page.getByRole("button", { name: "Connecting", exact: true })).toBeDisabled();
+  await password.press("Enter");
+  release();
+  await expect(
+    page.getByText("Check your credentials or sign in again.", { exact: true }),
+  ).toBeVisible();
+  expect(logins).toEqual(["POST"]);
+});
+
 test("a setup that fails asks the server again: an owner created meanwhile shows sign-in", async ({
   page,
 }) => {
