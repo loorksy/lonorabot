@@ -35,7 +35,6 @@ PSQL_VALUE = (
 )
 
 TABLES = {
-    "ln_trading_restrictions": "id text, v text",
     "ln_account_authorities": "id text, v text",
     "ln_supervision_grants": "id text, v text",
     "ln_supervision_holds": "id text, v text",
@@ -85,9 +84,7 @@ def schemas() -> Iterator[tuple[str, str]]:
         if name not in {"ln_settings", "ln_supervision_holds"}:
             sql(f"CREATE TABLE {dropped}.{name} ({columns})")
     sql(
-        f"""INSERT INTO {full}.ln_trading_restrictions VALUES ('r1', 'no_new_entries');
-        INSERT INTO {full}.ln_settings VALUES ('trading_control', '{{"enabled": true}}');
-        INSERT INTO {full}.ln_settings VALUES ('ui_theme', '{{"dark": true}}');
+        f"""INSERT INTO {full}.ln_settings VALUES ('ui_theme', '{{"dark": true}}');
         INSERT INTO {full}.ln_agents VALUES ('a1', false);
         INSERT INTO {full}.ln_broker_sessions VALUES ('c1', '{{"enabled": true}}');
         INSERT INTO {full}.ln_messages VALUES ('m1', 'user', 'hello');
@@ -113,11 +110,9 @@ def test_a_dropped_table_never_makes_the_records_unreadable(schemas: tuple[str, 
 @pytest.mark.parametrize(
     "change",
     [
-        "UPDATE ln_trading_restrictions SET v = 'revoked'",
         "INSERT INTO ln_supervision_holds VALUES ('h1', 'owner')",
         "UPDATE ln_agents SET paused = true",
         "UPDATE ln_broker_sessions SET payload = '{\"enabled\": false}'",
-        "UPDATE ln_settings SET payload = '{\"enabled\": false}' WHERE key = 'trading_control'",
         "INSERT INTO ln_trade_approvals VALUES ('t1', 'pending')",
         "INSERT INTO ln_messages VALUES ('m3', 'user', 'close everything')",
         # A Task's state is nested under "task" (lonora_db.tasks).

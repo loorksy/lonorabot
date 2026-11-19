@@ -2,10 +2,10 @@
 
 A card stores the exact effect it performs (``payload``, hashed) and the record it acts
 on (``subject``). Agents propose cards through a tool and the runtime raises some from
-events (a new restriction, an operation that became uncertain); only the owner's session
+events (an operation that became uncertain); only the owner's session
 confirms one, through the existing owner function for that effect (see the owner
 actions API route). Everything the owner sees on a card is derived here from the records
-it names, at read time: never model text, never the restriction reason an agent wrote.
+it names, at read time: never model text.
 The one exception is a creation card's stored task, the exact standing instruction the
 tap keeps, which the card quotes labelled as the agent's task.
 
@@ -15,7 +15,6 @@ past ``expires_at`` reads as expired and is settled as expired when next touched
 """
 
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Any, cast
 
 from lonora_contracts.account_authority import (
@@ -26,17 +25,14 @@ from lonora_contracts.account_authority import (
     full_delegation,
 )
 from lonora_contracts.domain import new_id, utcnow
-from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import (
     GrantDelegation,
     GrantDraft,
     OwnerActionProposal,
 )
-from lonora_contracts.risk_limits import MonetaryRiskLimits
-from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
+from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
-from pydantic import ValidationError
 from sqlalchemy import ColumnElement, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,18 +48,12 @@ from .schema import (
     SupervisionHoldRow,
     ThreadRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
-from .trading_readiness import RISK_LIMIT_NAMES, global_trading, risk_limit_frame
-from .trading_restrictions import restriction_state
-from .transactions import SettingsRepository, execution_policy_key, owned_thread
+from .transactions import owned_thread
 
-# How long a card stays usable. A lift card never outlives its restriction.
+# How long a card stays usable.
 LIFETIME = {
-    "resume_trading": timedelta(hours=24),
-    "lift_restriction": timedelta(days=31),
     "resolve_operation": timedelta(days=7),
-    "set_account_limits": timedelta(hours=24),
     "grant_authority": timedelta(hours=24),
     # An agent's proposal to create an agent, and the Undo card after a creation.
     "create_agent": timedelta(hours=24),
@@ -75,8 +65,6 @@ LIFETIME = {
     "supervision_stopped": timedelta(days=7),
     # A supervisor paused an agent's work: who did it, with Resume, while it holds.
     "supervision_paused": timedelta(days=31),
-    # Add a source to the trusted list (W15-8).
-    "trust_source": timedelta(days=7),
     # The Secret card: a credential, or a connection that needs one.
     "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
@@ -95,16 +83,6 @@ CARDS_WAITING: dict[str, Any] = {
     "hint": "Enough cards are already waiting for the owner. Raise no more now: point the "
     "owner to the ones waiting, or come back to it once one is decided.",
 }
-UPPER_LIMITS = (
-    "max_trade_risk",
-    "max_trade_risk_equity_percent",
-    "max_daily_loss",
-    "max_open_risk",
-    "max_open_risk_equity_percent",
-)
-# Every field a limits card can change, in the order its lines show them. A card shows a
-# line for each one that differs, so it never signs an effect the owner did not see.
-LIMIT_CHANGE_NAMES = ("currency", *RISK_LIMIT_NAMES, "trading_day_timezone")
 
 
 def payload_hash(kind: str, payload: dict[str, Any]) -> str:
@@ -117,80 +95,8 @@ def live_status(row: OwnerActionRow, now: datetime | None = None) -> str:
     return row.status
 
 
-def proposed_limits(current: MonetaryRiskLimits, payload: dict[str, Any]) -> MonetaryRiskLimits:
-    """The account's limits after the card's exact changes; other limits stay as they are."""
-    values = current.model_dump()
-    values.update({name: Decimal(str(value)) for name, value in payload["set"].items()})
-    values.update({name: None for name in payload["remove"]})
-    for name in ("currency", "trading_day_timezone"):
-        if payload.get(name) is not None:
-            values[name] = payload[name]
-    try:
-        return MonetaryRiskLimits.model_validate(values)
-    except ValidationError as error:
-        raise LonoraError("owner_action_limits_invalid", 422) from error
-
-
-def widens(current: MonetaryRiskLimits, proposed: MonetaryRiskLimits) -> bool:
-    """Whether new limits admit more risk anywhere: raising or removing a ceiling, lowering
-    or removing the free-margin floor, re-denominating set amounts or moving the day."""
-    for name in UPPER_LIMITS:
-        old, new = getattr(current, name), getattr(proposed, name)
-        if old is not None and (new is None or new > old):
-            return True
-    floor, new_floor = current.min_free_margin, proposed.min_free_margin
-    if floor is not None and (new_floor is None or new_floor < floor):
-        return True
-    amounts = any(
-        getattr(current, name) is not None
-        for name in ("max_trade_risk", "max_daily_loss", "max_open_risk", "min_free_margin")
-    )
-    if amounts and proposed.currency != current.currency:
-        return True
-    return (
-        current.max_daily_loss is not None
-        and proposed.trading_day_timezone != current.trading_day_timezone
-    )
-
-
-# Execution caps the executor enforces next to the money limits: raising or removing one
-# admits more risk too (exposure and execution-quality gates).
-POLICY_CEILINGS = (
-    "max_spread",
-    "max_entry_drift_stop_fraction",
-    "max_positions",
-    "max_pending_orders",
-    "max_symbol_direction_volume",
-)
-# Freshness bounds: a larger age accepts staler quotes and account state.
-POLICY_AGES = ("quote_max_age_seconds", "account_max_age_seconds")
-
-
-def policy_widens(current: ExecutionPolicy, proposed: ExecutionPolicy) -> bool:
-    """Whether a new execution policy admits more risk anywhere: a money limit
-    (``widens``), an execution cap raised or removed, or an older quote or account
-    accepted."""
-    if widens(current.risk, proposed.risk):
-        return True
-    for name in POLICY_CEILINGS:
-        old, new = getattr(current, name), getattr(proposed, name)
-        if old is not None and (new is None or new > old):
-            return True
-    return any(getattr(proposed, name) > getattr(current, name) for name in POLICY_AGES)
-
-
-async def account_policy(session: AsyncSession, owner_id: str, account_id: str) -> ExecutionPolicy:
-    return ExecutionPolicy.model_validate(
-        await SettingsRepository().get(session, execution_policy_key(owner_id, account_id))
-    )
-
-
-async def owned_account(
-    session: AsyncSession, owner_id: str, account_id: str, *, lock: bool = False
-) -> BrokerSessionRow:
-    row = await session.get(
-        BrokerSessionRow, account_id, with_for_update=lock, populate_existing=lock
-    )
+async def owned_account(session: AsyncSession, owner_id: str, account_id: str) -> BrokerSessionRow:
+    row = await session.get(BrokerSessionRow, account_id)
     if row is None or row.owner_id != owner_id:
         raise LonoraError("broker_session_not_found", 404)
     return row
@@ -221,30 +127,11 @@ async def stale_reason(
 
     Raises when the record it names is not the owner's: such a card is never created.
     """
-    if kind == "resume_trading":
-        return (
-            "trading_already_running"
-            if (await global_trading(session))["state"] == "running"
-            else None
-        )
-    if kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
-        if restriction is None or restriction.owner_id != owner_id:
-            raise LonoraError("restriction_not_found", 404)
-        return (
-            "restriction_already_ended"
-            if restriction_state(restriction) in {"revoked", "expired"}
-            else None
-        )
     if kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None or operation.owner_id != owner_id:
             raise LonoraError("operation_not_found", 404)
         return None if operation.status == "ambiguous" else "operation_already_settled"
-    if kind == "set_account_limits":
-        await owned_account(session, owner_id, payload["account_id"])
-        current = (await account_policy(session, owner_id, payload["account_id"])).risk
-        return "limits_already_set" if proposed_limits(current, payload) == current else None
     if kind == "grant_authority":
         from .agent_binding import (
             account_wide_scope,
@@ -296,10 +183,6 @@ async def stale_reason(
         if not grants:
             return "supervision_agent_missing"
         return None if await _restorable(session, owner_id, grants) else "supervision_already_set"
-    if kind == "trust_source":
-        from .capability_cards import stale_reason as capability_stale
-
-        return await capability_stale(session, owner_id, kind, payload)
     if kind == "watch_changed":
         from .notice_cards import watch_change_stale
 
@@ -467,38 +350,6 @@ def grant_proposal(
     )
 
 
-def daily_loss_change(current: MonetaryRiskLimits, draft: GrantDraft) -> MonetaryRiskLimits | None:
-    """The account limits after the card's daily loss limit, or None when it changes
-    nothing. A suggested limit is set only where the account has none; a limit from the
-    owner's own words may also lower the current one. It never raises one, so it never
-    widens, and it never tightens a limit the owner set without being asked."""
-    daily = draft.daily_loss
-    if daily is None:
-        return None
-    if current.currency is not None and current.currency != daily.currency:
-        return None
-    if current.max_daily_loss is not None and (
-        daily.basis != "requested" or daily.amount >= current.max_daily_loss
-    ):
-        return None
-    return current.model_copy(update={"max_daily_loss": daily.amount, "currency": daily.currency})
-
-
-def requested_above(current: MonetaryRiskLimits, draft: GrantDraft) -> Decimal | None:
-    """The owner's own daily loss amount when it is above the account's current limit:
-    the grant card keeps the current limit, and raising it needs a limits card."""
-    daily = draft.daily_loss
-    if (
-        daily is None
-        or daily.basis != "requested"
-        or current.max_daily_loss is None
-        or current.currency not in {None, daily.currency}
-        or daily.amount <= current.max_daily_loss
-    ):
-        return None
-    return daily.amount
-
-
 def grant_terms(envelope: AccountAuthorityEnvelope) -> dict[str, Any]:
     """Everything a signed grant allows, for the card that replaces it: its markets,
     actions, caps, protections, expiry and the owner's own positions."""
@@ -602,11 +453,6 @@ def proposal_payload(
         if grant is None:
             raise LonoraError("owner_action_fields_invalid", 422)
         return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
-    if proposal.kind == "resume_trading":
-        return "trading", TradingControl(enabled=True, emergency_stop=False).model_dump()
-    if proposal.kind == "lift_restriction":
-        assert proposal.restriction_id is not None
-        return "restriction:" + proposal.restriction_id, {"restriction_id": proposal.restriction_id}
     if proposal.kind == "resolve_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
@@ -614,24 +460,7 @@ def proposal_payload(
         from .secret_cards import secret_card_payload
 
         return secret_card_payload(proposal)
-    if proposal.kind == "trust_source":
-        from .capability_cards import source_payload, trust_subject
-
-        # An MCP server's card carries the tools read from the server (``propose_capability``).
-        if proposal.source_kind == "mcp_server" or proposal.identifier is None:
-            raise LonoraError("owner_action_fields_invalid", 422)
-        assert proposal.source_kind is not None
-        return trust_subject(proposal.source_kind, proposal.identifier), source_payload(
-            proposal.source_kind, proposal.identifier
-        )
-    assert proposal.account_id is not None
-    return "account:" + proposal.account_id, {
-        "account_id": proposal.account_id,
-        "set": {name: str(value) for name, value in sorted(proposal.set_limits.items())},
-        "remove": sorted(set(proposal.remove_limits)),
-        "currency": proposal.currency,
-        "trading_day_timezone": proposal.trading_day_timezone,
-    }
+    raise LonoraError("owner_action_fields_invalid", 422)
 
 
 async def agent_names(
@@ -664,38 +493,9 @@ async def card_facts(
     session: AsyncSession, row: OwnerActionRow, now: datetime
 ) -> tuple[dict[str, Any], bool]:
     """Server facts the card shows, read now from the records it names; and whether the
-    owner's confirmation needs a passkey (widening money limits)."""
+    owner's confirmation needs a passkey (a grant card)."""
     owner_id, payload = row.owner_id, row.payload
     facts: dict[str, Any] = {"several_accounts": await several_accounts(session, owner_id)}
-    if row.kind == "resume_trading":
-        facts["global_trading"] = await global_trading(session)
-        return facts, False
-    if row.kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
-        if restriction is None:
-            return facts, False
-        names = await agent_names(
-            session,
-            owner_id,
-            {value for value in (restriction.agent_id, restriction.created_by_agent_id) if value},
-        )
-        facts["account"] = account_facts(
-            await session.get(BrokerSessionRow, restriction.account_id), restriction.account_id
-        )
-        facts["restriction"] = {
-            "action_class": restriction.action_class,
-            "symbol": restriction.symbol,
-            "all_agents": restriction.agent_id is None,
-            "agent_name": names.get(restriction.agent_id or ""),
-            "includes_owner_manual": restriction.applies_to_owner_manual,
-            "state": restriction_state(restriction, now),
-            "valid_from": restriction.valid_from.isoformat(),
-            "valid_until": restriction.valid_until.isoformat() if restriction.valid_until else None,
-            # Who set it, never the reason text: an agent's reason is model prose.
-            "source": restriction.source,
-            "set_by_agent_name": names.get(restriction.created_by_agent_id or ""),
-        }
-        return facts, False
     if row.kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None:
@@ -738,37 +538,19 @@ async def card_facts(
         names = await agent_names(session, owner_id, {row.agent_id})
         facts["secret"] = await secret_facts(session, row, names.get(row.agent_id or ""))
         return facts, False
-    if row.kind == "trust_source":
-        from .capability_cards import card_facts as capability_facts
-
-        return await capability_facts(session, row, facts), False
-    account_id = payload["account_id"]
-    facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
-    current = (await account_policy(session, owner_id, account_id)).risk
-    facts["current"] = risk_limit_frame(account_id, ExecutionPolicy(risk=current))
-    try:
-        proposed = proposed_limits(current, payload)
-    except LonoraError:
-        # The limits changed since the card was raised and its change no longer fits
-        # them: confirming only settles it, so no passkey ceremony is asked for.
-        facts["no_longer_applies"] = True
-        return facts, False
-    facts["proposed"] = risk_limit_frame(account_id, ExecutionPolicy(risk=proposed))
-    facts["changes"] = limit_changes(current, proposed)
-    return facts, widens(current, proposed)
+    return facts, False
 
 
 async def grant_facts(
     session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
 ) -> dict[str, Any]:
     """What the owner signs, read now: the agent, account, markets, actions, duration,
-    their own positions, the account's money limits and daily loss line, Stop new
-    trading, other agents already trading that market and the grant it replaces.
+    their own positions, other agents already trading that market and the grant it
+    replaces.
 
     Once signed the card shows what was signed, as stored at that moment
-    (``signed_facts``): later limits or grants never rewrite it, it never names the
-    grant it created as the one it replaced, and the daily loss line is the limit the
-    owner's choice left in force (applied, kept or none)."""
+    (``signed_facts``): later grants never rewrite it, and it never names the grant it
+    created as the one it replaced."""
     signed = row.result.get("signed_facts")
     if row.status != "pending" and isinstance(signed, dict):
         facts.update(cast(dict[str, Any], signed))
@@ -806,25 +588,6 @@ async def grant_facts(
         "delegation": draft.delegation,
         "full_available": grantee is not None and full_delegation_available(grantee),
     }
-    policy = await account_policy(session, owner_id, draft.account_id)
-    change = daily_loss_change(policy.risk, draft)
-    above = requested_above(policy.risk, draft)
-    daily = draft.daily_loss
-    facts["money"] = {
-        "limits": risk_limit_frame(draft.account_id, policy),
-        "daily_loss": {
-            "current": None
-            if policy.risk.max_daily_loss is None
-            else str(policy.risk.max_daily_loss),
-            "proposed": None if change is None or daily is None else str(daily.amount),
-            "currency": policy.risk.currency or (daily.currency if daily else None),
-            "basis": daily.basis if daily else None,
-            "percent": None if daily is None or daily.percent is None else str(daily.percent),
-            # The owner asked for more than the current limit: the card keeps it.
-            "requested_above": None if above is None else str(above),
-        },
-    }
-    facts["global_trading"] = await global_trading(session)
     facts["conflicts"] = [
         {
             "authority_id": item.id,
@@ -1006,21 +769,6 @@ async def pause_facts(
     return facts
 
 
-def limit_changes(
-    current: MonetaryRiskLimits, proposed: MonetaryRiskLimits
-) -> list[dict[str, Any]]:
-    """One line per changed field: limits, their currency and the trading-day zone."""
-    return [
-        {
-            "name": name,
-            "from": None if getattr(current, name) is None else str(getattr(current, name)),
-            "to": None if getattr(proposed, name) is None else str(getattr(proposed, name)),
-        }
-        for name in LIMIT_CHANGE_NAMES
-        if getattr(current, name) != getattr(proposed, name)
-    ]
-
-
 async def owner_action_data(
     session: AsyncSession, row: OwnerActionRow, now: datetime | None = None
 ) -> dict[str, Any]:
@@ -1119,7 +867,7 @@ async def supersede_subject(
     """Settle every other pending card for the same record: its effect is done or gone.
 
     ``effect`` narrows it to cards with that exact payload hash (the same change proposed
-    twice); a different change to the same account's limits stays on its card.
+    twice); a different change to the same record stays on its card.
     ``skip_locked`` leaves a card the owner is deciding at this moment to its decision,
     which re-checks it (a delete holding the agent's lock never waits on a tap).
     ``by`` is the newer card replacing them, recorded on each (``superseded_by``).
@@ -1168,18 +916,8 @@ async def card_thread(
     return await owned_thread(session, owner_id, thread.id, lock=True)
 
 
-def expiry(kind: str, payload_expires: datetime | None, now: datetime) -> datetime:
-    limit = now + LIFETIME[kind]
-    return min(limit, payload_expires) if payload_expires is not None else limit
-
-
-async def subject_expiry(
-    session: AsyncSession, kind: str, payload: dict[str, Any]
-) -> datetime | None:
-    if kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
-        return restriction.valid_until if restriction else None
-    return None
+def expiry(kind: str, now: datetime) -> datetime:
+    return now + LIFETIME[kind]
 
 
 async def create_card(
@@ -1213,7 +951,7 @@ async def create_card(
         result={},
         # The card sits after everything already in the conversation, like an approval.
         timeline_seq=thread.next_seq,
-        expires_at=expiry(kind, await subject_expiry(session, kind, payload), now),
+        expires_at=expiry(kind, now),
         created_at=now,
         updated_at=now,
     )
@@ -1470,104 +1208,6 @@ async def propose_supervision(
     )
 
 
-async def propose_capability(
-    session: AsyncSession,
-    owner_id: str,
-    kind: str,
-    subject: str,
-    payload: dict[str, Any],
-    *,
-    card_id: str,
-    agent_id: str,
-    thread_id: str | None,
-    run_id: str | None,
-) -> tuple[OwnerActionRow, bool]:
-    """A trust card on an agent's behalf, with the effect built on the server (an MCP
-    server's card carries the tools read from it). Deduplicated per agent and capped like
-    every proposal; a repeated call returns the card shown."""
-    await lock_owner_actions(session, owner_id)
-    existing = await session.get(OwnerActionRow, card_id)
-    if existing is not None:
-        if existing.owner_id != owner_id or existing.agent_id != agent_id:
-            raise LonoraError("owner_action_not_found", 404)
-        return existing, False
-    return await propose_effect(
-        session,
-        owner_id,
-        kind,
-        subject,
-        payload,
-        card_id=card_id,
-        agent_id=agent_id,
-        thread_id=thread_id,
-        run_id=run_id,
-    )
-
-
-async def raise_review_card(
-    session: AsyncSession,
-    owner_id: str,
-    subject: str,
-    payload: dict[str, Any],
-    *,
-    agent_id: str,
-    thread_id: str | None,
-    run_id: str | None,
-) -> OwnerActionRow | None:
-    """An MCP server's tools to trust, raised by the server with no model involved: a
-    trusted server whose tools changed (re-review), or one the owner just connected. The
-    same tools already shown, or declined in the last week, raise none; tools already
-    trusted exactly raise none; a newer review replaces an older one still waiting."""
-    await lock_owner_actions(session, owner_id)
-    if not await review_card_wanted(session, owner_id, payload):
-        return None
-    # One review waits per server: a server that keeps changing never stacks up cards.
-    card_id = new_id()
-    await supersede_subject(
-        session, owner_id, "trust_source", subject, "server_changed_again", by=card_id
-    )
-    thread = await card_thread(session, owner_id, agent_id, thread_id)
-    return await create_card(
-        session,
-        owner_id,
-        card_id=card_id,
-        agent_id=agent_id,
-        thread=thread,
-        run_id=run_id,
-        source="system",
-        kind="trust_source",
-        subject=subject,
-        payload=payload,
-    )
-
-
-async def review_card_wanted(session: AsyncSession, owner_id: str, payload: dict[str, Any]) -> bool:
-    """Whether ``raise_review_card`` would raise this review now: not the same tools
-    already waiting or declined in the last week, not tools already trusted exactly."""
-    digest = payload_hash("trust_source", payload)
-    shown = await session.scalar(
-        select(OwnerActionRow)
-        .where(
-            OwnerActionRow.owner_id == owner_id,
-            OwnerActionRow.kind == "trust_source",
-            OwnerActionRow.payload_hash == digest,
-            OwnerActionRow.status.in_(["pending", "cancelled"]),
-        )
-        .order_by(OwnerActionRow.created_at.desc())
-        .limit(1)
-    )
-    now = utcnow()
-    if shown is not None and (
-        (shown.status == "pending" and shown.expires_at > now)
-        or (
-            shown.status == "cancelled"
-            and (shown.decided_at or now) > now - LIFETIME["trust_source"]
-        )
-    ):
-        return False
-    return await stale_reason(session, owner_id, "trust_source", payload) is None
-
-
 async def raise_supervision_card(
     session: AsyncSession,
     owner_id: str,
@@ -1769,7 +1409,7 @@ async def draft_grant_card(
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo and notice cards keep their own window and never come
 # back; an agent's proposal is the agent's to make again.
-RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction", "resume_trading"})
+RENEWABLE_KINDS = frozenset({"resolve_operation"})
 
 
 async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -1842,36 +1482,22 @@ def confirmation_code(row: OwnerActionRow) -> str:
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
     if row.kind == "agent_created":
         return "owner_action_undo_" + str(row.result.get("undo", "paused"))
-    if row.kind == "trust_source" and row.payload.get("source_kind") == "mcp_server":
-        # Trusted for reading while some tools may change something: those wait.
-        if row.result.get("tier") == "read" and row.result.get("writes"):
-            return "owner_action_trust_source_mcp_read"
-        return "owner_action_trust_source_mcp"
     if row.kind == "secret" and row.payload.get("connect") == "mcp_server":
-        # Whether the trust card for the connected server follows (MCP_REVIEW_LINES).
-        return MCP_REVIEW_LINES.get(
-            str(row.result.get("review", "raised")), "owner_action_secret_connected"
-        )
+        # Its tools run once the owner trusts the server: by naming it in chat, or in
+        # Capabilities.
+        return "owner_action_secret_connected_mcp"
     if row.kind == "secret" and row.payload.get("connect"):
         return "owner_action_secret_connected"
     return "owner_action_" + row.kind
 
 
 async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
-    """The grant's one-line confirmation: what else the card did, and Stop if it holds."""
+    """The grant's one-line confirmation: what else the card did."""
     result = row.result
     notes: list[str] = []
     if result.get("delegation") == "full":
-        # What Full delegation signed, and that the account's own limits still apply.
+        # What Full delegation signed.
         notes.append("owner_action_grant_full")
-    if result.get("daily_loss") is not None:
-        notes.append("owner_action_grant_daily_loss")
-    elif result.get("money_limit") == "none":
-        notes.append(
-            "owner_action_grant_kept_limit"
-            if result.get("daily_loss_kept") is not None
-            else "owner_action_grant_no_money_limit"
-        )
     stopped = cast(list[str], result.get("stopped_authorities") or [])
     if stopped:
         notes.append(
@@ -1879,79 +1505,27 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
             if len(stopped) == 1
             else "owner_action_grant_stopped_others"
         )
-    if result.get("resumed"):
-        notes.append("owner_action_grant_resumed")
-    elif (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
     return notes
 
 
-# What a Secret card for an MCP server says once saving it connected the server: its
-# trust card follows; its tools could not be read; none can be trusted; or (operator deny
-# override) only declared tools run, said as a plain connection.
-MCP_REVIEW_LINES = {
-    "raised": "owner_action_secret_connected_mcp",
-    "unread": "owner_action_secret_connected_mcp_unread",
-    "nothing_to_trust": "owner_action_secret_connected_mcp_blocked",
-}
-
-
-def _same_symbol(left: str | None, right: str | None) -> bool:
-    return left is None or right is None or left.casefold() == right.casefold()
-
-
 async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]:
-    """What still holds new risk where a lift or an answer just released it, read after
-    the effect: Stop new trading, another pause in force over the same market and agents,
-    or another trade there without a confirmed broker outcome. One fixed clause each."""
+    """What still holds new risk where an answer just released it, read after the effect:
+    another trade there without a confirmed broker outcome. One fixed clause each."""
     if row.kind == "grant_authority":
         return await grant_notes(session, row)
-    if row.kind not in {"lift_restriction", "resolve_operation"}:
+    if row.kind != "resolve_operation":
         return []
-    agent: str | None = None
-    lifted_id = answered_id = ""
-    tickets: list[str] = []
-    if row.kind == "lift_restriction":
-        lifted = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
-        if lifted is None:
-            return []
-        account, symbol, agent, lifted_id = (
-            lifted.account_id,
-            lifted.symbol,
-            lifted.agent_id,
-            lifted.id,
-        )
-    else:
-        operation = await session.get(TradingJournalRow, row.payload["operation_id"])
-        if operation is None:
-            return []
-        account, answered_id = operation.account_id, operation.operation_id
-        symbol = cast(str | None, operation.request.get("symbol"))
-        tickets = [
-            str(operation.request[key])
-            for key in ("position_id", "order_id")
-            if operation.request.get(key)
-        ]
+    operation = await session.get(TradingJournalRow, row.payload["operation_id"])
+    if operation is None:
+        return []
+    account, answered_id = operation.account_id, operation.operation_id
+    symbol = cast(str | None, operation.request.get("symbol"))
+    tickets = [
+        str(operation.request[key])
+        for key in ("position_id", "order_id")
+        if operation.request.get(key)
+    ]
     notes: list[str] = []
-    if (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
-    now = utcnow()
-    pauses = await session.scalars(
-        select(TradingRestrictionRow).where(
-            TradingRestrictionRow.owner_id == row.owner_id,
-            TradingRestrictionRow.account_id == account,
-            TradingRestrictionRow.revoked_at.is_(None),
-            TradingRestrictionRow.valid_from <= now,
-            TradingRestrictionRow.id != lifted_id,
-        )
-    )
-    if any(
-        (pause.valid_until is None or pause.valid_until > now)
-        and _same_symbol(pause.symbol, symbol)
-        and (pause.agent_id is None or agent is None or pause.agent_id == agent)
-        for pause in pauses
-    ):
-        notes.append("owner_action_still_paused")
     scope: list[ColumnElement[bool]] = []
     if symbol is not None:
         scope.append(func.lower(TradingJournalRow.request["symbol"].as_string()) == symbol.lower())
@@ -1970,8 +1544,6 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
         unresolved = unresolved.where(or_(*scope))
     if await session.scalar(unresolved.limit(1)) is not None:
         notes.append("owner_action_still_unresolved")
-    if row.kind == "lift_restriction" and not notes:
-        notes.append("owner_action_admitted_again")
     return notes
 
 
@@ -2039,33 +1611,21 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     )
 
 
-# The run that tells the agent behind a trust or Secret card that the owner tapped it.
+# The run that tells the agent behind a Secret card that the owner saved it.
 CONTINUE_TRIGGER = "owner_card"
 
 
 def continue_prompt(row: OwnerActionRow) -> str:
-    """Fixed text and server-checked identifiers only (a repository slug, a host name,
-    a connection id, a target name): nothing the model wrote reaches the system role."""
-    if row.kind == "secret":
-        from .secret_cards import saved_prompt
+    """Fixed text and server-checked identifiers only (a connection id, a target name):
+    nothing the model wrote reaches the system role."""
+    from .secret_cards import saved_prompt
 
-        return saved_prompt(row)
-    kind, identifier = row.payload["source_kind"], row.payload["identifier"]
-    named = (
-        f"the MCP server (connection_id={identifier}) at tier {row.result.get('tier', 'read')}"
-        if kind == "mcp_server"
-        else f"{kind} {identifier}"
-    )
-    return (
-        f"The owner trusted {named} on your card; it is now in the trusted list. Continue the "
-        "work that needed it now (retry what was waiting), then tell the owner in one line "
-        "what you did."
-    )
+    return saved_prompt(row)
 
 
 async def continue_after_card(session: AsyncSession, row: OwnerActionRow) -> RunRow | None:
     """One run for the card's agent in the card's conversation, so the work that needed
-    the source or credential goes on without the owner asking again. None when the agent
+    the credential goes on without the owner asking again. None when the agent
     is gone or paused (it then waits for the owner)."""
     from lonora_contracts.runs import RunRequest
 
@@ -2132,13 +1692,10 @@ async def awaiting_owner_answer(session: AsyncSession, owner_id: str, operation_
 
 
 async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None:
-    if row.kind in {"set_account_limits", "grant_authority"}:
+    if row.kind == "grant_authority":
         return cast(str, row.payload["account_id"])
     if row.kind == "create_agent":
         return cast(str | None, row.payload["spec"].get("account_id"))
-    if row.kind == "lift_restriction":
-        restriction = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
-        return restriction.account_id if restriction else None
     if row.kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, row.payload["operation_id"])
         return operation.account_id if operation else None

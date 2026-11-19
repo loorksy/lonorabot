@@ -9,6 +9,7 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_db.agents import agent_data, create_agent
+from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import AttentionRow, RunRow, TradingJournalRow
 from lonora_db.threads import conversation_thread
 from lonora_gateway.attention import attention_tick
@@ -22,18 +23,37 @@ def cookies(fixture: Fixture) -> list[dict[str, str]]:
     ]
 
 
+async def critical_item(fixture: Fixture) -> str:
+    """A fresh critical item in Lonora's conversation: work stopped after failures."""
+    key = "browser-critical-" + uuid4().hex[:12]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        lonora = await ensure_personal_agent(session, fixture.owner)
+        thread = await conversation_thread(session, fixture.owner, lonora.id)
+        row = AttentionRow(
+            owner_id=fixture.owner,
+            agent_id=lonora.id,
+            thread_id=thread.id,
+            logical_key=key,
+            coalesce_key=key,
+            importance="critical",
+            code="run_quarantined",
+            due_at=utcnow(),
+        )
+        session.add(row)
+        await session.flush()
+        return row.id
+
+
 async def main():
     fixture = await Fixture().open()
     try:
-        await fixture.request(
-            "PUT", "/trading/controls", {"enabled": False, "emergency_stop": True}
-        )
+        critical = await critical_item(fixture)
         await attention_tick(
             fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
         )
         if "--uncertain" not in sys.argv:
             notifications = (await fixture.client.get("/api/attention")).json()
-            alert = next(row for row in notifications if row["code"] == "emergency_stop")
+            alert = next(row for row in notifications if row["id"] == critical)
             print(json.dumps({"notification": alert, "cookies": cookies(fixture)}))
             return
         # An operation still uncertain after the watchdog's threshold reaches the owner
@@ -77,7 +97,7 @@ async def main():
             )
         await Watchdog(fixture.runtime.db, Liveness(), set()).aging_operations()
         notifications = (await fixture.client.get("/api/attention")).json()
-        alert = next(row for row in notifications if row["code"] == "emergency_stop")
+        alert = next(row for row in notifications if row["id"] == critical)
         uncertain = next(row for row in notifications if row["code"] == "operation_unresolved")
         informational = next(
             row

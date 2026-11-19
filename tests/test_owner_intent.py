@@ -34,7 +34,7 @@ async def create(context: Any, **arguments: Any) -> dict[str, Any]:
 
 async def tainted(fixture: Any, context: Any, tool: str = "news_feed_read") -> None:
     """A tool that returns third-party text ran in this Run (what the registry records)."""
-    from lonora_tools.restrictions import mark_external_content
+    from lonora_tools.provenance import mark_external_content
 
     async with fixture.runtime.db.sessions() as session, session.begin():
         await mark_external_content(session, context.lease.run_id, tool)
@@ -45,8 +45,8 @@ async def test_a_run_that_read_others_text_no_longer_speaks_for_the_owner():
     database()
     from check_streaming import Fixture
     from lonora_db.runs import require_lease
+    from lonora_tools.provenance import owner_message_id
     from lonora_tools.registry import returns_external_content
-    from lonora_tools.restrictions import owner_message_id
 
     assert returns_external_content("news_feed_read")
     assert returns_external_content("web_fetch") and returns_external_content("mcp_execute")

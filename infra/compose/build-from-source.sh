@@ -16,8 +16,8 @@
 # --project NAME (default lonora), --registry-port PORT (default 5055), --cpus N
 # (default 1), --memory SIZE (default 2g).
 # Environment, only where needed: LONORA_BUILD_CA_FILE (CA bundle of a TLS-intercepting
-# proxy, given to the build as a secret), LONORA_TEST_SKIP_APT=1 (drop the Chromium/fonts
-# apt-get line; only where the Debian mirror is unreachable — production needs them).
+# proxy, given to the build as a secret), LONORA_TEST_SKIP_APT=1 (drop the apt-get step
+# with Chromium, fonts and the workspace tools; only where the Debian mirror is unreachable — production needs them).
 set -euo pipefail
 umask 077
 
@@ -82,7 +82,7 @@ docker update --blkio-weight 100 "buildx_buildkit_${builder}0" >/dev/null 2>&1 |
 
 dockerfile="$work/Dockerfile"
 if [[ -n "${LONORA_TEST_SKIP_APT:-}" ]]; then
-    sed '/apt-get install -y --no-install-recommends fonts-dejavu-core chromium/d' "$source_dir/Dockerfile" >"$dockerfile"
+    sed '/^RUN apt-get update/,/rm -rf \/var\/lib\/apt\/lists/d' "$source_dir/Dockerfile" >"$dockerfile"
 else
     cp "$source_dir/Dockerfile" "$dockerfile"
 fi

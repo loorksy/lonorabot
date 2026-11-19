@@ -1,4 +1,4 @@
-"""The per-turn ``<lonora_ui_capabilities>`` block (GENUI_PLAN §3.6).
+"""The per-turn ``<lonora_ui_capabilities>`` block (docs/genui.md).
 
 Only real capabilities: the intents whose tool path exists, the owner-wide delivery
 channels that exist (today only in-app: no push channel exists, Q10; agent calls arrive in

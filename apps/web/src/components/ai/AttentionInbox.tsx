@@ -17,7 +17,6 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
   const { t } = useLingui();
   return {
     watch_condition_met: t`Watch condition changed`,
-    emergency_stop: t`New trading stopped`,
     approval_required: t`Waiting for approval`,
     approval_resolved: t`Request updated`,
     broker_token_rejected: t`MetaApi rejected the access token`,

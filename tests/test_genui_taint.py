@@ -1,4 +1,4 @@
-"""The card-send taint (GENUI_PLAN §0 #12, §8.5; PR #50 review M1-M6).
+"""The card-send taint (docs/genui.md §7; PR #50 review M1-M6).
 
 Every durable thing tainted work creates or changes stores the taint, every wake or start
 from it is tainted, and the taint is never the submission marker the queue rules read.
@@ -439,7 +439,7 @@ async def test_an_opportunity_saved_by_tainted_work_wakes_tainted() -> None:
 
 @pytest.mark.asyncio
 async def test_the_continuation_of_a_card_a_tainted_run_proposed_is_tainted() -> None:
-    """Review round 4 (b): a card a card's send proposed (e.g. a trust_source card) and
+    """Review round 4 (b): a card a card's send proposed (e.g. a connecting Secret card) and
     the owner tapped continues in a Run that keeps the proposing Run's taint."""
     from lonora_contracts.domain import utcnow
     from lonora_db.owner_actions import continue_after_card
@@ -455,9 +455,25 @@ async def test_the_continuation_of_a_card_a_tainted_run_proposed_is_tainted() ->
                 thread_id=card.thread["id"],
                 run_id=submit_run["id"],
                 source="agent",
-                kind="trust_source",
-                subject="source:card-test",
-                payload={"source_kind": "mcp", "identifier": "card-test"},
+                kind="secret",
+                subject="secret:news_feed:desk",
+                payload={
+                    "label": None,
+                    "connect": "news_feed",
+                    "service": None,
+                    "details": {"name": "Desk"},
+                    "fields": [
+                        {
+                            "key": "URL",
+                            "label": None,
+                            "secret": False,
+                            "role": "feed_url",
+                            "required": True,
+                        }
+                    ],
+                    "destination": "workspace",
+                },
+                result={"target": "news_feed", "configured": True, "saved": ["FEED_DESK_URL"]},
                 payload_hash="0" * 64,
                 status="confirmed",
                 expires_at=utcnow() + timedelta(hours=1),

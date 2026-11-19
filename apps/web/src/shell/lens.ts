@@ -4,12 +4,14 @@ import { flip } from "./flip";
 export type LensRect = { x: number; w: number };
 export const lensRect = (button: HTMLElement | null | undefined): LensRect | null =>
   button ? { x: button.offsetLeft, w: button.offsetWidth } : null;
-export function placeLens(nav: HTMLElement | null, animate: boolean): LensRect | null {
-  if (!nav) return null;
-  const lens = nav.querySelector<HTMLElement>(".nav-lens");
-  const active = nav.querySelector<HTMLElement>("button.active");
-  if (!lens || !active) return null;
-  const rect = lensRect(active) as LensRect;
+export function placeLens(nav: HTMLElement | null, animate: boolean) {
+  setLens(nav, lensRect(nav?.querySelector<HTMLElement>("button.active")), animate);
+}
+/** Put the lens on a tab's rect (the pager settles it on the tab it brought in, before the
+ * route marks that tab active, so the route change finds it already there). */
+export function setLens(nav: HTMLElement | null, rect: LensRect | null, animate: boolean) {
+  const lens = nav?.querySelector<HTMLElement>(".nav-lens");
+  if (!lens || !rect) return;
   if (!animate) lens.style.transition = "none";
   lens.style.width = `${rect.w}px`;
   lens.style.transform = `translateX(${rect.x}px)`;
@@ -17,7 +19,6 @@ export function placeLens(nav: HTMLElement | null, animate: boolean): LensRect |
     void lens.offsetWidth;
     lens.style.transition = "";
   }
-  return rect;
 }
 
 /** Fold the tab bar to its icons (or back): the bar's box changes at once and the glass, the

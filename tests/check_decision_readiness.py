@@ -9,17 +9,14 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import BrokerSessionRow, TradingAccountRow
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 
 
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     connection = ""
     try:
         connection = (
@@ -82,7 +79,6 @@ async def main() -> None:
                 }
             },
         )
-        await save_controls(db, TradingControl(enabled=True))
         agent = await fixture.agent("Readiness analyst", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         registry = load_tools()
@@ -227,7 +223,6 @@ async def main() -> None:
             "PASS immutable readiness replay and compact history; stale/unknown markets never manufacture bias or entry"
         )
     finally:
-        await save_controls(db, original)
         if connection:
             await fixture.client.delete(f"/api/trading/connections/{connection}")
         await fixture.close()

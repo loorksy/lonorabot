@@ -106,9 +106,6 @@ async def main() -> None:
         connections.append(connection_id)
         seed = f"/trading/connections/{connection_id}/simulation"
         await fixture.request("POST", seed, snapshot(SUFFIXED, "472790406"))
-        await fixture.request(
-            "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
-        )
         run = await fixture.request(
             "POST",
             "/runs",
@@ -320,9 +317,6 @@ async def main() -> None:
                 if row:
                     await session.delete(row)
             await fixture.request("DELETE", "/trading/connections/" + identifier)
-        await fixture.request(
-            "PUT", "/trading/controls", {"enabled": False, "emergency_stop": False}
-        )
         await fixture.close()
 
 

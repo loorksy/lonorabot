@@ -63,3 +63,53 @@ test("approval anchors survive older history pagination", () => {
     ["message:oldest", "message:before", "approval:request", "message:after"],
   );
 });
+
+/** A message whose card embeds a fixed card as a trusted slot (mandate 10.2). */
+function slotting(seq: number, card: string, record: string, extra: object = {}): Message {
+  return {
+    ...message(`slot-${seq}`, seq, "2026-10-15T10:00:02Z"),
+    rich_content: {
+      version: 1,
+      parts: [
+        {
+          type: "ui",
+          document: {
+            v: 2,
+            kind: "receipt",
+            title: "Waiting for you",
+            icon: "check",
+            facts: {},
+            state: {},
+            calc: {},
+            blocks: [{ type: "Slot", card, record, ...extra }],
+            fallback: "",
+          },
+        },
+      ],
+    } as Message["rich_content"],
+  };
+}
+
+test("a fixed card's row is shown only while no message embeds its record as a slot", () => {
+  const ids = (rows: ReturnType<typeof conversationTimeline>) => rows.map((row) => row.id);
+  // No slot: the row is the card's place.
+  assert.ok(ids(conversationTimeline(messages, [approval])).includes("approval:request"));
+  // A message embeds the record: the slot is its place, the row is gone.
+  const embedded = [...messages, slotting(3, "trade_approval", "request")];
+  assert.ok(!ids(conversationTimeline(embedded, [approval])).includes("approval:request"));
+  // The embedding message is gone (or never carried a valid slot): the row returns.
+  assert.ok(ids(conversationTimeline(messages, [approval])).includes("approval:request"));
+  const forged = [...messages, slotting(3, "trade_approval", "request", { when: "false" })];
+  assert.ok(ids(conversationTimeline(forged, [approval])).includes("approval:request"));
+  // A message the client draws as a question's or a peer's card never draws its slot, so
+  // the row stays.
+  const asked = slotting(3, "trade_approval", "request");
+  assert.ok(
+    ids(conversationTimeline([...messages, asked], [approval], [], new Set([asked.id]))).includes(
+      "approval:request",
+    ),
+  );
+  // A slot of another kind never hides the record.
+  const other = [...messages, slotting(3, "settle", "request")];
+  assert.ok(ids(conversationTimeline(other, [approval])).includes("approval:request"));
+});
