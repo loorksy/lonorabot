@@ -176,7 +176,9 @@ export const ownerActionLabels = {
     targetWatch: "Watch",
     targetTask: "Task",
     pauseHint: "The agent cannot resume it on its own. Resume lifts the pause now.",
-    pauseOwnerHolds: "You paused it too, so only you resume it.",
+    pauseOwnerHolds: "This pause is yours: only you resume it.",
+    pauseOwnerAsked:
+      "You asked for this pause: it stays until you resume it, or an agent resumes it acting on your message in chat.",
     pauseEnded: "This pause already ended.",
     resumeWork: "Resume",
     keepPaused: "Keep paused",
@@ -389,7 +391,9 @@ export const ownerActionLabels = {
     targetWatch: "مراقبة",
     targetTask: "مهمة",
     pauseHint: "لا يستطيع الوكيل استئنافه بنفسه. الاستئناف يرفع الإيقاف الآن.",
-    pauseOwnerHolds: "أوقفته أنت أيضًا، فلا يستأنفه غيرك.",
+    pauseOwnerHolds: "هذا الإيقاف لك: لا يستأنفه غيرك.",
+    pauseOwnerAsked:
+      "طلبت هذا الإيقاف: يبقى حتى تستأنفه أنت، أو يستأنفه وكيل بناءً على رسالتك في المحادثة.",
     pauseEnded: "انتهى هذا الإيقاف مسبقًا.",
     resumeWork: "استئناف",
     keepPaused: "إبقاؤه موقوفًا",
@@ -1181,8 +1185,9 @@ export function ownerActionCard(
       title = text.supervisionTitle;
       lines.push(...supervisionLines(card, lang, text));
       if (!card.facts.supervision?.active) {
-        // Revoked elsewhere (the profile): the card can only be dismissed.
-        hint = text.supervisionEnded;
+        // Revoked elsewhere (the profile), or Lonora's, which leads by its role whatever
+        // its grant: the card can only be dismissed.
+        hint = card.facts.supervision?.lead ? text.supervisionAlreadySet : text.supervisionEnded;
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
@@ -1218,7 +1223,14 @@ export function ownerActionCard(
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
-      hint = card.facts.supervision.owner_holds ? text.pauseOwnerHolds : text.pauseHint;
+      // The owner's pause from a control is lifted only by the owner's control or this
+      // card; one the owner asked for in chat also by an agent acting on the owner's
+      // message in chat (refuse_held, control_work).
+      hint = !card.facts.supervision.owner_holds
+        ? text.pauseHint
+        : card.facts.supervision.from_owner_message
+          ? text.pauseOwnerAsked
+          : text.pauseOwnerHolds;
       buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
@@ -1438,6 +1450,10 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   trade_approval_drifted: {
     en: "The price moved outside this request's range, so it can no longer be approved.",
     ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
+  },
+  trade_approval_agent_paused: {
+    en: "This agent is paused, so this request cannot be approved now. Resume the agent first.",
+    ar: "هذا الوكيل متوقف مؤقتًا، فلا يمكن الموافقة على هذا الطلب الآن. استأنف الوكيل أولًا.",
   },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",

@@ -213,6 +213,7 @@ async def test_a_steering_attachment_is_read_in_its_own_conversation(monkeypatch
         content="look",
         rich_content=None,
         role="user",
+        agent_id=None,
     )
     looked_up: list[tuple[str, int]] = []
 
@@ -243,6 +244,10 @@ async def test_a_steering_attachment_is_read_in_its_own_conversation(monkeypatch
 
         def begin(self) -> "Session":
             return self
+
+        async def scalars(self, *args: Any, **kwargs: Any) -> list[Any]:
+            # Agents' names for agent messages; the owner's message names none.
+            return []
 
     context = SimpleNamespace(
         db=SimpleNamespace(sessions=Session),

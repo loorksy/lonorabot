@@ -33,7 +33,7 @@ import {
 import { NewSchedulePage, SchedulesPage } from "./domain/SchedulesPages";
 import { SkillPage, SkillsPage } from "./domain/SkillsPages";
 import { NewTaskPage, TaskPage, TasksPage } from "./domain/TasksPages";
-import { ActivityPage, UpdatesPage } from "./domain/UpdatesPages";
+import { UpdatesPage } from "./domain/UpdatesPages";
 import { Lab } from "./Lab";
 import { ArchivedPage, ChatList } from "./lists/ChatList";
 import { type SearchTab, UnifiedSearch } from "./lists/UnifiedSearch";
@@ -134,8 +134,6 @@ export function pageTitle(page: Page): string {
       return t({ message: "Create a skill", context: "page title" });
     case "file-edit":
       return t`Edit file`;
-    case "activity":
-      return t`Activity log`;
     case "new-agent":
       return t`Create agent`;
     case "new-group":
@@ -304,7 +302,6 @@ export function DetailPages({
         <Route path="/app/skills/:skillId" element={<SkillPage />} />
         <Route path="/app/new-skill" element={<SkillPage create key={location.key} />} />
         <Route path="/app/file-edit" element={<FileEditPage key={location.key} />} />
-        <Route path="/app/activity" element={<ActivityPage />} />
         <Route path="/app/call" element={<CallPage />} />
         <Route path="/app/incoming/:callId" element={<IncomingPage />} />
         <Route

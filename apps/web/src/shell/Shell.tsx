@@ -1,5 +1,6 @@
 import { plural, t } from "@lingui/core/macro";
 import {
+  appOpenReporter,
   filterRows,
   liveAvatarState,
   projectRunEvents,
@@ -89,8 +90,20 @@ import { Welcome } from "./Welcome";
 import "./shell.css";
 import "./lists/lists.css";
 
+// The owner opened the app: the morning brief's time is learned from it (VISION 11.1).
+const reportAppOpen = appOpenReporter((body) => api.post("/app-opens", body));
+
 export function Shell({ onLogout }: { onLogout: () => void }) {
   const { owner } = useClient();
+  useEffect(() => {
+    // Only an app the owner sees counts: a tab restored in the background is not an open.
+    const visible = () => {
+      if (document.visibilityState === "visible") reportAppOpen();
+    };
+    visible();
+    document.addEventListener("visibilitychange", visible);
+    return () => document.removeEventListener("visibilitychange", visible);
+  }, []);
   return (
     <VoiceProvider ownerId={owner.id}>
       <ShellDataLoader onLogout={onLogout}>
@@ -868,7 +881,7 @@ function ShellBody() {
           <DesktopRail
             section={section}
             chatsBadge={chatsBadge}
-            updatesDot={attention.items.length > 0}
+            updatesDot={attention.view.some((row) => !row.seen)}
             collapsed={collapsed}
             onToggleCollapsed={toggleList}
             onSection={switchTab}
@@ -942,7 +955,7 @@ function ShellBody() {
               navRef={navRef}
               section={section}
               chatsBadge={chatsBadge}
-              updatesDot={attention.items.length > 0}
+              updatesDot={attention.view.some((row) => !row.seen)}
               onTab={switchTab}
               onLensRelease={(root, lensFrom) => pagerTo(root, lensFrom)}
               dragging={busy}

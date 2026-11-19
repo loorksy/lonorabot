@@ -167,32 +167,6 @@ export type SkillVersionEntry = {
   enabled: boolean;
   current: boolean;
 };
-export type ActivityCode =
-  | "agent_created"
-  | "authority_changed"
-  | "operation_resolved"
-  | "approval_approved"
-  | "approval_rejected"
-  | "task_created"
-  | "task_completed"
-  | "task_cancelled"
-  | "skill_created"
-  | "skill_updated"
-  | "supervision_granted"
-  | "supervision_revoked"
-  | "watch_triggered"
-  | "goal_created"
-  | "knowledge_added";
-/** One «سجل الإجراءات» row, projected by the server from a durable event (Q45). */
-export type ActivityEntry = {
-  id: string;
-  code: ActivityCode;
-  agent_id: string | null;
-  thread_id: string | null;
-  subject: string;
-  created_at: string;
-};
-export type ActivityPage = { items: ActivityEntry[]; next_before: number | null };
 
 export type GroupPayload = {
   name: string;

@@ -138,6 +138,13 @@ async def decide(
     pending_calls = run.execution_state.get("pending", [])
     if run.execution_state and not any(call.get("id") == row.call_id for call in pending_calls):
         raise LonoraError("trade_approval_run_unavailable", 409)
+    if decision == "approve":
+        agent = await session.get(AgentRow, row.agent_id)
+        if agent is not None and agent.paused:
+            # A pause ends no card (10.3.1.3) and a paused agent sends no new risk (4.7.1):
+            # the card stays pending, drift still watches it, and Approve waits for the
+            # resume. Reject still ends it.
+            raise LonoraError("trade_approval_agent_paused", 409)
     row.status, row.updated_at = desired, utcnow()
     wake_waiting_run(session, row, run)
     approval_event(session, row)
@@ -280,6 +287,8 @@ async def end_card(
             metadata={status + "_trade_approval_id": row.id},
         ),
         run_id,
+        # A paused agent reads it when it is resumed; the card has ended either way.
+        held_while_paused=True,
     )
 
 

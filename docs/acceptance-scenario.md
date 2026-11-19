@@ -76,16 +76,49 @@ unset LONORA_ACCEPT_PROVIDER_KEY
 
 - The same steps run, with the product calling the model through its own router and provider adapter.
 - **The provider key.** It is saved into the disposable template through the product's own credential route. Without `LONORA_ACCEPT_PROVIDER_KEY`, the template keeps the placeholder that a cloud session's network proxy replaces.
-- **The broker is the fake terminal in both modes.** No run of this harness reaches MetaApi.
+- **The broker is the fake terminal**, unless `--broker demo` is given.
+
+## The MetaApi demo account (`--broker demo`), run by the lead on the owner's server
+
+```
+export LONORA_DATABASE_URL='postgresql+asyncpg://<createdb role>:<password>@127.0.0.1:5432/accept_demo_test'
+export LONORA_ENCRYPTION_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA= LONORA_BOOTSTRAP_TOKEN=accept-demo-only LONORA_COOKIE_SECURE=false LONORA_AUTH_RATE_LIMIT_PER_MINUTE=10000
+.venv/bin/python scripts/agent_eval/acceptance.py --offline --broker demo --steps 1
+```
+
+- **What it does.** Step 1 against MetaApi itself:
+  - the harness asks at hidden prompts for the demo account's login, server, master password and the MetaApi token;
+  - the owner's chat message names the login and server, as 9.2 has the owner do;
+  - the password and token are saved through the broker Secret card's own route;
+  - the gateway's provisioning step creates and deploys the account through MetaApi. The harness repeats it until the card is connected or failed, for up to the product's own deploy and read deadlines plus two minutes (about 22 minutes);
+  - Lonora is woken with the balance read from the broker.
+
+  The template's own (fake) connection is switched off first, so nothing in the run reaches MetaApi with it.
+- **What it leaves behind.** Nothing, unless the run is interrupted while the account is being provisioned.
+  - A connected account is removed by the product's own disconnect (9.3). A failed one is removed by the provisioning step's own cleanup, which the harness waits for. This happens even when a check or a run fails, or the run is interrupted (Ctrl-C) after that: the step's row then says why, and the run still ends with its table.
+  - Interrupted while the harness still repeats the provisioning step, neither removal runs: an account MetaApi created is left, and the step's row says at once that it is still there, to be removed at MetaApi.
+  - The harness then asks MetaApi itself, with the owner's token, whether any account for this login and server is left. MetaApi finishes a removal on its own time (the account is first marked as being deleted), so the harness asks again while it is, for up to five minutes. It reports one that is still there, without its id. If this cleanup is itself interrupted (a second Ctrl-C), the row says it did not finish.
+  - An account that was already at MetaApi for this login and server before the run is reported as kept, not as left behind: the product reuses it and never removes it. The harness asks MetaApi once before the card is saved to know.
+- **What it prints.** The step table and its checks, and nothing else.
+  - While the run goes, its standard output is discarded (the MetaApi SDK prints account ids) and logging is off.
+  - It prints no login, server, password, token, account id or balance.
+  - The values live in the run's memory and in its disposable database, which is dropped.
+- **The model.** Use `--live` in place of `--offline` (with `LONORA_ACCEPT_PROVIDER_KEY`, as above) to have a real model hold the conversation.
+- **Only step 1 runs on the demo account.** The trading steps need what the harness can induce only on the fake terminal: a lost broker reply, a price move, a position already open.
+- **A demo account, please.** The harness cannot tell a demo account from a live one: MetaApi's account state carries no such flag here. Step 1 places no order: it connects the account, reads its balance, and removes it.
 
 ## Today's state (this commit)
 
 | Step | State | Note |
 |---|---|---|
+| 1, connecting | pass, partial | W-BROKER's fake MetaApi provisioning API and fake terminal; the MetaApi demo account only with `--broker demo`. Lonora's answer is checked to state the broker's balance; offline, the scripted answer states the figure Lonora was woken with, so a wrong figure in the wake fails it too. Its questions are checked to come before any card; their wording is the model's. |
 | 4a, the news agent tells the others | pass, partial | The speech is given in the news agent's routine; no calendar source is fed. Its peers are the gold agent, a team agent in Full, and the euro agent. |
 | 4c, a connection drop during a close | pass | Fake terminal. The actor is the gold agent, a team agent set to Full by the owner's tap, whose opening order is journaled as its own (3.3.4); a check names it. A close is risk-reducing, so its mode does not decide it (4.1). |
 | 3, the strategy PDF | not written | The feature (owner methods from files, #116) is on main; the step's runner is not written yet. |
-| 5, the morning brief | known defect, partial | One defect: the brief shows a position the gold agent opened as opened by the owner, because it looks the opener up under the provider's account id while the journal keys the connection's id. It belongs to W-BRIEF, and the scenario file names it. Not asserted: the pending approval with its reason, which comes with W-AUTH's `TradeAnnotation` (not on this commit); and the day's events, because the brief's facts carry none and no calendar source is fed. The brief Lonora posts is checked to be posted once; its words are the model's. |
+| 4b, the gold agent trades | not written | Its features (Full mode, the Execution Receipt) are on main; the step's runner is not written yet. |
+| 4d, the euro agent asks | not written | Its features (Ask mode, the Trade Approval card and its drift check, one Expo push per card) are on main; the step's runner is not written yet. |
+| 4e, the card drifts | not written | Its feature (the drift check that marks the card and wakes the agent) is on main; the step's runner is not written yet. |
+| 5, the morning brief | pass, partial | Not asserted: the pending approval with its reason, which comes with W-AUTH's `TradeAnnotation` (not on this commit); and the day's events, because the brief's facts carry none and no calendar source is fed. The brief Lonora posts is checked to be posted once; its words are the model's. |
 | 6 | void | Amendment 1. |
 | 7a, the weekly reports | pass, partial | Each agent's results are its journaled operations only; the per-label statistics wait for W-LEDGER. What each agent learned and changed is the model's own words and is not asserted. Every agent reports, the gold agent in Full among them. |
 | Every other step | pending | Its feature is not on main. Run `--offline` for the exact list. |

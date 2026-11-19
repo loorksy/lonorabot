@@ -394,6 +394,9 @@ def undone_preferences(
         and key in IncomingCallPolicy.model_fields
         and value != new_policy.get(key)
     }
+    # "activity only" is no longer a choice (P5, migration 0173): say so, save nothing else.
+    if changed.get("channel") == "activity":
+        raise LonoraError("reach_me_choice_removed", 409)
     policy = None
     if changed:
         try:

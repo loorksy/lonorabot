@@ -40,6 +40,7 @@ async def model_turn(
     policy_tools: Collection[str] | None = None,
     context_view: Callable[[list[ModelMessage]], list[ModelMessage]] | None = None,
     input_scale: float = 1.0,
+    quiet: bool = False,
 ) -> tuple[ModelReply, ModelSelection]:
     """One model request. ``resolve_calls`` turns stable bridge calls into the
     real calls before the financial-truth gates below and before the loop sees
@@ -49,7 +50,9 @@ async def model_turn(
     only; every gate below still reads the complete canonical ``messages``.
     The router tries the Run's chosen model, then this Agent's own model choice;
     ``input_scale`` is the Run's admission scale after a provider-proven context
-    overflow.
+    overflow. A ``quiet`` turn belongs to background work that may end silent
+    (VISION 11.5): its reply is never streamed as a preview, so it exists only as its
+    final Message, and the provider may end it with an empty reply.
     """
     preparation_started = monotonic()
     stage_started = preparation_started
@@ -154,7 +157,8 @@ async def model_turn(
         nonlocal first_text_ms
         if chunk and first_text_ms is None:
             first_text_ms = round((monotonic() - request_started) * 1000, 2)
-        await publication.offer(chunk)
+        if not quiet:
+            await publication.offer(chunk)
 
     async def attempt(selection: ModelSelection) -> None:
         nonlocal turn_id, streaming, projector, publication, stream_started
@@ -183,6 +187,7 @@ async def model_turn(
             input_scale=input_scale,
             # A subagent started on a chosen model asks it first.
             run_choice=getattr(context, "run_model", None),
+            allow_empty=quiet,
         )
         provider_total_ms = round((monotonic() - request_started) * 1000, 2)
         await publication.finish()
@@ -288,7 +293,7 @@ async def model_turn(
         stream_started = True
         streaming.sent = ""
     remaining = reply.text[len(streaming.sent) :]
-    if remaining:
+    if remaining and not quiet:
         await ensure_stream()
         await progress(context, "run.delta", {"turn_id": turn_id, "text": remaining})
     return reply, selection

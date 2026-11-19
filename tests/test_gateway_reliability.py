@@ -615,6 +615,28 @@ def test_every_gateway_iteration_is_a_scheduled_step(tmp_path: Path) -> None:
     assert {spec.name for spec in service.STEPS} == set(gateway.iterations())
 
 
+@pytest.mark.asyncio
+async def test_closed_trades_wake_their_owners_from_a_scheduled_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 5.5.2: close_wakes is scheduled, and each pass wakes every owner's closed trades.
+    import lonora_trading.close_wake as close_wake
+
+    db = cast(Database, SimpleNamespace())
+    gateway = service.Gateway(db, "unused-key", tmp_path, maximum_subagents=0)
+    woken: list[tuple[Database, str]] = []
+
+    async def wake(database: Database, owner_id: str) -> int:
+        woken.append((database, owner_id))
+        return 0
+
+    monkeypatch.setattr(close_wake, "wake_for_closes", wake)
+    gateway.services = {"owner-1": cast(OwnerServices, SimpleNamespace(owner_id="owner-1"))}
+    assert "close_wakes" in {spec.name for spec in service.STEPS}
+    await gateway.iterations()["close_wakes"]()
+    assert woken == [(db, "owner-1")]
+
+
 async def leased(db: Database, owner: str, agent: str, thread: str) -> ToolContext:
     async with db.sessions() as session, session.begin():
         run = await create_run(

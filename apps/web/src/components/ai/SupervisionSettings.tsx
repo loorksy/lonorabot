@@ -1,21 +1,20 @@
 import { useLingui } from "@lingui/react";
 import type { Agent, SupervisionView } from "@lonora/contracts";
-import { supervisionRows, supervisionText, unsupervisedAgents } from "@lonora/core";
+import { supervisionRows, supervisionText } from "@lonora/core";
 import { useCallback, useEffect, useState } from "react";
 import { api, isRequestCancelled } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 
 /**
- * Who supervises this agent and whom it supervises, each with one-tap Stop. Lonora's
- * profile lists every agent it supervises by default and offers to supervise again an
- * agent whose grant was stopped. A grant never carries money authority.
+ * Who supervises this agent and whom it supervises, each with one-tap Stop. Lonora reads
+ * and steers every team agent by its lead role, so its profile offers no new grant; a
+ * grant never carries money authority.
  */
 export function SupervisionSettings({ agent }: { agent: Agent }) {
   const { i18n } = useLingui();
   const text = supervisionText(i18n.locale);
   const personal = agent.role === "personal";
   const [view, setView] = useState<SupervisionView>();
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const load = useCallback(async () => {
@@ -23,8 +22,7 @@ export function SupervisionSettings({ agent }: { agent: Agent }) {
       `/supervision?agent_id=${encodeURIComponent(agent.id)}`,
     );
     setView(next);
-    if (personal) setAgents(await api.get<Agent[]>("/agents"));
-  }, [agent.id, personal]);
+  }, [agent.id]);
   useEffect(() => {
     let active = true;
     setView(undefined);
@@ -50,7 +48,6 @@ export function SupervisionSettings({ agent }: { agent: Agent }) {
     }
   };
   const rows = view ? supervisionRows(view, i18n.locale) : undefined;
-  const offered = view && personal ? unsupervisedAgents(view, agents) : [];
   const list = (title: string, items: NonNullable<typeof rows>["supervises"]) =>
     items.length > 0 && (
       <div className="supervision-list">
@@ -89,32 +86,6 @@ export function SupervisionSettings({ agent }: { agent: Agent }) {
             </p>
           )}
         </>
-      )}
-      {offered.length > 0 && (
-        <div className="supervision-list">
-          <h4 dir="auto">{text.notSupervised}</h4>
-          <ul>
-            {offered.map((other) => (
-              <li key={other.id}>
-                <bdi>{other.name}</bdi>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    act(() =>
-                      api.post("/supervision", {
-                        supervisor_id: agent.id,
-                        supervised_id: other.id,
-                      }),
-                    )
-                  }
-                >
-                  {text.supervise}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
       {error != null && <p role="alert">{userError(error)}</p>}
     </details>

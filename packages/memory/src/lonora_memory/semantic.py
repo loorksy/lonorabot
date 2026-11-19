@@ -112,8 +112,6 @@ async def index_note(
             session.add(row)
             from lonora_db.events import emit
 
-            # A new note reads «أُضيفت معرفة» in the activity log; an edit (replaces) is an
-            # update, which the log does not list.
             emit(
                 session,
                 owner_id,

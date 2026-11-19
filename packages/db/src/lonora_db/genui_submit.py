@@ -521,12 +521,13 @@ async def requeue_folded(session: AsyncSession, run: RunRow) -> None:
     )
     folded = (
         await session.scalar(
-            select(MessageRow.id)
+            select(MessageRow)
             .where(
                 MessageRow.id.in_(held),
                 MessageRow.role == "user",
                 MessageRow.origin == "owner",
             )
+            .order_by(MessageRow.seq.desc())
             .limit(1)
         )
         if held
@@ -550,9 +551,12 @@ async def requeue_folded(session: AsyncSession, run: RunRow) -> None:
             ),
         )
     except LonoraError as error:
-        # A paused agent answers when it is resumed, as for any owner message.
         if error.code != "agent_paused":
             raise
+        from .messages import keep_for_resume
+
+        # Kept like any owner message to a paused agent: its resume answers the latest.
+        await keep_for_resume(session, run.agent_id, run.thread_id, folded)
 
 
 async def expire_submits(session: AsyncSession, thread_id: str | None = None) -> list[RunRow]:

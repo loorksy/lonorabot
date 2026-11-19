@@ -11,6 +11,7 @@ effect receipt per local date keeps it to one brief per day, also after downtime
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from statistics import median
 from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -20,6 +21,7 @@ from lonora_contracts.runs import RunRequest
 from lonora_core.attention import CARD_ATTENTION
 from lonora_core.run_state import TERMINAL
 from lonora_core.user_error import LonoraError
+from lonora_db.app_opens import DAY_START_HOUR, recorded_opens
 from lonora_db.cancellation import cancel_run
 from lonora_db.client import Database
 from lonora_db.conversation_locale import conversation_locale
@@ -30,6 +32,7 @@ from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run
 from lonora_db.schema import (
     AgentRow,
+    AppOpenRow,
     AttentionRow,
     BrokerSessionRow,
     EffectReceiptRow,
@@ -44,20 +47,24 @@ from lonora_db.schema import (
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository
 from lonora_market.sessions import fx_week
-from lonora_session.idempotency import broker_operation_tag, stable_id
-from sqlalchemy import func, select
+from lonora_session.idempotency import stable_id
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .exposure import ENTRY_ACTIONS
 from .journal import journal_data
-from .manual_activity import SENT_STATUSES, journal_agent
+from .manual_activity import SENT_STATUSES
+from .picture import ticket_owners
 
 TRIGGER = "morning_brief"
 # 07:00 in the owner's time zone until Lonora has seen the owner open the app on at least
-# 3 days (11.1). App opens are not recorded yet, so this is the brief time for now.
+# 3 days (11.1); then the median first open, a little earlier, moving at most an hour a day.
 DEFAULT_MINUTE = 7 * 60
+MINIMUM_OPEN_DAYS = 3
+LEAD_MINUTES = 15
+DAILY_MOVE_MINUTES = 60
+DAY_START_MINUTE = DAY_START_HOUR * 60
 # How long Lonora has to write the brief before the server posts the plain one.
 WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
@@ -87,15 +94,43 @@ Locale = Literal["ar", "en"]
 # --- When ---------------------------------------------------------------------------
 
 
-def owner_zone(reach_me: dict[str, Any]) -> ZoneInfo:
-    """``reach_me.timezone`` when the owner stored one, else UTC. Reading it never writes
-    reach-me (8.2)."""
-    name = reach_me.get("timezone")
-    if isinstance(name, str) and name:
-        try:
-            return ZoneInfo(name)
-        except (ZoneInfoNotFoundError, ValueError):
-            pass
+def learned_minute(first_opens: Sequence[int]) -> int | None:
+    """The brief time learned from the owner's first app open per recorded day (minutes
+    after local midnight, oldest first, the last 14 recorded days at most): their median,
+    15 minutes earlier; None until the owner opened the app on at least 3 days (11.1)."""
+    if len(first_opens) < MINIMUM_OPEN_DAYS:
+        return None
+    return min(24 * 60 - 1, max(0, int(median(first_opens)) - LEAD_MINUTES))
+
+
+def first_open_minutes(opens: Sequence[AppOpenRow]) -> list[int]:
+    """Each recorded day's first open, minutes after midnight on the device's clock where it
+    was opened: a habit of 07:00 stays 07:00 when the owner travels. The owner's day starts
+    at 04:00: an open before it (a late session) is read after the day's last minutes, not
+    as an early waking."""
+    return [
+        minute if minute >= DAY_START_MINUTE else minute + 24 * 60
+        for minute in (
+            stamp.hour * 60 + stamp.minute
+            for stamp in (_aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens)
+        )
+    ]
+
+
+def moved_minute(previous: int, target: int) -> int:
+    """Today's brief time: toward the target by at most one hour from yesterday's."""
+    return previous + max(-DAILY_MOVE_MINUTES, min(DAILY_MOVE_MINUTES, target - previous))
+
+
+def owner_zone(reach_me: dict[str, Any], device_zone: str | None = None) -> ZoneInfo:
+    """``reach_me.timezone`` when the owner stored one, else the zone of the owner's
+    latest recorded app open, else UTC. Reading it never writes reach-me (8.2)."""
+    for name in (reach_me.get("timezone"), device_zone):
+        if isinstance(name, str) and name:
+            try:
+                return ZoneInfo(name)
+            except (ZoneInfoNotFoundError, ValueError):
+                continue
     return ZoneInfo("UTC")
 
 
@@ -170,6 +205,26 @@ async def brief_facts(
                     "equity": _number(state.equity - Decimal(before["equity"])),
                 }
         accounts.append(item)
+        # Who opened each ticket (3.3.4): the door's own journal match, else the owner. Every
+        # entry that may have reached the broker counts, not only a confirmed one: a ticket
+        # the broker reports under the order of an operation the owner settled, or of one
+        # still unsettled, was opened by that order's agent.
+        owners = (
+            await ticket_owners(
+                session,
+                owner_id,
+                account_id,
+                snapshot.positions,
+                snapshot.orders,
+                SENT_STATUSES,
+            )
+            if snapshot
+            else {}
+        )
+        opened_by = {
+            key: names.get(agent_id, lead) if agent_id else "owner"
+            for key, agent_id in owners.items()
+        }
         for position in snapshot.positions if snapshot else []:
             positions.append(
                 {
@@ -181,7 +236,7 @@ async def brief_facts(
                     "floating_profit": _number(position.profit),
                     "stop_loss": _number(position.stop_loss),
                     "take_profit": _number(position.take_profit),
-                    "_ticket": (account_id, position.id, position.operation_id),
+                    "opened_by": opened_by[("position", position.id)],
                 }
             )
         for order in snapshot.orders if snapshot else []:
@@ -194,22 +249,9 @@ async def brief_facts(
                     "price": _number(order.price),
                     "stop_loss": _number(order.stop_loss),
                     "take_profit": _number(order.take_profit),
-                    "_ticket": (account_id, order.id, order.operation_id),
+                    "opened_by": opened_by[("order", order.id)],
                 }
             )
-    # Who opened each ticket (3.3.4): the agent of the journaled entry order that opened or
-    # placed it, else the owner. The broker reports that order's operation id as is
-    # (simulation) or as its broker tag (MetaApi's clientId), and its ticket as the
-    # journal's broker id.
-    openers = await ticket_openers(
-        session, owner_id, {item["symbol"] for item in positions + orders}
-    )
-    for item in positions + orders:
-        account_id, ticket, operation_id = item.pop("_ticket")
-        agent_id = openers.get((account_id, "op", operation_id or "")) or openers.get(
-            (account_id, "ticket", ticket)
-        )
-        item["opened_by"] = names.get(agent_id, lead) if agent_id else "owner"
     since = record.last_sent_at or now - timedelta(days=1)
     work: dict[str, list[dict[str, Any]]] = {agent.id: [] for agent in agents}
     for row in await session.scalars(
@@ -337,48 +379,6 @@ async def brief_facts(
     }
 
 
-async def ticket_openers(
-    session: AsyncSession, owner_id: str, symbols: set[str]
-) -> dict[tuple[str, str, str], str]:
-    """The agent of each journaled entry order on these symbols, keyed by account and by
-    its operation id, its broker tag and its broker ticket ids; the newest entry wins."""
-    openers: dict[tuple[str, str, str], str] = {}
-    if not symbols:
-        return openers
-    rows = await session.scalars(
-        select(TradingJournalRow)
-        .where(
-            TradingJournalRow.owner_id == owner_id,
-            TradingJournalRow.status.in_(sorted(SENT_STATUSES)),
-            TradingJournalRow.request["symbol"].as_string().in_(sorted(symbols)),
-            TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-        )
-        .order_by(TradingJournalRow.updated_at.desc())
-        .limit(5000)
-    )
-    for row in rows:
-        agent = journal_agent(row)
-        if agent is None:
-            continue
-        details = row.result.get("details", {})
-        keys = [
-            ("op", row.operation_id),
-            ("op", broker_operation_tag(row.operation_id)),
-            *(
-                ("ticket", str(value))
-                for value in (
-                    row.result.get("broker_id"),
-                    details.get("position_id"),
-                    details.get("order_id"),
-                )
-                if value
-            ),
-        ]
-        for kind, value in keys:
-            openers.setdefault((row.account_id, kind, value), agent)
-    return openers
-
-
 async def _count(session: AsyncSession, query: Any) -> int:
     return int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
 
@@ -477,16 +477,31 @@ def baseline(
 async def account_snapshots(
     session: AsyncSession, owner_id: str
 ) -> list[tuple[str, BrokerRecoverySnapshot | None]]:
+    """Each enabled connection's snapshot, by the connection's own id: the id the journal
+    keys its entries by, not the provider's account id in the payload."""
     rows = await session.scalars(
         select(BrokerSessionRow)
         .where(BrokerSessionRow.owner_id == owner_id)
         .order_by(BrokerSessionRow.created_at)
     )
-    return [
-        (str(row.payload.get("account_id", "")), _snapshot(row))
+    return [(row.id, _snapshot(row)) for row in rows if row.payload.get("enabled")]
+
+
+async def connection_baseline(
+    session: AsyncSession, owner_id: str, saved: dict[str, Any]
+) -> dict[str, Any]:
+    """``saved`` with each connection's last reading under the connection's own id. A
+    baseline stored while the brief keyed accounts by the provider's account id in the
+    payload is read from that key, so the first brief after the change still compares
+    each account with its own last reading; that brief stores the new keys."""
+    rows = await session.scalars(
+        select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id)
+    )
+    return saved | {
+        row.id: saved[old]
         for row in rows
-        if row.payload.get("enabled")
-    ]
+        if row.id not in saved and (old := str(row.payload.get("account_id", ""))) in saved
+    }
 
 
 # --- The wake and the plain brief ----------------------------------------------------
@@ -795,9 +810,24 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
             await _settle_pending(session, owner_id, record, now)
             return None
         reach_me = await SettingsRepository().get(session, REACH_ME_KEY + owner_id)
-        local = now.astimezone(owner_zone(reach_me))
+        opens = await recorded_opens(session, owner_id)
+        zone = owner_zone(reach_me, opens[-1].timezone if opens else None)
+        local = now.astimezone(zone)
         today = local.date().isoformat()
-        if record.last_local_date == today or local.hour * 60 + local.minute < record.brief_minute:
+        # Planned once per local date, and only for a later one: a zone change that steps
+        # the owner's date back does not plan it again.
+        if (record.planned_date or "") < today:
+            target = learned_minute(first_open_minutes(opens))
+            record.brief_minute = moved_minute(
+                record.brief_minute, DEFAULT_MINUTE if target is None else target
+            )
+            record.planned_date = today
+            record.updated_at = now
+        # A date at or before the last brief's never gets one: a zone change can step the
+        # owner's date back (a laptop in New York after a phone in Dubai).
+        if (record.last_local_date or "") >= today or (
+            local.hour * 60 + local.minute < record.brief_minute
+        ):
             return None
         key = brief_key(owner_id, today)
         if await session.get(EffectReceiptRow, key) is not None:
@@ -806,6 +836,7 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         if await weekly_wait(session, owner_id, record, now):
             return None
         snapshots = await account_snapshots(session, owner_id)
+        record.baseline = await connection_baseline(session, owner_id, record.baseline)
         # Halve the item bounds until the wake fits its prompt (RunRequest.prompt).
         limit = MAXIMUM_ITEMS
         facts = await brief_facts(session, owner_id, record, today, snapshots, now, limit)
@@ -848,3 +879,32 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         )
         record.pending = pending | {"run_id": run.id}
         return today
+
+
+# --- What Lonora knows ----------------------------------------------------------------
+
+
+def _clock(minute: int) -> str:
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
+async def learned_habit(session: AsyncSession, owner_id: str) -> dict[str, str | None]:
+    """What «ما أعرفه عنك» shows of the learned time (8.4): the owner's usual first open on
+    the device's clock, once learned (11.1, else None), and today's brief time."""
+    minutes = first_open_minutes(await recorded_opens(session, owner_id))
+    record = await session.get(MorningBriefRow, owner_id)
+    return {
+        "first_open": None
+        if learned_minute(minutes) is None
+        else _clock(int(median(minutes)) % (24 * 60)),
+        "brief": _clock(record.brief_minute if record else DEFAULT_MINUTE),
+    }
+
+
+async def forget_habit(session: AsyncSession, owner_id: str) -> None:
+    """The owner's correction in «ما أعرفه عنك» (8.4): the recorded opens are forgotten and
+    the brief is at 07:00 again, until the owner opens the app on 3 days (11.1)."""
+    record = await locked_record(session, owner_id)
+    await session.execute(delete(AppOpenRow).where(AppOpenRow.owner_id == owner_id))
+    record.brief_minute = DEFAULT_MINUTE
+    record.updated_at = utcnow()

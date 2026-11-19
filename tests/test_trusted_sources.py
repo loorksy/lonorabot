@@ -11,6 +11,7 @@ and feeds are scripted, never contacted.
 import json
 import os
 import socket
+import time
 from dataclasses import replace
 from io import BytesIO
 from typing import Any, cast
@@ -36,6 +37,7 @@ from lonora_db.owner_actions import LIFETIME, confirmation_code
 from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
+    IntegrationRow,
     MessageRow,
     OwnerActionRow,
     RunRow,
@@ -1337,6 +1339,129 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
     finally:
         if github is not None:
             await fixture.client.post(f"/api/trusted-sources/{github['id']}/restore")
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
+    """Mandate P1, 13.1: no cap on what an agent reads. Reading every feed used to stop at
+    the ten oldest subscriptions, so the eleventh feed and later never reached the agent.
+    The owner sees every feed agents read in Capabilities, where he removes it."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    domain = "many-" + uuid4().hex[:8] + ".analyst.example"
+
+    async def public(url: str, method: str = "GET", *, maximum_bytes: int = 0) -> Any:
+        from lonora_security.public_http import PublicResponse
+
+        return PublicResponse(200, {"content-type": "application/rss+xml"}, RSS)
+
+    others: list[str] = []
+    added_feeds: list[str] = []
+    try:
+        # Five hundred older integrations of another kind come first: the feeds after them
+        # are still found, by read and by the duplicate check alike.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for index in range(500):
+                row = IntegrationRow(
+                    owner_id=fixture.owner,
+                    payload={"type": "webhook", "name": f"Other {index}", "enabled": False},
+                )
+                session.add(row)
+                await session.flush()
+                others.append(row.id)
+        agent = await fixture.agent("Wide reader")
+        thread = await fixture.conversation(agent)
+        context = await owner_says(fixture, agent, thread["id"], "Subscribe to " + domain)
+        with patch.object(news_feed, "public_get", public):
+            for index in range(12):
+                added = await call(
+                    context,
+                    "news_feed_subscribe",
+                    url=f"https://{domain}/rss/{index}",
+                    name=f"Feed {index}",
+                )
+                if added.get("feed_id"):
+                    added_feeds.append(added["feed_id"])
+                assert added["status"] == "subscribed", added
+            again = await call(
+                context, "news_feed_subscribe", url=f"https://{domain}/rss/11", name="Again"
+            )
+            # A broken duplicate check adds a thirteenth feed: removed with the others.
+            if again.get("feed_id") and again["feed_id"] not in added_feeds:
+                added_feeds.append(again["feed_id"])
+            assert again["status"] == "already_subscribed", again
+            read = await call(context, "news_feed_read")
+        mine = [feed for feed in read["feeds"] if feed["domain"] == domain]
+        assert sorted(feed["name"] for feed in mine) == sorted(f"Feed {i}" for i in range(12))
+        assert all(feed["status"] == "ok" for feed in mine)
+        shown = await fixture.request("GET", "/capabilities")
+        listed = [item for item in shown["integrations"] if item["domain"] == domain]
+        assert sorted(item["name"] for item in listed) == sorted(f"Feed {i}" for i in range(12))
+    finally:
+        # By id, through the route, which removes the trusted domain with its last feed.
+        for feed_id in added_feeds:
+            await fixture.request("DELETE", "/integrations/" + feed_id)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for identity in others:
+                row = await session.get(IntegrationRow, identity)
+                if row is not None:
+                    await session.delete(row)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_slow_feed_never_costs_the_agent_the_feeds_that_answered(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The read returns before the tool's deadline: feeds that answered come back, a feed
+    still waiting is reported as timed out."""
+    database()
+    import asyncio
+
+    from check_streaming import Fixture
+    from lonora_tools import feeds
+
+    fixture = await Fixture().open()
+    domain = "slow-" + uuid4().hex[:8] + ".analyst.example"
+    monkeypatch.setattr(feeds, "READ_DEADLINE_SECONDS", 0.5)
+    slow: list[bool] = []
+    added_feeds: list[str] = []
+
+    async def public(url: str, method: str = "GET", *, maximum_bytes: int = 0) -> Any:
+        from lonora_security.public_http import PublicResponse
+
+        if url.endswith("/slow") and slow:
+            await asyncio.sleep(30)
+        return PublicResponse(200, {"content-type": "application/rss+xml"}, RSS)
+
+    try:
+        agent = await fixture.agent("Patient reader")
+        thread = await fixture.conversation(agent)
+        context = await owner_says(fixture, agent, thread["id"], "Subscribe to " + domain)
+        with patch.object(news_feed, "public_get", public):
+            for path in ("fast", "slow"):
+                added = await call(
+                    context, "news_feed_subscribe", url=f"https://{domain}/{path}", name=path
+                )
+                if added.get("feed_id"):
+                    added_feeds.append(added["feed_id"])
+                assert added["status"] == "subscribed", added
+            slow.append(True)
+            began = time.monotonic()
+            read = await call(context, "news_feed_read")
+            elapsed = time.monotonic() - began
+        # At the read's deadline (0.5 s here), not after the slow feed's own 20 seconds.
+        assert elapsed < 5, elapsed
+        mine = {feed["name"]: feed for feed in read["feeds"] if feed["domain"] == domain}
+        assert mine["fast"]["status"] == "ok", mine
+        assert mine["slow"]["status"] == "unavailable", mine
+        assert mine["slow"]["reason"] == "news_feed_timeout"
+    finally:
+        for feed_id in added_feeds:
+            await fixture.request("DELETE", "/integrations/" + feed_id)
         await fixture.close()
 
 

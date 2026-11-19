@@ -11,7 +11,7 @@ function simulation(data) {
   );
 }
 
-// Lonora (supervising every agent by default), a gold agent and a watcher that
+// Lonora (with a default grant over Gold, as migration 0041 stored one), a gold agent and a watcher that
 // proposed to supervise it, as supervision_change raises the card without an owner
 // message (no model involved); Lonora paused one of Gold's routines on its own, which
 // raises the pause card in Gold's conversation.
@@ -28,7 +28,7 @@ from lonora_db.personal_agent import ensure_personal_agent
 from lonora_contracts.routines import RoutineCreate
 from lonora_db.routines import create_routine
 from lonora_db.schema import OwnerActionRow
-from lonora_db.supervision import control_work
+from lonora_db.supervision import control_work, grant_supervision
 from sqlalchemy import select
 from lonora_db.threads import conversation_thread
 async def main():
@@ -39,6 +39,7 @@ async def main():
             lonora=await ensure_personal_agent(session,f.owner)
             gold=await create_agent(session,f.owner,AgentCreate(name=data['gold'],scope_mode='flexible'))
             watcher=await create_agent(session,f.owner,AgentCreate(name=data['watcher'],scope_mode='flexible'))
+            await grant_supervision(session,f.owner,lonora.id,gold.id,via='default')
             thread=await conversation_thread(session,f.owner,watcher.id)
             card,_=await propose_supervision(session,f.owner,watcher.id,[gold.id],card_id=str(uuid4()),agent_id=watcher.id,thread_id=thread.id,run_id=None)
             routine=await create_routine(session,f.owner,gold.id,RoutineCreate(prompt=data['routine'],interval_seconds=3600))
@@ -61,10 +62,8 @@ asyncio.run(main())
 const copy = {
   en: {
     section: "Lonora supervises your agents",
-    byDefault: "by default",
+    none: "Lonora leads this agent by its role. No other agent supervises it, and it supervises none.",
     stop: "Stop",
-    supervise: "Supervise",
-    notSupervised: "Not supervised by Lonora",
     title: "Let it supervise?",
     allow: "Allow",
     set: "Supervision set.",
@@ -74,10 +73,8 @@ const copy = {
   },
   ar: {
     section: "لونورا تشرف على وكلائك",
-    byDefault: "افتراضيًا",
+    none: "تقود لونورا هذا الوكيل بحكم دورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
     stop: "إيقاف",
-    supervise: "إشراف",
-    notSupervised: "لا تشرف عليهم لونورا",
     title: "السماح له بالإشراف؟",
     allow: "السماح",
     set: "تم تعيين الإشراف.",
@@ -88,7 +85,7 @@ const copy = {
 };
 
 for (const locale of ["ar", "en"])
-  test(`Expo ${locale}: Lonora's profile stops and restores supervision, and a card sets it`, async ({
+  test(`Expo ${locale}: Lonora's profile lists no grant of its own, and a card sets supervision`, async ({
     page,
     context,
   }) => {
@@ -114,21 +111,30 @@ for (const locale of ["ar", "en"])
       routine: `Review gold ${suffix}`,
     });
     try {
+      // Lonora reads and steers every team agent by its lead role, so its stored default
+      // grant over Gold changes nothing: not listed, with no Stop, and no grant offered.
+      const loaded = page.waitForResponse((response) =>
+        response.url().includes(`/supervision?agent_id=${seeded.lonora}`),
+      );
       await page.goto(`/bot-settings?botId=${seeded.lonora}`);
       const section = page.getByTestId("supervision-settings");
       await expect(section.getByText(text.section, { exact: true })).toBeVisible();
-      await expect(section.getByText(`⁨Gold ${suffix}⁩`, { exact: true })).toBeVisible();
-      await expect(section.getByText(text.byDefault, { exact: true }).first()).toBeVisible();
+      expect((await (await loaded).json()).supervises).toEqual([]);
+      await expect(section.getByText(`⁨Gold ${suffix}⁩`, { exact: true })).toHaveCount(0);
+      await expect(page.getByTestId(`supervision-stop-${seeded.gold}`)).toHaveCount(0);
+      // No Stop, Supervise or any other control on Lonora's own section.
+      await expect(section.getByRole("button")).toHaveCount(0);
       if (locale === "ar")
         await section.screenshot({ path: test.info().outputPath("supervision-native-ar.png") });
-      await page.getByTestId(`supervision-stop-${seeded.gold}`).click();
-      await expect(section.getByText(text.notSupervised, { exact: true })).toBeVisible();
-      await page.getByTestId(`supervision-add-${seeded.gold}`).click();
-      await expect(page.getByTestId(`supervision-stop-${seeded.gold}`)).toBeVisible();
       const view = await (
         await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)
       ).json();
-      expect(view.supervised_by.map((grant) => grant.created_via)).toEqual(["owner_ui"]);
+      expect(view.supervised_by).toEqual([]);
+      // Gold's profile names Lonora as its lead, with no Stop for the stored grant.
+      await page.goto(`/bot-settings?botId=${seeded.gold}`);
+      await expect(
+        page.getByTestId("supervision-settings").getByText(text.none, { exact: true }),
+      ).toBeVisible();
 
       await page.goto(`/thread?id=${seeded.thread}`);
       const card = page.getByTestId(`owner-action-${seeded.card}`);

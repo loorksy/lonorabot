@@ -67,7 +67,9 @@ monotonic:
   when nothing records what it read. The executor repeats the grant check at send
   for every operation sent under one; a grant decides within its own terms in
   either mode until it is revoked. A grant's management Task is held to its own grant;
-  outside it, it asks too. Provisional speech never spends a grant: its
+  outside it, it asks too. The Full-mode account-management Task
+  (`lonora_db.management_task`, docs/owner-actions.md) does not start while such a
+  grant Task runs; its own Runs are ordinary Runs of the agent under its mode. Provisional speech never spends a grant: its
   operations are sent under the owner's exact approval only.
 - The owner's own positions are the tickets the journal does not connect to an
   agent's entry: a position opened outside Lonora, and also one the owner opened
@@ -120,7 +122,7 @@ followed a Super Bot activation are now keyed on grants:
   never retried and never puts the agent at "action required"; its status shows one
   review-scoped line ("The readiness check after you signed did not finish; that check
   sent nothing.") until a later Run of the agent completes (`review_status` then reads
-  `superseded`). The failed Run stays in Activity.
+  `superseded`). The failed Run stays recorded as failed; no page lists it.
 - The avatar's "trades on its own" marker (`trades_on_its_own` on the agent) is shown
   only while the agent is not paused and holds a grant in force.
 

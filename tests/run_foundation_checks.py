@@ -56,6 +56,7 @@ CHECKS = (
     "check_task_continuation.py",
     "check_account_authority.py",
     "check_full_account_management.py",
+    "check_management_task.py",
     "check_unified_permissions.py",
     "check_account_recovery.py",
     "check_execution_recovery.py",
@@ -71,6 +72,7 @@ CHECKS = (
     "check_restriction_removal_migration.py",
     "check_money_limits_migration.py",
     "check_notice_card_migration.py",
+    "check_pause_source_migration.py",
     "check_task_recovery.py",
     "check_attention.py",
     "check_relationships.py",
@@ -95,6 +97,7 @@ CHECKS = (
     "check_trust_migration.py",
     "check_simple_lonora.py",
     "check_gold_journey.py",
+    "check_close_wake.py",
 )
 
 
@@ -121,7 +124,8 @@ def main() -> None:
     # 6.10: an attachment on the owner's message is not the owner's word.
     commands.append([sys.executable, "-m", "pytest", "tests/test_attachment_provenance.py", "-q"])
     # UI phase 5: delivery rules, dry-run tests, owner identity and usage, and the
-    # composer's / commands (PostgreSQL cases).
+    # composer's / commands; the owner's app opens and the learned brief time (PostgreSQL
+    # cases).
     for name in (
         "test_agent_delivery_rules.py",
         "test_connection_tests.py",
@@ -132,6 +136,7 @@ def main() -> None:
         "test_usage_dashboard.py",
         "test_slash_commands.py",
         "test_usage_tool.py",
+        "test_app_opens.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:

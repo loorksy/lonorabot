@@ -21,8 +21,6 @@ REACH_ME_RECOVERY = {
     "conversation once.",
     "notify": "The owner asked for a notification instead of a call: keep the attention item "
     "and write one short update in this conversation.",
-    "activity": "The owner asked not to be interrupted: keep it in the activity record and "
-    "this conversation without calling.",
 }
 
 
@@ -30,13 +28,7 @@ NOTIFY_NOTE = (
     "Shown in the app's notifications and this Agent's conversation. Off-app delivery "
     "(push, messaging channels) is not available yet."
 )
-# Reach-me "activity only": no notification is raised; the reply is the record.
-ACTIVITY_NOTE = (
-    "The owner asked not to be interrupted, so no notification was raised. Say it once in "
-    "your reply in this conversation; that reply is the record the owner reads."
-)
-
-# The owner's delivery rules for this Agent (Q47) kept the alert in Activity only.
+# The owner's delivery rules for this Agent (Q47) kept the alert from showing.
 AGENT_RULE_NOTES = {
     "agent_in_app_off": "The owner turned off in-app alerts from this Agent, so no "
     "notification was shown. Say it once in your reply in this conversation.",
@@ -58,13 +50,7 @@ async def notify(context: ToolContext, arguments: dict[str, Any]) -> dict[str, A
             run_id=run.id,
         )
         status = result["status"]
-        note = (
-            ACTIVITY_NOTE
-            if status == "activity_only"
-            else AGENT_RULE_NOTES[status]
-            if status in AGENT_RULE_NOTES
-            else NOTIFY_NOTE
-        )
+        note = AGENT_RULE_NOTES.get(status, NOTIFY_NOTE)
         return {**result, "note": note, "execution_authorized": False}
 
 

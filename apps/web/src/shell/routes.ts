@@ -25,7 +25,6 @@ export const PAGES = [
   "skill",
   "new-skill",
   "file-edit",
-  "activity",
   "new-agent",
   "new-group",
   "owner",
@@ -67,6 +66,8 @@ export const DEV_ROUTES: ReadonlySet<Page> = new Set<Page>(["lab"]);
 const ALIASES: Readonly<Record<string, string>> = {
   board: "/app/tasks",
   notifications: "/app/updates",
+  // The activity log page is gone (P5); an old link reaches «يحتاج انتباهك».
+  activity: "/app/updates",
   account: "/app/settings",
   capabilities: "/app/integrations",
   // Search lives in the chats header (phones) and the list pane (desktop).
@@ -154,7 +155,6 @@ export function sectionOf(route: ShellRoute, search = ""): Root {
     return "settings";
   if (route.kind === "page" && ["task", "new-task", "new-schedule"].includes(route.page))
     return "tasks";
-  if (route.kind === "page" && route.page === "activity") return "updates";
   return "chats";
 }
 /** A route the pager can slide between: only the four roots on phones. */

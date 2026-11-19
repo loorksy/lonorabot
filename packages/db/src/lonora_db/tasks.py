@@ -109,6 +109,10 @@ def save_task(session: AsyncSession, row: TicketRow, state: TaskState) -> None:
             "version": row.version,
             "status": state.status,
             "waiting_reason": state.waiting_reason,
+            # A Task completed with nothing to report is nothing new (VISION 11.5).
+            **(
+                {"result_empty": not row.state.get("result")} if state.status == "completed" else {}
+            ),
         },
     )
 
@@ -408,6 +412,10 @@ async def control_task(
     row = await get_task(session, owner_id, request.task_id)
     if agent_id and row.agent_id != agent_id:
         raise LonoraError("task_agent_mismatch", 403)
+    if agent_id and request.action == "cancel":
+        from .management_task import refuse_agent_cancel
+
+        refuse_agent_cancel(row)
     if agent_id is None:
         # The owner's pause, resume or cancel wins over a supervisor's pause of this Task.
         if request.action != "revise":

@@ -164,7 +164,6 @@ export const labels = {
   skillsDependencies: ["المهارات المطلوبة", "Dependencies"],
   skillsTools: ["الأدوات المطلوبة", "Required tools"],
   skillsActivation: ["التفعيل", "Activation"],
-  skillsAutomatic: ["تلقائي", "Automatic"],
   skillsExplicit: ["عند الطلب", "On request"],
   skillsTriggered: ["بحدث", "On event"],
   skillsReadOnly: ["للقراءة فقط", "Read only"],
@@ -259,6 +258,10 @@ export const labels = {
     "لم يعد هذا السؤال ينتظر إجابة",
     "This question is no longer waiting for an answer",
   ],
+  agent_paused: [
+    "هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة.",
+    "This agent is paused: resume it, then try again.",
+  ],
   input_answer_conflict: [
     "تم تسجيل إجابة مختلفة مسبقًا",
     "This answer was already recorded differently",
@@ -316,15 +319,27 @@ export const labels = {
     "انتهى طلب التفويض أو استُخدم؛ راجع طلبًا جديدًا.",
     "This authorization expired or was used. Review a new request.",
   ],
-  notifications: ["التنبيهات", "Notifications"],
-  noNotifications: ["لا توجد تنبيهات جديدة", "No new notifications"],
-  markAsRead: ["تحديد كمقروء", "Mark as read"],
-  attentionOpportunityPreference: [
-    "نبّهني بالفرص المؤكدة",
-    "Notify me about confirmed opportunities",
-  ],
-  attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
+  attentionApproval: ["بانتظار موافقتك", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
+  attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
+  attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
+  attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
+  attentionItemQuarantined: [
+    "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
+    "A background item was paused after repeated errors; everything else keeps running",
+  ],
+  attentionSetupConfirmed: [
+    "تأكد شرط المراقبة — راجع الأدلة الحالية",
+    "Watch confirmed — review current evidence",
+  ],
+  attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
+  attentionTaskDegraded: [
+    "المهمة تعيد المحاولة أثناء تعطل النموذج",
+    "Task is retrying through a model outage",
+  ],
+  attentionThesisChanged: ["تغيّرت صلاحية الفكرة", "Setup validity changed"],
+  attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
+  attentionWatchChanged: ["تغيّر شرط المراقبة", "Watch condition changed"],
   attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
   attentionBrokerUndeployed: [
     "الحساب غير مُشغَّل على MetaApi",
@@ -340,24 +355,8 @@ export const labels = {
     "بطاقة التفويض بانتظار لمستك",
     "A Mandate card is waiting for your tap",
   ],
-  attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
-  attentionSetupConfirmed: [
-    "تأكد شرط المراقبة — راجع الأدلة الحالية",
-    "Watch confirmed — review current evidence",
-  ],
-  attentionThesisChanged: ["تغيّرت صلاحية الفكرة", "Setup validity changed"],
-  attentionWatchChanged: ["تغيّر شرط المراقبة", "Watch condition changed"],
-  attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
-  attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
-  attentionTaskDegraded: [
-    "المهمة تعيد المحاولة أثناء تعطل النموذج",
-    "Task is retrying through a model outage",
-  ],
-  attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
-  attentionItemQuarantined: [
-    "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
-    "A background item was paused after repeated errors; everything else keeps running",
-  ],
+  attentionOwnerQuestion: ["سؤال بانتظار جوابك", "A question is waiting for your answer"],
+  attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
   attentionRunQuarantined: [
     "توقف عمل بعد انقطاعات متكررة",
     "Work stopped after repeated interruptions",
@@ -366,12 +365,11 @@ export const labels = {
     "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط",
     "A trade still has no confirmed broker result",
   ],
+  attentionNothing: ["لا شيء يحتاجك الآن.", "Nothing needs you right now."],
   attentionOperationUncertain: [
     "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت",
     "The broker did not confirm a trade — tell Lonora whether it executed",
   ],
-  attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
-  attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   modelRetryScheduled: [
     "مزود النموذج غير متاح — إعادة المحاولة مجدولة",
@@ -504,6 +502,25 @@ export const labels = {
   webSearchOff: ["أُوقف البحث في الويب", "Web search turned off"],
   isTyping: ["{0} يكتب…", "{0} is typing…"],
   suggestedReply: ["رد مقترح: {0}", "Suggested reply: {0}"],
+  // The order line and its sheet (Web's wording).
+  odTradeOrder: ["أمر تداول", "Trade order"],
+  odLimitAt: ["محدد عند", "Limit at"],
+  odAtMarket: ["بسعر السوق", "At market price"],
+  odOwnerEvidence: [
+    "مسجَّل من تصريحك، وليس تأكيدًا من الوسيط",
+    "Recorded from your statement, not broker confirmation",
+  ],
+  odFillEvidence: ["دليل التنفيذ: تذكرة", "Fill evidence: ticket"],
+  odUncertain: [
+    "لم يصل تأكيد الوسيط، ولا تُعرض حالة «منفَّذ» قبل وصول الدليل.",
+    "The broker's confirmation did not arrive; «Filled» is never shown before the evidence.",
+  ],
+  odRejected: ["رفض الوسيط الأمر", "The broker rejected the order"],
+  odNotSent: ["لم يُرسَل إلى الوسيط", "Not sent to the broker"],
+  odWaiting: ["بانتظار رد الوسيط…", "Waiting for the broker's answer…"],
+  odResolve: ["حسم العملية", "Resolve the operation"],
+  odNoAnswer: ["لا رد من الوسيط", "No answer from the broker"],
+  odOpen: ["أمر {0}: {1}. اعرض التفاصيل", "Order {0}: {1}. Show details"],
   // «تجربة المحادثة» (Web's chat preferences), from the conversation's menu.
   chatPrefs: ["تجربة المحادثة", "Chat experience"],
   chatPrefsIntro: [
@@ -644,6 +661,15 @@ export const labels = {
   correctFact: ["صحّح المعلومة", "Correct the fact"],
   deleteFact: ["احذف المعلومة", "Delete the fact"],
   nothingKnown: ["لا شيء بعد.", "Nothing yet."],
+  habitLine: [
+    "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو {firstOpen}، ويصلك موجز الصباح الساعة {brief}.",
+    "You usually first open Lonora around {firstOpen}; your morning brief comes at {brief}.",
+  ],
+  habitOrigin: [
+    "ملاحظة من أول مرة تفتح فيها التطبيق كل يوم",
+    "Observed from your first app open each day",
+  ],
+  forgetHabit: ["انسَ هذه العادة", "Forget this habit"],
   saveCorrection: ["حفظ", "Save"],
   cancelCorrection: ["إلغاء", "Cancel"],
   voiceNote: ["رسالة صوتية", "Voice message"],
@@ -678,10 +704,19 @@ export const labels = {
   server: ["عنوان خادم Lonora", "Lonora server URL"],
   email: ["البريد الإلكتروني", "Email"],
   password: ["كلمة المرور", "Password"],
-  serverHint: [
-    "استخدم عنوان خادمك. أنشئ حساب المالك أولًا من واجهة الويب.",
-    "Use your server address. Initialize the owner account in the Web interface first.",
+  serverHint: ["استخدم عنوان خادمك.", "Use your server address."],
+  setupTitle: ["إعداد Lonora", "Set up Lonora"],
+  setupHint: [
+    "أنشئ حساب المالك برمز الإعداد من إعدادات الخادم.",
+    "Create the owner account with the setup token from your server configuration.",
   ],
+  setupPassword: ["كلمة المرور · 12 حرفًا على الأقل", "Password · at least 12 characters"],
+  setupToken: ["رمز الإعداد", "Setup token"],
+  setupTokenShort: [
+    "رمز الإعداد 24 حرفًا على الأقل. انسخه كاملًا من إعدادات الخادم.",
+    "The setup token is at least 24 characters. Copy all of it from your server configuration.",
+  ],
+  setupCreate: ["إنشاء مساحة العمل", "Create workspace"],
   retry: ["إعادة المحاولة", "Retry"],
   emptyInbox: [
     "أنشئ وكيلك الأول لبدء المحادثة المستمرة.",
@@ -748,6 +783,7 @@ export const labels = {
     "تحقق من بيانات الدخول أو سجّل الدخول مجددًا.",
     "Check your credentials or sign in again.",
   ],
+  invalid_bootstrap_token: ["رمز الإعداد غير صحيح.", "The setup code is incorrect."],
   invalid_server: [
     "أدخل عنوان خادم كاملًا يبدأ بـ http:// أو https://.",
     "Enter a complete server address starting with http:// or https://.",

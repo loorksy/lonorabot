@@ -13,6 +13,8 @@ from lonora_contracts.mcp import McpToolDeclaration
 from lonora_db.activation_review import dispatch_activation_reviews
 from lonora_db.client import Database
 from lonora_db.item_failures import failure_code
+from lonora_db.management_task import reconcile_management_tasks
+from lonora_db.messages import answer_resumed_kept_messages
 from lonora_db.owner import get_owner
 from lonora_db.task_recovery import retry_due_tasks
 from lonora_db.task_wait import resume_ready_waits
@@ -48,6 +50,12 @@ STEPS = (
     StepSpec("owners", 10, 60),
     StepSpec("routines", 5, 120),
     StepSpec("task_retries", 10, 120),
+    # Full mode's continuous task for an agent no tap reached (an agent already in Full
+    # when it shipped), and the end of one left open in Ask or a pause (4.5).
+    StepSpec("management_tasks", 60, 120, critical=False),
+    # The owner's messages kept for an agent that is no longer paused: one sent while its
+    # resume committed, which the resume did not see (4.7.1).
+    StepSpec("kept_messages", 5, 120, critical=False),
     StepSpec("activation_reviews", 10, 120, critical=False),
     StepSpec("task_waits", 5, 120),
     StepSpec("outcomes", 10, 120),
@@ -65,6 +73,8 @@ STEPS = (
     StepSpec("broker_provisioning", 10, 900),
     # The closed-trade ledger from broker deal history (mandate 5.5.1).
     StepSpec("closed_trades", 30, 300, critical=False),
+    # A closed trade wakes its owner for a self-review (5.5.2).
+    StepSpec("close_wakes", 10, 120, critical=False),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -252,6 +262,11 @@ class Gateway:
             )
         )
 
+    async def close_wakes(self) -> None:
+        from lonora_trading.close_wake import wake_for_closes
+
+        await self.for_each_owner(lambda service: wake_for_closes(self.db, service.owner_id))
+
     async def closed_trades(self) -> None:
         from lonora_trading.closed_trades import maintenance_closed_trades
 
@@ -430,6 +445,8 @@ class Gateway:
             "owners": self.owners,
             "routines": lambda: dispatch_routines(self.db),
             "task_retries": lambda: retry_due_tasks(self.db),
+            "management_tasks": lambda: reconcile_management_tasks(self.db),
+            "kept_messages": lambda: answer_resumed_kept_messages(self.db),
             "activation_reviews": lambda: dispatch_activation_reviews(self.db),
             "task_waits": lambda: resume_ready_waits(self.db),
             "outcomes": lambda: return_pending_outcomes(self.db),
@@ -441,6 +458,7 @@ class Gateway:
             "calendar": self.calendar,
             "broker_provisioning": self.broker_provisioning,
             "closed_trades": self.closed_trades,
+            "close_wakes": self.close_wakes,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,

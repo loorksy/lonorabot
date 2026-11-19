@@ -10,7 +10,7 @@ export type IncomingCall = {
   execution_authorized: false;
 };
 
-export type ReachMeChannel = "activity" | "notify" | "message" | "call";
+export type ReachMeChannel = "notify" | "message" | "call";
 
 /** The owner's reach-me preference: calls ring only when its channel is "call". */
 export type IncomingPolicy = {

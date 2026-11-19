@@ -62,7 +62,8 @@ async def available_authority(
     (the ladder is monotonic). A grant's management Run is held to its own grant.
     """
     management_id = run.model_metadata.get("account_management_id")
-    if management_id:
+    # The mode task's Runs carry the agent's own id: they are ordinary Runs of the agent.
+    if management_id and management_id != run.agent_id:
         _, envelope = await require_authority(session, owner_id, run.agent_id, management_id)
         if (
             request.account_id != envelope.account_id
@@ -111,8 +112,10 @@ async def ticket_agent(
     confirmed entry on the ticket's account and symbol. The entry whose operation id (or
     its ``broker_operation_tag``) the broker reports on the ticket opened or placed it; a
     filled pending order's position carries its order's tag. Only when none matches does
-    the ticket id decide, and then the oldest entry carrying it: a later netting fill
-    carries the same position id and never takes the position (3.3.4). Only an entry an
+    the ticket id decide, and then the oldest entry whose order has that ticket: a position
+    opened from flat, or filled from a pending order, carries that order's ticket, and a
+    later order that netted into it has its own, so it never takes the position, not even
+    from the owner (3.3.4). Only an entry an
     Agent's leased Run sent counts (``journal_agent``, the same rule the broker wakes use):
     the owner's own order from Lonora's Trading page is journaled too, with no agent, and
     stays the owner's own position. A ticket no entry matches is the owner's.
@@ -144,22 +147,23 @@ async def ticket_agent(
             )
         )
     )
-    return entry_holder(entries, target, "position_id" if request.position_id else "order_id")
+    return entry_holder(entries, target)
 
 
-def entry_holder(
-    entries: list[TradingJournalRow], target: Position | Order, kind: str
-) -> str | None:
-    """``ticket_agent``'s match over the ticket's confirmed entries, oldest first (``kind``
-    names the ticket's id field): the entry whose operation id or tag the broker reports
-    on the ticket, else the oldest entry carrying the ticket id; None for the owner's own."""
+def entry_holder(entries: list[TradingJournalRow], target: Position | Order) -> str | None:
+    """``ticket_agent``'s match over the entries it is given, oldest first (the caller picks
+    their statuses: the door's and the picture's confirmed ones, the brief's SENT_STATUSES;
+    this filters nothing): the entry whose operation id or tag the broker reports on the
+    ticket, else the oldest entry whose order has the ticket id (never a position id in its
+    result: on a netting account that is the position an order added to); None for the
+    owner's own."""
     for entry in entries:
         if target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}:
             return journal_agent(entry)
     for entry in entries:
         details = entry.result.get("details", {})
         safe_id = entry.result.get("broker_id") if details.get("simulation") else None
-        if target.id in {details.get(kind), safe_id}:
+        if target.id in {details.get("order_id"), safe_id}:
             return journal_agent(entry)
     return None
 
@@ -236,7 +240,7 @@ async def require_account_execution(
 ) -> None:
     # The central permission gate additionally requires exact-operation owner
     # approval for provisional speech; a signed grant alone cannot spend it.
-    if run.model_metadata.get("account_management_id", identifier) != identifier:
+    if run.model_metadata.get("account_management_id") not in (None, identifier, run.agent_id):
         raise LonoraError("account_authority_scope_mismatch", 403)
     _, envelope = await require_authority(session, owner_id, run.agent_id, identifier)
     if request.account_id != envelope.account_id or not envelope.permits_symbol(request.symbol):

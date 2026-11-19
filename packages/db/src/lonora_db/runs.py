@@ -3,7 +3,14 @@ from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunFailure, RunRequest
-from lonora_core.run_state import assert_transition
+from lonora_core.run_state import (
+    BACKGROUND_KEY,
+    OUTCOME_THREAD,
+    OWNER_SPOKE,
+    assert_transition,
+    is_background,
+    may_end_silent,
+)
 from lonora_core.runtime_failure import failure_family, retry_after_seconds
 from lonora_core.user_error import LonoraError
 from sqlalchemy import and_, exists, or_, select
@@ -12,6 +19,7 @@ from sqlalchemy.orm import aliased
 
 from .events import emit
 from .generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
+from .pauses import claimable_while_paused, runs_while_paused
 from .rich_response import validated_rich_content
 from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadRow
 from .streaming import STREAM_KEY, settle_stream, stream_data, stream_identity
@@ -104,6 +112,11 @@ def run_data(row: RunRow) -> dict[str, Any]:
         "parent_run_id": row.parent_run_id,
         "status": row.status,
         "trigger": row.trigger,
+        # VISION 11.5: no one waits on a background run's reply; clients leave its
+        # failure out of the conversation.
+        "background": may_end_silent(
+            is_background(row.trigger, row.model_metadata), row.execution_state
+        ),
         "input_seq": row.input_seq,
         "error_code": row.error_code,
         "failure": failure_data(row),
@@ -134,8 +147,16 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
 
 
 async def create_run(
-    session: AsyncSession, owner_id: str, request: RunRequest, run_id: str | None = None
+    session: AsyncSession,
+    owner_id: str,
+    request: RunRequest,
+    run_id: str | None = None,
+    *,
+    held_while_paused: bool = False,
 ) -> RunRow:
+    """``held_while_paused``: a server notice that must reach the agent (a card it raised
+    ended) is queued for a paused agent and held until it is resumed, instead of
+    refused (4.7.1)."""
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
     agent = await owned_agent(session, owner_id, request.agent_id)
     if thread.agent_id and thread.agent_id != agent.id:
@@ -144,12 +165,17 @@ async def create_run(
         group = await session.get(GroupRow, thread.group_id)
         if group is None or agent.id not in group.payload.get("member_ids", []):
             raise LonoraError("agent_not_group_member", 409)
+    parent: RunRow | None = None
     if request.parent_run_id:
         parent = await session.get(RunRow, request.parent_run_id)
         if parent is None:
             raise LonoraError("parent_run_not_found", 404)
         await owned_thread(session, owner_id, parent.thread_id)
-    if agent.paused:
+    if (
+        agent.paused
+        and not held_while_paused
+        and not runs_while_paused(request.trigger, request.metadata)
+    ):
         raise LonoraError("agent_paused", 409)
     row = RunRow(
         thread_id=thread.id,
@@ -175,9 +201,25 @@ async def create_run(
                 "ui_submit_origin",
                 # Only ``retry_run`` marks a card send's retry (provenance only, 6.10).
                 "ui_submit_retry_of",
+                # Only the follow-up stamp below marks a Run as background work, and
+                # only admission marks the owner's words reaching it.
+                BACKGROUND_KEY,
+                OWNER_SPOKE,
+                # Only ``outcome_thread`` names the hidden thread of a Run's helpers.
+                OUTCOME_THREAD,
             }
         },
     )
+    if (
+        request.trigger == "follow_up"
+        and parent is not None
+        and may_end_silent(
+            is_background(parent.trigger, parent.model_metadata), parent.execution_state
+        )
+    ):
+        # A continuation of background work is background (11.5), unless the owner wrote
+        # to that work: its continuation answers them too.
+        row.model_metadata = {**row.model_metadata, BACKGROUND_KEY: True}
     if run_id:
         row.id = run_id
     session.add(row)
@@ -252,7 +294,11 @@ async def claim_next(
     pending = exists(
         select(RunRow.id)
         .join(AgentRow, AgentRow.id == RunRow.agent_id)
-        .where(RunRow.thread_id == ThreadRow.id, eligible, AgentRow.paused.is_(False))
+        .where(
+            RunRow.thread_id == ThreadRow.id,
+            eligible,
+            or_(AgentRow.paused.is_(False), claimable_while_paused()),
+        )
     )
     # Claim the thread lock first so two queued turns cannot be claimed simultaneously.
     thread = await session.scalar(
@@ -267,7 +313,11 @@ async def claim_next(
     row = await session.scalar(
         select(RunRow)
         .join(AgentRow, AgentRow.id == RunRow.agent_id)
-        .where(RunRow.thread_id == thread.id, eligible, AgentRow.paused.is_(False))
+        .where(
+            RunRow.thread_id == thread.id,
+            eligible,
+            or_(AgentRow.paused.is_(False), claimable_while_paused()),
+        )
         .order_by(RunRow.created_at)
         .limit(1)
         .with_for_update(skip_locked=True)

@@ -2,8 +2,13 @@ from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.attention import AttentionPolicy, AttentionSeen
 from lonora_contracts.domain import utcnow
-from lonora_db.attention import acknowledge, acknowledge_all, attention_data, policy
-from lonora_db.schema import AttentionRow, EffectReceiptRow
+from lonora_db.attention import (
+    acknowledge,
+    attention_data,
+    attention_view,
+    policy,
+)
+from lonora_db.schema import AttentionRow
 from lonora_db.transactions import SettingsRepository
 from sqlalchemy import or_, select
 
@@ -12,28 +17,11 @@ from ..middleware.auth import require_owner, runtime
 router = APIRouter(prefix="/attention")
 
 
-@router.get("/audit")
-async def audit(request: Request, owner: OwnerIdentity = Depends(require_owner)):
+@router.get("/view")
+async def view(request: Request, owner: OwnerIdentity = Depends(require_owner)):
+    """«يحتاج انتباهك»: what needs the owner across all agents (mandate 11.7)."""
     async with runtime(request).db.sessions() as session:
-        rows = await session.scalars(
-            select(EffectReceiptRow)
-            .where(EffectReceiptRow.key.startswith("attention-source:" + owner.id + ":"))
-            .order_by(EffectReceiptRow.created_at.desc())
-            .limit(100)
-        )
-        return [row.result for row in rows]
-
-
-@router.get("/history")
-async def history(request: Request, owner: OwnerIdentity = Depends(require_owner)):
-    async with runtime(request).db.sessions() as session:
-        rows = await session.scalars(
-            select(AttentionRow)
-            .where(AttentionRow.owner_id == owner.id)
-            .order_by(AttentionRow.updated_at.desc())
-            .limit(50)
-        )
-        return [attention_data(row) for row in rows]
+        return await attention_view(session, owner.id)
 
 
 @router.get("")
@@ -66,13 +54,6 @@ async def seen(
 ):
     async with runtime(request).db.sessions() as session, session.begin():
         return attention_data(await acknowledge(session, owner.id, body.notification_id))
-
-
-@router.post("/seen-all")
-async def seen_all(request: Request, owner: OwnerIdentity = Depends(require_owner)):
-    """«تحديد الكل كمقروء»: every open item except the critical and action-required ones."""
-    async with runtime(request).db.sessions() as session, session.begin():
-        return {"seen": await acknowledge_all(session, owner.id)}
 
 
 @router.get("/policy")

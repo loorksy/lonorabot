@@ -1,11 +1,10 @@
-// المستجدات: what needs the owner (the attention inbox). A dot on the tab says something is new.
+// يحتاج انتباهك (mandate 11.7): what needs the owner across all agents. A dot on the tab says something is new.
 
 import { Redirect } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AttentionInbox } from "../../components/attention-inbox";
+import { AttentionView } from "../../components/attention-view";
 import { colors, Loading } from "../../components/ui";
-import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useShellData } from "../../lib/shell-data";
 import { useTheme } from "../../lib/theme";
@@ -34,7 +33,7 @@ export default function Updates() {
         {t("sh_updates")}
       </Text>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>
-        {/* The attention inbox keeps its own (dark) palette until phase 4 re-skins it. */}
+        {/* The attention view keeps the inbox's own (dark) palette until phase 4 re-skins it. */}
         <View
           style={{
             margin: 16,
@@ -43,14 +42,7 @@ export default function Updates() {
             backgroundColor: colors.background,
           }}
         >
-          <AttentionInbox
-            items={data.attention}
-            agents={data.agents}
-            onSeen={async (id) => {
-              await api.post("/attention/seen", { notification_id: id });
-              data.clearAttention(id);
-            }}
-          />
+          <AttentionView agents={data.agents} />
         </View>
       </ScrollView>
     </View>

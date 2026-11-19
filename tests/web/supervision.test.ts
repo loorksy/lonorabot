@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import type { Agent, OwnerAction, SupervisionView } from "../../packages/contracts/src/index";
+import { translate } from "../../apps/mobile/lib/i18n";
+import type { OwnerAction, SupervisionView } from "../../packages/contracts/src/index";
 import { ownerActionCard } from "../../packages/core/src/owner-actions";
 import {
   supervisionError,
   supervisionLabels,
   supervisionRows,
-  unsupervisedAgents,
 } from "../../packages/core/src/supervision";
 
 const isolated = (value: string) => `⁨${value}⁩`;
@@ -80,6 +81,23 @@ test("the Undo card stops supervision, and an ended one can only be dismissed", 
     ended.buttons.map((button) => button.decision),
     ["cancel"],
   );
+  assert.equal(ended.hint, "انتهى هذا الإشراف مسبقًا.");
+  // An older card for a grant of Lonora's: it leads by its role, so nothing ended.
+  const lead = ownerActionCard(
+    {
+      ...created,
+      facts: {
+        ...created.facts,
+        supervision: { supervisor_name: "Lonora", supervised_names: [], active: false, lead: true },
+      },
+    },
+    "en",
+  );
+  assert.deepEqual(
+    lead.buttons.map((button) => button.decision),
+    ["cancel"],
+  );
+  assert.equal(lead.hint, "This supervision is already set. Nothing changed.");
   const undone = ownerActionCard({ ...created, status: "confirmed", result: { revoked: 1 } }, "en");
   assert.equal(undone.outcome, "Undone: supervision stopped.");
   const set = ownerActionCard({ ...proposal, status: "confirmed" }, "ar");
@@ -170,8 +188,39 @@ test("a pause card names the supervisor, the agent and the item, with one-tap Re
     },
     "en",
   );
-  assert.equal(ownerHolds.hint, "You paused it too, so only you resume it.");
+  // Asked for in chat: the owner lifts it, or an agent acting on the owner's message in
+  // chat does (4.7.2).
+  assert.equal(
+    ownerHolds.hint,
+    "You asked for this pause: it stays until you resume it, or an agent resumes it acting on your message in chat.",
+  );
+  assert.equal(
+    ownerActionCard(
+      {
+        ...pause,
+        facts: {
+          ...pause.facts,
+          supervision: { ...held, owner_holds: true, from_owner_message: true },
+        },
+      },
+      "ar",
+    ).hint,
+    "طلبت هذا الإيقاف: يبقى حتى تستأنفه أنت، أو يستأنفه وكيل بناءً على رسالتك في المحادثة.",
+  );
   assert.ok(ownerHolds.lines[0]?.endsWith("from your message"), ownerHolds.lines[0]);
+  // The owner's own control made it control-only: only the owner resumes it.
+  const controlOnly = ownerActionCard(
+    {
+      ...pause,
+      facts: {
+        ...pause.facts,
+        supervision: { ...held, owner_holds: true, from_owner_message: false },
+      },
+    },
+    "ar",
+  );
+  assert.equal(controlOnly.hint, "هذا الإيقاف لك: لا يستأنفه غيرك.");
+  assert.ok(!controlOnly.lines[0]?.endsWith("من رسالتك"), controlOnly.lines[0]);
   const ended = ownerActionCard(
     {
       ...pause,
@@ -213,19 +262,22 @@ test("profile rows name the other agent and where each grant came from", () => {
     { grantId: "g1", agentId: "gold", name: isolated("Gold agent"), source: "افتراضيًا" },
   ]);
   assert.equal(supervisionRows(view, "en").supervises[0]?.source, "by default");
-  const agents = [
-    { id: "lonora", name: "Lonora" },
-    { id: "gold", name: "Gold agent" },
-    { id: "news", name: "News agent" },
-  ] as Agent[];
-  assert.deepEqual(
-    unsupervisedAgents(view, agents).map((agent) => agent.id),
-    ["news"],
-  );
   assert.equal(
     supervisionError("supervision_self_target", "en"),
     "An agent cannot supervise itself.",
   );
   assert.equal(supervisionError("unknown_code", "ar"), null);
   for (const key of Object.keys(supervisionLabels.en)) assert.ok(key in supervisionLabels.ar, key);
+});
+
+test("the paused-agent refusal asks for a resume and a retry, and promises no answer", () => {
+  // Only refused input shows it (a tapped choice, a card's send, an invitation), and that
+  // input is not kept: a typed message to a paused agent is kept and answered on resume.
+  const ar = "هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة.";
+  const en = "This agent is paused: resume it, then try again.";
+  assert.equal(translate("ar", "agent_paused"), ar);
+  assert.equal(translate("en", "agent_paused"), en);
+  assert.ok(readFileSync("apps/web/src/lib/user_error.ts", "utf8").includes(`t\`${en}\``));
+  const catalog = readFileSync("apps/web/src/i18n/locales/ar/messages.po", "utf8");
+  assert.ok(catalog.includes(`msgid "${en}"\nmsgstr "${ar}"`));
 });

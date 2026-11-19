@@ -24,6 +24,7 @@ from lonora_db.schema import (
     EventRow,
     IntegrationRow,
     MarketSnapshotRow,
+    MarketWatchRow,
     RunRow,
     TradingAccountRow,
     TradingJournalRow,
@@ -160,18 +161,22 @@ async def main():
         watch_id = watch.get("id") or watch.get("watch", {}).get("id")
         assert watch_id
         assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 1
+        async with f.runtime.db.sessions() as session:
+            woken = list(
+                await session.scalars(
+                    select(RunRow).where(
+                        RunRow.trigger == "watch",
+                        RunRow.model_metadata["watch_id"].as_string() == watch_id,
+                    )
+                )
+            )
+            assert len(woken) == 1 and woken[0].agent_id == agent["id"]
         await asyncio.gather(
             attention_tick(f.runtime.db, context.brokers, f.owner),
             attention_tick(f.runtime.db, context.brokers, f.owner),
         )
-        rows = await inbox()
-        notices = [row for row in rows if row["code"] == "setup_confirmed"]
-        assert len(notices) == 1 and notices[0]["agent_id"] == agent["id"]
-        assert (
-            notices[0]["parameters"]["symbol"] == symbol
-            and notices[0]["parameters"]["execution_authorized"] is False
-        )
-        original = notices[0]
+        met = {"setup_confirmed", "watch_condition_met"}
+        assert not any(row["code"] in met for row in await inbox())
         async with f.runtime.db.sessions() as session, session.begin():
             source = await session.scalar(
                 select(EventRow).where(
@@ -180,6 +185,7 @@ async def main():
                 )
             )
             assert source
+            source_cursor = source.cursor
             emit(
                 session,
                 f.owner,
@@ -193,8 +199,50 @@ async def main():
                 },
             )
         await attention_tick(f.runtime.db, context.brokers, f.owner)
-        rows = await inbox()
-        assert len([row for row in rows if row["code"] == "setup_confirmed"]) == 1
+        assert not any(row["code"] in met for row in await inbox())
+        async with f.runtime.db.sessions() as session:
+            duplicate = await session.scalar(
+                select(EventRow)
+                .where(
+                    EventRow.kind == "watch.confirmed",
+                    EventRow.payload["watch_id"].as_string() == watch_id,
+                )
+                .order_by(EventRow.cursor.desc())
+            )
+            assert duplicate and duplicate.cursor != source_cursor
+            replayed = await session.get(
+                EffectReceiptRow, "attention-source:" + f.owner + ":" + str(duplicate.cursor)
+            )
+            assert replayed and replayed.result["status"] == "deduplicated"
+        print(
+            "PASS a met watch wakes its agent once and, across concurrent Gateway ticks and a duplicate transition, raises no attention item beside the agent's own reply (11.5)"
+        )
+
+        async def reconfirm(identifier: str) -> None:
+            """The watch confirms again on the same evidence: its wake is spent, no run."""
+            async with f.runtime.db.sessions() as session, session.begin():
+                row = await session.get(MarketWatchRow, identifier, with_for_update=True)
+                assert row
+                row.state = {
+                    **row.state,
+                    "lifecycle": "pending",
+                    "next_check": (utcnow() - timedelta(seconds=1)).isoformat(),
+                    "quote_observed_at": (utcnow() - timedelta(hours=2)).isoformat(),
+                }
+            assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 0
+
+        await reconfirm(watch_id)
+        await asyncio.gather(
+            attention_tick(f.runtime.db, context.brokers, f.owner),
+            attention_tick(f.runtime.db, context.brokers, f.owner),
+        )
+        notices = [row for row in await inbox() if row["code"] == "setup_confirmed"]
+        assert len(notices) == 1 and notices[0]["agent_id"] == agent["id"]
+        assert (
+            notices[0]["parameters"]["symbol"] == symbol
+            and notices[0]["parameters"]["execution_authorized"] is False
+        )
+        original = notices[0]
         async with f.runtime.db.sessions() as session, session.begin():
             row = await session.get(AttentionRow, original["id"])
             assert row
@@ -207,7 +255,7 @@ async def main():
             "version"
         ] == seen["version"]
         print(
-            "PASS actual watch confirmation, concurrent Gateway ticks, duplicate transition and restart delivery create one specialist-owned notification; seen is durable/idempotent and grants no execution"
+            "PASS a confirmation that wakes nobody (its wake already spent) stays one revalidated specialist-owned notification across concurrent ticks and restart delivery; seen is durable/idempotent and grants no execution"
         )
 
         # A confirmation is revalidated at delivery, not merely when queued.
@@ -221,8 +269,10 @@ async def main():
                 "confirmation_ttl_seconds": 120,
             },
         )
-        assert late
-        await check_watches(f.runtime.db, context.brokers, owner_id=f.owner)
+        late_id = late.get("id") or late.get("watch", {}).get("id")
+        assert late_id
+        assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 1
+        await reconfirm(late_id)
         await attention_tick(f.runtime.db, context.brokers, f.owner)
         pending = [row for row in await inbox() if row["code"] == "setup_confirmed"]
         assert len(pending) == 1

@@ -2,9 +2,9 @@
 
 An Agent reads its own history: the threads it owns (conversations, Task work
 threads and its subagents' threads, which carry the same Agent id) and the group
-threads it is a member of, plus the decision snapshots it recorded. A supervisor also
-reads the threads and decisions of the agents it supervises now, through the owner's
-visible, revocable supervision grant (``lonora_db.supervision``); each such result
+threads it is a member of, plus the decision snapshots it recorded. Lonora also reads
+those of every team agent by its lead role, and another supervisor those of the agents
+it supervises now, through the owner's revocable grant (``lonora_db.lead``); each result
 names the agent and is labelled untrusted. Other Agents' private threads and memory
 stay invisible; owner-wide search remains an owner API. Every result is a historical
 record, never current broker state.
@@ -49,9 +49,9 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
+from lonora_db.lead import reached_ids
 from lonora_db.owner_words import visible_to_recall
 from lonora_db.schema import AgentRow, EventRow, GroupRow, MessageRow, ThreadRow
-from lonora_db.supervision import supervised_ids
 from lonora_db.trading_decisions import DECISION_KIND
 from lonora_db.transactions import owned_agent
 from sqlalchemy import (
@@ -134,9 +134,10 @@ class HistoryScope:
 async def supervised_names(
     session: AsyncSession, owner_id: str, agent_id: str
 ) -> tuple[tuple[str, str], ...]:
-    """(id, name) of the agents this one supervises now, read on every call, so a
-    revoked grant ends the reads at once."""
-    ids = await supervised_ids(session, owner_id, agent_id)
+    """(id, name) of the agents this one reads now: every team agent for Lonora, the
+    lead; else those it supervises, read on every call, so a revoked grant ends the
+    reads at once."""
+    ids = await reached_ids(session, owner_id, agent_id)
     if not ids:
         return ()
     names = dict(

@@ -8,6 +8,7 @@ from uuid import NAMESPACE_URL, uuid5
 from lonora_contracts.account import Order, Position
 from lonora_contracts.broker_activity import BrokerActivity, BrokerRecoverySnapshot
 from lonora_db.schema import TradingJournalRow
+from lonora_session.idempotency import broker_operation_tag
 
 from .exposure import ENTRY_ACTIONS
 
@@ -112,8 +113,12 @@ def attributed_agent(
 ) -> str | None:
     """The Agent the journal shows opened this ticket, else the latest one that managed it.
 
-    ``entries`` are newest first. A ticket the journal does not connect to any Agent
-    (the owner's manual activity, inside or outside Lonora) is unattributed.
+    ``entries`` are newest first. An entry opened the ticket by the keys the door's
+    ``entry_holder`` reads: the operation id or its broker tag on the ticket, else its
+    order's ticket (``details.order_id``, or the simulation's broker id), never a position
+    id in its result, which on a netting account is the position the order added to
+    (3.3.4). A ticket the journal does not connect to any Agent (the owner's manual
+    activity, inside or outside Lonora) is unattributed.
     """
     target = current or previous
     assert target is not None
@@ -125,10 +130,10 @@ def attributed_agent(
         agent = journal_agent(entry)
         result = entry.result
         details = result.get("details", {})
+        safe_id = result.get("broker_id") if details.get("simulation") else None
         if entry.request.get("action") in ENTRY_ACTIONS and (
-            target.operation_id == entry.operation_id
-            or target.id
-            in {result.get("broker_id"), details.get("position_id"), details.get("order_id")}
+            target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}
+            or target.id in {details.get("order_id"), safe_id}
         ):
             if agent:
                 return agent

@@ -136,7 +136,7 @@ def budget_warning(executable: int) -> str:
     )
 
 
-def finish_instruction(reason: str, detail: str = "") -> str:
+def finish_instruction(reason: str, detail: str = "", *, background: bool = False) -> str:
     cause = {
         "tool_round_limit": "This run reached its tool-round limit.",
         "guardrail_halt": "This run stopped a repeating tool loop"
@@ -148,7 +148,12 @@ def finish_instruction(reason: str, detail: str = "") -> str:
         "in the owner's language: report only results verified by tool observations in this run; "
         "name every operation whose outcome is unresolved or unverified without calling it "
         "successful; and give the concrete next steps. Do not invent progress."
+        + (BACKGROUND_FINISH if background else "")
     )
+
+
+# VISION 11.5, for a background run's final report.
+BACKGROUND_FINISH = " A background run with nothing new for the owner ends with an empty reply."
 
 
 def limit_fallback(arabic: bool) -> str:

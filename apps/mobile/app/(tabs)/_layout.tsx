@@ -28,7 +28,7 @@ export default function TabsLayout() {
           <FloatingTabBar
             section={ROOTS[state.index] ?? "chats"}
             chatsBadge={unreadBadgeTotal(data.inbox)}
-            updatesDot={data.attention.length > 0}
+            updatesDot={data.attentionUnseen > 0}
             onTab={(root: RootTab) => {
               lists.end();
               router.navigate(root === "chats" ? "/" : (`/${root}` as never));

@@ -33,7 +33,7 @@ from lonora_contracts.genui_expr import environment, evaluate, references, rende
 from lonora_contracts.genui_intents import REGISTRY, intent_denied
 from lonora_contracts.instrument_names import known_names
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
-from lonora_core.search_fold import fold
+from lonora_core.search_fold import TASHKEEL, fold
 
 from .context.financial_result import FINANCIAL_CALLS
 from .genui_capabilities import UiCapabilities
@@ -87,10 +87,22 @@ HEIGHTS = {
 }
 # A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
 # journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
-# counts toward the 560 px budget like any block, and is never folded). A Secret card grows
-# with the fields the agent asked for: 305 px and 95 px a field (measured 398 px for one
-# field, 493 for two, 588 for three, 1,063 for eight; a broker card's two fields, 493).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "secret": 305}
+# counts toward the 560 px budget like any block, and is never folded). The Secret and
+# Mandate cards are counted at their tallest for an 80-character name of words (the
+# contract's longest), which is the English card, whose lines are longer; a Secret card
+# without the line below. A Secret card grows with the fields the agent asked for: 365 px
+# and 95 px a field (measured 460 px for one field, 555 for two, 650 for three with an
+# Arabic or a Latin name, a broker card's two fields 550; the Arabic card 440, 535 and 630,
+# and 398, 493 and 588 with a short name). A Mandate card is counted with Ask and a signed
+# grant's line (measured 404 px with an Arabic or a Latin name; the Arabic card 362 px, 386
+# with a Latin name). A name of wide capitals (W, M) wraps further: a Mandate card up to
+# 500 px, a Secret card 63 px more. Not counted: a Secret card that replaces values already
+# saved (never a broker card) shows one more line, 48 px more for one field, 69 for two, 90
+# for three. Counting it would make every two-field card that can show it fall back
+# (100 + 555 + 69 = 724 px), and the clients read it when the card is shown, after it was
+# compiled. Such a card is that much taller than counted: a two-field one with that name,
+# about 724 px, is not caught by the 720 px rule.
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 405, "secret": 365}
 SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
@@ -110,6 +122,10 @@ FIXED_LABELS = (
     "نُفذت",
     "It did not execute",
     "لم تُنفذ",
+    "Trading mode",
+    "التفويض",
+    "وكّله",
+    "يستأذن",
     "Secret",
     "بيانات سرّية",
     "Connect trading account",
@@ -122,6 +138,9 @@ FIXED_LABELS = (
 # A fixed card's button words that are ordinary as a heading or a badge («غير معروفة»):
 # refused only as an agent's button label, which is what the Settle card's buttons are.
 FIXED_CONTROL_LABELS = ("Unknown", "غير معروفة")
+# Fixed-card words that are also everyday words: refused only as a whole label, never as the
+# start of one ("Full report", "Ask about gold").
+FIXED_WHOLE = ("Full", "Ask")
 
 
 @dataclass
@@ -465,27 +484,71 @@ CONFUSABLES = str.maketrans(
 )
 
 
-def _plain(text: str) -> str:
-    """The comparable form: compatibility forms unified, invisible format characters (zero
-    width joiners and spaces, direction marks) removed, look-alike letters read as Latin, then
-    folded before punctuation becomes space, so Arabic diacritics never split a word."""
+# Marks that draw nothing and survive NFKC: the combining grapheme joiner and the variation
+# selectors.
+INVISIBLE_MARKS = frozenset(
+    ["\u034f", *map(chr, range(0xFE00, 0xFE10)), *map(chr, range(0xE0100, 0xE01F0))]
+)
+
+
+def _visible(text: str) -> str:
+    """Compatibility forms unified, invisible format characters (zero width joiners and
+    spaces, direction marks) and marks (`INVISIBLE_MARKS`) removed, and look-alike letters
+    read as the letters they imitate (Latin or Arabic)."""
     text = unicodedata.normalize("NFKC", text)
-    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
-    return " ".join(re.sub(r"[^\w\s]", " ", fold(text.translate(CONFUSABLES))).split())
+    text = "".join(
+        ch for ch in text if unicodedata.category(ch) != "Cf" and ch not in INVISIBLE_MARKS
+    )
+    return text.translate(CONFUSABLES)
+
+
+def _folded(text: str) -> str:
+    """The visible text folded; the punctuation is kept."""
+    return fold(_visible(text))
+
+
+def _plain(text: str) -> str:
+    """The comparable form: the folded text with punctuation as space, folded first so Arabic
+    diacritics never split a word."""
+    return " ".join(re.sub(r"[^\w\s]", " ", _folded(text)).split())
 
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
 CONTROL_PLAIN = FIXED_PLAIN | frozenset(_plain(label) for label in FIXED_CONTROL_LABELS)
+WHOLE_PLAIN = frozenset(_plain(label) for label in FIXED_WHOLE)
 MARKS_PLAIN = tuple(_plain(mark) for mark in FRAME_MARKS)
 # The frame's own icon: an agent's node never wears it.
 FRAME_ICON = "shield"
 LITERAL = re.compile(r"'([^']*)'")
 
 
+# The Mandate card's state line, «الذهب · الآن: وكّله» / "Gold · Now: Full" (the clients'
+# mandateNow and mode words): only that card says an agent's mode is now one or the other.
+# Only its own form counts: a line, or a part of one between the name's separators, that ends
+# with «الآن:» and a mode word after its start or any punctuation («الذهب، الآن: وكّله»), so a
+# sentence with the same words («قرّرت الآن: يستأذن», "What to do now: ask.") does not. The
+# line is split before it is folded, which removes the tatweel: a dash, a slash or a tatweel
+# separates where it does not join two letters («الذهب ـ الآن: وكّله», "Gold - Now: Full"), so
+# a compound stays one word ("Order book, now: Ask-heavy.") and so does a stretched one («وكّـله»).
+MODE_NOW = ("Now", "الآن")
+MODE_WORDS = ("Full", "Ask", "وكّله", "يستأذن")
+STATE_PARTS = re.compile(
+    rf"[·•|\u2013\u2014]|(?<![\w{TASHKEEL}])[-/\u0640]|[-/\u0640](?![\w{TASHKEEL}])"
+)
+STATE_LINE = re.compile(
+    rf"(?:^|[^\w\s])\s*(?:{'|'.join(map(_folded, MODE_NOW))})[^\w:]*:"
+    rf"\W*(?:{'|'.join(map(_folded, MODE_WORDS))})\W*$"
+)
+
+
 def shows_frame_mark(text: str) -> bool:
-    """Text that says what only the trust frame says."""
+    """Text that says what only the trust frame, or the Mandate card's state line, says."""
     plain = f" {_plain(text)} "
-    return any(f" {mark} " in plain for mark in MARKS_PLAIN)
+    return any(f" {mark} " in plain for mark in MARKS_PLAIN) or any(
+        STATE_LINE.search(fold(part))
+        for line in text.splitlines()
+        for part in STATE_PARTS.split(_visible(line))
+    )
 
 
 # What separates a fixed card's title from what follows it («طلب موافقة · XAUUSD»).
@@ -502,7 +565,9 @@ def imitates_fixed_card(text: str, *, control: bool = False) -> bool:
         return True
     plain = _plain(text)
     if control:
-        return any(plain == label or plain.startswith(label + " ") for label in CONTROL_PLAIN)
+        return plain in WHOLE_PLAIN or any(
+            plain == label or plain.startswith(label + " ") for label in CONTROL_PLAIN
+        )
     return plain in FIXED_PLAIN or any(
         _plain(part) in FIXED_PLAIN for part in SEGMENTS.split(text) if part.strip()
     )

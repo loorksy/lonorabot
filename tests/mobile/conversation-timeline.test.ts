@@ -130,6 +130,26 @@ test("a fixed card's row is shown only while no message embeds its record as a s
   assert.ok(ids(conversationTimeline(messages, [approval])).includes("approval:request"));
   const forged = [...messages, slotting(3, "trade_approval", "request", { when: "false" })];
   assert.ok(ids(conversationTimeline(forged, [approval])).includes("approval:request"));
+  // An owner-action fixed card steps aside for a slot of its own card only.
+  const mandate = {
+    id: "mode-card",
+    kind: "trading_mode",
+    thread_id: "thread",
+    created_at: "2026-10-15T10:00:01Z",
+    timeline_seq: 2,
+  } as unknown as OwnerAction;
+  const withMandate = (rows: Message[]) => ids(conversationTimeline(rows, [], [mandate]));
+  assert.ok(withMandate(messages).includes("owner_action:mode-card"));
+  assert.ok(
+    !withMandate([...messages, slotting(3, "mandate", "mode-card")]).includes(
+      "owner_action:mode-card",
+    ),
+  );
+  assert.ok(
+    withMandate([...messages, slotting(3, "settle", "mode-card")]).includes(
+      "owner_action:mode-card",
+    ),
+  );
   // A message the client draws as a question's or a peer's card never draws its slot, so
   // the row stays.
   const asked = slotting(3, "trade_approval", "request");

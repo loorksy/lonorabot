@@ -101,8 +101,11 @@ async def prepare_delete(
     agent_id: str | None = None,
     thread_id: str | None = None,
     account_id: str | None = None,
-) -> None:
-    """Refuse while an obligation is unsettled; otherwise settle what depended on it."""
+) -> list[str]:
+    """Refuse while an obligation is unsettled; otherwise settle what depended on it.
+
+    Returns the agents whose grant a conversation delete revoked: once the conversation
+    is gone, the caller hands each over to its own continuous task (4.5)."""
     from .account_authority import changed, revoke
     from .owner_actions import settle_for_delete
     from .trade_approvals import approval_event
@@ -132,9 +135,18 @@ async def prepare_delete(
         grants = grants.where(AccountAuthorityRow.thread_id == thread_id)
     if account_id is not None:
         grants = grants.where(AccountAuthorityRow.account_id == account_id)
+    handover: list[str] = []
     for grant in list(await session.scalars(grants.order_by(AccountAuthorityRow.id))):
         if grant.status == "active":
-            await revoke(session, owner_id, grant.id)
+            # A revoked grant hands a Full agent over to its own continuous task (4.5).
+            # A deleted agent gets none. A conversation delete hands over after the
+            # delete, so the task never reports to the conversation being deleted.
+            await revoke(
+                session, owner_id, grant.id, handover=agent_id is None and thread_id is None
+            )
+            if thread_id is not None:
+                handover.append(grant.agent_id)
         else:
             grant.status = "revoked"
             changed(session, grant)
+    return handover

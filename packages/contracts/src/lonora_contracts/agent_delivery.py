@@ -3,8 +3,9 @@
 The rules only narrow delivery inside Lonora, the one channel to the owner (Q53). A
 critical or action_required item always shows (Q4); a rule never grants anything.
 ``daily_limit`` counts the agent's non-urgent alerts since the owner's local midnight;
-beyond it (or with ``in_app`` off) an alert stays in Activity only. ``calls`` off means
-the agent never rings the owner, whatever the owner-wide reach-me channel says.
+beyond it (or with ``in_app`` off) an alert is recorded but not shown: no attention item
+is made, and the agent is told to say it in its reply. ``calls`` off means the agent
+never rings the owner, whatever the owner-wide reach-me channel says.
 """
 
 from pydantic import Field

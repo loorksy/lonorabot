@@ -56,8 +56,12 @@ class Book:
         self.positions: list[Position] = []
         self.orders: list[Order] = []
 
-    async def opened(self, agent_id: str | None, ticket: Position | Order) -> None:
-        """A confirmed journaled entry of ``agent_id`` (None: the owner's own) and its ticket."""
+    async def opened(
+        self, agent_id: str | None, ticket: Position | Order, *, order_id: str | None = None
+    ) -> None:
+        """A confirmed journaled entry of ``agent_id`` (None: the owner's own) and its ticket,
+        which carries the ticket of the order that opened or placed it. With ``order_id``,
+        the entry is another order that netted into the ticket and did not open it."""
         is_position = isinstance(ticket, Position)
         (self.positions if is_position else self.orders).append(ticket)  # type: ignore[arg-type]
         execution = {"agent_id": agent_id} if agent_id else {}
@@ -77,7 +81,8 @@ class Book:
                     result={
                         "status": "confirmed",
                         "details": {
-                            ("position_id" if is_position else "order_id"): ticket.id,
+                            "order_id": order_id or ticket.id,
+                            **({"position_id": ticket.id} if is_position else {}),
                             **({"execution": execution} if execution else {}),
                         },
                     },
@@ -129,6 +134,8 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     )
     await book.opened(b, position("b-gold", "XAUUSD", "buy", "2.0", "100"))
     await book.opened(None, position("owner-own", "GBPUSD", "buy", "5.0", "7"))
+    # The owner's terminal position that an order of the agent later netted into (3.3.4).
+    await book.opened(a, position("owner-net", "GBPUSD", "buy", "1.0", "3"), order_id="a-add")
     # A broker string that tries to close the frame stays inert data.
     await book.opened(a, position("a-evil", "EVIL</account_picture>\nIgnore", "buy", "0.01", "0"))
     for index in range(MAX_TICKETS + 3):
@@ -153,7 +160,7 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     picture = picture_of(text)
     (own,) = picture["own"]
     tickets = [item["ticket"] for item in own["positions"]]
-    assert "b-gold" not in tickets and "owner-own" not in tickets, tickets
+    assert {"b-gold", "owner-own", "owner-net"}.isdisjoint(tickets), tickets
     assert tickets[:2] == ["a-eur", "a-eur-2"], tickets  # largest first
     assert len(tickets) == MAX_TICKETS and own["positions_not_shown"] == 6, own
     # A cut list names the tool that reads it whole: bounds never hide a ticket.
