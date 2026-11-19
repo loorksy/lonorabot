@@ -239,6 +239,9 @@ async def secret_facts(
         # never under a workspace name.
         facts["account"] = payload["account"]
         facts["purpose"] = payload.get("purpose", CONNECT)
+        if payload.get("server_from"):
+            # Saving it moves the connection off this server: the owner sees that too.
+            facts["server_from"] = payload["server_from"]
         return facts
     if row.status != "pending":
         facts["saves_as"] = [str(name) for name in row.result.get("saved", [])]
@@ -423,27 +426,31 @@ def saved_prompt(row: OwnerActionRow) -> str:
 
 
 # What a broker failure means, said as what MetaApi and Lonora observed (never a cause
-# MetaApi did not report), with the owner's fix. Also read by the system alerts.
+# MetaApi did not report), with the owner's fix. The system alerts read only what was
+# observed (LOGIN_OBSERVED): an account that was trading needs no first-connect causes.
 LOGIN_CHECK = (
-    "The usual causes: the server name is not the one the account is on now (Exness moves "
-    "demo accounts between Exness-MT5TrialNN servers), or the password is not the main "
-    "(master) trading password, for example the read-only investor password. Ask the "
-    "owner for the server name exactly as his MT5 app shows it now, then call "
-    "broker_connect with it; its card asks for the main password."
+    "The usual causes: a wrong password, or a server name the account is no longer on "
+    "(Exness moves demo accounts between Exness-MT5TrialNN servers). Ask the owner for the "
+    "server name exactly as his MT5 app shows it now. For another server, call "
+    "broker_connect with it; for the same server, a new password goes through broker_manage "
+    "rotate_password when the connection is saved, or broker_connect when it is not."
 )
-BROKER_CAUSES = {
+LOGIN_OBSERVED = {
     "broker_login_not_established": "MetaApi has the account's terminal deployed, but it "
-    "has not logged in to the broker: MetaApi reports it DISCONNECTED and gives no reason, "
-    "so Lonora cannot see why. " + LOGIN_CHECK,
+    "is not logged in to the broker: MetaApi reports it DISCONNECTED and gives no reason, "
+    "so Lonora cannot see why.",
     "broker_login_rejected": "MetaApi reports the broker refusing the terminal's login "
-    "(DISCONNECTED_FROM_BROKER): a wrong password or server name, or the broker's server "
-    "down. " + LOGIN_CHECK,
+    "(DISCONNECTED_FROM_BROKER); the broker's server may also be down for a while.",
+}
+BROKER_CAUSES = {
+    **{code: observed + " " + LOGIN_CHECK for code, observed in LOGIN_OBSERVED.items()},
     "broker_password_rejected": "MetaApi could not log in to the broker with this login, "
     "password and server name; it does not say which is wrong. " + LOGIN_CHECK,
     "broker_server_not_found": "MetaApi does not know this server name. Ask the owner for "
     "the server name exactly as his MT5 app shows it now, then call broker_connect with it.",
-    "broker_connect_timeout": "MetaApi did not finish deploying the account's terminal in "
-    "time; nothing at the broker was confirmed.",
+    "broker_connect_timeout": "MetaApi did not have the account's terminal deployed and "
+    "logged in to the broker within the time Lonora waits; nothing at the broker was "
+    "confirmed.",
 }
 
 
@@ -457,11 +464,17 @@ def broker_prompt(row: OwnerActionRow) -> str:
             "is redeploying with it.",
             REPLACE_TOKEN: "The new MetaApi token now serves every connected account.",
         }[purpose]
-        if row.payload.get("server_from"):
+        moved = row.payload["account"]["server"] if row.payload.get("server_from") else None
+        if moved:
+            # What MetaApi stored before the move, read when it was made.
+            was = str(result.get("server_was") or "")
             done = (
-                f"MetaApi now has the account on server {row.payload['account']['server']} "
-                f"(it had {row.payload['server_from']}) with the new trading password, and "
-                "the terminal is redeploying with them."
+                f"MetaApi already had the account on server {moved}; the new trading password "
+                "is stored there and the terminal is redeploying with it."
+                if was.casefold() == moved.casefold()
+                else f"MetaApi now has the account on server {moved}"
+                + (f" (it had {was})" if was else "")
+                + " with the new trading password, and the terminal is redeploying with them."
             )
         if purpose == ROTATE_PASSWORD:
             done += " Whether the broker accepts the login shows only when account_read answers."
@@ -469,9 +482,10 @@ def broker_prompt(row: OwnerActionRow) -> str:
             return done + " You never see it. Tell the owner in one line."
         if result.get("code") == "broker_rotation_incomplete":
             return (
-                "MetaApi may already hold the new trading password, but Lonora could not record "
-                "it. Rotate again with broker_manage. You never see it. Tell the owner in one "
-                "line."
+                "MetaApi may already hold the new trading password"
+                + (f" and server {moved}" if moved else "")
+                + ", but Lonora could not record the change. Rotate again with broker_manage. "
+                "You never see it. Tell the owner in one line."
             )
         if result.get("code") == "broker_redeploy_failed":
             return (
@@ -486,16 +500,22 @@ def broker_prompt(row: OwnerActionRow) -> str:
     observed: dict[str, Any] = result.get("observed") or {}
     named = f"account {observed.get('login')} on {observed.get('server')}"
     if result.get("provisioning") == "linked":
+        # Reading starts only once MetaApi reported the terminal connected to the broker;
+        # the read code says what was seen after that.
         cause = BROKER_CAUSES.get(str(result.get("read_code")))
         return (
-            f"The owner's {named} is saved as connection {result.get('connection_id')} and "
-            "MetaApi has its terminal deployed, but the terminal has not answered a read "
-            f"({result.get('read_code')}): the broker login is not confirmed and no balance "
-            "was read. That login and server are MetaApi's stored record of the account, "
-            "not a broker answer. "
-            + (cause + " " if cause else "")
-            + "Tell the owner in one line that it is saved and waiting for the broker login"
-            + (", and what to check." if cause else "; read it again with account_read later.")
+            f"The owner's {named} is saved as connection {result.get('connection_id')}. "
+            "MetaApi reported its terminal connected to the broker when the connection was "
+            f"saved, but no account read answered in time ({result.get('read_code')}), so no "
+            "balance was read. That login and server are MetaApi's stored record of the "
+            "account, not a broker answer. "
+            + (
+                cause + " Tell the owner in one line that it is saved, that no balance could "
+                "be read, and what to check."
+                if cause
+                else "Tell the owner in one line that it is saved and no balance could be "
+                "read yet; read it again with account_read later."
+            )
         )
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
@@ -520,7 +540,9 @@ def broker_prompt(row: OwnerActionRow) -> str:
     trading = (
         "trading is allowed"
         if facts.get("trade_allowed") and not facts.get("investor_mode")
-        else "trading is NOT allowed (an investor password or a read-only account)"
+        else "trading is NOT allowed (an investor password or a read-only account; if the "
+        "owner typed the investor password, broker_manage rotate_password asks for the main "
+        "(master) one)"
     )
     return (
         f"The owner's {named} is connected as connection {result.get('connection_id')}: "

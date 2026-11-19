@@ -556,8 +556,8 @@ export const labels = {
     "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat.",
   ],
   broker_login_not_established: [
-    "الحساب يعمل لدى MetaApi لكنه غير مسجَّل الدخول لدى الوسيط. غالبًا تغيّر اسم الخادم (تنتقل الحسابات التجريبية بين الخوادم) أو أن كلمة المرور ليست الرئيسية: تحقّق منهما في تطبيق MT5 ثم أخبر لونورا في المحادثة.",
-    "MetaApi has the account running, but it is not logged in to the broker. Usually the server name changed (demo accounts move between servers) or the password is not the main one: check both in your MT5 app, then tell Lonora in chat.",
+    "الحساب يعمل لدى MetaApi لكنه لم يسجّل الدخول لدى الوسيط بعد. إن استمر ذلك بضع دقائق فتحقّق من اسم الخادم في تطبيق MT5 (تنتقل الحسابات التجريبية بين الخوادم) وأخبر لونورا في المحادثة.",
+    "MetaApi has the account running, but it is not logged in to the broker yet. If this lasts a few minutes, check the server name in your MT5 app (demo accounts move between servers) and tell Lonora in chat.",
   ],
   broker_account_not_ready: [
     "حساب الوسيط غير جاهز بعد لدى MetaApi. إن استمر ذلك فاطلب من لونورا في المحادثة.",

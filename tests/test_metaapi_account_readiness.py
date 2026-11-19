@@ -259,8 +259,9 @@ def test_a_refused_login_becomes_the_owners_problem_after_the_grace() -> None:
 def test_a_lasting_login_problem_reaches_lonora_with_what_was_seen_and_the_fix(
     reason: str, observed: str
 ) -> None:
-    """The lost-connection alert for a login reason tells Lonora what MetaApi reported
-    and the owner's fix; a plain timeout gets no invented cause."""
+    """The lost-connection alert for a login reason tells Lonora what MetaApi reported,
+    and only that: the account may have been trading until the drop, so no first-connect
+    cause is attached. A plain timeout gets no invented cause."""
     from lonora_db.schema import AttentionRow
     from lonora_db.system_alerts import alert_prompt
 
@@ -276,7 +277,7 @@ def test_a_lasting_login_problem_reaches_lonora_with_what_was_seen_and_the_fix(
         return alert_prompt(item) or ""
 
     told = prompt(reason)
-    assert observed in told and "exactly as his MT5 app shows it now" in told
-    assert "main (master) trading password" in told and "investor password" in told
+    assert observed in told and ("not logged in" in told or "refusing" in told)
+    assert "MT5 app" not in told and "investor" not in told and "Exness" not in told
     plain = prompt("broker_connection_timeout")
     assert "MT5 app" not in plain and "investor" not in plain

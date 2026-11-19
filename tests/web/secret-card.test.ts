@@ -188,7 +188,8 @@ test("a settled broker card says how connecting ended", () => {
     ] as const) {
       assert.equal(ownerActionCard({ ...broker, result: { provisioning } }, locale).outcome, line);
     }
-    // A new password or token never claims a connection or a balance.
+    // A new password or token never claims a connection or a balance, and never waits for
+    // a broker login.
     for (const purpose of ["rotate_password", "replace_token"] as const) {
       const changed = {
         ...broker,
@@ -196,6 +197,8 @@ test("a settled broker card says how connecting ended", () => {
         result: { provisioning: "connected" as const },
       };
       assert.equal(ownerActionCard(changed, locale).outcome, text.brokerChanged);
+      const sending = { ...changed, result: { provisioning: "pending" as const } };
+      assert.equal(ownerActionCard(sending, locale).outcome, text.brokerSending);
     }
   }
 });
@@ -226,6 +229,33 @@ test("a broker card for a new password or token is titled for what it changes", 
       );
       assert.equal(spec.title, title);
     }
+  }
+});
+
+test("a new-password card that moves the connection says so beside the account", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const secret = {
+      label: "70000001 @ Exness-MT5Trial16",
+      fields: [{ key: "PASSWORD", label: "Trading password", secret: true }],
+      destination: "broker" as const,
+      agent_name: "Lonora",
+      account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" as const },
+      purpose: "rotate_password" as const,
+    };
+    const move = text.brokerMoveLine
+      .replace("{from}", isolated("Exness-MT5Trial8"))
+      .replace("{server}", isolated("Exness-MT5Trial16"));
+    const moved = ownerActionCard(
+      {
+        ...card,
+        facts: { several_accounts: false, secret: { ...secret, server_from: "Exness-MT5Trial8" } },
+      },
+      locale,
+    );
+    assert.equal(moved.lines[1], move);
+    const plain = ownerActionCard({ ...card, facts: { several_accounts: false, secret } }, locale);
+    assert.ok(!plain.lines.includes(move));
   }
 });
 

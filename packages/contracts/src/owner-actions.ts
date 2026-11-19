@@ -200,6 +200,8 @@ export type OwnerAction = {
       account?: { login: string; server: string; platform: "mt4" | "mt5" };
       /** A broker card: connect the account, store its new password, or a new token. */
       purpose?: "connect" | "rotate_password" | "replace_token";
+      /** A new-password card that moves the connection: the server it is on now. */
+      server_from?: string;
     };
   };
   /** Confirming needs the owner's passkey: it signs a grant. */

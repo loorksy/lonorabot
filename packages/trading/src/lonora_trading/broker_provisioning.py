@@ -536,11 +536,16 @@ async def _deploy(
                     if row.result.get("provisioning") != "deploying":
                         return
                     await _record(session, row, deployed_at=since)
-            if _late(started) or (since is not None and _late(since, LOGIN_DEADLINE)):
+            waited = since is not None and _late(since, LOGIN_DEADLINE)
+            if _late(started) or waited:
+                # Named by what MetaApi reports about the broker login: a refusal whenever
+                # it reports one, a login not made only once the login wait has passed (a
+                # terminal first seen deployed moments ago may still be logging in).
                 code = "broker_connect_timeout"
-                if state.deployed:  # Named by what MetaApi reports about the broker login.
-                    refused = state.connection_status == "DISCONNECTED_FROM_BROKER"
-                    code = "broker_login_rejected" if refused else "broker_login_not_established"
+                if state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER":
+                    code = "broker_login_rejected"
+                elif waited:
+                    code = "broker_login_not_established"
                 await failing(code)
             return
         code = await _connect(db, failing, state, token, token_id, password_id)

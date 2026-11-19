@@ -166,18 +166,22 @@ async def rotate_password(
     db: Database, brokers: Any, secrets: BrokerSecrets, owner_id: str, card: Any
 ) -> str | None:
     """Store the owner's new password at MetaApi and redeploy with it (Q7), with the
-    card's server name when the owner named another one (a reconnect to the server the
-    account is on now). Returns a failure code, or None when done. The connection's
-    version moves under the send lock, so no send uses a connection object from before
-    the change."""
+    card's server name when the card moves the account (``server_from``: the owner named
+    the server it is on now); a plain new password never changes the server. The
+    connection records the server MetaApi then stores. Returns a failure code, or None
+    when done. The connection's version moves under the send lock, so no send uses a
+    connection object from before the change."""
+    from lonora_db.schema import OwnerActionRow
     from lonora_db.secrets import metaapi_password_name
 
     connection_id = str(card.payload["connection_id"])
+    moved_to = str(card.payload["account"]["server"]) if card.payload.get("server_from") else None
     new_password = await secrets.named(metaapi_password_name(card.id))
     if new_password is None:
         return "broker_secret_required"
     stored = sent = False
     old_password: Any = None
+    was: str | None = None
     try:
         repository = BrokerSessionRepository()
         async with db.sessions() as session:
@@ -194,10 +198,11 @@ async def rotate_password(
                 # Under the send lock: a send that won the lock may have ended uncertain.
                 await refuse_unsettled(db, owner_id, connection_id)
                 async with asyncio.timeout(METAAPI_SECONDS):
-                    await provisioning.update_password(
-                        payload.account_id,
-                        await secrets.read(new_password),
-                        server=card.payload["account"]["server"],
+                    if moved_to:
+                        # The server MetaApi stores before the move, which the wake names.
+                        was = (await provisioning.state(payload.account_id)).server
+                    now = await provisioning.update_password(
+                        payload.account_id, await secrets.read(new_password), server=moved_to
                     )
                 sent = True
                 # MetaApi holds the new password now: record it and move the version at once.
@@ -207,7 +212,12 @@ async def rotate_password(
                         owner_id,
                         connection_id,
                         state={"password_secret_id": new_password},
+                        server=now.server or moved_to,
                     )
+                    if moved_to:
+                        move_card = await session.get(OwnerActionRow, card.id)
+                        assert move_card is not None
+                        move_card.result = {**move_card.result, "server_was": was}
                 stored = True
                 async with asyncio.timeout(METAAPI_SECONDS):
                     await provisioning.redeploy(payload.account_id)
@@ -328,10 +338,11 @@ async def deploy(db: Database, brokers: Any, owner_id: str, connection_id: str) 
                     "connection_id": connection_id,
                     "state": state.state,
                     "note": "Already running at MetaApi; nothing was changed. If it still "
-                    "fails, its terminal is not logged in to the broker (usually a server "
-                    "name the account is no longer on, or a password that is not the main "
-                    "one: ask the owner to check both in his MT5 app, then broker_connect "
-                    "with the server as shown), or MetaApi is unreachable.",
+                    "fails, its terminal is not logged in to the broker (usually a wrong "
+                    "password or a server name the account is no longer on: ask the owner "
+                    "for the server exactly as his MT5 app shows it; broker_connect with "
+                    "another server, broker_manage rotate_password for a new password), or "
+                    "MetaApi is unreachable.",
                 }
             state = await provisioning.deploy(payload.account_id)
     except TimeoutError:

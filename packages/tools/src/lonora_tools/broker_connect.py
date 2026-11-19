@@ -76,11 +76,31 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 details={"hint": "That account is being connected; you are woken when done."},
             )
         typed = {"login": login, "server": server, "platform": platform}
+        try:
+            # The exact login and server first: a saved connection is never moved onto it.
+            await repository.assert_unique(
+                session,
+                context.owner_id,
+                {"provider": "metaapi", "account_id": "provisioning:" + run.id},
+                identity=typed,
+            )
+        except LonoraError as failure:
+            raise ToolRefusal(
+                failure.code,
+                failure.status,
+                details={
+                    "hint": "This login and server already have a saved connection. For a "
+                    "new password, use broker_manage rotate_password with its connection_id "
+                    "from list_accounts; for another server, call broker_connect with the "
+                    "server exactly as the owner's MT5 app shows it."
+                },
+            ) from None
         moved = await connected_elsewhere(repository, session, context.owner_id, typed)
         if moved is not None:
-            # The owner names another server for a connected login (a demo account moved
-            # between servers): that connection's MetaApi account moves to it, with the
-            # password typed on the card. Never a second connection on the new server.
+            # The owner names another server of the same broker for a saved login (a demo
+            # account moved between servers): that connection's MetaApi account moves to
+            # it, with the password typed on the card. Never a second connection on the new
+            # server.
             connection_id, server_from = moved
             subject, payload = broker_card_payload(
                 login=login,
@@ -91,25 +111,6 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 connection_id=connection_id,
             )
             payload["server_from"] = server_from
-        else:
-            try:
-                await repository.assert_unique(
-                    session,
-                    context.owner_id,
-                    {"provider": "metaapi", "account_id": "provisioning:" + run.id},
-                    identity=typed,
-                )
-            except LonoraError as failure:
-                raise ToolRefusal(
-                    failure.code,
-                    failure.status,
-                    details={
-                        "hint": "This login and server are already connected. For a new "
-                        "password, use broker_manage rotate_password with its connection_id "
-                        "from list_accounts; for another server, call broker_connect with "
-                        "the server exactly as the owner's MT5 app shows it."
-                    },
-                ) from None
         row, created = await propose_effect(
             session,
             context.owner_id,
@@ -126,8 +127,9 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             **card_summary(row, created, thread.id, False),
             "asks_for": [field["key"] for field in payload["fields"]],
             "next": (
-                f"This login is connected on server {moved[1]}: after the owner saves, "
-                f"MetaApi's account moves to {server} with the new password and redeploys."
+                f"This login has a saved connection on server {moved[1]}: after the owner "
+                f"saves, MetaApi's account moves to {server} with the new password and "
+                "redeploys."
                 if moved
                 else "The server provisions and deploys the account after the owner saves."
             )
@@ -139,9 +141,12 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def connected_elsewhere(
     repository: BrokerSessionRepository, session: Any, owner_id: str, typed: dict[str, str]
 ) -> tuple[str, str] | None:
-    """A MetaApi connection of the owner for this login and platform on another server:
-    its id and server. The last recorded identity counts even after a credential change,
-    since a change of password or server keeps the login."""
+    """A MetaApi connection of the owner for this login and platform on another server of
+    the same broker: its id and server. A login number is unique only within one broker,
+    so the broker is the server name's part before the first "-" (Exness-MT5Trial8 and
+    Exness-MT5Trial16); the same number at another broker is another account. The last
+    recorded identity counts even after a credential change, since a change of password
+    or server keeps the login."""
     login, server, platform = broker_identity_key(typed) or ("", "", "")
     for row in await repository.all_connections(session, owner_id):
         saved = row.state.get("broker_identity")
@@ -152,6 +157,7 @@ async def connected_elsewhere(
             and known is not None
             and (known[0], known[2]) == (login, platform)
             and known[1] != server
+            and known[1].split("-", 1)[0] == server.split("-", 1)[0]
         ):
             return row.id, str(identity["server"])
     return None
@@ -167,8 +173,8 @@ def tools() -> list[Tool]:
             "app shows it now, then call with them; platform mt4/mt5 only when the server "
             "name does not say. The server shows a card for the main trading password (and "
             "the MetaApi API token the first time), provisions and deploys the account, and "
-            "wakes you with what MetaApi and the broker answered. A connected login on "
-            "another server is moved to this one. Only on the owner's own request.",
+            "wakes you with what MetaApi and the broker answered. A saved login on another "
+            "server of the same broker is moved to this one. Only on the owner's own request.",
             BrokerConnectInput,
             connect,
             search_terms="link add broker trading account metatrader exness login password "

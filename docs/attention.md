@@ -58,8 +58,9 @@ woken for yet.
   account or operation id, the adapter's reason code, the start time). No text from a
   model, a peer, a page or the owner reaches it. A lost connection whose reason is a
   broker login MetaApi reports failing (`broker_login_rejected`,
-  `broker_login_not_established`) also carries the fixed text of what was observed and
-  the owner's fix (`BROKER_CAUSES` in `lonora_db/secret_cards.py`).
+  `broker_login_not_established`) also carries the fixed text of what was observed, and
+  only that (`LOGIN_OBSERVED` in `lonora_db/secret_cards.py`): the account may have been
+  trading until the drop, so no first-connect cause is attached.
 - It keeps Lonora's normal authority: it is not observe-only.
 - A paused Lonora is not woken (4.7); the owner still has the item, and Lonora is woken
   for it on the first tick after it resumes, while the problem still stands. A wake

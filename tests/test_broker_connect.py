@@ -704,8 +704,44 @@ async def test_a_deployed_terminal_not_logged_in_fails_with_what_lonora_saw(
         assert failed["started_at"] != "2000-01-01T00:00:00+00:00"
         prompt = await world.wake_prompt(card_id)
         assert prompt is not None and code in prompt and observed in prompt
-        assert "exactly as his MT5 app shows it now" in prompt and "investor password" in prompt
+        assert "exactly as his MT5 app shows it now" in prompt and "rotate_password" in prompt
+        # An investor password connects read-only: it is never named as a login cause.
+        assert "investor" not in prompt
         assert "connected" not in prompt.replace("DISCONNECTED", "")
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_terminal_first_seen_deployed_at_the_deadline_names_no_login_cause() -> None:
+    """The whole wait ends just as MetaApi first reports the terminal deployed and not
+    logged in: the login wait has not run, so the card fails as a timeout, with no cause
+    for a login nobody waited for."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    account = login()
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Late deploy")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway(1)
+            assert (await world.card(card_id)).result["provisioning"] == "deploying"
+            api.servers[SERVER].pop(account)  # DISCONNECTED once deployed, no reason given
+            await backdate(world, card_id, "started_at")
+            await world.gateway(1)
+        failed = (await world.card(card_id)).result
+        assert failed["provisioning"] == "failed", failed
+        assert failed["code"] == "broker_connect_timeout" and failed["deployed_at"]
+        prompt = await world.wake_prompt(card_id)
+        assert prompt is not None and "MT5 app" not in prompt
     finally:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
@@ -715,8 +751,8 @@ async def test_a_deployed_terminal_not_logged_in_fails_with_what_lonora_saw(
 @pytest.mark.asyncio
 async def test_a_connection_whose_first_read_never_answers_is_linked_not_connected() -> None:
     """MetaApi reported the terminal connected, so the connection is saved, but no read
-    answers before READ_DEADLINE: the card says saved and waiting for the broker login,
-    and the wake confirms no login, no identity and no balance."""
+    answers before READ_DEADLINE: the card says saved and no balance read, and the wake
+    says what was seen when, never a login still awaited and never a balance."""
     database()
     from check_streaming import Fixture
 
@@ -744,8 +780,11 @@ async def test_a_connection_whose_first_read_never_answers_is_linked_not_connect
         assert linked["read_code"].startswith("broker_")
         prompt = await world.wake_prompt(card_id)
         assert prompt is not None
-        assert "the broker login is not confirmed and no balance was read" in prompt
-        assert "MetaApi's stored record" in prompt and "waiting for the broker login" in prompt
+        assert "reported its terminal connected to the broker when the connection was saved" in (
+            prompt
+        )
+        assert "no balance was read" in prompt and "MetaApi's stored record" in prompt
+        assert "waiting for the broker login" not in prompt
         assert " is connected" not in prompt and "Balance" not in prompt
     finally:
         FakeMetaApiBroker.terminals.clear()
@@ -789,23 +828,149 @@ async def test_a_reconnect_with_the_server_the_account_moved_to_moves_the_same_a
             assert card.payload["connection_id"] == connected["connection_id"]
             assert card.payload["account"]["server"] == moved_to
             assert card.payload["server_from"] == SERVER
+            # The owner sees the move on the card he saves.
+            listed: Any = await fixture.request("GET", "/owner-actions?thread_id=" + card.thread_id)
+            shown_card = next(item for item in listed if item["id"] == card_id)
+            assert shown_card["facts"]["secret"]["server_from"] == SERVER
             assert (await world.save(card_id, {"PASSWORD": PASSWORD + "-main"})).status_code == 200
             await world.gateway(1)
-        assert (await world.card(card_id)).result["provisioning"] == "connected"
-        assert api.accounts[metaapi_id]["server"] == moved_to
-        assert api.accounts[metaapi_id]["connectionStatus"] == "CONNECTED"
-        assert [create["login"] for create in api.creates].count(account) == 1
-        assert {"redeploy", "update"} <= set(api.calls)
-        async with fixture.runtime.db.sessions() as session:
-            rows = [
-                row
-                for row in await session.scalars(select(BrokerSessionRow))
-                if account in str(row.state.get("broker_identity"))
+            assert (await world.card(card_id)).result["provisioning"] == "connected"
+            assert api.accounts[metaapi_id]["server"] == moved_to
+            assert api.accounts[metaapi_id]["connectionStatus"] == "CONNECTED"
+            assert [create["login"] for create in api.creates].count(account) == 1
+            assert {"redeploy", "update"} <= set(api.calls)
+            async with fixture.runtime.db.sessions() as session:
+                rows = [
+                    row
+                    for row in await session.scalars(select(BrokerSessionRow))
+                    if account in str(row.state.get("broker_identity"))
+                ]
+            assert [row.id for row in rows] == [connected["connection_id"]]
+            # The connection records the server MetaApi stores now.
+            assert rows[0].state["broker_identity"]["server"] == moved_to
+            prompt = await world.wake_prompt(card_id)
+            assert prompt is not None and f"on server {moved_to} (it had {SERVER})" in prompt
+            assert "Whether the broker accepts the login shows only when account_read" in prompt
+            # A later plain new password keeps MetaApi on the server it moved to.
+            thread = await fixture.conversation(agent)
+            context = await owner_says(fixture, agent, thread, "set a new password for it")
+            listed = await call(context, "list_accounts")
+            mine = [
+                item
+                for item in listed["accounts"]
+                if item["connection_id"] == connected["connection_id"]
             ]
-        assert [row.id for row in rows] == [connected["connection_id"]]
-        prompt = await world.wake_prompt(card_id)
-        assert prompt is not None and f"on server {moved_to} (it had {SERVER})" in prompt
-        assert "Whether the broker accepts the login shows only when account_read" in prompt
+            assert [item["broker_identity"]["server"] for item in mine] == [moved_to]
+            again = await call(
+                context,
+                "broker_manage",
+                account_id=connected["connection_id"],
+                action="rotate_password",
+            )
+            plain = await world.card(again["owner_action"]["id"])
+            assert plain.payload["account"]["server"] == moved_to
+            assert "server_from" not in plain.payload
+            assert (await world.save(plain.id, {"PASSWORD": PASSWORD + "-main"})).status_code == 200
+            await world.gateway(1)
+        assert (await world.card(plain.id)).result["provisioning"] == "connected"
+        assert api.accounts[metaapi_id]["server"] == moved_to
+        assert api.updates[-1]["server"] == moved_to  # the stored one, sent back unchanged
+        rotated = await world.wake_prompt(plain.id)
+        assert rotated is not None and "(it had" not in rotated
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_same_login_number_at_another_broker_is_another_account() -> None:
+    """A login number is unique only within one broker: the same number on another
+    broker's server gets its own connect card, and the saved connection's MetaApi account
+    is never touched."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    account = login()
+    other = "OtherBroker-MT5Live"
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}, other: {account: "x"}})
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Two brokers")
+        with installed():
+            first = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(first, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway()
+            connected = (await world.card(first)).result
+            assert connected["provisioning"] == "connected", connected
+            shown = await connect(fixture, agent, account, server=other)
+            card = await world.card(shown["owner_action"]["id"])
+        assert card.payload.get("purpose", "connect") == "connect"
+        assert "connection_id" not in card.payload and "server_from" not in card.payload
+        assert card.payload["account"]["server"] == other
+        assert "moves" not in shown["next"]
+        assert api.accounts[connected["metaapi_account_id"]]["server"] == SERVER
+        assert "update" not in api.calls
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_login_and_server_already_saved_is_refused_even_beside_another_server() -> None:
+    """The exact login and server are checked first: with saved connections for the same
+    login on two servers, connecting one of them again is refused, never a move of the
+    other onto it (two connections for one account)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.broker_sessions import BrokerSessionRepository
+    from lonora_db.schema import BrokerSessionRow, SecretRow
+    from lonora_db.secrets import METAAPI_TOKEN
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    account = login()
+    second = "Fixture-MT5Trial2"
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Two servers")
+        with installed():
+            first = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(first, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway()
+            connected = (await world.card(first)).result
+            assert connected["provisioning"] == "connected", connected
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                token = await session.scalar(
+                    select(SecretRow.id).where(
+                        SecretRow.scope == "broker", SecretRow.name == METAAPI_TOKEN
+                    )
+                )
+                # A connection saved before moves existed, for the same login elsewhere.
+                legacy = await BrokerSessionRepository().create(
+                    session,
+                    fixture.owner,
+                    {
+                        "provider": "metaapi",
+                        "account_id": api.link(account, second),
+                        "secret_id": token,
+                        "enabled": True,
+                    },
+                    broker_identity={"login": account, "server": second, "platform": "mt5"},
+                )
+            thread = await fixture.conversation(agent)
+            context = await owner_says(fixture, agent, thread, "connect my MT5 account")
+            code = await refused(context, "broker_connect", login=account, server=second)
+        assert code == "broker_account_already_connected"
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(BrokerSessionRow, connected["connection_id"])
+            assert row is not None and row.state["broker_identity"]["server"] == SERVER
+            assert await session.get(BrokerSessionRow, legacy.id) is not None
     finally:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)

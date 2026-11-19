@@ -428,6 +428,46 @@ test("a trading account page shows the broker's own balance, name, server and pa
   }
 });
 
+test("a simulation connection is named a simulation in the list and on its page, never Demo", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    // A stray simulation row carrying an MT5 login, as one made from the old form.
+    const row = {
+      id,
+      agent_id: null,
+      thread_id: null,
+      version: 1,
+      created_at: now,
+      updated_at: now,
+      state: {},
+      payload: { provider: "simulation", account_id: "70000001", enabled: true },
+    };
+    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
+    await page.route(`**/api/trading/accounts/${id}`, (route) =>
+      route.fulfill({ status: 409, json: { code: "simulation_snapshot_required" } }),
+    );
+    await page.route("**/api/market/symbols?*", (route) => route.fulfill({ json: [] }));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/integrations");
+    const listed = page.getByRole("button", { name: /70000001/ });
+    await expect(listed).toContainText("Simulation with an imported snapshot");
+    await expect(listed).toContainText("Simulation · ");
+    await expect(listed).not.toContainText("Demo");
+    await page.goto(`/app/broker-account/${id}`);
+    await expect(page.getByText("Simulation with an imported snapshot")).toBeVisible();
+    await expect(page.getByText("Import the simulation data")).toBeVisible();
+    await expect(page.getByText(/demo/i)).toHaveCount(0);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
 test("Global models opens the models page; voice and trading keep their settings screens", async ({
   page,
   context,

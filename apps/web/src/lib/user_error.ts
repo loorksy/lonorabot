@@ -151,7 +151,7 @@ export function userError(error: unknown) {
     case "broker_login_rejected":
       return t`The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat.`;
     case "broker_login_not_established":
-      return t`MetaApi has the account running, but it is not logged in to the broker. Usually the server name changed (demo accounts move between servers) or the password is not the main one: check both in your MT5 app, then tell Lonora in chat.`;
+      return t`MetaApi has the account running, but it is not logged in to the broker yet. If this lasts a few minutes, check the server name in your MT5 app (demo accounts move between servers) and tell Lonora in chat.`;
     case "broker_credentials_rejected":
       return t`Broker authentication was rejected.`;
     case "broker_candles_timeout":
@@ -189,7 +189,7 @@ export function userError(error: unknown) {
     case "broker_gateway_no_answer":
       return t`Lonora's server did not answer in time. If this was an order, check your trades before trying again.`;
     case "simulation_snapshot_required":
-      return t`Import a market snapshot before using the demo account.`;
+      return t`Import a market snapshot before using the simulation.`;
     case "invalid_request":
       return t`Check the required fields and try again.`;
     case "rate_limited":
