@@ -205,8 +205,10 @@ async def signed_in(
         oauth = current.oauth
         if oauth is None:
             return current
-        if oauth != config.oauth if refused else not renewal_due(current):
-            return current  # Renewed by another run meanwhile, or not due.
+        # Another run renewed it meanwhile (its record changed), or it is not due yet.
+        renewed_meanwhile = refused and oauth != config.oauth
+        if renewed_meanwhile or not (refused or renewal_due(current)):
+            return current
         if oauth.refresh_secret_id is None or current.secret_id is None:
             raise connect_again("mcp_sign_in_expired")
         secret = None
