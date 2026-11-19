@@ -235,7 +235,7 @@ class ResourceRepository:
 
 
 def execution_policy_key(owner_id: str, account_id: str) -> str:
-    """Settings key of an account's execution policy and owner money limits."""
+    """Settings key of an account's execution policy."""
     return f"execution_policy:{owner_id}:{account_id}"
 
 
