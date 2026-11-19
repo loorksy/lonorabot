@@ -1,7 +1,7 @@
 /** The owner's reach-me policy (`GET/PUT /api/voice/incoming/policy`). Quiet hours are kept
  * in minutes after local midnight (Q47); the whole-hour fields follow them. */
 export type IncomingCallPolicy = {
-  channel: "activity" | "notify" | "message" | "call";
+  channel: "notify" | "message" | "call";
   enabled: boolean;
   device_id: string | null;
   opportunities: boolean;

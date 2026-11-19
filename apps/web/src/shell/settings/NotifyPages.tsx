@@ -15,9 +15,8 @@ import type { OwnerProfile } from "./owner";
 import { NavRow, Note, ToggleRow, useLoad } from "./ui";
 
 type Channel = IncomingCallPolicy["channel"];
-/** The reference's REACH (8368), one to one with the server's ReachMe. */
+/** The reference's REACH (8368), one to one with the server's ReachMe (no "activity only": P5). */
 export const reachOptions = (): [Channel, string, string, IconName][] => [
-  ["activity", t`In the conversation only`, t`No alert, except urgent ones`, "updates"],
   [
     "notify",
     t({ message: "Notification", context: "reach mode" }),

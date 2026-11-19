@@ -121,7 +121,7 @@ msgid "{0} will be added to it"
 msgstr "{0} will be added to it"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:210
+#: src/shell/domain/UpdatesPages.tsx:164
 #~ msgid "{0}, has something new"
 #~ msgstr "{0}, has something new"
 
@@ -292,11 +292,11 @@ msgstr "7 days"
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
 
-#: src/shell/settings/NotifyPages.tsx:146
+#: src/shell/settings/NotifyPages.tsx:145
 msgid "A bar at the top of the screen when a reply arrives in another conversation"
 msgstr "A bar at the top of the screen when a reply arrives in another conversation"
 
-#: src/shell/settings/NotifyPages.tsx:281
+#: src/shell/settings/NotifyPages.tsx:280
 msgid "A call rings this device · registered for the passkey"
 msgstr "A call rings this device · registered for the passkey"
 
@@ -340,7 +340,7 @@ msgstr "A list named «{name}» already exists"
 msgid "A Mandate card is waiting for your tap"
 msgstr "A Mandate card is waiting for your tap"
 
-#: src/shell/settings/NotifyPages.tsx:30
+#: src/shell/settings/NotifyPages.tsx:29
 msgid "A message in the agent's conversation with an alert"
 msgstr "A message in the agent's conversation with an alert"
 
@@ -364,7 +364,7 @@ msgstr "A question is waiting for your answer"
 msgid "A removed agent"
 msgstr "A removed agent"
 
-#: src/shell/settings/NotifyPages.tsx:183
+#: src/shell/settings/NotifyPages.tsx:182
 msgid "A short tone when a reply arrives"
 msgstr "A short tone when a reply arrives"
 
@@ -380,7 +380,7 @@ msgstr "A trade still has no confirmed broker result"
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "A watch ends on its own at its time; you can pause, extend or cancel it."
 
-#: src/shell/domain/UpdatesPages.tsx:54
+#: src/shell/domain/UpdatesPages.tsx:52
 #~ msgid "A watch was met"
 #~ msgstr "A watch was met"
 
@@ -705,7 +705,7 @@ msgstr "Agent"
 msgid "Agent call"
 msgstr "Agent call"
 
-#: src/shell/settings/NotifyPages.tsx:362
+#: src/shell/settings/NotifyPages.tsx:361
 msgid "Agent calls"
 msgstr "Agent calls"
 
@@ -714,7 +714,7 @@ msgstr "Agent calls"
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
-#: src/shell/domain/UpdatesPages.tsx:30
+#: src/shell/domain/UpdatesPages.tsx:28
 #~ msgid "Agent created"
 #~ msgstr "Agent created"
 
@@ -875,15 +875,15 @@ msgstr "Allowed actions"
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "An active skill is no longer available. Review its settings before resuming this task."
 
-#: src/shell/settings/NotifyPages.tsx:24
+#: src/shell/settings/NotifyPages.tsx:23
 msgid "An alert on your device"
 msgstr "An alert on your device"
 
-#: src/shell/settings/NotifyPages.tsx:161
+#: src/shell/settings/NotifyPages.tsx:160
 msgid "An alert when an agent confirms an opportunity"
 msgstr "An alert when an agent confirms an opportunity"
 
-#: src/shell/settings/NotifyPages.tsx:244
+#: src/shell/settings/NotifyPages.tsx:243
 msgid "An unconfirmed operation on your account"
 msgstr "An unconfirmed operation on your account"
 
@@ -1443,7 +1443,7 @@ msgctxt "page title"
 msgid "Call"
 msgstr "Call"
 
-#: src/shell/settings/NotifyPages.tsx:35
+#: src/shell/settings/NotifyPages.tsx:34
 msgctxt "reach mode"
 msgid "Call"
 msgstr "Call"
@@ -2482,7 +2482,7 @@ msgstr "Daily cost"
 #~ msgid "Daily loss limit {0}"
 #~ msgstr "Daily loss limit {0}"
 
-#: src/shell/settings/NotifyPages.tsx:372
+#: src/shell/settings/NotifyPages.tsx:371
 msgid "Daily notification limit"
 msgstr "Daily notification limit"
 
@@ -2553,7 +2553,7 @@ msgstr "Delegated execution"
 msgid "Delegated task"
 msgstr "Delegated task"
 
-#: src/shell/domain/UpdatesPages.tsx:32
+#: src/shell/domain/UpdatesPages.tsx:30
 #~ msgid "Delegation changed"
 #~ msgstr "Delegation changed"
 
@@ -2683,8 +2683,8 @@ msgstr "Detailed agent status"
 msgid "Determined"
 msgstr "Determined"
 
-#: src/shell/settings/NotifyPages.tsx:257
-#: src/shell/settings/NotifyPages.tsx:259
+#: src/shell/settings/NotifyPages.tsx:256
+#: src/shell/settings/NotifyPages.tsx:258
 msgid "Device"
 msgstr "Device"
 
@@ -3365,7 +3365,7 @@ msgstr "Food & drink"
 msgid "For example: Work, Friends"
 msgstr "For example: Work, Friends"
 
-#: src/shell/settings/NotifyPages.tsx:36
+#: src/shell/settings/NotifyPages.tsx:35
 msgid "For urgent matters: the agent calls you"
 msgstr "For urgent matters: the agent calls you"
 
@@ -3400,17 +3400,17 @@ msgstr "Free margin"
 
 #: src/pages/ActivityList.tsx:116
 #: src/pages/ActivityList.tsx:119
-#: src/shell/settings/NotifyPages.tsx:210
+#: src/shell/settings/NotifyPages.tsx:209
 msgid "From"
 msgstr "From"
 
 #. placeholder {0}: clock(policy?.quiet_start_minute)
 #. placeholder {1}: clock(policy?.quiet_end_minute)
-#: src/shell/settings/NotifyPages.tsx:197
+#: src/shell/settings/NotifyPages.tsx:196
 msgid "From {0} to {1}"
 msgstr "From {0} to {1}"
 
-#: src/shell/settings/NotifyPages.tsx:198
+#: src/shell/settings/NotifyPages.tsx:197
 msgid "From 22:00 to 08:00"
 msgstr "From 22:00 to 08:00"
 
@@ -3492,7 +3492,7 @@ msgstr "Go to the latest messages, {fresh} new"
 msgid "Go to the quoted message"
 msgstr "Go to the quoted message"
 
-#: src/shell/domain/UpdatesPages.tsx:56
+#: src/shell/domain/UpdatesPages.tsx:54
 #~ msgid "Goal added"
 #~ msgstr "Goal added"
 
@@ -3606,8 +3606,8 @@ msgid "Hour"
 msgstr "Hour"
 
 #: src/pages/Knowledge.tsx:88
-#: src/shell/settings/NotifyPages.tsx:102
-#: src/shell/settings/NotifyPages.tsx:104
+#: src/shell/settings/NotifyPages.tsx:101
+#: src/shell/settings/NotifyPages.tsx:103
 msgid "How to reach you"
 msgstr "How to reach you"
 
@@ -3681,14 +3681,14 @@ msgid "In the app"
 msgstr "In the app"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "In the conversation only"
-msgstr "In the conversation only"
+#~ msgid "In the conversation only"
+#~ msgstr "In the conversation only"
 
-#: src/shell/settings/NotifyPages.tsx:357
+#: src/shell/settings/NotifyPages.tsx:356
 msgid "In-app messages"
 msgstr "In-app messages"
 
-#: src/shell/settings/NotifyPages.tsx:145
+#: src/shell/settings/NotifyPages.tsx:144
 msgid "In-app notifications"
 msgstr "In-app notifications"
 
@@ -3913,7 +3913,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/domain/UpdatesPages.tsx:58
+#: src/shell/domain/UpdatesPages.tsx:56
 #~ msgid "Knowledge added"
 #~ msgstr "Knowledge added"
 
@@ -3970,7 +3970,7 @@ msgstr "Last updated"
 msgid "Later"
 msgstr "Later"
 
-#: src/shell/domain/UpdatesPages.tsx:316
+#: src/shell/domain/UpdatesPages.tsx:270
 #~ msgid "Latest actions"
 #~ msgstr "Latest actions"
 
@@ -4391,7 +4391,7 @@ msgstr "Mention an agent"
 msgid "Message"
 msgstr "Message"
 
-#: src/shell/settings/NotifyPages.tsx:29
+#: src/shell/settings/NotifyPages.tsx:28
 msgctxt "reach mode"
 msgid "Message"
 msgstr "Message"
@@ -4570,7 +4570,7 @@ msgstr "Mute"
 msgid "Mute notifications"
 msgstr "Mute notifications"
 
-#: src/shell/settings/NotifyPages.tsx:194
+#: src/shell/settings/NotifyPages.tsx:193
 msgid "Mute notifications at night"
 msgstr "Mute notifications at night"
 
@@ -4734,8 +4734,7 @@ msgstr "Next"
 msgid "Next: the chats"
 msgstr "Next: the chats"
 
-#: src/shell/domain/UpdatesPages.tsx:112
-#: src/shell/domain/UpdatesPages.tsx:335
+#: src/shell/domain/UpdatesPages.tsx:278
 #~ msgid "No activity yet."
 #~ msgstr "No activity yet."
 
@@ -4755,8 +4754,8 @@ msgstr "No agents"
 #~ msgstr "No agents match"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "No alert, except urgent ones"
-msgstr "No alert, except urgent ones"
+#~ msgid "No alert, except urgent ones"
+#~ msgstr "No alert, except urgent ones"
 
 #: src/conversation/Cards.tsx:357
 msgid "No answer from the broker"
@@ -4808,7 +4807,7 @@ msgstr "No chats."
 msgid "No command by that name"
 msgstr "No command by that name"
 
-#: src/shell/domain/UpdatesPages.tsx:310
+#: src/shell/domain/UpdatesPages.tsx:264
 #~ msgid "No enabled schedules."
 #~ msgstr "No enabled schedules."
 
@@ -4866,7 +4865,7 @@ msgstr "No groups yet."
 msgid "No internet connection"
 msgstr "No internet connection"
 
-#: src/shell/settings/NotifyPages.tsx:381
+#: src/shell/settings/NotifyPages.tsx:380
 msgid "No limit"
 msgstr "No limit"
 
@@ -4898,7 +4897,7 @@ msgstr "No model is set up yet"
 msgid "No new notifications"
 msgstr "No new notifications"
 
-#: src/shell/domain/UpdatesPages.tsx:268
+#: src/shell/domain/UpdatesPages.tsx:222
 #~ msgid "No notifications."
 #~ msgstr "No notifications."
 
@@ -5160,7 +5159,7 @@ msgstr "Nothing yet."
 #~ msgid "Notification"
 #~ msgstr "Notification"
 
-#: src/shell/settings/NotifyPages.tsx:23
+#: src/shell/settings/NotifyPages.tsx:22
 msgctxt "reach mode"
 msgid "Notification"
 msgstr "Notification"
@@ -5172,11 +5171,11 @@ msgstr "Notification method"
 #: src/components/ai/AttentionInbox.tsx:77
 #: src/components/ai/AttentionInbox.tsx:79
 #: src/shell/settings/DevicePages.tsx:301
-#: src/shell/settings/NotifyPages.tsx:141
+#: src/shell/settings/NotifyPages.tsx:140
 msgid "Notifications"
 msgstr "Notifications"
 
-#: src/shell/domain/UpdatesPages.tsx:224
+#: src/shell/domain/UpdatesPages.tsx:178
 #~ msgctxt "updates section"
 #~ msgid "Notifications"
 #~ msgstr "Notifications"
@@ -5190,11 +5189,11 @@ msgstr "Notifications and contact"
 msgid "Notifications muted"
 msgstr "Notifications muted"
 
-#: src/shell/settings/NotifyPages.tsx:305
+#: src/shell/settings/NotifyPages.tsx:304
 msgid "Notifications off"
 msgstr "Notifications off"
 
-#: src/shell/settings/NotifyPages.tsx:305
+#: src/shell/settings/NotifyPages.tsx:304
 msgid "Notifications on"
 msgstr "Notifications on"
 
@@ -5203,7 +5202,7 @@ msgid "Notifications restored"
 msgstr "Notifications restored"
 
 #: src/components/ai/AttentionInbox.tsx:110
-#: src/shell/settings/NotifyPages.tsx:160
+#: src/shell/settings/NotifyPages.tsx:159
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
 
@@ -5284,8 +5283,12 @@ msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "One profile all your agents read, with its change log, is in Settings."
 
 #: src/shell/settings/OwnerPage.tsx:453
-msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
-msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
+#~ msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
+#~ msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
+
+#: src/shell/settings/OwnerPage.tsx:458
+msgid "One profile all your agents read. Every change is logged with its author, and you can restore earlier values."
+msgstr "One profile all your agents read. Every change is logged with its author, and you can restore earlier values."
 
 #: src/conversation/Cards.tsx:528
 msgid "One step"
@@ -5431,7 +5434,7 @@ msgstr "Opens"
 msgid "Operation id"
 msgstr "Operation id"
 
-#: src/shell/domain/UpdatesPages.tsx:34
+#: src/shell/domain/UpdatesPages.tsx:32
 #~ msgid "Operation resolved"
 #~ msgstr "Operation resolved"
 
@@ -5639,7 +5642,7 @@ msgstr "Pending order"
 msgid "Pending orders"
 msgstr "Pending orders"
 
-#: src/shell/settings/NotifyPages.tsx:296
+#: src/shell/settings/NotifyPages.tsx:295
 msgid "Per agent"
 msgstr "Per agent"
 
@@ -5791,7 +5794,7 @@ msgid "Positions"
 msgstr "Positions"
 
 #: src/shell/settings/OwnerPage.tsx:266
-#: src/shell/settings/OwnerPage.tsx:399
+#: src/shell/settings/OwnerPage.tsx:404
 msgid "Preferences"
 msgstr "Preferences"
 
@@ -5934,15 +5937,15 @@ msgstr "Queued"
 msgid "Quick reaction"
 msgstr "Quick reaction"
 
-#: src/shell/settings/NotifyPages.tsx:190
+#: src/shell/settings/NotifyPages.tsx:189
 msgid "Quiet hours"
 msgstr "Quiet hours"
 
-#: src/shell/settings/NotifyPages.tsx:368
+#: src/shell/settings/NotifyPages.tsx:367
 msgid "Quiet hours are in Settings ← Notifications and contact."
 msgstr "Quiet hours are in Settings ← Notifications and contact."
 
-#: src/shell/settings/NotifyPages.tsx:91
+#: src/shell/settings/NotifyPages.tsx:90
 msgid "Quiet hours must start and end at different times."
 msgstr "Quiet hours must start and end at different times."
 
@@ -6337,7 +6340,7 @@ msgid "Responsible agent"
 msgstr "Responsible agent"
 
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:445
+#: src/shell/settings/OwnerPage.tsx:450
 msgid "Restore"
 msgstr "Restore"
 
@@ -6346,7 +6349,7 @@ msgstr "Restore"
 #~ msgid "Restore to version {0}"
 #~ msgstr "Restore to version {0}"
 
-#: src/shell/settings/OwnerPage.tsx:441
+#: src/shell/settings/OwnerPage.tsx:446
 msgid "Restored"
 msgstr "Restored"
 
@@ -6511,7 +6514,7 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 #: src/shell/domain/GoalsKnowledgePages.tsx:73
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
 #: src/shell/settings/IntegrationsPage.tsx:444
-#: src/shell/settings/NotifyPages.tsx:397
+#: src/shell/settings/NotifyPages.tsx:396
 #: src/shell/settings/OwnerPage.tsx:278
 #: src/shell/settings/OwnerPage.tsx:335
 msgid "Save"
@@ -6571,7 +6574,7 @@ msgstr "Save the settings"
 #: src/shell/settings/ConnectionPages.tsx:630
 #: src/shell/settings/ModelsPage.tsx:103
 #: src/shell/settings/ModelsPage.tsx:262
-#: src/shell/settings/NotifyPages.tsx:344
+#: src/shell/settings/NotifyPages.tsx:343
 #: src/shell/settings/OwnerPage.tsx:150
 msgid "Saved"
 msgstr "Saved"
@@ -6991,7 +6994,7 @@ msgstr "Show the request"
 msgid "Show the shortcuts"
 msgstr "Show the shortcuts"
 
-#: src/shell/settings/NotifyPages.tsx:153
+#: src/shell/settings/NotifyPages.tsx:152
 msgid "Show the start of the message in the notification"
 msgstr "Show the start of the message in the notification"
 
@@ -7087,7 +7090,7 @@ msgstr "Skill"
 msgid "Skill catalog"
 msgstr "Skill catalog"
 
-#: src/shell/domain/UpdatesPages.tsx:46
+#: src/shell/domain/UpdatesPages.tsx:44
 #~ msgid "Skill created"
 #~ msgstr "Skill created"
 
@@ -7112,7 +7115,7 @@ msgstr "Skill restored to version {version}"
 msgid "Skill saved"
 msgstr "Skill saved"
 
-#: src/shell/domain/UpdatesPages.tsx:48
+#: src/shell/domain/UpdatesPages.tsx:46
 #~ msgid "Skill updated"
 #~ msgstr "Skill updated"
 
@@ -7173,7 +7176,7 @@ msgstr "Smile"
 msgid "Smileys & people"
 msgstr "Smileys & people"
 
-#: src/shell/settings/NotifyPages.tsx:182
+#: src/shell/settings/NotifyPages.tsx:181
 msgid "Sounds"
 msgstr "Sounds"
 
@@ -7446,11 +7449,11 @@ msgstr "Supervises"
 msgid "Supervision · {0}"
 msgstr "Supervision · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:52
+#: src/shell/domain/UpdatesPages.tsx:50
 #~ msgid "Supervision ended"
 #~ msgstr "Supervision ended"
 
-#: src/shell/domain/UpdatesPages.tsx:50
+#: src/shell/domain/UpdatesPages.tsx:48
 #~ msgid "Supervision started"
 #~ msgstr "Supervision started"
 
@@ -7610,7 +7613,7 @@ msgstr "Temporary delegated tasks"
 msgid "Test the connection"
 msgstr "Test the connection"
 
-#: src/shell/settings/NotifyPages.tsx:152
+#: src/shell/settings/NotifyPages.tsx:151
 msgid "Text preview"
 msgstr "Text preview"
 
@@ -8431,7 +8434,7 @@ msgstr "Title"
 
 #: src/pages/ActivityList.tsx:125
 #: src/pages/ActivityList.tsx:128
-#: src/shell/settings/NotifyPages.tsx:223
+#: src/shell/settings/NotifyPages.tsx:222
 msgid "To"
 msgstr "To"
 
@@ -8737,7 +8740,7 @@ msgstr "Unmute"
 msgid "Unpin"
 msgstr "Unpin"
 
-#: src/shell/domain/UpdatesPages.tsx:263
+#: src/shell/domain/UpdatesPages.tsx:217
 #~ msgid "Unread"
 #~ msgstr "Unread"
 
@@ -8793,7 +8796,7 @@ msgstr "Up {pct}%"
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "Up to 6 photos and files, 8 MB each"
 
-#: src/shell/domain/UpdatesPages.tsx:274
+#: src/shell/domain/UpdatesPages.tsx:228
 #~ msgid "Upcoming"
 #~ msgstr "Upcoming"
 
@@ -8845,11 +8848,11 @@ msgstr "Uploading {name}"
 msgid "Uploading…"
 msgstr "Uploading…"
 
-#: src/shell/settings/NotifyPages.tsx:392
+#: src/shell/settings/NotifyPages.tsx:391
 msgid "Urgent alerts always arrive and do not count."
 msgstr "Urgent alerts always arrive and do not count."
 
-#: src/shell/settings/NotifyPages.tsx:241
+#: src/shell/settings/NotifyPages.tsx:240
 msgid "Urgent always arrives"
 msgstr "Urgent always arrives"
 
@@ -9325,7 +9328,7 @@ msgstr "Yesterday"
 msgid "You"
 msgstr "You"
 
-#: src/shell/domain/UpdatesPages.tsx:36
+#: src/shell/domain/UpdatesPages.tsx:34
 #~ msgid "You approved a request"
 #~ msgstr "You approved a request"
 
@@ -9358,7 +9361,7 @@ msgstr "You reached the name's maximum length"
 #~ msgid "You reached the usage limit"
 #~ msgstr "You reached the usage limit"
 
-#: src/shell/domain/UpdatesPages.tsx:38
+#: src/shell/domain/UpdatesPages.tsx:36
 #~ msgid "You rejected a request"
 #~ msgstr "You rejected a request"
 

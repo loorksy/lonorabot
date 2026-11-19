@@ -6,8 +6,7 @@
    The app side is seeded by seed_domain.py through the owner API with the reference's own rows
    (`initial`). Where an owner decision changes the data the reference shows, the reference is
    moved to the same data through its own state, never its markup: Gold trades, so its goals are
-   trading plans (Q41) and the light goal sits on «مساعد الأبحاث» on both sides; «سجل الإجراءات»
-   is the server's projection (Q45), so the reference's log gets the same lines. */
+   trading plans (Q41) and the light goal sits on «مساعد الأبحاث» on both sides. */
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 

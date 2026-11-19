@@ -86,19 +86,19 @@ test("the owner profile is edited, logged, restored, and the reach mode saved", 
     )
     .toBe("");
   await page.goto("/app/notify-settings");
-  await page.getByRole("radio", { name: /In the conversation only/ }).click();
+  await page.getByRole("radio", { name: /An alert on your device/ }).click();
   await expect
     .poll(
       async () => (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
     )
-    .toBe("activity");
+    .toBe("notify");
   const after = await (await context.request.get("/api/owner/profile")).json();
   expect(after.name).toBe(name);
   // Restoring a preferences row the page does not reload for by itself (the reach mode) updates
   // the log in place, without a reload: the row reads «Restored» and the revert is the newest row.
   await page.goto("/app/owner");
   const rows = log.locator(".row");
-  const reach = rows.filter({ has: page.locator("ins", { hasText: /^Activity only$/ }) }).first();
+  const reach = rows.filter({ has: page.locator("ins", { hasText: /^Notify me$/ }) }).first();
   await expect(reach).toBeVisible();
   const top = await rows.first().innerText();
   let reloaded = false;
@@ -135,9 +135,6 @@ test("the profile page reads right to left in Arabic with the reference's labels
   await expect(page.getByText("سجل التغييرات")).toBeVisible();
   await page.goto("/app/notify-settings");
   await expect(page.getByRole("radio", { name: /رسالة/ })).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("radio", { name: /في المحادثة فقط/ })).toContainText(
-    "دون تنبيه، إلا العاجل",
-  );
   expect(owner.agent.id).toBeTruthy();
 });
 
@@ -407,4 +404,85 @@ test("the learned waking habit and its forget toast read right in Arabic", async
     ),
   ).toBeVisible();
   await expect(habit).toHaveCount(0);
+});
+
+/* Preference changes from before «النشاط فقط» was removed, written to the history directly as
+   migration 0173 found them and wrote its own, each a moment before now in the given order. */
+function seedPreferenceHistory(rows) {
+  execFileSync(".venv/bin/python", [
+    "-c",
+    `import asyncio, json, os, sys, uuid
+from datetime import UTC, datetime, timedelta
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+async def main():
+    rows = json.loads(sys.argv[1])
+    engine = create_async_engine(os.environ["LONORA_DATABASE_URL"])
+    async with engine.begin() as connection:
+        owner = (await connection.execute(text("SELECT id FROM ln_owners"))).scalar_one()
+        version = (await connection.execute(text("SELECT COALESCE(MAX(version), 0) FROM ln_memory_revisions WHERE owner_id = :o AND document = 'owner_preferences' AND agent_id IS NULL"), {"o": owner})).scalar_one()
+        now = datetime.now(UTC)
+        for index, row in enumerate(rows):
+            await connection.execute(text("INSERT INTO ln_memory_revisions (id, owner_id, document, agent_id, version, previous_content, content, author, change, created_at) VALUES (:id, :o, 'owner_preferences', NULL, :version, :previous, :content, :author, :change, :at)"), {"id": str(uuid.uuid4()), "o": owner, "version": version + index + 1, "previous": json.dumps(row["before"]), "content": json.dumps(row["after"]), "author": row["author"], "change": row["change"], "at": now - timedelta(seconds=len(rows) - index)})
+    await engine.dispose()
+asyncio.run(main())`,
+    JSON.stringify(rows),
+  ]);
+}
+
+const reachMe = (channel, quiet) => ({
+  reply_language: null,
+  name: null,
+  address: null,
+  reach_me: {
+    channel,
+    quiet_start_minute: quiet ? 21 * 60 + 17 : null,
+    quiet_end_minute: quiet ? 5 * 60 + 43 : null,
+  },
+});
+
+/* Undoing a move away from «النشاط فقط» is refused (reach_me_choice_removed), so the change log
+   offers no «استعادة» on one: neither the owner's own nor Lonora's (migration 0173). A change he
+   made while it was chosen that left the reach-me as it was can still be undone. */
+test("a change away from activity only offers no Restore; one made while it was chosen does", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "ar");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  seedPreferenceHistory([
+    {
+      author: "owner",
+      change: "preferences",
+      before: reachMe("activity", false),
+      after: reachMe("notify", false),
+    },
+    {
+      author: "owner",
+      change: "preferences",
+      before: reachMe("activity", false),
+      after: reachMe("activity", true),
+    },
+    {
+      author: "system",
+      change: "choice_removed",
+      before: reachMe("activity", true),
+      after: reachMe("message", true),
+    },
+  ]);
+  await page.goto("/app/owner");
+  const rows = page.locator(".pf-log .row");
+  const away = rows.filter({ has: page.locator("del", { hasText: /^النشاط فقط$/ }) });
+  const lonora = away.filter({ hasText: "Lonora · كيف نتواصل معك" }).first();
+  await expect(lonora.locator("ins")).toHaveText("راسلني");
+  const mine = away.filter({ hasText: "أنت · كيف نتواصل معك" }).first();
+  await expect(mine.locator("ins")).toHaveText("أرسل لي تنبيهًا");
+  await expect(away.getByRole("button", { name: "استعادة", exact: true })).toHaveCount(0);
+  const quiet = rows.filter({ hasText: "21:17 – 05:43" }).first();
+  await expect(quiet).toContainText("أنت · ساعات الهدوء");
+  await expect(quiet.getByRole("button", { name: "استعادة", exact: true })).toBeVisible();
+  expect(owner.agent.id).toBeTruthy();
 });

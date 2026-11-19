@@ -39,9 +39,8 @@ test("domain pages: the task and skill pages take their id in the path, the rest
   assert.deepEqual(parseRoute("/app/skills/k1"), { kind: "page", page: "skill", item: "k1" });
   assert.deepEqual(parseRoute("/app/tasks"), { kind: "root", root: "tasks" });
   assert.deepEqual(parseRoute("/app/goals"), { kind: "page", page: "goals" });
-  // The activity log had no entry left once «يحتاج انتباهك» replaced Updates (VISION P5):
-  // its path is no page any more, only an agent id like any other.
-  assert.deepEqual(parseRoute("/app/activity"), { kind: "chat", agentId: "activity" });
+  // The activity log page is gone (P5): an old link reaches «المستجدات» instead.
+  assert.deepEqual(parseRoute("/app/activity"), { kind: "alias", to: "/app/updates" });
   assert.deepEqual(parseRoute("/app/task"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/goals/x"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/tasks/t1/x"), { kind: "not-found" });
