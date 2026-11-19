@@ -956,15 +956,33 @@ async def test_a_pause_the_owner_asked_for_stays_the_owners():
         assert (await control("resume", words=words_2))["changed"] is True
         assert (await held(fixture, gold["id"])).released_by == "owner"
 
-        # Lead pauses on its own; the owner then asks for the same pause: it is the owner's.
+        # Lead pauses on its own; the owner then asks for the same pause: it is the owner's,
+        # Lead stays named, and the owner's words are its source, so the owner lifts it by
+        # asking in chat again. The change is recorded as an intervention.
         await control("pause", words=None)
         assert (await held(fixture, gold["id"])).source == "agent"
         again = await control("pause", words=words_2)
         assert again["changed"] is False and again["paused_by"] == "owner"
-        assert (await held(fixture, gold["id"])).source == "owner"
+        taken = await held(fixture, gold["id"])
+        assert taken.source == "owner" and taken.holder_agent_id == lead["id"]
+        assert taken.source_message_id == words_2
+        async with fixture.runtime.db.sessions() as session:
+            recorded = await session.scalar(
+                select(func.count())
+                .select_from(EventRow)
+                .where(
+                    EventRow.kind == "supervision.intervention",
+                    EventRow.agent_id == gold["id"],
+                    EventRow.payload["source"].as_string() == "owner_message",
+                    EventRow.payload["action"].as_string() == "pause",
+                )
+            )
+            assert recorded, "the owner's pause left no intervention"
         with pytest.raises(LonoraError, match="supervision_resume_not_yours"):
             await control("resume", words=None)
-        await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": False})
+        assert (await control("resume", words=words_3))["changed"] is True
+        lifted = await held(fixture, gold["id"])
+        assert lifted.id == taken.id and lifted.released_by == "owner"
 
         # Work the agent paused itself (no hold) becomes the owner's when the owner asks;
         # the agent's own tools lift it only from the owner's words.

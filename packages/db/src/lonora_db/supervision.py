@@ -544,7 +544,8 @@ async def control_work(
     if action == "pause":
         if paused and asked_by_owner and (hold is None or hold.source != "owner"):
             # The owner asks to pause work that is already paused: the pause becomes the
-            # owner's, so neither the agent nor the one that paused it lifts it alone.
+            # owner's, so neither the agent nor the one that paused it lifts it alone, and
+            # the owner lifts it by asking in chat again (its words are its source).
             if hold is None:
                 session.add(
                     SupervisionHoldRow(
@@ -560,8 +561,23 @@ async def control_work(
                     )
                 )
             else:
+                # The supervisor that paused it stays named, for attribution.
                 hold.source = "owner"
+                hold.source_message_id, hold.source_run_id = asked_by_owner, run_id
             await session.flush()
+            record_intervention(
+                session,
+                owner_id,
+                actor_id=actor_id,
+                agent_id=agent.id,
+                payload={
+                    "action": action,
+                    "target": kind,
+                    "target_id": item,
+                    "source": "owner_message",
+                },
+                run_id=run_id,
+            )
             return {**result, "changed": False, "paused": True, "paused_by": "owner"}
         if paused:
             held_by = (
