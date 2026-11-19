@@ -174,16 +174,25 @@ async def rotate_password(
     the server it is on now); a plain new password never changes the server. The
     connection records the server MetaApi then stores. Returns a failure code, or None
     when done. The connection's version moves under the send lock, so no send uses a
-    connection object from before the change."""
+    connection object from before the change.
+
+    While MetaApi refuses the redeploy because it is still deploying the account
+    (``broker_provisioning_busy``), the card waits and a later pass calls this again: the
+    card records ``password_stored`` with the change, so that pass only redeploys. A
+    password another card or a disconnect replaced meanwhile is not redeployed
+    (``broker_rotation_superseded``)."""
     from lonora_db.schema import OwnerActionRow
     from lonora_db.secrets import metaapi_password_name
 
     connection_id = str(card.payload["connection_id"])
     moved_to = str(card.payload["account"]["server"]) if card.payload.get("server_from") else None
     new_password = await secrets.named(metaapi_password_name(card.id))
+    stored = card.result.get("password_stored") is True
     if new_password is None:
-        return "broker_secret_required"
-    stored = sent = False
+        # A password this card stored is deleted only once no connection names it: another
+        # card's new password replaced it, or the connection was removed.
+        return "broker_rotation_superseded" if stored else "broker_secret_required"
+    sent = False
     old_password: Any = None
     was: str | None = None
     try:
@@ -192,6 +201,8 @@ async def rotate_password(
             row = await repository.get(session, owner_id, connection_id)
             payload = BrokerConnection.model_validate(row.payload)
             old_password = row.state.get("password_secret_id")
+        if stored and old_password != new_password:
+            return "broker_rotation_superseded"  # another card's password since an earlier pass
         if payload.provider != "metaapi" or not payload.secret_id:
             return "broker_not_metaapi"
         provisioning = broker_provisioning.provisioning_client(
@@ -201,28 +212,33 @@ async def rotate_password(
             async with send_locked(db, owner_id, connection_id):
                 # Under the send lock: a send that won the lock may have ended uncertain.
                 await refuse_unsettled(db, owner_id, connection_id)
-                async with asyncio.timeout(METAAPI_SECONDS):
-                    if moved_to:
-                        # The server MetaApi stores before the move, which the wake names.
-                        was = (await provisioning.state(payload.account_id)).server
-                    now = await provisioning.update_password(
-                        payload.account_id, await secrets.read(new_password), server=moved_to
-                    )
-                sent = True
-                # MetaApi holds the new password now: record it and move the version at once.
-                async with db.sessions() as session, session.begin():
-                    await repository.credentials_changed(
-                        session,
-                        owner_id,
-                        connection_id,
-                        state={"password_secret_id": new_password},
-                        server=now.server or moved_to,
-                    )
-                    if moved_to:
-                        move_card = await session.get(OwnerActionRow, card.id)
-                        assert move_card is not None
-                        move_card.result = {**move_card.result, "server_was": was}
-                stored = True
+                if not stored:
+                    async with asyncio.timeout(METAAPI_SECONDS):
+                        if moved_to:
+                            # The server MetaApi stores before the move, which the wake names.
+                            was = (await provisioning.state(payload.account_id)).server
+                        now = await provisioning.update_password(
+                            payload.account_id, await secrets.read(new_password), server=moved_to
+                        )
+                    sent = True
+                    # MetaApi holds the new password now: record it and move the version at
+                    # once, and on the card, so a later pass only redeploys.
+                    async with db.sessions() as session, session.begin():
+                        await repository.credentials_changed(
+                            session,
+                            owner_id,
+                            connection_id,
+                            state={"password_secret_id": new_password},
+                            server=now.server or moved_to,
+                        )
+                        changed = await session.get(OwnerActionRow, card.id)
+                        assert changed is not None
+                        changed.result = {
+                            **changed.result,
+                            "password_stored": True,
+                            **({"server_was": was} if moved_to else {}),
+                        }
+                    stored = True
                 async with asyncio.timeout(METAAPI_SECONDS):
                     await provisioning.redeploy(payload.account_id)
                 # The version moved, so BrokerManager replaces its cached adapter itself;
@@ -233,10 +249,13 @@ async def rotate_password(
     except (LonoraError, TimeoutError) as failure:
         if sent and not stored:
             return "broker_rotation_incomplete"  # MetaApi may hold it; nothing recorded
+        partial: str | None = getattr(failure, "code", "broker_provisioning_timeout")
         if not stored:
-            return getattr(failure, "code", "broker_provisioning_timeout")
-        # Stored and recorded, but the terminal was not redeployed with it yet.
-        partial: str | None = "broker_redeploy_failed"
+            return partial
+        if partial == "broker_sessions_not_found":
+            return "broker_rotation_superseded"  # disconnected since an earlier pass
+        # Stored and recorded (``password_stored``), but the terminal was not redeployed
+        # with it: the card's code says why.
     else:
         partial = None
     if isinstance(old_password, str) and old_password != new_password:

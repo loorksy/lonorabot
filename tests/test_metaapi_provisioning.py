@@ -13,11 +13,16 @@ import httpx
 import pytest
 from lonora_adapters.brokers import metaapi_provisioning
 from lonora_adapters.brokers.metaapi import MetaApiBroker
-from lonora_adapters.brokers.metaapi_provisioning import MetaApiProvisioning
+from lonora_adapters.brokers.metaapi_provisioning import MetaApiProvisioning, provisioning_error
 from lonora_core.user_error import LonoraError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.agent_eval.broker import FakeMetaApiProvisioning, FakeProvisioningApi  # noqa: E402
+from scripts.agent_eval.broker import (  # noqa: E402
+    PROVISIONING_URL,
+    FakeMetaApiProvisioning,
+    FakeProvisioningApi,
+    sdk_error,
+)
 
 LOGIN, SERVER, PASSWORD = "50000001", "Exness-MT5Trial16", "fixture-master-password"
 TOKEN = "fixture.metaapi.token"  # an API token is a JWT: three dot-separated parts
@@ -420,3 +425,65 @@ async def test_a_failed_read_after_a_successful_create_is_not_a_refusal() -> Non
         login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="card-3"
     )
     assert created and account.login == LOGIN and len(api.accounts) == 1
+
+
+BUSY = "Account fixture-busy can not be redeployed because it is in the process of being "
+
+
+@pytest.mark.parametrize(
+    "message,details,code",
+    [
+        # MetaApi's refusal while it still works on the account (prod, 2026-11-19).
+        (BUSY + "deployed", [], "broker_provisioning_busy"),
+        (BUSY + "undeployed", None, "broker_provisioning_busy"),
+        (BUSY + "redeployed", None, "broker_provisioning_busy"),
+        ("Validation failed", [{"message": BUSY + "deployed"}], "broker_provisioning_busy"),
+        ("Validation failed", BUSY + "deployed", "broker_provisioning_busy"),
+        # Any other refusal says no more than before.
+        ("Validation failed", [{"parameter": "name", "message": "Invalid"}], None),
+        ("Account fixture-busy is being processed", None, None),
+        ("Account can not be redeployed: not in the process of deployment", None, None),
+        # A broker's own answer keeps its code, whatever else the message says.
+        (BUSY + "deployed", [{"code": "E_AUTH"}], "broker_password_rejected"),
+        (BUSY + "deployed", "E_SRV_NOT_FOUND", "broker_server_not_found"),
+    ],
+)
+def test_a_deploy_refused_while_metaapi_is_busy_is_not_a_rejection(
+    message: str, details: Any, code: str | None
+) -> None:
+    error = sdk_error("ValidationException", message, details, PROVISIONING_URL)
+    assert provisioning_error(error).code == (code or "broker_provisioning_rejected")
+    # The phrase on another answer changes nothing.
+    assert provisioning_error(sdk_error("InternalException", message, PROVISIONING_URL)).code == (
+        "broker_provisioning_unavailable"
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_busy_redeploy_through_the_sdk_keeps_only_the_code_and_safe_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    provisioning = MetaApiProvisioning(TOKEN)
+    caplog.set_level(logging.DEBUG)
+    refusal = {
+        "error": "ValidationError",
+        "message": f"Account fixture-busy can not be redeployed in state DEPLOYING because it "
+        f"is in the process of being deployed, token={TOKEN}",
+    }
+    transport = Scripted(created("fixture-busy"), httpx.Response(400, json=refusal))
+    scripted(provisioning, transport)
+    with pytest.raises(LonoraError) as busy:
+        await provisioning.redeploy("fixture-busy")
+    assert busy.value.code == "broker_provisioning_busy" and busy.value.status == 409
+    assert [request["method"] for request in transport.requests] == ["GET", "POST"]
+    assert transport.requests[-1]["url"].endswith("/fixture-busy/redeploy")
+    assert busy.value.__cause__ is None and busy.value.__suppress_context__
+    no_credential(str(busy.value.diagnostic_message) + caplog.text)
+    # The password update's answer is never logged, busy or not: code and status only.
+    scripted(provisioning, Scripted(created("fixture-busy"), httpx.Response(400, json=refusal)))
+    with pytest.raises(LonoraError) as update:
+        await provisioning.update_password("fixture-busy", PASSWORD)
+    assert update.value.code == "broker_provisioning_busy"
+    assert update.value.diagnostic_message == "status=400"
+    no_credential(caplog.text)
+    await provisioning.close()
