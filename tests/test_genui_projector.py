@@ -903,3 +903,27 @@ async def test_the_length_of_a_list_with_an_unconfirmed_operation_is_not_shown()
     assert await falls_back(
         trade_card("/results/length"), history_with("trade_record_history", TWO_RESULTS)
     )
+
+
+@pytest.mark.asyncio
+async def test_a_folded_card_rests_within_560_counting_the_more_as_a_block() -> None:
+    """The More a fold inserts is a block like any other, its gap included, so a folded card
+    never rests above 560 px (mandate 10.1.4)."""
+    from lonora_agent.genui_compile import RESTING_LIMIT, estimate_height
+
+    rows = ",".join(f'["الحقل {i}","قيمة {i}"]' for i in range(8))
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"ملخص طويل"}',
+            '{"state":{"x":1}}',
+            '{"type":"KeyValue","rows":[' + rows + "]}",
+            '{"type":"Card","children":[{"type":"Number","bind":"x","label":"القيمة"}]}',
+            '{"type":"Markdown","text":"شرح إضافي"}',
+            '{"why":"ملخص أوضح من فقرة.","fallback":"ملخص."}',
+        ]
+    )
+    projection, projector = await project(reply(body))
+    blocks = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]["blocks"]
+    assert any(d["code"] == "budget_folded" for d in projector.diagnostics)
+    assert estimate_height(blocks, [True] * len(blocks)) <= RESTING_LIMIT
+    assert [b["type"] for b in blocks] == ["KeyValue", "More"]
