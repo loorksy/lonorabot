@@ -240,6 +240,9 @@ async def test_the_owner_connects_a_model_provider_from_chat(
         assert done.json()["status"] == "confirmed" and done.json()["result"]["catalog"] is None
         assert await credentials.resolve("openai_compatible") == rotated
         async with fixture.runtime.db.sessions() as session:
+            # The catalog of the key it replaced is not offered as this key's.
+            stored = await session.get(SettingRow, "catalog:openai_compatible")
+            assert stored is not None and stored.payload["models"] == []
             runs = (
                 await session.scalars(select(RunRow).where(RunRow.agent_id == agent["id"]))
             ).all()

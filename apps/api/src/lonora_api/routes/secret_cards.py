@@ -101,13 +101,13 @@ async def save_secret(
         elif target == "model_provider":
             result = await save_model_key(session, store, row, card_values(row, body.values))
             result["catalog"] = None if catalog is None else len(catalog)
-            if catalog is not None:
-                provider = row.payload["details"]["provider"]
-                await SettingsRepository().put(
-                    session,
-                    "catalog:" + provider,
-                    {"models": [item.model_dump(mode="json") for item in catalog]},
-                )
+            # This key's catalog, empty when it could not be read: never the catalog of
+            # the key it replaced.
+            await SettingsRepository().put(
+                session,
+                "catalog:" + row.payload["details"]["provider"],
+                {"models": [item.model_dump(mode="json") for item in catalog or []]},
+            )
         else:
             result = await connect(session, store, owner, row, card_values(row, body.values))
         await settle_saved(session, owner, row, result)
