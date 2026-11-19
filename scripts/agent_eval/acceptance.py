@@ -308,6 +308,8 @@ class Stage:
     calls: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     # Every message any model was shown, every round, scripted or live.
     inputs: list[str] = field(default_factory=list[str])
+    # The adapter factory that records them, once installed on the router.
+    witness: Callable[..., Any] | None = None
     # --broker demo: the MetaApi demo account's login, server, password and token, typed at
     # hidden prompts and held only in memory.
     demo: dict[str, str] | None = None
@@ -363,7 +365,9 @@ class Stage:
                     self.api.settings.artifact_root,
                 )
                 inner = self.model.factory if self.model is not None else context.router.factory
-                context.router.factory = witnessed(inner, self.inputs)
+                # Live, every pickup shares the Gateway's router: it is wrapped once.
+                if inner is not self.witness:
+                    self.witness = context.router.factory = witnessed(inner, self.inputs)
                 registry = runner.RecordingRegistry(self.calls)
                 async with asyncio.timeout(harness.CASE_SECONDS):
                     await execute_run(
