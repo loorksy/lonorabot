@@ -220,6 +220,42 @@ test("a setup that fails asks the server again: an owner created meanwhile shows
   ).toBeVisible();
 });
 
+test("a setup that fails while the server is unreachable keeps the setup form and its token", async ({
+  page,
+}) => {
+  let down = false;
+  await page.route("**/api/onboarding", (route) => {
+    if (route.request().method() === "GET" && !down)
+      return route.fulfill({ json: { owner_initialized: false } });
+    down = true;
+    return route.abort("connectionrefused");
+  });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  await page
+    .getByLabel("Password · at least 12 characters", { exact: true })
+    .fill(credentials.password);
+  const field = page.getByLabel("Setup token", { exact: true });
+  await field.fill(token);
+  const recheckFailed = page.waitForEvent(
+    "requestfailed",
+    (request) => request.method() === "GET" && request.url().endsWith("/api/onboarding"),
+  );
+  await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+  await expect(
+    page.getByText("Could not connect to the server. Check its address and your network.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  // The check asked after the failure cannot reach the server either: what it knew stays.
+  await recheckFailed;
+  await page.waitForTimeout(300);
+  await expect(page.getByText("Set up Lonora", { exact: true })).toBeVisible();
+  await expect(field).toHaveValue(token);
+  await expect(page.getByRole("button", { name: "Create workspace", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
+});
+
 test("an answer that is not Lonora's keeps sign-in", async ({ page }) => {
   await page.route("**/api/onboarding", (route) => route.fulfill({ json: {} }));
   await page.goto("/");

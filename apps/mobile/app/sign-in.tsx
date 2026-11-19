@@ -28,13 +28,18 @@ export default function SignIn() {
     if (!ready || owner || !address.trim()) return;
     const controller = new AbortController();
     let live = true;
-    // A server that never answers does not hold the form: after 10 s, sign-in it is.
+    // A server that never answers does not hold the form: after 10 s it counts as unreachable.
     const limit = setTimeout(() => controller.abort(), 10_400);
     const timer = setTimeout(() => {
       onboardingStatus(address, controller.signal).then(
         (initialized) => live && setChecked({ address, initialized }),
-        // Unreachable or not a Lonora server: sign-in stays and its own error says why.
-        () => live && setChecked({ address, initialized: true }),
+        // Unreachable or not a Lonora server: an answer already read for this address stays;
+        // with none, sign-in it is, and its own error says why.
+        () =>
+          live &&
+          setChecked((known) =>
+            known?.address === address ? known : { address, initialized: true },
+          ),
       );
     }, 400);
     return () => {
