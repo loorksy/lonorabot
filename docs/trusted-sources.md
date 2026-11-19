@@ -176,7 +176,11 @@ links, and are labelled untrusted evidence.
 
 - `news_feed_read` (read-only) reads the subscribed feeds (all, or one) or one public
   feed URL once. Subscribed feeds are named by name and domain, never by URL (a feed URL
-  may carry a token).
+  may carry a token). A read of every feed fetches ten at a time, oldest subscription
+  first, and answers within 50 seconds, keeping every feed that answered by then. A feed
+  still being fetched is `news_feed_timeout`, one not yet started `news_feed_not_reached`,
+  and the result names those feeds for the agent to read each alone by its `feed_id`; a
+  feed that timed out on its own (it has 20 seconds) is not named.
 - `news_feed_subscribe` reads the feed once, then subscribes it silently inside a trusted
   feed domain; outside one only when the owner's message names the domain, which then
   joins the list (`trust_requires_owner_message` otherwise, nothing subscribed).
