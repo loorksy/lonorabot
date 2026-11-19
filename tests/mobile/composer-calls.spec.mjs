@@ -93,6 +93,19 @@ test("the agent's suggested reply goes into the composer; web search is the chat
     await expect.poll(() => options.length).toBe(1);
     expect(options[0]).toEqual({ web_search: true });
     await expect(page.getByText("Gathers sources before replying", { exact: true })).toBeVisible();
+
+    // On, the globe beside «+» says so and turns it off, as Web's composer button.
+    await page.route(`**/api/threads/${data.thread.id}`, async (route) =>
+      route.fulfill({
+        json: { ...(await (await route.fetch()).json()), options: { web_search: true } },
+      }),
+    );
+    await page.reload();
+    const globe = page.getByRole("button", { name: "Web search is on, tap to turn it off" });
+    await globe.click();
+    await expect.poll(() => options.at(-1)).toEqual({ web_search: false });
+    await expect(page.getByText("Web search turned off", { exact: true })).toBeVisible();
+    await expect(globe).toHaveCount(0);
   } finally {
     await data.remove();
   }
@@ -145,3 +158,55 @@ test("«Reply with a message» opens the agent's chat and the call steps aside",
     await data.remove();
   }
 });
+
+for (const [locale, typing] of [
+  ["en", "is typing…"],
+  ["ar", "يكتب…"],
+])
+  test(`${locale}: a group's header names the agent whose reply is running`, async ({
+    page,
+    context,
+  }) => {
+    const data = await fixture(context);
+    await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    const csrf = (await context.cookies()).find((row) => row.name === "lonora_csrf").value;
+    const headers = { "X-CSRF-Token": csrf };
+    const group = await (
+      await context.request.post("/api/groups/create", {
+        headers,
+        data: {
+          name: `Typing ${randomUUID()}`,
+          member_ids: [data.agent.id],
+          participation: "mentions_or_lead",
+        },
+      })
+    ).json();
+    const now = new Date().toISOString();
+    await page.route("**/api/runs?thread_id=*", (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: randomUUID(),
+            thread_id: group.thread_id,
+            agent_id: data.agent.id,
+            parent_run_id: null,
+            status: "running",
+            trigger: "user",
+            input_seq: 1,
+            model_metadata: {},
+            result: null,
+            error_code: null,
+            created_at: now,
+            updated_at: now,
+          },
+        ],
+      }),
+    );
+    try {
+      await page.goto(`/thread?id=${group.thread_id}`);
+      await expect(page.getByTestId("thread-subtitle")).toHaveText(`${data.agent.name} ${typing}`);
+    } finally {
+      await context.request.delete(`/api/groups/${group.id}`, { headers });
+      await data.remove();
+    }
+  });

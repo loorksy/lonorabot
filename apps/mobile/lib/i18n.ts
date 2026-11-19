@@ -436,6 +436,8 @@ export const labels = {
   reply: ["رد", "Reply"],
   webSearch: ["البحث في الويب", "Web search"],
   webSearchOn: ["يجمع المصادر قبل الرد", "Gathers sources before replying"],
+  webSearchIsOn: ["البحث في الويب مفعّل، اضغط لإيقافه", "Web search is on, tap to turn it off"],
+  webSearchOff: ["أُوقف البحث في الويب", "Web search turned off"],
   isTyping: ["{0} يكتب…", "{0} is typing…"],
   suggestedReply: ["رد مقترح: {0}", "Suggested reply: {0}"],
   newMessage: ["رسالة جديدة", "New message"],

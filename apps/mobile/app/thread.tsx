@@ -17,7 +17,6 @@ import {
   activeStatuses,
   type ConversationItem,
   conversationTimeline,
-  isUiPart,
   type LiveReplyStream,
   liveAvatarState,
   type MentionAddress,
@@ -961,6 +960,20 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     await deliver(intent, outboxKey, id);
   };
   const questions = threadQuestions([...asking, ...runs], id);
+  // The globe beside «+»: the chat's web search off, as Web's composer button.
+  const webSearchOff = async () => {
+    try {
+      const row = await api.put<{ options?: { web_search?: boolean } }>(
+        `/threads/${encodeURIComponent(id)}/options`,
+        { web_search: false },
+      );
+      const options = { web_search: Boolean(row.options?.web_search) };
+      setThread((old) => (old && old.id === id ? { ...old, options } : old));
+      toast(t("webSearchOff"));
+    } catch (reason) {
+      toast(errorText(reason), { type: "error" });
+    }
+  };
   // The agent's own suggested reply (Q23) under its last answer, as on Web: the answer is
   // conversational (no generated interface, not a question) and nothing (a card) came after it.
   const lastAgent = [...visibleMessages]
@@ -970,7 +983,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const suggestion =
     lastAgent?.suggested_reply &&
     timeline.at(-1)?.kind === "message" &&
-    !(lastAgent.rich_content?.parts ?? []).some(isUiPart) &&
+    // As Web's hasGenUi: any generated interface, of either version.
+    !(lastAgent.rich_content?.parts ?? []).some((part) => part.type === "ui") &&
     !questions.has(lastAgent.id) &&
     lastMine?.content.trim() !== lastAgent.suggested_reply
       ? lastAgent.suggested_reply
@@ -1554,6 +1568,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           editing={editing}
           suggestion={suggestion}
           onSuggestion={(text) => updateDraft({ text })}
+          onWebSearchOff={thread?.options?.web_search ? () => void webSearchOff() : undefined}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}

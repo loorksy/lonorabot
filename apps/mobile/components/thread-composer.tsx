@@ -53,6 +53,7 @@ export function ThreadComposer({
   onCancelEdit,
   suggestion,
   onSuggestion,
+  onWebSearchOff,
   permissionControl,
 }: {
   draft: string;
@@ -82,6 +83,8 @@ export function ThreadComposer({
   /** The agent's own suggested reply (Q23); a tap puts it in the composer. */
   suggestion?: string;
   onSuggestion?: (text: string) => void;
+  /** The chat's web search is on: a globe beside «+» turns it off, as on Web. */
+  onWebSearchOff?: () => void;
   /** Edit and resend (Q21): the owner's message this send replaces. */
   editing?: Message | null;
   onCancelEdit?: () => void;
@@ -325,6 +328,18 @@ export function ThreadComposer({
             </Pressable>
           </View>
           {permissionControl}
+          {onWebSearchOff ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("webSearchIsOn")}
+              testID="web-search-on"
+              hitSlop={6}
+              onPress={onWebSearchOff}
+              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+            >
+              <NativeSymbol name="globe" size={18} color={shell.link} />
+            </Pressable>
+          ) : null}
           <TextInput
             accessibilityLabel={t("message")}
             placeholder={t("message")}
