@@ -1,6 +1,15 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+// The version of the built-in memory skill that this commit ships.
+const MEMORY_VERSION = JSON.parse(
+  readFileSync(
+    new URL("../../packages/agent-runtime/resources/skills/memory/skill.json", import.meta.url),
+    "utf8",
+  ),
+).version;
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -106,7 +115,7 @@ for (const locale of ["en", "ar"]) {
       expect(controls.revoked).toHaveLength(1);
       expect(controls.revoked[0]).toMatchObject({
         skill_id: "memory",
-        version: "1.0.0",
+        version: MEMORY_VERSION,
         reason: "owner_revoked",
       });
       await expect(page.getByText(labels.history, { exact: true })).toBeVisible();
