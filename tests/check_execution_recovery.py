@@ -22,6 +22,7 @@ from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.brokers.simulation import SimulationBroker
+from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
@@ -91,6 +92,16 @@ class LossyBroker(SimulationBroker):
         # Operation -> gate: cross the send boundary, wait, then report a broker rejection.
         self.reject_after_boundary: dict[str, asyncio.Event] = {}
         self.boundary = asyncio.Event()
+        # Runs once, right after the next positions read: a ticket changes at the broker
+        # between the set a call read and its sends.
+        self.after_read: Callable[[], Awaitable[None]] | None = None
+
+    async def positions(self) -> list[Position]:
+        positions = await super().positions()
+        hook, self.after_read = self.after_read, None
+        if hook is not None:
+            await hook()
+        return positions
 
     async def execute(
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
@@ -669,8 +680,40 @@ async def main() -> None:
         def close_operation(call: ToolCall, position_id: str) -> str:
             return stable_id(context.lease.run_id, "close:" + call.id + ":" + position_id)
 
-        # 7a. The broker rejects the first close: the others are sent.
+        # 7a. The first position the call read is stopped out before its batch runs: that
+        # close fails on the changed target, the others are sent.
         call, gold = await close_all("batch-stopped-" + uuid4().hex)
+        sent_before = -1
+
+        async def stop_out() -> None:
+            nonlocal sent_before
+            stopped_out = await run(trade("close_position", position_id=gold[0]))
+            assert stopped_out.status == "confirmed", stopped_out
+            sent_before = len(lossy.sent)
+
+        lossy.after_read = stop_out
+        outcome = await registry.execute(call, context)
+        results = outcome["results"]
+        operations.extend(item["operation_id"] for item in results)
+        assert sent_before >= 0 and lossy.after_read is None
+        assert "approval_id" not in outcome, outcome
+        assert len(results) == len(gold)
+        assert results[0]["operation_id"] == close_operation(call, gold[0]), results[0]
+        assert results[0]["status"] == "failed" and results[0]["code"] in {
+            "trade_approval_broker_state_changed",
+            "position_not_found",
+        }, results[0]
+        assert all(item["status"] == "confirmed" for item in results[1:]), results
+        assert len(lossy.sent) == sent_before + len(gold) - 1
+        assert not any(p.symbol == GOLD for p in await broker.positions())
+        print(
+            "PASS a close-all still sends every other exit after one position it read was stopped out"
+        )
+
+        # The broker rejects the first close: the others are sent.
+        for volume in ("0.3", "0.4", "0.5"):
+            assert (await run(trade("buy", volume=volume, stop_loss="95"))).status == "confirmed"
+        call, gold = await close_all("batch-rejected-" + uuid4().hex)
         rejected_close = asyncio.Event()
         rejected_close.set()
         lossy.reject_after_boundary[close_operation(call, gold[0])] = rejected_close
