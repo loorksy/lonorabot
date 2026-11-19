@@ -61,6 +61,10 @@ def test_an_assigned_market_is_a_method_instruction_that_states_no_authority() -
         'Lonora assigned you "EURUSD" to trade.'
     )
     assert method_note({"symbol": None, "account_label": None}) is None
+    # An account alone is an instruction too (3.1.2): never dropped.
+    alone = method_note({"symbol": None, "account_label": "Demo 1234"})
+    assert alone == 'Lonora assigned you the account "Demo 1234" to trade on.'
+    assert authority_claim(alone) is None
 
 
 def test_a_responsibility_never_states_authority() -> None:

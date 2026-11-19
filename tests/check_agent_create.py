@@ -310,6 +310,11 @@ async def main() -> None:
         assert fourth["created"] is True, fourth
         created_ids.append(fourth["agent"]["id"])
         print("PASS at most three creations per minute in a run; the total is never counted")
+        # An account with no market is an instruction in the method too (3.1.2).
+        desk = await call(own, "agent_create", {"name": "Desk", "account_id": account})
+        created_ids.append(desk["agent"]["id"])
+        assert 'Lonora assigned you the account "' in await method(desk["agent"]["id"])
+        print("PASS an account assigned alone is written into the agent's method")
 
         # 5. No leading (3.2.2): a team agent's call is refused with the way to ask Lonora.
         async with db.sessions() as session, session.begin():

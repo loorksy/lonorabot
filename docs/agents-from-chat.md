@@ -44,7 +44,8 @@ connection version is recorded and re-checked when the agent is created.
 
 What was assigned is written into the new agent's method (`OPERATING.md`) as fixed server
 text around the broker's names: `Lonora assigned you "XAUUSD.r" on the account "…" to
-trade.` The account is named by its verified broker label, else by its connection id.
+trade.`, or for an account alone `Lonora assigned you the account "…" to trade on.` The
+account is named by its verified broker label, else by its connection id.
 The execution door never binds the agent to it (3.1.2).
 
 ### The mode (4.3)

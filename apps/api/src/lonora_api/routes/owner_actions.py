@@ -4,14 +4,9 @@ Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
 expired with its reason), is idempotent per card, and then runs the existing owner
 function for its effect: the owner attestation of an uncertain operation
-(``attest_operation``),
-creating an agent (the creation service; never a grant), undoing a creation (the
-owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
-undoing or restoring supervision, and the owner's own resume of work a supervisor
-paused (``lonora_db.pauses``; never money authority). A Secret card's values
-never come here: the card has its own route (``secret_cards``).
-Resuming, creating an agent, setting supervision, choosing a model and Undo are one
-tap.
+(``attest_operation``) and the owner's own resume of paused work
+(``lonora_db.pauses``; never money authority). A Secret card's values never come here:
+the card has its own route (``secret_cards``). Resuming is one tap.
 
 A grant card signs through the existing account-authority ceremony: its challenge builds
 the full-management proposal from the card's stored draft (``propose``) and returns the

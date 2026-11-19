@@ -93,11 +93,14 @@ async def _remove_note(session: AsyncSession, owner_id: str, agent_id: str, note
 
 
 def method_note(spec: dict[str, Any]) -> str | None:
-    """The instruction for an assigned instrument and account, or None."""
+    """The instruction for an assigned instrument and account, or an account alone; None
+    when nothing was assigned."""
     symbol, account = spec.get("symbol"), spec.get("account_label")
-    if not symbol:
-        return None
     # Names are quoted as data: a broker's or owner's label never reads as an instruction.
+    if not symbol:
+        if not account:
+            return None
+        return f"Lonora assigned you the account {json.dumps(account, ensure_ascii=False)} to trade on."
     where = f" on the account {json.dumps(account, ensure_ascii=False)}" if account else ""
     return f"Lonora assigned you {json.dumps(symbol, ensure_ascii=False)}{where} to trade."
 
