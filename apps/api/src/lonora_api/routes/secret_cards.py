@@ -9,9 +9,14 @@ secret), or an MCP server (its address and optional token). A saved MCP server's
 run once the owner trusts it, by naming it in chat (``mcp_trust``) or in Capabilities;
 the agent that asked is woken to tell him. A broker card's values go only to the broker
 layer's store (7.2.3); the gateway then provisions the account and wakes the agent with
-the result.
+the result. A model provider's key (and an OpenAI-compatible endpoint's base URL,
+checked first) is used to read the provider's catalog, with no lock held; the same
+transaction then saves the key and its record for the router, stores the catalog,
+settles the card and wakes the agent to name the models that became available.
 """
 
+import asyncio
+import logging
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -20,9 +25,12 @@ from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.mcp import McpConnection
+from lonora_contracts.model_catalog import ModelDescriptor
+from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import SecretCardSave
 from lonora_core.user_error import LonoraError
 from lonora_db.integrations import feed_host, source_url
+from lonora_db.model_credentials import CONNECTION_SETTING
 from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
@@ -36,15 +44,21 @@ from lonora_db.owner_actions import (
 from lonora_db.schema import IntegrationRow, OwnerActionRow
 from lonora_db.secret_cards import card_values, free_names, save_values, secret_stale_reason
 from lonora_db.secrets import BROKER, WORKSPACE
-from lonora_security.network import endpoint_sha256
+from lonora_db.transactions import SettingsRepository
+from lonora_providers.registry import model_adapter
+from lonora_security.network import compatible_endpoint, endpoint_sha256
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import require_owner, runtime
 from .integrations import OwnerIntegrationRepository
 from .mcp import McpRepository
+from .model_router import answer_unconfigured
 
 router = APIRouter(prefix="/owner-actions")
+log = logging.getLogger("lonora.secret_cards")
+# One bounded catalog read with the key the owner typed: the card never waits longer.
+CATALOG_SECONDS = 20
 
 
 @router.post("/{card_id}/secret")
@@ -68,6 +82,9 @@ async def save_secret(
     async with rt.db.sessions() as session:
         peek = await owned_card(session, owner.id, card_id)
     target = peek.payload.get("connect") if peek.kind == "secret" else None
+    catalog: list[ModelDescriptor] | None = None
+    if target == "model_provider" and live_status(peek) == "pending":
+        catalog = await offered_models(peek, card_values(peek, body.values))
     async with rt.db.sessions() as session, session.begin():
         row = await pending_card(session, owner, card_id)
         if row is None:
@@ -81,6 +98,16 @@ async def save_secret(
             return await owner_action_data(session, row)
         if target is None:
             result = await save_values(session, row, body.values, write)
+        elif target == "model_provider":
+            result = await save_model_key(session, store, row, card_values(row, body.values))
+            result["catalog"] = None if catalog is None else len(catalog)
+            # This key's catalog, empty when it could not be read: never the catalog of
+            # the key it replaced.
+            await SettingsRepository().put(
+                session,
+                "catalog:" + row.payload["details"]["provider"],
+                {"models": [item.model_dump(mode="json") for item in catalog or []]},
+            )
         else:
             result = await connect(session, store, owner, row, card_values(row, body.values))
         await settle_saved(session, owner, row, result)
@@ -88,7 +115,11 @@ async def save_secret(
         # agent continues once the gateway has provisioned the account.
         if row.payload["destination"] != BROKER:
             await continue_after_card(session, row)
-        return await owner_action_data(session, row)
+        data = await owner_action_data(session, row)
+    if target == "model_provider":
+        # With a model now, the replies that failed for lack of one run again.
+        await answer_unconfigured(request, owner)
+    return data
 
 
 async def pending_card(
@@ -134,6 +165,44 @@ def https_address(address: str, code: str) -> str:
     except (LonoraError, UnicodeError, ValueError):
         raise LonoraError(code, 422) from None
     return address
+
+
+async def offered_models(
+    card: OwnerActionRow, values: dict[str, str]
+) -> list[ModelDescriptor] | None:
+    """The catalog the provider lists for the key (and endpoint) the owner typed, read
+    before the transaction with no lock held; None when it cannot be read (a rejected
+    key, an unreachable, slow or unreadable endpoint). An unsafe endpoint URL is refused
+    before any request, and the card stays waiting."""
+    provider = card.payload["details"]["provider"]
+    url = compatible_endpoint(values["URL"]) if "URL" in values else None
+    adapter = model_adapter(provider, values["API_KEY"], url)
+    try:
+        async with asyncio.timeout(CATALOG_SECONDS):
+            return await adapter.discover()
+    except Exception as error:
+        log.warning("model_catalog_unread provider=%s error=%s", provider, type(error).__name__)
+        return None
+    finally:
+        await adapter.close()
+
+
+async def save_model_key(
+    session: AsyncSession,
+    store: EncryptedSecretStore,
+    row: OwnerActionRow,
+    values: dict[str, str],
+) -> dict[str, Any]:
+    """The key as the owner's workspace secret under the provider's usual name, and the
+    record the router reads it by: that secret's id with the endpoint URL it belongs to."""
+    provider = row.payload["details"]["provider"]
+    name = PROVIDER_KEY_NAMES[provider]
+    url = compatible_endpoint(values["URL"]) if "URL" in values else None
+    secret_id = await store.write_in_session(session, name, values["API_KEY"], WORKSPACE)
+    await SettingsRepository().put(
+        session, CONNECTION_SETTING + provider, {"secret_id": secret_id, "url": url}
+    )
+    return {"target": "model_provider", "provider": provider, "configured": True, "saved": [name]}
 
 
 async def connect(
