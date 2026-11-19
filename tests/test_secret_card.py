@@ -598,3 +598,103 @@ async def test_a_calendar_watch_reads_a_saved_address_through_the_owners_store()
                 if stale is not None:
                     await session.delete(stale)
         await fixture.close()
+
+
+def broker_card(purpose: str, result: dict[str, Any]) -> OwnerActionRow:
+    from lonora_db.secret_cards import broker_card_payload
+
+    _, payload = broker_card_payload(
+        login="472790406",
+        server="Exness-MT5Trial16",
+        platform="mt5",
+        token_needed=False,
+        purpose=purpose,
+        connection_id=None if purpose == "connect" else "fixture-connection",
+    )
+    return OwnerActionRow(payload=payload, result=result)
+
+
+def test_every_code_that_ends_a_broker_card_has_a_fixed_cause_in_its_wake() -> None:
+    """Production, 2026-11-19: a card failed with broker_provisioning_rejected, its wake had
+    no cause for that code, and the model told the owner the broker rejected his login
+    data (MetaApi had refused a redeploy) and mistyped the login. Every code that can end
+    a connect, new password or new token card, or a connection's first account read, has
+    a fixed cause saying only what MetaApi or Lonora observed, and the wake says to name no
+    other and to quote the login as written. A code added to TRANSIENT, REFUSALS, the
+    adapter's mapping or these steps without a cause fails here."""
+    import inspect
+    import re
+
+    from lonora_adapters.brokers import metaapi_provisioning
+    from lonora_db.secret_cards import BROKER_CAUSES, OBSERVED_ONLY, broker_prompt
+    from lonora_trading import broker_manage, broker_provisioning
+
+    literal = re.compile(r'"(broker_[a-z_]+)"')
+    sources = (
+        inspect.getsource(broker_provisioning),
+        inspect.getsource(broker_manage),
+        inspect.getsource(metaapi_provisioning.provisioning_error),
+        inspect.getsource(metaapi_provisioning.MetaApiProvisioning.find_or_create),
+    )
+    ending = {code for source in sources for code in literal.findall(source)}
+    ending |= broker_provisioning.TRANSIENT | metaapi_provisioning.REFUSALS
+    # A connection's first account read (a linked card's read_code), and what other layers
+    # raise into these steps: MetaApi's account record behind the connection, Lonora's
+    # connection records.
+    reading = {
+        "broker_login_rejected",
+        "broker_login_not_established",
+        "broker_connection_timeout",
+        "broker_connection_unavailable",
+        "broker_connection_closed",
+        "broker_rate_limited",
+        "broker_account_undeployed",
+        "broker_account_not_found",
+        "broker_credentials_rejected",
+        "broker_request_rejected",
+        "broker_disabled",
+        "broker_connection_changed",
+        "broker_secret_required",
+        "broker_sessions_not_found",
+    }
+    ending |= reading | {"broker_account_already_connected", "broker_identity_unavailable"}
+    assert {
+        "broker_provisioning_rejected",
+        "broker_provisioning_busy",
+        "broker_provisioning_failed",
+        "broker_rotation_incomplete",
+        "broker_operation_unsettled",
+    } <= ending
+    assert sorted(ending - BROKER_CAUSES.keys()) == []
+
+    def failed(purpose: str, **result: Any) -> str:
+        return broker_prompt(broker_card(purpose, {"provisioning": "failed", **result}))
+
+    for code in sorted(ending):
+        for prompt in (
+            failed("connect", code=code),
+            failed("rotate_password", code=code),
+            failed("replace_token", code=code),
+            failed("rotate_password", code=code, password_stored=True),
+        ):
+            assert f"{code}." in prompt and BROKER_CAUSES[code] in prompt, code
+            assert OBSERVED_ONLY in prompt and "account 472790406 " in prompt, prompt
+    for code in sorted(reading):
+        linked = broker_card(
+            "connect",
+            {
+                "provisioning": "linked",
+                "read_code": code,
+                "connection_id": "fixture-connection",
+                "observed": {"login": "472790406", "server": "Exness-MT5Trial16"},
+            },
+        )
+        prompt = broker_prompt(linked)
+        assert BROKER_CAUSES[code] in prompt and OBSERVED_ONLY in prompt, code
+        assert "account 472790406 " in prompt
+    # The incident's code: MetaApi's refusal says nothing about the broker login.
+    rejected = failed("connect", code="broker_provisioning_rejected")
+    assert "nothing at the broker judged the login, so do not name a cause" in rejected
+    assert "wrong password" not in rejected and "Name no cause beyond" in rejected
+    busy = failed("connect", code="broker_provisioning_busy")
+    assert "still deploying" in busy and "Try again in a few minutes" in busy

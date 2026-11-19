@@ -426,8 +426,11 @@ def saved_prompt(row: OwnerActionRow) -> str:
 
 
 # What a broker failure means, said as what MetaApi and Lonora observed (never a cause
-# MetaApi did not report), with the owner's fix. The system alerts read only what was
-# observed (LOGIN_OBSERVED): an account that was trading needs no first-connect causes.
+# MetaApi did not report), with the owner's fix. Every code that can end a broker card or
+# its first account read has one (tests/test_secret_card.py walks them): a wake with a
+# bare code had the model invent a cause (production, 2026-11-19). The system alerts read
+# only what was observed (LOGIN_OBSERVED): an account that was trading needs no
+# first-connect causes.
 LOGIN_CHECK = (
     "The usual causes: a wrong password, or a server name the account is no longer on "
     "(Exness moves demo accounts between Exness-MT5TrialNN servers). Ask the owner for the "
@@ -454,7 +457,80 @@ BROKER_CAUSES = {
     "broker_provisioning_busy": "MetaApi was still deploying or undeploying the account's "
     "terminal when Lonora's wait ran out, and it refuses another deploy until that is done; "
     "nothing at the broker judged the login. Try again in a few minutes.",
+    # MetaApi's answers to Lonora's requests about the account at MetaApi.
+    "broker_provisioning_rejected": "MetaApi refused the request and gave no reason Lonora "
+    "can show; nothing at the broker judged the login, so do not name a cause.",
+    "broker_provisioning_conflict": "MetaApi refused the request as conflicting with the "
+    "account's state at MetaApi and gave no reason Lonora can show; nothing at the broker "
+    "judged the login. Try again in a few minutes.",
+    "broker_provisioning_timeout": "MetaApi did not answer within the time Lonora waits, so "
+    "whether it carried out the request is not known; nothing at the broker judged the "
+    "login. Try again in a few minutes.",
+    "broker_provisioning_unavailable": "MetaApi could not be reached or gave no usable "
+    "answer, so whether it carried out the request is not known; nothing at the broker "
+    "judged the login. Try again in a few minutes.",
+    "broker_rate_limited": "MetaApi refused the request because Lonora made too many (rate "
+    "limited); this says nothing about the login. Try again in a few minutes.",
+    "broker_token_rejected": "MetaApi refused the MetaApi API token for this request "
+    "(unauthorized, forbidden, or a token that cannot manage accounts); nothing at the "
+    "broker judged the login.",
+    "broker_account_not_found": "MetaApi answered that it has no account with the id Lonora "
+    "uses, for the MetaApi API token used; this says nothing about the login.",
+    "broker_platform_required": "The card names no MT4 or MT5 platform, so Lonora created no "
+    "MetaApi account; nothing at the broker judged the login.",
+    "broker_provisioning_failed": "Lonora's last try at this step, after its wait ran out, "
+    "ended in an error Lonora cannot show; this says nothing about the login.",
+    # Lonora's own checks before or after MetaApi's answer.
+    "broker_secret_required": "A credential this step needs (the trading password or the "
+    "MetaApi API token) was not in Lonora's broker store, so the step was not taken; this "
+    "says nothing about the login.",
+    "broker_connect_in_progress": "Another saved card for this login and server was still "
+    "connecting it, so this card sent nothing to MetaApi; that card reports its own outcome.",
+    "broker_account_already_connected": "Lonora already has a saved connection for this "
+    "account, so it saved no second one; this says nothing about the login.",
+    "broker_identity_mismatch": "MetaApi's stored record of the account names another login "
+    "or server than this card, so Lonora saved no connection; nothing at the broker judged "
+    "the login.",
+    "broker_identity_unavailable": "MetaApi's stored record of the account gave no login, "
+    "server and platform Lonora could check, so Lonora saved no connection; this says "
+    "nothing about the login.",
+    # Reading the account through MetaApi (the connection's check and its first read).
+    "broker_credentials_rejected": "MetaApi refused the MetaApi API token when Lonora read "
+    "the account (unauthorized or forbidden); this says nothing about the broker login.",
+    "broker_account_undeployed": "MetaApi reported the account's terminal as not deployed "
+    "when Lonora read it; this says nothing about the login.",
+    "broker_connection_timeout": "MetaApi did not answer Lonora's read of the account within "
+    "the time Lonora waits; this says nothing about the login.",
+    "broker_connection_unavailable": "MetaApi could not be reached, or gave no usable "
+    "answer, when Lonora read the account; this says nothing about the login.",
+    "broker_request_rejected": "MetaApi refused Lonora's read of the account and gave no "
+    "reason Lonora can show; this says nothing about the login, so do not name a cause.",
+    "broker_connection_closed": "The terminal connection Lonora read through closed before "
+    "it answered; this says nothing about the login.",
+    "broker_disabled": "The saved connection is disabled in Lonora, so nothing was read "
+    "through it; this says nothing about the login.",
+    "broker_connection_changed": "A broker connection changed in Lonora while this step ran "
+    "(one was added or removed, or its credential changed), so Lonora did not use the "
+    "step's result; this says nothing about the login.",
+    "broker_sessions_not_found": "The saved connection this step needs is no longer in "
+    "Lonora, so the step was not taken; this says nothing about the login.",
+    # Changing a saved connection's password or token.
+    "broker_not_metaapi": "The saved connection is not a MetaApi connection with a token, so "
+    "Lonora sent nothing to MetaApi.",
+    "broker_operation_unsettled": "An operation on this account has no confirmed outcome "
+    "yet, so Lonora did not go on with the change; it can once that is settled.",
+    "broker_token_mismatch": "The new MetaApi API token does not see every connected MetaApi "
+    "account, so Lonora kept the token every connection uses.",
+    "broker_rotation_incomplete": "MetaApi took the new trading password (and the new server, "
+    "for a move), but Lonora could not record the change, so the terminal was not "
+    "redeployed with it. Rotate again with broker_manage.",
+    "broker_credential_change_failed": "The change ended in an error Lonora cannot show, so "
+    "how far it got is not known.",
 }
+# After every outcome but a confirmed connection: the model names no cause it was not given.
+OBSERVED_ONLY = (
+    "Name no cause beyond the text given here, and quote the account login exactly as written here."
+)
 
 
 def broker_prompt(row: OwnerActionRow) -> str:
@@ -483,29 +559,25 @@ def broker_prompt(row: OwnerActionRow) -> str:
             done += " Whether the broker accepts the login shows only when account_read answers."
         if result.get("provisioning") == "connected":
             return done + " You never see it. Tell the owner in one line."
+        cause = BROKER_CAUSES.get(str(result.get("code")))
+        because = f"{result.get('code')}.{' ' + cause if cause else ''}"
+        login = row.payload["account"]["login"]
         if result.get("password_stored"):
             # Stored at MetaApi and recorded, but no redeploy with it was confirmed; nothing
             # else redeploys a terminal that is running.
-            cause = BROKER_CAUSES.get(str(result.get("code")))
             changed = "password and server" if moved else "password"
             return (
-                f"The new trading {changed} {'are' if moved else 'is'} stored at MetaApi and "
-                f"recorded, but no redeploy of the terminal with {'them' if moved else 'it'} "
-                f"was confirmed: {result.get('code')}.{' ' + cause if cause else ''} Until the "
-                f"terminal is redeployed, it logs in with the {changed} it was last deployed "
-                "with; to redeploy it, call broker_manage rotate_password again, and the owner "
-                "types the same new password. You never see it. Tell the owner in one line."
-            )
-        if result.get("code") == "broker_rotation_incomplete":
-            return (
-                "MetaApi may already hold the new trading password"
-                + (f" and server {moved}" if moved else "")
-                + ", but Lonora could not record the change. Rotate again with broker_manage. "
-                "You never see it. Tell the owner in one line."
+                f"The new trading {changed} of account {login} {'are' if moved else 'is'} "
+                "stored at MetaApi and recorded, but no redeploy of the terminal with "
+                f"{'them' if moved else 'it'} was confirmed: {because} Until the terminal is "
+                f"redeployed, it logs in with the {changed} it was last deployed with; to "
+                "redeploy it, call broker_manage rotate_password again, and the owner types "
+                f"the same new password. You never see it. {OBSERVED_ONLY} Tell the owner in "
+                "one line."
             )
         return (
-            f"Changing the broker credential failed: {result.get('code')}. Nothing changed. "
-            "You never see the values. Tell the owner in one line what went wrong."
+            f"Changing the broker credential of account {login} failed: {because} You never "
+            f"see the values. {OBSERVED_ONLY} Tell the owner in one line what went wrong."
         )
     observed: dict[str, Any] = result.get("observed") or {}
     named = f"account {observed.get('login')} on {observed.get('server')}"
@@ -521,11 +593,13 @@ def broker_prompt(row: OwnerActionRow) -> str:
             "account, not a broker answer. "
             + (
                 cause + " Tell the owner in one line that it is saved, that no balance could "
-                "be read, and what to check."
+                "be read, and why; read it again with account_read later."
                 if cause
                 else "Tell the owner in one line that it is saved and no balance could be "
                 "read yet; read it again with account_read later."
             )
+            + " "
+            + OBSERVED_ONLY
         )
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
@@ -543,8 +617,9 @@ def broker_prompt(row: OwnerActionRow) -> str:
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
             f"{result.get('code')}.{token}{' ' + cause if cause else ''} You never see "
-            "the password or token. Tell the owner in one line what went wrong and what you "
-            "need; to try again, call broker_connect, which shows a new card."
+            f"the password or token. {OBSERVED_ONLY} Tell the owner in one line what went "
+            "wrong and what you need; to try again, call broker_connect, which shows a new "
+            "card."
         )
     facts: dict[str, Any] = result.get("account") or {}
     trading = (
