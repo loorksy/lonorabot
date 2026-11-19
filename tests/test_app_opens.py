@@ -2,8 +2,10 @@
 device's zone, and the morning brief time learned from them. Runs on in-memory SQLite, or
 on LONORA_TASK_TEST_DATABASE_URL."""
 
+import re
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -15,7 +17,7 @@ from lonora_api.errors import install_errors
 from lonora_api.routes import app_opens
 from lonora_auth.sessions import issue_session
 from lonora_contracts.app_opens import AppOpen
-from lonora_db.app_opens import record_open, recorded_opens
+from lonora_db.app_opens import DAY_START_HOUR, record_open, recorded_opens
 from lonora_db.client import Database
 from lonora_db.schema import AppOpenRow, MorningBriefRow, OwnerRow
 from lonora_trading.morning_brief import (
@@ -48,6 +50,12 @@ def test_the_owner_zone_is_reach_me_then_the_latest_device_then_utc() -> None:
     assert owner_zone({}, "Europe/Paris").key == "Europe/Paris"
     assert owner_zone({"timezone": "Not/AZone"}, None).key == "UTC"
     assert owner_zone({}, None).key == "UTC"
+
+
+def test_the_clients_start_the_owner_day_at_the_same_hour() -> None:
+    core = Path(__file__).parents[1] / "packages/core/src/app-open.ts"
+    hour = re.search(r"OWNER_DAY_START_HOUR = (\d+);", core.read_text())
+    assert hour is not None and int(hour.group(1)) == DAY_START_HOUR
 
 
 @pytest.mark.asyncio

@@ -6,11 +6,12 @@ owner in `ln_morning_briefs`.
 
 ## When
 
-- **App opens.** Web (the shell, while the page is visible) and mobile (while the app is
-  active) post the device's time zone to `POST /api/app-opens`, at most once per local
-  date of the device. The server keeps the first open of each owner day in
-  `ln_app_opens` (`lonora_db/app_opens.py`); the owner's day starts at 04:00 on the
-  device's clock, so a session at 00:30 belongs to the day before. Owner session only.
+- **App opens.** The owner's day starts at 04:00 on the device's clock, so a session at
+  00:30 belongs to the day before. Web (the shell, while the page is visible) and mobile
+  (while the app is active) post the device's time zone to `POST /api/app-opens` at most
+  once per owner day (`ownerDay` in `packages/core/src/app-open.ts`). The server keeps
+  the first open of each owner day in `ln_app_opens` (`lonora_db/app_opens.py`, the same
+  04:00 as `DAY_START_HOUR`). Owner session only.
 - **Time zone:** `reach_me.timezone` when the owner stored one, else the zone of the
   latest recorded app open, else UTC. The step only reads reach-me.
 - **Time:** 07:00 until the owner has opened the app on 3 days (VISION 11.1). Then the
