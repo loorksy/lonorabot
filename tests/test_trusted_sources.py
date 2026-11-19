@@ -11,6 +11,7 @@ and feeds are scripted, never contacted.
 import json
 import os
 import socket
+import time
 from dataclasses import replace
 from io import BytesIO
 from typing import Any, cast
@@ -1387,6 +1388,9 @@ async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
             again = await call(
                 context, "news_feed_subscribe", url=f"https://{domain}/rss/11", name="Again"
             )
+            # A broken duplicate check adds a thirteenth feed: removed with the others.
+            if again.get("feed_id") and again["feed_id"] not in added_feeds:
+                added_feeds.append(again["feed_id"])
             assert again["status"] == "already_subscribed", again
             read = await call(context, "news_feed_read")
         mine = [feed for feed in read["feeds"] if feed["domain"] == domain]
@@ -1443,7 +1447,11 @@ async def test_a_slow_feed_never_costs_the_agent_the_feeds_that_answered(
                     added_feeds.append(added["feed_id"])
                 assert added["status"] == "subscribed", added
             slow.append(True)
+            began = time.monotonic()
             read = await call(context, "news_feed_read")
+            elapsed = time.monotonic() - began
+        # At the read's deadline (0.5 s here), not after the slow feed's own 20 seconds.
+        assert elapsed < 5, elapsed
         mine = {feed["name"]: feed for feed in read["feeds"] if feed["domain"] == domain}
         assert mine["fast"]["status"] == "ok", mine
         assert mine["slow"]["status"] == "unavailable", mine
