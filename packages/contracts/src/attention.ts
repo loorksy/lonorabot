@@ -115,5 +115,10 @@ export interface AttentionViewRow {
   symbol?: string | null;
   /** An agent's alert: its plain summary for the owner (the agent's words). */
   summary?: string | null;
+  /**
+   * The owner has already looked at it: the item was opened, or the question's
+   * conversation was read up to it. Such a row stays listed but lights no dot.
+   */
+  seen: boolean;
   created_at: string;
 }

@@ -23,6 +23,7 @@ from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
 from lonora_db.attention import mandatory_current, raise_system_attention, withdraw_ended
 from lonora_db.events import emit
+from lonora_db.messages import post_agent_message
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
     AgentRow,
@@ -655,12 +656,17 @@ async def view(fixture: Fixture) -> None:
     thread = await fixture.conversation(agent)
     run = await fixture.run(agent, thread)
     async with fixture.runtime.db.sessions() as session, session.begin():
+        asked = await post_agent_message(session, fixture.owner, agent["id"], "Which account?")
+        assert asked.thread_id == thread["id"]
+        asked_seq = asked.seq
         row = await session.get(RunRow, run["id"], with_for_update=True)
         assert row is not None
         row.status = "waiting_input"
         row.execution_state = {
             **row.execution_state,
-            "input_requests": [{"id": "q1", "status": "pending"}],
+            "input_requests": [
+                {"id": "q1", "status": "pending", "message_id": asked.id, "thread_id": thread["id"]}
+            ],
         }
     # A Task review whose Task is gone, and an alert quiet hours still hold: not listed.
     async with fixture.runtime.db.sessions() as session, session.begin():
@@ -699,6 +705,8 @@ async def view(fixture: Fixture) -> None:
         agent["id"],
         thread["id"],
     )
+    # The owner has not read the conversation since the question: it is not seen.
+    assert question["seen"] is False
     async with fixture.runtime.db.sessions() as session:
         open_items = [
             item
@@ -724,11 +732,30 @@ async def view(fixture: Fixture) -> None:
         entry = by_id[item.id]
         assert entry["code"] == item.code and entry["thread_id"] == item.thread_id
         assert entry["kind"] == ATTENTION_EVENTS.get(item.code, "task_review")  # type: ignore[arg-type]
+        assert entry["seen"] is (item.status == "seen")
     assert not set(ended) & set(by_id)
     assert not [key for key in by_id if key.startswith(("stale-review-", "held-alert-"))]
     # Several agents' items in one view.
     assert len({entry["agent_id"] for entry in rows}) > 1
     assert await fixture.request("GET", "/attention/history") == before
+    # Looking at a row makes it seen, and it stays listed until it is answered: opening an
+    # item reads it, and reading the conversation up to the question reads the question.
+    unopened = [item for item in open_items if item.status != "seen"]
+    assert unopened, "the earlier steps leave an unopened item"
+    await fixture.request("POST", "/attention/seen", {"notification_id": unopened[0].id})
+    await fixture.request("POST", f"/threads/{thread['id']}/read", {"seq": asked_seq - 1})
+    looked = {
+        entry["id"]: entry
+        for entry in cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    }
+    assert looked[unopened[0].id]["seen"] is True
+    assert looked[run["id"]]["seen"] is False, "read only up to the message before it"
+    await fixture.request("POST", f"/threads/{thread['id']}/read", {"seq": asked_seq})
+    looked = {
+        entry["id"]: entry
+        for entry in cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    }
+    assert looked[run["id"]]["seen"] is True
     async with fixture.runtime.db.sessions() as session, session.begin():
         row = await session.get(RunRow, run["id"], with_for_update=True)
         assert row is not None

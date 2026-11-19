@@ -99,6 +99,9 @@ class AttentionViewRow(Contract):
     symbol: str | None = None
     # An agent's alert: its plain summary for the owner (the agent's words).
     summary: str | None = None
+    # The owner has already looked at it: the item was opened, or the question's
+    # conversation was read up to it. Such a row stays listed but lights no dot.
+    seen: bool = False
     created_at: datetime
 
 

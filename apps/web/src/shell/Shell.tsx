@@ -868,7 +868,7 @@ function ShellBody() {
           <DesktopRail
             section={section}
             chatsBadge={chatsBadge}
-            updatesDot={attention.view.length > 0}
+            updatesDot={attention.view.some((row) => !row.seen)}
             collapsed={collapsed}
             onToggleCollapsed={toggleList}
             onSection={switchTab}
@@ -942,7 +942,7 @@ function ShellBody() {
               navRef={navRef}
               section={section}
               chatsBadge={chatsBadge}
-              updatesDot={attention.view.length > 0}
+              updatesDot={attention.view.some((row) => !row.seen)}
               onTab={switchTab}
               onLensRelease={(root, lensFrom) => pagerTo(root, lensFrom)}
               dragging={busy}

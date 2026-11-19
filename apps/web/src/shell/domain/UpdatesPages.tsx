@@ -37,8 +37,9 @@ export function UpdatesPage() {
         ? labels[row.code]
         : "";
   const open = (row: AttentionViewRow) => {
-    // Opening an alert reads it; a card or a question stays until it is answered.
-    if (row.kind === "agent_alert" || row.kind === "system_alert")
+    // Opening an item reads it: an alert then leaves the view, a card or a Task review stays
+    // until it is answered. A question has no item; reading its conversation reads it.
+    if (row.kind !== "owner_question")
       attention.seen(row.id).catch((cause) => toast(userError(cause), { type: "error" }));
     nav.go(
       row.group_id ? `/app/g/${row.group_id}` : `/app/${row.agent_id}?thread=${row.thread_id}`,

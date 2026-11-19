@@ -5134,7 +5134,7 @@ msgstr "Nothing becomes active before your passkey signature; the next step show
 msgid "Nothing is running in the workspace."
 msgstr "Nothing is running in the workspace."
 
-#: src/shell/domain/UpdatesPages.tsx:87
+#: src/shell/domain/UpdatesPages.tsx:88
 msgid "Nothing needs you right now."
 msgstr "Nothing needs you right now."
 

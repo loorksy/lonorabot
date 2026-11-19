@@ -35,9 +35,17 @@ test("the attention view lists what needs the owner, opens its conversation and 
   const held = new Promise((resolve) => {
     release = resolve;
   });
+  // Once set, the view answers with the fixture's own row only, so the dot follows it alone.
+  let fixtureOnly = false;
   await page.route("**/api/attention/view", async (route) => {
     await held;
-    await route.continue();
+    if (!fixtureOnly) return route.continue();
+    const response = await route.fetch();
+    const rows = await response.json();
+    await route.fulfill({
+      response,
+      json: rows.filter((row) => row.id === fixture.uncertain.id),
+    });
   });
   // The 50 newest open items may hold none of the view's rows (an old card under newer
   // updates): the tab's dot follows the view itself.
@@ -65,8 +73,18 @@ test("the attention view lists what needs the owner, opens its conversation and 
   await expect(main.getByRole("button", { name: "Mark all as read" })).toHaveCount(0);
   await expect(main.getByText("Latest actions")).toHaveCount(0);
   // A tap opens the agent's conversation, where the Settle card stands; it settles nothing.
+  fixtureOnly = true;
   await uncertain.click();
   await expect(page).toHaveURL(new RegExp(`/app/${fixture.agent.id}\\?thread=`));
-  const view = await (await context.request.get("/api/attention/view")).json();
-  expect(view.map((row) => row.id)).toContain(fixture.uncertain.id);
+  // The tap read the card: it stays listed until it is settled, seen, and lights no dot.
+  await expect
+    .poll(async () => {
+      const view = await (await context.request.get("/api/attention/view")).json();
+      return view.find((row) => row.id === fixture.uncertain.id)?.seen;
+    })
+    .toBe(true);
+  await expect(page.locator('[data-rail="updates"] .rail-dot')).toHaveCount(0);
+  await page.goBack();
+  await expect(uncertain).toBeVisible();
+  await expect(page.locator('[data-rail="updates"] .rail-dot')).toHaveCount(0);
 });

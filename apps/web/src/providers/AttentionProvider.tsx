@@ -4,7 +4,8 @@ import { api } from "../lib/api";
 
 type Attention = {
   items: AttentionNotification[];
-  /** What «يحتاج انتباهك» lists now (GET /attention/view): the tab's dot shows while it lists any. */
+  /** What «يحتاج انتباهك» lists now (GET /attention/view): the tab's dot shows while it
+   * lists a row the owner has not seen yet. */
   view: AttentionViewRow[];
   error: unknown;
   seen: (id: string) => Promise<void>;
@@ -73,7 +74,7 @@ export function AttentionProvider({
         seen: async (id) => {
           await api.post("/attention/seen", { notification_id: id });
           setItems((rows) => rows.filter((row) => row.id !== id));
-          setView((rows) => rows.filter((row) => row.id !== id));
+          setView((rows) => rows.map((row) => (row.id === id ? { ...row, seen: true } : row)));
         },
       }}
     >

@@ -35,8 +35,9 @@ export type ShellData = {
   threadSettings: ThreadSettings | null;
   runs: Run[];
   attention: AttentionNotification[];
-  /** How many rows «يحتاج انتباهك» lists now (GET /attention/view): the tab's dot. */
-  attentionListed: number;
+  /** How many rows «يحتاج انتباهك» lists that the owner has not seen yet
+   * (GET /attention/view): the tab's dot. */
+  attentionUnseen: number;
   busyIds: Set<string>;
   /** False until the first inbox read of this owner landed. */
   loaded: boolean;
@@ -68,7 +69,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
   const [threadSettings, setThreadSettingsState] = useState<ThreadSettings | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [attention, setAttention] = useState<AttentionNotification[]>([]);
-  const [attentionListed, setAttentionListed] = useState(0);
+  const [attentionUnseen, setAttentionUnseen] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   // Local confirmed writes bump this; a primary read that started before the last one is dropped.
@@ -81,7 +82,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     setGroups(cached?.groups ?? []);
     setRuns(cached?.runs ?? []);
     setAttention(cached?.attention ?? []);
-    setAttentionListed(0);
+    setAttentionUnseen(0);
     setChatListsState([]);
     setThreadSettingsState(null);
     setLoadedOwner(cached ? currentOwner.current : undefined);
@@ -134,7 +135,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
         const listed = api
           .get<AttentionViewRow[]>("/attention/view")
           .then((rows) => {
-            if (current()) setAttentionListed(rows.length);
+            if (current()) setAttentionUnseen(rows.filter((row) => !row.seen).length);
           })
           .catch(() => undefined);
         await Promise.all([primary, auxiliary, listed]);
@@ -229,7 +230,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       threadSettings,
       runs,
       attention,
-      attentionListed,
+      attentionUnseen,
       busyIds,
       loaded: Boolean(owner) && loadedOwner === owner?.id,
       offline,
@@ -247,7 +248,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       threadSettings,
       runs,
       attention,
-      attentionListed,
+      attentionUnseen,
       busyIds,
       owner,
       loadedOwner,

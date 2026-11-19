@@ -5128,7 +5128,7 @@ msgstr "لا يُفعَّل شيء قبل توقيعك بمفتاح المرور
 msgid "Nothing is running in the workspace."
 msgstr "لا شيء يعمل في مساحة العمل."
 
-#: src/shell/domain/UpdatesPages.tsx:87
+#: src/shell/domain/UpdatesPages.tsx:88
 msgid "Nothing needs you right now."
 msgstr "لا شيء يحتاجك الآن."
 

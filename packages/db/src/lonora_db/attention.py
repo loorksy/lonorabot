@@ -773,9 +773,10 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
     review, every run in a conversation that waits on the owner's answer to its
     question, each agent's own unread alert, and the watchdog's unread items about an
     unresolved operation or quarantined work. Only an agent alert's summary is the
-    agent's words; the server writes everything else.
+    agent's words; the server writes everything else. A row is ``seen`` once the owner
+    has opened its item, or read the question's conversation up to the question.
     """
-    from .schema import RunRow, ThreadRow
+    from .schema import MessageRow, RunRow, ThreadPrefsRow, ThreadRow
 
     rows: list[AttentionViewRow] = []
     query = (
@@ -814,6 +815,7 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
                 group_id=item.parameters.get("group_id"),
                 code=code,
                 symbol=item.parameters.get("symbol"),
+                seen=item.status == "seen",
                 created_at=item.created_at,
             )
         )
@@ -864,8 +866,16 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
     )
     for run, thread in waiting:
         questions: list[dict[str, Any]] = run.execution_state.get("input_requests", [])
-        if not any(question.get("status") == "pending" for question in questions):
+        pending = [question for question in questions if question.get("status") == "pending"]
+        if not pending:
             continue
+        # A question has no item to open: it is seen once its conversation is read past it.
+        asked = await session.get(MessageRow, str(pending[-1].get("message_id") or ""))
+        prefs = (
+            await session.get(ThreadPrefsRow, {"owner_id": owner_id, "thread_id": asked.thread_id})
+            if asked is not None
+            else None
+        )
         rows.append(
             AttentionViewRow(
                 kind="owner_question",
@@ -874,6 +884,10 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
                 thread_id=thread.id,
                 group_id=thread.group_id,
                 run_id=run.id,
+                seen=asked is not None
+                and prefs is not None
+                and not prefs.marked_unread
+                and prefs.last_read_seq >= asked.seq,
                 created_at=run.updated_at,
             )
         )

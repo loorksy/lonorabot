@@ -88,8 +88,9 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
             secondary
             label={t("openConversation")}
             onPress={() => {
-              // Opening an alert reads it; a card or a question stays until answered.
-              if (row.kind === "agent_alert" || row.kind === "system_alert")
+              // Opening an item reads it: an alert then leaves the view, a card or a Task
+              // review stays until answered. A question is read with its conversation.
+              if (row.kind !== "owner_question")
                 void api
                   .post("/attention/seen", { notification_id: row.id })
                   .catch((cause) => setError(errorText(cause)));

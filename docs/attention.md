@@ -86,7 +86,10 @@ projection with no model: `GET /attention/view` (`attention_view`, `AttentionVie
     (`run_quarantined`), as `system_alert`: they have no other lasting place either.
 - Web and mobile show the same list as the «يحتاج انتباهك» tab. A row opens its
   conversation, where the fixed card or the question stands; opening it decides
-  nothing. Opening an alert (an agent's or the watchdog's) marks it read, so it leaves
-  the list.
-- The tab's dot shows while the view lists anything: both clients read `GET /attention/view`
-  for it, so a card or a waiting question lights it however old it is.
+  nothing. Opening a row with an item marks the item read: an alert (an agent's or the
+  watchdog's) then leaves the list, a card or a Task review stays until it is answered.
+  A question has no item; it is read once its conversation is read up to it.
+- Each row says whether the owner has already looked at it (`seen`). The tab's dot,
+  whose spoken label is "new" («جديد»), shows while the view lists a row that is not
+  seen: both clients read `GET /attention/view` for it, so an unopened card or an
+  unread question lights it however old it is, and a row already looked at does not.
