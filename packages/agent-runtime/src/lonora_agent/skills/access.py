@@ -19,7 +19,7 @@ from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..context.skills import effective_skill_registry, pin_package_image
+from ..context.skills import effective_skill_registry
 from .provenance import LEGACY_LABEL, skill_provenance
 from .registry import SkillRegistry
 from .resolver import SkillSelection, SkillSignals, resolve_skills
@@ -311,15 +311,10 @@ class RunSkillAccess:
             skills, rejected, signals = await catalog_state(session, context, self.registry, run)
             combined, bundle = select_bundle(skills, rejected, signals, self.active_ids, skill_id)
             expected = acknowledgment(skill_id, bundle)
-            rows = (
-                await session.scalars(select(SkillRow).where(SkillRow.agent_id == context.agent_id))
-            ).all()
-            metadata = pin_package_image(run.model_metadata, rows, combined.selected)
             if receipt is not None:
-                run.model_metadata = metadata
                 return verify_receipt(context, skill_id, receipt, expected)
             run.model_metadata = {
-                **metadata,
+                **run.model_metadata,
                 "skill_snapshot": admission_snapshot(run.model_metadata, combined),
             }
             session.add(

@@ -17,18 +17,9 @@ import type {
   OwnerActionChallenge,
   OwnerActionDecision,
   OwnerActionGrantTerms,
-  OwnerActionLimitField,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
-import {
-  isolate,
-  listSeparator,
-  moneyLimitLabel,
-  moneyLimitsLine,
-  pauseClassLabel,
-  readinessTime,
-  tradingSafetyLabels,
-} from "./trading-readiness";
+import { isolate, listSeparator, readinessTime, tradingSafetyLabels } from "./trading-readiness";
 
 type Language = "ar" | "en";
 
@@ -39,22 +30,9 @@ function language(locale: string): Language {
 export const ownerActionLabels = {
   en: {
     notNow: "Not now",
-    pausedEntries: "New entries paused",
-    pausedRisk: "Only exits allowed",
-    pausedFrozen: "Trading frozen",
-    exitsAllowed: "Closing positions and tightening stops stay allowed.",
-    exitsFrozen: "Exits are frozen too.",
-    lift: "Lift pause",
     keep: "Keep it",
-    allPairs: "all pairs",
-    allAgents: "all agents",
-    yourOrdersToo: "your manual orders too",
-    untilLifted: "until you lift it",
     until: "until",
-    starts: "starts",
-    setByYou: "set by you",
     fromYourMessage: "from your message",
-    setByAgent: "set by",
     anAgent: "an agent",
     resolveTitle: "The broker did not confirm this trade",
     resolveHint:
@@ -68,30 +46,18 @@ export const ownerActionLabels = {
     byYou: "your order",
     by: "by",
     at: "at",
-    limitsTitle: "Change money limits",
-    limitsOneTap: "This allows no more risk, so it takes one tap.",
-    limitsPasskey: "This can allow more risk, so it needs your passkey.",
-    currency: "Currency",
-    tradingDay: "Trading day starts at midnight in",
     notSet: "not set",
-    removed: "removed",
-    apply: "Apply",
-    applyPasskey: "Confirm with passkey",
-    cancel: "Cancel",
     account: "Account",
     simulation: "Simulation",
     brokerAccount: "Broker account",
-    lifted: "Pause lifted.",
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
     recordedUnknown:
       "Recorded: the outcome stays unknown. It will not be resent and no longer holds new risk on this market.",
-    limitsSaved: "Money limits updated.",
     cancelled: "Dismissed. Nothing changed.",
     expired: "This card expired. Nothing changed.",
     alreadyEnded: "This pause already ended. Nothing changed.",
     alreadySettled: "This operation is already settled. Nothing changed.",
-    alreadySet: "These limits are already set.",
     doneElsewhere: "Done from another card.",
     sameOnAnotherCard: "The same grant waits on another card. Nothing changed.",
     noLongerApplies: "This no longer applies. Nothing changed.",
@@ -113,17 +79,7 @@ export const ownerActionLabels = {
     ownExcluded: "Positions you opened yourself are excluded",
     ownIncluded: "Positions you opened yourself are included",
     includeOwn: "Include positions I opened myself",
-    dailyLoss: "Daily loss limit",
-    ofEquity: "of equity",
-    suggested: "suggested",
-    accountLimits: "Account money limits",
-    noMoneyLimitChoice: "No money limit (my choice)",
-    noDailyLossChoice: "No daily loss limit (my choice)",
-    keepCurrentLimit: "Keep my current limit",
-    raiseNeedsCard:
-      "You asked for {amount}: this card never raises the daily loss limit; raising it needs a limits card with your passkey.",
-    conflict:
-      "{agent} already trades {markets} here on its own. Keeping both is fine: the account's limits bind them together.",
+    conflict: "{agent} already trades {markets} here on its own. Keeping both is fine.",
     stopOther: "Stop {agent} trading on its own on this account",
     stoppedOthers: "Stopped on this account: {agents}.",
     replaces: "Replaces its current grant",
@@ -145,15 +101,13 @@ export const ownerActionLabels = {
     delegationCustom: "Custom",
     delegationFull: "Full delegation",
     customMeaning:
-      "Custom: only the markets, actions and time shown here, with the daily loss limit shown; positions you opened yourself only if you switch them on.",
+      "Custom: only the markets, actions and time shown here; positions you opened yourself only if you switch them on.",
     fullMeaning:
-      "Full delegation: every pair on this account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), positions you opened yourself too, until you stop it. This card sets no daily loss limit.",
-    fullLimits:
-      "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
+      "Full delegation: every pair on this account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), positions you opened yourself too, until you stop it.",
     grantHint:
       "Confirm with your passkey. Anything outside this grant still comes to you as an approval card.",
     oneRule:
-      "Every agent can see and use everything you have connected to Lonora, but it places real trades only inside the grant you signed for it with your passkey and within your account limits. Anything that needs you arrives as a one-tap card in the chat, you can stop anything with one tap, and no agent, skill or plugin can ever widen your money authority.",
+      "Every agent can see and use everything you have connected to Lonora, but it places real trades only inside the grant you signed for it with your passkey. Anything that needs you arrives as a one-tap card in the chat, you can stop anything with one tap, and no agent, skill or plugin can ever widen your money authority.",
     authorize: "Authorize with passkey",
     signed: "Signed. It trades on its own inside this grant.",
     alreadySigned: "This is already signed. Nothing changed.",
@@ -258,8 +212,6 @@ export const ownerActionLabels = {
     brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
     brokerConnected: "Connected. Lonora reported its balance in the conversation.",
     brokerFailed: "Could not connect. Lonora said why in the conversation.",
-    pauseNewToday: "Stop new trades today",
-    pauseNewTodayHint: "Closing stays allowed",
     optional: "optional",
     noteShort: "Note",
     brokerRefShort: "Broker reference",
@@ -287,22 +239,9 @@ export const ownerActionLabels = {
   },
   ar: {
     notNow: "ليس الآن",
-    pausedEntries: "الصفقات الجديدة متوقفة",
-    pausedRisk: "الخروج فقط مسموح",
-    pausedFrozen: "التداول مجمّد",
-    exitsAllowed: "يبقى إغلاق المراكز وتقريب وقف الخسارة متاحًا.",
-    exitsFrozen: "الخروج مجمّد أيضًا.",
-    lift: "رفع الإيقاف",
     keep: "إبقاؤه",
-    allPairs: "كل الأزواج",
-    allAgents: "كل الوكلاء",
-    yourOrdersToo: "وأوامرك اليدوية أيضًا",
-    untilLifted: "حتى ترفعه",
     until: "حتى",
-    starts: "يبدأ",
-    setByYou: "وضعته أنت",
     fromYourMessage: "من رسالتك",
-    setByAgent: "وضعه",
     anAgent: "وكيل",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     resolveHint:
@@ -316,30 +255,18 @@ export const ownerActionLabels = {
     byYou: "أمرك",
     by: "من",
     at: "في",
-    limitsTitle: "تغيير الحدود المالية",
-    limitsOneTap: "هذا لا يسمح بمخاطرة أكبر، لذا يتم بلمسة واحدة.",
-    limitsPasskey: "قد يسمح هذا بمخاطرة أكبر، لذا يحتاج مفتاح المرور.",
-    currency: "العملة",
-    tradingDay: "يبدأ يوم التداول عند منتصف الليل بتوقيت",
     notSet: "غير محدد",
-    removed: "يُزال",
-    apply: "تطبيق",
-    applyPasskey: "تأكيد بمفتاح المرور",
-    cancel: "إلغاء",
     account: "الحساب",
     simulation: "محاكاة",
     brokerAccount: "حساب الوسيط",
-    lifted: "رُفع الإيقاف.",
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     recordedUnknown:
       "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها، ولم تعد تعلّق المخاطرة الجديدة على هذا السوق.",
-    limitsSaved: "حُدّثت الحدود المالية.",
     cancelled: "تم التجاهل. لم يتغير شيء.",
     expired: "انتهت صلاحية هذه البطاقة. لم يتغير شيء.",
     alreadyEnded: "انتهى هذا الإيقاف مسبقًا. لم يتغير شيء.",
     alreadySettled: "حُسمت هذه العملية مسبقًا. لم يتغير شيء.",
-    alreadySet: "هذه الحدود مضبوطة بالفعل.",
     doneElsewhere: "نُفذ من بطاقة أخرى.",
     sameOnAnotherCard: "التفويض نفسه ينتظر في بطاقة أخرى. لم يتغير شيء.",
     noLongerApplies: "لم يعد هذا ساريًا. لم يتغير شيء.",
@@ -360,16 +287,7 @@ export const ownerActionLabels = {
     ownExcluded: "لا يشمل المراكز التي فتحتها بنفسك",
     ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
     includeOwn: "اشمل المراكز التي فتحتها بنفسي",
-    dailyLoss: "حد الخسارة اليومية",
-    ofEquity: "من حقوق الملكية",
-    suggested: "مقترح",
-    accountLimits: "الحدود المالية للحساب",
-    noMoneyLimitChoice: "بلا حد مالي، بقرار مني",
-    noDailyLossChoice: "بلا حد للخسارة اليومية، بقرار مني",
-    keepCurrentLimit: "أبقِ حدي الحالي",
-    raiseNeedsCard:
-      "طلبت {amount}: هذه البطاقة لا ترفع حد الخسارة اليومية أبدًا؛ رفعه يحتاج بطاقة حدود بمفتاح المرور.",
-    conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا: حدود الحساب تلزمهما معًا.",
+    conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا.",
     stopOther: "أوقف تداول {agent} بنفسه على هذا الحساب",
     stoppedOthers: "أُوقف على هذا الحساب: {agents}.",
     replaces: "يحل محل تفويضه الحالي",
@@ -391,14 +309,12 @@ export const ownerActionLabels = {
     delegationCustom: "مخصص",
     delegationFull: "تفويض كامل",
     customMeaning:
-      "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط، مع حد الخسارة اليومية الظاهر؛ ولا تُشمل المراكز التي فتحتها بنفسك إلا إذا فعّلتها.",
+      "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط؛ ولا تُشمل المراكز التي فتحتها بنفسك إلا إذا فعّلتها.",
     fullMeaning:
-      "تفويض كامل: كل أزواج هذا الحساب وكل العمليات (الفتح، والإغلاق الكلي أو الجزئي، والأوامر المعلّقة، وتعديل وقف الخسارة وجني الربح، والإلغاء)، والمراكز التي فتحتها بنفسك أيضًا، حتى توقفه. لا تضع هذه البطاقة حدًا للخسارة اليومية.",
-    fullLimits:
-      "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
+      "تفويض كامل: كل أزواج هذا الحساب وكل العمليات (الفتح، والإغلاق الكلي أو الجزئي، والأوامر المعلّقة، وتعديل وقف الخسارة وجني الربح، والإلغاء)، والمراكز التي فتحتها بنفسك أيضًا، حتى توقفه.",
     grantHint: "أكّد بمفتاح المرور. ما يخرج عن هذا التفويض يصلك كبطاقة موافقة.",
     oneRule:
-      "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور وضمن حدود حسابك؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
+      "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
     authorize: "التفويض بمفتاح المرور",
     signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
     alreadySigned: "هذا موقّع بالفعل. لم يتغير شيء.",
@@ -501,8 +417,6 @@ export const ownerActionLabels = {
     brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
     brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
     brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
-    pauseNewToday: "أوقف الصفقات الجديدة اليوم",
-    pauseNewTodayHint: "الإغلاق مسموح",
     optional: "اختياري",
     noteShort: "ملاحظة",
     brokerRefShort: "مرجع الوسيط",
@@ -542,8 +456,8 @@ export type OwnerActionButton = {
   outcome?: AttestedOutcome;
   primary: boolean;
 };
-/** An owner switch on a card (a grant card's own positions, money limit, Resume, a
- * conflict); the client keeps its state and ``ownerActionChoices`` sends it. An option
+/** An owner switch on a card (a grant card's own positions, a conflict); the client
+ * keeps its state and ``ownerActionChoices`` sends it. An option
  * with ``choice`` is one of a group of which exactly one is selected (a grant card's
  * Custom or Full delegation): it is shown as a radio, ``initial`` is the server's stored
  * choice, and selecting it sends ``ownerActionChoose`` at once. ``detail`` says plainly
@@ -626,10 +540,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.restored;
       case "supervision_paused":
         return text.resumedWork;
-      case "lift_restriction":
-        return text.lifted;
-      case "set_account_limits":
-        return text.limitsSaved;
       case "secret":
         if (card.facts.secret?.destination === "broker" && !card.facts.secret.connect)
           // A broker card: the card's own record of how provisioning ended, read on the
@@ -653,12 +563,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
     }
   }
   switch (card.status_reason) {
-    case "restriction_already_ended":
-      return text.alreadyEnded;
     case "operation_already_settled":
       return text.alreadySettled;
-    case "limits_already_set":
-      return text.alreadySet;
     case "done_by_another_card":
       return text.doneElsewhere;
     case "same_choice_on_another_card":
@@ -696,20 +602,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
     default:
       return card.status === "expired" ? text.expired : text.noLongerApplies;
   }
-}
-
-function limitValue(name: OwnerActionLimitField, value: string | null, currency: string | null) {
-  if (value == null) return null;
-  if (name === "currency" || name === "trading_day_timezone") return isolate(value);
-  return isolate(
-    name.endsWith("_percent") ? `${value}%` : currency ? `${value} ${currency}` : value,
-  );
-}
-
-function limitFieldLabel(name: OwnerActionLimitField, locale: string, text: OwnerActionText) {
-  if (name === "currency") return text.currency;
-  if (name === "trading_day_timezone") return text.tradingDay;
-  return moneyLimitLabel(name, locale);
 }
 
 function fill(template: string, values: Record<string, string>): string {
@@ -760,26 +652,24 @@ function sameActions(left: string[], right: string[]): boolean {
 function replacesLine(
   old: OwnerActionGrantTerms,
   grant: NonNullable<OwnerAction["facts"]["grant"]>,
-  currency: string | null,
   text: OwnerActionText,
   lang: Language,
   locale: string,
   now: Date,
 ): string {
-  const value = (amount: string | number, unit = "") => isolate(`${amount}${unit}`);
   const before = [marketsLabel(old.symbol_scope, old.symbols, text, lang)];
   if (!old.all_actions) before.push(`${text.actionsLine}: ${actionsLabel(old.actions, lang)}`);
-  const caps: Array<[string | number | null, string, string]> = [
-    [old.maximum_order_volume, text.capOrderVolume, ""],
-    [old.maximum_symbol_volume, text.capSymbolVolume, ""],
-    [old.maximum_positions, text.capPositions, ""],
-    [old.maximum_pending_orders, text.capPendingOrders, ""],
-    [old.maximum_actions, text.capActions, ""],
-    [old.minimum_equity, text.capEquity, currency ? ` ${currency}` : ""],
+  const caps: Array<[string | number | null, string]> = [
+    [old.maximum_order_volume, text.capOrderVolume],
+    [old.maximum_symbol_volume, text.capSymbolVolume],
+    [old.maximum_positions, text.capPositions],
+    [old.maximum_pending_orders, text.capPendingOrders],
+    [old.maximum_actions, text.capActions],
+    [old.minimum_equity, text.capEquity],
   ];
   const capped = caps.filter(([amount]) => amount != null);
-  for (const [amount, template, unit] of capped)
-    before.push(fill(template, { value: value(amount ?? "", unit) }));
+  for (const [amount, template] of capped)
+    before.push(fill(template, { value: isolate(`${amount ?? ""}`) }));
   if (old.management_mode === "bounded") before.push(text.boundedRule);
   const timed = old.valid_until != null || grant.duration !== "until_stopped";
   if (timed)
@@ -823,8 +713,7 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
         choice: { group: "delegation", value },
         ...(delegation === value
           ? {
-              detail:
-                value === "full" ? `${text.fullMeaning} ${text.fullLimits}` : text.customMeaning,
+              detail: value === "full" ? text.fullMeaning : text.customMeaning,
             }
           : {}),
       });
@@ -860,44 +749,6 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
     // Full delegation always includes them: a line, never a switch.
     else lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
   }
-  const money = facts.money;
-  if (money) {
-    const daily = money.daily_loss;
-    const amount = (value: string) =>
-      isolate(daily.currency ? `${value} ${daily.currency}` : value);
-    // The daily loss has its own line; the account line shows every other limit.
-    const rest = Object.fromEntries(
-      Object.entries(money.limits.limits).filter(([name]) => name !== "max_daily_loss"),
-    );
-    const others = Object.keys(rest).length > 0;
-    if (daily.proposed) {
-      const basis = daily.percent
-        ? ` (${daily.basis === "suggested" ? `${text.suggested}: ` : ""}${isolate(`${daily.percent}%`)} ${text.ofEquity})`
-        : "";
-      // An existing limit is only ever lowered, in one line from the current amount.
-      const from = daily.current ? `${isolate(daily.current)} ${arrow(lang)} ` : "";
-      lines.push(`${text.dailyLoss}: ${from}${amount(daily.proposed)}${basis}`);
-      options.push(
-        daily.current
-          ? { key: "keep_limit", label: text.keepCurrentLimit, initial: false }
-          : {
-              key: "no_money_limit",
-              label: others ? text.noDailyLossChoice : text.noMoneyLimitChoice,
-              initial: false,
-            },
-      );
-    } else if (daily.current) {
-      lines.push(`${text.dailyLoss}: ${amount(daily.current)}`);
-    }
-    if (daily.requested_above)
-      lines.push(fill(text.raiseNeedsCard, { amount: amount(daily.requested_above) }));
-    if (others)
-      lines.push(
-        `${text.accountLimits}: ${moneyLimitsLine({ ...money.limits, limits: rest }, locale)}`,
-      );
-    else if (!daily.proposed && !daily.current)
-      lines.push(`${text.accountLimits}: ${moneyLimitsLine(money.limits, locale)}`);
-  }
   for (const conflict of facts.conflicts ?? []) {
     const name = conflict.agent_name ? isolate(conflict.agent_name) : text.anAgent;
     lines.push(
@@ -913,17 +764,7 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
     });
   }
   if (facts.replaces && grant)
-    lines.push(
-      replacesLine(
-        facts.replaces,
-        grant,
-        money?.daily_loss.currency ?? null,
-        text,
-        lang,
-        locale,
-        now,
-      ),
-    );
+    lines.push(replacesLine(facts.replaces, grant, text, lang, locale, now));
   hints.push(text.grantHint);
   if (facts.first_grant) hints.push(text.oneRule);
   return {
@@ -973,13 +814,11 @@ export function ownerActionChoices(
   if (card.kind !== "grant_authority") return { challenge: {}, decision: {} };
   const options = grantCard(card, "en", "en", new Date()).options;
   // Only switches the card shows now count: one ticked under Custom says nothing after
-  // the owner chose Full delegation, which has no daily loss line to opt out of.
+  // the owner chose Full delegation.
   const value = (key: string, initial: boolean) =>
     options.some((item) => item.key === key) && (chosen[key] ?? initial);
   const initial = (key: string) => options.find((item) => item.key === key)?.initial ?? false;
   const decision: Partial<OwnerActionDecision> = {
-    // Either opt-out leaves the account's daily loss limit exactly as it is.
-    money_limit: value("no_money_limit", false) || value("keep_limit", false) ? "none" : "apply",
     stop_authorities: options
       .filter((item) => item.key.startsWith("stop:") && value(item.key, false))
       .map((item) => item.key.slice("stop:".length)),
@@ -1162,45 +1001,6 @@ export function ownerActionCard(
       hint = grant.hint;
       buttons = grant.buttons;
       options = grant.options;
-      break;
-    }
-    case "lift_restriction": {
-      const pause = facts.restriction;
-      title =
-        pause?.action_class === "all_mutations"
-          ? text.pausedFrozen
-          : pause?.action_class === "no_risk_increase"
-            ? text.pausedRisk
-            : text.pausedEntries;
-      if (pause) {
-        const who = pause.all_agents
-          ? text.allAgents
-          : pause.agent_name
-            ? isolate(pause.agent_name)
-            : text.anAgent;
-        const scope = [
-          pause.symbol ? isolate(pause.symbol) : text.allPairs,
-          who,
-          ...(pause.includes_owner_manual ? [text.yourOrdersToo] : []),
-          ...(account ? [account] : []),
-        ];
-        lines.push(`${pauseClassLabel(pause.action_class, locale)} · ${scope.join(" · ")}`);
-        const when =
-          pause.state === "scheduled"
-            ? `${text.starts} ${readinessTime(pause.valid_from, locale, now)}`
-            : pause.valid_until
-              ? `${text.until} ${readinessTime(pause.valid_until, locale, now)}`
-              : text.untilLifted;
-        const source =
-          pause.source === "owner_ui"
-            ? text.setByYou
-            : pause.source === "owner_message"
-              ? text.fromYourMessage
-              : `${text.setByAgent} ${pause.set_by_agent_name ? isolate(pause.set_by_agent_name) : text.anAgent}`;
-        lines.push(`${when} · ${source}`);
-        hint = pause.action_class === "all_mutations" ? text.exitsFrozen : text.exitsAllowed;
-      }
-      buttons = pair(text.lift, text.keep);
       break;
     }
     case "resolve_operation": {
@@ -1428,30 +1228,6 @@ export function ownerActionCard(
       buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
       break;
     }
-    case "set_account_limits": {
-      title = text.limitsTitle;
-      const currency = facts.proposed?.currency ?? facts.current?.currency ?? null;
-      // Every field the card would change has a line, its currency and day included.
-      for (const change of facts.changes ?? []) {
-        const from =
-          limitValue(change.name, change.from, facts.current?.currency ?? null) ?? text.notSet;
-        const to = limitValue(change.name, change.to, currency) ?? text.removed;
-        // The arrow points along the reading direction: right to left in Arabic.
-        lines.push(
-          `${limitFieldLabel(change.name, locale, text)}: ${from} ${lang === "ar" ? "←" : "→"} ${to}`,
-        );
-      }
-      if (account) lines.push(`${text.account}: ${account}`);
-      if (facts.no_longer_applies) {
-        // The limits moved on since the card was raised: it can only be dismissed.
-        hint = text.noLongerApplies;
-        buttons = [{ key: "cancel", label: text.cancel, decision: "cancel", primary: false }];
-        break;
-      }
-      hint = card.requires_passkey ? text.limitsPasskey : text.limitsOneTap;
-      buttons = pair(card.requires_passkey ? text.applyPasskey : text.apply, text.cancel);
-      break;
-    }
   }
   const pending = card.status === "pending";
   return {
@@ -1513,10 +1289,6 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "This card no longer exists.",
     ar: "لم تعد هذه البطاقة موجودة.",
   },
-  owner_action_limits_invalid: {
-    en: "These limits are not valid for this account.",
-    ar: "هذه الحدود غير صالحة لهذا الحساب.",
-  },
   owner_action_challenge_required: {
     en: "Confirm with your passkey on this card.",
     ar: "أكّد بمفتاح المرور من هذه البطاقة.",
@@ -1549,14 +1321,6 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "This card has no such choice.",
     ar: "لا يوجد هذا الخيار في هذه البطاقة.",
   },
-  execution_policy_passkey_required: {
-    en: "Raising or removing a money limit needs your passkey.",
-    ar: "رفع حد مالي أو إزالته يحتاج مفتاح المرور.",
-  },
-  execution_policy_passkey_not_needed: {
-    en: "This change allows no more risk, so it needs no passkey.",
-    ar: "هذا التغيير لا يسمح بمخاطرة أكبر، فلا يحتاج مفتاح المرور.",
-  },
   trusted_source_write_blocked: {
     en: "This server offers tools that look like they trade or move money, so only its reading tools can run.",
     ar: "يقدّم هذا الخادم أدوات يبدو أنها تتداول أو تحرّك المال، فلا تعمل إلا أدواته التي تقرأ.",
@@ -1584,10 +1348,6 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_not_renewable: {
     en: "This card can no longer be asked again. Nothing changed.",
     ar: "لم يعد ممكنًا طلب هذه البطاقة من جديد. لم يتغير شيء.",
-  },
-  owner_action_pause_unsupported: {
-    en: "This card cannot pause new trades.",
-    ar: "لا تستطيع هذه البطاقة إيقاف الصفقات الجديدة.",
   },
   trade_approval_expired: {
     en: "This request expired. Ask for a new one.",

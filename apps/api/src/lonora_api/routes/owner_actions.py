@@ -3,23 +3,21 @@
 Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
 expired with its reason), is idempotent per card, and then runs the existing owner
-function for its effect: lifting a restriction
-(``revoke_restriction``), the owner attestation of an uncertain operation
-(``attest_operation``), the account's execution policy (``store_execution_policy``),
+function for its effect: the owner attestation of an uncertain operation
+(``attest_operation``),
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
 paused (``lonora_db.supervision``; never money authority). A Secret card's values
 never come here: the card has its own route (``secret_cards``).
-Raising or removing a money limit also needs a verified passkey assertion bound to the
-card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent,
-setting supervision, choosing a model and Undo are one tap.
+Resuming, creating an agent, setting supervision, choosing a model and Undo are one
+tap.
 
 A grant card signs through the existing account-authority ceremony: its challenge builds
 the full-management proposal from the card's stored draft (``propose``) and returns the
 WebAuthn options bound to that envelope (``begin_activation``); its confirmation verifies
-the assertion (``finish_activation``). The card's other choices only narrow (the daily
-loss limit, stopping another agent's grant). Its one choice,
+the assertion (``finish_activation``). The card's other choices only narrow (stopping
+another agent's grant). Its one choice,
 Custom or Full delegation, is a ``choose`` decision: it rewrites the stored draft the
 next challenge signs and withdraws a proposal an earlier challenge prepared; it settles
 nothing and grants nothing, and Full needs the same passkey confirmation as Custom. The
@@ -28,12 +26,10 @@ challenge names the choice the owner's card showed and is refused
 the passkey never signs a choice the owner's screen did not show.
 """
 
-from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request
 from lonora_auth.account_authority import begin_activation, finish_activation
-from lonora_auth.devices import begin_bound_assertion, verify_bound_assertion
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import (
@@ -54,21 +50,16 @@ from lonora_db.agent_creation import (
 from lonora_db.authority_lock import authority_lock
 from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
-    account_policy,
     agent_names,
-    card_facts,
     choose_delegation,
     confirm_in_thread,
-    daily_loss_change,
     grant_conflicts,
     grant_facts,
     grant_proposal,
     live_status,
     lock_owner_actions,
-    owned_account,
     owned_card,
     owner_action_data,
-    proposed_limits,
     raise_created_card,
     raise_supervision_card,
     renew_card,
@@ -76,9 +67,8 @@ from lonora_db.owner_actions import (
     stale_reason,
     supersede_subject,
     thread_cards,
-    widens,
 )
-from lonora_db.schema import AgentRow, OwnerActionRow, TradingJournalRow
+from lonora_db.schema import AgentRow, OwnerActionRow
 from lonora_db.supervision import (
     grant_supervision,
     owned_grant,
@@ -86,16 +76,9 @@ from lonora_db.supervision import (
     revoke_supervision,
 )
 from lonora_db.threads import conversation_thread
-from lonora_db.trading_readiness import risk_limit_frame
-from lonora_db.trading_restrictions import create_restriction, revoke_restriction
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import stable_id
-from lonora_trading.owner_controls import (
-    attest_operation,
-    require_account_currency,
-    store_execution_policy,
-)
-from lonora_trading.risk_limits import trading_day_start
+from lonora_trading.owner_controls import attest_operation
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..device_metadata import native_origins
@@ -131,16 +114,10 @@ async def challenge(
             return await grant_challenge(
                 session, rt, owner, card_id, body or OwnerActionChallenge()
             )
-        await authority_lock(session, owner.id + ":devices")
-        row = await owned_card(session, owner.id, card_id)
-        if live_status(row) != "pending":
+        if live_status(candidate) != "pending":
             raise LonoraError("owner_action_expired_or_decided", 409)
-        _, passkey = await card_facts(session, row, utcnow())
-        if not passkey:
-            raise LonoraError("owner_action_passkey_not_needed", 409)
-        return await begin_bound_assertion(
-            session, owner, "owner_action", row.id, row.payload_hash, rt.settings.allowed_origin
-        )
+        # Only a grant card is confirmed with a passkey.
+        raise LonoraError("owner_action_passkey_not_needed", 409)
 
 
 @router.post("/{card_id}/decision")
@@ -151,8 +128,6 @@ async def decision(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     rt = runtime(request)
-    if body.decision == "confirm":
-        await check_currency(rt, owner, card_id, body)
     async with rt.db.sessions() as session, session.begin():
         await lock_owner_actions(session, owner.id)
         row = await owned_card(session, owner.id, card_id, lock=True)
@@ -219,35 +194,6 @@ async def grant_challenge(
     return await begin_activation(session, owner, authority.id, rt.settings.allowed_origin)
 
 
-async def check_currency(
-    rt: ApiRuntime, owner: OwnerIdentity, card_id: str, body: OwnerActionDecision
-) -> None:
-    """Broker IO before the transaction: a limit amount in another currency is refused."""
-    async with rt.db.sessions() as session:
-        row = await owned_card(session, owner.id, card_id)
-        if live_status(row) != "pending":
-            return
-        if row.kind == "grant_authority":
-            daily = GrantDraft.model_validate(row.payload).daily_loss
-            if daily is not None and body.money_limit == "apply":
-                await require_account_currency(
-                    rt.services(owner.id).brokers,
-                    owner.id,
-                    row.payload["account_id"],
-                    daily.currency,
-                )
-            return
-        if row.kind != "set_account_limits":
-            return
-        account_id = row.payload["account_id"]
-        current = (await account_policy(session, owner.id, account_id)).risk
-        try:
-            currency = proposed_limits(current, row.payload).currency
-        except LonoraError:
-            return  # The decision settles an invalid change as expired.
-    await require_account_currency(rt.services(owner.id).brokers, owner.id, account_id, currency)
-
-
 async def decide(
     session: AsyncSession,
     rt: ApiRuntime,
@@ -258,8 +204,6 @@ async def decide(
     if body.decision == "choose":
         await choose(session, owner, row, body)
         return
-    if body.pause_new_today and row.kind != "resolve_operation":
-        raise LonoraError("owner_action_pause_unsupported", 422)
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
         # Idempotent per card: the same decision again answers from the record.
@@ -274,10 +218,6 @@ async def decide(
         await settle(session, row, "cancelled", None, via="tap")
         return
     try:
-        if row.kind == "set_account_limits":
-            # The account lock the settings route takes before it reads: the change is
-            # judged against, and merged into, the limits as they are now.
-            await owned_account(session, owner.id, row.payload["account_id"], lock=True)
         reason = await stale_reason(session, owner.id, row.kind, row.payload)
     except LonoraError as error:
         reason = error.code
@@ -289,11 +229,7 @@ async def decide(
         raise LonoraError("owner_action_secret_values_required", 422)
     via = "tap"
     result: dict[str, Any] = {}
-    if row.kind == "lift_restriction":
-        await revoke_restriction(
-            session, owner.id, row.payload["restriction_id"], "Lifted by the owner from a card"
-        )
-    elif row.kind == "resolve_operation":
+    if row.kind == "resolve_operation":
         if body.outcome is None:
             raise LonoraError("owner_action_outcome_required", 422)
         await attest_operation(
@@ -315,10 +251,6 @@ async def decide(
             },
         )
         result = {"outcome": body.outcome}
-        if body.pause_new_today:
-            # «أوقف الصفقات الجديدة اليوم» (Q11): the owner's own pause on the account
-            # until the trading day ends there. It only narrows; one tap lifts it.
-            result["restriction_id"] = await pause_new_today(session, owner, row)
     elif row.kind == "grant_authority":
         if body.proof is None:
             raise LonoraError("owner_action_passkey_required", 403)
@@ -347,29 +279,6 @@ async def decide(
     elif row.kind == "watch_changed":
         # Undo: the expiry the watch had before the agent extended it (owner only).
         result = await undo_watch_change(session, owner.id, row.payload)
-    else:
-        account_id = row.payload["account_id"]
-        policy = await account_policy(session, owner.id, account_id)
-        proposed = proposed_limits(policy.risk, row.payload)
-        if widens(policy.risk, proposed):
-            # Raising or removing a money limit widens what may be lost: passkey only.
-            if body.proof is None:
-                raise LonoraError("owner_action_passkey_required", 403)
-            await verify_bound_assertion(
-                session,
-                owner,
-                body.proof,
-                "owner_action",
-                row.id,
-                row.payload_hash,
-                rt.settings.allowed_origin,
-                native_origins(rt.settings),
-            )
-            via = "passkey"
-        stored = await store_execution_policy(
-            session, owner.id, account_id, policy.model_copy(update={"risk": proposed})
-        )
-        result = {"limits": risk_limit_frame(account_id, stored)}
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
     created_agent = (
         await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
@@ -407,27 +316,6 @@ async def decide(
     if created_agent is not None:
         # The agent that proposed it hands it its first task, after the line above.
         await start_first_task(session, row, created_agent)
-
-
-async def pause_new_today(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> str:
-    """No new entries by any agent on the operation's account until the end of the
-    account's trading day (its ``trading_day_timezone``); once per card."""
-    operation = await session.get(TradingJournalRow, row.payload["operation_id"])
-    assert operation is not None  # The attestation above read it.
-    zone = (await account_policy(session, owner.id, operation.account_id)).risk
-    day_end = trading_day_start(utcnow(), zone.trading_day_timezone) + timedelta(days=1)
-    restriction = await create_restriction(
-        session,
-        owner.id,
-        account_id=operation.account_id,
-        action_class="no_new_entries",
-        source="owner_ui",
-        created_by_agent_id=None,
-        valid_until=day_end,
-        reason="Paused new trades for today from an uncertain trade's card",
-        restriction_id=stable_id(row.id, "pause-new-today"),
-    )
-    return restriction.id
 
 
 async def choose(
@@ -469,7 +357,7 @@ async def confirm_grant(
     body: OwnerActionDecision,
 ) -> dict[str, Any]:
     """Activate the card's own proposal with the owner's assertion, then the card's
-    choices: stop other agents' grants there, resume, and the daily loss limit."""
+    choice: stop other agents' grants there."""
     assert body.proof is not None
     identifier = row.result.get("authority_id")
     if not isinstance(identifier, str):
@@ -493,38 +381,6 @@ async def confirm_grant(
         await revoke(session, owner.id, other)
         stopped.append(other)
     names = await agent_names(session, owner.id, {conflicts[item].agent_id for item in stopped})
-    daily = kept = None
-    # Full delegation has no daily loss line to opt out of: the account's own limits stay
-    # as they are either way, and the confirmation says so once.
-    money_limit = "apply" if draft.delegation == "full" else body.money_limit
-    # The account lock the settings route takes before it reads the limits.
-    await owned_account(session, owner.id, draft.account_id, lock=True)
-    policy = await account_policy(session, owner.id, draft.account_id)
-    change = daily_loss_change(policy.risk, draft) if money_limit == "apply" else None
-    if change is not None:
-        if widens(policy.risk, change):
-            raise LonoraError("owner_action_limits_invalid", 422)
-        await store_execution_policy(
-            session, owner.id, draft.account_id, policy.model_copy(update={"risk": change})
-        )
-        daily = str(change.max_daily_loss)
-    elif policy.risk.max_daily_loss is not None:
-        kept = str(policy.risk.max_daily_loss)
-    after = await account_policy(session, owner.id, draft.account_id)
-    signed["money"] = {
-        "limits": risk_limit_frame(draft.account_id, after),
-        "daily_loss": {
-            # The limit in force once signed: applied, kept, or none by the owner's choice.
-            "current": None
-            if after.risk.max_daily_loss is None
-            else str(after.risk.max_daily_loss),
-            "proposed": None,
-            "currency": after.risk.currency,
-            "basis": None,
-            "percent": None,
-            "requested_above": None,
-        },
-    }
     signed["grant"] = {
         **signed["grant"],
         "allow_manual_positions": bool(row.result.get("allow_manual_positions")),
@@ -538,10 +394,6 @@ async def confirm_grant(
         "allow_manual_positions": row.result.get("allow_manual_positions"),
         "stopped_authorities": stopped,
         "stopped_agents": sorted(names.values()),
-        "daily_loss": daily,
-        # The account's own daily loss limit, unchanged by this card.
-        "daily_loss_kept": kept,
-        "money_limit": money_limit,
     }
 
 

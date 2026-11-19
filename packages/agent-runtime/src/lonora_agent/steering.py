@@ -5,7 +5,7 @@ from lonora_core.message_preview import model_content, voice_part
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
-from lonora_tools.restrictions import mark_external_content
+from lonora_tools.provenance import mark_external_content
 
 from .context.attachments import attachment_context, third_party_attachment
 from .context.command import command_block

@@ -21,10 +21,6 @@ async def capabilities(
     rt = runtime(request)
     settings = rt.settings
     infrastructure = Infrastructure(
-        searxng=bool(settings.searxng_url),
-        browser=bool(settings.browser_url),
-        workspace_host=settings.workspace_socket is not None,
-        chart_renderer=bool(settings.chart_renderer_url),
         mcp_declarations=settings.mcp_declarations,
         mcp_owner_trust=settings.mcp_owner_trust,
     )

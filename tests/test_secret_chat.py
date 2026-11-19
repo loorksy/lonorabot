@@ -54,7 +54,7 @@ async def wake(fixture: Any, agent: dict[str, Any], thread: dict[str, Any]) -> A
 
 async def tainted(fixture: Any, context: Any, tool: str) -> None:
     """A tool that returns someone else's text ran in this Run (what the registry records)."""
-    from lonora_tools.restrictions import mark_external_content
+    from lonora_tools.provenance import mark_external_content
 
     async with fixture.runtime.db.sessions() as session, session.begin():
         await mark_external_content(session, context.lease.run_id, tool)

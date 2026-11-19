@@ -38,7 +38,7 @@ from pydantic import Field, model_validator
 from .base import Tool, eager_for
 from .context import ToolContext
 from .profile_taint import profile_tainted
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 
 
 class Empty(Contract):

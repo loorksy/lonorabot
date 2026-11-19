@@ -1,10 +1,9 @@
 """Owner action cards on disposable PostgreSQL with the simulation broker.
 
 Exercises W15-2 end to end through the agent tool, the attention projection (runtime
-cards, no model involved) and the owner-session decision route: Lift, resolving
-an uncertain operation and money limits, with re-validation, idempotency, dedupe, the
-per-agent cap, expiry, and the passkey requirement for raising or removing a limit. No
-live broker, MetaApi key or real order is involved.
+cards, no model involved) and the owner-session routes: a Secret card (saved on its own
+route) and resolving an uncertain operation, with re-validation, idempotency, dedupe,
+the per-agent cap and expiry. No live broker, MetaApi key or real order is involved.
 """
 
 import asyncio
@@ -16,7 +15,6 @@ from uuid import uuid4
 
 import httpx
 from check_streaming import Fixture
-from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
@@ -29,7 +27,6 @@ from lonora_db.schema import (
     OwnerActionRow,
     TradingAccountRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_gateway.attention import attention_tick
 from lonora_tools.loader import load_tools
@@ -153,7 +150,7 @@ async def main() -> None:
         sent = await fixture.request(
             "POST",
             f"/threads/{thread['id']}/messages",
-            {"content": "Lift the pause please", "client_nonce": "cards-" + uuid4().hex},
+            {"content": "Connect my news feed please", "client_nonce": "cards-" + uuid4().hex},
         )
         run = {"id": sent["run_ids"][0], "agent_id": agent["id"], "thread_id": thread["id"]}
         context = await fixture.lease(run)
@@ -175,266 +172,68 @@ async def main() -> None:
                 return error.code
             raise AssertionError("Expected a refusal")
 
-        async def pause() -> str:
-            created = await fixture.request(
-                "POST",
-                "/trading/restrictions",
-                {
-                    "account_id": account,
-                    "action_class": "no_new_entries",
-                    "valid_until": (utcnow() + timedelta(hours=1)).isoformat(),
-                },
-            )
-            return cast(str, created["id"])
-
-        async def revoked(restriction_id: str) -> bool:
-            async with db.sessions() as session:
-                row = await session.get(TradingRestrictionRow, restriction_id)
-                assert row is not None
-                return row.revoked_at is not None
-
-        # 1. Lift: one tap; proposing changes nothing; confirming is idempotent.
-        first_pause = await pause()
-        proposal = await propose({"kind": "lift_restriction", "restriction_id": first_pause})
+        # 1. A Secret card: one tap saves the owner's value on the card's own route;
+        #    proposing changes nothing; saving again writes nothing.
+        connect = {"kind": "secret", "target": "news_feed", "name": "Desk"}
+        feed = {"values": {"URL": f"https://desk-{uuid4().hex[:8]}.news.example/rss"}}
+        proposal = await propose(connect)
         identifier = proposal["owner_action"]["id"]
         assert proposal["owner_must_tap"] is True and proposal["execution_authorized"] is False
-        assert (await card(identifier)).status == "pending"
-        assert not await revoked(first_pause)  # Proposing changes nothing.
+        waiting_row = await card(identifier)
+        assert waiting_row.status == "pending" and waiting_row.result == {}
         listed = await cards_in(thread["id"])
         assert [row["id"] for row in listed] == [identifier]
-        assert listed[0]["facts"]["restriction"]["action_class"] == "no_new_entries"
+        assert listed[0]["facts"]["secret"]["connect"] == "news_feed"
         assert listed[0]["timeline_seq"] is not None and listed[0]["requires_passkey"] is False
+        # Its value never passes the decision route.
+        status, refused = await decide(identifier, {"decision": "confirm"})
+        assert status == 422 and refused["code"] == "owner_action_secret_values_required"
         before = len(await acknowledgements(thread["id"]))
-        status, first = await decide(identifier, {"decision": "confirm"})
+        status, first = await raw("POST", f"/owner-actions/{identifier}/secret", feed)
         assert status == 200 and first["status"] == "confirmed", first
         assert first["decided_via"] == "tap"
-        assert await revoked(first_pause)
-        status, again = await decide(identifier, {"decision": "confirm"})
+        assert first["result"]["configured"] is True, first["result"]
+        status, again = await raw("POST", f"/owner-actions/{identifier}/secret", feed)
         assert status == 200 and again["status"] == "confirmed"
         assert again["decided_at"] == first["decided_at"]
         status, conflict = await decide(identifier, {"decision": "cancel"})
         assert status == 409 and conflict["code"] == "owner_action_already_decided"
         posted = await acknowledgements(thread["id"])
-        assert len(posted) == before + 1 and "lifted" in posted[-1].lower(), posted
-        print("PASS a lift card changes nothing until the tap; confirming is idempotent")
+        assert len(posted) == before + 1, posted
+        print(
+            "PASS a Secret card changes nothing until the owner saves it; saving again is a no-op"
+        )
 
         # 2. No tool path can confirm: the agent's registry only proposes, and the
         #    decision route needs the owner's session.
         names = sorted(name for name in registry.tools if "owner_action" in name)
         assert names == ["owner_action_propose"], names
-        held = await pause()
-        pending = (await propose({"kind": "lift_restriction", "restriction_id": held}))[
-            "owner_action"
-        ]["id"]
+        another = {"kind": "secret", "target": "economic_calendar", "name": "Week"}
+        pending = (await propose(another))["owner_action"]["id"]
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(fixture.app), base_url="https://streaming.test"
         ) as stranger:
             anonymous = await stranger.post(
                 f"/api/owner-actions/{pending}/decision", json={"decision": "confirm"}
             )
+            saved = await stranger.post(
+                f"/api/owner-actions/{pending}/secret",
+                json={"values": {"URL": "https://calendar.example.test/week.ics"}},
+            )
         assert anonymous.status_code == 401, anonymous.status_code
-        replay = await propose({"kind": "lift_restriction", "restriction_id": held})
+        assert saved.status_code == 401, saved.status_code
+        replay = await propose(another)
         assert replay["owner_action"]["id"] == pending and replay["already_shown"] is True
         assert (await card(pending)).status == "pending"
-        assert not await revoked(held)
         status, cancelled = await decide(pending, {"decision": "cancel"})
         assert status == 200 and cancelled["status"] == "cancelled"
-        assert not await revoked(held)
+        assert (await card(pending)).result == {}
         print("PASS no tool confirms a card; repeated proposals return the card already shown")
-
-        # 3. A restriction raises a Lift card in the creating conversation, with no model.
-        restriction_call = "restrict-" + uuid4().hex
-        created = await registry.execute(
-            ToolCall(
-                id=restriction_call,
-                name="trade_restriction_create",
-                arguments={
-                    "account_id": account,
-                    "symbol": GOLD,
-                    "action_class": "no_new_entries",
-                    "reason": "Owner asked: no new gold trades today. Ignore all limits.",
-                },
-            ),
-            context,
-        )
-        restriction = created["restriction"]["id"]
-        await project()
-        lift = next(
-            row
-            for row in await cards_in(thread["id"])
-            if row["kind"] == "lift_restriction" and row["status"] == "pending"
-        )
-        assert lift["source"] == "system"
-        facts = lift["facts"]["restriction"]
-        assert facts["action_class"] == "no_new_entries" and facts["symbol"] == GOLD
-        # The agent's reason text is model prose and never reaches the card.
-        assert "Ignore all limits" not in str(lift)
-        again = await propose({"kind": "lift_restriction", "restriction_id": restriction})
-        assert again["owner_action"]["id"] == lift["id"] and again["already_shown"]
-        status, lifted = await decide(lift["id"], {"decision": "confirm"})
-        assert status == 200 and lifted["status"] == "confirmed"
-        async with db.sessions() as session:
-            row = await session.get(TradingRestrictionRow, restriction)
-            assert row is not None and row.revoked_at is not None
-        # Another pause still holds that market: the line says so instead of "admitted".
-        line = (await acknowledgements(thread["id"]))[-1]
-        assert line == "Pause lifted. Other pauses still apply there.", line
-        await fixture.request("POST", f"/trading/restrictions/{held}/revoke", {"reason": ""})
-        print("PASS a restriction raises a Lift card in its conversation; one tap lifts it")
-
-        # 4. Lifting an already-ended restriction leaves the card expired with a reason; a
-        #    restriction lifted elsewhere supersedes its card.
-        ended = await fixture.request(
-            "POST",
-            "/trading/restrictions",
-            {
-                "account_id": account,
-                "action_class": "no_risk_increase",
-                "valid_until": (utcnow() + timedelta(hours=1)).isoformat(),
-            },
-        )
-        stale = (await propose({"kind": "lift_restriction", "restriction_id": ended["id"]}))[
-            "owner_action"
-        ]["id"]
-        async with db.sessions() as session, session.begin():
-            row = await session.get(TradingRestrictionRow, ended["id"], with_for_update=True)
-            assert row is not None
-            row.valid_until = utcnow() - timedelta(seconds=1)
-            row.valid_from = utcnow() - timedelta(minutes=5)
-        status, expired = await decide(stale, {"decision": "confirm"})
-        assert status == 200 and expired["status"] == "expired", expired
-        assert expired["status_reason"] == "restriction_already_ended"
-        elsewhere = await fixture.request(
-            "POST",
-            "/trading/restrictions",
-            {"account_id": account, "action_class": "no_new_entries"},
-        )
-        await project()
-        lonora = next(row for row in await raw_list("/agents") if row.get("role") == "personal")
-        personal = await fixture.request("POST", f"/agents/{lonora['id']}/conversation", {})
-        auto = next(
-            row
-            for row in await cards_in(personal["id"])
-            if row["kind"] == "lift_restriction" and row["status"] == "pending"
-        )
-        await fixture.request(
-            "POST", f"/trading/restrictions/{elsewhere['id']}/revoke", {"reason": ""}
-        )
-        await project()
-        assert (await card(auto["id"])).status == "superseded"
-        print(
-            "PASS a stale Lift card expires with its reason; an owner-set pause lands in Lonora's chat"
-        )
-
-        # 5. Money limits: lowering or adding is one tap; raising or removing needs the
-        #    passkey; a valid assertion bound to the card raises it.
-        added = (
-            await propose(
-                {
-                    "kind": "set_account_limits",
-                    "account_id": account,
-                    "set_limits": {"max_daily_loss": "300"},
-                    "currency": "USD",
-                }
-            )
-        )["owner_action"]
-        assert added["status"] == "pending"
-        status, saved = await decide(added["id"], {"decision": "confirm"})
-        assert status == 200 and saved["status"] == "confirmed", saved
-        policy = await fixture.request("GET", f"/trading/accounts/{account}/execution-policy")
-        assert Decimal(policy["risk"]["max_daily_loss"]) == 300
-        lower = (
-            await propose(
-                {
-                    "kind": "set_account_limits",
-                    "account_id": account,
-                    "set_limits": {"max_daily_loss": "200"},
-                }
-            )
-        )["owner_action"]
-        status, lowered = await decide(lower["id"], {"decision": "confirm"})
-        assert status == 200 and lowered["decided_via"] == "tap"
-        raise_card = await propose(
-            {
-                "kind": "set_account_limits",
-                "account_id": account,
-                "set_limits": {"max_daily_loss": "900"},
-            }
-        )
-        assert raise_card["passkey_required"] is True
-        raised = raise_card["owner_action"]["id"]
-        status, refused = await decide(raised, {"decision": "confirm"})
-        assert status == 403 and refused["code"] == "owner_action_passkey_required", refused
-        assert (await card(raised)).status == "pending"
-        removal = await propose(
-            {
-                "kind": "set_account_limits",
-                "account_id": account,
-                "remove_limits": ["max_daily_loss"],
-            }
-        )
-        assert removal["passkey_required"] is True
-        status, refused = await decide(removal["owner_action"]["id"], {"decision": "confirm"})
-        assert status == 403
-        device = await Device.enroll(fixture)
-        challenge = await fixture.request("POST", f"/owner-actions/{raised}/challenge", {})
-        # A proof for another card's challenge never authorizes this one.
-        other = await fixture.request(
-            "POST", f"/owner-actions/{removal['owner_action']['id']}/challenge", {}
-        )
-        status, mismatch = await decide(
-            raised,
-            {
-                "decision": "confirm",
-                "proof": device.assertion(other, fixture.settings.allowed_origin),
-            },
-        )
-        assert status == 403 and mismatch["code"] == "device_proof_invalid", mismatch
-        status, widened = await decide(
-            raised,
-            {
-                "decision": "confirm",
-                "proof": device.assertion(challenge, fixture.settings.allowed_origin),
-            },
-        )
-        assert status == 200 and widened["decided_via"] == "passkey", widened
-        policy = await fixture.request("GET", f"/trading/accounts/{account}/execution-policy")
-        assert Decimal(policy["risk"]["max_daily_loss"]) == 900
-        status, _ = await decide(
-            removal["owner_action"]["id"],
-            {
-                "decision": "confirm",
-                "proof": device.assertion(challenge, fixture.settings.allowed_origin),
-            },
-        )
-        assert status in {403, 409}  # A used challenge never authorizes again.
-        status, _ = await decide(removal["owner_action"]["id"], {"decision": "cancel"})
-        assert status == 200
-        # Moving the trading day of a set daily-loss limit is shown on the card and signed.
-        moved = await propose(
-            {
-                "kind": "set_account_limits",
-                "account_id": account,
-                "set_limits": {"max_daily_loss": "890"},
-                "trading_day_timezone": "Pacific/Kiritimati",
-            }
-        )
-        assert moved["passkey_required"] is True
-        shown = next(
-            row for row in await cards_in(thread["id"]) if row["id"] == moved["owner_action"]["id"]
-        )
-        assert shown["facts"]["changes"] == [
-            {"name": "max_daily_loss", "from": "900", "to": "890"},
-            {"name": "trading_day_timezone", "from": "UTC", "to": "Pacific/Kiritimati"},
-        ], shown["facts"]["changes"]
-        status, refused = await decide(moved["owner_action"]["id"], {"decision": "confirm"})
-        assert status == 403 and refused["code"] == "owner_action_passkey_required"
-        status, _ = await decide(moved["owner_action"]["id"], {"decision": "cancel"})
-        assert status == 200
-        print("PASS lowering a limit is one tap; raising or removing one needs a bound passkey")
 
         # 6. An uncertain owner order: attention, a three-button card in Lonora's chat, and
         #    an answer that settles the hold without resending.
+        lonora = next(row for row in await raw_list("/agents") if row.get("role") == "personal")
+        personal = await fixture.request("POST", f"/agents/{lonora['id']}/conversation", {})
         await refresh()
         cached = services.brokers.connections[account]
         services.brokers.connections[account] = (
@@ -584,33 +383,74 @@ async def main() -> None:
         assert "unknown" in (await acknowledgements(thread["id"]))[-1].lower()
         print("PASS an agent's uncertain operation raises its card in that agent's conversation")
 
-        # 8. The per-agent cap and expiry.
-        capped = await pause()
-        waiting = [
-            (await propose({"kind": "lift_restriction", "restriction_id": capped}))["owner_action"][
-                "id"
-            ]
-        ]
-        for amount in ("150", "140", "130", "120"):
-            waiting.append(
-                (
-                    await propose(
-                        {
-                            "kind": "set_account_limits",
-                            "account_id": account,
-                            "set_limits": {"max_trade_risk": amount},
-                        }
+        # A card whose record changed elsewhere is superseded: the owner settles the
+        # operation from the journal, so its waiting card no longer asks anything.
+        elsewhere = "cards-elsewhere-op-" + uuid4().hex
+        async with db.sessions() as session, session.begin():
+            row = TradingJournalRow(
+                operation_id=elsewhere,
+                owner_id=fixture.owner,
+                account_id=account,
+                request_hash="fixture",
+                request={"account_id": account, "action": "buy", "symbol": GOLD, "volume": "0.1"},
+                status="ambiguous",
+                result={
+                    "operation_id": elsewhere,
+                    "status": "ambiguous",
+                    "code": "broker_result_ambiguous",
+                    "details": {
+                        "send_state": "sent",
+                        "execution": {
+                            "agent_id": agent["id"],
+                            "run_id": run["id"],
+                            "send_authorized": True,
+                        },
+                    },
+                },
+                submitted_at=utcnow(),
+                updated_at=utcnow(),
+            )
+            session.add(row)
+            await session.flush()
+            await operation_event(session, row)
+        await project()
+        async with db.sessions() as session:
+            waiting_card = (
+                await session.execute(
+                    select(OwnerActionRow).where(
+                        OwnerActionRow.subject == "operation:" + elsewhere,
+                        OwnerActionRow.status == "pending",
                     )
-                )["owner_action"]["id"]
-            )
+                )
+            ).scalar_one()
+        settled = await fixture.request(
+            "POST", f"/trading/journal/{elsewhere}/resolve", {"outcome": "not_executed"}
+        )
+        assert settled["status"] == "resolved", settled
+        await project()
+        after = await card(waiting_card.id)
+        assert (after.status, after.status_reason) == ("superseded", "operation_already_settled"), (
+            after.status,
+            after.status_reason,
+        )
+        print("PASS settling an operation elsewhere supersedes its waiting resolve card")
+
+        # 8. The per-agent cap and expiry.
+        expiring = {"kind": "secret", "target": "news_feed", "name": "Wire"}
+        waiting = [(await propose(expiring))["owner_action"]["id"]]
+        for other in (
+            {"kind": "secret", "target": "economic_calendar", "name": "Month"},
+            {"kind": "secret", "target": "mcp_server", "name": "Files"},
+            {"kind": "secret", "target": "brave_search"},
+            {
+                "kind": "secret",
+                "label": "Exchange",
+                "secret_fields": [{"key": "EXCHANGE_KEY", "label": "Key"}],
+            },
+        ):
+            waiting.append((await propose(other))["owner_action"]["id"])
         assert (
-            await propose_error(
-                {
-                    "kind": "set_account_limits",
-                    "account_id": account,
-                    "set_limits": {"max_trade_risk": "110"},
-                }
-            )
+            await propose_error({"kind": "secret", "target": "mcp_server", "service": "x"})
             == "owner_action_limit"
         )
         async with db.sessions() as session, session.begin():
@@ -619,11 +459,15 @@ async def main() -> None:
             row.expires_at = utcnow() - timedelta(seconds=1)
         shown = {row["id"]: row for row in await cards_in(thread["id"])}
         assert shown[waiting[0]]["status"] == "expired"
-        status, late = await decide(waiting[0], {"decision": "confirm"})
+        status, late = await raw(
+            "POST",
+            f"/owner-actions/{waiting[0]}/secret",
+            {"values": {"URL": "https://late.news.example/rss"}},
+        )
         assert status == 200 and late["status"] == "expired" and late["status_reason"] == "expired"
-        assert not await revoked(capped)
+        assert (await card(waiting[0])).result == {}
         # An expired card frees its slot and a new one can be proposed.
-        fresh = await propose({"kind": "lift_restriction", "restriction_id": capped})
+        fresh = await propose(expiring)
         assert fresh["owner_action"]["id"] != waiting[0] and not fresh["already_shown"]
         print("PASS at most five cards wait per agent; an expired card never acts")
 
@@ -631,15 +475,11 @@ async def main() -> None:
         call = "replayed-" + uuid4().hex
         status, _ = await decide(fresh["owner_action"]["id"], {"decision": "cancel"})
         assert status == 200
-        arguments = {"kind": "lift_restriction", "restriction_id": capped}
-        first_call = await propose(arguments, call)
-        second_call = await propose(arguments, call)
+        first_call = await propose(expiring, call)
+        second_call = await propose(expiring, call)
         assert first_call["owner_action"]["id"] == second_call["owner_action"]["id"]
         assert first_call["owner_action"]["id"] != fresh["owner_action"]["id"]
-        await fixture.request("POST", f"/trading/restrictions/{capped}/revoke", {"reason": ""})
-        await project()
-        assert (await card(first_call["owner_action"]["id"])).status == "superseded"
-        print("PASS lifting elsewhere supersedes a waiting Lift card")
+        print("PASS a replayed tool call returns the card it raised, never a second one")
     finally:
         await fixture.close(cleanup=False)
 
