@@ -32,6 +32,7 @@ from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run
 from lonora_db.schema import (
     AgentRow,
+    AppOpenRow,
     AttentionRow,
     BrokerSessionRow,
     EffectReceiptRow,
@@ -47,7 +48,7 @@ from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository
 from lonora_market.sessions import fx_week
 from lonora_session.idempotency import broker_operation_tag, stable_id
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,6 +101,20 @@ def learned_minute(first_opens: Sequence[int]) -> int | None:
     if len(first_opens) < MINIMUM_OPEN_DAYS:
         return None
     return min(24 * 60 - 1, max(0, int(median(first_opens)) - LEAD_MINUTES))
+
+
+def first_open_minutes(opens: Sequence[AppOpenRow]) -> list[int]:
+    """Each recorded day's first open, minutes after midnight on the device's clock where it
+    was opened: a habit of 07:00 stays 07:00 when the owner travels. The owner's day starts
+    at 04:00: an open before it (a late session) is read after the day's last minutes, not
+    as an early waking."""
+    return [
+        minute if minute >= DAY_START_MINUTE else minute + 24 * 60
+        for minute in (
+            stamp.hour * 60 + stamp.minute
+            for stamp in (_aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens)
+        )
+    ]
 
 
 def moved_minute(previous: int, target: int) -> int:
@@ -822,20 +837,7 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         # Planned once per local date, and only for a later one: a zone change that steps
         # the owner's date back does not plan it again.
         if (record.planned_date or "") < today:
-            # Each recorded day's first open, minutes after midnight on the device's clock
-            # where it was opened: a habit of 07:00 stays 07:00 when the owner travels.
-            # The owner's day starts at 04:00: an open before it (a late session) is read
-            # after the day's last minutes, not as an early waking.
-            minutes = [
-                minute if minute >= DAY_START_MINUTE else minute + 24 * 60
-                for minute in (
-                    stamp.hour * 60 + stamp.minute
-                    for stamp in (
-                        _aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens
-                    )
-                )
-            ]
-            target = learned_minute(minutes)
+            target = learned_minute(first_open_minutes(opens))
             record.brief_minute = moved_minute(
                 record.brief_minute, DEFAULT_MINUTE if target is None else target
             )
@@ -896,3 +898,32 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         )
         record.pending = pending | {"run_id": run.id}
         return today
+
+
+# --- What Lonora knows ----------------------------------------------------------------
+
+
+def _clock(minute: int) -> str:
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
+async def learned_habit(session: AsyncSession, owner_id: str) -> dict[str, str | None]:
+    """What «ما أعرفه عنك» shows of the learned time (8.4): the owner's usual first open on
+    the device's clock, once learned (11.1, else None), and today's brief time."""
+    minutes = first_open_minutes(await recorded_opens(session, owner_id))
+    record = await session.get(MorningBriefRow, owner_id)
+    return {
+        "first_open": None
+        if learned_minute(minutes) is None
+        else _clock(int(median(minutes)) % (24 * 60)),
+        "brief": _clock(record.brief_minute if record else DEFAULT_MINUTE),
+    }
+
+
+async def forget_habit(session: AsyncSession, owner_id: str) -> None:
+    """The owner's correction in «ما أعرفه عنك» (8.4): the recorded opens are forgotten and
+    the brief is at 07:00 again, until the owner opens the app on 3 days (11.1)."""
+    record = await locked_record(session, owner_id)
+    await session.execute(delete(AppOpenRow).where(AppOpenRow.owner_id == owner_id))
+    record.brief_minute = DEFAULT_MINUTE
+    record.updated_at = utcnow()

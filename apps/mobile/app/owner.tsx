@@ -16,6 +16,8 @@ type ProfileLine = {
   created_at: string | null;
 };
 type ProfileLines = { version: number; lines: ProfileLine[] };
+// The waking habit learned from app opens (8.1, 11.1): first_open is null until it is learned.
+type LearnedHabit = { first_open: string | null; brief: string };
 
 // A profile line's leading markdown bullet ("- " or "* "), kept when it is corrected.
 const bullet = (text: string) => /^[-*]\s+/.exec(text)?.[0];
@@ -31,6 +33,7 @@ const words = (text: string) =>
 export default function OwnerKnowledge() {
   const { ready, owner, t, rtl, errorText } = useSession();
   const [known, setKnown] = useState<ProfileLines | null>(null);
+  const [habit, setHabit] = useState<LearnedHabit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ text: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +52,14 @@ export default function OwnerKnowledge() {
         .catch((cause) => {
           if (live) setError(errorText(cause));
         });
+      void api
+        .get<LearnedHabit>("/app-opens")
+        .then((value) => {
+          if (live) setHabit(value);
+        })
+        .catch((cause) => {
+          if (live) setError(errorText(cause));
+        });
       return () => {
         live = false;
       };
@@ -62,6 +73,19 @@ export default function OwnerKnowledge() {
       .then((value) => {
         setKnown(value);
         setEditing(null);
+        setError(null);
+      })
+      .catch((cause) => setError(errorText(cause)))
+      .finally(() => setBusy(false));
+  };
+  // Forgetting the habit puts the brief back at 07:00 until it is learned again.
+  const forget = () => {
+    if (busy) return;
+    setBusy(true);
+    void api
+      .delete<LearnedHabit>("/app-opens")
+      .then((value) => {
+        setHabit(value);
         setError(null);
       })
       .catch((cause) => setError(errorText(cause)))
@@ -88,10 +112,38 @@ export default function OwnerKnowledge() {
         </Text>
         {!known ? (
           <Text style={{ color: colors.secondary, textAlign: align }}>{t("connecting")}</Text>
-        ) : known.lines.length === 0 ? (
+        ) : known.lines.length === 0 && !habit?.first_open ? (
           <Text style={{ color: colors.secondary, textAlign: align }}>{t("nothingKnown")}</Text>
         ) : (
           <SettingsGroup>
+            {habit?.first_open ? (
+              <View
+                testID="known-habit"
+                style={{
+                  padding: 14,
+                  borderBottomWidth: 0.5,
+                  borderColor: colors.accent,
+                  flexDirection: rtl ? "row-reverse" : "row",
+                  gap: 12,
+                }}
+              >
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: colors.foreground, fontSize: 16, textAlign: align }}>
+                    {fill(t("habitLine"), { firstOpen: habit.first_open, brief: habit.brief })}
+                  </Text>
+                  <Text style={[styles.label, { textAlign: align }]}>{t("habitOrigin")}</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("forgetHabit")}
+                  hitSlop={10}
+                  disabled={busy}
+                  onPress={forget}
+                >
+                  <NativeSymbol name="close" size={18} />
+                </Pressable>
+              </View>
+            ) : null}
             {known.lines.map((line) => (
               <View
                 key={line.text}

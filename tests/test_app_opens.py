@@ -150,6 +150,38 @@ async def test_only_the_signed_in_owner_records_an_open_with_a_real_zone(api: An
         assert len(list(await session.scalars(select(AppOpenRow)))) == 1
 
 
+@pytest.mark.asyncio
+async def test_what_i_know_shows_the_learned_habit_and_the_owner_forgets_it(api: Any) -> None:
+    app, db, owner_id = api
+    async with client(app, None) as anonymous:
+        assert (await anonymous.get("/api/app-opens")).status_code == 401
+        assert (await anonymous.delete("/api/app-opens")).status_code == 401
+    async with db.sessions() as session, session.begin():
+        owner = await session.get(OwnerRow, owner_id)
+        assert owner
+        token, _ = await issue_session(session, owner, 3600)
+    # Two mornings at 07:30 Riyadh are not a habit yet; the brief stays at 07:00.
+    first = datetime(2026, 11, 10, 4, 30, tzinfo=UTC)
+    await opened(db, owner_id, [("Asia/Riyadh", first + timedelta(days=n)) for n in range(2)])
+    async with client(app, token) as phone:
+        assert (await phone.get("/api/app-opens")).json() == {"first_open": None, "brief": "07:00"}
+    await opened(db, owner_id, [("Asia/Riyadh", first + timedelta(days=2))])
+    await brief_tick(db, owner_id, now=datetime(2026, 11, 13, 1, 0, tzinfo=UTC))
+    async with client(app, token) as phone:
+        assert (await phone.get("/api/app-opens")).json() == {
+            "first_open": "07:30",
+            "brief": "07:15",
+        }
+        forgotten = await phone.delete("/api/app-opens")
+    assert forgotten.json() == {"first_open": None, "brief": "07:00"}
+    async with db.sessions() as session:
+        assert await recorded_opens(session, owner_id) == []
+    # The next opens start a new habit; the brief stays at 07:00 until 3 days are seen.
+    await opened(db, owner_id, [("Asia/Riyadh", datetime(2026, 11, 14, 2, 0, tzinfo=UTC))])
+    await brief_tick(db, owner_id, now=datetime(2026, 11, 15, 1, 0, tzinfo=UTC))
+    assert await planned(db, owner_id) == DEFAULT_MINUTE
+
+
 async def opened(db: Database, owner: str, rows: list[tuple[str, datetime]]) -> None:
     async with db.sessions() as session, session.begin():
         for zone, at in rows:
