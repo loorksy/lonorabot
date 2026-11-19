@@ -344,7 +344,8 @@ Ending the Task (`close_task`) keeps what the agent set up:
 
 While an active signed grant's own management Task runs for the agent, that Task drives
 the account and the Full-mode Task does not start; revoking the grant starts it, also
-when a broker connection is deleted. Deleting the agent or a conversation starts none.
+when a broker connection, or a conversation other than the agent's own, is deleted.
+Deleting the agent or its own conversation starts none.
 
 The gateway's `management_tasks` step (every minute) catches what no tap reached. An
 agent in Full, not paused, that has never had a mode Task gets one: an agent already in

@@ -188,8 +188,9 @@ async def require_authority(
 async def revoke(
     session: AsyncSession, owner_id: str, identifier: str, *, handover: bool = True
 ) -> AccountAuthorityRow:
-    """``handover``: an agent in Full then runs its own continuous task (4.5); a delete
-    passes False, because the agent or conversation the task would start from is going."""
+    """``handover``: an agent in Full then runs its own continuous task (4.5); deleting
+    the agent, or its own conversation, passes False, because what the task would start
+    from is going."""
     from .agent_permissions import bump_permission
     from .management_task import ensure_management_task
 

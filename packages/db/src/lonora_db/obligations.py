@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schema import (
     AccountAuthorityRow,
     RunRow,
+    ThreadRow,
     TradeApprovalRow,
     TradingJournalRow,
 )
@@ -105,6 +106,7 @@ async def prepare_delete(
     """Refuse while an obligation is unsettled; otherwise settle what depended on it."""
     from .account_authority import changed, revoke
     from .owner_actions import settle_for_delete
+    from .threads import conversation_thread
     from .trade_approvals import approval_event
 
     if await unsettled_obligation(
@@ -132,13 +134,20 @@ async def prepare_delete(
         grants = grants.where(AccountAuthorityRow.thread_id == thread_id)
     if account_id is not None:
         grants = grants.where(AccountAuthorityRow.account_id == account_id)
+    deleted = await session.get(ThreadRow, thread_id) if thread_id is not None else None
     for grant in list(await session.scalars(grants.order_by(AccountAuthorityRow.id))):
         if grant.status == "active":
-            # A deleted agent or conversation gets no new task; an account-only delete
-            # hands a Full agent over to its own continuous task (4.5).
-            await revoke(
-                session, owner_id, grant.id, handover=agent_id is None and thread_id is None
+            # A revoked grant hands a Full agent over to its own continuous task (4.5).
+            # A deleted agent gets none, nor does one whose own conversation, which the
+            # task would report to, is the one deleted.
+            own = (
+                deleted is not None
+                and deleted.agent_id == grant.agent_id
+                and deleted.group_id is None
+                and deleted.purpose == "conversation"
+                and (await conversation_thread(session, owner_id, grant.agent_id)).id == deleted.id
             )
+            await revoke(session, owner_id, grant.id, handover=agent_id is None and not own)
         else:
             grant.status = "revoked"
             changed(session, grant)

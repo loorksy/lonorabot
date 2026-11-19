@@ -29,6 +29,7 @@ from lonora_db.agents import update_agent
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.management_task import (
     MARKER,
+    end_management_task,
     live_management_task,
     open_management_tasks,
     reconcile_management_tasks,
@@ -671,6 +672,42 @@ async def checks() -> None:
         await set_agent(trading_mode="ask", paused=False)
     print("PASS the gateway ends an open task of an agent in Ask or paused")
 
+    # A grant signed in another conversation of the agent: deleting that conversation
+    # revokes the grant and hands the Full agent over to its own task.
+    async with db.sessions() as session, session.begin():
+        await set_trading_mode(session, owner_id, legacy_id, "full", by="owner_tap")
+        side = ThreadRow(owner_id=owner_id, agent_id=legacy_id)
+        session.add(side)
+        await session.flush()
+        side_id = side.id
+        grant = AccountAuthorityRow(
+            owner_id=owner_id,
+            agent_id=legacy_id,
+            thread_id=side_id,
+            account_id=account_id,
+            status="active",
+            envelope={},
+            envelope_hash="0" * 64,
+            activation_expires_at=utcnow() + timedelta(minutes=5),
+        )
+        session.add(grant)
+        await session.flush()
+        await create_task(
+            session,
+            owner_id,
+            legacy_id,
+            side_id,
+            TaskCreate(title="grant management", completion_mode="continuous"),
+            task_id=stable_id(grant.id, "account-management-task"),
+        )
+        # As finish_activation does: the grant's Task takes over.
+        await end_management_task(session, owner_id, legacy_id)
+    assert await legacy_live() is None
+    async with db.sessions() as session, session.begin():
+        await prepare_delete(session, owner_id, thread_id=side_id)
+        await session.delete(await session.get(ThreadRow, side_id))
+    assert await legacy_live() is not None, "deleting the grant's conversation left no task"
+    print("PASS deleting the conversation a grant was signed in hands over to the mode task")
     print("management task checks passed")
 
 
