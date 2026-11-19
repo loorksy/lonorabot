@@ -81,11 +81,10 @@ or data line that fails makes the whole card fall back. `genui_compile.compile_c
 
 - resolves facts to this request's results only; a failed or private value is never shown,
   and a card whose facts all fail falls back; source metadata is privacy-filtered;
-- never shows an operation the broker has not confirmed (an agent never draws "confirmed",
-  mandate 10.3): a fact that reaches such an operation makes the whole card fall back, and so
-  does any card, slots included, when this request's `trade_execute` or
-  `trade_close_positions` result holds one (`card_fallback_unconfirmed`): that reply is text
-  only;
+- never shows an operation the broker has not confirmed (mandate 6.4, 10.3): a fact that
+  reaches such an operation makes the whole card fall back, and so does any card, slots
+  included, when this request's `trade_execute` or `trade_close_positions` result holds one
+  (`card_fallback_unconfirmed`): that reply is text only;
 - binds the card to one account (the first account-bearing fact) and, for a fixed-market agent,
   to its own pair;
 - checks sends against the intent registry (`genui_intents.REGISTRY`, closed and non-financial;
