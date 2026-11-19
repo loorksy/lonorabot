@@ -122,7 +122,8 @@ for (const locale of ["ar", "en"])
       expect((await (await loaded).json()).supervises).toEqual([]);
       await expect(section.getByText(`⁨Gold ${suffix}⁩`, { exact: true })).toHaveCount(0);
       await expect(page.getByTestId(`supervision-stop-${seeded.gold}`)).toHaveCount(0);
-      await expect(page.getByTestId(`supervision-add-${seeded.gold}`)).toHaveCount(0);
+      // No Stop, Supervise or any other control on Lonora's own section.
+      await expect(section.getByRole("button")).toHaveCount(0);
       if (locale === "ar")
         await section.screenshot({ path: test.info().outputPath("supervision-native-ar.png") });
       const view = await (
