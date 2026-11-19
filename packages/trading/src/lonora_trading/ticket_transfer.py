@@ -19,6 +19,7 @@ from lonora_db.runs import create_run
 from lonora_db.schema import AgentRow, BrokerSessionRow
 from lonora_db.threads import conversation_thread, create_thread
 from lonora_session.idempotency import stable_id
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,7 +69,11 @@ async def opened_tickets(
         raw = (account.state or {}).get("broker_recovery")
         if not raw:
             continue
-        snapshot = BrokerRecoverySnapshot.model_validate(raw)
+        try:
+            snapshot = BrokerRecoverySnapshot.model_validate(raw)
+        except ValidationError:
+            # No observation to read, as the agent picture reads it (``account_books``).
+            continue
         openers = await ticket_openers(
             session, owner_id, account.id, snapshot.positions, snapshot.orders
         )

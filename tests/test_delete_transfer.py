@@ -336,11 +336,16 @@ async def test_the_wake_set_and_the_picture_follow_the_doors_owner() -> None:
     from lonora_trading.ticket_transfer import opened_tickets
 
     fixture = await Fixture().open()
-    connection = ""
+    connection = unreadable = ""
     try:
-        connection = await simulation(fixture, [])
+        connection, unreadable = await simulation(fixture, []), await simulation(fixture, [])
         async with fixture.runtime.db.sessions() as session, session.begin():
             lonora_id = (await ensure_personal_agent(session, fixture.owner)).id
+            # Another account's stored observation does not validate: it is skipped, as
+            # the agent picture skips it, and never refuses the delete.
+            other = await session.get(BrokerSessionRow, unreadable)
+            assert other is not None
+            other.state = {**other.state, "broker_recovery": {"status": "connected"}}
         gold, silver = await fixture.agent("Netting gold"), await fixture.agent("Netting silver")
         now = utcnow()
         position = Position(
@@ -420,7 +425,7 @@ async def test_the_wake_set_and_the_picture_follow_the_doors_owner() -> None:
                 )
                 assert await ticket_agent(session, fixture.owner, request, target) == holder
     finally:
-        await retire(fixture, connection)
+        await retire(fixture, connection, unreadable)
         await fixture.close()
 
 
