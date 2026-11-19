@@ -160,6 +160,50 @@ test("Expo Skills edits installed version and enabled state without dropping its
   }
 });
 
+test("Expo Skills says an automatic skill without triggers loads on request", async ({
+  page,
+  context,
+}) => {
+  const f = await fixture(context);
+  const names = {};
+  try {
+    for (const [key, triggers] of [
+      ["request", []],
+      ["event", ["watch"]],
+    ]) {
+      const name = `${key}-${randomUUID().slice(0, 8)}`;
+      const saved = await context.request.post("/api/skills", {
+        headers: f.headers,
+        data: {
+          agent_id: f.agent.id,
+          payload: {
+            name,
+            content: "Keep all evidence attributed.",
+            enabled: true,
+            manifest: { ...f.manifest, id: name, activation: { mode: "automatic", triggers } },
+          },
+        },
+      });
+      expect(saved.status()).toBe(201);
+      names[key] = name;
+    }
+    await page.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+    await page.goto(`/skills?botId=${f.agent.id}`);
+    for (const [key, label] of [
+      ["request", "التفعيل: عند الطلب"],
+      ["event", "التفعيل: تلقائي"],
+    ]) {
+      await page.getByTestId(`skill-entry-${names[key]}`).click();
+      const details = page.getByTestId("skill-details");
+      await expect(details.getByText(label, { exact: true })).toBeVisible();
+      await details.getByRole("button", { name: "إغلاق", exact: true }).click();
+      await expect(details).toHaveCount(0);
+    }
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test("Expo Skills can block an older pinned version absent from the current catalog", async ({
   page,
   context,
