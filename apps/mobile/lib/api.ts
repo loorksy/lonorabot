@@ -108,6 +108,17 @@ export function normalizeServer(value: string): string {
     .replace(/\/$/, "");
 }
 
+/** Whether a server already has its owner (GET /onboarding), read on its own: it never
+ * reconfigures the session or cancels a request in flight (sign-in checks while typing). */
+export async function onboardingStatus(server: string, signal: AbortSignal): Promise<boolean> {
+  const response = await fetch(`${normalizeServer(server)}/api/onboarding`, {
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (!response.ok) throw new ApiError("request_failed", response.status);
+  return Boolean(((await response.json()) as { owner_initialized?: boolean }).owner_initialized);
+}
+
 export function configureApi(server: string, token: string | null, onExpired: () => void) {
   cancelSessionRequests();
   base = normalizeServer(server);

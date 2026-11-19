@@ -636,10 +636,15 @@ export const labels = {
   server: ["عنوان خادم Lonora", "Lonora server URL"],
   email: ["البريد الإلكتروني", "Email"],
   password: ["كلمة المرور", "Password"],
-  serverHint: [
-    "استخدم عنوان خادمك. أنشئ حساب المالك أولًا من واجهة الويب.",
-    "Use your server address. Initialize the owner account in the Web interface first.",
+  serverHint: ["استخدم عنوان خادمك.", "Use your server address."],
+  setupTitle: ["إعداد Lonora", "Set up Lonora"],
+  setupHint: [
+    "أنشئ حساب المالك برمز الإعداد من إعدادات الخادم.",
+    "Create the owner account with the setup token from your server configuration.",
   ],
+  setupPassword: ["كلمة المرور · 12 حرفًا على الأقل", "Password · at least 12 characters"],
+  setupToken: ["رمز الإعداد", "Setup token"],
+  setupCreate: ["إنشاء مساحة العمل", "Create workspace"],
   retry: ["إعادة المحاولة", "Retry"],
   emptyInbox: [
     "أنشئ وكيلك الأول لبدء المحادثة المستمرة.",
@@ -706,6 +711,7 @@ export const labels = {
     "تحقق من بيانات الدخول أو سجّل الدخول مجددًا.",
     "Check your credentials or sign in again.",
   ],
+  invalid_bootstrap_token: ["رمز الإعداد غير صحيح.", "The setup code is incorrect."],
   invalid_server: [
     "أدخل عنوان خادم كاملًا يبدأ بـ http:// أو https://.",
     "Enter a complete server address starting with http:// or https://.",

@@ -13,7 +13,7 @@ pnpm install
 pnpm --filter @lonora/mobile start
 ```
 
-Open with an Expo client compatible with SDK 57, or run `pnpm --filter @lonora/mobile android` / `ios` on a workstation with the corresponding Android SDK / Xcode. Native project directories are generated locally and are not committed. Initialize the single owner using the Web interface first. On the sign-in screen enter the reachable Lonora server URL and owner credentials. A physical phone cannot access the server through the phone's `localhost`; use your server's HTTPS address or a reachable LAN address for development.
+Open with an Expo client compatible with SDK 57, or run `pnpm --filter @lonora/mobile android` / `ios` on a workstation with the corresponding Android SDK / Xcode. Native project directories are generated locally and are not committed. On the sign-in screen enter the reachable Lonora server URL. A server with no owner yet shows «إعداد Lonora» (first run): the owner's e-mail, a password of at least 12 characters and the server's `LONORA_BOOTSTRAP_TOKEN` create the owner, then the app signs in. Otherwise sign in with the owner credentials. A physical phone cannot access the server through the phone's `localhost`; use your server's HTTPS address or a reachable LAN address for development.
 
 Native login calls `/api/auth/mobile/login`. The server returns an opaque, expiring session token, stored only in Expo SecureStore. Every request sends that token as `Authorization: Bearer`; server logout revokes it. Provider keys and passwords are never stored by the app. Closing the app does not stop resident server workers. No push notifications or native voice APIs are imported, so Expo Web does not call unavailable notification modules.
 
