@@ -431,16 +431,14 @@ def baseline(
 async def account_snapshots(
     session: AsyncSession, owner_id: str
 ) -> list[tuple[str, BrokerRecoverySnapshot | None]]:
+    """Each enabled connection's snapshot, by the connection's own id: the id the journal
+    keys its entries by, not the provider's account id in the payload."""
     rows = await session.scalars(
         select(BrokerSessionRow)
         .where(BrokerSessionRow.owner_id == owner_id)
         .order_by(BrokerSessionRow.created_at)
     )
-    return [
-        (str(row.payload.get("account_id", "")), _snapshot(row))
-        for row in rows
-        if row.payload.get("enabled")
-    ]
+    return [(row.id, _snapshot(row)) for row in rows if row.payload.get("enabled")]
 
 
 # --- The wake and the plain brief ----------------------------------------------------

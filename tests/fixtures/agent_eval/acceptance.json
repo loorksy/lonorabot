@@ -175,10 +175,7 @@
       {"text": "موجز الصباح: الرصيد زاد 14.76 دولار منذ الموجز السابق. وكيل الذهب اشترى 0.02 ذهب وأغلق 0.01 منها عند 4070، وكلاهما أكّده الوسيط، ويبقى 0.01 مفتوحاً. لا شيء آخر يحتاجك."}
      ]
     ]
-   },
-   "defects": [
-    {"check": "open positions as the broker shows them", "owner": "W-BRIEF", "defect": "brief_facts (lonora_trading/morning_brief.py) looks a ticket's opener up under the account id account_snapshots gives, the provider's account id in the connection's payload (MetaApi's account), but ticket_openers keys each journal entry by its account_id, the connection's own id; the two never match, so a position an agent opened is shown as opened by the owner (3.3.4)"}
-   ]
+   }
   },
   {
    "id": "6",

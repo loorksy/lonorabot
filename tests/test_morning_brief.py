@@ -116,8 +116,11 @@ async def seed(session: Any, owner: str, *, balance: str = "1000") -> tuple[str,
     )
     session.add(
         BrokerSessionRow(
+            # The journal keys entries by the connection's own id, not the provider's
+            # account id in its payload (MetaApi's account).
+            id="acc",
             owner_id=owner,
-            payload={"provider": "simulation", "account_id": "acc", "enabled": True},
+            payload={"provider": "metaapi", "account_id": "provider-acc", "enabled": True},
             state={"broker_recovery": snapshot.model_dump(mode="json")},
         )
     )
