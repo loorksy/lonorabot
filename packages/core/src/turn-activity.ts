@@ -297,6 +297,8 @@ const toolLabels: Readonly<Record<string, Label>> = {
   supervision_change: { en: "Setting supervision", ar: "يضبط الإشراف" },
   news_feed_subscribe: { en: "Subscribing to a news feed", ar: "يشترك في موجز أخبار" },
   capabilities_list: { en: "Checking capabilities", ar: "يراجع القدرات" },
+  secrets_list: { en: "Checking your saved secrets", ar: "يراجع أسرارك المحفوظة" },
+  secret_delete: { en: "Removing a saved secret", ar: "يحذف سرًّا محفوظًا" },
   watch_cancel: WATCH_STEER,
   watch_pause: WATCH_STEER,
   watch_resume: WATCH_STEER,

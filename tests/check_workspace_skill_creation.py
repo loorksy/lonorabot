@@ -1,16 +1,13 @@
-"""Agent-created analytical packages use existing workspace, lifecycle and fences.
-
-Set LONORA_SKILL_TEST_IMAGE to an already reviewed immutable image ID to run the
-initial utility through actual restricted Docker. Default execution is scripted.
-"""
+"""Agent-created analytical packages: source from a directory of the owner's persistent
+workspace (7.1), files kept in the agent's private package store, utilities validated in
+the workspace from a copy, existing lifecycle and fences. The supervisor is a stand-in."""
 
 import asyncio
+import hashlib
 import json
-import os
 from dataclasses import replace
-from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
@@ -18,9 +15,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.context.skills import assert_skill_authority
 from lonora_agent.executor import execute_run
 from lonora_agent.skills.access import RunSkillAccess
-from lonora_agent.workspace import AnalyticalContainer, WorkspaceResult
-from lonora_agent.workspace_access import RunWorkspaceAccess
-from lonora_agent.workspace_client import WorkspaceClient
+from lonora_agent.skills.store import store_files, stored_files
 from lonora_contracts.model_routing import ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import EffectReceiptRow, RunRow, SkillRow, TradeApprovalRow, TradingJournalRow
@@ -28,9 +23,10 @@ from lonora_db.skills import SkillRepository
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
+from workspace_fake import FakeWorkspace, Ran
 
 DOCUMENT = "---\nname: local-statistics\ndescription: Calculate bounded historical dispersion using verified exact-symbol observations.\n---\nPreserve exact broker symbols and observation timestamps. Analytical statistics grant no trading authority.\n"
-SOURCE = "import json, statistics\nfrom pathlib import Path\nvalues = [1, 2, 3]\nmean = statistics.mean(values)\nassert mean == 2\nPath('local-result.json').write_text(json.dumps({'mean': mean}))\nprint('mean=2')\n"
+SOURCE = "import statistics\nassert statistics.mean([1, 2, 3]) == 2\nprint('mean=2')\n"
 REVIEW = {
     "source_behavior": "Compute descriptive statistics on a bounded supplied historical fixture.",
     "adapted_behavior": "Reuse the same analytical helper with exact owner-provided symbol observations.",
@@ -39,32 +35,7 @@ REVIEW = {
         "Passing a smoke test does not establish predictive quality, strategy equivalence or financial authority."
     ],
 }
-IMAGE = "sha256:" + "a" * 64
-
-
-class ScriptedExecutor:
-    def __init__(self) -> None:
-        self.image = IMAGE
-        self.calls = 0
-
-    async def profile(self) -> str:
-        return self.image
-
-    async def execute(
-        self,
-        command: str,
-        files: dict[str, bytes] | None = None,
-        *,
-        deadline_seconds: float = 30,
-        expected_image: str | None = None,
-    ) -> WorkspaceResult:
-        if expected_image is not None and expected_image != self.image:
-            raise LonoraError("workspace_profile_changed", 409)
-        self.calls += 1
-        assert command.startswith("python3 skills/") and deadline_seconds == 30
-        return WorkspaceResult(
-            0, "mean=2\n", "", {**(files or {}), "local-result.json": b'{"mean": 2}'}, self.image
-        )
+UTILITY = "skills/local-statistics/1.0.0/stats.py"
 
 
 async def denied(awaitable: Any, code: str) -> None:
@@ -79,25 +50,32 @@ async def denied(awaitable: Any, code: str) -> None:
 async def main() -> None:
     fixture = await Fixture().open()
     registry = load_tools()
-    fake = ScriptedExecutor()
-    real_image = os.environ.get("LONORA_SKILL_TEST_IMAGE")
-    backend = AnalyticalContainer(real_image) if real_image else fake
-    workspace = RunWorkspaceAccess(backend)
+
+    def python(agent_id: str, command: str) -> Ran:
+        # A fresh copy of the stored files is in place before the utility runs.
+        assert command == f"python3 {UTILITY}", command
+        assert workspace.files[(agent_id, UTILITY)] == SOURCE.encode()
+        # Long output: the answer keeps its last 64 KiB, as workspace_run does.
+        return {"exit_code": 0, "stdout": "." * 70_000 + "mean=2\n"}
+
+    workspace = FakeWorkspace(python)
     try:
         agent = await fixture.agent("Local analytical packages")
         thread = await fixture.conversation(agent)
+        draft = "drafts/statistics"
+        workspace.files[(agent["id"], f"{draft}/SKILL.md")] = DOCUMENT.encode()
+        workspace.files[(agent["id"], f"{draft}/stats.py")] = SOURCE.encode()
 
         async def fresh() -> ToolContext:
             return replace(
                 await fixture.lease(await fixture.run(agent, thread)),
-                workspace_access=workspace,
+                workspace=workspace.client(),
                 skill_access=RunSkillAccess(registry, ()),
             )
 
         context = await fresh()
         results: list[dict[str, Any]] = []
         rounds = 0
-        draft = "drafts/statistics"
 
         async def model(
             _capability: Any, messages: list[ModelMessage], _tools: Any, **_kwargs: Any
@@ -105,13 +83,9 @@ async def main() -> None:
             nonlocal rounds
             rounds += 1
             if rounds > 1:
-                expected_call = (
-                    "write-source",
-                    "create-local",
-                    "test-local",
-                    "activate-local",
-                    "read-local",
-                )[rounds - 2]
+                expected_call = ("create-local", "test-local", "activate-local", "read-local")[
+                    rounds - 2
+                ]
                 observation = next(
                     message
                     for message in messages
@@ -122,27 +96,17 @@ async def main() -> None:
                 results.append(result)
             if rounds == 1:
                 call = ToolCall(
-                    id="write-source",
-                    name="workspace_update",
-                    arguments={
-                        "revision": 0,
-                        "files": {f"{draft}/SKILL.md": DOCUMENT, f"{draft}/stats.py": SOURCE},
-                    },
-                )
-            elif rounds == 2:
-                call = ToolCall(
                     id="create-local",
                     name="skill_package_create",
                     arguments={
                         "source_directory": draft,
-                        "workspace_revision": results[-1]["revision"],
                         "version": "1.0.0",
                         "expected_version": 0,
                         "adapted_content": DOCUMENT,
                         "review": REVIEW,
                     },
                 )
-            elif rounds == 3:
+            elif rounds == 2:
                 created = results[-1]
                 assert created["source_kind"] == "workspace" and not created["enabled"]
                 assert (
@@ -169,23 +133,25 @@ async def main() -> None:
                     arguments={
                         "skill_id": "local-statistics",
                         "expected_version": created["resource_version"],
-                        "workspace_revision": created["workspace_revision"],
-                        "utility_path": "skills/local-statistics/1.0.0/stats.py",
+                        "utility_path": UTILITY,
                     },
                 )
-            elif rounds == 4:
+            elif rounds == 3:
                 assert results[-1]["exit_code"] == 0 and "mean=2" in results[-1]["stdout"]
+                assert results[-1]["stdout"].endswith("mean=2\n")
+                assert len(results[-1]["stdout"]) == 65_536
+                assert results[-1]["stdout_omitted_bytes"] == 70_007 - 65_536
+                assert results[-1]["validation_level"] == "workspace_smoke_test"
                 call = ToolCall(
                     id="activate-local",
                     name="skill_package_control",
                     arguments={
                         "skill_id": "local-statistics",
                         "expected_version": results[-1]["resource_version"],
-                        "workspace_revision": results[-1]["workspace_revision"],
                         "action": "activate",
                     },
                 )
-            elif rounds == 5:
+            elif rounds == 4:
                 call = ToolCall(
                     id="read-local", name="skill_view", arguments={"skill_id": "local-statistics"}
                 )
@@ -206,48 +172,30 @@ async def main() -> None:
         async with context.db.sessions() as session:
             run = await session.get(RunRow, context.lease.run_id)
             assert run and run.status == "completed", run.error_code if run else None
-            assert run.model_metadata["skill_execution_image"] == (real_image or IMAGE)
-            row = await session.get(SkillRow, results[1]["resource_id"])
+            row = await session.get(SkillRow, results[0]["resource_id"])
             assert row and row.payload["enabled"]
             entry = row.state["package"]["versions"][0]
             assert entry["workspace_source"]["agent_id"] == agent["id"]
             assert entry["workspace_source"]["run_id"] == context.lease.run_id
-            assert entry["workspace_source"]["workspace_revision"] == 1
-            current_version = row.version
+            assert entry["workspace_source"]["workspace_revision"] is None
+            assert set(entry["validation"][UTILITY]) == {
+                "source_sha256",
+                "exit_code",
+                "arguments",
+                "validated_at",
+            }
+            # The package's files are in the agent's private store.
+            stored = await stored_files(session, agent["id"], [UTILITY])
+            assert stored[UTILITY] == SOURCE.encode()
         print(
-            "PASS Agent writes source -> creates disabled local package -> exact utility -> activation -> pinned view; no fake Git or generic enable bypass"
+            "PASS workspace directory -> disabled package in the private store -> utility run in"
+            " the workspace from a fresh copy -> activation -> view; no generic enable bypass"
         )
 
-        async def owner_catalog() -> dict[str, Any]:
-            page = await fixture.request("GET", f"/agents/{agent['id']}/skills/catalog")
-            return next(item for item in page["items"] if item["id"] == "local-statistics")
-
-        with patch.object(fixture.settings, "workspace_socket", None):
-            unavailable = await owner_catalog()
-            assert not unavailable["available"]
-            assert unavailable["code"] == "workspace_execution_unconfigured"
-        with patch.object(fixture.settings, "workspace_socket", Path("/tmp/catalog-fixture.sock")):
-            for current_image, available in (
-                (real_image or IMAGE, True),
-                ("sha256:" + "f" * 64, False),
-            ):
-                with patch.object(
-                    WorkspaceClient, "profile", AsyncMock(return_value=current_image)
-                ):
-                    item = await owner_catalog()
-                    assert item["available"] is available
-                    if not available:
-                        assert item["code"] == "skill_package_validation_required"
-            with patch.object(
-                WorkspaceClient,
-                "profile",
-                AsyncMock(side_effect=LonoraError("workspace_profile_unavailable", 503)),
-            ):
-                item = await owner_catalog()
-                assert not item["available"] and item["code"] == "workspace_profile_unavailable"
-        print(
-            "PASS authenticated owner catalog reflects source verification and actual profile availability"
-        )
+        page = await fixture.request("GET", f"/agents/{agent['id']}/skills/catalog")
+        item = next(item for item in page["items"] if item["id"] == "local-statistics")
+        assert item["available"], item
+        print("PASS the owner's catalog reflects the stored source and the validation")
 
         context = await fresh()
 
@@ -261,83 +209,13 @@ async def main() -> None:
         viewed = await call("later-view", "skill_view", {"skill_id": "local-statistics"})
         assert viewed == await call("later-view", "skill_view", {"skill_id": "local-statistics"})
         await assert_skill_authority(context, registry, active_ids=["local-statistics"])
-        async with context.db.sessions() as session:
-            run = await session.get(RunRow, context.lease.run_id)
-            assert run and run.model_metadata["skill_execution_image"] == (real_image or IMAGE)
-        print(
-            "PASS later Run reuses the same exact local version and profile; receipt replay does not recreate or execute"
-        )
+        print("PASS a later Run reuses the same exact version; a replayed view runs nothing")
 
-        if not real_image:
-            fake.image = "sha256:" + "b" * 64
-            catalog = await call("changed-profile-list", "skills_list", {"limit": 20})
-            local = next(item for item in catalog["skills"] if item["id"] == "local-statistics")
-            assert not local["available"] and local["code"] == "skill_package_validation_required"
-            await denied(
-                call("changed-profile-view", "skill_view", {"skill_id": "local-statistics"}),
-                "skill_package_validation_required",
-            )
-            await denied(
-                assert_skill_authority(context, registry, active_ids=["local-statistics"]),
-                "skill_continuation_unavailable",
-            )
-            revision = (await workspace.inspect(context.for_call("revision")))["revision"]
-            before = fake.calls
-            await denied(
-                call(
-                    "pinned-profile-execute",
-                    "workspace_execute",
-                    {
-                        "revision": revision,
-                        "command": "python3 skills/local-statistics/1.0.0/stats.py",
-                    },
-                ),
-                "workspace_profile_changed",
-            )
-            assert fake.calls == before
-            context = await fresh()
-            checked = await call(
-                "revalidate-profile",
-                "skill_package_validate",
-                {
-                    "skill_id": "local-statistics",
-                    "expected_version": current_version,
-                    "workspace_revision": revision,
-                    "utility_path": "skills/local-statistics/1.0.0/stats.py",
-                },
-            )
-            current_version = checked["resource_version"]
-            activated = await call(
-                "reactivate-profile",
-                "skill_package_control",
-                {
-                    "skill_id": "local-statistics",
-                    "expected_version": current_version,
-                    "workspace_revision": checked["workspace_revision"],
-                    "action": "activate",
-                },
-            )
-            current_version = activated["resource_version"]
-            assert (await call("new-profile-view", "skill_view", {"skill_id": "local-statistics"}))[
-                "skills"
-            ]
-            print(
-                "PASS profile change blocks catalog, restored instructions and pinned execution; fresh Run revalidation restores availability"
-            )
-
-        revision = (await workspace.inspect(context.for_call("before-crash")))["revision"]
         crash_doc = DOCUMENT.replace("local-statistics", "recovered-statistics")
-        staged = await call(
-            "crash-source",
-            "workspace_update",
-            {
-                "revision": revision,
-                "files": {"recovery/SKILL.md": crash_doc, "recovery/stats.py": SOURCE},
-            },
-        )
+        workspace.files[(agent["id"], "recovery/SKILL.md")] = crash_doc.encode()
+        workspace.files[(agent["id"], "recovery/stats.py")] = SOURCE.encode()
         create = {
             "source_directory": "recovery",
-            "workspace_revision": staged["revision"],
             "version": "1.0.0",
             "expected_version": 0,
             "adapted_content": crash_doc,
@@ -350,7 +228,7 @@ async def main() -> None:
             nonlocal interrupted
             if not interrupted:
                 interrupted = True
-                raise RuntimeError("scripted crash after materialized source")
+                raise RuntimeError("scripted crash before publication")
             return await original_create(self, *args, **kwargs)
 
         with patch.object(SkillRepository, "create", crash_once):
@@ -360,10 +238,13 @@ async def main() -> None:
                 pass
             else:
                 raise AssertionError("creation crash was not injected")
+            # The source changes after the crash; the retry uses the prepared source.
+            workspace.files[(agent["id"], "recovery/stats.py")] = b"print('changed')\n"
             recovered = await call("recover-create", "skill_package_create", create)
+        assert not recovered["enabled"]
         assert (
-            not recovered["enabled"]
-            and recovered["workspace_source"]["workspace_revision"] == staged["revision"]
+            recovered["files"]["skills/recovered-statistics/1.0.0/stats.py"]
+            == hashlib.sha256(SOURCE.encode()).hexdigest()
         )
         assert recovered == await call("recover-create", "skill_package_create", create)
         await denied(
@@ -371,13 +252,10 @@ async def main() -> None:
             "skill_package_identity_conflict",
         )
         print(
-            "PASS crash after file materialization resumes exact prepared source; same effect cannot change semantic version"
+            "PASS a crash before publication resumes the exact prepared source; the same effect"
+            " cannot change its semantic version"
         )
 
-        await denied(
-            call("old-revision", "skill_package_create", {**create, "version": "2.0.0"}),
-            "workspace_revision_conflict",
-        )
         await denied(
             call(
                 "cross-owner",
@@ -397,26 +275,25 @@ async def main() -> None:
             ),
             "workspace_scope_mismatch",
         )
+        await denied(
+            call("missing-source", "skill_package_create", {**create, "source_directory": "none"}),
+            "skill_package_document_missing",
+        )
         async with context.db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id)
             assert run
             trigger, run.trigger = run.trigger, "subagent"
-        await denied(call("helper-create", "skill_package_create", create), "tool_not_allowed")
+        await denied(
+            call("helper-create", "skill_package_create", create), "workspace_run_scope_refused"
+        )
         async with context.db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id)
             assert run
             run.trigger = trigger
-        print("PASS stale source revision, owner/Agent scope and helper creation fail closed")
+        print("PASS owner/Agent scope, a missing source and helper creation fail closed")
 
-        revision = (await workspace.inspect(context.for_call("before-tamper")))["revision"]
-        await call(
-            "tamper-source",
-            "workspace_update",
-            {
-                "revision": revision,
-                "files": {"skills/local-statistics/1.0.0/stats.py": "print('changed source')\n"},
-            },
-        )
+        async with context.db.sessions() as session, session.begin():
+            await store_files(session, agent["id"], {UTILITY: "print('changed source')\n"})
         await denied(
             call("tampered-view", "skill_view", {"skill_id": "local-statistics"}),
             "skill_package_source_changed",
@@ -426,9 +303,7 @@ async def main() -> None:
             next(item for item in catalog["skills"] if item["id"] == "local-statistics")["code"]
             == "skill_package_source_changed"
         )
-        print(
-            "PASS changed installed source invalidates admission even when the catalog remains enabled"
-        )
+        print("PASS a changed stored source invalidates admission even when enabled")
 
         async with context.db.sessions() as session:
             assert (
@@ -445,10 +320,7 @@ async def main() -> None:
                 )
             ).all()
             assert len(prepared) == 2
-        print(
-            "PASS existing receipts/catalog/workspace reused; financial approvals and journal unchanged; executor="
-            + ("actual-restricted-container" if real_image else "scripted-offline")
-        )
+        print("PASS financial approvals and journal unchanged")
     finally:
         await fixture.close()
 

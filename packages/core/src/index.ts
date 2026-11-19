@@ -75,19 +75,30 @@ export {
   selectionSummary,
 } from "./chat-rows";
 export {
+  availableCommands,
+  COMMAND_ALIAS,
+  type CommandId,
+  type CommandOption,
+  commandQuery,
+  parseCommand,
+  rankCommands,
+} from "./composer-commands";
+export {
   guestCandidates,
-  MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
+  matchesEveryone,
   mentionAddress,
   mentionCandidates,
   mentionQuery,
+  mentionSegments,
   rebaseMentions,
 } from "./composer-mentions";
 export {
   type ConversationItem,
   conversationTimeline,
   nearConversationBottom,
+  SLOT_OWNER_ACTION_KINDS,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export {
@@ -126,6 +137,7 @@ export {
 } from "./inbox";
 export {
   callPart,
+  commandPart,
   pendingVoiceRich,
   validateAgentRichContent,
   voicePart,
@@ -139,10 +151,6 @@ export {
   orderLineText,
 } from "./order-line";
 export {
-  type CredentialField,
-  type CredentialForm,
-  type CredentialPost,
-  credentialForm,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -160,7 +168,6 @@ export {
   rereadOwnerAction,
   type SecretForm,
   type SecretFormField,
-  submitCredential,
   submitSecret,
 } from "./owner-actions";
 export {
@@ -219,14 +226,12 @@ export {
   supervisionText,
   unsupervisedAgents,
 } from "./supervision";
+export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {
   isolate,
   listSeparator,
-  moneyLimitLabel,
-  moneyLimitsLine,
-  pauseClassLabel,
   readinessTime,
   type TradingSafetyText,
   tradingReadinessLine,

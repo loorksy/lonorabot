@@ -14,8 +14,8 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``card``    the same for a card the journey writes (``owner``, ``lead``, ``document``).
 ``pad``     ``count`` plain assistant messages at the end of the thread, so an earlier
             message falls outside the newest history page.
-``records`` a pending Trade Approval and a resolve card for an uncertain operation in the
-            conversation, as their own paths raise them; prints their ids.
+``records`` a pending Trade Approval, a resolve card for an uncertain operation and a
+            Secret card in the conversation, as their own paths raise them; prints ids.
 ``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
             trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
             to give the slot; with ``number``, also the agent's own Number field, whose Enter
@@ -209,7 +209,7 @@ async def receipt(data: dict[str, Any]) -> dict[str, Any]:
             result = next(m for m in messages if m.role == "tool" and m.tool_call_id == "w1")
             watch = json.loads(result.content)["id"]
             lines = [
-                '{"v":2,"kind":"receipt","title":"تنبيه فعّال","sub":"الذهب فوق 2,400","icon":"check"}',
+                '{"v":2,"kind":"summary","title":"تنبيه فعّال","sub":"الذهب فوق 2,400","icon":"check"}',
                 '{"type":"KeyValue","rows":[["الأصل","الذهب"],["الشرط","يصعد فوق 2,400"],["الإشعار","داخل التطبيق"]]}',
                 '{"type":"Row","children":[{"type":"Button","label":"عرض التنبيهات","icon":"bell","action":{"do":"go","route":"market"}},'
                 '{"type":"Button","label":"إيقاف التنبيه","icon":"bellOff","action":{"do":"send","intent":"alert.off","data":{"watch_id":"'
@@ -349,7 +349,50 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
                 subject="operation:" + operation,
                 payload={"operation_id": operation},
             )
-            return {"approval": approval.id, "settle": settle.id}
+            # A Secret card an agent asked for, as W-ENV's card stores it (7.2.3).
+            secret = await create_card(
+                session,
+                thread.owner_id,
+                card_id=uuid4().hex,
+                agent_id=thread.agent_id,
+                thread=thread,
+                run_id=None,
+                source="agent",
+                kind="secret",
+                subject="secret:exchange",
+                payload={
+                    "label": "Exchange",
+                    "connect": None,
+                    "fields": [
+                        {"key": f"EXCHANGE_KEY_{index}", "label": f"Key {index}", "secret": True}
+                        for index in range(1, data.get("secret_fields", 1) + 1)
+                    ],
+                    "destination": "workspace",
+                },
+            )
+            ids = {"approval": approval.id, "settle": settle.id, "secret": secret.id}
+            if data.get("broker"):
+                # A broker card as broker_connect raises it: two fixed fields and the
+                # account line (lonora_db.secret_cards.broker_card_payload).
+                from lonora_db.secret_cards import broker_card_payload
+
+                subject, payload = broker_card_payload(
+                    login="5001234", server="Demo-Server", platform="mt5", token_needed=True
+                )
+                broker = await create_card(
+                    session,
+                    thread.owner_id,
+                    card_id=uuid4().hex,
+                    agent_id=thread.agent_id,
+                    thread=thread,
+                    run_id=None,
+                    source="agent",
+                    kind="secret",
+                    subject=subject,
+                    payload=payload,
+                )
+                ids["broker"] = broker.id
+            return ids
     finally:
         await fixture.close(cleanup=False)
 
@@ -377,7 +420,7 @@ async def slots(data: dict[str, Any]) -> dict[str, Any]:
             '{"type":"Number","bind":"lots","label":"الحجم المقترح"}',
         ]
         lines = [
-            '{"v":2,"kind":"receipt","title":"ينتظر قرارك","sub":"طلب معلّق","icon":"check"}',
+            '{"v":2,"kind":"summary","title":"ينتظر قرارك","sub":"طلب معلّق","icon":"check"}',
             *(number[:1] if data.get("number") else []),
             '{"type":"Text","text":"الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."}',
             *(number[1:] if data.get("number") else []),

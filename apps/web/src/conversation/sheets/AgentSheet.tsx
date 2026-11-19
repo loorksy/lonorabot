@@ -1,21 +1,11 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type {
-  AgentLiveState,
-  MoneyLimitName,
-  MoneyLimits,
-  TradingReadiness,
-} from "@lonora/contracts";
+import type { AgentLiveState, TradingReadiness } from "@lonora/contracts";
 import {
   agentStatusLine,
-  isolate,
-  moneyLimitLabel,
   orderLineAction,
-  pauseClassLabel,
-  readinessTime,
   tradingReadinessLine,
-  tradingSafetyText,
   uncertainLine,
 } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
@@ -25,15 +15,13 @@ import { useAgentLiveState } from "../../lib/agent-live-state";
 import type { Agent, Resource } from "../../lib/api";
 import { api } from "../../lib/api";
 import { brokerIdentityLabel } from "../../lib/broker-identity";
-import { liftRestriction, readConnections } from "../../lib/trading";
+import { readConnections } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
-import { useShellData } from "../../shell/data";
 import { useNavigation } from "../../shell/navigation";
 import { useSheets } from "../../shell/sheets/SheetHost";
 import { useToast } from "../../shell/Toast";
 import { useChatPrefs } from "../prefs";
-import { useLimitsSheet } from "./LimitsSheet";
 import { useWatchesSheet } from "./WatchesSheet";
 
 /* The agent's status (Q35: a per-device preference, off by default) and the trading safety of
@@ -126,63 +114,27 @@ export function StatusAvatar({ agent, children }: { agent: Agent; children: Reac
   );
 }
 
-function restrictionText(r: TradingReadiness["restrictions"][number]) {
-  const until = r.valid_until ? readinessTime(r.valid_until, i18n.locale) : null;
-  // Only a «no new entries» pause is «الصفقات الجديدة معلّقة»; the others name their class.
-  if (r.action_class !== "no_new_entries") {
-    const what = pauseClassLabel(r.action_class, i18n.locale);
-    return until ? t`Restricted: ${what} until ${until}` : t`Restricted: ${what}`;
-  }
-  return until ? t`New trades are paused until ${until}` : t`New trades are paused`;
-}
-
 /** The alert capsule under the header of a trading agent's chat: abnormal states only. */
 export function SafetyCapsule({ agent, onOpen }: { agent: Agent; onOpen: () => void }) {
   const { state } = useAgentLiveState(agent.id);
   const readiness = state?.trading_readiness;
   if (!readiness) return null;
   const count = readiness.unresolved_count;
-  const full = count ? uncertainLine(count, i18n.locale) : "";
-  const flag = count > 1 ? t`${count} unconfirmed` : full;
-  const restriction = readiness.restrictions.find((r) => r.state === "active");
-  let tone: "off" | "warn";
-  let icon: IconName;
-  let text: string;
-  let showFlag = true;
-  if (!readiness.exits_allowed) {
-    // A freeze blocks exits too: the capsule says so in the server's own words.
-    tone = "off";
-    icon = "lock";
-    text = tradingReadinessLine(readiness, i18n.locale);
-  } else if (restriction) {
-    tone = "warn";
-    icon = "pause";
-    text = restrictionText(restriction);
-  } else if (count) {
-    tone = "warn";
-    icon = "alert";
-    text = full;
-    showFlag = false;
-  } else return null;
+  if (!count) return null;
+  const text = uncertainLine(count, i18n.locale);
   return (
     <div className="safety-row">
       <button
         type="button"
-        className={`safety-cap tone-${tone}`}
+        className="safety-cap tone-warn"
         aria-haspopup="dialog"
-        aria-label={`${text}${showFlag && full ? `، ${full}` : ""}`}
+        aria-label={text}
         data-testid="safety-capsule"
         data-readiness={readiness.state}
         onClick={onOpen}
       >
-        <Icon name={icon} />
+        <Icon name="alert" />
         <span className="sc-text">{text}</span>
-        {showFlag && flag && (
-          <span className="sc-flag">
-            <Icon name="alert" />
-            <span>{flag}</span>
-          </span>
-        )}
         <Icon name="down" />
       </button>
     </div>
@@ -192,19 +144,9 @@ export function SafetyCapsule({ agent, onOpen }: { agent: Agent; onOpen: () => v
 /** With more than one account every item names its account (as the old safety pill did). */
 function useAccountName(readiness: TradingReadiness | null) {
   const [accounts, setAccounts] = useState<Resource[]>([]);
-  const ids = new Set(
-    readiness
-      ? [
-          ...readiness.money_limits.map((item) => item.account_id),
-          ...readiness.grants.map((item) => item.account_id),
-          ...readiness.restrictions.map((item) => item.account_id),
-          ...readiness.unresolved_operations.map((item) => item.account_id),
-        ]
-      : [],
-  );
-  const several = ids.size > 1;
+  const trading = readiness !== null;
   useEffect(() => {
-    if (!several) return;
+    if (!trading) return;
     let live = true;
     void readConnections()
       .then((rows) => {
@@ -214,55 +156,13 @@ function useAccountName(readiness: TradingReadiness | null) {
     return () => {
       live = false;
     };
-  }, [several]);
+  }, [trading]);
+  const several = accounts.length > 1;
   return (id: string) => {
     if (!several) return null;
     const index = accounts.findIndex((row) => row.id === id);
     return index < 0 ? null : brokerIdentityLabel(accounts[index], index);
   };
-}
-
-/* The owner's money limits, every cap that is set (a percentage of equity and an absolute
-   amount can both apply): «دون حد» only when neither is set. */
-const LIMIT_GROUPS: Array<[() => string, MoneyLimitName[]]> = [
-  [() => t`Daily loss limit`, ["max_daily_loss"]],
-  [() => t`Trade risk limit`, ["max_trade_risk_equity_percent", "max_trade_risk"]],
-  [() => t`Open risk limit`, ["max_open_risk_equity_percent", "max_open_risk"]],
-  [() => t`Minimum free margin`, ["min_free_margin"]],
-];
-
-export function LimitRows({ limits }: { limits: MoneyLimits }) {
-  const amount = (key: MoneyLimitName) =>
-    `${limits.limits[key]}${key.endsWith("percent") ? "%" : limits.currency ? ` ${limits.currency}` : ""}`;
-  if (!limits.configured)
-    // The server enforces none: the same words as the readiness line.
-    return (
-      <div className="row" data-money-limit="none">
-        <span className="body">{tradingSafetyText(i18n.locale).noMoneyLimit}</span>
-      </div>
-    );
-  return (
-    <>
-      {LIMIT_GROUPS.map(([label, keys]) => {
-        const set = keys.filter((key) => limits.limits[key] != null);
-        return set.length ? (
-          set.map((key) => (
-            <div key={key} className="row" data-money-limit={key}>
-              <span className="body">
-                {set.length > 1 ? moneyLimitLabel(key, i18n.locale) : label()}
-              </span>
-              <span className="value ltr">{amount(key)}</span>
-            </div>
-          ))
-        ) : (
-          <div key={keys[0]} className="row" data-money-limit={keys[0]} data-unset="">
-            <span className="body">{label()}</span>
-            <span className="value">{t`No limit`}</span>
-          </div>
-        );
-      })}
-    </>
-  );
 }
 
 function AgentSheetBody({
@@ -280,16 +180,10 @@ function AgentSheetBody({
   const prefs = useChatPrefs();
   const { refresh } = useClient();
   const toast = useToast();
-  const limits_ = useLimitsSheet();
   const watches = useWatchesSheet();
   const [busy, setBusy] = useState(false);
   const readiness = state?.trading_readiness ?? null;
-  const { agents } = useShellData();
   const accountName = useAccountName(readiness);
-  const agentName = (id: string | null) => {
-    const name = agents.find((row) => row.id === id)?.name;
-    return name ? `${t`Set by the agent`} · ${isolate(name)}` : t`Set by the agent`;
-  };
   const kind = statusKind(state);
   const run = async (action: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -303,15 +197,8 @@ function AgentSheetBody({
       setBusy(false);
     }
   };
-  const ownPause = readiness?.restrictions.find(
-    (r) => r.applies_to === "this_agent" && r.source === "owner_ui",
-  );
-  const systemPauses = readiness?.restrictions.filter((r) => r !== ownPause) ?? [];
-  const account = readiness?.money_limits[0];
   const work = state?.current_work;
   const pendingId = state?.pending_card_id;
-  const exits = readiness?.exits_allowed !== false;
-  const closing = exits ? ` · ${t`closing allowed`}` : "";
   return (
     <>
       <div className="sf-head" data-testid="agent-live-state" data-state={state?.state}>
@@ -440,159 +327,47 @@ function AgentSheetBody({
       )}
       {readiness && (
         <>
-          <h3>
-            <Trans>Trading</Trans>
-          </h3>
-          <div className="group">
-            <div className="row">
-              <Icon name="pause" />
-              <span className="body">
-                <strong>
-                  <Trans>New trades</Trans>
-                </strong>
-                <small>{ownPause ? `${restrictionText(ownPause)}${closing}` : t`Allowed`}</small>
-              </span>
-              {ownPause ? (
-                <button
-                  type="button"
-                  className="btn sm"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => liftRestriction(ownPause.id), t`New trades resumed`)
-                  }
-                >
-                  <Trans>Resume</Trans>
-                </button>
-              ) : (
-                account && (
-                  <button
-                    type="button"
-                    className="btn sm outline"
-                    disabled={busy}
-                    onClick={() => {
-                      const end = new Date();
-                      end.setHours(23, 59, 0, 0);
-                      void run(
-                        () =>
-                          api.post("/trading/restrictions", {
-                            account_id: account.account_id,
-                            agent_id: agent.id,
-                            action_class: "no_new_entries",
-                            valid_until: end.toISOString(),
-                            reason: "owner_pause",
-                          }),
-                        t`New trades paused until 23:59`,
-                      );
-                    }}
-                  >
-                    {t({ message: "Pause", context: "new trades pause" })}
-                  </button>
-                )
-              )}
-            </div>
-            {systemPauses.map((r) => (
-              <div
-                key={r.id}
-                className="row"
-                data-restriction={r.id}
-                data-closing={r.action_class === "all_mutations" ? "frozen" : "allowed"}
-              >
-                <Icon name="lock" />
-                <span className="body">
-                  <strong>{restrictionText(r)}</strong>
-                  <small dir="auto">
-                    {accountName(r.account_id) && <>{accountName(r.account_id)} · </>}
-                    {r.symbol && (
-                      <>
-                        <bdi className="ltr">{r.symbol}</bdi> ·{" "}
-                      </>
-                    )}
-                    {r.source === "owner_ui" || r.source === "owner_message"
-                      ? t`Set by you`
-                      : agentName(r.created_by_agent_id)}{" "}
-                    · {/* Each row's own class: a freeze elsewhere never colours this pause. */}
-                    {r.action_class === "all_mutations"
-                      ? t`closing is frozen too`
-                      : t`this one does not block closing`}
-                  </small>
-                </span>
-                <button
-                  type="button"
-                  className="btn sm"
-                  data-lift-restriction={r.id}
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => liftRestriction(r.id), t`The restriction was lifted`)
-                  }
-                >
-                  <Trans>Lift</Trans>
-                </button>
-              </div>
-            ))}
-            {readiness.unresolved_operations.map((op) => (
-              <div key={op.operation_id} className="row">
-                <Icon name="alert" />
-                <span className="body">
-                  <strong dir="auto">
-                    <bdi>
-                      {op.action} {op.symbol}
-                    </bdi>
-                  </strong>
-                  <small dir="auto">
-                    {accountName(op.account_id) && <>{accountName(op.account_id)} · </>}
-                    <Trans>Unconfirmed operation · not confirmed by the broker</Trans>
-                  </small>
-                </span>
-                {op.resolve_card && (
-                  <button
-                    type="button"
-                    className="btn sm"
-                    data-resolve-card={op.resolve_card.id}
-                    onClick={() => {
-                      close();
-                      if (op.resolve_card) openCard(op.resolve_card, go);
-                    }}
-                  >
-                    <Trans>Resolve</Trans>
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          {(readiness.money_limits ?? []).map((limits) => (
-            <section key={limits.account_id} data-account-limits={limits.account_id}>
+          {readiness.unresolved_operations.length > 0 && (
+            <>
               <h3>
-                <Trans>Account limits</Trans>
-                {accountName(limits.account_id) && <> · {accountName(limits.account_id)}</>}
+                <Trans>Trading</Trans>
               </h3>
               <div className="group">
-                <LimitRows limits={limits} />
+                {readiness.unresolved_operations.map((op) => (
+                  <div key={op.operation_id} className="row">
+                    <Icon name="alert" />
+                    <span className="body">
+                      <strong dir="auto">
+                        <bdi>
+                          {op.action} {op.symbol}
+                        </bdi>
+                      </strong>
+                      <small dir="auto">
+                        {accountName(op.account_id) && <>{accountName(op.account_id)} · </>}
+                        <Trans>Unconfirmed operation · not confirmed by the broker</Trans>
+                      </small>
+                    </span>
+                    {op.resolve_card && (
+                      <button
+                        type="button"
+                        className="btn sm"
+                        data-resolve-card={op.resolve_card.id}
+                        onClick={() => {
+                          close();
+                          if (op.resolve_card) openCard(op.resolve_card, go);
+                        }}
+                      >
+                        <Trans>Resolve</Trans>
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-              <button
-                type="button"
-                className="btn full outline"
-                onClick={() => {
-                  close();
-                  limits_(limits.account_id);
-                }}
-              >
-                <Trans>Edit the limits</Trans>
-              </button>
-            </section>
-          ))}
-          {exits ? (
-            <p className="note">
-              <Trans>
-                Closing and tightening the stop loss are always allowed, even while new trades are
-                paused.
-              </Trans>
-            </p>
-          ) : (
-            <p className="oa-warn" role="alert">
-              <Icon name="lock" />
-              <span>{tradingSafetyText(i18n.locale).exitsFrozen}</span>
-            </p>
+            </>
           )}
+          <p className="note">
+            <Trans>Closing and tightening the stop loss are always allowed.</Trans>
+          </p>
         </>
       )}
     </>

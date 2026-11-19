@@ -49,7 +49,6 @@ from lonora_db.schema import (
     ThreadRow,
     TradeApprovalRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_gateway.health import gateway_health
 from lonora_gateway.liveness import Liveness, StepLiveness, StepSpec, supervise_step
@@ -281,7 +280,9 @@ async def test_watches_are_filtered_and_ordered_in_sql_and_a_poison_watch_is_iso
         session.add_all([fresh, poison, overdue, future, disabled, expired])
     seen: list[str] = []
 
-    async def check(_: Database, __: BrokerManager, original: MarketWatchRow, *args: Any) -> int:
+    async def check(
+        _: Database, __: BrokerManager, original: MarketWatchRow, *args: Any, **kwargs: Any
+    ) -> int:
         seen.append(original.id)
         if original.id == poison.id:
             raise KeyError("symbol")
@@ -316,7 +317,7 @@ async def test_a_hung_watch_observation_times_out_as_unavailable_health(
         )
         session.add(row)
 
-    async def hang(*_: Any) -> Any:
+    async def hang(*_: Any, **__: Any) -> Any:
         await asyncio.sleep(30)
 
     monkeypatch.setattr(watchers, "WATCH_OBSERVATION_TIMEOUT_SECONDS", 0.05)
@@ -346,10 +347,10 @@ async def test_a_poison_attention_event_never_holds_the_cursor_and_is_quarantine
             )
     real = attention.candidate
 
-    async def poisoned(db_: Database, brokers: BrokerManager, event: EventRow) -> Any:
+    async def poisoned(db_: Database, brokers: BrokerManager, event: EventRow, **kw: Any) -> Any:
         if event.payload.get("id") == "poison":
             raise KeyError("origin_thread_id")
-        return await real(db_, brokers, event)
+        return await real(db_, brokers, event, **kw)
 
     monkeypatch.setattr(attention, "candidate", poisoned)
     await attention.attention_tick(db, NO_BROKERS, owner)
@@ -714,15 +715,6 @@ async def financial_fixture(db: Database, owner: str) -> dict[str, str]:
                     requests=[{"account_id": account.id, "symbol": "XAUUSD"}],
                     status="completed",
                 ),
-                TradingRestrictionRow(
-                    owner_id=owner,
-                    account_id=account.id,
-                    agent_id=agent.id,
-                    action_class="no_new_entries",
-                    valid_from=now,
-                    source="owner_ui",
-                    created_by="owner",
-                ),
                 SuperBotRequestRow(
                     owner_id=owner,
                     agent_id=agent.id,
@@ -765,9 +757,6 @@ async def test_deleting_a_conversation_agent_or_account_keeps_financial_records(
             select(AccountAuthorityRow).where(AccountAuthorityRow.owner_id == owner)
         )
         approval = await session.get(TradeApprovalRow, "ap-" + ids["run"][:8])
-        restriction = await session.scalar(
-            select(TradingRestrictionRow).where(TradingRestrictionRow.owner_id == owner)
-        )
         request = await session.scalar(
             select(SuperBotRequestRow).where(SuperBotRequestRow.owner_id == owner)
         )
@@ -776,9 +765,6 @@ async def test_deleting_a_conversation_agent_or_account_keeps_financial_records(
     assert (authority.agent_id, authority.account_id) == (ids["agent"], ids["account"])
     assert approval and approval.run_id is None and approval.thread_id is None
     assert approval.agent_id == ids["agent"]
-    # A restriction on a deleted agent never turns into an account-wide one.
-    assert restriction and restriction.agent_id == ids["agent"]
-    assert restriction.account_id == ids["account"]
     assert request and request.thread_id is None and request.goal_id == RETIRED_GOAL
 
 
@@ -962,10 +948,10 @@ async def test_a_hanging_attention_event_times_out_into_the_ledger_and_never_hol
             )
     real = attention.candidate
 
-    async def hanging(db_: Database, brokers: BrokerManager, event: EventRow) -> Any:
+    async def hanging(db_: Database, brokers: BrokerManager, event: EventRow, **kw: Any) -> Any:
         if event.payload.get("id") == "hang":
             await asyncio.Event().wait()
-        return await real(db_, brokers, event)
+        return await real(db_, brokers, event, **kw)
 
     monkeypatch.setattr(attention, "candidate", hanging)
 
@@ -1110,7 +1096,7 @@ async def test_quarantine_notices_coalesce_per_kind_and_never_cost_a_critical_al
             payload={"status": "pending"},
         )
 
-    async def poisoned(*_: Any) -> Any:
+    async def poisoned(*_: Any, **__: Any) -> Any:
         raise KeyError("projection bug")
 
     monkeypatch.setattr(attention, "candidate", poisoned)

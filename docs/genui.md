@@ -43,7 +43,7 @@ The server contract `lonora_contracts.genui` is the single source of the set (ma
   both clients draw.
 
 - **Trusted slots (`Slot {card, record}`, mandate 10.2):** a fixed card placed inside the
-  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval` and `settle`); `record` is
+  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval`, `settle` and `secret`); `record` is
   the record's id. The agent chooses only where the slot sits; section 4a says what the server
   and the clients do with it.
 
@@ -80,6 +80,8 @@ with an unknown type or a missing required prop is dropped, an unknown icon is o
 or data line that fails makes the whole card fall back. `genui_compile.compile_card` then:
 
 - resolves facts to this request's results only; a failed or private value is never shown,
+  nor anything inside an operation the broker has not confirmed (an agent never draws
+  "confirmed": the server posts its own Execution Receipt),
   and a card whose facts all fail falls back; source metadata is privacy-filtered;
 - binds the card to one account (the first account-bearing fact) and, for a fixed-market agent,
   to its own pair;
@@ -100,7 +102,8 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
 
 - **Placement (10.2.1).** The projector reads the records a card's slots name
   (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
-  `settle_operation` owner-action card (`settle`) of this owner, in the reply's conversation
+  `settle_operation` owner-action card (`settle`) or a `secret` owner-action card, the Secret
+  card (`secret`), of this owner, in the reply's conversation
   (the Run's origin conversation when it works in its own thread, as broker-event and watch
   Runs do). A slot
   whose record is missing, of another kind, another owner's or another conversation's is
@@ -125,10 +128,12 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   settles or switches a mode (6.10): only the fixed card inside the slot does. Enter in the
   agent's own field presses the agent's own primary Button only, never a button inside a slot,
   and a sent card dims its own blocks, never a slot.
-- **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 460 px, its
-  frame included, measured at 390 px by the web "Slots" journey) toward the 560 px resting
-  height and is one of the 6 visible blocks. The agent's other blocks fold first; a slot is
-  never folded, and a card over 720 px falls back, which brings the record's row back.
+- **Budget (10.1.4).** A slot counts its height toward the 560 px resting height and is one
+  of the 6 visible blocks: trade approval 230 px and settle 460 px; a Secret card 305 px and
+  95 px for each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads
+  the field count). Each is measured at 390 px with its frame by the web "Slots" journey. The
+  agent's other blocks fold first; a slot is never folded, and a card over 720 px falls back,
+  which brings the record's row back (a Secret card of eight fields always does).
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
   standalone row while a loaded assistant message of the conversation draws it as a slot
   (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is
@@ -172,8 +177,10 @@ auto-flushed outbox or offline queue; a retry after a failure is the owner's tap
 send is input to the agent's own judgment (mandate 6.10): the Run it starts carries
 `ui_submit_origin`, its own mark only (`account_authority.provisional_voice`). In Full that
 Run's trades send like any other Run's; in Ask its trades that add risk ask the owner. Its
-retry runs the same send again and carries a provenance-only mark, `ui_submit_retry_of`
-naming the send's Run (`run_retry.retry_run`, read by `owner_words.ui_submit_provenance`):
+retry, and a «طلب جديد» renewal of an approval it raised, ask the same request again and
+carry a provenance-only mark, `ui_submit_retry_of` naming the send's Run
+(`owner_words.submit_provenance_of`, read by `owner_words.ui_submit_provenance`; a retry the
+previous release queued keeps its old `ui_tainted` mark, read on retries only):
 like that Run it never spends a grant and has no owner words, but it carries none of the
 send's queue rules. It is not the send's queued Run (`ui_submit_origin`), so its start or
 end never marks the send started, visible or «لم يُنفَّذ», rule L never cancels it, «تعديل»

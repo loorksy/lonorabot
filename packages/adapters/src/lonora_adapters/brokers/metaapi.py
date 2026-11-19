@@ -55,9 +55,9 @@ def provider_error(error: Exception, stage: str) -> LonoraError:
         missing = any(
             term in message for term in ("not found", "unknown", "does not exist", "not exist")
         )
-        if stage == "symbol" and ("symbol" in message or "account" not in message):
-            # A symbol read ran on a connected account: the broker does not list the
-            # symbol. Only a message about the account itself reports the account.
+        if stage in {"symbol", "instrument"} and ("symbol" in message or "account" not in message):
+            # A symbol or instrument read ran on a connected account: the broker does not
+            # list the symbol. Only a message about the account itself reports the account.
             return LonoraError("symbol_not_found", 404)
         if stage != "candles" or "account" in message and missing:
             return LonoraError("broker_account_not_found", 404)
@@ -194,6 +194,21 @@ def configure_sdk_transport() -> None:
     websocket_module.socketio = SimpleNamespace(AsyncClient=ProxySocketClient)
     websocket_module.MetaApiWebsocketClient._reconnect = reconnect
     http_module._lonora_transport_configured = True
+
+
+async def refused_by_broker(account: Any) -> bool:
+    """Mandate 9.4: after synchronization timed out, a fresh read of the account (not the
+    cached metadata) tells a terminal the broker refuses (a changed password, or the
+    broker's server down) apart from a lost link. A brief broker restart that has already
+    passed reads CONNECTED and keeps the timeout."""
+    try:
+        async with asyncio.timeout(10):
+            await account.reload()
+        return (
+            account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED_FROM_BROKER"
+        )
+    except Exception:
+        return False
 
 
 class MetaApiBroker:
@@ -413,6 +428,10 @@ class MetaApiBroker:
                     if connection is not None:
                         await self._discard_locked(kind, connection)
                     failure = self.diagnose(error, kind)
+                    if failure.code == "broker_connection_timeout" and await refused_by_broker(
+                        account
+                    ):
+                        failure = LonoraError("broker_login_rejected", 409)
                     slot.failed(failure)
                     raise failure from error
 
