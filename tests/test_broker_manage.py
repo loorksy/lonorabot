@@ -249,7 +249,7 @@ async def test_a_new_password_metaapi_cannot_redeploy_yet_still_reaches_the_term
             )
             card_id = card["owner_action"]["id"]
             world.api.servers[SERVER][account] = "fixture-new-password"
-            world.api.busy = 1 if settles else 100
+            world.api.busy = 3 if settles else 100
             await world.save(card_id, {"PASSWORD": "fixture-new-password"})
             await world.gateway(1)
             waiting = (await world.card(card_id)).result
@@ -263,6 +263,11 @@ async def test_a_new_password_metaapi_cannot_redeploy_yet_still_reaches_the_term
             assert after.state["password_secret_id"] != old_password
             async with fixture.runtime.db.sessions() as session:
                 assert await session.get(SecretRow, old_password) is None
+            await world.gateway(2)
+            # Still busy: each pass asks for the redeploy only, never sends the password again.
+            assert (await world.card(card_id)).result["provisioning"] == "pending"
+            assert world.api.calls.count("update") == 1
+            assert world.api.calls.count("redeploy") == 3
             if not settles:
                 await backdate(world, card_id, "started_at")
             await world.gateway(1)

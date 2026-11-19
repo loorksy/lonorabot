@@ -523,16 +523,21 @@ async def _deploy(
             if not busy and not result.get("created") and not result.get("password_set"):
                 # An account that already existed at MetaApi gets the password the owner
                 # just typed, unless it is already deployed and connected with its own.
-                # Once MetaApi stores this card's password, each pass stores it again and
-                # redeploys until MetaApi takes the redeploy (``password_set``), unless a
-                # redeploy with it went out and its answer was lost (``redeploy_sent``):
-                # MetaApi may run it already, so a terminal deployed and connected now is
-                # taken, as before any password was stored.
+                # Once MetaApi stores this card's password (``password_stored``), a later
+                # pass does not send it again: it only redeploys, until MetaApi takes the
+                # redeploy (``password_set``), also when the terminal logged in again with
+                # its earlier password meanwhile. Unless a redeploy with it went out and
+                # its answer was lost (``redeploy_sent``): MetaApi may run it already, so a
+                # terminal deployed and connected now is taken, as before any password was
+                # stored.
                 stored = result.get("password_stored") is True
                 sent = result.get("redeploy_sent") is True
                 redeploy = (stored and not sent) or not (state.deployed and state.connected)
                 if redeploy:
-                    await provisioning.update_password(account_id, await secrets.read(password_id))
+                    if not stored:
+                        await provisioning.update_password(
+                            account_id, await secrets.read(password_id)
+                        )
                     # Kept before the redeploy, as create_sent before a create.
                     async with db.sessions() as session, session.begin():
                         row = await _card(session, failing.owner_id, failing.card_id)
