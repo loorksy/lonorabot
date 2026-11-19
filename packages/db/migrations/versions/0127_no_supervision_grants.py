@@ -11,10 +11,14 @@ owner's mandate ended it, as W-AUTH's data migration records it) and the work re
 its own control resumes it. A paused agent runs again (the gateway restarts a Full
 agent's continuous task and answers what the owner sent it while paused); a routine is
 switched back on; a watch resumes unless it is past its expiry, the agent cancelled it
-itself, or its Task has ended. A Task keeps its state: with no hold left, its pause is
-its agent's own, which the agent or the owner resumes (``task_control``, the Task's
-Resume). Pauses the owner holds and pauses Lonora made stay (4.7.2), and so do their
-``supervision_paused`` cards; the card of an ended pause stops offering Resume.
+itself, or its Task has ended. A Task resumes as its own resume (``task_control``) takes
+it: a pause asked of it that it has not reached is withdrawn, so it never takes effect,
+and a paused Task whose Run waits for takeover is queued again with its Run (a question
+to the owner its Run held is cancelled, as the resume cancels it). A paused Task the
+resume does not take that way (paused while waiting to retry, or with no Run waiting for
+takeover) stays paused with no hold, for its agent or the owner to resume. An ended Task
+keeps its state. Pauses the owner holds and pauses Lonora made stay (4.7.2), and so do
+their ``supervision_paused`` cards; the card of an ended pause stops offering Resume.
 
 The downgrade recreates the grant table empty and restores nothing else: no grant, no
 deleted card and no ended pause comes back. The code below this revision leads by role
@@ -33,6 +37,10 @@ revision = "0127_no_supervision_grants"
 down_revision = "0125_flat_team_creation"
 branch_labels = None
 depends_on = None
+
+# Frozen copies of a live Run's statuses and of lonora_db.tasks.ATTENTION_RESUMED.
+LIVE_RUNS = ("queued", "leased", "running", "waiting_input", "waiting_takeover")
+ATTENTION_RESUMED = "owner_attention_resumed"
 
 
 def upgrade() -> None:
@@ -76,6 +84,8 @@ def end_team_supervisor_pauses(bind: sa.Connection, now: datetime) -> None:
             )
         elif hold.target_kind == "watch":
             resume_watch(bind, hold.target_id, now)
+        elif hold.target_kind == "task":
+            resume_task(bind, hold.target_id, now)
         bind.execute(
             sa.text(
                 "UPDATE ln_supervision_holds SET released_at = :now, released_by = 'owner'"
@@ -83,6 +93,92 @@ def end_team_supervisor_pauses(bind: sa.Connection, now: datetime) -> None:
             ),
             {"id": hold.id, "now": now},
         )
+
+
+def resume_task(bind: sa.Connection, task_id: str, now: datetime) -> None:
+    """Frozen ``control_task(..., 'resume')``, locking the Task's Run before the Task as
+    it does. "Its Run" is the newest live Run among the 20 newest Runs of the Task's
+    agent in the Task's thread (``task_runs``)."""
+    ticket = bind.execute(
+        sa.text("SELECT thread_id, agent_id FROM ln_tickets WHERE id = :id"), {"id": task_id}
+    ).first()
+    if ticket is None:
+        return
+    runs = bind.execute(
+        sa.text(
+            "SELECT id, status FROM ln_runs WHERE thread_id = :thread AND agent_id = :agent"
+            " ORDER BY created_at DESC LIMIT 20"
+        ),
+        {"thread": ticket.thread_id, "agent": ticket.agent_id},
+    ).all()
+    live = next((run for run in runs if run.status in LIVE_RUNS), None)
+    run = (
+        bind.execute(
+            sa.text("SELECT id, status, execution_state FROM ln_runs WHERE id = :id FOR UPDATE"),
+            {"id": live.id},
+        ).first()
+        if live is not None
+        else None
+    )
+    row = bind.execute(
+        sa.text("SELECT payload, state FROM ln_tickets WHERE id = :id FOR UPDATE"),
+        {"id": task_id},
+    ).first()
+    assert row is not None
+    state = _json(row.state)
+    task = _json(state.get("task"))
+    if not task or task.get("status") in {"completed", "cancelled", "failed"}:
+        return
+    changed = task.get("control_requested") == "pause"
+    if changed:
+        # Not reached yet: withdrawn, so the ended pause never takes effect.
+        task["control_requested"] = None
+    if (
+        task.get("status") == "paused"
+        and task.get("phase") != "retry_paused"
+        and run is not None
+        and run.status == "waiting_takeover"
+    ):
+        execution = _json(run.execution_state)
+        question = execution.get("pending_input_request")
+        if isinstance(question, dict) and question.get("kind") == "owner_attention":
+            # Frozen release_attention: the work resumes, not the question.
+            execution["input_requests"] = [
+                {**item, "status": "cancelled"}
+                if item.get("id") == question.get("id") and item.get("status") == "pending"
+                else item
+                for item in execution.get("input_requests", [])
+            ]
+            execution[ATTENTION_RESUMED] = {"action": "resume", "question_id": question.get("id")}
+            execution.pop("pending_input_request", None)
+        bind.execute(
+            sa.text(
+                "UPDATE ln_runs SET status = 'queued', execution_state = CAST(:state AS JSON),"
+                " lease_expires_at = NULL WHERE id = :id"
+            ),
+            {"id": run.id, "state": json.dumps(execution)},
+        )
+        task.update(status="queued", phase="queued", control_requested=None)
+        if task.get("waiting_reason") == "owner_attention":
+            task["waiting_reason"] = None
+        changed = True
+    if not changed:
+        return
+    # Frozen save_task: the ticket's status label follows the Task's.
+    status = task["status"]
+    label = {"queued": "todo", "running": "working", "paused": "waiting"}.get(status, status)
+    bind.execute(
+        sa.text(
+            "UPDATE ln_tickets SET state = CAST(:state AS JSON), payload = CAST(:payload AS JSON),"
+            " version = version + 1, updated_at = :now WHERE id = :id"
+        ),
+        {
+            "id": task_id,
+            "state": json.dumps({**state, "task": task}),
+            "payload": json.dumps({**_json(row.payload), "status": label}),
+            "now": now,
+        },
+    )
 
 
 def resume_watch(bind: sa.Connection, watch_id: str, now: datetime) -> None:

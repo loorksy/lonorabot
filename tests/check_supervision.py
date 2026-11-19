@@ -9,7 +9,8 @@
    in Lonora's context before it asked. No grant row was ever written.
 4. Migration 0127 drops ``ln_supervision_grants`` and deletes the cards of the three
    grant kinds. The pauses team supervisors held end and their work resumes (14.3.18.6):
-   an agent, a routine and a watch. Lonora's pause and the owner's stay, with their
+   an agent, a routine, a watch, a paused Task (queued again with its Run) and a Task
+   asked to pause (the ask withdrawn). Lonora's pause and the owner's stay, with their
    ``supervision_paused`` cards. Its downgrade brings the table back empty.
 
 No live broker, model provider or real order is involved.
@@ -272,10 +273,13 @@ async def lonora_answers_from_the_records(
 
 async def team_supervisor_pauses(fixture: Fixture) -> dict[str, str]:
     """Pauses a team supervisor ("Desk") set before grants were deleted: a whole agent, a
-    routine and a watch; and one the owner took over, which is the owner's."""
+    routine, a watch, a paused Task and a pause asked of a working Task; and one the owner
+    took over, which is the owner's."""
     from lonora_contracts.routines import RoutineCreate
+    from lonora_contracts.tasks import TaskCreate
     from lonora_db.routines import create_routine
-    from lonora_db.schema import MarketWatchRow, RoutineRow
+    from lonora_db.schema import MarketWatchRow, RoutineRow, TicketRow
+    from lonora_db.tasks import create_task
 
     desk, silver = await fixture.agent("Desk"), await fixture.agent("Silver held")
     tin, copper = await fixture.agent("Tin"), await fixture.agent("Copper")
@@ -295,6 +299,31 @@ async def team_supervisor_pauses(fixture: Fixture) -> dict[str, str]:
         session.add(watch)
         await session.flush()
         ids = {"routine": routine.id, "watch": watch.id}
+        # A Task Desk paused (its Run waits for takeover) and one it asked to pause while
+        # a worker held its Run (the pause takes effect at the next checkpoint).
+        for key, status, run_status, asked in (
+            ("paused_task", "paused", "waiting_takeover", None),
+            ("asked_task", "running", "running", "pause"),
+        ):
+            task = await create_task(
+                session, fixture.owner, tin["id"], thread["id"], TaskCreate(title=key)
+            )
+            run = await session.get(RunRow, task.payload["run_id"])
+            assert run is not None
+            run.status = run_status
+            task.state = {
+                **task.state,
+                "task": {
+                    **task.state["task"],
+                    "status": status,
+                    "phase": status,
+                    "control_requested": asked,
+                },
+            }
+            task.payload = {**task.payload, "status": "waiting" if asked is None else "working"}
+            ids[key], ids[key + "_run"] = task.id, run.id
+        await session.flush()
+        assert await session.get(TicketRow, ids["paused_task"]) is not None
         for agent_id in (silver["id"], copper["id"]):
             row = await session.get(AgentRow, agent_id)
             assert row is not None
@@ -303,6 +332,8 @@ async def team_supervisor_pauses(fixture: Fixture) -> dict[str, str]:
             ("agent", silver["id"], silver["id"], "agent"),
             ("routine", routine.id, tin["id"], "agent"),
             ("watch", watch.id, tin["id"], "agent"),
+            ("task", ids["paused_task"], tin["id"], "agent"),
+            ("task", ids["asked_task"], tin["id"], "agent"),
             ("agent", copper["id"], copper["id"], "owner"),
         ):
             hold = SupervisionHoldRow(
@@ -321,12 +352,30 @@ async def team_supervisor_pauses(fixture: Fixture) -> dict[str, str]:
 
 
 async def ended_and_kept(session: Any, team: dict[str, str]) -> None:
-    from lonora_db.schema import MarketWatchRow, RoutineRow
+    from lonora_db.schema import MarketWatchRow, RoutineRow, TicketRow
 
-    for key in ("agent:" + team["silver"], "routine:" + team["routine"], "watch:" + team["watch"]):
+    for key in (
+        "agent:" + team["silver"],
+        "routine:" + team["routine"],
+        "watch:" + team["watch"],
+        "task:" + team["paused_task"],
+        "task:" + team["asked_task"],
+    ):
         hold = await session.get(SupervisionHoldRow, team[key])
         assert hold is not None and hold.released_at is not None, key
         assert hold.released_by == "owner", key
+    # The paused Task is queued again with its Run, as its own resume takes it.
+    paused = await session.get(TicketRow, team["paused_task"])
+    assert paused is not None and paused.payload["status"] == "todo"
+    assert paused.state["task"]["status"] == "queued" and paused.version == 2
+    run = await session.get(RunRow, team["paused_task_run"])
+    assert run is not None and run.status == "queued"
+    # The pause asked of the working Task is withdrawn: it never takes effect.
+    asked = await session.get(TicketRow, team["asked_task"])
+    assert asked is not None and asked.state["task"]["control_requested"] is None
+    assert asked.state["task"]["status"] == "running"
+    run = await session.get(RunRow, team["asked_task_run"])
+    assert run is not None and run.status == "running"
     silver = await session.get(AgentRow, team["silver"])
     assert silver is not None and not silver.paused
     routine = await session.get(RoutineRow, team["routine"])

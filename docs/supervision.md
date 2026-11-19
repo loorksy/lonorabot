@@ -107,7 +107,10 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
   `watch_resume` or `task_control`; it is released as the owner's
   (`released_by='owner'`). Lonora lifts only the pauses it made. Migration
   `0127_no_supervision_grants` ended the pauses team supervisors held (mandate
-  14.3.18.6), so every pause an agent holds is Lonora's. The owner's own pause and the
+  14.3.18.6), so every pause an agent holds is Lonora's. Their work resumed as its own
+  control resumes it; a Task's pause not yet reached was withdrawn, and a paused Task
+  that resume does not take from where it stood (paused while waiting to retry, or with
+  no Run waiting for takeover) stays paused with no hold, for its agent or the owner. The owner's own pause and the
   agent's own pause stay with them
   (`supervision_resume_not_yours`).
 - **The owner's own pause is a hold too.** When the owner pauses or cancels work that
