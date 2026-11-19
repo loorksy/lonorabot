@@ -521,7 +521,7 @@ async def requeue_folded(session: AsyncSession, run: RunRow) -> None:
     )
     folded = (
         await session.scalar(
-            select(MessageRow.id)
+            select(MessageRow)
             .where(
                 MessageRow.id.in_(held),
                 MessageRow.role == "user",

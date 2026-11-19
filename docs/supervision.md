@@ -98,7 +98,7 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   in the conversation and start no run; it answers only after it is resumed. That holds
   for an answer to a question its wake asked too: a tapped choice is refused
   (`agent_paused`) and a typed reply is kept, and the question stays open. Input refused
-  with `agent_paused` (a tapped choice, a card's send, an invitation) is not kept, so the
+  with `agent_paused` (a tapped choice, a card's send or a retry) is not kept, so the
   clients say only to resume it and try again:
   «هذا الوكيل متوقف مؤقتًا: استأنفه ثم أعد المحاولة.» ("This agent is paused: resume
   it, then try again."). Nothing is queued while it is paused. When it is resumed (the
@@ -111,16 +111,19 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   message is the run's trigger, so when that latest message is a reply to its wake's
   question, or the next message right after it, it answers that question. The guests
   that message @mentions in its direct chat are invited into that run as admission
-  invites them (`invite_guests`), except a paused one or one deleted since. A paused
+  invites them (`invite_guests`), except a paused one or one deleted since. An
+  invitation refused then (`peer_cycle`, `delegation_depth_exceeded`, a busy guest)
+  never refuses the resume: the guests are skipped and the host still answers. A paused
   guest mentioned elsewhere is not carried over: a guest is invited only if it is not
   paused when the message is admitted (when it is sent, or when the resume of the
   chat's own agent admits it), and its own resume never answers that mention. Whoever
   resumes it, only the owner's messages get a run, and a conversation where the owner
   sent it nothing gets none. Admission reads the pause without the agent's lock, so a
   message sent while a resume commits can be kept after the resume looked: the gateway's
-  `kept_messages` step (every 5 s, `docs/gateway-reliability.md`) answers every kept
-  message of an agent that is no longer paused the same way, and removes those of a
-  deleted agent. Lonora may
+  `kept_messages` step (every 5 s, `docs/gateway-reliability.md`) answers the latest
+  kept message in each conversation of an agent that is no longer paused, once and the
+  same way, skips an agent that is backing off, and removes those of a deleted agent.
+  Lonora may
   therefore pause a whole trading agent on its own. Supervision is not extended before phase 6 removes it:
   another supervisor still pauses a whole agent with money standing only from the
   owner's message (`supervision_pause_trading_agent`, 403), and pauses its routines,
@@ -276,10 +279,11 @@ profile) do not fit and are promoted after first use like any remembered tool.
   latest message the owner sent it while paused, a kept reply answering its wake's
   question, only group messages that addressed it, nothing where nothing was sent, and
   one run for the owner's message folded into a card's send that expired or was edited
-  while it was paused; the gateway step answering a message kept for an agent no longer
-  paused, once, and removing a deleted agent's; the resume inviting the guests the kept
-  message mentions that are not paused, and a paused guest mentioned in another agent's
-  chat getting nothing on its own resume.
+  while it was paused, or for a later message typed during the pause; the gateway step
+  answering a message kept for an agent no longer paused, once, and removing a deleted
+  agent's; the resume inviting the guests the kept message mentions that are not paused,
+  still answering when that invitation is refused (`peer_cycle`), and a paused guest
+  mentioned in another agent's chat getting nothing on its own resume.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the

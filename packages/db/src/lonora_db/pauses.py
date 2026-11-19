@@ -12,6 +12,8 @@ a Task's control takes the hold, then the Run, then the Task. Callers keep both
 orders, so a pause or resume never deadlocks with message admission. An agent's resume
 then locks each conversation where the owner's messages were kept for it
 (``answer_kept_messages``); admission locks the conversation and never the agent's row.
+Inviting the guests a kept message mentions takes each guest's row FOR KEY SHARE and
+its chat FOR UPDATE NOWAIT; a guest being resumed reads as paused and is skipped.
 """
 
 from typing import Any

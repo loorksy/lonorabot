@@ -721,7 +721,7 @@ async def admit_agent(
     if agent.paused:
         # A paused agent takes no new work (4.7.1): the owner's message is kept in the
         # conversation, starts no run and answers no question of a run of it.
-        await keep_for_resume(session, agent_id, thread_id, message.id)
+        await keep_for_resume(session, agent_id, thread_id, message)
         return None
     if answer_run is not None and answer_run.thread_id != thread_id:
         # A background run's question copied into this conversation: the choice
@@ -844,16 +844,19 @@ async def admit_agent(
 
 
 async def keep_for_resume(
-    session: AsyncSession, agent_id: str, thread_id: str, message_id: str
+    session: AsyncSession, agent_id: str, thread_id: str, message: MessageRow
 ) -> None:
     """Keep the owner's message to a paused agent in one conversation, replacing an
-    earlier one kept there: its resume answers the latest (``answer_kept_messages``)."""
+    earlier one kept there, never a later one (a folded message re-queued after the
+    owner typed another): its resume answers the latest (``answer_kept_messages``)."""
     key = f"{KEPT_FOR_RESUME}{agent_id}:{thread_id}"
     kept = await session.get(EffectReceiptRow, key)
     if kept is None:
-        session.add(EffectReceiptRow(key=key, result={"message_id": message_id}))
-    else:
-        kept.result = {"message_id": message_id}
+        session.add(EffectReceiptRow(key=key, result={"message_id": message.id}))
+        return
+    previous = await session.get(MessageRow, kept.result["message_id"])
+    if previous is None or previous.seq < message.seq:
+        kept.result = {"message_id": message.id}
 
 
 async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: str) -> list[str]:
@@ -861,10 +864,14 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
     where the owner's messages to it were kept while it was paused (in a group, those that
     addressed it), answering the latest of them through that message's own admission, so
     the owner's message is the run's trigger, and inviting the guests it mentions that are
-    not paused (``invite_guests``). Returns the runs' ids.
+    not paused (``invite_guests``); a refused invitation skips the guests and the host
+    still answers. Returns the runs' ids.
 
     Lock order: the caller holds the agent's row; each thread is locked before its kept
-    message, as admission does, and admission never locks the agent's row."""
+    message, as admission does, and admission never locks the agent's row. Inviting then
+    takes each guest's row FOR KEY SHARE and its chat FOR UPDATE NOWAIT, so a held chat
+    refuses that invitation instead of waiting; a guest whose resume has not committed
+    reads as paused and is skipped before any lock."""
     from .genui_submit import SUBMIT
 
     prefix = f"{KEPT_FOR_RESUME}{agent_id}:"
@@ -934,7 +941,16 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
             current = await current_session(session, owner_id, thread.id)
             if current is not None and (everyone or has_room(current)):
                 collaboration = current
-        await invite_guests(session, owner_id, thread, message, request, collaboration, run_id)
+        try:
+            # A refused invitation (``peer_cycle``, ``delegation_depth_exceeded``, a busy
+            # guest) never refuses the resume: the host still answers, the guests are
+            # skipped, and the agent's other conversations are answered.
+            async with session.begin_nested():
+                await invite_guests(
+                    session, owner_id, thread, message, request, collaboration, run_id
+                )
+        except LonoraError:
+            pass
     return run_ids
 
 

@@ -695,15 +695,17 @@ async def test_the_resume_answers_once_per_conversation_and_only_what_addressed_
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("copper", ["folded", "typed_while_paused"])
 @pytest.mark.parametrize("ended", ["expired", "edited"])
 async def test_the_resume_answers_a_message_folded_into_a_send_that_ended_while_paused(
-    ended: str,
+    ended: str, copper: str
 ) -> None:
     """The owner's message folded into a card's queued send is re-queued when the send
     ends unstarted (genui_submit). If the agent is paused by then, it is kept like any
     owner message to a paused agent, and the resume answers it: exactly one run, whose
-    input and owner message are the latest folded message, never the cancelled send's own
-    Run."""
+    input and owner message are the owner's latest message, never the cancelled send's
+    own Run. That latest is the last folded one, or one typed during the pause: the older
+    folded message never replaces it."""
     database()
     from check_streaming import Fixture
     from lonora_db.genui_submit import SUBMIT, expire_submits
@@ -718,10 +720,16 @@ async def test_the_resume_answers_a_message_folded_into_a_send_that_ended_while_
         assert sent.status_code == 202, sent.text
         send = sent.json()["run_ids"][0]
         messages = f"/threads/{card.thread['id']}/messages"
-        for content in ("And watch silver too", "And copper"):
-            typed = await fixture.request("POST", messages, {"content": content})
-            assert typed["run_ids"] == [send]  # folded into the queued send's Run
-        await fixture.request("PATCH", f"/agents/{card.agent['id']}", {"paused": True})
+        folded = await fixture.request("POST", messages, {"content": "And watch silver too"})
+        assert folded["run_ids"] == [send]  # folded into the queued send's Run
+        if copper == "folded":
+            typed = await fixture.request("POST", messages, {"content": "And copper"})
+            assert typed["run_ids"] == [send]
+            await fixture.request("PATCH", f"/agents/{card.agent['id']}", {"paused": True})
+        else:
+            await fixture.request("PATCH", f"/agents/{card.agent['id']}", {"paused": True})
+            typed = await fixture.request("POST", messages, {"content": "And copper"})
+            assert typed["run_ids"] == []  # kept for the resume
         if ended == "expired":
             async with fixture.runtime.db.sessions() as session, session.begin():
                 run = await session.get(RunRow, send, with_for_update=True)
@@ -820,6 +828,53 @@ async def peer_runs(fixture: Any, agent_id: str) -> list[Any]:
                 .order_by(RunRow.created_at)
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_a_refused_invitation_never_refuses_the_resume() -> None:
+    """The owner mentions A in B's chat, so A's chat holds a queued peer ask from B's run,
+    and A is paused before it runs. The owner's kept message in A's chat mentions B. The
+    resume steers that message into the peer ask, whose parent is B's run, so inviting B
+    is a cycle (``peer_cycle``): the resume still succeeds and A answers the owner's
+    message, B is not invited, and the record is gone."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.messages import KEPT_FOR_RESUME
+    from lonora_db.schema import EffectReceiptRow
+
+    fixture = await Fixture().open()
+    try:
+        a, b = await fixture.agent("Asked A"), await fixture.agent("Asker B")
+        thread_a, thread_b = await fixture.conversation(a), await fixture.conversation(b)
+        asked = await fixture.request(
+            "POST",
+            f"/threads/{thread_b['id']}/messages",
+            {"content": "Ask A", "mention_agent_ids": [a["id"]]},
+        )
+        [ask] = await peer_runs(fixture, a["id"])
+        assert ask.thread_id == thread_a["id"] and ask.parent_run_id in asked["run_ids"]
+        await fixture.request("PATCH", f"/agents/{a['id']}", {"paused": True})
+        sent = await fixture.request(
+            "POST",
+            f"/threads/{thread_a['id']}/messages",
+            {"content": "What does B say?", "mention_agent_ids": [b["id"]]},
+        )
+        assert sent["run_ids"] == [], sent
+
+        response = await fixture.client.request(
+            "PATCH", f"/api/agents/{a['id']}", json={"paused": False}
+        )
+        assert response.status_code == 200, response.text
+        [answer] = await peer_runs(fixture, a["id"])
+        assert answer.id == ask.id and answer.status == "queued"
+        assert answer.input_seq == sent["message"]["seq"]
+        assert await peer_runs(fixture, b["id"]) == []
+        async with fixture.runtime.db.sessions() as session:
+            record = f"{KEPT_FOR_RESUME}{a['id']}:{thread_a['id']}"
+            assert await session.get(EffectReceiptRow, record) is None
+        await settle(fixture, [answer, *await owner_runs(fixture, b["id"], thread_b["id"])])
+    finally:
+        await fixture.close()
 
 
 @pytest.mark.asyncio
