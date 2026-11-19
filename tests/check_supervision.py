@@ -49,7 +49,7 @@ from sqlalchemy import insert, select, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 ROOT = Path(__file__).resolve().parents[1]
-PREVIOUS = "0126_team_heads_merge"
+PREVIOUS = "0125_flat_team_creation"
 GRANT_KINDS = ("supervise", "supervision_created", "supervision_stopped")
 SENTINEL = "goldsentinel-" + uuid4().hex[:8]
 

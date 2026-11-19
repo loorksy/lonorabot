@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0127_no_supervision_grants"
-down_revision = "0126_team_heads_merge"
+down_revision = "0125_flat_team_creation"
 branch_labels = None
 depends_on = None
 

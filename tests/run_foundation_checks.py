@@ -72,6 +72,7 @@ CHECKS = (
     "check_restriction_removal_migration.py",
     "check_money_limits_migration.py",
     "check_notice_card_migration.py",
+    "check_flat_creation_migration.py",
     "check_pause_source_migration.py",
     "check_task_recovery.py",
     "check_attention.py",

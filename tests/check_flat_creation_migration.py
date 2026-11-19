@@ -17,8 +17,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-# 0125 merges the heads 0176 and 0061: downgrading to 0176 undoes 0125 alone.
-BEFORE = "0176_weekly_reports"
+# 0125's parent: downgrading to it undoes 0125 and the migrations after it (0127), whose
+# downgrades restore nothing this check reads.
+BEFORE = "0155_owner_message_pauses_are_owners"
 
 
 def alembic(*arguments: str) -> None:
