@@ -7,6 +7,7 @@ import type {
   Message,
   MessageReaction,
   OwnerAction,
+  PermissionState,
   ReactionEmoji,
   Run,
   Thread,
@@ -211,6 +212,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [atEnd, setAtEnd] = useState(around == null);
   const [loaded, setLoaded] = useState(false);
   const [permissionRevision, setPermissionRevision] = useState(0);
+  // The agent's authority as its control last read it (the / list's /chart, as on Web).
+  const [permission, setPermission] = useState<PermissionState | null>(null);
   const permissionAgent = useRef(thread?.agent_id);
   permissionAgent.current = thread?.agent_id;
   // One live-state read for the header's safety pill and the background-activity strip.
@@ -890,15 +893,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       group: Boolean(thread?.group_id),
       symbol: agent?.trading_symbol,
       // As Web: a trading agent, or one that shows the trading control (Lonora, an account,
-      // a trade waiting for the owner).
+      // a level above analysis, a grant).
       trading: agent
         ? agent.template === "trading" ||
           showsTradingControl({
             role: agent.role,
             trading_account_id: agent.trading_account_id,
-            pendingTrade: approvals.some(
-              (row) => row.agent_id === agent.id && row.status === "pending",
-            ),
+            level: permission?.effective_level,
+            grants: permission?.active_authorities.length,
           })
         : false,
       name: title,
@@ -1641,6 +1643,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 agent={agent}
                 threadId={id}
                 revision={permissionRevision}
+                onState={setPermission}
                 pendingTrade={approvals.some(
                   (row) =>
                     row.thread_id === id && row.agent_id === agent.id && row.status === "pending",

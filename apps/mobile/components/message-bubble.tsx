@@ -149,7 +149,8 @@ export function MessageBubble({
           }}
         >
           <Text style={{ color: shell.secondary, fontSize: 12, fontWeight: "600" }}>
-            /
+            {/* RLM: in Arabic the «/» stays before the name, read from the right. */}
+            {rtl ? "\u200f/" : "/"}
             {command.name === "skill"
               ? command.skill_name || t("cmdSkill")
               : t(COMMAND_LABELS[command.name])}

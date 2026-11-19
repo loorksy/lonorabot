@@ -458,8 +458,6 @@ export const labels = {
   cmdTaskMissing: ["اكتب عنوان المهمة بعد الأمر {0}", "Write the task title after {0}"],
   cmdSearchMissing: ["اكتب ما تبحث عنه بعد الأمر {0}", "Write what you are looking for after {0}"],
   cmdList: ["الأوامر", "Commands"],
-  clearMessagesQ: ["مسح الرسائل؟", "Clear the messages?"],
-  clearAction: ["مسح", "Clear"],
   newMessage: ["رسالة جديدة", "New message"],
   cancelReply: ["إلغاء الرد", "Cancel reply"],
   // The message menu (Web's conversation menu, its Arabic wording).

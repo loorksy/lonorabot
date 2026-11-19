@@ -55,6 +55,8 @@ type Props = {
   settings?: boolean;
   /** A trade of this agent waits for the owner in this conversation. */
   pendingTrade?: boolean;
+  /** The server authority as last read, for the conversation's own uses (the / list). */
+  onState?: (state: PermissionState | null) => void;
 };
 const levels = ["analysis", "supervised", "autonomous"] as const;
 const permissionSymbols = {
@@ -79,11 +81,13 @@ function PermissionControl({
   revision = 0,
   settings = false,
   pendingTrade = false,
+  onState,
 }: Props) {
   const { rtl, t, errorText } = useSession();
   const copy = permissionLabels[rtl ? "ar" : "en"];
   const authorityCopy = accountAuthorityLabels[rtl ? "ar" : "en"];
   const [state, setState] = useState<PermissionState | null>(null);
+  useEffect(() => onState?.(state), [onState, state]);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<Page>("select");
   const [selected, setSelected] = useState<AgentPermissionLevel>("analysis");

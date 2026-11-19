@@ -9,6 +9,7 @@ import {
   mentionAddress,
   mentionCandidates,
   mentionQuery,
+  parseCommand,
   rankCommands,
   rebaseMentions,
 } from "@lonora/core";
@@ -108,6 +109,10 @@ export function ThreadComposer({
   // «/» at the start of a message: the chat's commands, best match first (never in an edit).
   const commandTyped = editing ? null : commandQuery(textBeforeCaret);
   const ranked = commandTyped === null ? null : rankCommands(commands, commandTyped);
+  // A bare command that takes words: what to write after it, as Web's ghost text.
+  const typedCommand = editing || attachments.length ? null : parseCommand(draft, commands);
+  const commandHint =
+    !ranked?.length && typedCommand && !typedCommand.argument ? typedCommand.option.hint : null;
   useEffect(() => {
     if (!draft) {
       committed.current = [];
@@ -135,6 +140,21 @@ export function ThreadComposer({
         <ComposerReplyPreview message={editing} onClose={onCancelEdit} editing />
       ) : reply ? (
         <ComposerReplyPreview message={reply} onClose={onCancelReply} />
+      ) : null}
+      {commandHint ? (
+        <Text
+          testID="command-hint"
+          numberOfLines={1}
+          style={{
+            color: shell.secondary,
+            fontSize: 13,
+            fontStyle: "italic",
+            paddingHorizontal: 14,
+            textAlign: rtl ? "right" : "left",
+          }}
+        >
+          {commandHint}
+        </Text>
       ) : null}
       {ranked?.length ? (
         <View
@@ -169,7 +189,15 @@ export function ThreadComposer({
               })}
             >
               <Text style={{ color: shell.foreground, fontSize: 15, fontWeight: "600" }}>
-                /{row.name}
+                {/* RLM: in Arabic the «/» stays before the name, read from the right. */}
+                {rtl ? "\u200f/" : "/"}
+                {row.name}
+                {row.hint ? (
+                  <Text style={{ color: shell.secondary, fontStyle: "italic", fontWeight: "400" }}>
+                    {" "}
+                    {row.hint}
+                  </Text>
+                ) : null}
               </Text>
               {row.sub ? (
                 <Text
