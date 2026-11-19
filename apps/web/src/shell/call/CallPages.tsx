@@ -399,11 +399,10 @@ export function CallStrip({ hidden }: { hidden: boolean }) {
 type VoiceReadiness = { transport_configured: boolean };
 
 /** Starts a call, or answers Q58: with no voice provider configured nothing is dialled and the
-    owner gets the warning with the way to the provider settings. */
+    owner is told to connect an OpenAI key in chat. */
 export function useCallStarter() {
   const voice = useVoice();
   const sheets = useSheets();
-  const nav = useNavigation();
   const toast = useToast();
   const notConfigured = () =>
     sheets.open({
@@ -413,23 +412,13 @@ export function useCallStarter() {
         <>
           <p>
             <Trans>
-              No voice provider is configured yet. Add an OpenAI key in the model providers to make
-              calls.
+              No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key to
+              make calls.
             </Trans>
           </p>
           <div className="actions">
             <button type="button" className="btn" onClick={() => sheets.close()}>
-              <Trans>Cancel</Trans>
-            </button>
-            <button
-              type="button"
-              className="btn primary"
-              onClick={() => {
-                sheets.close();
-                nav.go("/app/providers");
-              }}
-            >
-              <Trans>Set up the voice provider</Trans>
+              <Trans>Close</Trans>
             </button>
           </div>
         </>

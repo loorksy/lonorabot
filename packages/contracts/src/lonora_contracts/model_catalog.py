@@ -13,7 +13,3 @@ class ModelDescriptor(Contract):
     context_window: int | None = Field(default=None, gt=0)
     maximum_output_tokens: int | None = Field(default=None, gt=0)
     source: str
-
-
-class ProviderCredential(Contract):
-    api_key: str = Field(min_length=8, max_length=4096)

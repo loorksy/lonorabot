@@ -274,7 +274,7 @@ test("call screen in Arabic: clock, listening, live wave, mute, speaker, pull-do
   expect(errors).toEqual([]);
 });
 
-test("Q58: with no voice provider the call button warns and opens the provider settings", async ({
+test("Q58: with no voice provider the call button warns and points to chat", async ({
   page,
   owner,
 }) => {
@@ -290,10 +290,14 @@ test("Q58: with no voice provider the call button warns and opens the provider s
     .click({ force: true });
   const sheet = page.locator("dialog");
   await expect(sheet).toContainText("Calls are not set up");
-  await expect(sheet).toContainText("No voice provider is configured yet.");
+  await expect(sheet).toContainText(
+    "No voice provider is configured yet. Ask Lonora in chat to connect an OpenAI key",
+  );
   await expect(page).toHaveURL(`/app/${agent.id}`);
-  await sheet.getByRole("button", { name: "Set up the voice provider", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/providers$/);
+  // The provider screens are removed (P5): the sheet only closes.
+  await expect(sheet.getByRole("button", { name: "Set up the voice provider" })).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page).toHaveURL(`/app/${agent.id}`);
   // Nothing was dialled and no microphone was asked for.
   expect(sessions).toHaveLength(0);
   expect(await page.evaluate(() => window.__calls.streams.length)).toBe(0);

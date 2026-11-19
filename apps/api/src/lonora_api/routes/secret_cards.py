@@ -99,7 +99,9 @@ async def save_secret(
         if target is None:
             result = await save_values(session, row, body.values, write)
         elif target == "model_provider":
-            result = await save_model_key(session, store, row, card_values(row, body.values))
+            result = await save_model_key(
+                session, store, row.payload["details"]["provider"], card_values(row, body.values)
+            )
             result["catalog"] = None if catalog is None else len(catalog)
             # This key's catalog, empty when it could not be read: never the catalog of
             # the key it replaced.
@@ -190,12 +192,11 @@ async def offered_models(
 async def save_model_key(
     session: AsyncSession,
     store: EncryptedSecretStore,
-    row: OwnerActionRow,
+    provider: str,
     values: dict[str, str],
 ) -> dict[str, Any]:
     """The key as the owner's workspace secret under the provider's usual name, and the
     record the router reads it by: that secret's id with the endpoint URL it belongs to."""
-    provider = row.payload["details"]["provider"]
     name = PROVIDER_KEY_NAMES[provider]
     url = compatible_endpoint(values["URL"]) if "URL" in values else None
     secret_id = await store.write_in_session(session, name, values["API_KEY"], WORKSPACE)

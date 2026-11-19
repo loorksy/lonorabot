@@ -36,7 +36,7 @@ const levelText = (server: CapabilityServer) => {
   return parts.filter(Boolean).join(" · ") || t`No tools`;
 };
 
-/* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
+/* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
    allow list (Q55). Telegram delivers to the owner's paired chat the same alerts a push carries
    (VISION 11.4); what the owner writes there reaches the chosen agent as an owner message and
@@ -46,7 +46,6 @@ export function IntegrationsPage() {
   const sheets = useSheets();
   const toast = useToast();
   const accounts = useLoad(() => api.get<BrokerConnectionRow[]>("/trading/connections"), []);
-  const providers = useLoad(() => api.get<{ id: string; configured: boolean }[]>("/providers"), []);
   const report = useLoad(() => api.get<CapabilityReport>("/capabilities"), []);
   const caps = report.value;
   const act = async (run: () => Promise<unknown>, done?: string) => {
@@ -455,7 +454,6 @@ export function IntegrationsPage() {
   const github = (caps?.trusted_sources ?? []).filter(
     (item) => item.kind.startsWith("github") && item.active,
   );
-  const configured = (providers.value ?? []).filter((item) => item.configured).length;
   const telegramAgent = telegram?.deliver_to_agent_name;
   return (
     <>
@@ -502,17 +500,6 @@ export function IntegrationsPage() {
         </div>
       )}
       <BrokerLinkButton first={!linked.length} />
-      <h3>
-        <Trans>Artificial intelligence</Trans>
-      </h3>
-      <div className="group">
-        <NavRow
-          icon="cpu"
-          label={t`Model providers`}
-          to="/app/providers"
-          value={configured ? String(configured) : t`Not added yet`}
-        />
-      </div>
       <h3>
         <Trans>Servers and repositories</Trans>
       </h3>

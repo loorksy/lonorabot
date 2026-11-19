@@ -51,8 +51,8 @@ class EncryptedSecretStore:
 
     async def workspace_values(self) -> dict[str, str]:
         """Every workspace secret by name: what agents use by name in the workspace
-        (VISION.md 7.2.4, 7.2.5). Only the workspace scope: a broker, provider or
-        integration value never comes out."""
+        (VISION.md 7.2.4, 7.2.5). Only the workspace scope: a broker or integration value
+        never comes out."""
         async with self.db.sessions() as session:
             rows = (
                 await session.scalars(
@@ -65,7 +65,7 @@ class EncryptedSecretStore:
 
     async def scanned_values(self) -> dict[str, str]:
         """Every stored value the scan of workspace output replaces, by the name its
-        marker shows (VISION.md 7.2.6): the workspace, integration and provider scopes.
+        marker shows (VISION.md 7.2.6): the workspace and integration scopes.
         Not the broker scope: only the execution door and provisioning read it (7.2.3),
         and neither sends bytes back through the workspace. A name another scope already
         holds is shown with its scope (``integration:NAME``), so no value is dropped."""

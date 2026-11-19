@@ -540,7 +540,6 @@ export const labels = {
   voiceNote: ["رسالة صوتية", "Voice message"],
   voiceCall: ["اتصال صوتي", "Voice call"],
   missedVoiceCall: ["مكالمة صوتية فائتة", "Missed voice call"],
-  providers: ["المزودون", "Providers"],
   configured: ["تم الإعداد", "Configured"],
   openWebSettings: ["فتح الإعدادات في الويب", "Open Web settings"],
   nativeVoiceHint: [

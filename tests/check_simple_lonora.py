@@ -65,6 +65,7 @@ from lonora_gateway.service import Gateway
 from lonora_tools import mcp
 from lonora_trading.broker_recovery import reconcile_broker_account
 from lonora_trading.reconciliation import reconcile_ambiguous
+from model_keys import connect_model_key
 from sqlalchemy import func, select
 
 GOLD, SILVER, EURO = "XAUUSD", "XAGUSD", "EURUSD"
@@ -583,7 +584,7 @@ class Acceptance:
 
     async def provider(self) -> None:
         """The owner's model settings, pointing at the scripted provider."""
-        await self.request("PUT", "/providers/openai/credential", {"api_key": PROVIDER_KEY})
+        await connect_model_key(self.fixture.runtime, self.owner, "openai", PROVIDER_KEY)
         await self.request(
             "PUT",
             "/settings/models",

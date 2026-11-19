@@ -15,6 +15,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
+from lonora_adapters.storage.secret_store import EncryptedSecretStore
+from lonora_api.routes.secret_cards import save_model_key
 from lonora_contracts.domain import AgentCreate, ThreadCreate
 from lonora_db.agents import create_agent
 from lonora_db.market_watches import MarketWatchRepository
@@ -120,6 +122,17 @@ def arm(fake: broker.FakeTerminal, scenario: dict[str, Any], *, probe: bool = Fa
         fake.fail(fault["kind"], after=fault.get("after", 0), times=fault.get("times", 1))
 
 
+async def connect_model_key(api: Any, provider: str, key: str) -> None:
+    """The provider key as its Secret card saves it: the owner's workspace secret and the
+    router's record."""
+    runtime = api.runtime
+    store = EncryptedSecretStore(
+        runtime.db, runtime.settings.encryption_key.get_secret_value(), api.owner
+    )
+    async with runtime.db.sessions() as session, session.begin():
+        await save_model_key(session, store, provider, {"API_KEY": key})
+
+
 async def seed(api: Any, model: str) -> dict[str, str]:
     """The template database: the owner, his model, the demo account and a signed full mandate.
 
@@ -132,7 +145,7 @@ async def seed(api: Any, model: str) -> dict[str, str]:
     device_type: Any = importlib.import_module("device_fixture").Device
 
     provider, name = model.split("/", 1)
-    await api.request("PUT", f"/providers/{provider}/credential", {"api_key": "proxy-injected"})
+    await connect_model_key(api, provider, "proxy-injected")
     await api.request(
         "PUT",
         "/settings/models",

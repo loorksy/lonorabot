@@ -13,9 +13,12 @@ import sys
 from typing import Any
 
 from check_streaming import Fixture
-from lonora_db.model_credentials import saved_key
-from lonora_db.schema import SecretRow
+from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
+from lonora_db.model_credentials import CONNECTION_SETTING, saved_key
+from lonora_db.schema import SecretRow, SettingRow
+from lonora_db.secrets import WORKSPACE
 from lonora_db.transactions import SettingsRepository
+from model_keys import connect_model_key
 from sqlalchemy import delete
 
 SETTINGS = (
@@ -38,8 +41,12 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                 for provider in data["restore"]["added_keys"]:
                     await session.execute(
                         delete(SecretRow).where(
-                            SecretRow.scope == "provider", SecretRow.name == provider
+                            SecretRow.scope == WORKSPACE,
+                            SecretRow.name == PROVIDER_KEY_NAMES[provider],
                         )
+                    )
+                    await session.execute(
+                        delete(SettingRow).where(SettingRow.key == CONNECTION_SETTING + provider)
                     )
             # Its agent goes too, so later specs start without it.
             if data["restore"].get("agent"):
@@ -63,8 +70,8 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             {"mode": "unified", "unified": {"provider": "openai", "model": "gpt-default-ui"}},
         )
         for provider in CATALOGS:
-            await fixture.request(
-                "PUT", f"/providers/{provider}/credential", {"api_key": "explicit-ui-key-1234"}
+            await connect_model_key(
+                fixture.runtime, fixture.owner, provider, "explicit-ui-key-1234"
             )
         async with fixture.runtime.db.sessions() as session, session.begin():
             for provider, models in CATALOGS.items():

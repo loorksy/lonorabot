@@ -186,10 +186,9 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         assert await services.secrets.read(saved[0]) == value
         # Every stored value outside the broker scope is scanned (VISION.md 7.2.6); a
         # broker value is read only by the execution door and provisioning (7.2.3).
-        other, provider, broker = (scope + "-" + uuid4().hex for scope in ("feed", "model", "acct"))
-        other_name, provider_name, broker_name = (item[:12] for item in (other, provider, broker))
+        other, broker = (scope + "-" + uuid4().hex for scope in ("feed", "acct"))
+        other_name, broker_name = (item[:12] for item in (other, broker))
         saved.append(await services.secrets.write(other_name, other, "integration"))
-        saved.append(await services.secrets.write(provider_name, provider, "provider"))
         # Broker values are written only through the broker layer's own store (7.2.3).
         from lonora_adapters.storage.broker_secrets import BrokerSecrets
 
@@ -202,12 +201,11 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
             saved.append(await broker_store.write_in_session(session, broker_name, broker))
         scanned = await services.secrets.scanned_values()
         assert scanned[name] == value and scanned[other_name] == other
-        assert scanned[provider_name] == provider
         assert broker_name not in scanned and broker not in scanned.values()
         # The workspace reader (what agents use by name) holds the workspace scope only.
         workspace = await services.secrets.workspace_values()
         assert workspace[name] == value
-        assert not {other_name, provider_name, broker_name} & set(workspace)
+        assert not {other_name, broker_name} & set(workspace)
         agent = await fixture.agent("Redaction")
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         files = printing({name: value})

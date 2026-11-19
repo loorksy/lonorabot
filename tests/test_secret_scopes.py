@@ -39,14 +39,14 @@ def test_workspace_names_are_environment_variable_names() -> None:
             require_scope(name, "workspace")
         assert refused.value.code == "secret_name_invalid"
         assert not re.fullmatch(WORKSPACE_SECRET_NAME, name)
-    # Other scopes keep their own names (a broker account number, a provider name).
+    # Other scopes keep their own names (a broker account number, a search key's name).
     require_scope("12345678", "broker")
-    require_scope("openai", "provider")
     require_scope("Brave", "integration")
 
 
 def test_the_scope_set_is_closed() -> None:
-    for scope in ("agent:abc", "owner", "", "Workspace"):
+    # A model key is a workspace secret its card records (Q14 (b)): no provider scope.
+    for scope in ("agent:abc", "owner", "", "Workspace", "provider"):
         with pytest.raises(LonoraError) as refused:
             require_scope("NAME", scope)
         assert refused.value.code == "secret_scope_invalid"

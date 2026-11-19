@@ -27,8 +27,8 @@ class ProviderCredentials:
         """The provider's key and, for a provider with an owner endpoint, the base URL that
         key belongs to, read consistently: the record is read before and after the key is
         decrypted, so a card saved meanwhile (a rotation keeps the secret's id) never
-        pairs one card's key with another's URL. The card's URL goes with the card's key; the deployment's
-        URL with the deployment's or a settings-era key. A URL that fails the check
+        pairs one card's key with another's URL. The card's URL goes with the card's key, the
+        deployment's URL with the deployment's key. A URL that fails the check
         connects nothing: the router passes over the provider as unconfigured instead of
         failing every route that lists it."""
         if provider not in OWNER_ENDPOINT:
@@ -49,7 +49,7 @@ class ProviderCredentials:
         else:
             raise LonoraError("model_not_configured", 409)
         if saved is not None:
-            url = saved.url or _deployment(prefix + "_BASE_URL")
+            url = saved.url
         else:
             key, url = _deployment(prefix + "_API_KEY"), _deployment(prefix + "_BASE_URL")
         if not key or not url:

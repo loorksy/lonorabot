@@ -91,6 +91,7 @@ CHECKS = (
     "check_agent_model_choice.py",
     "check_agent_model_migration.py",
     "check_model_card_migration.py",
+    "check_provider_scope_migration.py",
     "check_trust_migration.py",
     "check_simple_lonora.py",
     "check_gold_journey.py",

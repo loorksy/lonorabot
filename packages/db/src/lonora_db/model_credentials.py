@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import SecretRow
@@ -17,27 +16,17 @@ CONNECTION_SETTING = "model_provider:"
 @dataclass(frozen=True)
 class SavedKey:
     secret_id: str
-    # The card's base URL; None for a fixed provider and for a key saved before cards.
+    # The card's base URL; None for a fixed provider.
     url: str | None
     # When that secret was last written: a rotation keeps the id and changes this.
     updated_at: datetime
 
 
 async def saved_key(session: AsyncSession, provider: str) -> SavedKey | None:
-    """The provider's key the owner saved last, on a Secret card or before cards existed
-    (scope ``provider``), with the URL saved beside it. None: no saved key."""
+    """The provider's key the owner saved on a Secret card, with the URL saved beside it.
+    None: no saved key (or its secret was deleted)."""
     card = await SettingsRepository().get(session, CONNECTION_SETTING + provider)
-    candidates: list[tuple[SecretRow, str | None]] = []
-    if card.get("secret_id"):
-        row = await session.get(SecretRow, card["secret_id"])
-        if row is not None:
-            candidates.append((row, card.get("url")))
-    legacy = await session.scalar(
-        select(SecretRow).where(SecretRow.scope == "provider", SecretRow.name == provider)
-    )
-    if legacy is not None:
-        candidates.append((legacy, None))
-    if not candidates:
+    row = await session.get(SecretRow, card["secret_id"]) if card.get("secret_id") else None
+    if row is None:
         return None
-    row, url = max(candidates, key=lambda item: item[0].updated_at)
-    return SavedKey(row.id, url, row.updated_at)
+    return SavedKey(row.id, card.get("url"), row.updated_at)

@@ -655,9 +655,7 @@ class SecretRow(Base):
     __tablename__ = "ln_secrets"
     __table_args__ = (
         UniqueConstraint("scope", "name"),
-        CheckConstraint(
-            "scope IN ('broker','provider','integration','workspace')", name="ln_secret_scope"
-        ),
+        CheckConstraint("scope IN ('broker','integration','workspace')", name="ln_secret_scope"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))

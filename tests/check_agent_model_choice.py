@@ -29,6 +29,7 @@ from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
 from lonora_tools.provenance import mark_external_content
+from model_keys import connect_model_key
 from sqlalchemy import func, select
 
 DEFAULT = ModelSelection(provider="openai", model="gpt-default-test")
@@ -70,8 +71,8 @@ async def main() -> None:
             "PUT", "/settings/models", {"mode": "unified", "unified": DEFAULT.model_dump()}
         )
         for provider in ("openai", "anthropic"):
-            await fixture.request(
-                "PUT", f"/providers/{provider}/credential", {"api_key": "explicit-test-key-1234"}
+            await connect_model_key(
+                fixture.runtime, fixture.owner, provider, "explicit-test-key-1234"
             )
         async with db.sessions() as session, session.begin():
             catalogs = {"openai": [DEFAULT], "anthropic": [SONNET, OPUS, HAIKU]}

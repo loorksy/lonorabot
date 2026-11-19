@@ -979,7 +979,7 @@ def status(scenario: dict[str, Any]) -> list[dict[str, Any]]:
 
 async def own_key(base: URL, model: str) -> None:
     """--live on the owner's server: the provider key from LONORA_ACCEPT_PROVIDER_KEY, saved
-    through the product's own credential route into the disposable template, never printed.
+    into the disposable template as its Secret card saves it, never printed.
     Without it the template keeps the placeholder that the network proxy replaces."""
     key = os.environ.get("LONORA_ACCEPT_PROVIDER_KEY")
     if not key:
@@ -988,7 +988,7 @@ async def own_key(base: URL, model: str) -> None:
     try:
         await api.login()
         provider = model.split("/", 1)[0]
-        await api.request("PUT", f"/providers/{provider}/credential", {"api_key": key})
+        await bank.connect_model_key(api, provider, key)
     finally:
         await api.close()
 

@@ -1,4 +1,4 @@
-import type { Provider, Routing } from "@lonora/contracts";
+import type { Routing } from "@lonora/contracts";
 import { Redirect, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Linking, ScrollView, Text } from "react-native";
@@ -10,20 +10,16 @@ import { useSession } from "../../lib/session";
 export default function Models() {
   const { ready, owner, server, t, errorText } = useSession();
   const [routing, setRouting] = useState<Routing | null>(null);
-  const [providers, setProviders] = useState<{ id: Provider; configured: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   useFocusEffect(
     useCallback(() => {
       if (!owner) return;
       let live = true;
-      void Promise.all([
-        api.get<Routing>("/settings/models"),
-        api.get<typeof providers>("/providers"),
-      ])
-        .then(([policy, list]) => {
+      void api
+        .get<Routing>("/settings/models")
+        .then((policy) => {
           if (live) {
             setRouting(policy);
-            setProviders(list);
             setError(null);
           }
         })
@@ -63,13 +59,6 @@ export default function Models() {
           ) : (
             <Text style={{ color: colors.secondary }}>{t("connecting")}</Text>
           )}
-        </SettingsGroup>
-        <SettingsGroup title={t("providers")}>
-          {providers.map((provider) => (
-            <Text key={provider.id} style={{ color: colors.foreground }}>
-              {provider.id} · {t(provider.configured ? "configured" : "notConfigured")}
-            </Text>
-          ))}
         </SettingsGroup>
         <Text style={{ color: colors.secondary, lineHeight: 24 }}>{t("configureWeb")}</Text>
         <Button

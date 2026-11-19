@@ -322,7 +322,9 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.getByRole("button", { name: "English", exact: true }).click();
     await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
     await page.goto("/models");
-    await expect(page.getByText("Providers", { exact: true })).toBeVisible();
+    await expect(page.getByText("Open Web settings", { exact: true })).toBeVisible();
+    // A provider's key is connected in chat: the screen lists no providers (P5).
+    await expect(page.getByText("Providers", { exact: true })).toHaveCount(0);
     await page.goto("/integrations");
     await expect(
       page.getByRole("button", { name: "Open Web settings", exact: true }),

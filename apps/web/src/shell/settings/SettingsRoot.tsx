@@ -22,23 +22,20 @@ const standalone = () =>
   matchMedia("(display-mode: standalone)").matches ||
   Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 
-/** The integrations count of the root row: linked accounts, configured providers, MCP servers. */
+/** The integrations count of the root row: linked accounts and MCP servers. */
 export function useLinkedCount() {
   const [count, setCount] = useState<number | null>(null);
   useEffect(() => {
     let live = true;
     Promise.allSettled([
       api.get<unknown[]>("/trading/connections"),
-      api.get<{ configured: boolean }[]>("/providers"),
       api.get<unknown[]>("/mcp"),
     ]).then((results) => {
       if (!live) return;
-      const [accounts, providers, servers] = results.map((item) =>
+      const [accounts, servers] = results.map((item) =>
         item.status === "fulfilled" ? item.value : [],
-      ) as [unknown[], { configured: boolean }[], unknown[]];
-      setCount(
-        accounts.length + providers.filter((item) => item.configured).length + servers.length,
-      );
+      ) as [unknown[], unknown[]];
+      setCount(accounts.length + servers.length);
     });
     return () => {
       live = false;

@@ -258,40 +258,35 @@ async def test_an_owner_endpoint_connects_from_the_deployment_and_answers_throug
 
 
 @pytest.mark.asyncio
-async def test_the_legacy_settings_routes_stay_as_they_were(
+async def test_no_route_outside_chat_sets_or_lists_a_providers_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The settings screens outside chat are removed (P5) and are not extended (0.4):
-    their routes neither list nor take the owner's endpoint, so no screen shows its raw
-    id or a page that cannot open it. The router and the agent's tools still see it."""
+    """The provider settings screens and their routes are removed (P5): a key is connected
+    from chat on the Secret card (Q14 (b)). Only the stored catalog stays readable, for the
+    model routing and knowledge pages, and not for the owner's endpoint (0.4)."""
     import os
 
     if not os.environ.get("LONORA_DATABASE_URL"):
-        pytest.skip("The settings routes are exercised through the owner API.")
+        pytest.skip("The routes are exercised through the owner API.")
     from check_streaming import Fixture
 
     monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_BASE_URL", ENDPOINT)
     monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_API_KEY", KEY)
     fixture = await Fixture().open()
     try:
-        listed = await fixture.client.get("/api/providers")
-        assert listed.status_code == 200
-        assert [item["id"] for item in listed.json()] == [
-            "openai",
-            "anthropic",
-            "deepseek",
-            "zai",
-            "openrouter",
-        ]
         for method, path, body in (
-            ("PUT", "/api/providers/openai_compatible/credential", {"api_key": KEY}),
-            ("GET", "/api/providers/openai_compatible/models", None),
-            ("POST", "/api/providers/openai_compatible/discover", None),
-            ("POST", "/api/providers/openai_compatible/test", {"api_key": KEY}),
+            ("GET", "/api/providers", None),
+            ("PUT", "/api/providers/openai/credential", {"api_key": KEY}),
+            ("POST", "/api/providers/openai/discover", None),
+            ("POST", "/api/providers/openai/test", {"api_key": KEY}),
         ):
             answer = await fixture.client.request(method, path, json=body)
-            assert answer.status_code == 404, path
-            assert answer.json()["code"] == "provider_not_supported", path
+            assert answer.status_code in {404, 405}, (path, answer.status_code)
+        catalog = await fixture.client.get("/api/providers/openai/models")
+        assert catalog.status_code == 200 and isinstance(catalog.json(), list)
+        endpoint = await fixture.client.get("/api/providers/openai_compatible/models")
+        assert endpoint.status_code == 404
+        assert endpoint.json()["code"] == "provider_not_supported"
     finally:
         await fixture.close()
 

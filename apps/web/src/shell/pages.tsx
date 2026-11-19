@@ -42,13 +42,7 @@ import { DEV_ROUTES, type Page, type Root } from "./routes";
 import { useShortcutsSheet } from "./ShortcutsSheet";
 import { SkChat, SkChats } from "./Skeleton";
 import { NotFoundPage } from "./StatePage";
-import {
-  BrokerAccountPage,
-  BrokerFormPage,
-  McpFormPage,
-  ProviderFormPage,
-  ProvidersPage,
-} from "./settings/ConnectionPages";
+import { BrokerAccountPage, BrokerFormPage, McpFormPage } from "./settings/ConnectionPages";
 import { AccessibilityPage, PrivacyPage, StoragePage } from "./settings/DevicePages";
 import { IntegrationsPage } from "./settings/IntegrationsPage";
 import { ModelsPage } from "./settings/ModelsPage";
@@ -154,10 +148,6 @@ export function pageTitle(page: Page): string {
       return t`Proactive contact`;
     case "integrations":
       return t`Integrations`;
-    case "providers":
-      return t`Model providers`;
-    case "provider":
-      return t`Add an AI provider`;
     case "models":
       return t`Models`;
     case "mcp":
@@ -338,12 +328,6 @@ export function DetailPages({
           element={<ItemPage render={(item) => <CommunicationPage key={item} agentId={item} />} />}
         />
         <Route path="/app/integrations" element={<IntegrationsPage />} />
-        <Route path="/app/providers" element={<ProvidersPage />} />
-        <Route path="/app/provider" element={<ProviderFormPage />} />
-        <Route
-          path="/app/provider/:item"
-          element={<ItemPage render={(item) => <ProviderFormPage key={item} initial={item} />} />}
-        />
         <Route path="/app/models" element={<ModelsPage />} />
         <Route path="/app/mcp" element={<McpFormPage />} />
         <Route path="/app/broker" element={<BrokerFormPage />} />

@@ -1,10 +1,10 @@
 """Stored secrets by scope.
 
 ``broker`` holds broker passwords and the MetaApi token: only the execution door and
-provisioning read it. ``provider`` holds model API keys and ``integration`` the tokens of
-news feeds, web search, the calendar and MCP servers. ``workspace`` holds the owner's
-secrets for agents to use by name in the workspace; its names are environment variable
-names. A secret a connection uses is not deleted while the connection refers to it.
+provisioning read it. ``integration`` holds the tokens of news feeds, web search, the
+calendar and MCP servers. ``workspace`` holds the owner's secrets for agents to use by name
+in the workspace, model providers' keys among them (a ``model_provider:<provider>``
+record names the router's); its names are environment variable names. A secret a connection uses is not deleted while the connection refers to it.
 """
 
 import re
@@ -19,7 +19,7 @@ WORKSPACE = "workspace"
 BROKER = "broker"
 # The owner's one MetaApi API token (scope ``broker``); connections made from chat name it.
 METAAPI_TOKEN = "metaapi_token"
-SCOPES = (BROKER, "provider", "integration", WORKSPACE)
+SCOPES = (BROKER, "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 # Where a connection names its secrets: an MCP server saved from a Secret card also
 # names the secret that holds its address.

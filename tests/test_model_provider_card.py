@@ -249,15 +249,10 @@ async def test_the_owner_connects_a_model_provider_from_chat(
         second = [run for run in runs if run.model_metadata.get("owner_action_id") == again_id]
         assert len(second) == 1 and "could not be read" in second[0].prompt
 
-        # A key saved before Secret cards (scope provider) and one saved on a card: the
-        # router uses the one the owner saved last, whichever path saved it, each with
-        # its own URL (a settings-era key with the deployment's).
+        # The card's key goes with the card's URL, never the deployment's.
         deployment = "https://deployment.example.test/v1"
         monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_BASE_URL", deployment)
         store = fixture.runtime.services(fixture.owner).secrets
-        await store.write("openai_compatible", "older-settings-key", "provider")
-        assert await credentials.resolve("openai_compatible") == "older-settings-key"
-        assert await credentials.endpoint("openai_compatible") == deployment
         third_id = await propose()
         with patch("lonora_api.routes.secret_cards.model_adapter", Listing([])):
             await fixture.client.post(
@@ -272,9 +267,7 @@ async def test_the_owner_connects_a_model_provider_from_chat(
         async with fixture.runtime.db.sessions() as session, session.begin():
             for row in (
                 await session.scalars(
-                    select(SecretRow).where(
-                        SecretRow.name.in_(["OPENAI_COMPATIBLE_API_KEY", "openai_compatible"])
-                    )
+                    select(SecretRow).where(SecretRow.name == "OPENAI_COMPATIBLE_API_KEY")
                 )
             ).all():
                 await session.delete(row)
@@ -291,9 +284,7 @@ async def test_the_owner_connects_a_model_provider_from_chat(
             for row in (
                 await session.scalars(
                     select(SecretRow).where(
-                        SecretRow.name.in_(
-                            ["OPENAI_COMPATIBLE_API_KEY", "openai_compatible", "OPENAI_API_KEY"]
-                        )
+                        SecretRow.name.in_(["OPENAI_COMPATIBLE_API_KEY", "OPENAI_API_KEY"])
                     )
                 )
             ).all():
