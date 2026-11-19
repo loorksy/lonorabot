@@ -354,10 +354,11 @@ test("header safety capsule: abnormal states only, and no Stop control", async (
       0,
     );
   } finally {
+    // Settled on its Settle card, the only settlement surface (6.8).
     if (uncertain)
-      await context.request.post(`/api/trading/journal/${uncertain}/resolve`, {
+      await context.request.post(`/api/owner-actions/${settleCard(uncertain)}/decision`, {
         headers: state.headers,
-        data: { outcome: "not_executed", statement: "Checked the terminal: still open." },
+        data: { decision: "confirm", outcome: "not_executed" },
       });
     await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
     await state.cleanup();

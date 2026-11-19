@@ -28,6 +28,7 @@ from lonora_db.schema import (
     TradingAccountRow,
     TradingJournalRow,
 )
+from lonora_db.trading_journal import persist_result
 from lonora_gateway.attention import attention_tick
 from lonora_tools.loader import load_tools
 from lonora_trading.operation_events import operation_event
@@ -450,17 +451,27 @@ async def main() -> None:
                     )
                 )
             ).scalar_one()
-        settled = await fixture.request(
-            "POST", f"/trading/journal/{elsewhere}/resolve", {"outcome": "not_executed"}
-        )
-        assert settled["status"] == "resolved", settled
+        # The broker's own evidence settles it while its card waits (no owner answer; the
+        # journal settle route is gone, 6.8): reconciliation records it as not executed.
+        async with db.sessions() as session, session.begin():
+            assert await persist_result(
+                session,
+                elsewhere,
+                "failed",
+                TradeResult(
+                    operation_id=elsewhere, status="failed", code="broker_rejected"
+                ).model_dump(mode="json"),
+            )
+            settled_row = await session.get(TradingJournalRow, elsewhere)
+            assert settled_row is not None and settled_row.status == "failed"
+            await operation_event(session, settled_row)
         await project()
         after = await card(waiting_card.id)
         assert (after.status, after.status_reason) == ("superseded", "operation_already_settled"), (
             after.status,
             after.status_reason,
         )
-        print("PASS settling an operation elsewhere supersedes its waiting resolve card")
+        print("PASS broker evidence settling an operation supersedes its waiting Settle card")
 
         # 8. The per-agent cap and expiry.
         expiring = {"kind": "secret", "target": "news_feed", "name": "Wire"}
