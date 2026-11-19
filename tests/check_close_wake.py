@@ -107,10 +107,12 @@ def reviewer(
     seen: list[list[ModelMessage]],
     *,
     read_first: bool = False,
+    draft: str | None = None,
     final: str = "Reviewed.",
 ) -> Any:
-    """A model that answers the close text with a self-review in its memory; with
-    ``read_first`` its first turn is a tool call, so the text arrives after a tool block."""
+    """A model that answers the close text with a self-review in its memory. Whatever it
+    reads, its first turn is a memory_read call with ``read_first``, or the reply
+    ``draft`` when given."""
 
     async def complete(_: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any):
         seen.append(list(messages))
@@ -118,6 +120,8 @@ def reviewer(
             return ModelReply(
                 tool_calls=[ToolCall(id="read-first", name="memory_read", arguments={})]
             ), SELECTION
+        if draft is not None and len(seen) == 1:
+            return ModelReply(text=draft), SELECTION
         text = "\n".join(message.content for message in messages)
         reviewed = any(
             call.name == "memory_write" for message in messages for call in message.tool_calls
@@ -322,27 +326,60 @@ async def closing_operation(f: Fixture, account: str, agent: Any, run: Any) -> s
 
 
 async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
+    """The close is recorded while the closing Run's first turn runs. With ``read_first``
+    that turn calls memory_read and the notice arrives after the tool block; otherwise
+    the turn drafts the final reply, which is held back while the notice is answered."""
     agent = await f.agent("Gold manager")
     thread = await f.conversation(agent)
     run = await f.run(agent, thread)
     ctx = await f.lease(run)  # the closing Run is executing
     operation = await closing_operation(f, account, agent, run)
     before = await revisions(f, agent["id"])
-    await closed(f, account, agent["id"], new_id(), "40", operation_id=operation)
-    assert await wake_for_closes(f.runtime.db, f.owner) == 1
-    assert await runs_of(f, agent["id"], "broker_event") == [], "a second Run was started"
     seen: list[list[ModelMessage]] = []
-    version = await memory_version(f, agent["id"])
-    with patch.object(ctx.router, "complete", reviewer(version, seen, read_first=read_first)):
+    draft = "Drafted before the review."
+    review = reviewer(
+        await memory_version(f, agent["id"]),
+        seen,
+        read_first=read_first,
+        draft=None if read_first else draft,
+    )
+
+    async def complete(*args: Any, **kwargs: Any) -> Any:
+        if not seen:
+            await closed(f, account, agent["id"], new_id(), "40", operation_id=operation)
+            assert await wake_for_closes(f.runtime.db, f.owner) == 1
+            assert await runs_of(f, agent["id"], "broker_event") == [], "a second Run started"
+        return await review(*args, **kwargs)
+
+    with patch.object(ctx.router, "complete", complete):
         await execute_run(ctx, load_tools(), 120, 8)
-    (notice,) = {m.content for messages in seen for m in messages if CLOSED in m.content}
+    assert len(seen) == 3 and not any(CLOSED in m.content for m in seen[0]), len(seen)
+    # The turn after the first one reads the notice, and answers it with memory_write.
+    (at,) = [index for index, m in enumerate(seen[1]) if CLOSED in m.content]
+    if read_first:
+        # It rides on the memory_read result: delivered after the tool block.
+        assert seen[1][at].tool_call_id == "read-first", seen[1][at]
+    else:
+        # It follows the drafted reply, which did not end the Run.
+        assert seen[1][at - 1].role == "assistant" and seen[1][at - 1].content == draft
+    notice = seen[1][at].content
     # The Run was answering something: it goes on, and is never told to end silently.
     assert "including any answer the owner is waiting for" in notice, notice
     assert "end without a reply" not in notice, notice
     assert await revisions(f, agent["id"]) == before + 1, "no self-review was written"
+    async with f.runtime.db.sessions() as session:
+        replies = list(
+            await session.scalars(
+                select(MessageRow.content).where(
+                    MessageRow.thread_id == thread["id"], MessageRow.role == "assistant"
+                )
+            )
+        )
+    # The owner gets the reply of the turn after the review, not the held-back draft.
+    assert replies == ["Reviewed."], replies
     assert await wake_for_closes(f.runtime.db, f.owner) == 0  # read: nothing redirected
-    path = "after a tool block" if read_first else "before its final reply"
-    print("PASS the agent's own close reaches its still-executing Run", path, "; it reviews")
+    path = "after a tool block" if read_first else "before its drafted final reply stands"
+    print("PASS the agent's own close reaches its still-executing Run", path + "; it reviews")
 
 
 async def last_round_notice(f: Fixture, account: str) -> None:
