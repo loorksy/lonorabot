@@ -68,7 +68,7 @@ nothing; a dependency is available only if it is already in the workspace.
 Imported instructions and Python receive no broker credentials, host filesystem or
 additional trading permission. Ordinary financial actions
 still pass through the existing typed executor, approvals or signed authority,
-risk limits, journal and reconciliation.
+journal and reconciliation.
 
 ## Verification
 

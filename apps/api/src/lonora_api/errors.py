@@ -1,6 +1,3 @@
-from collections.abc import Iterable, Mapping
-from typing import Any
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from lonora_contracts.incoming_calls import policy_error_code
@@ -9,18 +6,6 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
-
-# Validation errors the owner can act on keep their own code, so both clients can say what
-# to fix (an amount limit needs the account currency; the trading day needs a real zone).
-OWNER_ACTIONABLE_CODES = frozenset({"risk_currency_required", "trading_day_timezone_invalid"})
-
-
-def validation_code(errors: Iterable[Mapping[str, Any]]) -> str:
-    for item in errors:
-        cause = str(item.get("ctx", {}).get("error", ""))
-        if item.get("type") == "value_error" and cause in OWNER_ACTIONABLE_CODES:
-            return cause
-    return policy_error_code(errors)
 
 
 def install_errors(app: FastAPI) -> None:
@@ -37,7 +22,7 @@ def install_errors(app: FastAPI) -> None:
         # complete quiet hours) so both clients can say what to fix.
         return JSONResponse(
             {
-                "code": validation_code(error.errors()),
+                "code": policy_error_code(error.errors()),
                 "fields": [
                     {"path": [str(value) for value in item["loc"]], "code": item["type"]}
                     for item in error.errors()
@@ -52,7 +37,7 @@ def install_errors(app: FastAPI) -> None:
 
     @app.exception_handler(ValidationError)
     async def invalid_payload(request: Request, error: ValidationError) -> JSONResponse:
-        return JSONResponse({"code": validation_code(error.errors())}, 422)
+        return JSONResponse({"code": policy_error_code(error.errors())}, 422)
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, error: HTTPException) -> JSONResponse:
