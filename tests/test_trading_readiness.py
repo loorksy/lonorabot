@@ -317,9 +317,22 @@ async def test_the_status_line_waits_for_the_owner_or_the_broker_like_the_pill(
                 thread_id=thread,
                 timeline_seq=1,
                 source="agent",
-                kind="connect_credential",
+                kind="secret",
                 subject="probe",
-                payload={},
+                payload={
+                    "label": "Exchange key",
+                    "connect": None,
+                    "fields": [
+                        {
+                            "key": "EXCHANGE_KEY",
+                            "label": "Key",
+                            "secret": True,
+                            "role": None,
+                            "required": True,
+                        }
+                    ],
+                    "destination": "workspace",
+                },
                 payload_hash="probe",
                 status="pending",
                 result={},

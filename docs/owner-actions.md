@@ -9,20 +9,34 @@ settings page or the API. W15-3 adds the grant card (`grant_authority`, below), 
 the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
 supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
 `supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
-W15-8 adds the secure credential card (`connect_credential`, `docs/trusted-sources.md`).
-Trusting a source has no card (VISION 10.3.2): an agent adds a feed's domain, a GitHub
-repository or owner, or an MCP server only when the owner's typed message names it, and
-migration `0132_trust_from_owner_words` retired the `trust_source` cards. An agent's
-model has no card either: only the owner assigns it (`docs/provider-resilience.md`).
+W15-8 added a secure credential card; the Secret card (`secret`, below) replaced it
+(migration `0071_secret_card_kinds`). Trusting a source has no card (VISION 10.3.2): an
+agent adds a feed's domain, a GitHub repository or owner, or an MCP server only when the
+owner's typed message names it, and migration `0132_trust_from_owner_words` retired the
+`trust_source` cards. An agent's model has no card either: only the owner assigns it
+(`docs/provider-resilience.md`).
 
-The Secret card (`secret`, VISION.md 7.2 and 10.3) asks for any other credential. The
-agent chooses its label and fields (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the
-value is saved under, and a label; `secret: false` only unmasks a field while it is
-typed). The server sets the destination: an agent's card saves to the owner's
-`workspace` secrets. Its values never pass the decision route: the card's own route,
-`POST /owner-actions/{id}/secret`, stores them encrypted and settles the card in one
-transaction, and the card, its events, the conversation and the agent's next run keep
-only the keys. A second submit shows the card as it is and writes nothing.
+The Secret card (`secret`, VISION.md 7.2 and 10.3) is how any credential reaches Lonora.
+With a `target` it connects something (an MCP server, web search, a feed, a calendar)
+with the fields and the destination the server sets (`docs/trusted-sources.md`); stored
+`connect_credential` cards became such cards (migration `0071_secret_card_kinds`). A
+trading account has its own Secret card, raised by `broker_connect` (and `broker_manage`
+for a new password or token) with the `broker` destination: its values go only to the
+broker layer, and the gateway provisions the account and wakes the agent with the
+result. Otherwise the agent chooses its label and fields
+(each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
+`secret: false` only unmasks a field while it is typed). The server sets the
+destination: an agent's card saves to the owner's `workspace` secrets, and the card
+shows, in server words, the names its values are saved under and any saved value they
+replace; a name a connection uses is never replaced. A value needs at least three
+characters (`secret_value_too_short`): the scan of workspace output cannot find a
+shorter one at every base64 alignment. Its values never pass the decision route: the
+card's own route, `POST /owner-actions/{id}/secret`, stores them encrypted and settles
+the card in one transaction, and the card, its events, the conversation and the agent's
+next run keep no value and no name the agent's words shaped. A second submit shows the
+card as it is and writes nothing. The downgrade of `0071` turns the agents' own cards
+back into the shape the earlier code reads (their values stay saved) and refuses while a
+connection saved from a Secret card keeps its address in the store.
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -33,9 +47,9 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resolve_operation`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `connect_credential` or `secret` |
+| `kind` | `resolve_operation`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `secret` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. |
-| `subject` | The record the card acts on: `operation:<id>`, `grant:<agent>:<account>` |
+| `subject` | The record the card acts on: `operation:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
 | `agent_id`, `thread_id`, `run_id` | Where it is shown and who raised it. Ids are kept as values; a deleted conversation sets `thread_id` to null. |
 | `status`, `status_reason` | `pending`, `confirmed`, `cancelled`, `expired` or `superseded`, with why |
@@ -43,9 +57,9 @@ tap runs the existing owner function for that effect, in the owner's session.
 | `expires_at`, `decided_at`, `decided_via` | Single use with expiry; `tap` or `passkey` |
 | `result` | What the confirmation did (the attested outcome) |
 
-Lifetimes: grant cards 24 hours, resolve cards 7 days. Expiry needs no
-scheduler: a pending card past `expires_at` reads as expired and is settled as expired
-when next touched.
+Lifetimes: grant cards 24 hours, resolve cards 7 days, Mandate cards 3650 days. Expiry
+needs no scheduler: a pending card past `expires_at` reads as expired and is settled as
+expired when next touched.
 
 ## How cards appear
 
@@ -261,6 +275,23 @@ The confirmation line says it is signed, that anything outside the grant comes b
 an approval card, and what else changed (the other agent or agents stopped on this
 account). The settled card names the agents it stopped. A card for an agent that is
 deleted is superseded with it.
+
+## The Mandate card (mandate 10.3, 4.2)
+
+Kind `trading_mode`, subject `trading_mode:<agent>`, payload `{agent_id}`. The card reads
+the agent's mode live (`facts.trading_mode`) and shows one button for the other mode;
+the decision carries the mode that button showed (`trading_mode`), and the server applies
+exactly that mode (`set_trading_mode(by="owner_tap")`), never a toggle. Only this tap sets
+Full. A confirmed card stays the agent's switch: clients keep its button live
+(`ownerActionLive`). An agent raises its own card; Lonora may raise one for any agent,
+and Lonora's own card is raised when Lonora is created (4.3.1). While a signed grant of
+the agent is in force (`facts.active_grant`), the card says the grant still lets it trade
+within the grant's own terms until the owner revokes it.
+
+Switching an agent to Full withdraws its pending Trade Approval cards (status
+`withdrawn`): a withdrawn card is never approved or executed, and the agent is woken
+with fixed server text to decide again under Full. A card for an agent that is deleted
+ends with it.
 
 ## No model cards
 

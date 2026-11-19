@@ -52,7 +52,7 @@ async def seed(connection: AsyncConnection, owner: str, ids: dict[str, str]) -> 
     cards = {
         "pending": ("trust_source", "pending"),
         "confirmed": ("trust_source", "confirmed"),
-        "other": ("resume_trading", "pending"),
+        "other": ("resolve_operation", "pending"),
     }
     for name, (kind, status) in cards.items():
         ids["card_" + name] = str(uuid4())
@@ -71,7 +71,7 @@ async def seed(connection: AsyncConnection, owner: str, ids: dict[str, str]) -> 
                 "kind": kind,
                 "subject": "trusted-source:feed_domain:old.example"
                 if kind == "trust_source"
-                else "trading",
+                else "operation:stop-free",
                 "payload": json.dumps({"source_kind": "feed_domain", "identifier": "old.example"}),
                 "hash": uuid4().hex,
                 "status": status,
@@ -95,7 +95,7 @@ async def main() -> None:
     module = migration()
     assert module.revision == "0132_trust_from_owner_words"
     before = module.down_revision
-    assert before == "0110_closed_trades"
+    assert before == "0130_owner_signals"
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Trust migration")
@@ -131,7 +131,7 @@ async def main() -> None:
             )
             assert marker == 0
             live = await cards(connection, "ln_owner_actions", ids)
-            assert live == {ids["card_other"]: ("resume_trading", "pending", None)}, live
+            assert live == {ids["card_other"]: ("resolve_operation", "pending", None)}, live
             retired = await cards(connection, module.RETIRED, ids)
             assert retired == {
                 ids["card_pending"]: ("trust_source", "superseded", "trust_cards_removed"),
