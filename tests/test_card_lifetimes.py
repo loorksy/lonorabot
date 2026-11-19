@@ -105,7 +105,7 @@ async def updates(session: AsyncSession, card_id: str) -> int:
 async def test_a_newer_card_names_the_card_that_replaced_it(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
-        change = OwnerActionProposal(kind="connect_credential", target="news_feed")
+        change = OwnerActionProposal(kind="secret", target="news_feed", name="Desk")
         first, _ = await propose(
             session, owner, change, card_id="old", agent_id=agent, thread_id=thread, run_id=None
         )

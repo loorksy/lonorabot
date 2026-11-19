@@ -12,6 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_contracts.agent_secrets import WORKSPACE_SECRET_NAME
 from lonora_core.user_error import LonoraError
 from lonora_db.secrets import require_scope
@@ -92,20 +93,29 @@ async def test_workspace_secrets_are_the_owners_and_a_used_secret_is_not_deleted
         gone = await fixture.client.get(f"/api/agents/{agent['id']}/secrets")
         assert gone.status_code in {404, 405}
 
-        # A connection names only a secret of its own scope (7.2.3): a workspace value
-        # is never sent to a search service.
+        # A broker value is read only by the door and provisioning (7.2.3): no integration
+        # may name it. A workspace secret (saved from a Secret card) may.
+        brokers = BrokerSecrets(
+            fixture.runtime.db, os.environ["LONORA_ENCRYPTION_KEY"], fixture.owner
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            broker_id = await brokers.write_in_session(session, "9" + uuid4().hex[:8], "pw-1")
         crossed = await fixture.client.post(
             "/api/integrations",
-            json={
-                "payload": {
-                    "type": "brave_search",
-                    "name": "search",
-                    "secret_id": workspace_id,
-                }
-            },
+            json={"payload": {"type": "brave_search", "name": "search", "secret_id": broker_id}},
         )
         assert crossed.status_code == 403
         assert crossed.json()["code"] == "secret_scope_forbidden"
+        allowed = await fixture.client.post(
+            "/api/integrations",
+            json={"payload": {"type": "brave_search", "name": "s", "secret_id": workspace_id}},
+        )
+        assert allowed.status_code == 201
+        # Removing the connection keeps the owner's secret: only DELETE /secrets/{id}
+        # deletes a stored secret (VISION.md 14.3.11).
+        await fixture.client.delete("/api/integrations/" + allowed.json()["id"])
+        assert await services.secrets.read(workspace_id) == "s3cr3t"
+        assert (await fixture.client.delete("/api/secrets/" + broker_id)).status_code == 200
 
         used_id = await services.secrets.write("fixture-feed", uuid4().hex, "integration")
         async with fixture.runtime.db.sessions() as session, session.begin():

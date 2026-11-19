@@ -65,9 +65,7 @@ LIFETIME = {
     "supervision_stopped": timedelta(days=7),
     # A supervisor paused an agent's work: who did it, with Resume, while it holds.
     "supervision_paused": timedelta(days=31),
-    # Connect an account or credential (W15-8).
-    "connect_credential": timedelta(days=7),
-    # The Secret card: it waits as long as a credential card did.
+    # The Secret card: a credential, or a connection that needs one.
     "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
     # notice of a tightened stop (recorded settled, nothing to tap).
@@ -192,9 +190,6 @@ async def stale_reason(
         if not grants:
             return "supervision_agent_missing"
         return None if await _restorable(session, owner_id, grants) else "supervision_already_set"
-    if kind == "connect_credential":
-        # A form stays usable until the owner fills it: what it connects is checked then.
-        return None
     if kind == "watch_changed":
         from .notice_cards import watch_change_stale
 
@@ -202,7 +197,10 @@ async def stale_reason(
     if kind == "stop_tightened":
         return "nothing_to_undo"
     if kind == "secret":
-        return None  # A credential is checked when the owner saves it.
+        from .secret_cards import secret_stale_reason
+
+        # A credential is checked when the owner saves it; a second Brave key is not asked.
+        return await secret_stale_reason(session, owner_id, payload)
     if kind == "supervision_paused":
         hold = await _live_pause(session, owner_id, payload)
         if hold is None:
@@ -472,11 +470,6 @@ def proposal_payload(
         from .secret_cards import secret_card_payload
 
         return secret_card_payload(proposal)
-    if proposal.kind == "connect_credential":
-        from .capability_cards import credential_payload
-
-        assert proposal.target is not None
-        return credential_payload(proposal.target, proposal.service)
     raise LonoraError("owner_action_fields_invalid", 422)
 
 
@@ -574,12 +567,8 @@ async def card_facts(
         from .secret_cards import secret_facts
 
         names = await agent_names(session, owner_id, {row.agent_id})
-        facts["secret"] = secret_facts(payload, names.get(row.agent_id or ""))
+        facts["secret"] = await secret_facts(session, row, names.get(row.agent_id or ""))
         return facts, False
-    if row.kind == "connect_credential":
-        from .capability_cards import card_facts as capability_facts
-
-        return await capability_facts(session, row, facts), False
     return facts, False
 
 
@@ -1070,10 +1059,6 @@ async def propose_effect(
     """An agent's card for one validated effect: deduplicated per agent, capped. The
     caller holds the owner-actions lock and has checked the card id is new."""
     reason = await stale_reason(session, owner_id, kind, payload)
-    if reason is None and kind == "connect_credential":
-        from .capability_cards import credential_not_needed
-
-        reason = await credential_not_needed(session, owner_id, payload)
     if reason is not None:
         raise LonoraError("owner_action_not_needed_" + reason, 409)
     current = await pending_effect(session, agent_id, kind, payload_hash(kind, payload))
@@ -1528,10 +1513,12 @@ def confirmation_code(row: OwnerActionRow) -> str:
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
     if row.kind == "agent_created":
         return "owner_action_undo_" + str(row.result.get("undo", "paused"))
-    if row.kind == "connect_credential" and row.payload.get("target") == "mcp_server":
+    if row.kind == "secret" and row.payload.get("connect") == "mcp_server":
         # Its tools run once the owner trusts the server: by naming it in chat, or in
         # Capabilities.
-        return "owner_action_connect_credential_mcp"
+        return "owner_action_secret_connected_mcp"
+    if row.kind == "secret" and row.payload.get("connect"):
+        return "owner_action_secret_connected"
     return "owner_action_" + row.kind
 
 
@@ -1655,30 +1642,16 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     )
 
 
-# The run that tells the agent behind a credential card that the owner filled it.
+# The run that tells the agent behind a Secret card that the owner saved it.
 CONTINUE_TRIGGER = "owner_card"
 
 
 def continue_prompt(row: OwnerActionRow) -> str:
     """Fixed text and server-checked identifiers only (a connection id, a target name):
     nothing the model wrote reaches the system role."""
-    if row.kind == "secret":
-        from .secret_cards import saved_prompt
+    from .secret_cards import saved_prompt
 
-        return saved_prompt(row)
-    if row.payload["target"] == "mcp_server":
-        return (
-            "The owner connected an MCP server (connection_id="
-            f"{row.result.get('connection_id')}) on your card; its credential stays on the "
-            "server. Its tools run only once the owner trusts it: tell him in one line to name "
-            "the server in chat (then call mcp_trust first in that run) or review it in "
-            "Capabilities."
-        )
-    return (
-        f"The owner connected {row.payload['target']} on your card; it is configured on "
-        "the server and you never see its value. Continue the work that needed it now, "
-        "then tell the owner in one line what you did."
-    )
+    return saved_prompt(row)
 
 
 async def continue_after_card(session: AsyncSession, row: OwnerActionRow) -> RunRow | None:
