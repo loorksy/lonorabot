@@ -8,13 +8,12 @@ lifts a brake and never edits its memory or instructions. Agents without a grant
 private from each other.
 
 Lonora, the Personal Agent, needs no grant: its lead role (``lead.py``) reads and steers
-every team agent, and no revoked grant takes that away. It still holds a ``default``
-grant over every agent from the agent's creation (migration ``0041_supervision_grants``
-seeds existing agents) until grants are deleted. Another agent becomes a
-supervisor only from the owner's message, recorded as the grant's source, or from the
-owner's tap on a card. The owner sees every grant on the agents' profiles and in chat
-and revokes one with one tap; a revoked grant ends that supervisor's reads and control at
-once, never Lonora's (its lead role).
+every team agent, and no revoked grant takes that away. The ``default`` grants
+migration ``0041_supervision_grants`` stored for it change nothing, so the profiles do not
+show them. Another agent becomes a supervisor only from the owner's message, recorded
+as the grant's source, or from the owner's tap on a card. The owner sees every other
+grant on the agents' profiles and in chat and revokes one with one tap; a revoked grant
+ends that supervisor's reads and control at once.
 
 Holds (``ln_supervision_holds``) record the pauses a supervisor put on another agent's
 work: the agent itself, a Task, a routine or a watch. On its own initiative only the
@@ -46,7 +45,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .lead import reaches
+from .lead import personal_agent_id, reaches
 from .schema import (
     AgentRow,
     MarketWatchRow,
@@ -255,8 +254,11 @@ def grant_data(row: SupervisionGrantRow, names: dict[str, str]) -> dict[str, Any
 
 
 async def supervision_view(session: AsyncSession, owner_id: str, agent_id: str) -> dict[str, Any]:
-    """The active grants around one agent: whom it supervises and who supervises it."""
+    """The active grants around one agent: whom it supervises and who supervises it.
+    Lonora's stored grants are left out: it leads every team agent by its role, so
+    revoking one would change nothing."""
     await owned_agent(session, owner_id, agent_id)
+    lead = await personal_agent_id(session, owner_id)
     rows = list(
         await session.scalars(
             select(SupervisionGrantRow)
@@ -266,6 +268,7 @@ async def supervision_view(session: AsyncSession, owner_id: str, agent_id: str) 
                     SupervisionGrantRow.supervisor_agent_id == agent_id,
                     SupervisionGrantRow.supervised_agent_id == agent_id,
                 ),
+                SupervisionGrantRow.supervisor_agent_id != lead,
             )
             .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.id)
         )

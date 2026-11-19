@@ -62,7 +62,7 @@ async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked()
     database()
     from check_streaming import Fixture
     from lonora_db.personal_agent import ensure_personal_agent
-    from lonora_db.supervision import grant_supervision
+    from lonora_db.supervision import grant_supervision, revoke_supervision
 
     fixture = await Fixture().open()
     try:
@@ -89,18 +89,18 @@ async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked()
             memory.content = "# MEMORY.md\n- " + SENTINEL + " spreads widen at the open\n"
         gold_run = await fixture.run(gold, gold_thread)
 
-        # A default grant as migration 0041 stored one; the owner revokes it and the lead
-        # role remains.
+        # A default grant as migration 0041 stored one changes nothing, so no profile lists
+        # it (its Stop would change nothing); revoked, the lead role remains.
         async with fixture.runtime.db.sessions() as session, session.begin():
-            await grant_supervision(session, fixture.owner, lonora["id"], gold["id"], via="default")
-        view = await fixture.request("GET", f"/supervision?agent_id={gold['id']}")
-        (default,) = [
-            item for item in view["supervised_by"] if item["supervisor"]["id"] == lonora["id"]
-        ]
-        assert default["created_via"] == "default"
-        await fixture.request("POST", f"/supervision/{default['id']}/revoke")
-        view = await fixture.request("GET", f"/supervision?agent_id={gold['id']}")
-        assert view["supervised_by"] == []
+            default, _ = await grant_supervision(
+                session, fixture.owner, lonora["id"], gold["id"], via="default"
+            )
+            default_id = default.id
+        for agent_id in (gold["id"], lonora["id"]):
+            view = await fixture.request("GET", f"/supervision?agent_id={agent_id}")
+            assert view["supervises"] == [] and view["supervised_by"] == [], view
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await revoke_supervision(session, fixture.owner, default_id, via="owner_ui")
 
         lead = await wake(fixture, lonora)
         found = await call(lead, "session_search", query=SENTINEL)

@@ -63,7 +63,7 @@ const copy = {
   en: {
     settings: "Agent info",
     section: "Lonora supervises your agents",
-    byDefault: "by default",
+    none: "Lonora leads this agent by its role. No other agent supervises it, and it supervises none.",
     stop: "Stop",
     title: "Let it supervise?",
     allow: "Allow",
@@ -79,7 +79,7 @@ const copy = {
   ar: {
     settings: "معلومات الوكيل",
     section: "لونورا تشرف على وكلائك",
-    byDefault: "افتراضيًا",
+    none: "تقود لونورا هذا الوكيل بدورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
     stop: "إيقاف",
     title: "السماح له بالإشراف؟",
     allow: "السماح",
@@ -95,7 +95,7 @@ const copy = {
 };
 
 for (const locale of ["en", "ar"])
-  test(`${locale}: Lonora's profile stops and restores supervision, and a card sets it with Undo`, async ({
+  test(`${locale}: Lonora's profile lists no grant of its own, and a card sets supervision with Undo`, async ({
     page,
     context,
   }) => {
@@ -121,25 +121,35 @@ for (const locale of ["en", "ar"])
       routine: `Review gold ${suffix}`,
     });
     try {
-      // Lonora's profile: a stored default grant, with one-tap Stop; no new grant is offered
-      // (Lonora reads and steers every team agent by its lead role).
+      // Lonora's profile: Lonora reads and steers every team agent by its lead role, so its
+      // stored default grant over Gold changes nothing. It is not listed, with no Stop that
+      // would change nothing, and no new grant is offered.
+      const loaded = page.waitForResponse((response) =>
+        response.url().includes(`/supervision?agent_id=${seeded.lonora}`),
+      );
       await page.goto(`/app/${seeded.lonora}`);
       await page.getByRole("button", { name: text.settings, exact: true }).click();
       const section = page.getByTestId("supervision-settings");
       await section.locator("summary").click();
       await expect(section.locator("summary")).toHaveText(text.section);
-      const row = section.locator("li").filter({ hasText: `Gold ${suffix}` });
-      await expect(row).toContainText(text.byDefault);
+      expect((await (await loaded).json()).supervises).toEqual([]);
+      await expect(section.locator("li")).toHaveCount(0);
+      await expect(section.getByRole("button", { name: text.stop, exact: true })).toHaveCount(0);
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         await section.screenshot({ path: test.info().outputPath("supervision-profile-ar.png") });
       }
-      await row.getByRole("button", { name: text.stop, exact: true }).click();
-      await expect(section.locator("li").filter({ hasText: `Gold ${suffix}` })).toHaveCount(0);
       const view = await (
         await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)
       ).json();
-      expect(view.supervised_by.some((grant) => grant.supervisor.id === seeded.lonora)).toBe(false);
+      expect(view.supervised_by).toEqual([]);
+      // Gold's profile names Lonora as its lead, with no Stop for the stored grant.
+      await page.goto(`/app/${seeded.gold}`);
+      await page.getByRole("button", { name: text.settings, exact: true }).click();
+      const gold = page.getByTestId("supervision-settings");
+      await gold.locator("summary").click();
+      await expect(gold.getByText(text.none, { exact: true })).toBeVisible();
+      await expect(gold.getByRole("button", { name: text.stop, exact: true })).toHaveCount(0);
 
       // The watcher's card: Allow sets supervision; its Undo card stops it again.
       await page.goto(`/app/${seeded.watcher}`);

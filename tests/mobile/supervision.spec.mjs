@@ -62,7 +62,6 @@ asyncio.run(main())
 const copy = {
   en: {
     section: "Lonora supervises your agents",
-    byDefault: "by default",
     none: "Lonora leads this agent by its role. No other agent supervises it, and it supervises none.",
     stop: "Stop",
     title: "Let it supervise?",
@@ -74,7 +73,6 @@ const copy = {
   },
   ar: {
     section: "لونورا تشرف على وكلائك",
-    byDefault: "افتراضيًا",
     none: "تقود لونورا هذا الوكيل بدورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
     stop: "إيقاف",
     title: "السماح له بالإشراف؟",
@@ -87,7 +85,7 @@ const copy = {
 };
 
 for (const locale of ["ar", "en"])
-  test(`Expo ${locale}: Lonora's profile stops and restores supervision, and a card sets it`, async ({
+  test(`Expo ${locale}: Lonora's profile lists no grant of its own, and a card sets supervision`, async ({
     page,
     context,
   }) => {
@@ -113,21 +111,25 @@ for (const locale of ["ar", "en"])
       routine: `Review gold ${suffix}`,
     });
     try {
+      // Lonora reads and steers every team agent by its lead role, so its stored default
+      // grant over Gold changes nothing: not listed, with no Stop, and no grant offered.
+      const loaded = page.waitForResponse((response) =>
+        response.url().includes(`/supervision?agent_id=${seeded.lonora}`),
+      );
       await page.goto(`/bot-settings?botId=${seeded.lonora}`);
       const section = page.getByTestId("supervision-settings");
       await expect(section.getByText(text.section, { exact: true })).toBeVisible();
-      await expect(section.getByText(`⁨Gold ${suffix}⁩`, { exact: true })).toBeVisible();
-      await expect(section.getByText(text.byDefault, { exact: true }).first()).toBeVisible();
-      if (locale === "ar")
-        await section.screenshot({ path: test.info().outputPath("supervision-native-ar.png") });
-      await page.getByTestId(`supervision-stop-${seeded.gold}`).click();
+      expect((await (await loaded).json()).supervises).toEqual([]);
+      await expect(section.getByText(`⁨Gold ${suffix}⁩`, { exact: true })).toHaveCount(0);
       await expect(page.getByTestId(`supervision-stop-${seeded.gold}`)).toHaveCount(0);
       await expect(page.getByTestId(`supervision-add-${seeded.gold}`)).toHaveCount(0);
+      if (locale === "ar")
+        await section.screenshot({ path: test.info().outputPath("supervision-native-ar.png") });
       const view = await (
         await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)
       ).json();
       expect(view.supervised_by).toEqual([]);
-      // With no grant left, Gold's profile names Lonora as its lead.
+      // Gold's profile names Lonora as its lead, with no Stop for the stored grant.
       await page.goto(`/bot-settings?botId=${seeded.gold}`);
       await expect(
         page.getByTestId("supervision-settings").getByText(text.none, { exact: true }),

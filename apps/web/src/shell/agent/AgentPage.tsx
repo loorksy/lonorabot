@@ -479,8 +479,8 @@ function SupervisionSection({
         )}
       </>
     );
-  // Lonora leads every team agent by its role: its page lists only stored grants and
-  // offers no new one.
+  // Lonora leads every team agent by its role: its page says so, and the server lists no
+  // grant of Lonora's (one would change nothing), so no Remove and no new grant.
   const lead = agent.role === "personal";
   const supervised = new Set(view.supervises.map((grant) => grant.supervised.id));
   const candidates = lead

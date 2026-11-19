@@ -7,8 +7,9 @@
 2. The owner asks Lonora what the gold agent did and why it skipped the London entry.
    A real Run with a scripted model answers from the gold agent's records through
    agent_inspect and session_search, offered natively; nothing of the gold agent was
-   in Lonora's context before it asked. After the owner revokes the default grant, the
-   same question is still answered: Lonora's reads are its built-in lead role.
+   in Lonora's context before it asked. The stored default grant is not on the gold
+   agent's profile (its Stop would change nothing); after it is revoked, the same
+   question is still answered: Lonora's reads are its built-in lead role.
 
 No live broker, model provider or real order is involved.
 """
@@ -38,7 +39,7 @@ from lonora_db.schema import (
     SupervisionGrantRow,
     ThreadRow,
 )
-from lonora_db.supervision import supervises
+from lonora_db.supervision import revoke_supervision, supervises
 from lonora_db.trading_decisions import DECISION_KIND
 from lonora_tools.loader import load_tools
 from sqlalchemy import select, text
@@ -243,8 +244,17 @@ async def lonora_answers_from_the_records(
     print("PASS Lonora answers what the gold agent did and why from its records, on demand")
 
     view = await fixture.request("GET", f"/supervision?agent_id={gold['id']}")
-    grant = next(item for item in view["supervised_by"] if item["supervisor"]["id"] == personal_id)
-    await fixture.request("POST", f"/supervision/{grant['id']}/revoke")
+    assert view["supervised_by"] == [], view
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        grant = await session.scalar(
+            select(SupervisionGrantRow).where(
+                SupervisionGrantRow.supervisor_agent_id == personal_id,
+                SupervisionGrantRow.supervised_agent_id == gold["id"],
+                SupervisionGrantRow.revoked_at.is_(None),
+            )
+        )
+        assert grant is not None and grant.created_via == "default"
+        await revoke_supervision(session, fixture.owner, grant.id, via="owner_ui")
     seen = await ask(
         fixture,
         personal,
@@ -261,7 +271,7 @@ async def lonora_answers_from_the_records(
     said = result_of(last, "said")
     assert said["results"] and said["results"][0]["supervised_agent"]["id"] == gold["id"], said
     # Mandate 3.1.6, 3.3.3: the lead's reads are built in, no grant gives or ends them.
-    print("PASS after the owner revokes the default grant, Lonora still reads the gold agent")
+    print("PASS the default grant is not listed; revoked, Lonora still reads the gold agent")
 
 
 async def main() -> None:

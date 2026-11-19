@@ -5,8 +5,8 @@ Superseded by VISION.md
 Lonora, the Personal Agent, leads every team agent by its built-in role
 (`lonora_db/lead.py`, mandate 3.1.6 and 14.3.15). It reads their work and memory on
 demand, messages them and pauses or resumes their work, with or without a grant; no
-revoked grant takes that away. The owner sees every other grant and revokes any of them
-with one tap. Any agent becomes "supervises X and Y" from
+revoked grant takes that away. The owner sees every other agent's grant and revokes any
+of them with one tap. Any agent becomes "supervises X and Y" from
 one sentence of the owner. A supervisor never trades for the agents it supervises, never
 uses their grant, never lifts a brake and never edits their memory or instructions.
 Agents without a grant stay as private from each other as before (wall 5 of correction 1).
@@ -22,9 +22,10 @@ either agent.
 
 - **Default.** The migration gave each owner's Personal Agent a `default` grant over
   every agent that existed then. No grant is made at creation any more: Lonora reads and
-  steers every team agent by its lead role (`lonora_db.lead`), so a stored default grant
-  only shows on the profiles, and revoking it does not limit Lonora. Lonora's profile
-  offers no new grant.
+  steers every team agent by its lead role (`lonora_db.lead`), so a stored grant of
+  Lonora's changes nothing. The profiles do not show one (its Stop would change
+  nothing), and Lonora's profile offers no new grant: it says Lonora leads every team
+  agent by its role.
 - **From one sentence.** `supervision_change` (toolset `collaboration`, long-tail)
   grants or revokes supervision for `supervisor_id` (default: the caller) over
   `supervised_ids`. Oversight for the calling agent itself, or over the Personal Agent,
@@ -47,7 +48,7 @@ either agent.
   "Supervises: ..." from the stored spec; a target deleted meanwhile makes the card
   stale (`supervision_agent_missing`).
 - **Owner API.** `GET /api/supervision?agent_id=` returns the active grants around one
-  agent (`supervises`, `supervised_by`); `POST /api/supervision`
+  agent (`supervises`, `supervised_by`), Lonora's left out; `POST /api/supervision`
   (`{supervisor_id, supervised_id}`) adds one (`owner_ui`); `POST
   /api/supervision/{id}/revoke` ends one. Supervision is never money authority, so both
   take one tap and no passkey.
