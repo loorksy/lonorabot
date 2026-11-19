@@ -1,8 +1,9 @@
 import { brand } from "@lonora/ui-tokens";
 import { Redirect } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
+import { onboardingStatus } from "../lib/api";
 import { useSession } from "../lib/session";
 
 export default function SignIn() {
@@ -13,30 +14,40 @@ export default function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // A server with no owner yet gets Web's first-run form instead of sign-in (GET /onboarding).
-  const [initialized, setInitialized] = useState(true);
+  // The answer belongs to the address it was read for: a changed address is checked again,
+  // and nothing is sent until it is.
+  const [checked, setChecked] = useState<{ address: string; initialized: boolean } | null>(null);
   const [token, setToken] = useState("");
   const address = server ?? session.server;
   const { ready, owner } = session;
-  const status = useRef(session.setupStatus);
-  status.current = session.setupStatus;
   useEffect(() => {
     if (!ready || owner || !address.trim()) return;
+    const controller = new AbortController();
     let live = true;
+    // A server that never answers does not hold the form: after 10 s, sign-in it is.
+    const limit = setTimeout(() => controller.abort(), 10_400);
     const timer = setTimeout(() => {
-      status.current(address).then(
-        (value) => live && setInitialized(value),
+      onboardingStatus(address, controller.signal).then(
+        (initialized) => live && setChecked({ address, initialized }),
         // Unreachable or not a Lonora server: sign-in stays and its own error says why.
-        () => live && setInitialized(true),
+        () => live && setChecked({ address, initialized: true }),
       );
     }, 400);
     return () => {
       live = false;
+      controller.abort();
       clearTimeout(timer);
+      clearTimeout(limit);
     };
   }, [ready, owner, address]);
+  const pending = checked?.address !== address;
+  const setup = !pending && checked?.initialized === false;
+  // The setup token is kept only while the setup form is shown.
+  useEffect(() => {
+    if (!setup) setToken("");
+  }, [setup]);
   if (!ready) return <Loading />;
   if (owner) return <Redirect href="/" />;
-  const setup = !initialized;
   const submit = async () => {
     setBusy(true);
     setError(null);
@@ -47,8 +58,6 @@ export default function SignIn() {
       setToken("");
     } catch (reason) {
       setError(session.errorText(reason));
-      // The owner may exist now (created, then the sign-in failed): the form follows the server.
-      if (setup) status.current(address).then(setInitialized, () => undefined);
     } finally {
       setBusy(false);
     }
@@ -152,6 +161,7 @@ export default function SignIn() {
               onPress={() => void submit()}
               disabled={
                 busy ||
+                pending ||
                 !email.trim() ||
                 !password ||
                 !address.trim() ||

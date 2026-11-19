@@ -29,8 +29,6 @@ type Session = {
   locale: Locale;
   rtl: boolean;
   login: (server: string, email: string, password: string) => Promise<void>;
-  /** Whether the server already has its owner (GET /onboarding), as Web reads at start. */
-  setupStatus: (server: string) => Promise<boolean>;
   /** First run, as Web's «إعداد Lonora»: create the owner with the setup token, then sign in. */
   initializeOwner: (
     server: string,
@@ -119,7 +117,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setOwner(result.owner);
   };
 
-  const reach = (value: string) => {
+  const initializeOwner = async (value: string, email: string, password: string, token: string) => {
     let normalized: string;
     try {
       normalized = normalizeServer(value);
@@ -127,14 +125,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       throw new ApiError("invalid_server", 0);
     }
     configureApi(normalized, null, expire);
-  };
-  const setupStatus = async (value: string) => {
-    reach(value);
-    return (await api.get<{ owner_initialized: boolean }>("/onboarding")).owner_initialized;
-  };
-  const initializeOwner = async (value: string, email: string, password: string, token: string) => {
-    reach(value);
-    await api.post("/onboarding", { email: email.trim(), password, bootstrap_token: token });
+    try {
+      await api.post("/onboarding", { email: email.trim(), password, bootstrap_token: token });
+    } catch (error) {
+      // Created by an earlier attempt whose sign-in failed: signing in is what is left.
+      if (!(error instanceof ApiError && error.code === "owner_already_initialized")) throw error;
+    }
     await login(value, email, password);
   };
 
@@ -214,7 +210,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         locale,
         rtl: locale === "ar",
         login,
-        setupStatus,
         initializeOwner,
         logout,
         changeLocale,

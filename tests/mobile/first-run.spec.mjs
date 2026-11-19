@@ -82,3 +82,24 @@ test("a server that has its owner shows sign-in, with no setup token", async ({ 
   await expect(page.getByLabel("Setup token", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Use your server address.", { exact: true })).toBeVisible();
 });
+
+test("a retry after the owner was created (then the sign-in failed) signs in", async ({ page }) => {
+  await page.route("**/api/onboarding", (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({ json: { owner_initialized: false } })
+      : route.fulfill({ status: 409, json: { code: "owner_already_initialized" } }),
+  );
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
+  await page
+    .getByLabel("Password · at least 12 characters", { exact: true })
+    .fill(credentials.password);
+  await page.getByLabel("Setup token", { exact: true }).fill(token);
+  const signedIn = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/auth/login") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+  expect((await signedIn).status()).toBe(200);
+  await expect(page.getByText("Set up Lonora", { exact: true })).toHaveCount(0);
+});
