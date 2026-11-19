@@ -69,6 +69,7 @@ async def calendar(
 ) -> list[dict[str, Any]]:
     from lonora_adapters.market.economic_calendar import EconomicCalendarAdapter
     from lonora_core.user_error import LonoraError
+    from lonora_db.integrations import has_source, source_url
     from lonora_db.schema import IntegrationRow
     from sqlalchemy import select
 
@@ -77,16 +78,18 @@ async def calendar(
             await session.scalars(select(IntegrationRow).where(IntegrationRow.owner_id == owner.id))
         ).all()
     events: list[dict[str, Any]] = []
+    read = runtime(request).services(owner.id).secrets.read
     for row in rows:
         if (
             row.payload.get("enabled")
             and row.payload.get("type") == "economic_calendar"
-            and row.payload.get("url")
+            and has_source(row.payload)
         ):
             try:
+                url = await source_url(row.payload, read)
                 events.extend(
                     event.model_dump(mode="json")
-                    for event in await EconomicCalendarAdapter(row.payload["url"]).events()
+                    for event in await EconomicCalendarAdapter(url).events()
                 )
             except LonoraError:
                 if len(rows) == 1:
