@@ -14,8 +14,9 @@
   agent runs in the workspace as its own process (#197).
 
 ``ln_analytical_workspaces`` stays: the one-time mover still copies snapshots it has not
-copied yet. The downgrade recreates the receipts table empty; the rewritten names and the
-deleted stdio records are not restored."""
+copied yet. The downgrade recreates the receipts table empty and gives every saved server back
+``transport: http`` and ``command: null``, the shape the earlier contract reads; the
+rewritten names and the deleted stdio records are not restored."""
 
 from typing import Any, cast
 
@@ -153,3 +154,14 @@ def downgrade() -> None:
     )
     op.create_index("ix_ln_workspace_operations_agent_id", "ln_workspace_operations", ["agent_id"])
     op.create_index("ix_ln_workspace_operations_run_id", "ln_workspace_operations", ["run_id"])
+    bind = op.get_bind()
+    servers = sa.table(
+        "ln_mcp_connections", sa.column("id", sa.String()), sa.column("payload", sa.JSON())
+    )
+    for row in bind.execute(sa.select(servers.c.id, servers.c.payload)).mappings().all():
+        payload = dict(cast(dict[str, Any], row["payload"] or {}))
+        if "transport" in payload and "command" in payload:
+            continue
+        payload.setdefault("transport", "http")
+        payload.setdefault("command", None)
+        bind.execute(sa.update(servers).where(servers.c.id == row["id"]).values(payload=payload))
