@@ -472,13 +472,19 @@ CONFUSABLES = str.maketrans(
 )
 
 
-def _plain(text: str) -> str:
-    """The comparable form: compatibility forms unified, invisible format characters (zero
-    width joiners and spaces, direction marks) removed, look-alike letters read as Latin, then
-    folded before punctuation becomes space, so Arabic diacritics never split a word."""
+def _folded(text: str) -> str:
+    """Compatibility forms unified, invisible format characters (zero width joiners and
+    spaces, direction marks) removed, look-alike letters read as Latin, then folded; the
+    punctuation is kept."""
     text = unicodedata.normalize("NFKC", text)
     text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
-    return " ".join(re.sub(r"[^\w\s]", " ", fold(text.translate(CONFUSABLES))).split())
+    return fold(text.translate(CONFUSABLES))
+
+
+def _plain(text: str) -> str:
+    """The comparable form: the folded text with punctuation as space, folded first so Arabic
+    diacritics never split a word."""
+    return " ".join(re.sub(r"[^\w\s]", " ", _folded(text)).split())
 
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
@@ -490,17 +496,26 @@ FRAME_ICON = "shield"
 LITERAL = re.compile(r"'([^']*)'")
 
 
-# The Mandate card's state line, «الآن: وكّله» / "Now: Full" (the clients' mandateNow and
-# mode words): only that card says an agent's mode is now one or the other.
+# The Mandate card's state line, «الذهب · الآن: وكّله» / "Gold · Now: Full" (the clients'
+# mandateNow and mode words): only that card says an agent's mode is now one or the other.
+# Only its own form counts, a line or a part of one between the name's separators that is
+# «الآن:» and a mode word, so a sentence with the same words («You can now ask me») does not.
 MODE_NOW = ("Now", "الآن")
 MODE_WORDS = ("Full", "Ask", "وكّله", "يستأذن")
+STATE_PARTS = re.compile(r"[·•|/\u2013\u2014-]")
+STATE_LINE = re.compile(
+    rf"\W*(?:{'|'.join(map(_folded, MODE_NOW))})[^\w:]*:"
+    rf"\W*(?:{'|'.join(map(_folded, MODE_WORDS))})\W*"
+)
 
 
 def shows_frame_mark(text: str) -> bool:
-    """Text that says what only the trust frame, or a fixed card's state line, says."""
+    """Text that says what only the trust frame, or the Mandate card's state line, says."""
     plain = f" {_plain(text)} "
     return any(f" {mark} " in plain for mark in MARKS_PLAIN) or any(
-        f" {_plain(now)} {_plain(mode)} " in plain for now in MODE_NOW for mode in MODE_WORDS
+        STATE_LINE.fullmatch(part)
+        for line in text.splitlines()
+        for part in STATE_PARTS.split(_folded(line))
     )
 
 

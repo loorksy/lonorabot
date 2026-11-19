@@ -123,11 +123,13 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   (· • : | / – — -) is a fixed card's title or button, when a Button label is or starts with one
   (`FIXED_LABELS`, the clients' own strings, checked by a test; the everyday words «Full» and
   «Ask» in `FIXED_WHOLE` only as a whole Button label), or when anything it shows,
-  why and fallback included, carries the frame's mark (`FRAME_MARKS`). Templates are read as
+  why and fallback included, carries the frame's mark (`FRAME_MARKS`) or the Mandate card's
+  state line in its own form: a line, or a part of one between · • | / – — -, that is
+  «الآن:» or "Now:" and a mode word («الذهب · الآن: وكّله», `STATE_LINE`). Templates are read as
   written, at each sampled state and by their quoted literals, after compatibility forms are
   unified, invisible format characters removed and look-alike letters (Cyrillic, Greek, Persian)
-  read as the letters they imitate. Sentences, values and state may
-  use the same words.
+  read as the letters they imitate. Otherwise sentences, values and state may use the same
+  words («You can now ask me», «الآن وكله ترقب»).
 - **Words, numbers and buttons.** Everything inside a slot is the record as the clients read it
   from the server (`/trading/approvals`, `/owner-actions`) with the card's own owner-session
   actions; nothing comes from the agent's card. A generated element still never approves,

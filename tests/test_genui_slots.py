@@ -345,6 +345,8 @@ async def test_one_record_is_one_slot_and_it_is_never_folded(task_db: Fixture) -
         '{"type":"Button","label":"وكّله"}',
         '{"type":"Card","title":"التفويض","children":[{"type":"Badge","text":"يستأذن"}]}',
         '{"type":"Button","label":"Full"}',
+        # The Mandate card's state line, in a sentence's place.
+        '{"type":"Text","text":"الذهب · الآن: وكّله"}',
         '{"type":"Card","title":"بيانات سرّية","children":[{"type":"Text","text":"المفتاح"}]}',
         '{"type":"Card","title":"Secret · Binance","children":[{"type":"Text","text":"Key"}]}',
         '{"type":"Badge","text":"ربط حساب التداول"}',
@@ -394,7 +396,14 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert not imitates_fixed_card("Ask") and not imitates_fixed_card("Full")
     # The Mandate card's state line, wherever it is shown.
     assert shows_frame_mark("الذهب · الآن: وكّله") and shows_frame_mark("Now: Full")
+    assert shows_frame_mark("Gold · Now: Ask") and shows_frame_mark("**Now:** Full")
+    assert shows_frame_mark("وكيل الذهب\nالآن : يستأذن")
     assert not shows_frame_mark("Full now") and not shows_frame_mark("الآن السعر 2400")
+    # Only in that form: a sentence with the same words says nothing about a mode.
+    assert not shows_frame_mark("You can now ask me for the weekly report.")
+    assert not shows_frame_mark("The book is now full.")
+    assert not shows_frame_mark("السوق هادئ الآن وكله ترقب")
+    assert not shows_frame_mark("What to do now: ask your broker for the fill.")
 
 
 @pytest.mark.asyncio
@@ -410,6 +419,19 @@ async def test_body_text_option_values_and_state_may_use_a_fixed_cards_words(
     ).replace(
         '{"v":2,"kind":"summary","title":"ينتظر قرارك","icon":"check"}',
         '{"v":2,"kind":"summary","title":"ينتظر قرارك","icon":"check"}\n{"state":{"view":"approve"}}',
+    )
+    ui, projector = await project(db, owner, agent, thread, text)
+    assert ui is not None, projector.diagnostics
+
+
+@pytest.mark.asyncio
+async def test_a_sentence_may_say_now_ask_or_now_full(task_db: Fixture) -> None:
+    """Only the Mandate card's state line («الآن: وكّله») is its words; a sentence that uses
+    them is the agent's own."""
+    db, owner, agent, thread = task_db
+    text = card(
+        '{"type":"Text","text":"You can now ask me for the weekly report."}',
+        '{"type":"Note","text":"السوق هادئ الآن وكله ترقب."}',
     )
     ui, projector = await project(db, owner, agent, thread, text)
     assert ui is not None, projector.diagnostics
@@ -452,8 +474,9 @@ async def test_slot_and_row_act_on_one_record_and_a_second_tap_reads_its_current
 
 
 def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() -> None:
-    """FIXED_LABELS, FIXED_CONTROL_LABELS and FRAME_MARKS copy what the clients draw; a renamed client string
-    fails here instead of silently opening the imitation check."""
+    """FIXED_LABELS, FIXED_CONTROL_LABELS, FIXED_WHOLE, the state line's words and FRAME_MARKS
+    copy what the clients draw; a renamed client string fails here instead of silently opening
+    the imitation check."""
     from pathlib import Path
 
     from lonora_agent.genui_compile import (
@@ -461,6 +484,8 @@ def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() ->
         FIXED_LABELS,
         FIXED_WHOLE,
         FRAME_MARKS,
+        MODE_NOW,
+        MODE_WORDS,
     )
 
     root = Path(__file__).parents[1]
@@ -473,7 +498,7 @@ def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() ->
             "apps/mobile/lib/i18n.ts",
         )
     )
-    for label in FIXED_LABELS + FIXED_CONTROL_LABELS + FIXED_WHOLE:
+    for label in FIXED_LABELS + FIXED_CONTROL_LABELS + FIXED_WHOLE + MODE_NOW + MODE_WORDS:
         assert f'"{label}"' in sources, label
     for mark in FRAME_MARKS:
         assert mark in sources.lower(), mark
