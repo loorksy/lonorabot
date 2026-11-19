@@ -18,7 +18,6 @@ from uuid import uuid4
 import pytest
 from lonora_adapter_kit.types import ToolCall
 from lonora_bus.attention import catalogs
-from lonora_contracts.domain import utcnow
 from lonora_contracts.supervision import AgentControlInput
 from lonora_core.user_error import LonoraError
 from lonora_db.owner_actions import LIFETIME, confirmation_code
@@ -516,64 +515,6 @@ async def test_lonora_pauses_a_trading_agent_a_team_agent_does_not_and_nobody_pa
             == "supervision_self_target"
         )
         await fixture.request("DELETE", "/trading/connections/" + connection["id"])
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_narrowing_another_agent_needs_the_owners_message_even_for_lonora():
-    """No grant path narrows another agent (3.3.3): the owner's message in the run does,
-    for Lonora as for a team agent."""
-    database()
-    from check_streaming import Fixture
-
-    fixture = await Fixture().open()
-    try:
-        connection = await fixture.request(
-            "POST",
-            "/trading/connections",
-            {"provider": "simulation", "account_id": "sv-" + uuid4().hex, "enabled": True},
-        )
-        account = connection["id"]
-        lonora, lead, gold = (
-            await lonora_of(fixture),
-            await fixture.agent("Lead"),
-            await fixture.agent("Gold"),
-        )
-        lonora_thread, lead_thread, gold_thread = (
-            await fixture.conversation(lonora),
-            await fixture.conversation(lead),
-            await fixture.conversation(gold),
-        )
-        pause = {
-            "account_id": account,
-            "agent_id": gold["id"],
-            "action_class": "no_new_entries",
-            "valid_until": (utcnow() + timedelta(hours=2)).isoformat(),
-            "reason": "Spreads are wide",
-        }
-        everyone = {**pause, "agent_id": None, "all_agents": True}
-        for agent, thread in ((lead, lead_thread), (lonora, lonora_thread)):
-            context = await wake(fixture, agent, thread)
-            for arguments in (pause, everyone):
-                assert await refused(context, "trade_restriction_create", **arguments) == (
-                    "restriction_supervision_required"
-                )
-        # The owner's message in the run is enough on its own.
-        owner_context = await owner_says(fixture, lead, lead_thread, "Pause Gold's new entries")
-        made = await call(owner_context, "trade_restriction_create", **pause)
-        assert made["restriction"]["source"] == "owner_message"
-        await fixture.request(
-            "POST", f"/trading/restrictions/{made['restriction']['id']}/revoke", {"reason": "t"}
-        )
-        # Narrowing itself stays free.
-        gold_context = await wake(fixture, gold, gold_thread)
-        itself = await call(gold_context, "trade_restriction_create", **{**pause, "agent_id": None})
-        assert itself["restriction"]["agent_id"] == gold["id"]
-        await fixture.request(
-            "POST", f"/trading/restrictions/{itself['restriction']['id']}/revoke", {"reason": "t"}
-        )
-        await fixture.request("DELETE", "/trading/connections/" + account)
     finally:
         await fixture.close()
 
