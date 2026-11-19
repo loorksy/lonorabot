@@ -2,7 +2,8 @@
 
 Done when a stop-loss hit and the agent's own close both end with a new memory
 revision. A stop-loss hit (no Run of the agent closed it) reaches the agent's pending
-broker-activity wake as a notice, else starts a broker_event Run; the agent's own close,
+broker-activity wake on that account as a notice, never an observe-only wake or a pending
+close-review Run, else starts a broker_event Run; the agent's own close,
 while its closing Run still executes, reaches that Run as a notice, never a second Run.
 A paused agent's trade waits until it resumes; the owner's own trade wakes nobody; a
 notice its Run never read becomes a Run; each trade wakes once.
@@ -197,19 +198,7 @@ async def activity_wake(f: Fixture, account: str) -> None:
     agent = await f.agent("Gold activity")
     before = await revisions(f, agent["id"])
     trade = await closed(f, account, agent["id"], "sl-activity", "-4")
-    async with f.runtime.db.sessions() as session, session.begin():
-        change = BrokerActivity(
-            id=new_id(),
-            account_id=account,
-            symbol="XAUUSD",
-            ticket="pos-" + trade[:8],
-            resource="position",
-            change="closed",
-            origin="external",
-            observed_at=utcnow(),
-            agent_id=agent["id"],
-        )
-        await wake_for_activity(session, f.owner, account, 7, [change])
+    await position_closed(f, account, 7, agent["id"], trade)
     (wake,) = await runs_of(f, agent["id"], "broker_event")
     assert await wake_for_closes(f.runtime.db, f.owner) == 1
     woken = await runs_of(f, agent["id"], "broker_event")
@@ -223,6 +212,86 @@ async def activity_wake(f: Fixture, account: str) -> None:
     assert await revisions(f, agent["id"]) == before + 1, "no self-review was written"
     assert await wake_for_closes(f.runtime.db, f.owner) == 0  # read: nothing redirected
     print("PASS a stop-loss hit's broker-activity wake carries the review; no second Run")
+
+
+async def position_closed(
+    f: Fixture, account: str, revision: int, agent_id: str, trade: str
+) -> None:
+    """Broker activity on ``account`` sees the trade's position closed, as attributed to
+    ``agent_id``, and wakes the agent responsible (``wake_for_activity``)."""
+    async with f.runtime.db.sessions() as session, session.begin():
+        change = BrokerActivity(
+            id=new_id(),
+            account_id=account,
+            symbol="XAUUSD",
+            ticket="pos-" + trade[:8],
+            resource="position",
+            change="closed",
+            origin="external",
+            observed_at=utcnow(),
+            agent_id=agent_id,
+        )
+        await wake_for_activity(session, f.owner, account, revision, [change])
+
+
+async def review_run(f: Fixture, agent_id: str, trade: str) -> RunRow:
+    """The broker_event Run of ``agent_id`` started for this trade's review alone."""
+    reviews = [
+        run
+        for run in await runs_of(f, agent_id, "broker_event")
+        if run.model_metadata.get("closed_trade_id") == trade
+    ]
+    assert len(reviews) == 1, "the review joined another Run as a notice"
+    return reviews[0]
+
+
+async def not_an_activity_wake(f: Fixture, account: str) -> None:
+    """Only the agent's own broker-activity wake on the trade's account carries the
+    review. An observe-only wake, a wake on another account and a pending close-review
+    Run get no notice: the trade starts a Run of its own."""
+    # A deleted agent's position closes: broker activity wakes Lonora observe-only.
+    gone = new_id()
+    trade = await closed(f, account, gone, "sl-observed", "-2")
+    await position_closed(f, account, 8, gone, trade)
+    async with f.runtime.db.sessions() as session:
+        lonora = (await ensure_personal_agent(session, f.owner)).id
+    (observing,) = [
+        run
+        for run in await runs_of(f, lonora, "broker_event")
+        if run.model_metadata.get("authority") == "observe_only"
+    ]
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    async with f.runtime.db.sessions() as session:
+        notice = await session.get(EffectReceiptRow, f"run-notice:{observing.id}:{trade}")
+    assert notice is None, "the observe-only wake got the review"
+    review = await review_run(f, lonora, trade)
+    assert "authority" not in review.model_metadata, review.model_metadata
+    print("PASS an observe-only wake gets no review; Lonora reviews with her normal authority")
+    # The agent's broker-activity wake is on another account.
+    other = (
+        await f.request(
+            "POST",
+            "/trading/connections",
+            {"provider": "simulation", "account_id": "close-other", "enabled": True},
+        )
+    )["id"]
+    agent = await f.agent("Gold elsewhere")
+    trade = await closed(f, account, agent["id"], "sl-elsewhere", "-1")
+    await position_closed(f, other, 8, agent["id"], new_id())
+    (elsewhere,) = await runs_of(f, agent["id"], "broker_event")
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    assert (await review_run(f, agent["id"], trade)).id != elsewhere.id
+    print("PASS a broker-activity wake on another account gets no review")
+    # The agent's earlier close-review Run is still queued.
+    agent = await f.agent("Gold twice")
+    first = await closed(f, account, agent["id"], "sl-first", "1")
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    second = await closed(f, account, agent["id"], "sl-second", "1")
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    assert (await review_run(f, agent["id"], first)).id != (
+        await review_run(f, agent["id"], second)
+    ).id
+    print("PASS a pending close-review Run gets no second trade's review")
 
 
 async def messages_in(f: Fixture, thread_id: str) -> int:
@@ -525,6 +594,7 @@ async def main() -> None:
         )["id"]
         await stop_loss_hit(f, account)
         await activity_wake(f, account)
+        await not_an_activity_wake(f, account)
         await own_close(f, account, read_first=True)
         await own_close(f, account, read_first=False)
         await last_round_notice(f, account)
