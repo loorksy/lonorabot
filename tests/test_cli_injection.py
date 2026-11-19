@@ -211,3 +211,46 @@ async def test_command_tokens_issue_the_runs_token_and_list_every_agents() -> No
         assert (await setup.call("orders", issued))[0] != 77
     finally:
         await setup.close()
+
+
+@pytest.mark.asyncio
+async def test_a_text_artifact_reads_back_through_the_one_workspace_scan() -> None:
+    """An exported workspace file can hold an agent's CLI token or a value given to a
+    command and since rotated; artifact_read replaces both (7.2.6, terminal.owner_scan)."""
+    if not os.environ.get("LONORA_DATABASE_URL"):
+        pytest.skip("needs a disposable database")
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ToolCall
+    from lonora_db.secrets import WORKSPACE
+    from lonora_tools.loader import load_tools
+
+    fixture = await Fixture().open()
+    services = fixture.runtime.services(fixture.owner)
+    name = "ART_GIVEN_" + uuid.uuid4().hex[:8].upper()
+    old, new = "old-art-" + uuid.uuid4().hex, "new-art-" + uuid.uuid4().hex
+    secret_id = await services.secrets.write(name, old, WORKSPACE)
+    try:
+        assert services.given is not None and services.cli_tokens is not None
+        await services.given.record({name: old})
+        await services.secrets.write(name, new, WORKSPACE)  # rotated: only "given" knows old
+        agent = await fixture.agent("Artifacts")
+        run = await fixture.run(agent, await fixture.conversation(agent))
+        context = await fixture.lease(run)
+        token = await services.cli_tokens.for_run(run["id"], agent["id"])
+        assert token is not None
+        registry = load_tools()
+        content = f"old {old} token {token}"
+        created = await registry.execute(
+            ToolCall(
+                id="make", name="artifact_create", arguments={"name": "x.txt", "content": content}
+            ),
+            context,
+        )
+        read = await registry.execute(
+            ToolCall(id="read", name="artifact_read", arguments={"artifact_id": created["id"]}),
+            context,
+        )
+        assert read["content"] == f"old [secret:{name}] token [secret:LONORA_AGENT_TOKEN]"
+    finally:
+        await services.secrets.delete(secret_id)
+        await fixture.close()

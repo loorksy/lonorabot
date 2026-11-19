@@ -59,13 +59,14 @@ EFFECT_TOOLS = frozenset({"trade_execute", "trade_close_positions"})
 EXTERNAL_TOOLS = frozenset(
     {
         "artifact_read",
-        "workspace_read",
-        "workspace_inspect",
-        "workspace_execute",
         # The owner's workspace: program output, process command lines, file contents.
         "workspace_run",
         "workspace_processes",
         "workspace_file_read",
+        # The former analytical workspace's tools: earlier Runs stored their results.
+        "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
         "skill_repository_inspect",
         "search_internal",
         "session_search",

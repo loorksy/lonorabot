@@ -241,7 +241,7 @@ export function NotifyPage() {
                   <Trans>Urgent always arrives</Trans>
                 </strong>
                 <small>
-                  <Trans>An unconfirmed operation or a restriction on your account</Trans>
+                  <Trans>An unconfirmed operation on your account</Trans>
                 </small>
               </span>
               <span className="reach-check">

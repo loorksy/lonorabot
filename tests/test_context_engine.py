@@ -1318,13 +1318,12 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
         "secret_delete", "secrets_list",
         "skill_package_control", "skill_package_create", "skill_package_import",
-        "skill_package_validate", "subagent_spawn", "supervision_change",
-        "task_control", "task_inspect", "task_start", "task_step_update",
+        "positions_manage_all", "skill_package_validate", "subagent_spawn", "supervision_change",
+        "task_control", "task_inspect", "task_start", "task_step_update", "trading_mode_ask",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
-        "trade_restriction_create", "trade_restriction_list", "usage_read", "watch_cancel",
-        "watch_create",
+        "usage_read", "watch_cancel", "watch_create",
         "watch_list", "watch_pause", "watch_resume", "watch_update",
-        "workspace_export", "workspace_file_write", "workspace_stop", "workspace_update",
+        "workspace_export", "workspace_file_write", "workspace_stop",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:
@@ -1336,6 +1335,10 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "consult_model",
         "web_fetch",
         "mcp_execute",
+        # Removed tools whose results earlier Runs stored stay untrusted evidence.
+        "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
     ):
         assert is_external(name), name
 

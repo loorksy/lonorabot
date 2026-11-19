@@ -41,7 +41,6 @@ ERROR_CLASSES: dict[str, str] = {
     "temporary_unavailable": "connection",
     "authorization_required": "permission",
     "permission_denied": "permission",
-    "risk_limit_blocked": "permission",
     "not_configured": "provider",
     "health_blocked": "provider",
     "ambiguous_mutation": "provider",
@@ -85,9 +84,6 @@ RECOVERY_HINTS: dict[FailureCategory, str] = {
     "call again with the exact name; ask the owner only if several fit.",
     "health_blocked": "The state of the account or the system blocks this for now, not "
     "the request itself. Do not repeat it or route around it; say what is blocked.",
-    "risk_limit_blocked": "A risk limit blocks this request as it is. The risk assessment "
-    "in this result has the limit and the modelled risk: a size that fits, or protecting "
-    "or reducing exposure, is allowed. Never repeat the same request.",
     "ambiguous_mutation": "The outcome is not known: this may or may not have taken "
     "effect. Do not send it again. Read the current state to learn what happened, and "
     "until then say it is being confirmed, never that it failed or went through.",
@@ -168,7 +164,7 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         category, action = "ambiguous_mutation", "reconcile_before_any_resend"
     elif code in TRANSIENT_READ_CODES:
         category, action = "temporary_unavailable", "inspect_health"
-    elif code in {"version_conflict", "stale_state", "workspace_revision_conflict"}:
+    elif code in {"version_conflict", "stale_state"}:
         category, action = "version_conflict", "reload_authoritative_state"
     elif code in {"quote_stale", "market_data_stale", "market_evidence_stale", "stale_evidence"}:
         category, action = "stale_state", "refresh_evidence"
@@ -185,13 +181,10 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "agent_trading_account_mismatch",
         "agent_trading_symbol_mismatch",
         "financial_authority_required",
-        # An owner restriction: never route around it through another symbol or account.
-        "trading_restriction_active",
         # The owner said no to this card, or the agent's level does not trade.
         "trade_approval_rejected",
         "agent_analysis_only",
         "shadow_execution_forbidden",
-        "restriction_all_mutations_requires_owner_message",
         # Supervision never silences the owner's entry point or sheds its own oversight.
         "supervision_personal_agent",
         "supervision_revoke_own_oversight",
@@ -203,13 +196,8 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "trusted_source_write_blocked",
         "ui_submit_disabled",
         "memory_disclosure_refused",
-        "restriction_owner_manual_agent_conflict",
     }:
         category, action = "permission_denied", "respect_scope"
-    elif code.startswith("risk_"):
-        # details.risk_assessment holds the limit and modeled risk: resize to fit, protect
-        # or reduce exposure, or wait for the owner; never repeat the same request.
-        category, action = "risk_limit_blocked", "inspect_risk_assessment"
     elif code.endswith("_unconfigured") or code in {
         "model_not_configured",
         "search_not_configured",

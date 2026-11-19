@@ -18,7 +18,7 @@ from sqlalchemy import or_, select
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 
 NAME = "telegram_link"
 MAX_MESSAGE = 160

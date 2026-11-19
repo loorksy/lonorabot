@@ -150,7 +150,7 @@ test("the trading and safety row opens the agent's sheet in its conversation", a
   await page.goto(`/app/agent/${data.trader.id}`);
   await page
     .locator("main")
-    .getByRole("button", { name: /Trading · New trades · Restrictions/ })
+    .getByRole("button", { name: /Ask me on every order/ })
     .click();
   await expect(page.locator("#dialog").getByTestId("agent-live-state")).toBeVisible();
   // The conversation opens the sheet once and drops ?sheet=agent, so Back does not reopen it.
@@ -568,7 +568,7 @@ test("the card shows the last action: a refused close, then a modify that went t
     const body = route.request().postDataJSON();
     if (body.action === "close_position" && refuse) {
       refuse = false;
-      return route.fulfill({ status: 409, json: { code: "trading_restriction_active" } });
+      return route.fulfill({ status: 409, json: { code: "broker_observation_unavailable" } });
     }
     return route.continue();
   });

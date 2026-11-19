@@ -36,7 +36,6 @@ COPY entrypoint.sh ./entrypoint.sh
 # and `lonora update` copy /app/deploy to the host, so a host needs no source checkout.
 COPY infra/compose ./deploy/infra/compose
 COPY infra/research ./deploy/infra/research
-COPY infra/analysis/compose.workspace.yml ./deploy/infra/analysis/compose.workspace.yml
 COPY infra/systemd ./deploy/infra/systemd
 COPY infra/release ./infra/release
 ARG LONORA_VERSION=""

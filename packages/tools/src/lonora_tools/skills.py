@@ -7,7 +7,7 @@ from pydantic import Field
 
 from .base import Tool, eager_for
 from .context import ToolContext
-from .workspace import execution_available
+from .terminal import available
 
 
 class SkillsListInput(Contract):
@@ -48,12 +48,10 @@ class SkillPackageImportInput(Contract):
     adapted_content: str = Field(min_length=1, max_length=16000)
     review: SkillAdaptationReview
     expected_version: int = Field(ge=0)
-    workspace_revision: int = Field(ge=0)
 
 
 class SkillPackageCreateInput(Contract):
     source_directory: str = Field(min_length=1, max_length=256)
-    workspace_revision: int = Field(ge=0)
     version: SkillVersion
     expected_version: int = Field(ge=0)
     adapted_content: str = Field(min_length=1, max_length=16000)
@@ -63,7 +61,6 @@ class SkillPackageCreateInput(Contract):
 class SkillPackageValidateInput(Contract):
     skill_id: SkillId
     expected_version: int = Field(ge=1)
-    workspace_revision: int = Field(ge=0)
     utility_path: str = Field(min_length=1, max_length=256)
     arguments: list[Annotated[str, Field(max_length=500)]] = Field(
         default_factory=list, max_length=16
@@ -75,7 +72,6 @@ class SkillPackageControlInput(Contract):
     expected_version: int = Field(ge=1)
     action: Literal["activate", "disable", "rollback", "remove"]
     target_version: SkillVersion | None = None
-    workspace_revision: int = Field(ge=0)
 
 
 class SkillSaveInput(Contract):
@@ -191,29 +187,28 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_package_create",
-            "Register a reusable analytical Skill from this Agent's exact current workspace revision. Supply a bounded directory containing SKILL.md and UTF-8 utilities, adapted instructions and explicit assumptions/limitations. Preserve actual workspace origin, create disabled, then validate exact utilities before activation. Updates require a new semantic version and current resource version. No external installation, financial authority or host access is granted.",
+            "Register a reusable analytical Skill from a directory of the workspace (relative to your home, outside skills/, whose copies are replaced) containing SKILL.md and UTF-8 utilities; its files are copied into your private package store. Supply adapted instructions and explicit assumptions/limitations. Preserve actual workspace origin, create disabled, then validate exact utilities before activation. Updates require a new semantic version and current resource version. No external installation, financial authority or host access is granted.",
             SkillPackageCreateInput,
             create_package,
             replay_safe=True,
         ),
         Tool(
             "skill_package_import",
-            "Import one reviewed public Skill at a full immutable Git commit into this Agent's workspace and disabled catalog. Inside the owner's trusted sources it installs without asking; outside them, only when the owner asks to trust it (your judgment); trust_requires_owner_message, nothing installed, if his own message does not name the repository (or github.com/<owner>) or the run read third-party content. Instructions-only packages need no analysis host. Supply adapted SKILL.md plus explicit source behavior, adapted behavior, assumptions and limitations. New installation uses expected_version=0; updates require current resource_version and a fresh semantic version. No setup hooks run; imported instructions grant no tools or financial authority. Bounded text-only packages; semantic equivalence is not implied.",
+            "Import one reviewed public Skill at a full immutable Git commit into this Agent's private package store and disabled catalog. Inside the owner's trusted sources it installs without asking; outside them, only when the owner asks to trust it (your judgment); trust_requires_owner_message, nothing installed, if his own message does not name the repository (or github.com/<owner>) or the run read third-party content. Supply adapted SKILL.md plus explicit source behavior, adapted behavior, assumptions and limitations. New installation uses expected_version=0; updates require current resource_version and a fresh semantic version. No setup hooks run; imported instructions grant no tools or financial authority. Bounded text-only packages; semantic equivalence is not implied.",
             SkillPackageImportInput,
             import_package,
             replay_safe=True,
         ),
         Tool(
             "skill_package_validate",
-            "Run one exact imported Python utility with bounded arguments in the existing networkless analytical workspace. Record pinned source hashes, actual exit status and reviewed image as smoke-test evidence. Validate every utility before activation; passing is not proof of strategy equivalence or safety. No host execution, dependency installation, broker secrets or financial access.",
+            "Run one stored Python utility with bounded arguments in the workspace, for at most 30 seconds, from a fresh copy of the stored package at skills/<id>/<version>/ in your home. Record its source hash and actual exit status as smoke-test evidence. Validate every utility before activation; passing is not proof of strategy equivalence or safety. No broker secrets or financial access.",
             SkillPackageValidateInput,
             validate_package,
-            replay_safe=True,
-            availability=execution_available,
+            availability=available,
         ),
         Tool(
             "skill_package_control",
-            "Activate a reviewed package after every utility passes isolated validation, disable, restore a retained immutable version disabled, or remove its catalog resource. Uses existing owner scope, resource version and revocations. Rollback never activates automatically; removal retains analytical source files. These operations cannot grant trading authority.",
+            "Activate a reviewed package after every utility passes validation (its stored files are copied afresh to skills/<id>/<version>/ in your home, where you run them), disable, restore a retained immutable version disabled, or remove its catalog resource. Uses existing owner scope, resource version and revocations. Rollback never activates automatically; removal retains the stored files. These operations cannot grant trading authority.",
             SkillPackageControlInput,
             control_package,
             replay_safe=True,
@@ -239,7 +234,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_repository_inspect",
-            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and isolated execution remain separate requirements. source_trusted says whether an import installs without asking. trust=true only when the owner asks to trust it (your judgment): trust_requires_owner_message if his own message does not name it or the run read third-party content.",
+            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and validation remain separate requirements. source_trusted says whether an import installs without asking. trust=true only when the owner asks to trust it (your judgment): trust_requires_owner_message if his own message does not name it or the run read third-party content.",
             SkillRepositoryInput,
             inspect_repository,
             # Not read only: a repository the owner names joins his trusted sources.

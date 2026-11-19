@@ -1,8 +1,8 @@
 """Supervision: one agent reads and steers another's work through a visible grant.
 
 A grant never carries money authority: the supervisor reads, messages, pauses and
-resumes the supervised agent's work and adds narrowing pauses, and never trades for it,
-uses its grant or lifts a brake. The Personal Agent supervises every agent by default;
+resumes the supervised agent's work, and never trades for it, uses its grant or lifts
+a brake. The Personal Agent supervises every agent by default;
 the owner revokes any grant with one tap.
 """
 

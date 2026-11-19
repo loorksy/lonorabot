@@ -25,7 +25,7 @@ from lonora_db.schema import MessageRow, RunRow, SteeringRow
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 
 CODE = "trust_requires_owner_message"
 # Not after a word character, a dot, "@" or "-", nor right after "word/" (a longer path).

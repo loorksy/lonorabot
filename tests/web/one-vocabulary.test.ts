@@ -122,8 +122,8 @@ test("an uncertain broker result never tells the owner to try again, on either c
   );
   // A known not-sent cause keeps its reason; a settled or confirmed result needs none.
   assert.equal(
-    financialResultReason("failed", "risk_daily_loss_limit", "ar"),
-    financialBoundaryError("risk_daily_loss_limit", "ar"),
+    financialResultReason("failed", "broker_reconciliation_required", "ar"),
+    financialBoundaryError("broker_reconciliation_required", "ar"),
   );
   assert.equal(financialResultReason("failed", "unknown_code", "en"), null);
   assert.equal(financialResultReason("confirmed", "target_state_matched", "en"), null);
@@ -156,13 +156,6 @@ test("activity rows say what the agent does from registry metadata, never a raw 
     ["owner_call_request", "voice", "change", "Preparing a call", "يجهّز اتصالًا"],
     ["owner_attention_list", "voice", "read", "Checking what needs you", "يراجع ما ينتظرك"],
     ["owner_action_propose", "trading", "change", "Preparing a card for you", "يجهّز بطاقة لك"],
-    [
-      "trade_restriction_create",
-      "trading",
-      "change",
-      "Updating trading safeguards",
-      "يحدّث ضوابط التداول",
-    ],
     ["wait_for_input", "tasks", "change", "Waiting for your reply", "ينتظر ردك"],
     ["market_position_size", "trading", "read", "Sizing a position", "يحسب حجم المركز"],
     ["skill_package_create", "memory", "change", "Working on a skill", "يعمل على مهارة"],
