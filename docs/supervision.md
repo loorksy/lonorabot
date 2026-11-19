@@ -100,7 +100,9 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   (`agent_paused`) and a typed reply is kept, and the question stays open. Nothing is
   queued while it is paused. When it is resumed (the owner's switch or Resume on its
   pause card, or `agent_control`), it gets one run in each conversation where the owner
-  sent it messages while it was paused (in a group, the messages that addressed it),
+  sent it messages while it was paused (in a group, the messages that addressed it; an
+  owner message folded into a card's send that the lifetime or «تعديل» cancels while it
+  is paused counts too, `requeue_folded`),
   admitted as the latest of them would have been (`answer_kept_messages`): the owner's
   message is the run's trigger, so when that latest message is a reply to its wake's
   question, or the next message right after it, it answers that question. Whoever
@@ -259,7 +261,9 @@ profile) do not fit and are promoted after first use like any remembered tool.
   pending, with Approve refused until the resume and a wake whose card is approved held;
   the resume (switch, card or supervisor) queuing one run per conversation for the
   latest message the owner sent it while paused, a kept reply answering its wake's
-  question, only group messages that addressed it, and nothing where nothing was sent.
+  question, only group messages that addressed it, nothing where nothing was sent, and
+  one run for the owner's message folded into a card's send that expired or was edited
+  while it was paused.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the

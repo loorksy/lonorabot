@@ -692,3 +692,61 @@ async def test_the_resume_answers_once_per_conversation_and_only_what_addressed_
         await settle(fixture, [*runs, *await owner_runs(fixture, lead["id"], group["thread_id"])])
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ended", ["expired", "edited"])
+async def test_the_resume_answers_a_message_folded_into_a_send_that_ended_while_paused(
+    ended: str,
+) -> None:
+    """The owner's message folded into a card's queued send is re-queued when the send
+    ends unstarted (genui_submit). If the agent is paused by then, it is kept like any
+    owner message to a paused agent, and the resume answers it: exactly one run, whose
+    input and owner message are the latest folded message, never the cancelled send's own
+    Run."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.genui_submit import SUBMIT, expire_submits
+    from lonora_db.schema import RunRow
+    from lonora_tools.provenance import owner_message_id
+    from test_genui_submit import Card
+
+    fixture = await Fixture().open()
+    try:
+        card = await Card(fixture).open()
+        sent = await card.post(card.body({"price": 2460}))
+        assert sent.status_code == 202, sent.text
+        send = sent.json()["run_ids"][0]
+        messages = f"/threads/{card.thread['id']}/messages"
+        for content in ("And watch silver too", "And copper"):
+            typed = await fixture.request("POST", messages, {"content": content})
+            assert typed["run_ids"] == [send]  # folded into the queued send's Run
+        await fixture.request("PATCH", f"/agents/{card.agent['id']}", {"paused": True})
+        if ended == "expired":
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                run = await session.get(RunRow, send, with_for_update=True)
+                assert run is not None
+                run.created_at = run.created_at - timedelta(minutes=31)
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                assert [r.id for r in await expire_submits(session, card.thread["id"])] == [send]
+        else:
+            await fixture.request("POST", f"{messages}/{card.message_id}/ui-state/1/unlock")
+        # Paused: the folded words start nothing yet.
+        assert [
+            run.id for run in await owner_runs(fixture, card.agent["id"], card.thread["id"])
+        ] == [send]
+
+        await fixture.request("PATCH", f"/agents/{card.agent['id']}", {"paused": False})
+        runs = [
+            run
+            for run in await owner_runs(fixture, card.agent["id"], card.thread["id"])
+            if run.id != send
+        ]
+        assert len(runs) == 1 and runs[0].status == "queued", runs
+        assert SUBMIT not in runs[0].model_metadata
+        assert runs[0].input_seq == typed["message"]["seq"]
+        async with fixture.runtime.db.sessions() as session:
+            assert await owner_message_id(session, runs[0]) == typed["message"]["id"]
+        await settle(fixture, runs)
+    finally:
+        await fixture.close()

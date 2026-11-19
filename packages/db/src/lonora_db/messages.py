@@ -6,7 +6,7 @@ from lonora_core.message_replies import require_same_thread
 from lonora_core.run_state import TERMINAL, is_conversational
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .cancellation import cancel_run
@@ -693,14 +693,8 @@ async def admit_agent(
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.paused:
         # A paused agent takes no new work (4.7.1): the owner's message is kept in the
-        # conversation, starts no run and answers no question of a run of it. The
-        # resume answers the latest one kept here (``answer_kept_messages``).
-        key = f"{KEPT_FOR_RESUME}{agent_id}:{thread_id}"
-        kept = await session.get(EffectReceiptRow, key)
-        if kept is None:
-            session.add(EffectReceiptRow(key=key, result={"message_id": message.id}))
-        else:
-            kept.result = {"message_id": message.id}
+        # conversation, starts no run and answers no question of a run of it.
+        await keep_for_resume(session, agent_id, thread_id, message.id)
         return None
     if answer_run is not None and answer_run.thread_id != thread_id:
         # A background run's question copied into this conversation: the choice
@@ -822,6 +816,19 @@ async def admit_agent(
     return run.id
 
 
+async def keep_for_resume(
+    session: AsyncSession, agent_id: str, thread_id: str, message_id: str
+) -> None:
+    """Keep the owner's message to a paused agent in one conversation, replacing an
+    earlier one kept there: its resume answers the latest (``answer_kept_messages``)."""
+    key = f"{KEPT_FOR_RESUME}{agent_id}:{thread_id}"
+    kept = await session.get(EffectReceiptRow, key)
+    if kept is None:
+        session.add(EffectReceiptRow(key=key, result={"message_id": message_id}))
+    else:
+        kept.result = {"message_id": message_id}
+
+
 async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: str) -> list[str]:
     """The agent was just resumed (whoever resumed it): one run of it in each conversation
     where the owner's messages to it were kept while it was paused (in a group, those that
@@ -830,6 +837,8 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
 
     Lock order: the caller holds the agent's row; each thread is locked before its kept
     message, as admission does, and admission never locks the agent's row."""
+    from .genui_submit import SUBMIT
+
     prefix = f"{KEPT_FOR_RESUME}{agent_id}:"
     keys = await session.scalars(
         select(EffectReceiptRow.key)
@@ -859,6 +868,13 @@ async def answer_kept_messages(session: AsyncSession, owner_id: str, agent_id: s
                 RunRow.agent_id == agent_id,
                 RunRow.trigger.in_(["user", "group"]),
                 RunRow.input_seq >= message.seq,
+                # A card's send that ended before it started read nothing: the owner's
+                # words folded into it are what was kept (``requeue_folded``).
+                ~and_(
+                    RunRow.status.in_(TERMINAL),
+                    RunRow.model_metadata[SUBMIT].as_string().is_not(None),
+                    RunRow.model_metadata["ui_submit_started"].as_string().is_(None),
+                ),
             )
             .limit(1)
         ):
