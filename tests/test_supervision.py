@@ -52,20 +52,19 @@ def test_supervision_tools_carry_no_money_authority() -> None:
         "set_ask",
         "delete",
     }
-    # The tool module reaches no trading, authority, restriction-lift or memory writer.
+    # The tool module reaches no trading, authority or memory writer.
     forbidden = (
         "lonora_trading",
         "lonora_tools.trade",
         "lonora_db.account_authority",
         "lonora_db.memory_revisions",
-        "lonora_db.trading_restrictions",
     )
     source = ast.parse((ROOT / "packages/tools/src/lonora_tools/supervision.py").read_text())
     for node in ast.walk(source):
         if isinstance(node, ast.ImportFrom) and node.module:
             assert not node.module.startswith(forbidden), node.module
             names = {alias.name for alias in node.names}
-            assert not names & {"commit_memory", "revoke_restriction", "apply_controls"}
+            assert not names & {"commit_memory", "apply_controls"}
 
 
 def test_control_inputs_take_exactly_their_shapes() -> None:

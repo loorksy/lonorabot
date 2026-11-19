@@ -48,7 +48,7 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
 the members: an observe-only wake keeps every non-financial member (no financial
 effects), and a helper (subagent) keeps the read-only members plus
-`workspace_execute` and `artifact_create`. The eager set
+`artifact_create`. The eager set
 is at most `EAGER_SCHEMA_BUDGET` (26,950) characters of serialized schema for
 every profile combination (largest today: the Personal Agent's conversation
 with coordination, 26,929, and market Task Runs, 26,923; a market conversation
@@ -72,9 +72,7 @@ and closes the same way, so an exit is never the harder tool to find (offering
 a tool authorizes nothing: every call is still validated).
 `PROMOTED_SCHEMA_BUDGET` gave up the same 1,250 characters (4,100 to 2,850),
 which those three tools no longer need from it; it still holds `trade_execute`
-beside two reads for an agent that is not a market agent. Owner restrictions and monetary limits
-are shown in the permission frame on every turn, so `trade_restriction_create`
-and `trade_restriction_list` stay long-tail. A tool whose backend is not
+beside two reads for an agent that is not a market agent. A tool whose backend is not
 configured reports it through `availability`: `economic_calendar_read` without
 an enabled calendar integration, `market_candles_to_workspace` without workspace
 access.
@@ -150,8 +148,7 @@ handler remains authoritative.
 | --- | --- | --- |
 | `web_search` | no SearXNG URL and no enabled Brave integration with a secret | `research_provider_not_configured` |
 | `web_browse` | no browser service URL | `browser_unconfigured` |
-| `workspace_*` | no analytical workspace | `workspace_unconfigured` |
-| `workspace_execute`, `skill_package_validate` | no analysis host bridge | `workspace_execution_unconfigured` |
+| `workspace_*`, `market_candles_to_workspace`, `skill_package_validate` | the owner's workspace is not present (no supervisor socket in this service) | `workspace_unavailable` |
 | `mcp_execute` | no operator declaration and no MCP server the owner trusted (or the operator's deny override) | `mcp_tool_not_authorized` |
 | `trade_execute`, `trade_close_positions` | Run of an agent whose current permission is analysis | `agent_analysis_only` |
 
@@ -451,8 +448,9 @@ keeps the best held answer and hands it to the owner instead of failing the
 Run:
 
 - the answer is posted to the work thread as a pending input request
-  (`kind: owner_attention`) and the Run becomes `waiting_input` with its
-  checkpoint intact;
+  (`kind: owner_attention`), copied into the conversation the Task reports to
+  (see `docs/proactivity.md`, Questions), and the Run becomes `waiting_input`
+  with its checkpoint intact;
 - the Task becomes `waiting` with `waiting_reason: owner_attention` and phase
   `needs_attention`, and `task.attention_required` raises an action-required
   `task_review` attention item;
@@ -464,7 +462,9 @@ Run:
 - the attention item carries `task_id` and the Task's `work_thread_id`, and
   agent live state reports `action_required` with
   `task_attention_required`;
-- the owner's reply in the work thread resumes the same checkpoint. The Task
+- the owner's reply where the question is shown (the conversation the Task
+  reports to, or its work thread when it reports nowhere else) resumes the same
+  checkpoint. The Task
   controls work too: the snapshot offers `can_resume`, and `resume` or `revise`
   cancels the unanswered question and requeues the same Run; the loop then
   starts a new review epoch (a new budget when the limit was reached) and tells

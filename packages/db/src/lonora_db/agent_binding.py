@@ -154,8 +154,8 @@ def _identity_context(agent: AgentRow) -> str:
             "autonomous execution authority. Your trading mode decides execution: Full executes on "
             "its own; in Ask a request that adds risk uses the existing approval controls unless an "
             "active signed account grant covers it. Every "
-            "mutation remains subject to current server authority, risk, scope, global trading and "
-            "emergency controls. Never claim owner intent "
+            "mutation remains subject to current server authority, risk and scope. "
+            "Never claim owner intent "
             "for external trades. Account-level observations have one conversational owner: you."
             "</personal_agent_scope>"
         )

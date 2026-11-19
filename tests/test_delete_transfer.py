@@ -14,7 +14,6 @@ from uuid import uuid4
 
 import pytest
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from test_lead_powers import refused, wake
 from test_proactive_wakes import call, database, retire, simulation
 
@@ -56,7 +55,6 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
     from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow, TradingJournalRow
     from lonora_trading.account_authority import ticket_agent
     from lonora_trading.broker_recovery import reconcile_broker_account, wake_for_activity
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import func, select
 
     # The Q13 wake: a server-written broker event naming the deleted agent.
@@ -64,11 +62,9 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
         "transferred_from"
     ].as_string().is_not(None)
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await ensure_personal_agent(session, fixture.owner)
             lonora = {"id": row.id, "name": row.name}
@@ -251,7 +247,6 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
                 .where(RunRow.agent_id == lonora["id"], transferred)
             )
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         async with fixture.runtime.db.sessions() as session:
             fixture.agents = [a for a in fixture.agents if await session.get(AgentRow, a)]

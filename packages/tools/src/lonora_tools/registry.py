@@ -57,8 +57,8 @@ from .market_binding import (
     prepare_market_arguments,
     scope_market_result,
 )
+from .provenance import mark_external_content
 from .resolve import stating
-from .restrictions import mark_external_content
 from .schema import validate_arguments
 from .symbols import remember_resolution
 from .tool_discovery import MAX_SEARCH_RESULTS, search_definitions
@@ -163,7 +163,8 @@ class ToolRegistry:
             (tool.financial and tool.read_only)
             # A financial deadline would cancel after send and create ambiguity.
             or (tool.financial and tool.timeout_seconds is not None)
-            or (tool.timeout_seconds is not None and not 0 < tool.timeout_seconds <= 600)
+            # Up to 15 minutes: a workspace foreground command may run 10 (7.1.3).
+            or (tool.timeout_seconds is not None and not 0 < tool.timeout_seconds <= 900)
             # Pollers are repeated observations; a repeated effect is never one.
             or (tool.poller and not tool.read_only)
             for tool in tools
@@ -554,7 +555,7 @@ class ToolRegistry:
                 result = await self.dispatch(tool, call, context)
         if returns_external_content(call.name):
             # From now on this Run's owner message no longer stands for the owner's
-            # intent on its own (``restrictions.owner_message_id``).
+            # intent on its own (``provenance.owner_message_id``).
             async with context.db.sessions() as session, session.begin():
                 await mark_external_content(session, context.lease.run_id, call.name)
         return result

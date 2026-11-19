@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     expected = mandatory_policy()
     expected_visual = native_visual_policy()
-    expected_design = built_in_skills()["lonora-design"]
+    expected_skills = built_in_skills()
     with tempfile.TemporaryDirectory(prefix="lonora_policy_distribution_") as temporary:
         target = Path(temporary)
         source = target / "source"
@@ -88,7 +88,7 @@ def main() -> None:
             assert resources_root() == target / "share/lonora"
             assert mandatory_policy() == expected
             assert native_visual_policy() == expected_visual
-            assert built_in_skills()["lonora-design"] == expected_design
+            assert built_in_skills() == expected_skills
             assert len(load_constitution()) == 7
             validate_system_policy(set(load_tools().tools))
     print(

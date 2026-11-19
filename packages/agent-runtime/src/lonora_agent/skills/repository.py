@@ -159,7 +159,7 @@ def inspect_archive(content: bytes, *, repository: str, commit: str) -> dict[str
                 "format_compatible": code is None,
                 "code": code,
                 "utilities": utilities,
-                "requires_isolated_execution": bool(utilities),
+                "requires_validation": bool(utilities),
                 "adaptation_status": "review_required",
             }
         )

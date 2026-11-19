@@ -11,9 +11,8 @@ automatically. Text that agent or others wrote is labelled untrusted: it is data
 the reader, never its instructions.
 
 ``agent_control`` pauses or resumes a team agent, or one of its Tasks, routines or
-watches, messages it, cancels its current run, switches it to Ask or deletes it. It never grants, raises a limit, lifts a
-restriction, trades or edits the agent's memory or instructions; its trading is
-narrowed with ``trade_restriction_create``. A paused agent still reduces the risk of its
+watches, messages it, cancels its current run, switches it to Ask or deletes it. It never grants, raises a limit,
+trades or edits the agent's memory or instructions. A paused agent still reduces the risk of its
 own positions and orders; the Personal Agent is paused only by the owner. The hold
 rules are in ``lonora_db.supervision`` and ``lonora_db.pauses``.
 """
@@ -56,8 +55,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 PAGE_ITEMS = 10
 # What a decisions page shows of each stored decision; the full record is one read away.
@@ -569,8 +568,8 @@ def tools() -> list[Tool]:
             "owner pauses Lonora itself. Also cancel_run (end its current run), set_ask (as "
             "trading_mode_ask: Ask, except within an active signed grant's own terms until "
             "revoked) or delete it (its open tickets become yours and you are woken with "
-            "them). It never trades, grants, raises limits, lifts restrictions or edits its "
-            "memory or instructions.",
+            "them). It never trades, grants, raises limits or edits its memory or "
+            "instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

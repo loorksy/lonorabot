@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
+from lonora_core.attention import CARD_ATTENTION
 from lonora_core.run_state import TERMINAL
 from lonora_core.user_error import LonoraError
 from lonora_db.cancellation import cancel_run
@@ -43,13 +44,15 @@ from lonora_db.schema import (
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository
 from lonora_market.sessions import fx_week
-from lonora_session.idempotency import stable_id
+from lonora_session.idempotency import broker_operation_tag, stable_id
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .exposure import ENTRY_ACTIONS
 from .journal import journal_data
+from .manual_activity import SENT_STATUSES, journal_agent
 
 TRIGGER = "morning_brief"
 # 07:00 in the owner's time zone until Lonora has seen the owner open the app on at least
@@ -60,8 +63,18 @@ WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
 MAXIMUM_ITEMS = 40
 PROMPT_LIMIT = 30000
-# Attention codes whose fact the brief already counts (approvals, unsettled operations).
-COUNTED_ELSEWHERE = ("approval_required", "operation_uncertain", "operation_unresolved")
+# Attention codes whose fact the brief already counts: approvals, unsettled operations,
+# a pending owner card's own item (the Secret card's), and a broker health problem, which
+# is an account the snapshot shows disconnected.
+COUNTED_ELSEWHERE = (
+    "approval_required",
+    "operation_uncertain",
+    "operation_unresolved",
+    *CARD_ATTENTION.values(),
+    "broker_token_rejected",
+    "broker_account_undeployed",
+    "broker_connection_lost",
+)
 # A weekly report reaches the brief bounded, as the agent's own words.
 REPORT_CHARACTERS = 1500
 # How long the brief waits for the agents it woke for their weekly reports.
@@ -167,7 +180,7 @@ async def brief_facts(
                     "floating_profit": _number(position.profit),
                     "stop_loss": _number(position.stop_loss),
                     "take_profit": _number(position.take_profit),
-                    "operation_id": position.operation_id,
+                    "_ticket": (account_id, position.id, position.operation_id),
                 }
             )
         for order in snapshot.orders if snapshot else []:
@@ -180,22 +193,21 @@ async def brief_facts(
                     "price": _number(order.price),
                     "stop_loss": _number(order.stop_loss),
                     "take_profit": _number(order.take_profit),
-                    "operation_id": order.operation_id,
+                    "_ticket": (account_id, order.id, order.operation_id),
                 }
             )
-    # Who opened each ticket: the agent of its journaled order, else the owner (3.3.4).
-    opened = {item["operation_id"] for item in positions + orders if item["operation_id"]}
-    openers: dict[str, str | None] = {}
-    if opened:
-        for row in await session.scalars(
-            select(TradingJournalRow).where(
-                TradingJournalRow.owner_id == owner_id,
-                TradingJournalRow.operation_id.in_(opened),
-            )
-        ):
-            openers[row.operation_id] = journal_data(row)["agent_id"]
+    # Who opened each ticket (3.3.4): the agent of the journaled entry order that opened or
+    # placed it, else the owner. The broker reports that order's operation id as is
+    # (simulation) or as its broker tag (MetaApi's clientId), and its ticket as the
+    # journal's broker id.
+    openers = await ticket_openers(
+        session, owner_id, {item["symbol"] for item in positions + orders}
+    )
     for item in positions + orders:
-        agent_id = openers.get(item.pop("operation_id") or "")
+        account_id, ticket, operation_id = item.pop("_ticket")
+        agent_id = openers.get((account_id, "op", operation_id or "")) or openers.get(
+            (account_id, "ticket", ticket)
+        )
         item["opened_by"] = names.get(agent_id, lead) if agent_id else "owner"
     since = record.last_sent_at or now - timedelta(days=1)
     work: dict[str, list[dict[str, Any]]] = {agent.id: [] for agent in agents}
@@ -256,9 +268,27 @@ async def brief_facts(
             OwnerActionRow.owner_id == owner_id,
             OwnerActionRow.status == "pending",
             OwnerActionRow.expires_at > now,
-            OwnerActionRow.kind != "resolve_operation",
+            # A Mandate card is the owner's standing switch, with no answer that ends it.
+            OwnerActionRow.kind.not_in(("resolve_operation", "trading_mode")),
         ),
     )
+    # Never waiting, but news once: a Mandate card an agent proposed since the last brief
+    # reached the owner (11.4). Named by the agent it switches.
+    new_mandate_cards = [
+        names[agent_id]
+        for payload in await session.scalars(
+            select(OwnerActionRow.payload)
+            .where(
+                OwnerActionRow.owner_id == owner_id,
+                OwnerActionRow.kind == "trading_mode",
+                OwnerActionRow.source == "agent",
+                OwnerActionRow.status == "pending",
+                OwnerActionRow.created_at > since,
+            )
+            .order_by(OwnerActionRow.created_at)
+        )
+        if (agent_id := str(payload.get("agent_id"))) in names
+    ]
     questions = await _count(
         session,
         select(RunRow.id)
@@ -297,12 +327,55 @@ async def brief_facts(
         "unsettled_operations": unsettled,
         "weekly_reports": (await weekly_reports(session, record, limit))[0],
         "pending_owner_cards": owner_cards,
+        "new_mandate_cards": new_mandate_cards[:limit],
         "questions_waiting": questions,
         "attention_items": attention,
         "nothing_else_needs_you": not any(
             (approvals, unsettled, owner_cards, questions, attention, disconnected)
         ),
     }
+
+
+async def ticket_openers(
+    session: AsyncSession, owner_id: str, symbols: set[str]
+) -> dict[tuple[str, str, str], str]:
+    """The agent of each journaled entry order on these symbols, keyed by account and by
+    its operation id, its broker tag and its broker ticket ids; the newest entry wins."""
+    openers: dict[tuple[str, str, str], str] = {}
+    if not symbols:
+        return openers
+    rows = await session.scalars(
+        select(TradingJournalRow)
+        .where(
+            TradingJournalRow.owner_id == owner_id,
+            TradingJournalRow.status.in_(sorted(SENT_STATUSES)),
+            TradingJournalRow.request["symbol"].as_string().in_(sorted(symbols)),
+            TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
+        )
+        .order_by(TradingJournalRow.updated_at.desc())
+        .limit(5000)
+    )
+    for row in rows:
+        agent = journal_agent(row)
+        if agent is None:
+            continue
+        details = row.result.get("details", {})
+        keys = [
+            ("op", row.operation_id),
+            ("op", broker_operation_tag(row.operation_id)),
+            *(
+                ("ticket", str(value))
+                for value in (
+                    row.result.get("broker_id"),
+                    details.get("position_id"),
+                    details.get("order_id"),
+                )
+                if value
+            ),
+        ]
+        for kind, value in keys:
+            openers.setdefault((row.account_id, kind, value), agent)
+    return openers
 
 
 async def _count(session: AsyncSession, query: Any) -> int:
@@ -422,7 +495,9 @@ WAKE_TEXT = (
     "owner's language. Cover, from the facts below only: the account change since the last "
     "brief, what each agent did and its result, open positions, pending approvals, and "
     "what else waits for the owner (unsettled operations, other owner cards, questions, "
-    "unseen alerts); the count fields give the full numbers when a list is cut. Upcoming events are not in "
+    "unseen alerts), and name each agent in new_mandate_cards, whose Mandate card an agent "
+    "proposed since the last brief: news only, never something that waits; the count fields "
+    "give the full numbers when a list is cut. Upcoming events are not in "
     "the facts: read them with your calendar tool when one is configured, else leave them "
     "out. When nothing_else_needs_you is true, say plainly that nothing else needs the "
     "owner. An operation was executed only when its state is confirmed; never "
@@ -499,6 +574,7 @@ TEXT: dict[str, tuple[str, str]] = {
     "owner": ("أنت", "you"),
     "profit": ("الربح العائم", "floating"),
     "nothing_else": ("لا شيء آخر يحتاجك.", "Nothing else needs you."),
+    "new_mandate_cards": ("بطاقة تفويض جديدة", "New Mandate card"),
     "more": ("وغيرها", "more"),
     "weekly": ("تقارير الأسبوع", "Weekly reports"),
 }
@@ -625,6 +701,14 @@ def plain_brief(facts: dict[str, Any], locale: Locale) -> str:
     if waiting:
         lines.append("")
         lines.extend(waiting)
+    # A brief pending before this field existed has none.
+    if mandates := facts.get("new_mandate_cards"):
+        lines.append("")
+        lines.append(
+            _say(TEXT, "new_mandate_cards", locale)
+            + ": "
+            + ("، ".join(mandates) if locale == "ar" else ", ".join(mandates))
+        )
     if facts["nothing_else_needs_you"]:
         lines.append("")
         lines.append(_say(TEXT, "nothing_else", locale))

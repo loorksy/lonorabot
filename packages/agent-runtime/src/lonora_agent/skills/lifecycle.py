@@ -1,4 +1,5 @@
-"""Owned package versions on existing Skill resources and analytical workspace."""
+"""Owned package versions on existing Skill resources, their files in the agent's private
+package store, and their utilities run in the owner's persistent workspace (7.1)."""
 
 import hashlib
 import shlex
@@ -6,18 +7,17 @@ from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import AnalyticalWorkspaceRow, EffectReceiptRow, SkillRow
+from lonora_db.schema import EffectReceiptRow, RunRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
-from lonora_db.skills import SkillRepository, record_version
+from lonora_db.skills import SkillRepository, mark_package, record_version
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
-from lonora_tools.workspace_access import WorkspaceAccess
+from lonora_tools.terminal import client, require_ordinary, scan, tail
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..workspace import read_snapshot
-from ..workspace_access import output_scan, scoped_run
+from ..run_scope import scoped_run
 from .packages import (
     AdaptationReview,
     PackageState,
@@ -26,11 +26,18 @@ from .packages import (
     prepare_package,
     prepare_workspace_package,
     read_state,
+    require_validated,
     validate_package_files,
-    validation_image,
 )
+from .paths import package_path
 from .registry import installed_registry
 from .repository import repository_identity
+from .run_copies import write_copy
+from .store import store_files, stored_files
+
+SOURCE_FILES = 65
+SOURCE_BYTES = 1048576
+FILE_BYTES = 262144
 
 
 def receipt_key(context: ToolContext) -> str:
@@ -138,14 +145,8 @@ async def admit_version(
     return state
 
 
-async def assert_files(
-    session: AsyncSession, context: ToolContext, entry: PackageVersion, revision: int
-) -> None:
-    row = await session.get(AnalyticalWorkspaceRow, context.agent_id)
-    if row is None or row.revision != revision or row.active_operation_id:
-        raise LonoraError("workspace_revision_conflict", 409)
-    files = read_snapshot(row.snapshot)
-    validate_package_files(entry, files)
+async def assert_files(session: AsyncSession, context: ToolContext, entry: PackageVersion) -> None:
+    validate_package_files(entry, await stored_files(session, context.agent_id, entry.files))
 
 
 async def validate_graph(
@@ -191,7 +192,7 @@ def describe(row: SkillRow, entry: PackageVersion, **extra: Any) -> dict[str, An
         "unsupported_utilities": [path for path in entry.utilities if not path.endswith(".py")],
         "license_files": entry.license_files,
         "adaptation_review": entry.review.model_dump(mode="json"),
-        "validation_level": "isolated_smoke_test"
+        "validation_level": "workspace_smoke_test"
         if entry.validation
         else "instruction_review_only",
         "semantic_equivalence_verified": False,
@@ -200,45 +201,88 @@ def describe(row: SkillRow, entry: PackageVersion, **extra: Any) -> dict[str, An
     }
 
 
-def package_files(context: ToolContext, entry: PackageVersion) -> WorkspaceAccess:
-    """Where a package's files are kept: the Agent's workspace. Its file store needs no
-    analysis host, so an instructions-only package installs without one; utilities
-    still need the host to validate before activation."""
-    if context.workspace_access is not None:
-        return context.workspace_access
-    if entry.utilities:
-        raise LonoraError("workspace_runtime_unavailable", 409)
-    from ..workspace_access import RunWorkspaceAccess
+async def workspace_directory(context: ToolContext, directory: str) -> dict[str, bytes]:
+    """The regular files under a directory of the agent's workspace (relative to its home),
+    listed and read as the agent's own user; every byte passes the secret scan. Caches
+    (__pycache__), dot-directories (.git, .venv) and dot-files (.env) are not part of a
+    package."""
+    package_path(directory + "/SKILL.md")
+    found = await client(context).run(
+        await scan(context),
+        context.agent_id,
+        f"set -o pipefail; cd -- {shlex.quote(directory)} && find . \\( -name __pycache__"
+        " -o -name '.?*' \\) -prune -o -type f -printf '%s %P\\n' | LC_ALL=C sort -k2"
+        f" | awk 'NR <= {SOURCE_FILES}'",
+        timeout_seconds=30,
+    )
+    if found.get("exit_code") != 0:
+        raise LonoraError("skill_package_document_missing", 422)
+    listed = [line.split(" ", 1) for line in found["stdout"].splitlines() if " " in line]
+    if len(listed) >= SOURCE_FILES or sum(int(size) for size, _ in listed) > SOURCE_BYTES:
+        raise LonoraError("skill_package_too_large", 422)
+    if any(int(size) > FILE_BYTES for size, _ in listed):
+        raise LonoraError("skill_package_file_too_large", 422)
+    files: dict[str, bytes] = {}
+    for _, name in listed:
+        path = f"{directory}/{name}"
+        files[path] = await client(context).read_bytes(await scan(context), context.agent_id, path)
+    return files
 
-    return RunWorkspaceAccess()
+
+async def materialize(
+    context: ToolContext, entry: PackageVersion, stored: dict[str, bytes]
+) -> None:
+    """A fresh copy of the version's stored files at skills/<id>/<version>/ in the agent's
+    home, the path its instructions name: whatever was there before is removed first."""
+    assert entry.payload.manifest is not None
+    directory = f"skills/{entry.payload.name}/{entry.payload.manifest.version}"
+    files = {path: stored[path] for path in entry.files}
+    await write_copy(client(context), await scan(context), context.agent_id, directory, files)
+
+
+async def repository_trusted(
+    session: AsyncSession, context: ToolContext, run: RunRow, owner: str, repository: str
+) -> bool:
+    """Whether a repository is inside the owner's trusted list (github.com by default), or
+    joins it now because the owner's typed message this run answers names it or its
+    GitHub owner (VISION 10.3.2: no card)."""
+    from lonora_db.trusted_sources import github_trusted, trust_source
+    from lonora_tools.source_trust import owner_named
+
+    if await github_trusted(session, context.owner_id, owner, repository):
+        return True
+    slug = (owner + "/" + repository).casefold()
+    named = [form + end for form in (slug, "github.com/" + slug) for end in ("", ".git")]
+    # The repository first (the narrower trust); its owner only as "github.com/<owner>".
+    for kind, identifier, names, closed in (
+        ("github_repo", slug, named, False),
+        ("github_owner", owner.casefold(), ["github.com/" + owner], True),
+    ):
+        if await owner_named(session, run, names, closed=closed) is not None:
+            await trust_source(
+                session,
+                context.owner_id,
+                kind,
+                identifier,
+                via="owner_message",
+                agent_id=context.agent_id,
+            )
+            return True
+    return False
 
 
 async def untrusted_source(context: ToolContext, repository_url: str) -> dict[str, Any] | None:
-    """A repository outside the owner's trusted list: one owner card instead of the
-    import. Inside it (github.com by default) the import goes on silently."""
-    from lonora_db.capability_cards import source_payload, trust_subject
-    from lonora_db.trusted_sources import github_trusted
-    from lonora_tools.owner_actions import propose_capability_card
+    """A repository outside the owner's trusted list that his words this run do not name:
+    the import is refused, nothing trusted or installed. Inside it (github.com by
+    default), or named by him, the import goes on."""
+    from lonora_tools.source_trust import refusal
 
     owner, repository = repository_identity(repository_url)
     async with context.db.sessions() as session, session.begin():
-        if await github_trusted(session, context.owner_id, owner, repository):
+        run = await scoped_run(session, context)
+        if await repository_trusted(session, context, run, owner, repository):
             return None
-    identifier = (owner + "/" + repository).casefold()
-    card = await propose_capability_card(
-        context,
-        "trust_source",
-        trust_subject("github_repo", identifier),
-        source_payload("github_repo", identifier),
-    )
-    return {
-        "status": "owner_trust_required",
-        "repository": identifier,
-        "installed": False,
-        **card,
-        "guidance": "This repository is outside the owner's trusted sources. The card asks "
-        "the owner to trust it; you continue once the owner taps Trust.",
-    }
+    return refusal(repository=(owner + "/" + repository).casefold(), installed=False)
 
 
 async def import_package(
@@ -271,7 +315,6 @@ async def install_entry(
     entry: PackageVersion,
     files: dict[str, str],
 ) -> dict[str, Any]:
-    access = package_files(context, entry)
     identity = entry.payload.name
     # Reserve immutable semantic identities before materializing. No locks span I/O.
     async with context.db.sessions() as session, session.begin():
@@ -285,16 +328,11 @@ async def install_entry(
             entry.payload.model_dump(mode="json"),
             row.id if row else None,
         )
-    materialized = await access.update(
-        context.for_call(context.call_id + ":package-files"),
-        arguments["workspace_revision"],
-        files,
-        [],
-    )
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
-        await assert_files(session, context, entry, materialized["revision"])
+        # The files are stored in the same transaction that publishes the version.
+        await store_files(session, context.agent_id, files)
         row = await owned_skill(session, context, identity)
         retained = await admit_version(session, context, row, entry, arguments["expected_version"])
         payload = entry.payload.model_dump(mode="json")
@@ -317,14 +355,10 @@ async def install_entry(
             )
             assert isinstance(created, SkillRow)
             row = created
+            await mark_package(session, row)
         await validate_graph(session, context, registry, payload, row.id)
         row.state = {**row.state, "package": state.model_dump(mode="json")}
-        result = describe(
-            row,
-            entry,
-            workspace_revision=materialized["revision"],
-            status="disabled_pending_validation",
-        )
+        result = describe(row, entry, status="disabled_pending_validation")
         save_receipt(session, context, digest, result)
         return result
 
@@ -332,8 +366,20 @@ async def install_entry(
 async def create_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    digest = request_hash({"kind": "skill-package-create-v1", **arguments})
-    scan = await output_scan(context)
+    digest = request_hash({"kind": "skill-package-create-v2", **arguments})
+    # Listing the source runs a command in the workspace (6.9: an ordinary run only).
+    await require_ordinary(context)
+    found = await scan(context)
+    async with context.db.sessions() as session, session.begin():
+        if (result := await prior(session, context, digest)) is not None:
+            return result
+        prepared = await session.get(EffectReceiptRow, receipt_key(context) + ":prepared")
+    # Read once, before anything is reserved; a retry after the prepared receipt uses it.
+    source = (
+        await workspace_directory(context, arguments["source_directory"])
+        if prepared is None
+        else {}
+    )
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
@@ -344,18 +390,10 @@ async def create_package(
             entry = PackageVersion.model_validate(prepared.result["entry"])
             files: dict[str, str] = prepared.result["files"]
         else:
-            workspace = await session.get(AnalyticalWorkspaceRow, context.agent_id)
-            if (
-                workspace is None
-                or workspace.revision != arguments["workspace_revision"]
-                or workspace.active_operation_id
-            ):
-                raise LonoraError("workspace_revision_conflict", 409)
             entry, files = prepare_workspace_package(
-                read_snapshot(workspace.snapshot),
+                source,
                 agent_id=context.agent_id,
                 run_id=context.lease.run_id,
-                workspace_revision=workspace.revision,
                 source_directory=arguments["source_directory"],
                 version=arguments["version"],
                 adapted_content=arguments["adapted_content"],
@@ -370,9 +408,8 @@ async def create_package(
                 entry.payload.model_dump(mode="json"),
                 row.id if row else None,
             )
-            # A fixed bounded source receipt survives a crash after file copy but
-            # before catalog publication. Retrying cannot read different source
-            # or invent a new origin revision for the same effect identity.
+            # A fixed bounded source receipt: a retry after a crash before publication
+            # uses the source read the first time, never a changed one.
             session.add(
                 EffectReceiptRow(
                     key=receipt_key(context) + ":prepared",
@@ -386,7 +423,7 @@ async def create_package(
         # A skill's files and paths reach the model: a package carrying a stored
         # secret is refused, also on a retry of one prepared before the secret existed.
         if any(
-            scan.found(name.encode()) or scan.found(body.encode()) for name, body in files.items()
+            found.found(name.encode()) or found.found(body.encode()) for name, body in files.items()
         ):
             raise LonoraError("skill_package_contains_secret", 422)
     return await install_entry(context, registry, arguments, digest, entry, files)
@@ -405,17 +442,16 @@ async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> d
         utility = arguments["utility_path"]
         if utility not in entry.utilities or not utility.endswith(".py"):
             raise LonoraError("skill_package_utility_unsupported", 422)
-        await assert_files(session, context, entry, arguments["workspace_revision"])
-    if context.workspace_access is None:
-        raise LonoraError("workspace_runtime_unavailable", 409)
+        stored = await stored_files(session, context.agent_id, entry.files)
+        validate_package_files(entry, stored)
+    # Run from a fresh copy of the stored package in the agent's home.
+    await require_ordinary(context)
+    await materialize(context, entry, stored)
     command = shlex.join(["python3", utility, *arguments["arguments"]])
-    outcome = await context.workspace_access.execute(
-        context.for_call(context.call_id + ":package-validation"),
-        arguments["workspace_revision"],
-        command,
-        30,
+    outcome = await client(context).run(
+        await scan(context), context.agent_id, command, timeout_seconds=30
     )
-    if "exit_code" not in outcome:
+    if not isinstance(outcome.get("exit_code"), int):
         raise LonoraError("skill_package_validation_interrupted", 409)
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
@@ -425,13 +461,11 @@ async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> d
             raise LonoraError("skill_not_found", 404)
         state, entry = current_version(row, arguments["expected_version"])
         await assert_unrevoked(session, context, entry)
-        await assert_files(session, context, entry, outcome["revision"])
+        await assert_files(session, context, entry)
         entry.validation = {
             **(entry.validation or {}),
             utility: {
-                "operation_id": outcome["operation_id"],
                 "source_sha256": entry.files[utility],
-                "image": outcome["image"],
                 "exit_code": outcome["exit_code"],
                 "arguments": arguments["arguments"],
                 "validated_at": utcnow().isoformat(),
@@ -443,13 +477,17 @@ async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> d
             utcnow(),
         )
         record_version(session, row)
+        # The last 64 KiB of each stream, as workspace_run returns them.
+        stdout, stdout_cut = tail(outcome["stdout"])
+        stderr, stderr_cut = tail(outcome["stderr"])
         result = describe(
             row,
             entry,
-            workspace_revision=outcome["revision"],
             exit_code=outcome["exit_code"],
-            stdout=outcome["stdout"],
-            stderr=outcome["stderr"],
+            stdout=stdout,
+            stderr=stderr,
+            stdout_omitted_bytes=stdout_cut,
+            stderr_omitted_bytes=stderr_cut,
             status="smoke_test_passed" if outcome["exit_code"] == 0 else "smoke_test_failed",
         )
         save_receipt(session, context, digest, result)
@@ -460,8 +498,9 @@ async def control_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     digest = request_hash({"kind": "skill-package-control-v1", **arguments})
-    current_image: str | None = None
     if arguments["action"] == "activate":
+        # The agent runs an active package's utilities from skills/<id>/<version>/ in its
+        # home: a fresh copy of the validated stored files is put there first.
         async with context.db.sessions() as session, session.begin():
             if (result := await prior(session, context, digest)) is not None:
                 return result
@@ -470,12 +509,12 @@ async def control_package(
                 raise LonoraError("skill_not_found", 404)
             _, proposed = current_version(candidate, arguments["expected_version"])
             await assert_unrevoked(session, context, proposed)
-            if proposed.utilities:
-                validation_image(proposed)
+            require_validated(proposed)
+            stored = await stored_files(session, context.agent_id, proposed.files)
+            validate_package_files(proposed, stored)
         if proposed.utilities:
-            if context.workspace_access is None:
-                raise LonoraError("workspace_runtime_unavailable", 409)
-            current_image = await context.workspace_access.profile(context)
+            await require_ordinary(context)
+            await materialize(context, proposed, stored)
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
@@ -501,9 +540,8 @@ async def control_package(
             row.payload = entry.payload.model_dump(mode="json")
         elif action == "activate":
             await assert_unrevoked(session, context, entry)
-            await assert_files(session, context, entry, arguments["workspace_revision"])
-            if validation_image(entry) != current_image:
-                raise LonoraError("skill_package_validation_required", 409)
+            await assert_files(session, context, entry)
+            require_validated(entry)
             row.payload = {**row.payload, "enabled": True}
         elif action == "disable":
             row.payload = {**row.payload, "enabled": False}

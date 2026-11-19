@@ -51,7 +51,7 @@ is not enough.
 ## No model configured is not an outage
 
 `model_not_configured` means there is nothing to ask: no route, no backup, no model
-the owner allowed, or no key for any of them. It is a state of the installation, not
+the owner assigned, or no key for any of them. It is a state of the installation, not
 a provider failure, and it is never shown as one.
 
 - **A new installation answers.** When a text request has no candidate at all and a
@@ -63,7 +63,7 @@ a provider failure, and it is never shown as one.
   snapshot. An id the provider does not list is never chosen, so a stale preference
   chooses nothing rather than a model that does not exist. Speech routes, a
   consultation's named models, and reads of the route (the model card, `model_list`)
-  never choose. An owner's own route, backup or allowed model is never replaced, and
+  never choose. An owner's own route, backup or assigned model is never replaced, and
   custom routing is never filled in. A search that chose nothing is not repeated for
   60 seconds, and concurrent first requests choose once.
 - **Nothing to choose.** No key, or no listed family: the Run fails with
@@ -75,8 +75,8 @@ a provider failure, and it is never shown as one.
   for the next one; if none gives a model, its own classified failure is raised, so an
   outage backs off and retries like any other, and a rejected key reads as a rejected
   key.
-- **What failed is answered.** When the owner saves a provider key, the global routes,
-  the backups or the allowed models, and a conversation now has a model (with a key and
+- **What failed is answered.** When the owner saves a provider key, the global routes
+  or the backups, and a conversation now has a model (with a key and
   no routing the default is chosen at that moment), every conversational reply that
   failed with `model_not_configured` in the last 48 hours and was not retried yet is
   queued again
@@ -99,12 +99,11 @@ a provider failure, and it is never shown as one.
 six candidates:
 
 1. the model the Run was started on (a helper's chosen model, see below);
-2. the Agent's own primary model (the owner's Fixed choice, or the Agent's own in
-   Automatic);
+2. the Agent's own primary model (the owner's assignment, or Lonora's model it
+   inherited at creation);
 3. the global route for the capability;
 4. the Agent's fallbacks;
-5. the global backups (`model_backups`);
-6. for an Automatic Agent, the other models the owner allowed (`model_allowed`).
+5. the global backups (`model_backups`).
 
 Each candidate is admitted against its own window (unchanged from
 `docs/context-engine.md`). Per reason (`lonora_providers/resilience.py`):
@@ -212,99 +211,84 @@ Adapters read the stop reason before trusting any tool input:
   (`model_billing_exhausted`, `model_content_blocked`, `model_output_truncated`,
   `model_access_denied`, ...) in English and Arabic.
 
-## Choosing a model per agent (W15-10)
+## Choosing a model per agent (VISION 12.3)
 
-The owner picks a model per agent, or lets Lonora choose, from chat or from the agent's
-settings, on Web and Mobile. Choosing a model never grants authority: permissions,
-approvals and every execution boundary stay the agent's whatever model answers. A switch
-changes only the agent's model record; tool results, memory, Tasks, grants, uncertain
-operations and the Run checkpoint are untouched, nothing is repeated, and the next model
-turn simply asks the new model (the router reads the record on every request).
+Only the owner assigns an agent's model: from the agent's settings, or in chat, where an
+agent applies it when the owner's own message names the model (lead decision Q20 (a)).
+Any text model of a connected provider's catalog is assignable; there is no list of
+allowed models and no Automatic / Fixed mode. A new agent starts on Lonora's current
+model (VISION 3.1.2) until the owner assigns another. Choosing a model never grants
+authority: permissions, approvals and every execution boundary stay the agent's whatever
+model answers. A change touches only the agent's model record; tool results, memory,
+Tasks, grants, uncertain operations and the Run checkpoint are untouched, nothing is
+repeated, and the next model turn simply asks the new model (the router reads the record
+on every request).
 
 ### The record
 
 `GET/PUT /api/agents/{agent_id}/model` stores one record per agent, owner-scoped, in
-`ln_settings` under `agent-model:<sha256(owner:agent)>` (no migration):
+`ln_settings` under `agent-model:<sha256(owner:agent)>`:
 
 | Field | Meaning |
 | --- | --- |
-| `mode` | `automatic`: Lonora chooses; the agent starts on the owner's default model and may switch itself among the allowed models. `fixed`: the owner chose one model; only the owner changes it. |
-| `preference` | `{primary, fallbacks (≤3)}`: in Automatic, the agent's own current choice (or none) |
-| `chosen_by`, `chosen_by_agent_id` | `owner` (settings or a card) or `agent` (`model_request`), and the agent that made a switch; none until anyone chose |
-| `previous` | The mode and models before the last change (what Undo restores, with who had chosen them) |
+| `preference` | `{primary, fallbacks (≤3)}`; no primary means the owner's default model |
+| `chosen_by`, `chosen_by_agent_id` | `owner` (settings, or his message an agent applied, with that agent) or `inherited` (Lonora's model copied at creation, with Lonora's id); none until set |
+| `previous` | The preference before the last change |
 | `revision`, `changed_at` | Optimistic concurrency (`expected_revision`) and when it changed |
 
-A record written before modes existed reads as Fixed when it has a primary (the owner
-chose it through the E4 API) and Automatic otherwise. The same choice again changes
-nothing (no revision, no event, and no card ends). A `PUT` that omits `fallbacks` keeps
-the agent's current fallbacks behind the new primary; an explicit list replaces them.
-Choosing Automatic sends the agent back to the owner's default model: on Web and Mobile
-an Automatic agent on a model someone set offers "Back to your default model", and
-choosing Automatic again while already Automatic changes nothing. Every change emits
-`agent.model.updated` with the mode,
-model, who chose it and how (`owner_settings`, `model_request`, `owner_card`,
-`owner_undo`). `GET …/model/summary` is what the model card shows: the record, the model
-answering now, the allowed models, the models a Fixed choice can pick (text models in the
-catalogs of providers with a key) and this agent's usage over 30 days.
+The same choice again changes nothing (no revision, no event). A `PUT` that omits
+`fallbacks` keeps the agent's current fallbacks behind the new primary; an explicit list
+replaces them; `primary: null` returns the agent to the owner's default model, which Web
+and Mobile offer as "Back to your default model". Every change emits
+`agent.model.updated` with the model, who chose it and how (`owner_settings`,
+`model_request`, `inherited_from_lonora`). `GET …/model/summary` is what the model card
+shows: the record, the model answering now, the models the owner can pick (text models
+in the catalogs of providers with a key) and this agent's usage over 30 days. Migration
+`0131_agent_model_owner_only` removed the stored modes, the allowed list and the model
+cards.
 
-### The allowed list
+### A new agent
 
-The models an agent may choose on its own are the owner's global text routes and backups
-plus the models the owner added (`model_allowed`, at most 20): `GET/PUT
-/api/settings/models/allowed` returns `{routed, added}`, and the Web Model settings lists
-them with Add and Remove. The routing chain, in order: the Run's own model (a helper's
-chosen model), the agent's primary, the global route, the agent's fallbacks, the global
-backups, then, for an Automatic agent only, the owner's added models. A Fixed agent never
-falls back on the additions; a request without an agent (an in-run summary) keeps the
-global routes.
+`inherit_lead_model` (`lonora_db.agent_models`) copies the Personal Agent's stored
+preference to an agent created without a model (`agent_creation.create_from_spec`), as
+`chosen_by: inherited`. It is a snapshot: Lonora's later changes do not follow. When
+Lonora has no stored model, nothing is stored and both follow the owner's default.
 
 ### `model_list` and `model_request`
 
-`model_list` (read-only) gives the agent the facts it needs before it switches: its mode,
-who chose, the model answering now, the allowed models as provider, exact id and name,
-and the connected providers. With `query` ("Opus", "gpt-5") it also returns up to six
-catalog entries of the connected providers that share the most words with the query,
-allowed ones first among equals, each marked `allowed`. `agent_id` reads another of the
-owner's agents (the model choice is not private memory).
+`model_list` (read-only) gives the agent the facts it needs: who chose, the model
+answering now and the connected providers. With `query` ("Opus", "gpt-5") it also returns
+up to six catalog entries of the connected providers that share the most words with the
+query. `agent_id` reads another of the owner's agents (the model choice is not private
+memory).
 
 `model_request` (toolset `intelligence`, long-tail, replay-safe, not available to
-helpers) takes `model` (or none: back to the owner's default), `fixed` (`true`: keep this
-model, only the owner changes it; `false`: Lonora may switch again; omitted: the current
-mode stays, so a Fixed agent stays Fixed) and `agent_id` (Lonora only, for another agent).
+helpers) takes `model` and `agent_id` (Lonora only, for another agent).
 
-- **The agent's own switch** applies at once: to itself, while it is and stays Automatic,
-  to an allowed model, in any Run.
-- **A change the owner asked for** applies at once only when the server can tie it to the
-  owner's words: the Run answers an owner message (a `user` or `group` trigger) and that
-  message, or one the owner added while the Run worked, names the requested model (its id,
-  its catalog name, or a distinctive word of either such as "Opus"; words many names
-  share such as "pro", "flash" or a vendor name do not count). That is how a Fixed agent
-  changes model or Lonora sets another agent's model from chat. The event records the
-  owner's message (`source_message_id`); the record says the agent set it (`chosen_by:
-  agent`).
-- **Everything else** raises an `agent_model` owner card (`docs/owner-actions.md`): a
-  model outside the allowed list, always, even when the owner named it (confirming adds it
-  to the list, so it is one tap once); a change to an agent the owner fixed, a change to
-  another agent or a mode change that the owner's words do not name (an unrelated chat
-  message, text the agent read on a page or from a tool). Nothing changes until the tap,
-  and a repeated request returns the card already shown.
+- It applies at once only when the server can tie it to the owner's words: the Run
+  answers an owner message (`provenance.owner_message_id`) and that message, or one the
+  owner added while the Run worked, names the requested model (its id, its catalog name,
+  or a distinctive word of either such as "Opus"; words many names share such as "pro",
+  "flash" or a vendor name do not count). The event records the owner's message
+  (`source_message_id`).
+- Otherwise (a routine or peer run, an unrelated message, a message naming another
+  model, text the agent read on a page or from a tool) nothing changes and the result is
+  `model_assignment_requires_owner_message` with the recovery "ask him to name it in
+  chat". No card is raised in any case.
 - A provider without a key is `model_provider_not_connected`; a model no connected
   catalog lists is `model_not_in_catalog`, with the `closest` real entries to retry with
   (a guess such as `claude-opus` finds the exact Opus ids); another agent's model from
-  anyone but Lonora is `model_request_agent_forbidden`. At most three switches apply per
-  Run (`model_switch_limit`).
-- Every switch that applies raises an `agent_model_changed` card with Undo in the
-  conversation. A newer switch replaces it and ends the pending `agent_model` requests
-  about the same agent (`model_changed_again`), so a later tap cannot override the newer
-  choice. Undo restores the earlier mode and models with who had chosen them.
+  anyone but Lonora is `model_request_agent_forbidden`. There is no per-Run cap: each
+  change needs the owner's message naming that model.
 
 ### Helpers and second opinions
 
-`subagent_spawn(task, model)` starts a temporary helper on one of the allowed models
-(otherwise `subagent_model_not_allowed`). The model is stored in the helper Run's
-metadata, reaches its `ToolContext.run_model` at dispatch, and leads the router chain,
-with the agent's own chain behind it. `consult_model` asks one of the agent's routed
-models or any allowed model other than the one answering. Both record usage as before.
+`subagent_spawn(task, model)` starts a temporary helper on any catalog model of a
+connected provider (otherwise `subagent_model_not_available`). The model is stored in the
+helper Run's metadata, reaches its `ToolContext.run_model` at dispatch, and leads the
+router chain, with the agent's own chain behind it. `consult_model` asks one of the
+agent's routed models, or any catalog model of a connected provider it names, other than
+the one answering. Both record usage as before.
 
 ### Usage per agent (owner decision D4)
 
@@ -317,8 +301,8 @@ enforcement is not planned (D4).
 
 A read-only tool (intelligence chapter) that sends a bounded evidence pack the
 Agent writes (question ≤ 4,000 characters, evidence ≤ 24,000) to another
-allowed model: one named by the Agent from its candidates or the owner's allowed
-list, or the first candidate that is not the model it is using. The consulted model gets no
+model: one the Agent names (from its candidates or any catalog model of a connected
+provider), or the first candidate that is not the model it is using. The consulted model gets no
 tools, no conversation and no authority; markup in the pack is made inert.
 The critique (≤ 8,000 characters) returns as an advisory observation. There is
 no per-Run budget (mandate P1): the Agent decides how often a second opinion is
@@ -335,16 +319,14 @@ Nothing waits for agreement and nothing executes on its advice.
 - Like the per-Agent approval preference, the model record is not removed when
   the Agent is deleted (it is unreachable afterwards). A typed column on
   `ln_agents` would need a migration and is left as a follow-up.
-- A change the owner asked for applies at once only when the owner's words name the
-  model; a name the server does not recognize (an Arabic transliteration such as
-  "أوبس") falls back to the one-tap card. The switch is non-financial, visible and has
-  Undo.
-- The Fixed picker lists every discovered model of a connected provider; catalogs
+- A change applies only when the owner's words name the model; a name the server does
+  not recognize (an Arabic transliteration such as "أوبس") changes nothing, and the owner
+  names it again or picks it in the agent's settings.
+- The model picker lists every discovered model of a connected provider; catalogs
   that do not report capabilities (OpenAI) include non-chat models.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured
   per adapter.
 - There is no spend cap (owner decision D4); usage is shown per agent.
-  `model_request` is bounded per Run only.
 - The output family table must follow provider documentation as models change.
 
 Attribution: the taxonomy and classification order adapt Hermes Agent

@@ -35,7 +35,3 @@ export function useOwnerProfile() {
   }, [revision]);
   return [profile, setProfile] as const;
 }
-
-/** The owner's display name: «الاسم» from the profile, else the e-mail's local part. */
-export const ownerName = (profile: OwnerProfile | null, email: string) =>
-  profile?.name || email.split("@")[0] || email;

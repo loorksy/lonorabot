@@ -14,10 +14,7 @@ from lonora_contracts.trading import (
     OperationResolution,
     TradeRequest,
     TradeResult,
-    TradingControl,
 )
-from lonora_core.trading_control import require_trading
-from lonora_core.user_error import LonoraError
 from lonora_db.schema import TradingJournalRow
 from lonora_tools.trade import halted_receipts, independent_exits
 from lonora_trading.admission import may_reduce_risk, risk_reducing
@@ -150,18 +147,6 @@ def test_closing_a_hedge_leg_stays_an_exit() -> None:
     long, short = position(), position("sell", id="p2")
     close = request("close_position", position_id="p2")
     assert risk_reducing(close, short, positions=[long, short])
-
-
-def test_global_controls_stop_new_risk_but_never_trap_an_exit() -> None:
-    for controls, code in (
-        (TradingControl(enabled=True, emergency_stop=True), "emergency_stop"),
-        (TradingControl(enabled=False), "trading_disabled"),
-    ):
-        with pytest.raises(LonoraError) as error:
-            require_trading(controls)
-        assert error.value.code == code
-        require_trading(controls, risk_reducing=True)
-    require_trading(TradingControl(enabled=True))
 
 
 def test_status_sets_partition_the_lifecycle() -> None:

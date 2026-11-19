@@ -114,7 +114,7 @@ async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -
                     "id": m.id,
                     "thread_id": m.thread_id,
                     "seq": m.seq,
-                    # Card words are never «the owner said» (GENUI_PLAN §8.4).
+                    # Card words are never «the owner said» (docs/genui.md).
                     "role": "owner_via_card"
                     if m.role == "user" and m.origin in {"ui_submit", "ui_follow_up"}
                     else m.role,

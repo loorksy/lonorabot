@@ -28,21 +28,18 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_agent.executor import execute_run
 from lonora_agent.skills.access import view_key
-from lonora_agent.workspace import encode_snapshot
-from lonora_agent.workspace_access import RunWorkspaceAccess
-from lonora_agent.workspace_client import WorkspaceClient
 from lonora_api.env import get_settings
 from lonora_contracts.domain import utcnow
+from lonora_contracts.genui import UiDocument, walk
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.runs import Lease
-from lonora_contracts.visual_response import RichContent, VisualDocument, VisualNode
+from lonora_contracts.visual_response import RichContent
 from lonora_core.model_routing import select_model
 from lonora_core.public_reply import public_reply_violation
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import (
     AgentRow,
-    AnalyticalWorkspaceRow,
     ArtifactRow,
     EffectReceiptRow,
     EventRow,
@@ -57,11 +54,13 @@ from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_providers.routing_policy import read_policy
 from lonora_security.runtime_storage import confined_path
+from lonora_security.secrets import SecretScan
 from lonora_session.idempotency import stable_id
 from lonora_tools.base import ExposureProfile, ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import BRIDGE, BRIDGE_TOOLS, ToolRegistry
+from lonora_workspace.client import WorkspaceClient
 from sqlalchemy import delete, func, or_, select
 
 LEASE_SECONDS = 24 * 60 * 60
@@ -75,10 +74,9 @@ ALLOWED = frozenset(
         "web_fetch",
         "web_search",
         "web_browse",
-        "workspace_inspect",
-        "workspace_read",
-        "workspace_update",
-        "workspace_execute",
+        "workspace_run",
+        "workspace_file_read",
+        "workspace_file_write",
         "workspace_export",
         "artifact_read",
     }
@@ -109,19 +107,19 @@ JOURNEYS = {
     "topic_switch": "ما الفرق بين السكالبينغ والسوينغ باختصار؟",
     "visual_plain": "ما معنى حقوق الحساب (Equity) بجملة واحدة؟",
     "visual_workspace": (
-        "راجع الملفات الموجودة فعلاً في مساحة التحليل وقارن أحجامها، واجمع حجمها الإجمالي، "
+        "راجع الملفات الموجودة فعلاً في المجلد acceptance في مساحة العمل وقارن أحجامها، واجمع حجمها الإجمالي، "
         "وبيّن توزيع الأحجام وما يستحق تنظيمه أولاً. اعتمد على الفحص الفعلي ولا تعدّل أي ملف. "
         "اختر طريقة العرض الأنسب لتوضيح المقارنة."
     ),
     "visual_observed": (
-        "افحص ملفات مساحة التحليل الفعلية واعرض أحجامها بمقاييس ورسم بياني أصلي داخل الرد، "
+        "افحص الملفات الفعلية في المجلد acceptance في مساحة العمل واعرض أحجامها بمقاييس أصلية داخل الرد، "
         "مع الحجم الإجمالي وشرح قصير. اعتمد على الأحجام الموجودة فعلاً ولا تعدّل الملفات، "
         "ولا ترسل ملفاً أو صورة للمقارنة."
     ),
     "visual_diagram": (
         "اشرح مسار رسالة المستخدم داخل Lonora بمخطط أصلي داخل الرد: فهم الطلب، "
         "العمليات المتاحة عند الحاجة، التحقق، ثم النتيجة المحفوظة. لا أريد ملفاً أو كوداً "
-        "أو صورة، بل مخططاً بأسماء عربية وروابط مرئية ومعه شرح قصير."
+        "أو صورة، بل مخططاً بأسماء عربية وخطوات متتالية ومعه شرح قصير."
     ),
     "visual_calculator": (
         "ساعدني أفهم حجم المركز بحاسبة تعليمية تفاعلية داخل الرد. هذا مثال لعقد افتراضي "
@@ -133,7 +131,11 @@ JOURNEYS = {
 }
 TOPIC_SWITCH_REQUEST = "خلينا نغيّر الموضوع: احسب سبعة ضرب ثمانية وأجب بالنتيجة فقط."
 VISUAL_JOURNEYS = frozenset(name for name in JOURNEYS if name.startswith("visual_"))
-# Real isolated workspace contents, not fabricated financial/account observations.
+# Real workspace contents (the agent's acceptance/ directory), not fabricated
+# financial or account observations.
+VISUAL_DIRECTORY = "acceptance"
+# The owner's workspace, through its supervisor's socket (run where the Gateway runs).
+workspace = WorkspaceClient()
 VISUAL_WORKSPACE_FILES = {
     "notes.txt": b"Review candidate observations.\n" * 3,
     "session-plan.md": b"# Session plan\nConfirm the current evidence before acting.\n" * 7,
@@ -144,19 +146,15 @@ VISUAL_WORKSPACE_FILES = {
 }
 
 
-def visual_nodes(node: VisualNode) -> list[VisualNode]:
-    return [node, *(descendant for child in node.children for descendant in visual_nodes(child))]
-
-
-def visual_documents(answer: MessageRow) -> list[VisualDocument]:
-    """The reply's native visual documents (the journeys here are the v1 component tree)."""
+def visual_documents(answer: MessageRow) -> list[UiDocument]:
+    """The reply's generated cards (lonora-ui v2, the only generated format)."""
     if answer.rich_content is None:
         return []
     rich = RichContent.model_validate(answer.rich_content)
     return [
         part.document
         for part in rich.parts
-        if part.type == "ui" and isinstance(part.document, VisualDocument)
+        if part.type == "ui" and isinstance(part.document, UiDocument)
     ]
 
 
@@ -165,7 +163,7 @@ def assert_visual_journey(
 ) -> dict[str, Any]:
     """Inspect actual persisted model composition, without prescribing a template."""
     docs = visual_documents(answer)
-    nodes = [node for doc in docs for node in visual_nodes(doc.root)]
+    nodes = [node for doc in docs for _path, node in walk(doc.blocks)]
     if journey == "visual_plain":
         assert not docs, "A one-sentence definition acquired an unnecessary visual"
         assert not observations, "A simple definition unexpectedly invoked operations"
@@ -176,15 +174,17 @@ def assert_visual_journey(
     if journey in {"visual_workspace", "visual_observed"}:
         inspections = [
             value
-            for value in observations.get("workspace_inspect", [])
-            if value.get("ok") is not False
+            for value in observations.get("workspace_run", [])
+            if value.get("ok") is not False and value.get("exit_code") == 0
         ]
         assert inspections, "No real workspace inspection was performed"
         assert any(
-            {item["path"]: item["size"] for item in value.get("files", [])}
-            == {path: len(data) for path, data in VISUAL_WORKSPACE_FILES.items()}
+            all(
+                path in str(value.get("stdout", "")) and str(len(data)) in str(value["stdout"])
+                for path, data in VISUAL_WORKSPACE_FILES.items()
+            )
             for value in inspections
-        ), "Inspected files do not match the actual isolated workspace"
+        ), "Inspected files do not match the actual workspace"
         observed = [doc for doc in docs if doc.mode == "observed"]
         if docs:
             assert observed and any(doc.facts for doc in observed), (
@@ -198,22 +198,14 @@ def assert_visual_journey(
             "Observed visual included data from an unexpected operation"
         )
     elif journey == "visual_diagram":
-        assert any(
-            node.type == "diagram" and len(node.vertices) >= 3 and len(node.edges) >= 2
-            for node in nodes
-        ), "The real model did not compose a connected native diagram"
+        assert any(doc.kind == "diagram" for doc in docs) and len(nodes) >= 3, (
+            "The real model did not compose a native diagram of the steps"
+        )
     elif journey == "visual_calculator":
-        numeric_controls = [
-            node
-            for node in nodes
-            if node.type == "slider" or (node.type == "input" and node.input_kind == "number")
-        ]
+        numeric_controls = [node for node in nodes if node["type"] in {"Number", "Slider"}]
         assert len(numeric_controls) >= 2, "Calculator is missing adjustable risk/stop inputs"
-        assert any(
-            node.type == "metric" and isinstance(node.value, dict) and "op" in node.value
-            for node in nodes
-        ), "Calculator has no locally derived numeric result"
-        assert all(doc.mode in {"example", "estimate"} for doc in docs), (
+        assert any(doc.calc for doc in docs), "Calculator has no locally derived numeric result"
+        assert all(doc.mode != "observed" for doc in docs), (
             "Hypothetical instrument was presented as an observed account"
         )
         assert set(observations) <= {"tool_environment", "skills_list", "skill_view"}, (
@@ -224,7 +216,7 @@ def assert_visual_journey(
     return {
         "presentation": "native" if docs else "text",
         "visual_documents": len(docs),
-        "native_components": sorted({node.type for node in nodes}),
+        "native_components": sorted({node["type"] for node in nodes}),
         "verified_facts": sum(len(doc.facts) for doc in docs),
         "compiled_ui_bytes": len(json.dumps(answer.rich_content, ensure_ascii=False).encode())
         if docs
@@ -249,10 +241,10 @@ def assert_capability_explanation(answer: str, catalog: ToolRegistry) -> None:
     assert re.search(r"[\u0620-\u064a]", answer), "Capability explanation is not in Arabic"
     categories = (
         ("web_fetch", "skill_repository_inspect", "بحث", "روابط", "مستودع", "مصادر", "ويب"),
-        ("workspace_execute", "workspace_update", "بايثون", "حساب", "تحليل", "تنفيذ", "أوامر"),
+        ("workspace_run", "workspace_file_write", "بايثون", "حساب", "تحليل", "تنفيذ", "أوامر"),
         (
             "workspace_export",
-            "workspace_read",
+            "workspace_file_read",
             "artifact_read",
             "ملف",
             "ملفات",
@@ -443,14 +435,6 @@ async def run_journey(
                 )
             )
             await session.flush()
-            if journey in {"visual_workspace", "visual_observed"}:
-                session.add(
-                    AnalyticalWorkspaceRow(
-                        agent_id=agent_id,
-                        revision=1,
-                        snapshot=encode_snapshot(VISUAL_WORKSPACE_FILES),
-                    )
-                )
             for seq, (role, content) in enumerate(history, start=1):
                 session.add(
                     MessageRow(
@@ -477,6 +461,12 @@ async def run_journey(
                 )
             )
         created = True
+        if journey in {"visual_workspace", "visual_observed"}:
+            for path, data in VISUAL_WORKSPACE_FILES.items():
+                written = await workspace.write(
+                    SecretScan({}), agent_id, f"{VISUAL_DIRECTORY}/{path}", data
+                )
+                assert written["ok"], "Cannot seed the acceptance files in the workspace"
         denied = DeniedService()
         acceptance_router = AcceptanceRouter(router)
         context = ToolContext(
@@ -493,9 +483,7 @@ async def run_journey(
             maximum_subagents=0,
             searxng_url=settings.searxng_url,
             browser_url=settings.browser_url,
-            workspace_access=RunWorkspaceAccess(
-                WorkspaceClient(settings.workspace_socket) if settings.workspace_socket else None
-            ),
+            workspace=workspace if workspace.present() else None,
         )
         contexts[run_id] = context
         async with asyncio.timeout(seconds):
@@ -652,7 +640,7 @@ async def run_journey(
             elif journey == "report":
                 executed = [
                     v
-                    for v in observations.get("workspace_execute", [])
+                    for v in observations.get("workspace_run", [])
                     if v.get("ok") is not False and v.get("exit_code") == 0
                 ]
                 assert executed, "No successful actual execution"
@@ -660,7 +648,7 @@ async def run_journey(
                     call
                     for raw in cast(list[Any], row.execution_state.get("messages", []))
                     for call in ModelMessage.model_validate(raw).tool_calls
-                    if call.name == "workspace_execute"
+                    if call.name == "workspace_run"
                 ]
                 assert any(
                     "python" in str(call.arguments.get("command", "")).casefold()
@@ -762,6 +750,11 @@ async def run_journey(
                 print(json.dumps(summary), flush=True)
         return summary
     finally:
+        if created and journey in {"visual_workspace", "visual_observed"} and workspace.present():
+            # The diagnostic agent's seeded files go with it.
+            await workspace.run(
+                SecretScan({}), agent_id, "rm -rf -- " + VISUAL_DIRECTORY, timeout_seconds=30
+            )
         if created:
             async with db.sessions() as session, session.begin():
                 receipts: list[str] = []
@@ -836,7 +829,7 @@ async def main(args: argparse.Namespace) -> None:
                 "provider": selection.provider,
                 "model": selection.model,
                 "credential_configured": configured,
-                "workspace_socket_configured": bool(settings.workspace_socket),
+                "workspace_present": workspace.present(),
             }
         except LonoraError as error:
             configured = False
@@ -853,8 +846,8 @@ async def main(args: argparse.Namespace) -> None:
         ) as directory:
             for journey in args.journey or JOURNEYS:
                 if journey == "report":
-                    assert settings.workspace_socket, (
-                        "Report acceptance requires the configured workspace socket"
+                    assert workspace.present(), (
+                        "Report acceptance requires the workspace supervisor's socket"
                     )
                 await run_journey(
                     db,

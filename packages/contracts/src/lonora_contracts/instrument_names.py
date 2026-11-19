@@ -1,4 +1,4 @@
-"""The server's own names for instruments (GENUI_PLAN §8.3, Identity values).
+"""The server's own names for instruments (docs/genui.md, Identity values).
 
 Seeded from the reference's ``SYM_AR`` (Desktop-37 8007), with ``SYM_SHORT`` (8170) as the
 accepted short forms. A broker spelling maps to its entry by the rule ``symbol_candidates``
@@ -74,6 +74,6 @@ def known_names(symbol: str) -> set[str]:
 
 
 def vocabulary_line() -> str:
-    """The cached-prefix name table (§3.6): each symbol's English and Arabic names, the
+    """The cached-prefix name table: each symbol's English and Arabic names, the
     labels the compiler accepts (server matching data, not an example)."""
     return " · ".join(f"{item.symbol} {item.en} / {item.ar}" for item in INSTRUMENT_NAMES)

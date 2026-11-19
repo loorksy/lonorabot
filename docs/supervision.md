@@ -46,8 +46,7 @@ ancestors; a queued run stays), switches it to Ask (`set_ask`, the same switch a
 `trading_mode_ask`: Ask, except within an active signed grant's own terms until revoked,
 which `active_signed_grants` counts) or deletes it (`delete`, see `agents-from-chat.md`).
 A team agent is refused (`supervision_required`, `agent_control_lead_only`). It has no
-action that trades, grants, raises a limit, lifts a restriction or edits memory or
-instructions. A change Lonora makes returns `owner_line: "required"`, and the
+action that trades, grants, raises a limit or edits memory or instructions. A change Lonora makes returns `owner_line: "required"`, and the
 conversation gate holds an empty reply until Lonora tells the owner in one line what it
 did and why (mandate 3.1.2). `routine_toggle` on another agent's routine follows the
 same rules.
@@ -97,8 +96,7 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
   Pause, an Undo) keeps the hold and makes it the owner's (`source='owner'`, Lonora kept
   for attribution): from then on only the owner lifts it; Lonora and the paused agent are
   refused (`supervision_resume_not_yours`,
-  `work_paused_by_owner`), even from the owner's message, the way only the owner lifts
-  a restriction. The owner resuming or cancelling the work releases it. Saving a form
+  `work_paused_by_owner`), even from the owner's message. The owner resuming or cancelling the work releases it. Saving a form
   with the switch unchanged (renaming a paused agent, editing a paused routine's
   schedule) takes nothing over: the Web and Mobile forms send the switch with every
   save.
@@ -125,14 +123,6 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
   message admission take. `agent_control` and a supervised `routine_toggle` take the
   owner-actions lock first.
 
-## Narrowing another agent's trading
-
-`trade_restriction_create` for another agent, or for all agents, needs the owner's
-message in the Run (`restriction_supervision_required`, 403); there is no grant to stand
-in for it, also not for Lonora. Narrowing itself stays
-free, `all_mutations` on others still needs the owner's message, a restriction on others
-is still time-boxed, and only the owner lifts one.
-
 ## Exposure
 
 The exposure profile `coordination` holds `agent_inspect`, `peer_send` and
@@ -153,7 +143,7 @@ budget, and these tools stay one `tool_call` away.
 ## Verification
 
 - `tests/test_supervision.py` and `tests/test_lead_powers.py`: tool metadata (no
-  financial tool, no trading, authority, restriction-lift or memory writer reachable),
+  financial tool, no trading, authority or memory writer reachable),
   input shapes, the coordination set; on PostgreSQL, Lonora reads and steers a team
   agent with no grant, a team agent is refused reads (`thread_not_found`,
   `run_not_found`) and control (`supervision_required`, `agent_control_lead_only`).

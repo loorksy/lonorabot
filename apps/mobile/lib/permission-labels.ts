@@ -43,7 +43,7 @@ export const permissionLabels = {
     "7d": "7 Days",
     risk: "Trading on its own can lose money. Profit targets are not guaranteed. The account's money limits (daily loss, risk per trade at the stop, total open risk, free-margin floor) are checked before every order; an unset limit is not enforced.",
     noApproval:
-      "No per-trade approval is needed inside this signed scope. Stop new trading, your pauses and the account's money limits still apply to every order.",
+      "No per-trade approval is needed inside this signed scope. Your pauses and the account's money limits still apply to every order.",
     moneyLimits: "Account money limits",
     unlimited: "No numerical limits",
     summary: "Authorization Summary",
@@ -115,7 +115,7 @@ export const permissionLabels = {
     "7d": "٧ أيام",
     risk: "قد يخسر التداول المستقل مالًا، وأهداف الربح غير مضمونة. تُفحص الحدود المالية للحساب (الخسارة اليومية، والمخاطرة لكل صفقة عند الوقف، وإجمالي المخاطرة المفتوحة، والحد الأدنى للهامش الحر) قبل كل أمر؛ والحد غير المحدد لا يُطبّق.",
     noApproval:
-      "لا تُطلب موافقة لكل صفقة ضمن هذا النطاق الموقّع. يبقى إيقاف الصفقات الجديدة وإيقافاتك والحدود المالية للحساب نافذة على كل أمر.",
+      "لا تُطلب موافقة لكل صفقة ضمن هذا النطاق الموقّع. تبقى إيقافاتك والحدود المالية للحساب نافذة على كل أمر.",
     moneyLimits: "الحدود المالية للحساب",
     unlimited: "دون حدود رقمية",
     summary: "ملخص التفويض",

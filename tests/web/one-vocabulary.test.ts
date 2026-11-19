@@ -15,7 +15,18 @@ import { activityCallLabel } from "../../packages/core/src/turn-activity";
 
 const root = new URL("../../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8");
-const retired = [/super ?bot/i, /سوبر ?بوت/, /emergency stop/i, /الإيقاف الطارئ/];
+const retired = [
+  /super ?bot/i,
+  /سوبر ?بوت/,
+  /emergency stop/i,
+  /الإيقاف الطارئ/,
+  // Amendment 1: Lonora has no Stop control.
+  /stop new trading/i,
+  /resume trading/i,
+  /start trading/i,
+  /استئناف التداول/,
+  /بدء التداول/,
+];
 
 /** Active (not obsolete) msgid/msgstr texts of a Lingui catalog. */
 function catalog(path: string): string[] {
@@ -25,7 +36,7 @@ function catalog(path: string): string[] {
     .flatMap((entry) => [...entry.matchAll(/^msg(?:id|str) "(.*)"$/gm)].map((match) => match[1]));
 }
 
-test("no owner-visible text names the retired Super Bot or an Emergency Stop", () => {
+test("no owner-visible text names the retired Super Bot, an Emergency Stop or a Stop control", () => {
   const texts = [
     ...catalog("apps/web/src/i18n/locales/en/messages.po"),
     ...catalog("apps/web/src/i18n/locales/ar/messages.po"),
@@ -93,7 +104,7 @@ test("an uncertain broker result never tells the owner to try again, on either c
     "operation_in_progress",
     // A LonoraError raised after the send boundary is recorded as uncertain with its code.
     "broker_connection_unavailable",
-    "trading_disabled",
+    "broker_disabled",
   ];
   for (const code of codes) {
     const en = financialResultReason("ambiguous", code, "en");
@@ -145,13 +156,6 @@ test("activity rows say what the agent does from registry metadata, never a raw 
     ["owner_call_request", "voice", "change", "Preparing a call", "يجهّز اتصالًا"],
     ["owner_attention_list", "voice", "read", "Checking what needs you", "يراجع ما ينتظرك"],
     ["owner_action_propose", "trading", "change", "Preparing a card for you", "يجهّز بطاقة لك"],
-    [
-      "trade_restriction_create",
-      "trading",
-      "change",
-      "Updating trading safeguards",
-      "يحدّث ضوابط التداول",
-    ],
     ["wait_for_input", "tasks", "change", "Waiting for your reply", "ينتظر ردك"],
     ["market_position_size", "trading", "read", "Sizing a position", "يحسب حجم المركز"],
     ["skill_package_create", "memory", "change", "Working on a skill", "يعمل على مهارة"],

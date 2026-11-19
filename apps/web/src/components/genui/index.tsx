@@ -1,4 +1,4 @@
-/** The single mount point of lonora-ui v2 cards in the message renderer (GENUI_PLAN §2.4).
+/** The single mount point of lonora-ui v2 cards in the message renderer (docs/genui.md).
  *
  * The renderer calls `renderUiPart(part, index, host)` for every rich part; it returns the
  * lazily loaded `<UiCard/>` for a v2 card and null for anything else (text and stored v1
@@ -8,7 +8,7 @@
  */
 import { t } from "@lingui/core/macro";
 import type { Agent, Message, Run, VisualResponsePart } from "@lonora/contracts";
-import { isUiPart, submitMark } from "@lonora/core";
+import { isUiPart, submitMark, type UiSlotRef } from "@lonora/core";
 import { createContext, lazy, type ReactNode, Suspense, useContext } from "react";
 
 const UiCard = lazy(() => import("./UiCard"));
@@ -18,6 +18,9 @@ export type GenuiHostValue = {
   messages: readonly Message[];
   runs: readonly Run[];
   agents: readonly Agent[];
+  /** The live fixed card a trusted slot names, with its own server actions; null when this
+   * conversation has no such record (mandate 10.2). */
+  slot?: (ref: UiSlotRef) => ReactNode | null;
 };
 const Host = createContext<GenuiHostValue | null>(null);
 

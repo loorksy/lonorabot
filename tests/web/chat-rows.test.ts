@@ -168,7 +168,7 @@ test("Q6 and Q4: only plain messages flush; mute hides heads-ups, never urgent a
     }),
     false,
   );
-  // GENUI_PLAN §8: a card submit never enters the auto-flushed outbox; nor does a voice note.
+  // docs/genui.md: a card submit never enters the auto-flushed outbox; nor does a voice note.
   assert.equal(isPlainOutgoing({ content: "x", ui_submit: { card_id: "c" } }), false);
   assert.equal(isPlainOutgoing({ content: "", voice: { artifact_id: "a" } }), false);
   assert.equal(isPlainOutgoing({ content: "x", edited_from: "m" }), false);
@@ -268,7 +268,7 @@ test("M7: a late message.created never overwrites what the refetch already knows
   assert.equal(updated.superseded_by, "m3");
 });
 
-test("a direct chat offers at most two guests per message; a group is not capped", async () => {
+test("a direct chat offers every other agent as a guest, however many are named", async () => {
   const { guestCandidates } = await import("../../packages/core/src/composer-mentions");
   const named = (id: string) => ({ id, name: id, paused: false }) as unknown as Agent;
   const pool = [named("a"), named("b"), named("c")];
@@ -278,7 +278,7 @@ test("a direct chat offers at most two guests per message; a group is not capped
   );
   assert.deepEqual(
     guestCandidates(pool, [{ agent_id: "a" }, { agent_id: "b" }], true).map((row) => row.id),
-    ["a", "b"],
+    ["a", "b", "c"],
   );
   assert.equal(guestCandidates(pool, [{ agent_id: "a" }, { agent_id: "b" }], false).length, 3);
 });

@@ -6,15 +6,15 @@ moved there; a secret a connection uses is not deleted; the scope set is closed.
 
 import importlib.util
 import os
+import re
 import sys
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from lonora_contracts.agent_secrets import WorkspaceSecretCreate
+from lonora_contracts.agent_secrets import WORKSPACE_SECRET_NAME
 from lonora_core.user_error import LonoraError
 from lonora_db.secrets import require_scope
-from pydantic import ValidationError
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
@@ -32,13 +32,12 @@ def migration():
 def test_workspace_names_are_environment_variable_names() -> None:
     for name in ("A", "OPENAI_API_KEY", "X1", "A" + "B" * 63):
         require_scope(name, "workspace")
-        WorkspaceSecretCreate(name=name, value="v")
+        assert re.fullmatch(WORKSPACE_SECRET_NAME, name)
     for name in ("", "a", "1A", "_A", "A-B", "A B", "A" * 65, "openai"):
         with pytest.raises(LonoraError) as refused:
             require_scope(name, "workspace")
         assert refused.value.code == "secret_name_invalid"
-        with pytest.raises(ValidationError):
-            WorkspaceSecretCreate(name=name, value="v")
+        assert not re.fullmatch(WORKSPACE_SECRET_NAME, name)
     # Other scopes keep their own names (a broker account number, a provider name).
     require_scope("12345678", "broker")
     require_scope("openai", "provider")
@@ -81,10 +80,10 @@ async def test_workspace_secrets_are_the_owners_and_a_used_secret_is_not_deleted
     fixture = await Fixture().open()
     try:
         name = "FIXTURE_" + uuid4().hex[:8].upper()
-        stored = await fixture.client.post("/api/secrets", json={"name": name, "value": "s3cr3t"})
-        assert stored.status_code == 201 and stored.json()["name"] == name
-        wrong = await fixture.client.post("/api/secrets", json={"name": "lower", "value": "x"})
-        assert wrong.status_code == 422
+        services = fixture.runtime.services(fixture.owner)
+        workspace_id = await services.secrets.write(name, "s3cr3t", "workspace")
+        # A secret is saved only through a Secret card; there is no other write route.
+        assert (await fixture.client.post("/api/secrets", json={"name": name})).status_code == 405
         listed = (await fixture.client.get("/api/secrets")).json()
         entry = next(item for item in listed if item["name"] == name)
         assert set(entry) == {"id", "name", "updated_at"}  # never the value
@@ -101,14 +100,13 @@ async def test_workspace_secrets_are_the_owners_and_a_used_secret_is_not_deleted
                 "payload": {
                     "type": "brave_search",
                     "name": "search",
-                    "secret_id": stored.json()["id"],
+                    "secret_id": workspace_id,
                 }
             },
         )
         assert crossed.status_code == 403
         assert crossed.json()["code"] == "secret_scope_forbidden"
 
-        services = fixture.runtime.services(fixture.owner)
         used_id = await services.secrets.write("fixture-feed", uuid4().hex, "integration")
         async with fixture.runtime.db.sessions() as session, session.begin():
             connection = IntegrationRow(

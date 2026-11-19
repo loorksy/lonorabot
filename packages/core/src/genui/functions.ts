@@ -1,4 +1,4 @@
-/** The v2 card functions (GENUI_PLAN §7.3). Values mirror `genui_functions.py`; the
+/** The v2 card functions (docs/genui.md). Values mirror `genui_functions.py`; the
  * formatters (Fmt, Money, Pct, Signed, Plural, DayLabel) build display text here only, with
  * Lonora's own formatters rather than `Intl`, so web and Hermes print the same text. A bad
  * argument returns null: "" in templates, the placeholder dash in number formatters.

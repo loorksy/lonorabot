@@ -6,7 +6,6 @@ current authorization, preflight, quality, journal and reconciliation checks.
 """
 
 from lonora_contracts.market_intelligence import DetectorDefinition, Observation
-from lonora_contracts.trading import TradingControl
 from lonora_contracts.trading_decision import (
     DecisionEvidence,
     DecisionReadiness,
@@ -23,7 +22,6 @@ def decision_readiness(
     request: DecisionRequest,
     evidence: DecisionEvidence,
     *,
-    controls: TradingControl,
     broker_enabled: bool,
     broker_recovery_status: str | None,
     connection_changed: bool = False,
@@ -115,10 +113,6 @@ def decision_readiness(
     execution_codes = [item.reason_code for item in (quote, candles, account) if not item.healthy]
     execution_codes.extend(assessment_codes)
     execution_codes.extend(evidence.missing_codes)
-    if not controls.enabled:
-        execution_codes.append("trading_disabled")
-    if controls.emergency_stop:
-        execution_codes.append("emergency_stop")
     if not broker_enabled:
         execution_codes.append("broker_disabled")
     if broker_recovery_status is not None and broker_recovery_status != "connected":
