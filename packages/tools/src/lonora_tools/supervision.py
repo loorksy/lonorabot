@@ -620,12 +620,15 @@ def tools() -> list[Tool]:
             "agent_control",
             "Steer an agent you supervise: pause or resume it, or one of its Tasks, "
             "routines or watches (target, target_id), or message it. resume lifts a pause "
-            "you made on your own, or one the owner tells you to lift; Lonora never lifts "
-            "another agent's. You cannot pause an agent that holds a pause over you unless the owner "
-            "asks. A paused agent still wakes for its own positions and orders and only "
-            "reduces their risk; unless you are Lonora, pause a whole trading agent only "
-            "when the owner asks. Only the owner pauses Lonora itself. It "
-            "never trades, grants or edits its memory or instructions.",
+            "you made on your own; when the owner asks you in chat, also a pause the owner "
+            "asked for in chat and, unless you are Lonora, another supervisor's pause. "
+            "Lonora never lifts another agent's own pause; a pause the owner set with a "
+            "control only the owner lifts. You cannot pause an agent that holds a pause over "
+            "you unless the owner asks. A paused agent takes no new work: it wakes only for "
+            "its own positions and orders and only reduces their risk; unless you are "
+            "Lonora, pause a whole trading agent only when the owner asks. Only the owner "
+            "pauses Lonora itself. It never trades, grants or edits its memory or "
+            "instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

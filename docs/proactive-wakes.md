@@ -60,8 +60,11 @@ manual activity).
   approval card in its conversation.
 - Unattributed activity (the owner's own) goes to the Personal Agent, as before, with
   `authority: observe_only`.
-- Activity of a paused, delegated or missing Agent falls back to the Personal Agent,
-  observe-only.
+- Activity of a delegated or missing Agent falls back to the Personal Agent,
+  observe-only. A paused Agent is woken for its own positions and orders, with its
+  normal authority, and the door sends only its risk-reducing requests (mandate 4.7.1;
+  the wake's prompt says so). A paused Personal Agent is not woken for unattributed
+  activity.
 
 Run identities are stable (`external:<revision>` for the Personal Agent,
 `external:<revision>:<agent>` for an attributed one), so a repeated reconciliation
@@ -148,9 +151,12 @@ Delivery is in-app only until Wave 3. See
   observe-only, attributed broker and opportunity wakes read their conversation; a
   stop-loss hit on a simulation position an Agent opened wakes that Agent with normal
   authority, the owner's manual position wakes the Personal Agent, a repeated
-  reconciliation wakes nobody twice; a paused Agent's activity falls back to the
-  Personal Agent once; a fixed-market Agent reads another account (its other-symbol
-  records and decisions unfiltered) and is refused trading and watches there;
+  reconciliation wakes nobody twice; a paused Agent is still woken once for its own
+  ticket and a paused Personal Agent not for unattributed activity
+  (`test_a_paused_agent_still_wakes_for_its_own_tickets`, and `tests/test_paused_agent.py`
+  for what that wake may send); a fixed-market Agent reads another account (its
+  other-symbol records and decisions unfiltered), its trade there asks for a card like
+  any other, and it is refused watches there;
   `owner_notify` dedupe, quiet
   hours, critical bypass,
   activity only, the rate limit and a call request from the wake.
@@ -174,8 +180,9 @@ Delivery is in-app only until Wave 3. See
 - Attribution reads the newest 1000 live journal rows of the account; an older
   position whose opening operation fell out of that window is unattributed and wakes
   the Personal Agent observe-only.
-- An attributed wake that finds its Agent paused falls back to the Personal Agent; the
-  paused Agent is not woken when it resumes.
+- An attributed wake of a paused Agent runs while it is paused, for its own tickets
+  only; its other runs (routines, watches, timers, Tasks, the owner's messages) wait for
+  the resume.
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
   runs and memory through its default, revocable supervision grant, on demand.

@@ -253,8 +253,8 @@ async def wake_for_activity(
             if agent.paused:
                 prompt += (
                     " You are paused: only risk-reducing requests are sent (a full or partial "
-                    "close, cancelling a pending order, adding a stop loss, or moving a stop "
-                    "loss toward the market); take no new work."
+                    "close, cancelling a pending order whose fill would add exposure, adding "
+                    "a stop loss, or moving a stop loss toward the market); take no new work."
                 )
             identifier = stable_id(account_id, f"external:{revision}:{agent.id}")
         else:
