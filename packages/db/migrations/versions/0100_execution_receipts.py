@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0100_execution_receipts"
-down_revision = "0061_trade_approval_validity"
+down_revision = "0111_judgment_label"
 branch_labels = None
 depends_on = None
 

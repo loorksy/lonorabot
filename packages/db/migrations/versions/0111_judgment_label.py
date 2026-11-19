@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0111_judgment_label"
-down_revision = "0061_trade_approval_validity"
+down_revision = "0195_drop_model_backups"
 branch_labels = None
 depends_on = None
 

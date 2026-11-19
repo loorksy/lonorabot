@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0195_drop_model_backups"
-down_revision = "0087_end_money_limits"
+down_revision = "0071_secret_card_kinds"
 branch_labels = None
 depends_on = None
 
