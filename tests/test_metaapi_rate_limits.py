@@ -155,11 +155,21 @@ async def test_a_throttled_subscription_keeps_the_connection_and_says_rate_limit
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status,code",
+    [
+        ("CONNECTED", "broker_connection_timeout"),
+        # A terminal that is not logged in yet (a redeploy or a restart) is waited for too.
+        ("DISCONNECTED", "broker_login_not_established"),
+        ("DISCONNECTED_FROM_BROKER", "broker_login_rejected"),
+    ],
+)
 async def test_a_plain_timeout_keeps_the_connection_until_it_is_renewed(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, status: str, code: str
 ) -> None:
     monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
     value = account()
+    value.connection_status = status
     adapter = broker(value)
     connection = value.get_rpc_connection.return_value
     slot = adapter._slot("rpc")  # pyright: ignore[reportPrivateUsage]
@@ -167,7 +177,7 @@ async def test_a_plain_timeout_keeps_the_connection_until_it_is_renewed(
         slot.retry_at = 0
         with pytest.raises(LonoraError) as caught:
             await adapter.prepare()
-        assert caught.value.code == "broker_connection_timeout"
+        assert caught.value.code == code
         assert value.get_rpc_connection.call_count == 1
         assert (adapter.rpc is connection) == (attempt < metaapi.KEPT_FAILURES)
 

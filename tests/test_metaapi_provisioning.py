@@ -188,6 +188,13 @@ async def test_lifecycle_reports_state_and_broker_connection_status() -> None:
     assert rotated.deployed and rotated.connection_status == "DISCONNECTED_FROM_BROKER"
     await provisioning.update_password(account.account_id, PASSWORD)
     assert (await provisioning.redeploy(account.account_id)).connected
+    # A server the account moved to is sent with the password; the stored one is not kept.
+    api.servers["Exness-MT5Trial8"] = {LOGIN: PASSWORD}
+    del api.servers[SERVER][LOGIN]
+    await provisioning.update_password(account.account_id, PASSWORD, server="Exness-MT5Trial8")
+    assert api.updates[-1]["server"] == "Exness-MT5Trial8"
+    moved = await provisioning.redeploy(account.account_id)
+    assert moved.server == "Exness-MT5Trial8" and moved.connected
     undeployed = await provisioning.undeploy(account.account_id)
     assert undeployed.state == "UNDEPLOYED" and undeployed.connection_status == "DISCONNECTED"
     assert (await provisioning.state(account.account_id)).state == "UNDEPLOYED"

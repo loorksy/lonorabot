@@ -198,17 +198,22 @@ class BrokerSessionRepository(ResourceRepository):
         *,
         secret_id: str | None = None,
         state: dict[str, Any] | None = None,
+        server: str | None = None,
     ) -> BrokerSessionRow:
         """A credential of the same MetaApi account changed (9.3): its password at MetaApi,
         or the token it names. The version moves, so every cached adapter drops the old
         credential and the door's version fence sees the change; the verified identity is
-        carried over, because the account is the same one. Callers hold the account's send
-        lock. Changing the account itself is a new connection, never this."""
+        carried over, because the account is the same one, with ``server`` when MetaApi now
+        stores another one for it (a demo account moved between its broker's servers).
+        Callers hold the account's send lock. Changing the account itself is a new
+        connection, never this."""
         await self.lock_owner(session, owner_id)
         row = await self.get(session, owner_id, resource_id, lock=True)
         identity = current_broker_identity(row)
         if row.payload.get("provider") != "metaapi" or identity is None:
             raise LonoraError("broker_identity_unavailable", 503)
+        if server and server.casefold() != str(identity.get("server") or "").casefold():
+            identity = {**identity, "server": server}
         if secret_id is not None:
             row.payload = {**row.payload, "secret_id": secret_id}
         row.version += 1

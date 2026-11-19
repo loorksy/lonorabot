@@ -671,7 +671,10 @@ class FakeProvisioningApi:
 
     ``servers`` maps a broker server to the logins it knows and their master passwords.
     A created account is deploying; the next read finds it deployed, and connected to the
-    broker only while its stored password is the server's. No network, no real account.
+    broker only while its stored password is the server's: with another password the
+    broker refuses it (DISCONNECTED_FROM_BROKER), and on a server that no longer has its
+    login (a demo account moved to another server) it stays DISCONNECTED, as MetaApi
+    reports it. No network, no real account.
     """
 
     servers: dict[str, dict[str, str]] = field(
@@ -740,7 +743,7 @@ class FakeProvisioningApi:
         right = expected == data["terminal_password"]
         data["connectionStatus"] = (
             ("CONNECTED" if right else "DISCONNECTED_FROM_BROKER")
-            if data["state"] == "DEPLOYED"
+            if data["state"] == "DEPLOYED" and expected is not None
             else "DISCONNECTED"
         )
         return data

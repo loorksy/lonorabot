@@ -331,8 +331,11 @@ class MetaApiProvisioning:
     async def redeploy(self, account_id: str) -> ProvisionedAccount:
         return await self._act(account_id, "redeploy")
 
-    async def update_password(self, account_id: str, password: str) -> ProvisionedAccount:
-        """Store a new password at MetaApi. It takes effect after a redeploy."""
+    async def update_password(
+        self, account_id: str, password: str, server: str | None = None
+    ) -> ProvisionedAccount:
+        """Store a new password at MetaApi, and a new server name when one is given and
+        differs from the stored one. Both take effect after a redeploy."""
         entity = await self._entity(account_id, (password,))
         # The entity's own payload, by MetaApi's field names: the SDK's properties turn a
         # missing ``slippage`` or ``manualTrades`` into False, which is not the stored value.
@@ -342,6 +345,8 @@ class MetaApiProvisioning:
             **{key: stored[key] for key in UPDATE_FIELDS if stored.get(key) is not None},
             "password": password,
         }
+        if server and server.strip().casefold() != str(stored.get("server") or "").casefold():
+            update["server"] = server.strip()
         await self._call("update", (account_id, password), lambda: entity.update(update))
         return describe(entity)
 
