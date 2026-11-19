@@ -81,7 +81,7 @@ call, inside the same Run.
 `agent_control` (toolset `collaboration`, long-tail, replay-safe) pauses or resumes the
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
-It has no action that trades, grants, raises a limit or edits memory or instructions.
+It has no action that trades, grants or edits memory or instructions.
 Only a supervisor steers another agent's work; on the owner's message the Personal
 Agent may too without a grant, and no other agent, whatever message its Run answers
 (`supervision_required`). The owner's message counts only while the Run has read

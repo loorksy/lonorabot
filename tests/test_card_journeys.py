@@ -344,7 +344,6 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
         assert (grant["symbol_scope"], grant["symbols"]) == ("selected", ["XAUUSD"])
         assert grant["all_actions"] and grant["duration"] == "until_stopped"
         assert grant["allow_manual_positions"] is True and grant["full_available"] is False
-        assert drafted["payload"]["daily_loss"] is None
         # Unsigned, it grants nothing; confirming without the passkey is refused.
         assert await active(fixed["id"]) == [] and await level(fixed["id"]) == before
         status, refused = await raw(
@@ -373,7 +372,7 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
         assert replaced["status"] == "superseded"
         assert replaced["superseded_by"] == custom["owner_action"]["id"]
         device = await Device.enroll(fixture)
-        await sign(custom["owner_action"]["id"], device, money_limit="none")
+        await sign(custom["owner_action"]["id"], device)
         [signed] = await active(fixed["id"])
         # The grant is exactly the draft: closing only, on its pair, for 24 hours.
         assert signed.envelope["actions"] == ["close_position"]
@@ -392,13 +391,11 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
                 "thread_id": flexible_thread["id"],
                 "symbols": ["XAUUSD"],
                 "allow_manual_positions": True,
-                "daily_loss_amount": "250",
             },
         )
         assert status == 201, other
         conflicts = other["owner_action"]["facts"]["conflicts"]
         assert [item["authority_id"] for item in conflicts] == [signed.id]
-        assert other["owner_action"]["facts"]["money"]["daily_loss"]["proposed"] == "250"
         decided = await sign(other["owner_action"]["id"], device, stop_authorities=[signed.id])
         assert decided["result"]["stopped_authorities"] == [signed.id]
         assert await active(fixed["id"]) == []

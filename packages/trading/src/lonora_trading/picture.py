@@ -3,8 +3,7 @@
 Built from the stored reconciliation snapshot of each enabled connection
 (``broker_recovery``) and the instrument currencies kept on the connection row,
 never from a broker read at build time, and attributed with the ownership rule of
-3.3.4 (the journal match of ``lonora_opened``,
-with the agent of the matching entry, ``journal_agent``). Only the gateway step ``learn_currencies`` reads
+3.3.4 (the journal match of the door's ``ticket_agent``). Only the gateway step ``learn_currencies`` reads
 the broker, for instrument metadata. The picture is presentation for the model
 only: nothing in preflight, the stale-target check or the expected-target capture
 reads it, so a snapshot seconds old can never decide an order.
@@ -32,12 +31,9 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .account_authority import entry_opened
+from .account_authority import entry_holder
 from .exposure import ENTRY_ACTIONS, direction
-from .manual_activity import journal_agent
 
-# The same bound as lonora_opened: the newest confirmed entries per symbol.
-JOURNAL_ENTRIES_PER_SYMBOL = 1000
 # Instrument currencies the broker reported, per symbol, kept on the connection row.
 CURRENCIES_KEY = "instrument_currencies"
 # ISO codes (EUR, XAU) and the longer codes of crypto pairs (BTC, USDT); not "US500".
@@ -74,7 +70,7 @@ async def ticket_owners(
     positions: list[Position],
     orders: list[Order],
 ) -> dict[tuple[str, str], str | None]:
-    """The owner of every ticket, by the journal match ``lonora_opened`` uses."""
+    """The owner of every ticket, by the journal match the door's ``ticket_agent`` uses."""
     owners: dict[tuple[str, str], str | None] = {}
     tickets = [("position", item) for item in positions] + [("order", item) for item in orders]
     for symbol in sorted({item.symbol for _, item in tickets}):
@@ -88,18 +84,17 @@ async def ticket_owners(
                     TradingJournalRow.request["symbol"].as_string() == symbol,
                     TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
                 )
-                .order_by(TradingJournalRow.updated_at.desc())
-                .limit(JOURNAL_ENTRIES_PER_SYMBOL)
+                .order_by(
+                    TradingJournalRow.submitted_at.asc().nulls_last(),
+                    TradingJournalRow.updated_at.asc(),
+                )
             )
         )
         for kind, item in tickets:
             if item.symbol != symbol:
                 continue
             field = "position_id" if kind == "position" else "order_id"
-            owners[(kind, item.id)] = next(
-                (journal_agent(entry) for entry in entries if entry_opened(entry, item, field)),
-                None,
-            )
+            owners[(kind, item.id)] = entry_holder(entries, item, field)
     return owners
 
 
