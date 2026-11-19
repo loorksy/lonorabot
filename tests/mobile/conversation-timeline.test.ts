@@ -75,7 +75,7 @@ function slotting(seq: number, card: string, record: string, extra: object = {})
           type: "ui",
           document: {
             v: 2,
-            kind: "receipt",
+            kind: "summary",
             title: "Waiting for you",
             icon: "check",
             facts: {},
