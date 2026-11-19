@@ -95,7 +95,7 @@ export LONORA_ENCRYPTION_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA= LONORA
 
   The template's own (fake) connection is switched off first, so nothing in the run reaches MetaApi with it.
 - **What it leaves behind.** Nothing.
-  - A connected account is removed by the product's own disconnect (9.3). A failed one is removed by the provisioning step's own cleanup, which the harness waits for. This happens even when a check or a run fails.
+  - A connected account is removed by the product's own disconnect (9.3). A failed one is removed by the provisioning step's own cleanup, which the harness waits for. This happens even when a check or a run fails, or the run is interrupted (Ctrl-C): the step's row then says why, and the run still ends with its table.
   - The harness then asks MetaApi itself, with the owner's token, whether any account for this login and server is left. It reports one that is, without its id. That includes an account that was already there before the run: the product reuses it and does not remove it, so the owner removes it at MetaApi.
 - **What it prints.** The step table and its checks, and nothing else.
   - While the run goes, its standard output is discarded (the MetaApi SDK prints account ids) and logging is off.

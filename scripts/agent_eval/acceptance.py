@@ -308,6 +308,9 @@ class Stage:
     # --broker demo: the MetaApi demo account's login, server, password and token, typed at
     # hidden prompts and held only in memory.
     demo: dict[str, str] | None = None
+    # --broker demo: what MetaApi still holds after the step, reported with the step's row
+    # even when the step raised or was interrupted.
+    cleanup: "list[Check]" = field(default_factory=list["Check"])
     # Runs the template left queued (the signed grant's account task): not the step's.
     before: set[str] = field(default_factory=set[str])
     # Each conversation's last message before the step (``seq`` counts per conversation).
@@ -1038,7 +1041,6 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
     )
     used: list[str] = []
     checks: list[Check] = []
-    cleanup: list[Check] = []
     try:
         result: dict[str, Any] = {}
         if card is not None and saved.status_code == 200:
@@ -1051,8 +1053,11 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
             )
         balance = "?"
         if connection is not None and demo:
-            state = await stage.brokers.account(stage.api.owner, connection.id)
-            balance = format(state.balance.normalize(), "f")
+            try:
+                state = await stage.brokers.account(stage.api.owner, connection.id)
+                balance = format(state.balance.normalize(), "f")
+            except Exception:  # the harness's own read: unread, the balance checks fail
+                pass
         elif connection is not None:
             terminal = broker.FakeMetaApiBroker.terminals[connection.payload["account_id"]]
             balance = format(terminal.balance.normalize(), "f")
@@ -1103,7 +1108,9 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
             (
                 "Lonora was woken with the broker's balance",
                 wake is not None and f"Balance {balance}" in wake.prompt,
-                "read from the broker" if demo else f"broker balance {balance}",
+                ("read from the broker" if balance != "?" else "the broker's balance was not read")
+                if demo
+                else f"broker balance {balance}",
             ),
             (
                 "Lonora reported the balance in its conversation",
@@ -1124,8 +1131,8 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         ]
     finally:
         if demo and card is not None:
-            cleanup = await removed_demo(stage, card.id)
-    return checks + cleanup
+            stage.cleanup = await removed_demo(stage, card.id)
+    return checks
 
 
 def states(figure: str, text: str) -> bool:
@@ -1147,9 +1154,12 @@ async def removed_demo(stage: Stage, card_id: str) -> list[Check]:
     assert stage.demo is not None
     result = await card_result(stage, card_id)
     if result.get("connection_id"):
-        await disconnect(
-            stage.api.runtime.db, stage.brokers, stage.api.owner, result["connection_id"]
-        )
+        try:
+            await disconnect(
+                stage.api.runtime.db, stage.brokers, stage.api.owner, result["connection_id"]
+            )
+        except Exception:  # what MetaApi still holds is asked next and reported
+            pass
     client = broker_provisioning.provisioning_client(stage.demo["token"])
     try:
         left = await client.find(stage.demo["login"], stage.demo["server"])
@@ -1246,6 +1256,7 @@ async def run_step(
     checks: list[Check] = []
     error, exercised = None, True
     api: Any = None
+    stage: Stage | None = None
     # --broker demo: the real MetaApi adapter and provisioning, no fake installed.
     with nullcontext() if demo else broker.installed(terminal):
         try:
@@ -1263,6 +1274,13 @@ async def run_step(
             error, exercised = str(reason), False
         except Exception as caught:  # a step that raises fails with its reason
             error = f"{type(caught).__name__}: {caught}"
+        except asyncio.CancelledError:
+            if demo is None:
+                raise
+            # --broker demo, interrupted (Ctrl-C): the run still ends with its table, so what
+            # MetaApi holds is said.
+            cast(asyncio.Task[Any], asyncio.current_task()).uncancel()
+            error = "interrupted"
         finally:
             try:
                 if api is not None:
@@ -1271,6 +1289,8 @@ async def run_step(
                 await harness.admin(
                     base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)'
                 )
+    if stage is not None:
+        checks += stage.cleanup
     failed = {name for name, ok, _ in checks if not ok}
     known = {item["check"] for item in step.get("defects", [])}
     if not exercised:

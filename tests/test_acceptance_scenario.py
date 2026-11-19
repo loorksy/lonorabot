@@ -192,6 +192,80 @@ def test_the_demo_broker_runs_only_the_steps_that_may_reach_it():
     assert "MetaApi demo" not in done.stdout + done.stderr
 
 
+# --broker demo on W-BROKER's fakes in place of MetaApi: the step body fails after the
+# account is connected, once with an error and once interrupted (Ctrl-C).
+DEMO_FAILS = """
+import asyncio, json, os
+from unittest.mock import patch
+from lonora_adapters.brokers.base import BrokerManager
+from scripts.agent_eval import acceptance, broker
+
+async def main():
+    base = acceptance.harness.disposable(os.environ["LONORA_DATABASE_URL"])
+    step = {item["id"]: item for item in acceptance.load()["steps"]}["1"]
+    login, server = step["given"]["login"], step["given"]["server"]
+    demo = {"login": login, "server": server, "password": "accept-demo-master",
+            "token": "accept.demo.token"}
+    api = broker.FakeProvisioningApi(servers={server: {login: demo["password"]}},
+                                     prefix="accept-demo")
+    terminals = [broker.FakeTerminal(account_id=f"accept-demo-{n:04d}", login=login,
+                                     server=server) for n in (1, 2)]
+    ids = await acceptance.runner.template(base, acceptance.runner.MODEL)
+    client = lambda token: broker.FakeMetaApiProvisioning(api, token)
+    rows = []
+    try:
+        with (
+            broker.installed(*terminals),
+            patch("lonora_trading.broker_provisioning.provisioning_client", client),
+            patch.object(BrokerManager, "provisioning_factory", staticmethod(client), create=True),
+            patch.object(acceptance, "DEMO_PASS_SECONDS", 0),
+        ):
+            for failure in (TimeoutError("the wake's run did not end"),
+                            asyncio.CancelledError()):
+                async def fails(*_, failure=failure):
+                    raise failure
+                with patch.object(acceptance, "posted", fails):
+                    rows.append(await acceptance.run_step(base, ids, step, False, demo))
+    finally:
+        await acceptance.harness.admin(
+            base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
+    print(json.dumps({"rows": rows, "creates": api.calls.count("create_account"),
+                      "left": len(api.accounts)}))
+
+asyncio.run(main())
+"""
+
+
+def test_the_demo_broker_says_what_metaapi_holds_when_the_step_fails():
+    """A step that raises or is interrupted after the account is connected still removes
+    it and reports what MetaApi holds, in its own row."""
+    url = make_url(os.environ.get("LONORA_DATABASE_URL") or "sqlite://")
+    if not url.drivername.startswith("postgresql"):
+        pytest.skip("the demo run needs a disposable PostgreSQL (LONORA_DATABASE_URL)")
+    own = url.set(database=f"accept_{uuid4().hex[:10]}_test")
+    done = subprocess.run(
+        [sys.executable, "-c", DEMO_FAILS],
+        cwd=ROOT,
+        env={**os.environ, "LONORA_DATABASE_URL": own.render_as_string(hide_password=False)},
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    outcome = json.loads(done.stdout.strip().splitlines()[-1])
+    failed, interrupted = outcome["rows"]
+    assert failed["error"] == "TimeoutError: the wake's run did not end"
+    assert interrupted["error"] == "interrupted"
+    for row in (failed, interrupted):
+        assert row["state"] == "fail"
+        # The step's own checks were never reached; MetaApi's row is there all the same.
+        assert [(check["check"], check["ok"]) for check in row["checks"]] == [
+            ("nothing is left at MetaApi", True)
+        ], row
+    # Each run created its account at the fake MetaApi, and each was removed.
+    assert outcome["creates"] == 2 and outcome["left"] == 0
+
+
 def test_a_balance_is_read_from_the_agents_words():
     assert acceptance.states("10000", "الرصيد 10,000 دولار")
     assert acceptance.states("10000", "الرصيد ١٠٠٠٠ دولار")
