@@ -96,7 +96,7 @@ async def secret_card(fixture: Fixture) -> None:
             ToolCall(
                 id="call-" + uuid4().hex,
                 name="owner_action_propose",
-                arguments={"kind": "connect_credential", "target": "mcp_server", "service": "x"},
+                arguments={"kind": "secret", "target": "mcp_server", "service": "x"},
             ),
             context,
         )
@@ -587,7 +587,7 @@ async def fallbacks(fixture: Fixture) -> None:
     context = await fixture.lease(await fixture.run(agent, thread))
     cards: list[str] = []
     for target in ("mcp_server", "brave_search"):
-        arguments: dict[str, str] = {"kind": "connect_credential", "target": target}
+        arguments: dict[str, str] = {"kind": "secret", "target": target}
         if target == "mcp_server":
             arguments["service"] = "x"
         card = await load_tools().execute(
@@ -667,7 +667,7 @@ async def migration(fixture: Fixture) -> None:
 
     # The code before 0172 does not know mandate_proposed: its downgrade removes those
     # rows, and 0170's removes secret_requested ones.
-    await asyncio.to_thread(alembic, "downgrade", "0087_end_money_limits")
+    await asyncio.to_thread(alembic, "downgrade", "0100_execution_receipts")
     assert await remaining("mandate_proposed") == []
     assert await remaining("secret_requested")
     await asyncio.to_thread(alembic, "downgrade", "0068_end_trading_goals")

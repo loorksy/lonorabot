@@ -31,7 +31,7 @@ ATTENTION_KINDS = frozenset(
 )
 # Owner-action card kinds whose pending card is an attention item, by code.
 CARD_ATTENTION: dict[str, AttentionCode] = {
-    "connect_credential": "secret_requested",
+    "secret": "secret_requested",
     # The Mandate card while it waits for the owner's tap (an agent proposed it, Lonora
     # offered its own at onboarding); after a tap it stays the switch but needs nothing.
     "trading_mode": "mandate_proposed",

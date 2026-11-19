@@ -316,13 +316,12 @@ class GlobalModelRouter:
             alone = index == len(route.choices) - 1
             credentials_started = monotonic()
             try:
-                secret = await self.credentials.resolve(selection.provider)
+                secret, endpoint = await self.credentials.connection(selection.provider)
             except LonoraError as error:
                 if error.code != "model_not_configured":
                     raise
                 failures.append((selection, ModelProviderError(FailureReason.NOT_CONFIGURED)))
                 continue
-            endpoint = await self.credentials.endpoint(selection.provider)
             # A new base URL is a new credential: its health starts fresh.
             fingerprint = credential_fingerprint(secret + "\n" + endpoint if endpoint else secret)
             bench = self.health.benched(selection, fingerprint)

@@ -14,15 +14,21 @@ export function TurnActivity({
   events,
   connection,
   agent,
+  steps = true,
+  stepsOpen = false,
 }: {
   run: Run;
   events: Event[];
   connection: EventConnection;
   agent?: Agent;
+  /** «خطوات عمل الوكيل» (chat preference): off, the line stays and its steps are not shown. */
+  steps?: boolean;
+  /** «فتح الخطوات تلقائيًا»: the steps start open. */
+  stepsOpen?: boolean;
 }) {
   const { t, rtl, locale } = useSession();
   const shell = useShellColors();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(stepsOpen);
   const activity = turnActivity(run, events);
   const reconnecting = isWorking(run.status) && connection !== "connected";
   const needsReply = activity.phase === "waiting_input" || activity.phase === "waiting_external";
@@ -37,7 +43,7 @@ export function TurnActivity({
             ? shell.secondary
             : shell.foreground;
   const label = reconnecting ? t(connection) : t(`activity_${activity.phase}`);
-  const hasDetails = Boolean(activity.calls.length || activity.observedAt);
+  const hasDetails = steps && Boolean(activity.calls.length || activity.observedAt);
   return (
     <View
       testID={`turn-activity-${run.id}`}

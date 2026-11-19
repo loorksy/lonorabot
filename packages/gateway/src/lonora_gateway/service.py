@@ -50,15 +50,25 @@ STEPS = (
     StepSpec("reconcile", 10, 300),
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
+    # The currencies of newly held symbols, for the account picture (5.4).
+    StepSpec("instrument_currencies", 30, 120, critical=False),
+    # The owner's economic calendar sources, cached for the account picture (5.4).
+    StepSpec("calendar", 600, 120, critical=False),
     # Accounts the owner connected from chat: provision, deploy, connect, report.
     StepSpec("broker_provisioning", 10, 900),
     # The closed-trade ledger from broker deal history (mandate 5.5.1).
     StepSpec("closed_trades", 30, 300, critical=False),
+    # The currencies of newly held symbols, for the account picture (5.4).
+    StepSpec("instrument_currencies", 30, 120, critical=False),
+    # The owner's economic calendar sources, cached for the account picture (5.4).
+    StepSpec("calendar", 600, 120, critical=False),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
     StepSpec("charts", 2, 120, critical=False),
     StepSpec("watches", 2, 120),
+    # Pending Trade Approval cards whose quote left reference ± tolerance (10.3.1).
+    StepSpec("approval_drift", 2, 120),
     StepSpec("voice", 0.5, 60, critical=False),
     # Owner voice notes: one provider transcription per note, outside any request.
     StepSpec("voice_notes", 1, 300, critical=False),
@@ -209,6 +219,18 @@ class Gateway:
             lambda service: maintenance_account_recovery(self.db, service.brokers, service.owner_id)
         )
 
+    async def instrument_currencies(self) -> None:
+        from lonora_trading.picture import learn_currencies
+
+        await self.for_each_owner(
+            lambda service: learn_currencies(self.db, service.brokers, service.owner_id)
+        )
+
+    async def calendar(self) -> None:
+        from lonora_market.economic_calendar import cache_calendar
+
+        await self.for_each_owner(lambda service: cache_calendar(self.db, service.owner_id))
+
     async def broker_provisioning(self) -> None:
         from lonora_adapters.storage.broker_secrets import BrokerSecrets
         from lonora_trading.broker_provisioning import maintain_broker_provisioning
@@ -228,6 +250,18 @@ class Gateway:
         await self.for_each_owner(
             lambda service: maintenance_closed_trades(self.db, service.brokers, service.owner_id)
         )
+
+    async def instrument_currencies(self) -> None:
+        from lonora_trading.picture import learn_currencies
+
+        await self.for_each_owner(
+            lambda service: learn_currencies(self.db, service.brokers, service.owner_id)
+        )
+
+    async def calendar(self) -> None:
+        from lonora_market.economic_calendar import cache_calendar
+
+        await self.for_each_owner(lambda service: cache_calendar(self.db, service.owner_id))
 
     async def opportunities(self) -> None:
         from lonora_trading.opportunities import maintenance_opportunities
@@ -254,7 +288,16 @@ class Gateway:
         )
 
     async def watches(self) -> None:
-        await self.for_each_owner(lambda service: dispatch_market_wakes(self.db, service.brokers))
+        await self.for_each_owner(
+            lambda service: dispatch_market_wakes(self.db, service.brokers, service.secrets.read)
+        )
+
+    async def approval_drift(self) -> None:
+        from lonora_trading.approval_drift import check_drift
+
+        await self.for_each_owner(
+            lambda service: check_drift(self.db, service.brokers, service.owner_id)
+        )
 
     async def voice(self) -> None:
         await self.for_each_owner(
@@ -278,7 +321,9 @@ class Gateway:
         from .attention import attention_tick
 
         await self.for_each_owner(
-            lambda service: attention_tick(self.db, service.brokers, service.owner_id)
+            lambda service: attention_tick(
+                self.db, service.brokers, service.owner_id, read_secret=service.secrets.read
+            )
         )
 
     async def push(self) -> None:
@@ -395,13 +440,18 @@ class Gateway:
             "reconcile": self.reconcile,
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
+            "instrument_currencies": self.instrument_currencies,
+            "calendar": self.calendar,
             "broker_provisioning": self.broker_provisioning,
             "closed_trades": self.closed_trades,
+            "instrument_currencies": self.instrument_currencies,
+            "calendar": self.calendar,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,
             "charts": self.charts,
             "watches": self.watches,
+            "approval_drift": self.approval_drift,
             "voice": self.voice,
             "voice_notes": self.voice_notes,
             "channels": self.channels,
