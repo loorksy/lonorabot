@@ -165,18 +165,27 @@ def refusing(value: Any, status: str) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["rpc", "streaming"])
+@pytest.mark.parametrize(
+    "status,code",
+    [
+        ("DISCONNECTED_FROM_BROKER", "broker_login_rejected"),
+        # Deployed but not logged in, no reason given (a server the account left).
+        ("DISCONNECTED", "broker_login_not_established"),
+    ],
+)
 async def test_a_terminal_the_broker_refuses_is_named_after_a_fresh_read_and_never_redeployed(
-    monkeypatch: pytest.MonkeyPatch, kind: str
+    monkeypatch: pytest.MonkeyPatch, kind: str, status: str, code: str
 ) -> None:
-    """Mandate 9.4: a wrong password (MetaApi's DISCONNECTED_FROM_BROKER) is told apart
-    from a lost link, from a fresh read once synchronization timed out, without a deploy."""
+    """Mandate 9.4: a wrong password (MetaApi's DISCONNECTED_FROM_BROKER) and a deployed
+    terminal not logged in (DISCONNECTED) are told apart from a lost link, from a fresh
+    read once synchronization timed out, without a deploy."""
     monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
     value = account("DEPLOYED")
-    refusing(value, "DISCONNECTED_FROM_BROKER")
+    refusing(value, status)
     adapter = broker(value)
     with pytest.raises(LonoraError) as caught:
         await (adapter.prepare() if kind == "rpc" else adapter.prepare_stream())
-    assert caught.value.code == "broker_login_rejected" and caught.value.status == 409
+    assert caught.value.code == code and caught.value.status == 409
     value.reload.assert_awaited_once()
     value.deploy.assert_not_awaited()
     value.redeploy.assert_not_awaited()
@@ -233,7 +242,41 @@ def test_a_refused_login_becomes_the_owners_problem_after_the_grace() -> None:
     from lonora_db.task_recovery import TRANSIENT_CODES
 
     assert "broker_login_rejected" in TRANSIENT_READ_CODES & TRANSIENT_CODES
+    assert "broker_login_not_established" in TRANSIENT_READ_CODES & TRANSIENT_CODES
     assert broker_problem(recovery, since + LOST_CONNECTION_GRACE) == (
         "broker_connection_lost",
         since.isoformat(),
     )
+
+
+@pytest.mark.parametrize(
+    "reason,observed",
+    [
+        ("broker_login_rejected", "DISCONNECTED_FROM_BROKER"),
+        ("broker_login_not_established", "DISCONNECTED"),
+    ],
+)
+def test_a_lasting_login_problem_reaches_lonora_with_what_was_seen_and_the_fix(
+    reason: str, observed: str
+) -> None:
+    """The lost-connection alert for a login reason tells Lonora what MetaApi reported
+    and the owner's fix; a plain timeout gets no invented cause."""
+    from lonora_db.schema import AttentionRow
+    from lonora_db.system_alerts import alert_prompt
+
+    def prompt(code: str) -> str:
+        item = AttentionRow(
+            code="broker_connection_lost",
+            parameters={
+                "account_id": "a1",
+                "since": "2026-11-12T09:00:00+00:00",
+                "reason_code": code,
+            },
+        )
+        return alert_prompt(item) or ""
+
+    told = prompt(reason)
+    assert observed in told and "exactly as his MT5 app shows it now" in told
+    assert "main (master) trading password" in told and "investor password" in told
+    plain = prompt("broker_connection_timeout")
+    assert "MT5 app" not in plain and "investor" not in plain

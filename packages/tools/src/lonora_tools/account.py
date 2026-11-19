@@ -63,6 +63,7 @@ async def list_accounts(context: ToolContext, args: dict[str, Any]) -> dict[str,
             ],
             "guidance": "Use connection_id as account_id in account, market and trading tools. "
             "Present accounts to the user using broker_identity broker/login/server, never transport IDs as account numbers. "
+            "broker_identity is the login and server last recorded: MetaApi's stored record of the account (what it was given) until an account_read answers, then the terminal's own answer. Neither proves the broker accepts the login now; only a successful account_read shows the account connected. "
             "Missing identity means it has not been observed. Verify using account_read, which refreshes native identity; a saved connection is not proof of live broker connectivity.",
         }
 
@@ -123,7 +124,7 @@ def tools() -> list[Tool]:
         Tool(
             "list_accounts",
             "List the owner's saved broker connections with exact internal "
-            "connection_id for tool routing and cached broker-native identity. No credentials or MetaApi transport account IDs are returned. "
+            "connection_id for tool routing and last recorded login/server. No credentials or MetaApi transport account IDs are returned. "
             "Discover these before account_read; do not guess IDs.",
             ListAccountsInput,
             list_accounts,

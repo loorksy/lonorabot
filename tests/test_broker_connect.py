@@ -654,3 +654,100 @@ async def test_a_leftover_account_a_new_connect_takes_over_is_removed_when_it_fa
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "moved,code,observed",
+    [
+        # Exness moved the demo account to another server: MetaApi says DISCONNECTED.
+        (True, "broker_login_not_established", "DISCONNECTED"),
+        (False, "broker_login_rejected", "DISCONNECTED_FROM_BROKER"),
+    ],
+)
+async def test_a_deployed_terminal_not_logged_in_fails_with_what_lonora_saw(
+    moved: bool, code: str, observed: str
+) -> None:
+    """The login wait starts when MetaApi first reports the terminal deployed; past
+    LOGIN_DEADLINE the card fails with a code for what MetaApi reported, and the wake
+    says the usual causes and the fix, never a connection."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    account = login()
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Not logged in")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway(1)
+            assert (await world.card(card_id)).result["provisioning"] == "deploying"
+            if moved:
+                api.servers[SERVER].pop(account)
+                api.servers["Fixture-MT5Trial2"] = {account: PASSWORD}
+            else:
+                api.servers[SERVER][account] = "changed-at-the-broker"
+            await world.gateway(1)
+            waiting = (await world.card(card_id)).result
+            # Deployed, not logged in yet: the wait starts now, the card is not failed.
+            assert waiting["provisioning"] == "deploying" and waiting["deployed_at"]
+            metaapi_id = waiting["metaapi_account_id"]
+            assert api.accounts[metaapi_id]["connectionStatus"] == observed
+            await backdate(world, card_id, "deployed_at")  # only the login wait passed
+            await world.gateway(1)
+        failed = (await world.card(card_id)).result
+        assert failed["provisioning"] == "failed" and failed["code"] == code, failed
+        assert failed["started_at"] != "2000-01-01T00:00:00+00:00"
+        prompt = await world.wake_prompt(card_id)
+        assert prompt is not None and code in prompt and observed in prompt
+        assert "exactly as his MT5 app shows it now" in prompt and "investor password" in prompt
+        assert "connected" not in prompt.replace("DISCONNECTED", "")
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_connection_whose_first_read_never_answers_is_linked_not_connected() -> None:
+    """MetaApi reported the terminal connected, so the connection is saved, but no read
+    answers before READ_DEADLINE: the card says saved and waiting for the broker login,
+    and the wake confirms no login, no identity and no balance."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    account = login()
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Linked")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway(2)
+            reading = (await world.card(card_id)).result
+            assert reading["provisioning"] == "reading", reading
+            terminal = FakeMetaApiBroker.terminals[reading["metaapi_account_id"]]
+            terminal.fail("connection_drop", times=100)
+            await world.gateway(1)
+            assert (await world.card(card_id)).result["provisioning"] == "reading"
+            await backdate(world, card_id, "connected_at")
+            await world.gateway(1)
+        linked = (await world.card(card_id)).result
+        assert linked["provisioning"] == "linked" and "account" not in linked, linked
+        assert linked["read_code"].startswith("broker_")
+        prompt = await world.wake_prompt(card_id)
+        assert prompt is not None
+        assert "the broker login is not confirmed and no balance was read" in prompt
+        assert "MetaApi's stored record" in prompt and "waiting for the broker login" in prompt
+        assert " is connected" not in prompt and "Balance" not in prompt
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()

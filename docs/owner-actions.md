@@ -23,7 +23,15 @@ with the fields and the destination the server sets (`docs/trusted-sources.md`);
 trading account has its own Secret card, raised by `broker_connect` (and `broker_manage`
 for a new password or token) with the `broker` destination: its values go only to the
 broker layer, and the gateway provisions the account and wakes the agent with the
-result. Otherwise the agent chooses its label and fields
+result (`lonora_trading/broker_provisioning.py`). The login and server MetaApi stores
+are what it was given, never a broker login: the card ends `connected` only once the
+terminal answered a read (its balance), `linked` when the connection is saved but no
+read answered in time (the card says "Saved, waiting for the broker login"), or
+`failed` with a code. A terminal MetaApi has deployed that is still not logged in to
+the broker 3 minutes after it was first seen deployed fails as `broker_login_rejected`
+(MetaApi reports DISCONNECTED_FROM_BROKER) or `broker_login_not_established`
+(DISCONNECTED, no reason given); the wake names what was observed and the usual fixes
+(the server name exactly as the MT5 app shows it now, the main password). Otherwise the agent chooses its label and fields
 (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
 `secret: false` only unmasks a field while it is typed). The server sets the
 destination: an agent's card saves to the owner's `workspace` secrets, and the card

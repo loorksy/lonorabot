@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .personal_agent import ensure_personal_agent
 from .schema import AttentionRow, RunRow
+from .secret_cards import BROKER_CAUSES
 from .threads import conversation_thread, create_thread
 
 logger = logging.getLogger(__name__)
@@ -32,11 +33,17 @@ PROBLEMS = {
     "two minutes (the account itself is fine); the adapter retries at the time MetaApi gives",
 }
 
+LOGIN_CAUSES = {
+    code: BROKER_CAUSES[code] for code in ("broker_login_rejected", "broker_login_not_established")
+}
+
 
 def alert_prompt(item: AttentionRow) -> str | None:
     """The fixed wake text for an item, or None when the item is no system alert."""
     values: dict[str, Any] = item.parameters
     if item.code in PROBLEMS:
+        # A reason that names what MetaApi observed about the broker login says it.
+        cause = LOGIN_CAUSES.get(str(values["reason_code"]))
         return (
             "System alert from the server: broker account account_id="
             + str(values["account_id"])
@@ -46,7 +53,9 @@ def alert_prompt(item: AttentionRow) -> str | None:
             + str(values["reason_code"])
             + ", disconnected since "
             + str(values["since"])
-            + "). The owner already has it as a needs-your-attention item. Inspect the "
+            + ")."
+            + (" " + cause if cause else "")
+            + " The owner already has it as a needs-your-attention item. Inspect the "
             "account and decide what the owner needs to hear from you."
         )
     if item.code == "operation_uncertain" and values.get("operation_id"):

@@ -14,6 +14,9 @@ TRANSIENT_READ_CODES = frozenset(
         # The broker refuses the terminal's login: often its server is down for a while,
         # so recovery keeps trying; a lasting refusal reaches the owner after the grace.
         "broker_login_rejected",
+        # MetaApi's terminal is deployed but not logged in to the broker, for a reason
+        # MetaApi does not give (DISCONNECTED): recovery keeps trying, as above.
+        "broker_login_not_established",
         # The broker asked to slow down: the same read succeeds after a short wait.
         "broker_rate_limited",
         "broker_candles_unavailable",

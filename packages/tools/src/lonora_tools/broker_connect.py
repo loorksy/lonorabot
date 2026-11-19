@@ -92,8 +92,8 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         return {
             **card_summary(row, created, thread.id, False),
             "asks_for": [field["key"] for field in payload["fields"]],
-            "next": "The server provisions and deploys the account after the owner saves; "
-            "you are woken with its balance or the reason it failed. Do not ask for the "
+            "next": "The server provisions and deploys the account after the owner saves. "
+            "You are woken with what MetaApi and the broker answered. Do not ask for the "
             "password in chat.",
         }
 
@@ -104,11 +104,12 @@ def tools() -> list[Tool]:
         Tool(
             "broker_connect",
             "Connect the owner's MetaTrader account through MetaApi. Ask in chat for the "
-            "account number (login) and the broker server name, then call with them; "
-            "platform mt4/mt5 only when the server name does not say. The server shows a "
-            "card for the trading password (and the MetaApi API token the first time), "
-            "provisions and deploys the account, and wakes you with its balance. Only on "
-            "the owner's own request.",
+            "account number (login) and the broker server name exactly as the owner's MT5 "
+            "app shows it now, then call with them; platform mt4/mt5 only when the server "
+            "name does not say. The server shows a card for the main trading password (and "
+            "the MetaApi API token the first time), provisions and deploys the account, and "
+            "wakes you with what MetaApi and the broker answered. Only on the owner's own "
+            "request.",
             BrokerConnectInput,
             connect,
             search_terms="link add broker trading account metatrader exness login password "

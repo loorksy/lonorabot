@@ -4397,6 +4397,10 @@ msgstr "مُسحت الرسائل"
 msgid "Messages reach"
 msgstr "تصل الرسائل إلى"
 
+#: src/lib/user_error.ts:154
+msgid "MetaApi has the account running, but it is not logged in to the broker. Usually the server name changed (demo accounts move between servers) or the password is not the main one: check both in your MT5 app, then tell Lonora in chat."
+msgstr "الحساب يعمل لدى MetaApi لكنه غير مسجَّل الدخول لدى الوسيط. غالبًا تغيّر اسم الخادم (تنتقل الحسابات التجريبية بين الخوادم) أو أن كلمة المرور ليست الرئيسية: تحقّق منهما في تطبيق MT5 ثم أخبر لونورا في المحادثة."
+
 #: src/components/ai/AttentionInbox.tsx:25
 msgid "MetaApi is limiting requests for now"
 msgstr "MetaApi تحدّ من الطلبات حاليًا"

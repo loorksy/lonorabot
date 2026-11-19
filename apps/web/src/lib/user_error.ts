@@ -150,6 +150,8 @@ export function userError(error: unknown) {
       return t`The broker account is not ready at MetaApi yet. If it lasts, ask Lonora in chat.`;
     case "broker_login_rejected":
       return t`The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat.`;
+    case "broker_login_not_established":
+      return t`MetaApi has the account running, but it is not logged in to the broker. Usually the server name changed (demo accounts move between servers) or the password is not the main one: check both in your MT5 app, then tell Lonora in chat.`;
     case "broker_credentials_rejected":
       return t`Broker authentication was rejected.`;
     case "broker_candles_timeout":

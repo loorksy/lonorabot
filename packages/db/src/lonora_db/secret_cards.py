@@ -422,8 +422,33 @@ def saved_prompt(row: OwnerActionRow) -> str:
     )
 
 
+# What a broker failure means, said as what MetaApi and Lonora observed (never a cause
+# MetaApi did not report), with the owner's fix. Also read by the system alerts.
+LOGIN_CHECK = (
+    "The usual causes: the server name is not the one the account is on now (Exness moves "
+    "demo accounts between Exness-MT5TrialNN servers), or the password is not the main "
+    "(master) trading password, for example the read-only investor password. Ask the "
+    "owner for the server name exactly as his MT5 app shows it now, then call "
+    "broker_connect with it; its card asks for the main password."
+)
+BROKER_CAUSES = {
+    "broker_login_not_established": "MetaApi has the account's terminal deployed, but it "
+    "has not logged in to the broker: MetaApi reports it DISCONNECTED and gives no reason, "
+    "so Lonora cannot see why. " + LOGIN_CHECK,
+    "broker_login_rejected": "MetaApi reports the broker refusing the terminal's login "
+    "(DISCONNECTED_FROM_BROKER): a wrong password or server name, or the broker's server "
+    "down. " + LOGIN_CHECK,
+    "broker_password_rejected": "MetaApi could not log in to the broker with this login, "
+    "password and server name; it does not say which is wrong. " + LOGIN_CHECK,
+    "broker_server_not_found": "MetaApi does not know this server name. Ask the owner for "
+    "the server name exactly as his MT5 app shows it now, then call broker_connect with it.",
+    "broker_connect_timeout": "MetaApi did not finish deploying the account's terminal in "
+    "time; nothing at the broker was confirmed.",
+}
+
+
 def broker_prompt(row: OwnerActionRow) -> str:
-    """Fixed text and broker-observed facts only, after provisioning finished."""
+    """Fixed text and observed facts only, after provisioning finished."""
     result = row.result
     purpose = row.payload.get("purpose", CONNECT)
     if purpose != CONNECT:
@@ -432,6 +457,8 @@ def broker_prompt(row: OwnerActionRow) -> str:
             "is redeploying with it.",
             REPLACE_TOKEN: "The new MetaApi token now serves every connected account.",
         }[purpose]
+        if purpose == ROTATE_PASSWORD:
+            done += " Whether the broker accepts the login shows only when account_read answers."
         if result.get("provisioning") == "connected":
             return done + " You never see it. Tell the owner in one line."
         if result.get("code") == "broker_rotation_incomplete":
@@ -450,6 +477,20 @@ def broker_prompt(row: OwnerActionRow) -> str:
             f"Changing the broker credential failed: {result.get('code')}. Nothing changed. "
             "You never see the values. Tell the owner in one line what went wrong."
         )
+    observed: dict[str, Any] = result.get("observed") or {}
+    named = f"account {observed.get('login')} on {observed.get('server')}"
+    if result.get("provisioning") == "linked":
+        cause = BROKER_CAUSES.get(str(result.get("read_code")))
+        return (
+            f"The owner's {named} is saved as connection {result.get('connection_id')} and "
+            "MetaApi has its terminal deployed, but the terminal has not answered a read "
+            f"({result.get('read_code')}): the broker login is not confirmed and no balance "
+            "was read. That login and server are MetaApi's stored record of the account, "
+            "not a broker answer. "
+            + (cause + " " if cause else "")
+            + "Tell the owner in one line that it is saved and waiting for the broker login"
+            + (", and what to check." if cause else "; read it again with account_read later.")
+        )
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
         token = ""
@@ -462,25 +503,22 @@ def broker_prompt(row: OwnerActionRow) -> str:
                 else " The MetaApi API token was refused and is forgotten: call broker_connect"
                 " again, and its card asks the owner for a new token. Never ask in chat."
             )
+        cause = BROKER_CAUSES.get(str(result.get("code")))
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
-            f"{result.get('code')}.{token} You never see "
+            f"{result.get('code')}.{token}{' ' + cause if cause else ''} You never see "
             "the password or token. Tell the owner in one line what went wrong and what you "
             "need; to try again, call broker_connect, which shows a new card."
         )
     facts: dict[str, Any] = result.get("account") or {}
-    if facts.get("balance") is None:
-        state = "Its balance is not readable yet; read it with account_read shortly."
-    else:
-        trading = (
-            "trading is allowed"
-            if facts.get("trade_allowed") and not facts.get("investor_mode")
-            else "trading is NOT allowed (an investor password or a read-only account)"
-        )
-        state = f"Balance {facts['balance']} {facts.get('currency')}; {trading}."
-    observed: dict[str, Any] = result.get("observed") or {}
-    named = f"account {observed.get('login')} on {observed.get('server')}"
+    trading = (
+        "trading is allowed"
+        if facts.get("trade_allowed") and not facts.get("investor_mode")
+        else "trading is NOT allowed (an investor password or a read-only account)"
+    )
     return (
-        f"The owner's {named} is connected and deployed at MetaApi as connection "
-        f"{result.get('connection_id')}. {state} Report this to the owner in one line."
+        f"The owner's {named} is connected as connection {result.get('connection_id')}: "
+        "its MetaApi terminal answered a read from the broker. Balance "
+        f"{facts.get('balance')} {facts.get('currency')}; {trading}. Report this to the "
+        "owner in one line."
     )

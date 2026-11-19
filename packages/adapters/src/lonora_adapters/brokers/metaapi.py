@@ -43,7 +43,9 @@ ACCOUNT_METADATA_SECONDS = 30
 # for a new subscription at every retry: the SDK keeps subscribing it, at MetaApi's own
 # recommended times. After this many failures in a row it is renewed.
 KEPT_FAILURES = 4
-WAITING = frozenset({"broker_connection_timeout", "broker_login_rejected"})
+WAITING = frozenset(
+    {"broker_connection_timeout", "broker_login_rejected", "broker_login_not_established"}
+)
 # An undeployed account has no terminal to subscribe to: both connections are dropped (the
 # SDK stops subscribing) and MetaApi is asked again, with one account read, after this.
 UNDEPLOYED_RECHECK_SECONDS = 600
@@ -215,10 +217,12 @@ def configure_sdk_transport() -> None:
 
 async def timeout_cause(account: Any) -> str | None:
     """Mandate 9.4: after synchronization timed out, a fresh read of the account (not the
-    cached metadata) tells an account undeployed at MetaApi (``broker_account_undeployed``)
-    and a terminal the broker refuses (a changed password, or the broker's server down:
-    ``broker_login_rejected``) apart from a lost link (None). A brief broker restart that
-    has already passed reads CONNECTED and keeps the timeout."""
+    cached metadata) tells an account undeployed at MetaApi (``broker_account_undeployed``),
+    a terminal the broker refuses (DISCONNECTED_FROM_BROKER: a changed password, or the
+    broker's server down: ``broker_login_rejected``) and a deployed terminal that is not
+    logged in to the broker for a reason MetaApi does not give (DISCONNECTED:
+    ``broker_login_not_established``) apart from a lost link (None). A brief broker
+    restart that has already passed reads CONNECTED and keeps the timeout."""
     try:
         async with asyncio.timeout(10):
             await account.reload()
@@ -226,6 +230,8 @@ async def timeout_cause(account: Any) -> str | None:
             return "broker_account_undeployed"
         if account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED_FROM_BROKER":
             return "broker_login_rejected"
+        if account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED":
+            return "broker_login_not_established"
     except Exception:
         pass
     return None

@@ -324,7 +324,10 @@ async def deploy(db: Database, brokers: Any, owner_id: str, connection_id: str) 
                     "connection_id": connection_id,
                     "state": state.state,
                     "note": "Already running at MetaApi; nothing was changed. If it still "
-                    "fails, the broker refuses its login or MetaApi is unreachable.",
+                    "fails, its terminal is not logged in to the broker (usually a server "
+                    "name the account is no longer on, or a password that is not the main "
+                    "one: ask the owner to check both in his MT5 app, then broker_connect "
+                    "with the server as shown), or MetaApi is unreachable.",
                 }
             state = await provisioning.deploy(payload.account_id)
     except TimeoutError:

@@ -223,8 +223,10 @@ export const ownerActionLabels = {
     brokerAccountLine: "Account {login} on server {server} ({platform})",
     brokerPassword: "Trading (master) password",
     brokerToken: "MetaApi API token (asked once)",
-    brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
+    brokerSaved: "Saved encrypted. Waiting for the broker login; Lonora will report the outcome.",
     brokerConnected: "Connected. Lonora reported its balance in the conversation.",
+    brokerLinked: "Saved, waiting for the broker login. Lonora said in the conversation what it sees.",
+    brokerChanged: "Saved and sent to MetaApi. Lonora said in the conversation what changed.",
     brokerFailed: "Could not connect. Lonora said why in the conversation.",
     deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
     expiresIn: "The request expires in",
@@ -425,8 +427,10 @@ export const ownerActionLabels = {
     brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
     brokerPassword: "كلمة مرور التداول (الرئيسية)",
     brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
-    brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
+    brokerSaved: "حُفظت مشفّرة. بانتظار تسجيل الدخول لدى الوسيط؛ ستبلغك لونورا بالنتيجة.",
     brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
+    brokerLinked: "حُفظت، بانتظار تسجيل الدخول لدى الوسيط. أوضحت لونورا في المحادثة ما تراه.",
+    brokerChanged: "حُفظت وأُرسلت إلى MetaApi. أوضحت لونورا في المحادثة ما تغيّر.",
     brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
     deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
     expiresIn: "ينتهي الطلب خلال",
@@ -544,12 +548,18 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       case "secret":
         if (card.facts.secret?.destination === "broker" && !card.facts.secret.connect)
           // A broker card: the card's own record of how provisioning ended, read on the
-          // server. A credential card converted by 0071 says what it connected.
+          // server ("connected" only once the terminal answered a read; "linked" while the
+          // broker login is unconfirmed). A credential card converted by 0071 says what it
+          // connected.
           return card.result.provisioning === "failed"
             ? text.brokerFailed
             : card.result.provisioning === "connected"
-              ? text.brokerConnected
-              : text.brokerSaved;
+              ? (card.facts.secret.purpose ?? "connect") === "connect"
+                ? text.brokerConnected
+                : text.brokerChanged
+              : card.result.provisioning === "linked"
+                ? text.brokerLinked
+                : text.brokerSaved;
         return card.facts.secret?.connect ? text.connected : text.secretSaved;
       case "settle_operation":
         return card.result.outcome === "executed"

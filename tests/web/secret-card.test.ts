@@ -182,9 +182,20 @@ test("a settled broker card says how connecting ended", () => {
     for (const [provisioning, line] of [
       ["pending", text.brokerSaved],
       ["connected", text.brokerConnected],
+      // Saved, but no read answered: the broker login is not confirmed.
+      ["linked", text.brokerLinked],
       ["failed", text.brokerFailed],
     ] as const) {
       assert.equal(ownerActionCard({ ...broker, result: { provisioning } }, locale).outcome, line);
+    }
+    // A new password or token never claims a connection or a balance.
+    for (const purpose of ["rotate_password", "replace_token"] as const) {
+      const changed = {
+        ...broker,
+        facts: { ...broker.facts, secret: { ...broker.facts.secret, purpose } },
+        result: { provisioning: "connected" as const },
+      };
+      assert.equal(ownerActionCard(changed, locale).outcome, text.brokerChanged);
     }
   }
 });
