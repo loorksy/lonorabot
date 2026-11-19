@@ -1,6 +1,12 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { Journal, OwnerAction, TradeApproval, VisualAction } from "@lonora/contracts";
+import type {
+  ExecutionReceipt,
+  Journal,
+  OwnerAction,
+  TradeApproval,
+  VisualAction,
+} from "@lonora/contracts";
 import {
   conversationTimeline,
   isWorking,
@@ -28,6 +34,7 @@ import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { FilePreviewPanel } from "../components/common/FilePreviewPanel";
 import { GenuiHost } from "../components/genui";
 import { OwnerActionCard, useOwnerActions } from "../components/owner-actions/OwnerActionCard";
+import { ExecutionReceiptCard } from "../components/trading/ExecutionReceipt";
 import { TradeApprovalCard, useTradeApprovals } from "../components/trading/TradeApprovals";
 import { useTheme } from "../hooks/useTheme";
 import { useThreads } from "../hooks/useThreads";
@@ -106,6 +113,7 @@ type Row =
   | { kind: "message"; id: string; message: ConversationMessage }
   | { kind: "approval"; id: string; approval: TradeApproval; at: string }
   | { kind: "owner_action"; id: string; action: OwnerAction; at: string }
+  | { kind: "receipt"; id: string; receipt: ExecutionReceipt; at: string }
   | { kind: "order"; id: string; journal: Journal; at: string };
 
 export function Conversation({
@@ -147,6 +155,7 @@ export function Conversation({
   const ownerActions = useOwnerActions(threadId);
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
   const [journal, setJournal] = useState<Journal[]>([]);
+  const [receipts, setReceipts] = useState<ExecutionReceipt[]>([]);
   const [collaboration, setCollaboration] = useState<Resource | null>(null);
   const [peers, setPeers] = useState<Resource[]>([]);
   const [preview, setPreview] = useState<Resource | null>(null);
@@ -196,10 +205,19 @@ export function Conversation({
         (rows) =>
           live &&
           setJournal(
-            rows.filter((row) => (row as Journal & { thread_id?: string }).thread_id === threadId),
+            // A confirmed operation is shown once: as its Execution Receipt (10.3).
+            rows.filter(
+              (row) =>
+                (row as Journal & { thread_id?: string }).thread_id === threadId &&
+                row.status !== "confirmed",
+            ),
           ),
       )
       .catch(() => live && setJournal([]));
+    void api
+      .get<ExecutionReceipt[]>(`/trading/receipts?thread_id=${encodeURIComponent(threadId)}`)
+      .then((rows) => live && setReceipts(rows))
+      .catch(() => live && setReceipts([]));
     void api
       .get<Resource[]>(`/peer-messages?thread_id=${encodeURIComponent(threadId)}`)
       .then((rows) => live && setPeers(rows))
@@ -327,13 +345,26 @@ export function Conversation({
     [peerCards, runs],
   );
   const rows: Row[] = useMemo(() => {
-    const items = conversationTimeline(messages, approvals.rows, ownerActions.rows, undrawn);
+    const items = conversationTimeline(
+      messages,
+      approvals.rows,
+      ownerActions.rows,
+      undrawn,
+      receipts,
+    );
     const out: Row[] = items.map((item) =>
       item.kind === "message"
         ? { kind: "message", id: item.id, message: item.message as ConversationMessage }
         : item.kind === "approval"
           ? { kind: "approval", id: item.id, approval: item.approval, at: item.approval.created_at }
-          : { kind: "owner_action", id: item.id, action: item.action, at: item.action.created_at },
+          : item.kind === "receipt"
+            ? { kind: "receipt", id: item.id, receipt: item.receipt, at: item.receipt.created_at }
+            : {
+                kind: "owner_action",
+                id: item.id,
+                action: item.action,
+                at: item.action.created_at,
+              },
     );
     // Order lines sit at their anchor (WP-F journal thread_id/timeline_seq).
     for (const row of journal) {
@@ -351,7 +382,7 @@ export function Conversation({
       else out.splice(index, 0, line);
     }
     return out;
-  }, [messages, approvals.rows, ownerActions.rows, journal, undrawn]);
+  }, [messages, approvals.rows, ownerActions.rows, receipts, journal, undrawn]);
 
   /* ---- actions */
   const send: ComposerSend = useCallback(
@@ -892,6 +923,18 @@ export function Conversation({
           previous={prev}
           cardKind={pending ? "oa" : "line"}
           card={ownerActionCard(row.action)}
+        />,
+      );
+      return;
+    }
+    if (row.kind === "receipt") {
+      body.push(
+        <Message
+          key={row.id}
+          message={cardMessage(row.id, row.receipt.agent_id ?? agentId, row.at, threadId)}
+          previous={prev}
+          cardKind="card"
+          card={<ExecutionReceiptCard row={row.receipt} />}
         />,
       );
       return;
