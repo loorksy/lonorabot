@@ -29,8 +29,7 @@ const field = (form: HTMLFormElement, name: string) =>
   ((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim();
 
 /** The server's trading adapters in display order, with the fields each one takes (Q52): MetaApi
- * and «تجريبي» (the simulation provider). A local definition: the server has no provider
- * catalog route. */
+ * and the simulation provider. A local definition: the server has no provider catalog route. */
 export type BrokerField = {
   name: string;
   kind: "text" | "password";
@@ -60,9 +59,11 @@ export function brokerProviders(): Promise<BrokerProvider[]> {
     },
   ]);
 }
+// The simulation is named as one, never "Demo": a broker's demo account (Exness MT5Trial) is
+// connected through MetaApi, and a simulation row for its login reads no broker at all.
 const brokerName = (provider: string) =>
   provider === "simulation"
-    ? t`Demo account`
+    ? t`Simulation with an imported snapshot`
     : provider === "metaapi"
       ? "MetaApi (MetaTrader)"
       : provider;
@@ -76,7 +77,7 @@ const fieldLabel = (field: BrokerField) =>
         : field.name;
 
 /* «ربط حساب تداول» (brokerFormPage 8701-8703) with the server's fields (Q52): MetaApi is the default
-   broker (preselected, its fields shown); «تجريبي», the simulation provider, is the second choice; secrets are stored encrypted and never
+   broker (preselected, its fields shown); the simulation provider is the second choice; secrets are stored encrypted and never
    shown again. «اختبار الاتصال» is a real read-only round trip that stores nothing. */
 export function BrokerFormPage() {
   const nav = useNavigation();
@@ -144,7 +145,9 @@ export function BrokerFormPage() {
           ))}
         </select>
       </label>
-      {entry?.environment === "simulation" && <ValueRow label={t`Account type`} value={t`Demo`} />}
+      {entry?.environment === "simulation" && (
+        <ValueRow label={t`Account type`} value={t`Simulation`} />
+      )}
       {entry?.fields.map((item) => (
         <label className="field" key={`${provider}:${item.name}`}>
           <span>{fieldLabel(item)}</span>
@@ -244,7 +247,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
   const agents = data.agents.filter((agent) => agent.trading_account_id === row.id);
   const names = agents.map((agent) => agent.name).join("، ");
   const number = snap?.login || row.payload.account_id;
-  const broker = snap?.broker ?? (demo ? t`Demo account` : "MetaApi");
+  const broker = snap?.broker ?? (demo ? t`Simulation with an imported snapshot` : "MetaApi");
   const list = symbols.value ?? [];
   const remove = () => {
     const title = t`Unlink the account`;
@@ -346,7 +349,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
           </strong>
           <small>
             <span className="ltr">{number}</span>
-            {demo ? ` · ${t`Demo`}` : ""}
+            {demo ? ` · ${t`Simulation`}` : ""}
             {snap?.server ? (
               <>
                 {" "}
@@ -371,7 +374,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
             )
           }
         />
-        {demo && <ValueRow label={t`Account type`} value={t`Demo`} />}
+        {demo && <ValueRow label={t`Account type`} value={t`Simulation`} />}
       </div>
       <h3>
         {symbols.loading ? (
@@ -484,21 +487,21 @@ function SimulationImport({
         </span>
         <div>
           <strong>
-            <bdi>{t`Demo account`}</bdi>
+            <bdi>{t`Simulation with an imported snapshot`}</bdi>
           </strong>
           <small>
-            <span className="ltr">{number}</span> · {t`Demo`}
+            <span className="ltr">{number}</span> · {t`Simulation`}
           </small>
         </div>
       </div>
       <p className="muted">
         <Trans>
-          A demo account trades against market data you import: the balance, the symbols, their
-          prices and candles. Import a snapshot file to use it.
+          A simulation trades against market data you import: the balance, the symbols, their prices
+          and candles. Import a snapshot file to use it.
         </Trans>
       </p>
       <label className="btn full primary">
-        <Trans>Import the demo account data</Trans>
+        <Trans>Import the simulation data</Trans>
         <input
           type="file"
           accept="application/json,.json"
@@ -517,7 +520,7 @@ function SimulationImport({
                   snapshot,
                 },
               );
-              toast(t`The demo account data is imported`, { type: "success" });
+              toast(t`The simulation data is imported`, { type: "success" });
               onImported();
             } catch (error) {
               toast(

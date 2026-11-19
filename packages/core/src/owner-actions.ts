@@ -221,10 +221,15 @@ export const ownerActionLabels = {
     brokerTokenNew: "New MetaApi API token",
     brokerTokenTitle: "New MetaApi API token",
     brokerAccountLine: "Account {login} on server {server} ({platform})",
+    brokerMoveLine: "Moves this connection from server {from} to {server}",
     brokerPassword: "Trading (master) password",
     brokerToken: "MetaApi API token (asked once)",
-    brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
+    brokerSaved: "Saved encrypted. Waiting for the broker login; Lonora will report the outcome.",
+    brokerSending: "Saved encrypted. Lonora is sending it to MetaApi and will say what changed.",
     brokerConnected: "Connected. Lonora reported its balance in the conversation.",
+    brokerLinked:
+      "Saved; no balance could be read when Lonora checked. Lonora said in the conversation what it saw.",
+    brokerChanged: "Saved and sent to MetaApi. Lonora said in the conversation what changed.",
     brokerFailed: "Could not connect. Lonora said why in the conversation.",
     deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
     expiresIn: "The request expires in",
@@ -423,10 +428,14 @@ export const ownerActionLabels = {
     brokerTokenNew: "رمز MetaApi API الجديد",
     brokerTokenTitle: "رمز MetaApi API جديد",
     brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
+    brokerMoveLine: "ينقل هذا الربط من الخادم {from} إلى الخادم {server}",
     brokerPassword: "كلمة مرور التداول (الرئيسية)",
     brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
-    brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
+    brokerSaved: "حُفظت مشفّرة. بانتظار تسجيل الدخول لدى الوسيط؛ ستبلغك لونورا بالنتيجة.",
+    brokerSending: "حُفظت مشفّرة. ترسلها لونورا إلى MetaApi وستوضح ما تغيّر.",
     brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
+    brokerLinked: "حُفظت؛ تعذّرت قراءة الرصيد عند التحقق. أوضحت لونورا في المحادثة ما رأته.",
+    brokerChanged: "حُفظت وأُرسلت إلى MetaApi. أوضحت لونورا في المحادثة ما تغيّر.",
     brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
     deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
     expiresIn: "ينتهي الطلب خلال",
@@ -544,12 +553,20 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       case "secret":
         if (card.facts.secret?.destination === "broker" && !card.facts.secret.connect)
           // A broker card: the card's own record of how provisioning ended, read on the
-          // server. A credential card converted by 0071 says what it connected.
+          // server ("connected" only once the terminal answered a read; "linked" when it was
+          // saved but no read answered). A new password or token waits for MetaApi, never
+          // for a broker login. A credential card converted by 0071 says what it connected.
           return card.result.provisioning === "failed"
             ? text.brokerFailed
             : card.result.provisioning === "connected"
-              ? text.brokerConnected
-              : text.brokerSaved;
+              ? (card.facts.secret.purpose ?? "connect") === "connect"
+                ? text.brokerConnected
+                : text.brokerChanged
+              : card.result.provisioning === "linked"
+                ? text.brokerLinked
+                : (card.facts.secret.purpose ?? "connect") === "connect"
+                  ? text.brokerSaved
+                  : text.brokerSending;
         return card.facts.secret?.connect ? text.connected : text.secretSaved;
       case "settle_operation":
         return card.result.outcome === "executed"
@@ -1170,6 +1187,13 @@ export function ownerActionCard(
             platform: account.platform.toUpperCase(),
           }),
         );
+        if (secret.server_from)
+          lines.push(
+            fill(text.brokerMoveLine, {
+              from: isolate(secret.server_from),
+              server: isolate(account.server),
+            }),
+          );
         if (secret.agent_name)
           lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
         hint = text.secretBroker;

@@ -23,7 +23,23 @@ with the fields and the destination the server sets (`docs/trusted-sources.md`);
 trading account has its own Secret card, raised by `broker_connect` (and `broker_manage`
 for a new password or token) with the `broker` destination: its values go only to the
 broker layer, and the gateway provisions the account and wakes the agent with the
-result. Otherwise the agent chooses its label and fields
+result (`lonora_trading/broker_provisioning.py`). The login and server MetaApi stores
+are what it was given, never a broker login: the card ends `connected` only once the
+terminal answered a read (its balance), `linked` when MetaApi reported the terminal
+connected and the connection is saved but no read answered in time (the card says no
+balance could be read when Lonora checked), or `failed` with a code. A terminal MetaApi
+has deployed that is still not logged in to the broker 3 minutes after it was first seen
+deployed fails as `broker_login_rejected` (MetaApi reports DISCONNECTED_FROM_BROKER) or
+`broker_login_not_established` (DISCONNECTED, no reason given); when the whole wait ends
+before that, it fails as `broker_connect_timeout` unless MetaApi reports a refusal. The
+wake names what was observed and the usual fixes (a wrong password, or the server name
+exactly as the MT5 app shows it now). A `broker_connect` for a login with a saved
+connection on another server of the same broker (the server name's part before the
+first "-") raises a new-password card for that connection instead: the card says it
+moves the connection, MetaApi's account gets the new server, and the connection records
+it; never a second connection. A plain new password never changes the server. The same
+login number at another broker is another account, and the exact login and server
+already saved are refused. Otherwise the agent chooses its label and fields
 (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
 `secret: false` only unmasks a field while it is typed). The server sets the
 destination: an agent's card saves to the owner's `workspace` secrets, and the card

@@ -200,6 +200,8 @@ export type OwnerAction = {
       account?: { login: string; server: string; platform: "mt4" | "mt5" };
       /** A broker card: connect the account, store its new password, or a new token. */
       purpose?: "connect" | "rotate_password" | "replace_token";
+      /** A new-password card that moves the connection: the server it is on now. */
+      server_from?: string;
     };
   };
   /** Confirming needs the owner's passkey: it signs a grant. */
@@ -225,8 +227,9 @@ export type OwnerAction = {
     integration_id?: string;
     /** A saved Secret card: the keys saved and where; never a value. */
     saved?: string[];
-    /** A broker card: how provisioning stands (9.2). */
-    provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
+    /** A broker card: how provisioning stands (9.2). "connected": the terminal answered a
+     * read; "linked": saved, but the broker login is not confirmed. */
+    provisioning?: "pending" | "deploying" | "reading" | "connected" | "linked" | "failed";
     destination?: SecretDestination;
   };
   expires_at: string;

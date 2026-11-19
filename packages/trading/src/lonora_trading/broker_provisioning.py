@@ -9,9 +9,12 @@ restart resumes it:
 - ``pending``: under the owner's connection lock, reuse the token's MetaApi account for
   this login and server or create one; its MetaApi id is recorded before any deploy.
 - ``deploying``: deploy, and wait until MetaApi's terminal is connected to the broker.
-- ``reading``: create the connection with the MetaApi-observed identity, then read the
-  account once for balance, currency and trade permission.
-- ``connected`` or ``failed``: the agent is woken once with fixed text (``broker_prompt``).
+- ``reading``: create the connection with MetaApi's stored record of the account (the
+  login and server it was given), then read the account through the terminal once for
+  balance, currency and trade permission.
+- ``connected`` (that read answered: the broker login is confirmed), ``linked`` (the
+  connection is saved but no read answered in time: the login is not confirmed) or
+  ``failed``: the agent is woken once with fixed text (``broker_prompt``).
 
 Provisioning makes account-entity calls only; orders still go only through the door.
 """
@@ -55,8 +58,10 @@ TRANSIENT = frozenset(
 # How long a saved card may take to reach a connected terminal, then a first account read.
 DEPLOY_DEADLINE = timedelta(minutes=15)
 READ_DEADLINE = timedelta(minutes=5)
-# A deployed terminal the broker keeps refusing (DISCONNECTED_FROM_BROKER): a wrong
-# password or server, reported after this long rather than at the full deadline.
+# A deployed terminal that is still not logged in to the broker this long after MetaApi
+# first reported it deployed: the broker refuses it (DISCONNECTED_FROM_BROKER), or it is
+# not connected for a reason MetaApi does not give (DISCONNECTED), as with a server name
+# the account is no longer on. Reported then rather than at the full deadline.
 LOGIN_DEADLINE = timedelta(minutes=3)
 # A MetaApi account Lonora created for a card that failed, whose removal failed too, is
 # removed again at most this often until it is gone (it bills while it exists).
@@ -131,7 +136,7 @@ async def _card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActi
 
 async def _record(session: AsyncSession, row: OwnerActionRow, **changes: Any) -> None:
     row.result = {**row.result, **changes}
-    if changes.get("provisioning") in {"connected", "failed"}:
+    if changes.get("provisioning") in {"connected", "linked", "failed"}:
         # The agent that asked continues now, once, with the outcome.
         await continue_after_card(session, row)
 
@@ -354,7 +359,7 @@ async def _metaapi_account_taken(
     ):
         if card.result.get("metaapi_account_id") != account_id:
             continue
-        if card.result.get("provisioning") == "connected":
+        if card.result.get("provisioning") in {"connected", "linked"}:
             return "taken"
         connecting = connecting or card.result.get("provisioning") in ACTIVE
     return "connecting" if connecting else None
@@ -521,13 +526,26 @@ async def _deploy(
                 await failing(failure.code)
             return
         if not (state.deployed and state.connected):
-            refused = state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER"
-            if _late(started) or (refused and _late(started, LOGIN_DEADLINE)):
-                code = (
-                    "broker_login_rejected"
-                    if state.connection_status == "DISCONNECTED_FROM_BROKER"
-                    else "broker_connect_timeout"
-                )
+            # The login wait starts at the first reading that MetaApi has the terminal
+            # deployed, not at the card's save: a deploy can take minutes of its own.
+            since = result.get("deployed_at")
+            if state.deployed != (since is not None):
+                since = utcnow().isoformat() if state.deployed else None
+                async with db.sessions() as session, session.begin():
+                    row = await _card(session, failing.owner_id, failing.card_id)
+                    if row.result.get("provisioning") != "deploying":
+                        return
+                    await _record(session, row, deployed_at=since)
+            waited = since is not None and _late(since, LOGIN_DEADLINE)
+            if _late(started) or waited:
+                # Named by what MetaApi reports about the broker login: a refusal whenever
+                # it reports one, a login not made only once the login wait has passed (a
+                # terminal first seen deployed moments ago may still be logging in).
+                code = "broker_connect_timeout"
+                if state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER":
+                    code = "broker_login_rejected"
+                elif waited:
+                    code = "broker_login_not_established"
                 await failing(code)
             return
         code = await _connect(db, failing, state, token, token_id, password_id)
@@ -554,7 +572,8 @@ async def _connect(
         enabled=True,
     )
     try:
-        # Broker-observed identity from MetaApi's account entity, not the typed words.
+        # MetaApi's stored record of the account (login, server): what it was given, not
+        # a broker login. Only the first account read below shows the broker accepts it.
         identity = await verified_identity(config, token)
     except LonoraError as failure:
         return failure.code
@@ -586,7 +605,7 @@ async def _connect(
             provisioning="reading",
             connection_id=connection.id,
             connected_at=utcnow().isoformat(),
-            # What the wake names: MetaApi's observation, not the agent's typed words.
+            # What the wake names until the terminal answers: MetaApi's stored record.
             observed={key: identity.get(key) for key in ("login", "server", "broker")},
         )
     return None
@@ -595,22 +614,31 @@ async def _connect(
 async def _read(
     db: Database, brokers: Any, owner_id: str, card_id: str, result: dict[str, Any]
 ) -> None:
-    facts: dict[str, Any] | None = None
     try:
         state = await brokers.account(owner_id, result["connection_id"])
-        facts = {
-            "balance": str(state.balance),
-            "currency": state.currency,
-            "trade_allowed": state.trade_allowed,
-            "investor_mode": state.investor_mode,
-        }
-    except LonoraError:
+    except LonoraError as failure:
         if not _late(result["connected_at"], READ_DEADLINE):
             return  # First synchronization of a new terminal can take a while.
+        # Saved, but the terminal never answered: the broker login is not confirmed.
+        outcome: dict[str, Any] = {"provisioning": "linked", "read_code": failure.code}
+    else:
+        outcome = {
+            "provisioning": "connected",
+            "account": {
+                "balance": str(state.balance),
+                "currency": state.currency,
+                "trade_allowed": state.trade_allowed,
+                "investor_mode": state.investor_mode,
+            },
+            # The terminal's own answer now, not MetaApi's stored record.
+            "observed": {"login": state.login, "server": state.server, "broker": state.broker}
+            if state.login
+            else result.get("observed"),
+        }
     async with db.sessions() as session, session.begin():
         row = await _card(session, owner_id, card_id)
         if row.result.get("provisioning") == "reading":
-            await _record(session, row, provisioning="connected", account=facts or {})
+            await _record(session, row, **outcome)
 
 
 async def _forget(
