@@ -213,7 +213,7 @@ msgstr "{reads} read"
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/shell/Shell.tsx:487
+#: src/shell/Shell.tsx:486
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
@@ -519,8 +519,8 @@ msgid "Activity log"
 msgstr "Activity log"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "Activity log only"
-msgstr "Activity log only"
+#~ msgid "Activity log only"
+#~ msgstr "Activity log only"
 
 #: src/components/ai/AttentionInbox.tsx:36
 msgid "Activity updated"
@@ -3666,6 +3666,10 @@ msgstr "In the agent's words"
 #: src/shell/domain/SchedulesPages.tsx:510
 msgid "In the app"
 msgstr "In the app"
+
+#: src/shell/settings/NotifyPages.tsx:20
+msgid "In the conversation only"
+msgstr "In the conversation only"
 
 #: src/shell/settings/NotifyPages.tsx:357
 msgid "In-app messages"
@@ -7749,7 +7753,7 @@ msgstr "The broker specifications are unavailable for this exact symbol."
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 
-#: src/shell/Shell.tsx:386
+#: src/shell/Shell.tsx:385
 msgid "The call ended."
 msgstr "The call ended."
 
@@ -8308,7 +8312,7 @@ msgstr "This operation will not be sent again."
 msgid "This page could not be displayed"
 msgstr "This page could not be displayed"
 
-#: src/shell/Shell.tsx:336
+#: src/shell/Shell.tsx:335
 msgid "This page is available in the development build only"
 msgstr "This page is available in the development build only"
 
@@ -9231,7 +9235,7 @@ msgstr "Working"
 msgid "Working…"
 msgstr "Working…"
 
-#: src/shell/Shell.tsx:895
+#: src/shell/Shell.tsx:892
 msgid "Workspace"
 msgstr "Workspace"
 

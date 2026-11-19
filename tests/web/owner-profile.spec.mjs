@@ -86,7 +86,7 @@ test("the owner profile is edited, logged, restored, and the reach mode saved", 
     )
     .toBe("");
   await page.goto("/app/notify-settings");
-  await page.getByRole("radio", { name: /Activity log only/ }).click();
+  await page.getByRole("radio", { name: /In the conversation only/ }).click();
   await expect
     .poll(
       async () => (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,

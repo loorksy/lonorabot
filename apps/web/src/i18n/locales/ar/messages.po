@@ -213,7 +213,7 @@ msgstr "{reads} قراءة"
 msgid "{seconds} s"
 msgstr "{seconds} ث"
 
-#: src/shell/Shell.tsx:487
+#: src/shell/Shell.tsx:486
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظر} two {أُرسلت رسالتان كانت تنتظر} few {أُرسلت # رسائل كانت تنتظر} many {أُرسلت # رسالة كانت تنتظر} other {أُرسلت # رسالة كانت تنتظر}}"
 
@@ -519,8 +519,8 @@ msgid "Activity log"
 msgstr "سجل الإجراءات"
 
 #: src/shell/settings/NotifyPages.tsx:20
-msgid "Activity log only"
-msgstr "سجل النشاط فقط"
+#~ msgid "Activity log only"
+#~ msgstr "سجل النشاط فقط"
 
 #: src/components/ai/AttentionInbox.tsx:36
 msgid "Activity updated"
@@ -3660,6 +3660,10 @@ msgstr "بكلمات الوكيل"
 #: src/shell/domain/SchedulesPages.tsx:510
 msgid "In the app"
 msgstr "داخل التطبيق"
+
+#: src/shell/settings/NotifyPages.tsx:20
+msgid "In the conversation only"
+msgstr "في المحادثة فقط"
 
 #: src/shell/settings/NotifyPages.tsx:357
 msgid "In-app messages"
@@ -7743,7 +7747,7 @@ msgstr "مواصفات الوسيط غير متاحة لهذا الرمز الم
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "لم يصل تأكيد الوسيط، ولا تُعرض حالة «منفَّذ» قبل وصول الدليل."
 
-#: src/shell/Shell.tsx:386
+#: src/shell/Shell.tsx:385
 msgid "The call ended."
 msgstr "انتهت المكالمة."
 
@@ -8302,7 +8306,7 @@ msgstr "لن تُرسل هذه العملية مرة أخرى."
 msgid "This page could not be displayed"
 msgstr "تعذّر عرض هذه الصفحة"
 
-#: src/shell/Shell.tsx:336
+#: src/shell/Shell.tsx:335
 msgid "This page is available in the development build only"
 msgstr "هذه الصفحة متاحة في نسخة التطوير فقط"
 
@@ -9221,7 +9225,7 @@ msgstr "جارٍ العمل"
 msgid "Working…"
 msgstr "يعمل…"
 
-#: src/shell/Shell.tsx:895
+#: src/shell/Shell.tsx:892
 msgid "Workspace"
 msgstr "مساحة العمل"
 
