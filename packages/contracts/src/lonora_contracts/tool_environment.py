@@ -17,8 +17,6 @@ FailureCategory = Literal[
     "not_configured",
     "not_found",
     "health_blocked",
-    # An owner monetary risk limit (risk_* codes) blocked new risk before sending.
-    "risk_limit_blocked",
     "ambiguous_mutation",
     "terminal_domain_failure",
 ]

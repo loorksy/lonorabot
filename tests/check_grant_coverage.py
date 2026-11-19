@@ -25,6 +25,7 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
+from lonora_core.user_error import LonoraError
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import TradeApprovalRow, TradingJournalRow
 from lonora_tools.context import ToolContext
@@ -130,26 +131,20 @@ async def main() -> None:
             {
                 "decision": "confirm",
                 "proof": device.assertion(challenge, fixture.settings.allowed_origin),
-                "money_limit": "none",
             },
         )
         assert decided["status"] == "confirmed", decided
         assert decided["result"]["allow_manual_positions"] is False, decided
-        # The settled card shows what was signed: no daily loss limit by the owner's
-        # choice, nothing replaced (a first grant).
+        # The settled card shows what was signed: nothing replaced (a first grant).
         cards = cast(
             list[dict[str, Any]],
             await fixture.request("GET", "/owner-actions?thread_id=" + lonora_context.thread_id),
         )
         settled = next(item for item in cards if item["id"] == card_id)
-        daily = settled["facts"]["money"]["daily_loss"]
-        assert daily["proposed"] is None and daily["current"] is None, daily
         assert settled["facts"]["replaces"] is None, settled["facts"]
         assert settled["facts"]["grant"]["allow_manual_positions"] is False
         assert "global_trading" not in settled["facts"], settled["facts"]
-        print(
-            "PASS a signed grant card keeps showing what was signed: no daily loss limit, nothing replaced"
-        )
+        print("PASS a signed grant card keeps showing what was signed: nothing replaced")
 
         # 2. The owner buys gold from Lonora's own Trading page: journaled with no agent.
         owner_operation = "owner-order-" + uuid4().hex[:8]
@@ -172,26 +167,30 @@ async def main() -> None:
             assert row.result["details"]["execution"]["agent_id"] is None, row.result
         (owners,) = await broker.positions()
 
-        # 3. Each agent request on the owner's own position asks; nothing reaches the broker.
+        # 3. The owner's own position is not the agent's (3.3.4): every request on it is
+        # refused, no card is raised, nothing reaches the broker.
         gold_context = await context_for(gold)
         before = await broker.snapshot()
         for arguments in (
             {"action": "modify_position", "clear_stop_loss": True},
             {"action": "close_position"},
         ):
-            asked = await call(
-                gold_context,
-                "trade_execute",
-                account_id=account,
-                symbol=GOLD,
-                position_id=owners.id,
-                **arguments,
-            )
-            assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
+            try:
+                await call(
+                    gold_context,
+                    "trade_execute",
+                    account_id=account,
+                    symbol=GOLD,
+                    position_id=owners.id,
+                    **arguments,
+                )
+                raise AssertionError("An agent acted on the owner's own position")
+            except LonoraError as error:
+                assert error.code == "ticket_not_owned", error.code
         swept = await call(gold_context, "trade_close_positions", account_id=account, symbol=GOLD)
-        assert swept.get("_runtime_wait") and swept.get("approval_id"), swept
+        assert [item["code"] for item in swept["results"]] == ["ticket_not_owned"], swept
         assert await broker.snapshot() == before
-        assert await approvals(gold_context) == 3
+        assert await approvals(gold_context) == 0
         (unchanged,) = await broker.positions()
         assert unchanged.stop_loss is not None and unchanged.volume == owners.volume
 
@@ -223,7 +222,7 @@ async def main() -> None:
         assert moved.get("authorization") == "account_authority", moved
         assert await approvals(own_context) == 0
         print(
-            "PASS a position the owner opened from Lonora's Trading page is the owner's own: an agent's stop removal, close, close-all and its own grant ask, while the agent's own position stays covered"
+            "PASS a position the owner opened from Lonora's Trading page is the owner's own: an agent's stop removal, close and close-all are ticket_not_owned, while the agent's own position stays covered"
         )
 
         # 5. A request over a signed grant's own cap asks, and the tap sends it once.
