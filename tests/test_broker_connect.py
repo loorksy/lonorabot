@@ -169,7 +169,7 @@ async def test_the_owner_connects_an_account_from_chat_and_hears_its_balance(
             assert row.result["provisioning"] == "connected", row.result
             prompt = await world.wake_prompt(card_id)
             assert prompt is not None
-            assert f"account {account} on {SERVER} is connected" in prompt
+            assert f"account {account} on {SERVER} is logged in at the broker" in prompt
             assert "Balance 10000" in prompt and "trading is allowed" in prompt
             assert api.calls.count("create_account") == 1 and len(api.accounts) == 1
             assert api.creates[0]["name"] == "Lonora " + SERVER
@@ -643,6 +643,11 @@ async def test_a_leftover_account_a_new_connect_takes_over_is_removed_when_it_fa
             assert again["metaapi_account_id"] == metaapi_id
             assert (await world.card(first)).result["metaapi_cleanup"] == "handed_over"
             await backdate(world, second, "started_at")
+            # This pass redeploys with the typed password; the next reads MetaApi afresh,
+            # and the restarted terminal gets its own time to log in.
+            await world.gateway(1)
+            assert (await world.card(second)).result["provisioning"] == "deploying"
+            await backdate(world, second, "restarted_at")
             await world.gateway(1)
             refused = (await world.card(second)).result
             assert refused["provisioning"] == "failed" and refused["lonora_owned"] is True

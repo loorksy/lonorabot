@@ -484,13 +484,13 @@ export function IntegrationsPage() {
                 }
                 label={
                   <>
-                    <bdi>{identity?.broker ?? (demo ? t`Demo account` : "MetaApi")}</bdi> ·{" "}
+                    <bdi>{identity?.broker ?? (demo ? t`Local simulation` : "MetaApi")}</bdi> ·{" "}
                     <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
                   </>
                 }
                 sub={
                   demo
-                    ? t`Demo · ${agentsCount(count)}`
+                    ? t`Simulation · ${agentsCount(count)}`
                     : identity?.broker
                       ? `MetaApi · ${agentsCount(count)}`
                       : agentsCount(count)

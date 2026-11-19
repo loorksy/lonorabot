@@ -62,7 +62,7 @@ export function brokerProviders(): Promise<BrokerProvider[]> {
 }
 const brokerName = (provider: string) =>
   provider === "simulation"
-    ? t`Demo account`
+    ? t`Local simulation`
     : provider === "metaapi"
       ? "MetaApi (MetaTrader)"
       : provider;
@@ -144,7 +144,7 @@ export function BrokerFormPage() {
           ))}
         </select>
       </label>
-      {entry?.environment === "simulation" && <ValueRow label={t`Account type`} value={t`Demo`} />}
+      {entry?.environment === "simulation" && <ValueRow label={t`Account type`} value={t`Simulation`} />}
       {entry?.fields.map((item) => (
         <label className="field" key={`${provider}:${item.name}`}>
           <span>{fieldLabel(item)}</span>
@@ -244,7 +244,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
   const agents = data.agents.filter((agent) => agent.trading_account_id === row.id);
   const names = agents.map((agent) => agent.name).join("، ");
   const number = snap?.login || row.payload.account_id;
-  const broker = snap?.broker ?? (demo ? t`Demo account` : "MetaApi");
+  const broker = snap?.broker ?? (demo ? t`Local simulation` : "MetaApi");
   const list = symbols.value ?? [];
   const remove = () => {
     const title = t`Unlink the account`;
@@ -346,7 +346,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
           </strong>
           <small>
             <span className="ltr">{number}</span>
-            {demo ? ` · ${t`Demo`}` : ""}
+            {demo ? ` · ${t`Simulation`}` : ""}
             {snap?.server ? (
               <>
                 {" "}
@@ -371,7 +371,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
             )
           }
         />
-        {demo && <ValueRow label={t`Account type`} value={t`Demo`} />}
+        {demo && <ValueRow label={t`Account type`} value={t`Simulation`} />}
       </div>
       <h3>
         {symbols.loading ? (
@@ -484,10 +484,10 @@ function SimulationImport({
         </span>
         <div>
           <strong>
-            <bdi>{t`Demo account`}</bdi>
+            <bdi>{t`Local simulation`}</bdi>
           </strong>
           <small>
-            <span className="ltr">{number}</span> · {t`Demo`}
+            <span className="ltr">{number}</span> · {t`Simulation`}
           </small>
         </div>
       </div>

@@ -92,6 +92,11 @@ def _field(entity: Any, name: str) -> str | None:
     return str(value).strip() if value is not None else None
 
 
+def broker_family(server: str) -> str:
+    """The broker part of a MetaTrader server name: "exness" for "Exness-MT5Trial16"."""
+    return server.strip().split("-", 1)[0].casefold()
+
+
 def describe(entity: Any) -> ProvisionedAccount:
     version = _field(entity, "version")
     return ProvisionedAccount(
@@ -220,17 +225,48 @@ class MetaApiProvisioning:
 
     async def find(self, login: str, server: str) -> ProvisionedAccount | None:
         """The token's account with this exact login and server, deployed one first."""
+        return self._exact(await self._listed(login), login, server)
+
+    async def existing(self, login: str, server: str, platform: str) -> ProvisionedAccount | None:
+        """The token's account for this login: on this server, else moved to it from another
+        server of the same broker. One listing."""
+        listed = await self._listed(login)
+        return self._exact(listed, login, server) or self._moved(listed, login, server, platform)
+
+    async def _listed(self, login: str) -> list[ProvisionedAccount]:
         login = login.strip()
-        matches = sorted(
-            (
-                account
-                for account in map(describe, await self._entities(login, (login,)))
-                if account.login == login
-                and (account.server or "").casefold() == server.strip().casefold()
-            ),
-            key=lambda account: (not account.deployed, account.account_id),
+        return [account for account in map(describe, await self._entities(login, (login,)))]
+
+    @staticmethod
+    def _first(accounts: Iterable[ProvisionedAccount]) -> ProvisionedAccount | None:
+        ordered = sorted(accounts, key=lambda account: (not account.deployed, account.account_id))
+        return ordered[0] if ordered else None
+
+    def _exact(
+        self, accounts: list[ProvisionedAccount], login: str, server: str
+    ) -> ProvisionedAccount | None:
+        login, server = login.strip(), server.strip().casefold()
+        return self._first(
+            account
+            for account in accounts
+            if account.login == login and (account.server or "").casefold() == server
         )
-        return matches[0] if matches else None
+
+    def _moved(
+        self, accounts: list[ProvisionedAccount], login: str, server: str, platform: str
+    ) -> ProvisionedAccount | None:
+        """The account with this login and platform on another server of the same broker
+        (the name before its first "-": Exness moves demo accounts between its Trial
+        servers). Its server is updated, never a second account made."""
+        login, family = login.strip(), broker_family(server)
+        return self._first(
+            account
+            for account in accounts
+            if account.login == login
+            and account.platform == platform
+            and (account.server or "").casefold() != server.strip().casefold()
+            and broker_family(account.server or "") == family
+        )
 
     async def default_region(self) -> str | None:
         """The region of an existing account of this token; None lets MetaApi choose."""
@@ -251,7 +287,7 @@ class MetaApiProvisioning:
             raise LonoraError("broker_platform_required", 422)
         login, server = login.strip(), server.strip()
         secrets = (login, password)
-        existing = await self.find(login, server)
+        existing = await self.existing(login, server, platform)
         if existing is not None:
             return existing, False
         region = await self.default_region()
@@ -331,8 +367,11 @@ class MetaApiProvisioning:
     async def redeploy(self, account_id: str) -> ProvisionedAccount:
         return await self._act(account_id, "redeploy")
 
-    async def update_password(self, account_id: str, password: str) -> ProvisionedAccount:
-        """Store a new password at MetaApi. It takes effect after a redeploy."""
+    async def update_password(
+        self, account_id: str, password: str, server: str | None = None
+    ) -> ProvisionedAccount:
+        """Store a new password at MetaApi, and the broker server when it moved. It takes
+        effect after a redeploy."""
         entity = await self._entity(account_id, (password,))
         # The entity's own payload, by MetaApi's field names: the SDK's properties turn a
         # missing ``slippage`` or ``manualTrades`` into False, which is not the stored value.
@@ -341,6 +380,7 @@ class MetaApiProvisioning:
         update = {
             **{key: stored[key] for key in UPDATE_FIELDS if stored.get(key) is not None},
             "password": password,
+            **({"server": server} if server else {}),
         }
         await self._call("update", (account_id, password), lambda: entity.update(update))
         return describe(entity)

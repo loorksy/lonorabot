@@ -422,6 +422,44 @@ def saved_prompt(row: OwnerActionRow) -> str:
     )
 
 
+# What MetaApi's state means for a terminal that did not log in, and the fix from chat. MetaApi
+# reports only DISCONNECTED_FROM_BROKER for a broker that refuses the login or cannot be
+# reached: it does not say which.
+CAUSES = {
+    "broker_login_rejected": (
+        "MetaApi's terminal is running but the broker refuses its login or cannot be "
+        "reached (MetaApi reports DISCONNECTED_FROM_BROKER and gives no finer reason). "
+        "The causes are: a wrong trading password; the account moved to another server "
+        "(Exness moves demo accounts between its Trial servers); or the broker's server is "
+        "down. Ask the owner which server name their MT5 shows for this login: if it "
+        "differs, call broker_connect with it (the MetaApi account is moved to it); if it "
+        "is the same, rotate the trading (master, not investor) password with "
+        "broker_manage action rotate_password; if both are right, the broker is down: "
+        "wait."
+    ),
+    "broker_terminal_not_connected": (
+        "MetaApi's own terminal for the account is not connected (MetaApi reports "
+        "DISCONNECTED): a MetaApi-side start that did not finish. Offer to restart it "
+        "with broker_manage action deploy."
+    ),
+    "broker_terminal_not_synchronized": (
+        "MetaApi reports the terminal connected, but it did not synchronize, so no "
+        "account read came from it. Read it again with account_read in a few minutes; "
+        "if it lasts, offer broker_manage action deploy."
+    ),
+    "broker_identity_mismatch": (
+        "The MT5 terminal reports a different login or server than the owner gave. "
+        "Check with the owner which account they meant."
+    ),
+    "broker_account_undeployed": "The account is not running at MetaApi. Offer broker_manage action deploy.",
+    "broker_account_not_ready": "The account is still starting at MetaApi. Read it again in a few minutes.",
+    "broker_connect_timeout": (
+        "MetaApi's terminal did not connect within 15 minutes. Offer broker_manage "
+        "action deploy, or broker_connect again."
+    ),
+}
+
+
 def broker_prompt(row: OwnerActionRow) -> str:
     """Fixed text and broker-observed facts only, after provisioning finished."""
     result = row.result
@@ -450,6 +488,15 @@ def broker_prompt(row: OwnerActionRow) -> str:
             f"Changing the broker credential failed: {result.get('code')}. Nothing changed. "
             "You never see the values. Tell the owner in one line what went wrong."
         )
+    if result.get("provisioning") == "unconfirmed":
+        code = str(result.get("code"))
+        return (
+            f"The owner's account {row.payload['account']['login']} is linked as connection "
+            f"{result.get('connection_id')}, but it is NOT confirmed at the broker: the MT5 "
+            f"terminal has not logged in ({code}). {CAUSES.get(code, '')} Never say it is "
+            "connected or confirmed. You never see the password or token. Tell the owner "
+            "in one line what MetaApi reports and the fix."
+        )
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
         token = ""
@@ -462,25 +509,24 @@ def broker_prompt(row: OwnerActionRow) -> str:
                 else " The MetaApi API token was refused and is forgotten: call broker_connect"
                 " again, and its card asks the owner for a new token. Never ask in chat."
             )
+        cause = CAUSES.get(str(result.get("code")))
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
-            f"{result.get('code')}.{token} You never see "
+            f"{result.get('code')}.{token}{' ' + cause if cause else ''} You never see "
             "the password or token. Tell the owner in one line what went wrong and what you "
             "need; to try again, call broker_connect, which shows a new card."
         )
     facts: dict[str, Any] = result.get("account") or {}
-    if facts.get("balance") is None:
-        state = "Its balance is not readable yet; read it with account_read shortly."
-    else:
-        trading = (
-            "trading is allowed"
-            if facts.get("trade_allowed") and not facts.get("investor_mode")
-            else "trading is NOT allowed (an investor password or a read-only account)"
-        )
-        state = f"Balance {facts['balance']} {facts.get('currency')}; {trading}."
+    trading = (
+        "trading is allowed"
+        if facts.get("trade_allowed") and not facts.get("investor_mode")
+        else "trading is NOT allowed (an investor password or a read-only account)"
+    )
     observed: dict[str, Any] = result.get("observed") or {}
     named = f"account {observed.get('login')} on {observed.get('server')}"
     return (
-        f"The owner's {named} is connected and deployed at MetaApi as connection "
-        f"{result.get('connection_id')}. {state} Report this to the owner in one line."
+        f"The owner's {named} is logged in at the broker: its MT5 terminal at MetaApi "
+        f"synchronized and reported this login and server (connection "
+        f"{result.get('connection_id')}). Balance {facts.get('balance')} "
+        f"{facts.get('currency')}; {trading}. Report this to the owner in one line."
     )

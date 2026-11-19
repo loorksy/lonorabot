@@ -331,7 +331,7 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
-#: src/components/ai/AttentionInbox.tsx:43
+#: src/components/ai/AttentionInbox.tsx:44
 msgid "A Mandate card is waiting for your tap"
 msgstr "بطاقة التفويض بانتظار لمستك"
 
@@ -2627,20 +2627,20 @@ msgstr "هل تريد حذف هذه المهمة؟"
 #: src/shell/settings/ConnectionPages.tsx:349
 #: src/shell/settings/ConnectionPages.tsx:374
 #: src/shell/settings/ConnectionPages.tsx:490
-msgid "Demo"
-msgstr "تجريبي"
+#~ msgid "Demo"
+#~ msgstr "تجريبي"
 
 #. placeholder {0}: agentsCount(count)
 #: src/shell/settings/IntegrationsPage.tsx:493
-msgid "Demo · {0}"
-msgstr "تجريبي · {0}"
+#~ msgid "Demo · {0}"
+#~ msgstr "تجريبي · {0}"
 
 #: src/shell/settings/ConnectionPages.tsx:65
 #: src/shell/settings/ConnectionPages.tsx:247
 #: src/shell/settings/ConnectionPages.tsx:487
 #: src/shell/settings/IntegrationsPage.tsx:487
-msgid "Demo account"
-msgstr "حساب تجريبي"
+#~ msgid "Demo account"
+#~ msgstr "حساب تجريبي"
 
 #: src/components/skills/SkillMetadata.tsx:8
 msgid "Dependencies"
@@ -4134,6 +4134,13 @@ msgstr "جارٍ تحميل المعاينة…"
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
+#: src/shell/settings/ConnectionPages.tsx:65
+#: src/shell/settings/ConnectionPages.tsx:247
+#: src/shell/settings/ConnectionPages.tsx:487
+#: src/shell/settings/IntegrationsPage.tsx:487
+msgid "Local simulation"
+msgstr "محاكاة محلية (بلا وسيط)"
+
 #: src/shell/settings/SettingsRoot.tsx:380
 msgid "Lock on"
 msgstr "القفل مفعّل"
@@ -4238,7 +4245,7 @@ msgstr "تحديد الكل كمقروء"
 msgid "Mark as completed"
 msgstr "تحديد كمكتملة"
 
-#: src/components/ai/AttentionInbox.tsx:153
+#: src/components/ai/AttentionInbox.tsx:154
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -4844,7 +4851,7 @@ msgstr "لم يُضبط نموذج بعد"
 #~ msgid "No money limit"
 #~ msgstr "دون حد مالي"
 
-#: src/components/ai/AttentionInbox.tsx:114
+#: src/components/ai/AttentionInbox.tsx:115
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -5115,8 +5122,8 @@ msgstr "إشعار"
 msgid "Notification method"
 msgstr "طريقة الإشعار"
 
-#: src/components/ai/AttentionInbox.tsx:76
-#: src/components/ai/AttentionInbox.tsx:78
+#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:79
 #: src/shell/settings/DevicePages.tsx:301
 #: src/shell/settings/NotifyPages.tsx:141
 msgid "Notifications"
@@ -5148,7 +5155,7 @@ msgstr "الإشعارات مفعّلة"
 msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:109
+#: src/components/ai/AttentionInbox.tsx:110
 #: src/shell/settings/NotifyPages.tsx:160
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
@@ -5270,7 +5277,7 @@ msgstr "فتح المكالمة الحالية"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:144
+#: src/components/ai/AttentionInbox.tsx:145
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5420,7 +5427,7 @@ msgstr "سعر الأمر"
 #~ msgid "Organic"
 #~ msgstr "شكل عضوي"
 
-#: src/components/ai/AttentionInbox.tsx:142
+#: src/components/ai/AttentionInbox.tsx:143
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:102
 msgid "Outage and recovery"
@@ -6976,8 +6983,17 @@ msgstr "مسجَّل الدخول باسم <0>{0}</0>"
 #~ msgstr "Webhook موقّع"
 
 #: src/lib/broker-identity.ts:31
+#: src/shell/settings/ConnectionPages.tsx:147
+#: src/shell/settings/ConnectionPages.tsx:349
+#: src/shell/settings/ConnectionPages.tsx:374
+#: src/shell/settings/ConnectionPages.tsx:490
 msgid "Simulation"
 msgstr "محاكاة"
+
+#. placeholder {0}: agentsCount(count)
+#: src/shell/settings/IntegrationsPage.tsx:493
+msgid "Simulation · {0}"
+msgstr "محاكاة · {0}"
 
 #: src/pages/Market.tsx:49
 #: src/pages/Trading.tsx:61

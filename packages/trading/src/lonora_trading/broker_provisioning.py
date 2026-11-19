@@ -10,8 +10,12 @@ restart resumes it:
   this login and server or create one; its MetaApi id is recorded before any deploy.
 - ``deploying``: deploy, and wait until MetaApi's terminal is connected to the broker.
 - ``reading``: create the connection with the MetaApi-observed identity, then read the
-  account once for balance, currency and trade permission.
-- ``connected`` or ``failed``: the agent is woken once with fixed text (``broker_prompt``).
+  account through the synchronized terminal: its balance, currency, trade permission, and
+  the login and server the MT5 terminal itself reports.
+- ``connected`` (that read succeeded and names the typed login and server),
+  ``unconfirmed`` (the terminal never logged in or synchronized: the cause MetaApi
+  reports is recorded) or ``failed``: the agent is woken once with fixed text
+  (``broker_prompt``). Nothing says connected before the terminal's own read.
 
 Provisioning makes account-entity calls only; orders still go only through the door.
 """
@@ -131,7 +135,7 @@ async def _card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActi
 
 async def _record(session: AsyncSession, row: OwnerActionRow, **changes: Any) -> None:
     row.result = {**row.result, **changes}
-    if changes.get("provisioning") in {"connected", "failed"}:
+    if changes.get("provisioning") in {"connected", "unconfirmed", "failed"}:
         # The agent that asked continues now, once, with the outcome.
         await continue_after_card(session, row)
 
@@ -168,7 +172,7 @@ async def advance(
             assert password_id is not None and token_id is not None
             await _deploy(db, failing, result, password_id, token_id, started, secrets)
         elif phase == "reading":
-            await _read(db, brokers, owner_id, card_id, result)
+            await _read(db, brokers, secrets, owner_id, card_id, result, payload["account"])
     except Exception:
         # Any other failure retries until the deadline, then ends the card: it never
         # holds the account "in progress" forever.
@@ -397,7 +401,12 @@ async def _provision(
             if failed is None:
                 try:
                     # No transaction and no row lock while MetaApi works (up to minutes).
-                    if await provisioning.find(account["login"], account["server"]) is None:
+                    if (
+                        await provisioning.existing(
+                            account["login"], account["server"], account["platform"]
+                        )
+                        is None
+                    ):
                         # Kept before the create: if the answer or the record below is
                         # lost, the account found on the next pass is still this card's.
                         async with db.sessions() as session, session.begin():
@@ -437,6 +446,14 @@ async def _provision(
                             region=found.region,
                             created=created,
                             lonora_owned=owned,
+                            # The owner's account moved to another server of its broker:
+                            # MetaApi's account gets the typed server, not a second account.
+                            **(
+                                {"move_server_to": account["server"]}
+                                if (found.server or "").casefold()
+                                != account["server"].strip().casefold()
+                                else {}
+                            ),
                         )
         if failed:
             await failing(failed)
@@ -501,10 +518,15 @@ async def _deploy(
             state = await provisioning.state(account_id)
             if not result.get("created") and not result.get("password_set"):
                 # An account that already existed at MetaApi gets the password the owner
-                # just typed, unless it is already deployed and connected with its own.
-                if not (state.deployed and state.connected):
-                    await provisioning.update_password(account_id, await secrets.read(password_id))
-                    state = await (
+                # just typed (and the server, when it moved), unless it is already deployed
+                # and connected with its own on the typed server.
+                moved = result.get("move_server_to")
+                restarted = moved or not (state.deployed and state.connected)
+                if restarted:
+                    await provisioning.update_password(
+                        account_id, await secrets.read(password_id), server=moved
+                    )
+                    await (
                         provisioning.redeploy(account_id)
                         if state.deployed
                         else provisioning.deploy(account_id)
@@ -513,16 +535,28 @@ async def _deploy(
                     row = await _card(session, failing.owner_id, failing.card_id)
                     if row.result.get("provisioning") != "deploying":
                         return
-                    await _record(session, row, password_set=True)
+                    await _record(
+                        session,
+                        row,
+                        password_set=True,
+                        **({"restarted_at": utcnow().isoformat()} if restarted else {}),
+                    )
+                if restarted:
+                    # The state a redeploy answers still shows the old terminal: the next
+                    # pass reads MetaApi again.
+                    return
             elif state.state not in {"DEPLOYED", "DEPLOYING"}:
-                state = await provisioning.deploy(account_id)
+                await provisioning.deploy(account_id)
+                return
         except LonoraError as failure:
             if failure.code not in TRANSIENT or _late(started):
                 await failing(failure.code)
             return
         if not (state.deployed and state.connected):
             refused = state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER"
-            if _late(started) or (refused and _late(started, LOGIN_DEADLINE)):
+            # A terminal restarted with the owner's password gets its own time to log in.
+            login_wait = _late(str(result.get("restarted_at") or started), LOGIN_DEADLINE)
+            if login_wait and (_late(started) or refused):
                 code = (
                     "broker_login_rejected"
                     if state.connection_status == "DISCONNECTED_FROM_BROKER"
@@ -593,24 +627,75 @@ async def _connect(
 
 
 async def _read(
-    db: Database, brokers: Any, owner_id: str, card_id: str, result: dict[str, Any]
+    db: Database,
+    brokers: Any,
+    secrets: BrokerSecrets,
+    owner_id: str,
+    card_id: str,
+    result: dict[str, Any],
+    typed: dict[str, str],
 ) -> None:
-    facts: dict[str, Any] | None = None
+    """Connected only once the terminal itself answered: the account read goes through the
+    synchronized MT5 terminal, and the login and server it reports are the typed ones."""
     try:
         state = await brokers.account(owner_id, result["connection_id"])
-        facts = {
-            "balance": str(state.balance),
-            "currency": state.currency,
-            "trade_allowed": state.trade_allowed,
-            "investor_mode": state.investor_mode,
-        }
     except LonoraError:
         if not _late(result["connected_at"], READ_DEADLINE):
             return  # First synchronization of a new terminal can take a while.
+        cause = await _why_not_logged_in(secrets, str(result["metaapi_account_id"]))
+        async with db.sessions() as session, session.begin():
+            row = await _card(session, owner_id, card_id)
+            if row.result.get("provisioning") == "reading":
+                await _record(session, row, provisioning="unconfirmed", code=cause)
+        return
+    seen = {"login": state.login, "server": state.server, "platform": state.platform}
+    same = (broker_identity_key(seen) or ())[:2] == (broker_identity_key(typed) or ())[:2]
     async with db.sessions() as session, session.begin():
         row = await _card(session, owner_id, card_id)
-        if row.result.get("provisioning") == "reading":
-            await _record(session, row, provisioning="connected", account=facts or {})
+        if row.result.get("provisioning") != "reading":
+            return
+        if not same:
+            await _record(session, row, provisioning="unconfirmed", code="broker_identity_mismatch")
+            return
+        await _record(
+            session,
+            row,
+            provisioning="connected",
+            # What the MT5 terminal itself reported, read through the synchronized terminal.
+            observed={"login": state.login, "server": state.server, "broker": state.broker},
+            account={
+                "balance": str(state.balance),
+                "currency": state.currency,
+                "trade_allowed": state.trade_allowed,
+                "investor_mode": state.investor_mode,
+            },
+        )
+
+
+async def _why_not_logged_in(secrets: BrokerSecrets, account_id: str) -> str:
+    """MetaApi's own word on a terminal that has not logged in: its account state and
+    connection status (MetaApi reports no finer reason for a deployed account)."""
+    token_id = await secrets.named(METAAPI_TOKEN)
+    if token_id is None:
+        return "broker_terminal_not_synchronized"
+    provisioning = provisioning_client(await secrets.read(token_id))
+    try:
+        state = await provisioning.state(account_id)
+    except LonoraError:
+        return "broker_terminal_not_synchronized"
+    finally:
+        await provisioning.close()
+    if not state.deployed:
+        return (
+            "broker_account_undeployed"
+            if state.state == "UNDEPLOYED"
+            else "broker_account_not_ready"
+        )
+    if state.connection_status == "DISCONNECTED_FROM_BROKER":
+        return "broker_login_rejected"
+    if state.connection_status == "DISCONNECTED":
+        return "broker_terminal_not_connected"
+    return "broker_terminal_not_synchronized"
 
 
 async def _forget(
