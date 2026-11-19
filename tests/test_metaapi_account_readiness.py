@@ -94,6 +94,9 @@ async def test_recovery_refreshes_metadata_then_reuses_one_connection(
     getattr(
         adapter, "rpc_slot" if kind == "rpc" else "stream_slot"
     ).retry_at = 0  # Simulate the separate shared-connection backoff elapsing.
+    # An undeployed account is asked about again only after UNDEPLOYED_RECHECK_SECONDS.
+    assert adapter.undeployed_until > 0
+    adapter.undeployed_until = 0.0
     connections = await asyncio.gather(
         *((adapter.prepare() if kind == "rpc" else adapter.prepare_stream()) for _ in range(10))
     )

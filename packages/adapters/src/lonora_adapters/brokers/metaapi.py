@@ -44,6 +44,9 @@ ACCOUNT_METADATA_SECONDS = 30
 # recommended times. After this many failures in a row it is renewed.
 KEPT_FAILURES = 4
 WAITING = frozenset({"broker_connection_timeout", "broker_login_rejected"})
+# An undeployed account has no terminal to subscribe to: both connections are dropped (the
+# SDK stops subscribing) and MetaApi is asked again, with one account read, after this.
+UNDEPLOYED_RECHECK_SECONDS = 600
 
 
 def provider_error(error: Exception, stage: str) -> LonoraError:
@@ -75,6 +78,9 @@ def provider_error(error: Exception, stage: str) -> LonoraError:
         return LonoraError("broker_candles_not_found", 404)
     if status in {401, 403}:
         return LonoraError("broker_credentials_rejected", 409)
+    if status == 400 and "no accounts deployed" in " ".join(str(error).casefold().split()):
+        # MetaApi's answer to a subscribe or request while the account is undeployed.
+        return LonoraError("broker_account_undeployed", 409)
     if status == 429:
         return LonoraError("broker_rate_limited", 429)
     if (
@@ -205,19 +211,22 @@ def configure_sdk_transport() -> None:
     http_module._lonora_transport_configured = True
 
 
-async def refused_by_broker(account: Any) -> bool:
+async def timeout_cause(account: Any) -> str | None:
     """Mandate 9.4: after synchronization timed out, a fresh read of the account (not the
-    cached metadata) tells a terminal the broker refuses (a changed password, or the
-    broker's server down) apart from a lost link. A brief broker restart that has already
-    passed reads CONNECTED and keeps the timeout."""
+    cached metadata) tells an account undeployed at MetaApi (``broker_account_undeployed``)
+    and a terminal the broker refuses (a changed password, or the broker's server down:
+    ``broker_login_rejected``) apart from a lost link (None). A brief broker restart that
+    has already passed reads CONNECTED and keeps the timeout."""
     try:
         async with asyncio.timeout(10):
             await account.reload()
-        return (
-            account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED_FROM_BROKER"
-        )
+        if account.state in {"UNDEPLOYED", "UNDEPLOYING"}:
+            return "broker_account_undeployed"
+        if account.state == "DEPLOYED" and account.connection_status == "DISCONNECTED_FROM_BROKER":
+            return "broker_login_rejected"
     except Exception:
-        return False
+        pass
+    return None
 
 
 class MetaApiBroker:
@@ -264,6 +273,8 @@ class MetaApiBroker:
         self._closing = False
         # Until when MetaApi throttles this account (epoch seconds): every path waits.
         self._throttled_until = 0.0
+        # Until when the account is taken as undeployed without asking MetaApi again.
+        self.undeployed_until = 0.0
 
     def diagnose(self, error: Exception, stage: str) -> LonoraError:
         if isinstance(error, LonoraError) and error.diagnostic_message:
@@ -284,6 +295,7 @@ class MetaApiBroker:
 
     async def resolve_account(self) -> Any:
         # Historical REST data needs the account's own region, not an RPC lease.
+        self.refuse_if_undeployed()
         async with self.account_lock:
             failure = getattr(self, "_account_metadata_failure", None)
             if failure is not None and monotonic() < self._account_metadata_retry_at:
@@ -392,6 +404,7 @@ class MetaApiBroker:
     async def _prepare_connection(self, kind: str) -> Any:
         if getattr(self, "_closing", False):
             raise LonoraError("broker_connection_closed", 503)
+        self.refuse_if_undeployed()
         attr = "rpc" if kind == "rpc" else "streaming"
         existing = getattr(self, attr, None)
         slot = self._slot(kind)
@@ -454,17 +467,68 @@ class MetaApiBroker:
                     return connection
                 except Exception as error:
                     failure, until = self.throttled(error, self.diagnose(error, kind))
-                    if until is None and (
-                        failure.code == "broker_connection_timeout"
-                        and await refused_by_broker(account)
-                    ):
-                        failure = LonoraError("broker_login_rejected", 409)
+                    if until is None and failure.code == "broker_connection_timeout":
+                        failure = await self.timed_out(failure, account)
                     if connection is not None and not self.keep(connection, failure, slot):
                         await self._discard_locked(kind, connection)
                     slot.failed(failure, until)
                     raise failure from error
 
-        return await slot.get(create)
+        try:
+            return await slot.get(create)
+        except LonoraError as failure:
+            await self.stand_down_if_undeployed(failure)
+            raise
+
+    @staticmethod
+    async def timed_out(failure: LonoraError, account: Any) -> LonoraError:
+        """A synchronization timeout, or what a fresh account read shows behind it."""
+        cause = await timeout_cause(account)
+        return LonoraError(cause, 409) if cause else failure
+
+    async def undeployed_behind(
+        self, failure: LonoraError, until: float | None, stream: Any
+    ) -> LonoraError:
+        """A stream that lost synchronization and timed out: an account read tells an
+        account undeployed at MetaApi (the SDK's subscribe answers are never raised)."""
+        account = getattr(self, "account_instance", None)
+        if (
+            until is None
+            and failure.status == 504
+            and account is not None
+            and not synchronized(stream, "streaming")
+            and await timeout_cause(account) == "broker_account_undeployed"
+        ):
+            return LonoraError("broker_account_undeployed", 409)
+        return failure
+
+    def refuse_if_undeployed(self) -> None:
+        """While the account is taken as undeployed, answer at once: no subscription and
+        no request reaches MetaApi until the re-check is due."""
+        if getattr(self, "undeployed_until", 0.0) > time.time():
+            raise LonoraError("broker_account_undeployed", 409)
+
+    async def stand_down_if_undeployed(self, failure: LonoraError) -> None:
+        """On ``broker_account_undeployed`` (MetaApi's account state, or its "no accounts
+        deployed" answer), drop both terminal connections so the SDK stops subscribing,
+        and ask MetaApi again only after ``UNDEPLOYED_RECHECK_SECONDS``."""
+        if failure.code != "broker_account_undeployed":
+            return
+        self.undeployed_until = time.time() + UNDEPLOYED_RECHECK_SECONDS
+        for kind in ("rpc", "streaming"):
+            connection = getattr(self, kind, None)
+            if connection is not None:
+                await self.invalidate(kind, connection)
+
+    def deployed(self) -> None:
+        """The owner deployed the account from chat: the next call reads MetaApi again
+        instead of waiting out the re-check."""
+        self.undeployed_until = 0.0
+        self.account_instance = None
+        self._account_metadata_failure = None
+        self._account_metadata_retry_at = 0.0
+        for kind in ("rpc", "streaming"):
+            self._slot(kind).ready()
 
     def throttled(
         self, error: BaseException, failure: LonoraError
@@ -544,6 +608,7 @@ class MetaApiBroker:
                     error,
                     self.diagnose(error, "symbol" if method.startswith("get_symbol_") else "rpc"),
                 )
+                await self.stand_down_if_undeployed(failure)
                 raise failure from error
         raise LonoraError("broker_connection_unavailable", 502)
 
@@ -699,6 +764,7 @@ class MetaApiBroker:
         except Exception as error:
             failure = self.diagnose(error, "streaming")
             failure, until = self.throttled(error, failure)
+            failure = await self.undeployed_behind(failure, until, stream)
             slot = self._slot("streaming")
             if closed_error(error) or is_closed(stream):
                 await self.invalidate("streaming", stream)
@@ -709,6 +775,7 @@ class MetaApiBroker:
                 if not self.keep(stream, failure, slot):
                     await self.invalidate("streaming", stream)
                 slot.failed(failure, until)
+            await self.stand_down_if_undeployed(failure)
             raise failure from error
         finally:
             stream.remove_synchronization_listener(listener)
@@ -779,6 +846,7 @@ class MetaApiBroker:
         except Exception as error:
             failure = self.diagnose(error, "candles")
             failure, until = self.throttled(error, failure)
+            failure = await self.undeployed_behind(failure, until, stream)
             slot = self._slot("streaming")
             if closed_error(error) or is_closed(stream):
                 await self.invalidate("streaming", stream)
@@ -789,6 +857,7 @@ class MetaApiBroker:
                 if not self.keep(stream, failure, slot):
                     await self.invalidate("streaming", stream)
                 slot.failed(failure, until)
+            await self.stand_down_if_undeployed(failure)
             raise failure from error
         finally:
             stream.remove_synchronization_listener(listener)
