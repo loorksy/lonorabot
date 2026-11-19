@@ -1,135 +1,16 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { ActivityCode, ActivityEntry, AttentionViewRow } from "@lonora/contracts";
+import type { AttentionViewRow } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
-import { useState } from "react";
-import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { useAttentionLabels } from "../../components/ai/AttentionInbox";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useAttention } from "../../providers/AttentionProvider";
 import { useShellData } from "../data";
-import { clockTime } from "../lists/ThreadRow";
 import { useNavigation } from "../navigation";
 import { SkHead, SkPage, SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
-import { domainApi } from "./api";
 import { useLoad } from "./hooks";
-import { Empty } from "./ui";
-
-function activityTitle(code: ActivityCode): string {
-  switch (code) {
-    case "agent_created":
-      return t`Agent created`;
-    case "authority_changed":
-      return t`Delegation changed`;
-    case "operation_resolved":
-      return t`Operation resolved`;
-    case "approval_approved":
-      return t`You approved a request`;
-    case "approval_rejected":
-      return t`You rejected a request`;
-    case "task_created":
-      return t`Task created`;
-    case "task_completed":
-      return t`Task completed`;
-    case "task_cancelled":
-      return t`Task cancelled`;
-    case "skill_created":
-      return t`Skill created`;
-    case "skill_updated":
-      return t`Skill updated`;
-    case "supervision_granted":
-      return t`Supervision started`;
-    case "supervision_revoked":
-      return t`Supervision ended`;
-    case "watch_triggered":
-      return t`A watch was met`;
-    case "goal_created":
-      return t`Goal added`;
-    default:
-      return t`Knowledge added`;
-  }
-}
-
-const when = (iso: string) => {
-  const at = new Date(iso);
-  return at.toDateString() === new Date().toDateString()
-    ? clockTime(iso)
-    : at.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" });
-};
-
-/** One «سجل الإجراءات» row: what happened, to what, and when; all from the server. */
-function ActivityRow({ entry, boxed = false }: { entry: ActivityEntry; boxed?: boolean }) {
-  const data = useShellData();
-  const agent = data.agents.find((row) => row.id === entry.agent_id)?.name ?? "";
-  const named = entry.code.startsWith("task_") || entry.code.startsWith("skill_");
-  const detail = named && agent ? `${entry.subject} · ${agent}` : entry.subject || agent;
-  return (
-    <div className="row" data-activity={entry.code}>
-      {boxed ? (
-        <span className="row-icon">
-          <Icon name="check" />
-        </span>
-      ) : (
-        <Icon name="check" />
-      )}
-      <span className="body">
-        <strong>{activityTitle(entry.code)}</strong>
-        <small>
-          <bdi>{detail}</bdi>
-        </small>
-      </span>
-      <span className="value">
-        <span className="ltr">{when(entry.created_at)}</span>
-      </span>
-    </div>
-  );
-}
-
-/** «سجل الإجراءات» (Q45): a projection of durable events; the client invents nothing. */
-export function ActivityPage() {
-  const toast = useToast();
-  const feed = useLoad(() => domainApi.activity(), "activity");
-  const [more, setMore] = useState<ActivityEntry[]>([]);
-  const [next, setNext] = useState<number | null | undefined>();
-  if (feed.loading && !feed.data)
-    return (
-      <SkPage>
-        <SkRows count={9} icon group />
-      </SkPage>
-    );
-  if (feed.error != null && !feed.data) return <p role="alert">{userError(feed.error)}</p>;
-  const items = [...(feed.data?.items ?? []), ...more];
-  const cursor = next === undefined ? feed.data?.next_before : next;
-  if (!items.length) return <Empty>{t`No activity yet.`}</Empty>;
-  return (
-    <div className="domain-page">
-      <div className="group">
-        {items.map((entry) => (
-          <ActivityRow key={entry.id} entry={entry} />
-        ))}
-      </div>
-      {cursor ? (
-        <button
-          type="button"
-          className="btn full ghost"
-          onClick={async () => {
-            try {
-              const page = await domainApi.activity(cursor);
-              setMore((rows) => [...rows, ...page.items]);
-              setNext(page.next_before);
-            } catch (cause) {
-              toast(userError(cause), { type: "error" });
-            }
-          }}
-        >
-          <Trans>Show more</Trans>
-        </button>
-      ) : null}
-    </div>
-  );
-}
 
 /** «يحتاج انتباهك» (mandate 11.7): what needs the owner, across all agents, from one
  * server projection (GET /attention/view). A row opens its conversation, where the

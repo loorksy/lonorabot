@@ -78,11 +78,6 @@ test("tasks: create with due time and criterion, then mark as completed", async 
   await page.goto("/app/tasks");
   await page.getByRole("tab", { name: "Completed", exact: true }).click();
   await expect(page.getByRole("button", { name: new RegExp(`${prefix} report`) })).toBeVisible();
-  // The activity log is the server's projection of what happened.
-  await page.goto("/app/activity");
-  await expect(
-    page.locator('[data-activity="task_completed"]').filter({ hasText: `${prefix} report` }),
-  ).toBeVisible();
 });
 
 test("schedules: a titled daily routine and a one-shot, with the switch", async ({

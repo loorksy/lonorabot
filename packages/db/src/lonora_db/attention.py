@@ -416,7 +416,7 @@ async def notify_owner(
     CRITICAL_LIMIT_PER_HOUR critical alerts per owner, a critical one counts as an
     important change. Under reach-me "activity
     only" a non-critical alert raises no item (``activity_only``): the Agent says it in
-    its reply, which reaches its conversation and the activity log. Delivery is in the
+    its reply, which reaches its conversation. Delivery is in the
     app until off-app delivery exists. The item grants nothing.
     """
     now = utcnow()

@@ -1,5 +1,4 @@
 import type {
-  ActivityPage,
   AgentGoal,
   AgentSkill,
   KnowledgeItem,
@@ -126,7 +125,4 @@ export const domainApi = {
       content,
     }),
   deleteFile: (id: string) => api.delete<{ deleted: boolean }>(`/artifacts/${id}`),
-
-  activity: (before?: number) =>
-    api.get<ActivityPage>(before ? `/activity?limit=50&before=${before}` : "/activity?limit=50"),
 };
