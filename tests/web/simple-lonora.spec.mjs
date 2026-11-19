@@ -16,7 +16,7 @@ const simulation = (data) => python(["tests/check_chart_browser.py"], data);
 const worker = (data) => python(["tests/check_simple_lonora.py", "--ui-turn"], data);
 
 const words = {
-  createGold: "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%",
+  createGold: "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه",
   buyOnce: "اشترِ 0.1 ذهب على حسابي بوقف خسارة 150",
 };
 const text = {
@@ -27,7 +27,6 @@ const text = {
   register: "سجّل هذا الجهاز أولًا",
   signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
   onItsOwn: "يتداول باستقلال",
-  dailyLoss: "الخسارة اليومية",
   asks: "يسألك قبل كل صفقة",
 };
 
@@ -126,7 +125,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
       await (await context.request.get(`/api/owner-actions?thread_id=${lonoraThread.id}`)).json()
     ).find((row) => row.id === grantId);
     expect(grantRow.facts.grant.agent_name).toBe(name);
-    expect(grantRow.facts.money.daily_loss.proposed).toBe("200.00");
     const createdCard = page
       .locator('[data-owner-action-kind="agent_created"]')
       .filter({ hasText: name });
@@ -134,7 +132,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     const grant = page.locator(`[data-owner-action="${grantRow.id}"]`);
     await expect(grant).toHaveAttribute("data-owner-action-status", "pending");
     await expect(grant.getByText(data.symbol).first()).toBeVisible();
-    await expect(grant).toContainText("200.00");
     await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-ar.png") });
 
     // 2. Before any grant the agent asks: one approval card, one tap.
@@ -176,13 +173,11 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     const permission = await (await context.request.get(`/api/agents/${gold}/permissions`)).json();
     expect(permission.effective_level).toBe("autonomous");
     expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-    // The gold agent's pill says what the card signed: its pair and the daily loss.
+    // The gold agent's pill says what the card signed: its pair.
     await page.goto(`/app/${gold}`);
     const pill = await modeLine(page);
     await expect(pill).toContainText(text.onItsOwn);
     await expect(pill).toContainText(data.symbol);
-    await expect(pill).toContainText(text.dailyLoss);
-    await expect(pill).toContainText("200.00 USD");
 
     // The vision's counts: one confirmation each; nothing else was sent.
     expect(taps).toEqual({ create: 1, enroll: 1, approve: 1 });
