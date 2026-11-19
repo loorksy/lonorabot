@@ -151,7 +151,9 @@ test("a sign-in that fails asks the server again: a first run missed by the chec
   await page.goto("/");
   await page.getByRole("textbox", { name: "Email", exact: true }).fill(credentials.email);
   await page.getByLabel("Password", { exact: true }).fill(credentials.password);
+  const signIn = page.getByRole("button", { name: "Sign in", exact: true });
+  await expect(signIn).toBeEnabled();
   initialized = false;
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await signIn.click();
   await expect(page.getByText("Set up Lonora", { exact: true })).toBeVisible();
 });
