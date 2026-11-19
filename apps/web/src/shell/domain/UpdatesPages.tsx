@@ -30,8 +30,6 @@ function activityTitle(code: ActivityCode): string {
       return t`Agent created`;
     case "authority_changed":
       return t`Delegation changed`;
-    case "limits_changed":
-      return t`Account limits changed`;
     case "operation_resolved":
       return t`Operation resolved`;
     case "approval_approved":
