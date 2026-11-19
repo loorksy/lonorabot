@@ -200,8 +200,8 @@ profile) do not fit and are promoted after first use like any remembered tool.
 - **Profiles** (Web `SupervisionSettings`, Mobile `supervision-settings`, labels in
   `packages/core/src/supervision.ts`): every agent's settings list whom it supervises and
   who supervises it, each with where the grant came from and one-tap Stop. Lonora's
-  profile ("Lonora supervises your agents") also lists the agents it no longer
-  supervises, with Supervise.
+  profile ("Lonora supervises your agents") lists none of its own grants and offers no
+  Supervise: it leads every team agent by its role.
 
 ## Not in this slice
 
