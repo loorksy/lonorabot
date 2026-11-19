@@ -497,7 +497,7 @@ The gate reads call names, arguments and result fields, and whether the reply is
 never reads what the owner or the model wrote, never issues a call, and its notices carry
 tool names but no failure code. Except for `lead_action_unreported`, it holds the reply, whatever else the request contains, when the request made any
 financial call, when any result is a permission refusal, needs the owner's authorization,
-hit a risk or health block, has an unknown outcome, was stopped by a guardrail or spent
+hit a health block, has an unknown outcome, was stopped by a guardrail or spent
 its retries, and when the last owner-side message is a wake. A found tool that is
 financial is never raised.
 

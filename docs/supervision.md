@@ -84,7 +84,7 @@ its lead role whatever its grant (`lonora_db.lead`), so a revoke never ends Lono
 `agent_control` (toolset `collaboration`, long-tail, replay-safe) pauses or resumes the
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
-It has no action that trades, grants, raises a limit or edits memory or instructions.
+It has no action that trades, grants or edits memory or instructions.
 Lonora alone also has `cancel_run` (ends the agent's started runs, never Lonora's own
 run or its ancestors; a queued run stays) and `set_ask` (the same switch as
 `trading_mode_ask`: Ask, except within an active signed grant's own terms until revoked,
