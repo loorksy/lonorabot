@@ -1046,9 +1046,11 @@ def compile_card(
             kept_blocks = list(blocks)
             while kept_blocks:
                 shown = visible_now(kept_blocks)
+                # The More a fold inserts is a block like any other, its gap included.
+                more = [{"type": "More", "children": folded}] if folded else []
                 if (
-                    sum(shown) + (1 if folded else 0) <= 6
-                    and estimate_height(kept_blocks, shown, slot_rows) + (40 if folded else 0)
+                    sum(shown) + len(more) <= 6
+                    and estimate_height(kept_blocks + more, shown + [True] * len(more), slot_rows)
                     <= RESTING_LIMIT
                 ):
                     break

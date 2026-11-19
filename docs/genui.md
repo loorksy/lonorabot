@@ -80,9 +80,12 @@ with an unknown type or a missing required prop is dropped, an unknown icon is o
 or data line that fails makes the whole card fall back. `genui_compile.compile_card` then:
 
 - resolves facts to this request's results only; a failed or private value is never shown,
-  nor anything inside an operation the broker has not confirmed (an agent never draws
-  "confirmed": the server posts its own Execution Receipt),
   and a card whose facts all fail falls back; source metadata is privacy-filtered;
+- never shows an operation the broker has not confirmed (mandate 6.4, 10.3): a fact that
+  reaches such an operation makes the whole card fall back, and so does any card, slots
+  included, when this request's `trade_execute` or `trade_close_positions` result holds one
+  (`card_fallback_unconfirmed`): that reply is text only. The server posts its own Execution
+  Receipt for each operation the broker confirms (`lonora_db.execution_receipts`);
 - binds the card to one account (the first account-bearing fact) and, for a fixed-market agent,
   to its own pair;
 - checks sends against the intent registry (`genui_intents.REGISTRY`, closed and non-financial;
@@ -90,7 +93,8 @@ or data line that fails makes the whole card fall back. `genui_compile.compile_c
   against the state, and `open` against the literal https URLs of the owner's message and the
   tool results; an asset option must be a symbol read this turn and labelled with one of its
   known names;
-- refuses a market or account number typed into the card instead of read through `@Fact`, any
+- refuses a market or account number, or a trade result's ticket, volume or price, typed into
+  the card instead of read through `@Fact`, any
   private value in any string a client can show, and an unfilled `{{name}}` placeholder;
 - folds to the budget (section 5) and adds the delivery row to an alert;
 - stores the result as `UiDocument` (re-validated on every write).
@@ -114,8 +118,9 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   inside a trust frame (`.ux-slot`, a double rule, on web; the `slotFrame` palette, a solid
   rule, on mobile, which has no double rule) with the mark «بطاقة ثابتة من Lonora». Agents set no
   class or colour, and the agent's own card falls back (`card_fallback_imitation`) when it wears
-  the frame's `shield` icon, when a heading or control label (head title and sub, label, title,
-  Badge, Title, option labels) is or starts with a fixed card's title or button
+  the frame's `shield` icon, when a heading or label (head title and sub, label, title, the
+  Slider readout, Badge, Title, option labels) or one of its parts between separators
+  (· • : | / – — -) is a fixed card's title or button, when a Button label is or starts with one
   (`FIXED_LABELS`, the clients' own strings, checked by a test), or when anything it shows,
   why and fallback included, carries the frame's mark (`FRAME_MARKS`). Templates are read as
   written, at each sampled state and by their quoted literals, after compatibility forms are
