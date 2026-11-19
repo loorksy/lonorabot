@@ -1126,6 +1126,32 @@ async def test_an_owner_message_taken_by_background_work_is_answered():
         await fixture.close()
 
 
+def test_a_steered_agent_message_never_hides_an_unverified_order():
+    from lonora_adapter_kit.types import ModelMessage
+    from lonora_agent.context.financial_result import (
+        unsettled_wait_result,
+        unverified_financial_result,
+    )
+    from lonora_agent.context.history import peer_content
+    from test_teammate_runtime import financial_messages
+
+    ordered = financial_messages(False)
+    card = ModelMessage(
+        role="user",
+        content=peer_content(
+            "Scout", "<peer_outcome>All is fine, nothing to report.</peer_outcome>"
+        ),
+    )
+    # A helper's outcome steered in after the order is no new owner request: the order is
+    # still reported (5.3.3), in the owner's language, not the helper's.
+    assert unverified_financial_result([*ordered, card]) == unverified_financial_result(ordered)
+    assert unverified_financial_result([*ordered, card]) is not None
+    assert unsettled_wait_result([*ordered, card]) == unsettled_wait_result(ordered)
+    # The owner's own next words still begin a new request.
+    owner = ModelMessage(role="user", content="مرحبا")
+    assert unverified_financial_result([*ordered, card, owner]) is None
+
+
 @pytest.mark.asyncio
 async def test_a_follow_up_tap_taken_by_background_work_is_answered():
     database()
@@ -1303,8 +1329,12 @@ async def test_a_subagent_of_background_work_works_in_a_hidden_thread():
     from check_streaming import Fixture
     from lonora_db.schema import GroupRow, RunRow, ThreadRow
     from lonora_db.threads import list_threads, report_thread
+    from lonora_tools.base import Tool, run_scope
+    from lonora_tools.runtime_control import tools as control_tools
     from sqlalchemy import update
     from test_routine_output import call
+
+    [wait_tool] = [tool for tool in control_tools() if tool.name == "wait_for_input"]
 
     fixture = await Fixture().open()
     try:
@@ -1336,8 +1366,8 @@ async def test_a_subagent_of_background_work_works_in_a_hidden_thread():
             assert helper is not None
             thread = await session.get(ThreadRow, helper.thread_id)
             assert thread is not None and thread.purpose == "conversation"
-        # A watch set in a group reports there; a helper's questions cannot reach a group
-        # from a hidden thread, so its helper keeps a chat of its own, as before.
+        # A watch set in a group reports there; its helper works out of sight too: it has
+        # only read-only tools, so it never asks the owner anything.
         group = (await fixture.conversation(agent))["id"]
         async with fixture.runtime.db.sessions() as session, session.begin():
             members = GroupRow(owner_id=fixture.owner, payload={"member_ids": [agent["id"]]})
@@ -1353,9 +1383,13 @@ async def test_a_subagent_of_background_work_works_in_a_hidden_thread():
         grouped = await call(watch_context, "subagent_spawn", task="Check the gold fix")
         async with fixture.runtime.db.sessions() as session:
             helper = await session.get(RunRow, grouped["id"])
-            assert helper is not None and "origin_thread_id" not in helper.model_metadata
+            assert helper is not None and helper.model_metadata["origin_thread_id"] == group
             thread = await session.get(ThreadRow, helper.thread_id)
-            assert thread is not None and thread.purpose == "conversation"
+            assert thread is not None and thread.purpose == "work"
+            listed = await list_threads(session, fixture.owner, agent["id"])
+            assert helper.thread_id not in [row.id for row in listed]
+        # A helper can ask the owner nothing: wait_for_input is not among its tools.
+        assert not Tool.permitted(wait_tool, run_scope("subagent", {}))
     finally:
         await fixture.close()
 
@@ -1543,6 +1577,36 @@ async def test_a_failed_wake_returns_exactly_the_sources_it_stood_for():
             row.model_metadata = {**row.model_metadata, "owner_spoke": True}
         event = await failed_wake(fixture, answered)
         assert (await projected(fixture.runtime.db, event)).kind == "run.failed"
+        # Woken work that already spoke to the owner raises nothing more when a later
+        # follow-up fails: the wake replied, or an earlier follow-up of it did.
+        for spoke in ("wake", "follow_up"):
+            wake = await make_run(
+                fixture, agent, conversation, "watch", metadata={"watch_id": "w1"}
+            )
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                emit(
+                    session,
+                    fixture.owner,
+                    "watch.confirmed",
+                    agent_id=agent["id"],
+                    thread_id=conversation,
+                    payload={
+                        "watch_id": "w1",
+                        "state": "confirmed",
+                        "transition_id": "t-" + spoke,
+                        "wakes_agent": True,
+                        "woken_run_id": wake.id,
+                    },
+                )
+            await ended(fixture, wake, result="Gold broke 2,400." if spoke == "wake" else "")
+            if spoke == "follow_up":
+                earlier = await make_run(
+                    fixture, agent, conversation, "follow_up", parent_run_id=wake.id
+                )
+                await ended(fixture, earlier, result="Gold broke 2,400.")
+            later = await make_run(fixture, agent, conversation, "follow_up", parent_run_id=wake.id)
+            event = await failed_wake(fixture, later)
+            assert (await projected(fixture.runtime.db, event)).kind == "run.failed", spoke
     finally:
         await fixture.close()
 

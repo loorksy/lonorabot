@@ -110,11 +110,30 @@ async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchR
     return min(deadlines)
 
 
+async def replied(session: AsyncSession, wake: RunRow) -> bool:
+    """Whether woken work already spoke to the owner: the wake, or a follow-up that
+    continues it, ended with a reply."""
+    runs = [wake]
+    while runs:
+        if any(run.result or run.model_metadata.get("rich_content") for run in runs):
+            return True
+        runs = list(
+            await session.scalars(
+                select(RunRow).where(
+                    RunRow.parent_run_id.in_([run.id for run in runs]),
+                    RunRow.trigger == "follow_up",
+                )
+            )
+        )
+    return False
+
+
 async def projected(db: Database, event: EventRow) -> EventRow:
     """The event an item is decided on. A background wake that failed stands for the source
     that woke it: a source whose agent was to report it raised no item (VISION 11.5), so
     when that run fails the source is decided again as if no agent had been woken. A
-    background follow-up continues the wake's work, so its failure stands for the same."""
+    background follow-up continues the wake's work, so its failure stands for the same,
+    unless that work already replied to the owner."""
     if event.kind != "run.failed" or not event.run_id:
         return event
     async with db.sessions() as session:
@@ -126,7 +145,11 @@ async def projected(db: Database, event: EventRow) -> EventRow:
             and is_background(run.trigger, run.model_metadata)
         ):
             run = await session.get(RunRow, run.parent_run_id)
-        if run is None or not is_background(run.trigger, run.model_metadata):
+        if (
+            run is None
+            or not is_background(run.trigger, run.model_metadata)
+            or await replied(session, run)
+        ):
             return event
         metadata = run.model_metadata
         query = select(EventRow).where(

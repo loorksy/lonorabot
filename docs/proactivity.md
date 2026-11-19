@@ -110,19 +110,19 @@ or a channel.
   message. Nothing acts on an outcome once the work failed or was cancelled, nor on a
   helper that brought nothing back; a helper's failure goes to a follow-up that finishes
   or reports the work. In a work thread every outcome stays, as that work's memory. A
-  subagent of background work that reports to the agent's own conversation works in a
-  hidden work thread of its own; its cards and questions go to that conversation, and
-  its outcome returns to its parent as any helper's does. A helper of work that reports
-  to a group keeps a chat of its own, where its questions show.
+  subagent of background work works in a hidden work thread of its own. Its tools are
+  read-only, so it asks the owner nothing and posts nothing; its outcome returns to its
+  parent as any helper's does.
 - **Attention items.** A wake's source raises no item beside the woken run: a watch
   confirmation that woke its agent, broker activity that woke an agent (`wakes_agent`), a
   server-detected opportunity change whose wake reports in the agent's own conversation,
   and a collaboration synthesis or a Task that completed with an empty result. A woken
   broker or opportunity change withdraws no other item; a woken watch confirmation still
   supersedes the stale state of the same watch, as any confirmation does. If the woken
-  run, or a background follow-up that continues its work, fails, its `run.failed` is
-  decided as the source the wake stood for (the confirmation that woke it, or the
-  account's broker activity), so the owner still learns of the change. A Task's watch
+  run, or a background follow-up that continues its work, fails before that work replied
+  to the owner, its `run.failed` is decided as the source the wake stood for (the
+  confirmation that woke it, or the account's broker activity), so the owner still
+  learns of the change. A Task's watch
   confirmation wakes only a Task that waits on that watch with no control pending. A
   confirmation that woke nobody (its wake already spent, or its Task paused), broker
   activity while Lonora is paused, an opportunity whose wake cannot report in the

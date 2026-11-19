@@ -6,6 +6,8 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 
+from ..runtime_notices import is_owner_message
+
 FINANCIAL_CALLS = {"trade_execute", "trade_close_positions"}
 
 
@@ -77,8 +79,9 @@ def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
     # The latest owner message begins a new request, so an old unverified result
     # cannot replace an unrelated answer on a subsequent turn.
     for message in reversed(messages):
-        # Runtime notices and observations are not a new owner request.
-        if message.role == "user" and message.context_origin == "conversation":
+        # Runtime notices, observations and another agent's words (a steered helper
+        # outcome) are not a new owner request.
+        if is_owner_message(message):
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue
@@ -111,7 +114,7 @@ def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
         if pending:
             arabic = True
             for owner in reversed(messages):
-                if owner.role != "user" or owner.context_origin != "conversation":
+                if not is_owner_message(owner):
                     continue
                 if re.search(r"[\u0620-\u064a]", owner.content):
                     break
@@ -141,7 +144,7 @@ def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
     }
     arabic = True
     for owner in reversed(messages):
-        if owner.role != "user" or owner.context_origin != "conversation":
+        if not is_owner_message(owner):
             continue
         if re.search(r"[\u0620-\u064a]", owner.content):
             break
@@ -154,8 +157,9 @@ def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
         else "The request outcome could not be confirmed. I will check the broker account before any resend."
     )
     for message in reversed(messages):
-        # Runtime notices and observations are not a new owner request.
-        if message.role == "user" and message.context_origin == "conversation":
+        # Runtime notices, observations and another agent's words are not a new owner
+        # request.
+        if is_owner_message(message):
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue
