@@ -100,9 +100,11 @@ async def owner_takes_over(
 ) -> None:
     """The owner itself paused or cancelled (``paused``), or resumed, this work of
     ``agent_id``. The owner's pause is a hold of its own (``source='owner'``, no holder),
-    so the paused agent never lifts it on its own initiative, and a supervisor's hold on
-    it becomes the owner's, never a weaker one: the supervisor stays named, but only the
-    owner lifts it. The owner's resume releases it."""
+    so the paused agent never lifts it on its own initiative, and a hold already on it
+    becomes the owner's control pause, never a weaker one: a supervisor's, and one the
+    owner asked for in chat (its ``source_message_id`` is cleared), are lifted from then
+    on only by the owner's control or card, never from chat. The holder stays named. The
+    owner's resume releases it."""
     hold = await live_hold(session, kind, target_id, lock=True)
     if hold is not None and hold.owner_id != owner_id:
         return
@@ -125,8 +127,8 @@ async def owner_takes_over(
             )
         )
         await session.flush()
-    elif hold.source != "owner":
-        hold.source = "owner"
+    elif hold.source != "owner" or hold.source_message_id is not None:
+        hold.source, hold.source_message_id = "owner", None
         await session.flush()
 
 

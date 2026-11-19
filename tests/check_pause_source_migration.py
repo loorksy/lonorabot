@@ -1,10 +1,12 @@
 """Migration 0155: a pause made from the owner's message becomes the owner's (mandate 4.7.2).
 
 On a disposable PostgreSQL at head: step down below 0155, record a live hold with the
-old ``owner_message`` source and an agent's own hold, step up again. The first is the
-owner's now (holder and message kept), the second is unchanged, and the CHECK refuses
-the old source. The downgrade keeps the owner's pause the owner's, and the upgrade runs
-again cleanly.
+old ``owner_message`` source, an agent's own hold, and an ``owner`` hold that still
+names the message it began from (the owner then paused it with a control), step up
+again. The first is the owner's now (holder and message kept), the second is
+unchanged, the third stays control-only (its message id is cleared, so no chat lifts
+it), and the CHECK refuses the old source. The downgrade keeps the owner's pause the
+owner's, and the upgrade runs again cleanly.
 """
 
 import asyncio
@@ -19,7 +21,7 @@ from lonora_db.agents import create_agent
 from lonora_db.market_watches import control_watch
 from lonora_db.pauses import refuse_held
 from lonora_db.personal_agent import ensure_personal_agent
-from lonora_db.schema import MarketWatchRow, OwnerRow, SupervisionHoldRow
+from lonora_db.schema import MarketWatchRow, MessageRow, OwnerRow, SupervisionHoldRow
 from lonora_db.threads import conversation_thread
 from sqlalchemy import delete, select, text
 
@@ -68,6 +70,12 @@ async def main() -> None:
             await control_watch(session, owner_id, watch.id, "cancel")
             watch_ids.append(watch.id)
         lonora_id = lonora.id
+        # The owner's words a chat pause names (``source_message_id``).
+        words = MessageRow(thread_id=thread.id, seq=thread.next_seq, role="user", content="x")
+        thread.next_seq += 1
+        session.add(words)
+        await session.flush()
+        words_id = words.id
 
     async def owner_holds() -> dict[str, str]:
         """Each owner hold on those watches, as the update's control fingerprint hashes it."""
@@ -94,14 +102,20 @@ async def main() -> None:
     await db.engine.dispose()
     alembic("downgrade", BEFORE)
     assert await owner_holds() == kept
-    asked, own = str(uuid4()), str(uuid4())
+    asked, own, taken = str(uuid4()), str(uuid4()), str(uuid4())
     async with db.sessions() as session, session.begin():
-        for identifier, kind, source in ((asked, "agent", "owner_message"), (own, "task", "agent")):
+        for identifier, kind, source, message in (
+            (asked, "agent", "owner_message", words_id),
+            (own, "task", "agent", None),
+            # A chat pause the owner then paused or cancelled with a control: before 0155
+            # it was 'owner', control-only, and still named its message.
+            (taken, "routine", "owner", words_id),
+        ):
             await session.execute(
                 text(
                     "INSERT INTO ln_supervision_holds (id, owner_id, holder_agent_id, agent_id,"
-                    " target_kind, target_id, source, created_at) VALUES (:id, :owner, :holder,"
-                    " :agent, :kind, :target, :source, :at)"
+                    " target_kind, target_id, source, source_message_id, created_at) VALUES"
+                    " (:id, :owner, :holder, :agent, :kind, :target, :source, :message, :at)"
                 ),
                 {
                     "id": identifier,
@@ -111,6 +125,7 @@ async def main() -> None:
                     "kind": kind,
                     "target": paused_id if kind == "agent" else str(uuid4()),
                     "source": source,
+                    "message": message,
                     "at": utcnow(),
                 },
             )
@@ -121,11 +136,15 @@ async def main() -> None:
         rows = {
             row.id: row
             for row in await session.scalars(
-                select(SupervisionHoldRow).where(SupervisionHoldRow.id.in_([asked, own]))
+                select(SupervisionHoldRow).where(SupervisionHoldRow.id.in_([asked, own, taken]))
             )
         }
         assert rows[asked].source == "owner" and rows[asked].holder_agent_id == holder_id
+        # Asked for in chat: the owner lifts it by asking in chat again.
+        assert rows[asked].source_message_id == words_id
         assert rows[own].source == "agent"
+        # The owner's control made it control-only: no chat lifts it after the upgrade.
+        assert rows[taken].source == "owner" and rows[taken].source_message_id is None
     try:
         async with db.sessions() as session, session.begin():
             await session.execute(
@@ -161,16 +180,18 @@ async def main() -> None:
             raise AssertionError("Lonora lifted the owner's pause on its watch")
     async with db.sessions() as session, session.begin():
         await session.execute(
-            delete(SupervisionHoldRow).where(SupervisionHoldRow.id.in_([asked, own]))
+            delete(SupervisionHoldRow).where(SupervisionHoldRow.id.in_([asked, own, taken]))
         )
+        await session.execute(delete(MessageRow).where(MessageRow.id == words_id))
         await session.execute(
             delete(SupervisionHoldRow).where(SupervisionHoldRow.target_id.in_(watch_ids))
         )
         await session.execute(delete(MarketWatchRow).where(MarketWatchRow.id.in_(watch_ids)))
     await db.engine.dispose()
     print(
-        "PASS 0155: owner_message holds are the owner's; the owner's holds on Lonora's watches "
-        "stay byte for byte through upgrade and downgrade; no pause is weakened"
+        "PASS 0155: owner_message holds are the owner's; an owner hold its control took over "
+        "stays control-only; the owner's holds on Lonora's watches stay byte for byte through "
+        "upgrade and downgrade; no pause is weakened"
     )
 
 

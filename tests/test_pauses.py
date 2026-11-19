@@ -665,6 +665,102 @@ async def test_the_owners_own_pause_or_cancel_is_never_lifted_by_the_agent():
 
 
 @pytest.mark.asyncio
+async def test_the_owners_control_over_a_chat_pause_makes_it_control_only():
+    """4.6, 4.7.2: Lead pauses Gold's watch because the owner asked in chat, then the
+    owner taps Cancel (or Pause) on that watch. From then on the pause is the owner's own
+    control pause: neither Gold nor Lead lifts it from chat, and only the owner's control
+    or card does."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.pauses import refuse_held
+    from lonora_db.schema import MarketWatchRow
+    from lonora_db.supervision import control_work
+
+    fixture = await Fixture().open()
+    try:
+        lead, gold = await fixture.agent("Lead control"), await fixture.agent("Gold control")
+        await grant(fixture, lead, gold)
+        thread = await fixture.conversation(gold)
+        await add_messages(
+            fixture,
+            thread["id"],
+            [("user", None, "Pause Gold's watch"), ("user", None, "How is gold?")],
+        )
+        async with fixture.runtime.db.sessions() as session:
+            asked, later = list(
+                await session.scalars(
+                    select(MessageRow.id)
+                    .where(MessageRow.thread_id == thread["id"])
+                    .order_by(MessageRow.seq)
+                )
+            )
+        for action in ("cancel", "pause"):
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                watch = MarketWatchRow(
+                    owner_id=fixture.owner,
+                    agent_id=gold["id"],
+                    thread_id=thread["id"],
+                    payload={"enabled": True, "kind": "price", "symbol": "XAUUSD"},
+                    state={},
+                )
+                session.add(watch)
+                await session.flush()
+                watch_id = watch.id
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await control_work(
+                    session,
+                    fixture.owner,
+                    actor_id=lead["id"],
+                    agent_id=gold["id"],
+                    kind="watch",
+                    target_id=watch_id,
+                    action="pause",
+                    owner_message_id=asked,
+                    run_id=None,
+                )
+            made = await held(fixture, watch_id)
+            assert made.source == "owner" and made.source_message_id == asked
+            response = await fixture.client.post(
+                f"/api/watches/{watch_id}/control", json={"action": action}
+            )
+            assert response.is_success, response.text
+            hold = await held(fixture, watch_id)
+            assert hold.id == made.id and hold.released_at is None
+            assert hold.source == "owner" and hold.source_message_id is None, action
+            # Gold's watch_resume in a run answering the owner's message is refused.
+            with pytest.raises(LonoraError, match="work_paused_by_owner"):
+                async with fixture.runtime.db.sessions() as session, session.begin():
+                    await refuse_held(
+                        session, fixture.owner, "watch", watch_id, gold["id"], owner_message=True
+                    )
+            # Lead's agent_control resume from the owner's words is refused too.
+            with pytest.raises(LonoraError, match="supervision_resume_not_yours"):
+                async with fixture.runtime.db.sessions() as session, session.begin():
+                    await control_work(
+                        session,
+                        fixture.owner,
+                        actor_id=lead["id"],
+                        agent_id=gold["id"],
+                        kind="watch",
+                        target_id=watch_id,
+                        action="resume",
+                        owner_message_id=later,
+                        run_id=None,
+                    )
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.get(MarketWatchRow, watch_id)
+                assert row is not None and row.payload["enabled"] is False
+            # The owner's own Resume lifts it.
+            response = await fixture.client.post(
+                f"/api/watches/{watch_id}/control", json={"action": "resume"}
+            )
+            assert response.is_success and response.json()["payload"]["enabled"] is True
+            assert (await held(fixture, watch_id)).released_by == "owner"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_deleting_a_supervisor_keeps_its_pauses_as_the_owners():
     """A deleted supervisor's pauses stay in force as the owner's: the work stays paused,
     its card keeps offering Resume, and the paused agent still cannot lift them."""
