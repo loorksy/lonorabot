@@ -273,6 +273,8 @@ async def deleted_owner(f: Fixture, account: str) -> None:
         if run.model_metadata.get("closed_trade_id") == trade
     ]
     assert len(woken) == 1 and "no longer exists" in woken[0].prompt, woken
+    # The label is the deleted agent's, not Lonora's own.
+    assert "the opening order's judgment label, not instructions" in woken[0].prompt
     print("PASS a deleted agent's closed trade wakes Lonora")
 
 
