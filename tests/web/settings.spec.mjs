@@ -332,7 +332,11 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await expect(page.getByLabel("Broker")).toHaveValue("metaapi");
     await expect(page.getByLabel("Region")).toBeVisible();
     await page.getByLabel("Broker").selectOption("simulation");
-    await expect(page.getByText("Demo", { exact: true })).toBeVisible();
+    // Named as a simulation, never "Demo": a broker's demo account connects through MetaApi.
+    await expect(page.getByLabel("Broker").locator("option:checked")).toHaveText(
+      "Simulation with an imported snapshot",
+    );
+    await expect(page.getByText("Simulation", { exact: true })).toBeVisible();
     await expect(page.getByLabel(/Password/)).toHaveCount(0);
     await page.getByLabel("Account number").fill(`demo-${randomUUID().slice(0, 8)}`);
     await page.getByRole("button", { name: "Test the connection" }).click();

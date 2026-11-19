@@ -29,8 +29,7 @@ const field = (form: HTMLFormElement, name: string) =>
   ((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim();
 
 /** The server's trading adapters in display order, with the fields each one takes (Q52): MetaApi
- * and «تجريبي» (the simulation provider). A local definition: the server has no provider
- * catalog route. */
+ * and the simulation provider. A local definition: the server has no provider catalog route. */
 export type BrokerField = {
   name: string;
   kind: "text" | "password";
@@ -60,9 +59,11 @@ export function brokerProviders(): Promise<BrokerProvider[]> {
     },
   ]);
 }
+// The simulation is named as one, never "Demo": a broker's demo account (Exness MT5Trial) is
+// connected through MetaApi, and a simulation row for its login reads no broker at all.
 const brokerName = (provider: string) =>
   provider === "simulation"
-    ? t`Demo account`
+    ? t`Simulation with an imported snapshot`
     : provider === "metaapi"
       ? "MetaApi (MetaTrader)"
       : provider;
@@ -76,7 +77,7 @@ const fieldLabel = (field: BrokerField) =>
         : field.name;
 
 /* «ربط حساب تداول» (brokerFormPage 8701-8703) with the server's fields (Q52): MetaApi is the default
-   broker (preselected, its fields shown); «تجريبي», the simulation provider, is the second choice; secrets are stored encrypted and never
+   broker (preselected, its fields shown); the simulation provider is the second choice; secrets are stored encrypted and never
    shown again. «اختبار الاتصال» is a real read-only round trip that stores nothing. */
 export function BrokerFormPage() {
   const nav = useNavigation();
@@ -144,7 +145,9 @@ export function BrokerFormPage() {
           ))}
         </select>
       </label>
-      {entry?.environment === "simulation" && <ValueRow label={t`Account type`} value={t`Demo`} />}
+      {entry?.environment === "simulation" && (
+        <ValueRow label={t`Account type`} value={t`Simulation`} />
+      )}
       {entry?.fields.map((item) => (
         <label className="field" key={`${provider}:${item.name}`}>
           <span>{fieldLabel(item)}</span>
