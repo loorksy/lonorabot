@@ -4,7 +4,8 @@ import { expect, test } from "@playwright/test";
 
 // The Execution Receipt (mandate 10.3, 11.2): one card per broker-confirmed operation, with
 // the broker's facts and the agent's reason labelled as the agent's words. A confirmed
-// operation is shown once. Mobile draws the same record natively (mobile had no line).
+// operation is shown once: as its receipt, never also as an order line. Mobile draws the
+// same record natively.
 const copy = {
   ar: {
     kicker: "إيصال التنفيذ",
@@ -105,9 +106,13 @@ for (const locale of ["ar", "en"])
     await page.route("**/api/trading/journal?*", (route) => route.fulfill({ json: [journal] }));
     try {
       await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+      const journalRead = page.waitForResponse((r) => r.url().includes("/api/trading/journal?"));
       await page.goto(`/thread?id=${thread.id}`);
       const cards = page.getByTestId("execution-receipt");
       await expect(cards).toHaveCount(2);
+      // No order line for the confirmed operation, once the journal is in.
+      await journalRead;
+      await expect(page.getByTestId("order-line")).toHaveCount(0);
       // The list is inverted: pick each card by what it holds, not by its place.
       const card = cards.filter({ hasText: fill.reason });
       const changed = cards.filter({ hasNotText: fill.reason });

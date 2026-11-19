@@ -422,14 +422,15 @@ test("«Resolve the operation» reaches the settle card drawn in the agent's mes
     await page.goto(`/thread?id=${fixture.thread.id}`);
     await actions;
     const slot = page.getByTestId("ui-slot-settle");
-    // The card has no row of its own: its place is the slot in the agent's message.
-    await expect(page.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(0);
     await page.getByTestId("order-line").click();
     const resolve = page.getByRole("button", { name: "Resolve the operation", exact: true });
     await expect(resolve).toBeVisible();
     await resolve.click();
     await expect(page.getByTestId("order-sheet")).toHaveCount(0);
     await expect(slot).toBeInViewport();
+    // The card has no row of its own: the one settle card on the page is the slot's.
+    await expect(page.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(1);
+    await expect(slot.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(1);
   } finally {
     await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
   }
