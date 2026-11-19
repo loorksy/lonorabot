@@ -924,6 +924,20 @@ async def test_final_task_turn_completes_when_the_last_executed_round_records_th
         assert task.state["task"]["status"] == "completed"
 
 
+def current_head(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The owner's resume rebuilds the checkpoint's context head (a wake reads the
+    current one); these fixtures' empty tool registry cannot build a real one."""
+
+    async def head(*_: object) -> list[ModelMessage]:
+        return [ModelMessage(role="system", content="current context head")]
+
+    async def no_skill_runtime(*_: object, **__: object) -> None:
+        return None
+
+    monkeypatch.setattr("lonora_agent.loop_restore.build_context", head)
+    monkeypatch.setattr("lonora_agent.loop_restore.refresh_skill_context", no_skill_runtime)
+
+
 async def held_for_attention(task_db: Fixture, monkeypatch: pytest.MonkeyPatch) -> tuple[str, str]:
     context, task_id = await task_run(
         task_db,
@@ -932,6 +946,7 @@ async def held_for_attention(task_db: Fixture, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         "lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Gold looks fine."))
     )
+    current_head(monkeypatch)
     await execute_run(context, ToolRegistry([]), 120, 8)
     run = await saved_run(context)
     assert run.status == "waiting_input"
@@ -988,6 +1003,7 @@ async def test_owner_attention_task_resumes_and_revises_through_task_controls(
     await execute_run(await reclaim(task_db, run_id, "resume-writer"), ToolRegistry([]), 120, 8)
     first, _ = resumed.requests[0]
     assert is_runtime_notice(first[-1]) and "owner_resumed" in first[-1].content
+    assert any(message.content == "current context head" for message in first)
     # Fresh nudges: two completion checks before the owner is asked again.
     assert len(resumed.requests) == 3
     async with db.sessions() as session:
@@ -1043,8 +1059,7 @@ async def test_a_second_outage_after_resume_asks_the_owner_again_with_a_new_ques
         task_db, TaskCreate(title="Verify gold", steps=[TaskStep(id="v", title="Verify quote")])
     )
     call = ToolCall(id="q1", name="fixture_quote", arguments={})
-    # The transcript ends with a tool result, so the resume notice joins that
-    # result and the message count does not change between the two escalations.
+    # The transcript ends with a tool result, so the resume notice joins that result.
     messages = [
         ModelMessage(role="user", content="Verify gold"),
         ModelMessage(role="assistant", content="", tool_calls=[call]),
@@ -1060,6 +1075,7 @@ async def test_a_second_outage_after_resume_asks_the_owner_again_with_a_new_ques
             "task_plan_revision": 1,
         }
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Down())
+    current_head(monkeypatch)
     await execute_run(context, ToolRegistry([]), 120, 8)
     run = await saved_run(context)
     assert run.status == "waiting_input", (run.status, run.error_code)

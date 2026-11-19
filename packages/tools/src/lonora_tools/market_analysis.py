@@ -240,7 +240,9 @@ async def calendar_available(context: ToolContext) -> str | None:
 
 async def calendar(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = CalendarReadInput.model_validate(args)
-    sources, events = await read_calendar(context.db, context.owner_id)
+    sources, events = await read_calendar(
+        context.db, context.owner_id, read_secret=context.secrets.read
+    )
     now = utcnow()
     window = {
         "from": (now - timedelta(hours=params.hours_back)).isoformat(),

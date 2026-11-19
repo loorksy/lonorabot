@@ -132,17 +132,10 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
     A Task or ticket started from an observe-only wake runs observe-only too, so
     neither it nor anything it delegates can send a broker mutation. Watches,
     routines are the Agent's own later work and are not narrowed.
-    A Task or ticket a generated card's send started carries that send's taint, so it
-    can never spend a signed grant (docs/genui.md).
     """
     if starter is None:
         return {}
-    from .genui_taint import TAINT, own_taint
-
     inherited: dict[str, Any] = {}
-    taint = own_taint(starter)
-    if taint is not None:
-        inherited[TAINT] = taint
     if starter.model_metadata.get("authority") == "observe_only":
         inherited["authority"] = "observe_only"
         inherited["authority_run_id"] = str(
@@ -192,6 +185,8 @@ async def create_run(
                 "skill_authority",
                 # Only ``submit_card`` marks a card submission's own Run.
                 "ui_submit_origin",
+                # Only ``retry_run`` marks a card send's retry (provenance only, 6.10).
+                "ui_submit_retry_of",
                 # Only the follow-up stamp below marks a Run as background work, and
                 # only admission marks the owner's words reaching it.
                 BACKGROUND_KEY,
@@ -199,11 +194,6 @@ async def create_run(
             }
         },
     )
-    from .genui_taint import TAINT, inherited_taint
-
-    taint = await inherited_taint(session, request.metadata, request.parent_run_id)
-    if taint is not None:
-        row.model_metadata = {**row.model_metadata, TAINT: taint}
     if (
         request.trigger == "follow_up"
         and parent is not None
