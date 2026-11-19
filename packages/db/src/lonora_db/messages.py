@@ -671,12 +671,22 @@ async def invite_guests(
             participant_ids.extend(
                 p["agent_id"] for p in collaboration.state.get("participants", [])
             )
-        # A paused guest is not invited; the chat's own agent still answers.
+        # A paused guest is not invited, nor one deleted since the message was sent (a
+        # resume admits a kept message later); the chat's own agent still answers.
+        guests = {
+            agent.id: agent
+            for agent in await session.scalars(
+                select(AgentRow).where(
+                    AgentRow.id.in_(participant_ids), AgentRow.owner_id == owner_id
+                )
+            )
+        }
         participant_ids = [
             identifier
             for identifier in dict.fromkeys(participant_ids)
             if identifier != thread.agent_id
-            and not (await owned_agent(session, owner_id, identifier)).paused
+            and identifier in guests
+            and not guests[identifier].paused
         ]
         if participant_ids and host_run_id:
             host_run = await session.get(RunRow, host_run_id)

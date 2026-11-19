@@ -829,7 +829,7 @@ async def test_the_resume_invites_the_guests_its_kept_message_mentions_that_are_
     """The owner @mentions guests in a paused agent's direct chat: nothing runs and nobody
     is invited while it is paused. Its resume admits the kept message as admission would
     have, guests included: one that is not paused is invited into the resumed run, a
-    paused one is not. A paused guest mentioned in the chat of an agent that is not paused
+    paused one is not, nor one deleted meanwhile. A paused guest mentioned in the chat of an agent that is not paused
     is not carried over either: nothing reaches it on its own resume."""
     database()
     from check_streaming import Fixture
@@ -839,6 +839,7 @@ async def test_the_resume_invites_the_guests_its_kept_message_mentions_that_are_
     try:
         host, guest = await fixture.agent("Paused host"), await fixture.agent("Free guest")
         sleeper, other_host = await fixture.agent("Paused guest"), await fixture.agent("Host")
+        doomed = await fixture.agent("Deleted guest")
         thread, other = await fixture.conversation(host), await fixture.conversation(other_host)
         for each in (host, sleeper):
             await fixture.request("PATCH", f"/agents/{each['id']}", {"paused": True})
@@ -852,10 +853,16 @@ async def test_the_resume_invites_the_guests_its_kept_message_mentions_that_are_
         sent = await fixture.request(
             "POST",
             f"/threads/{thread['id']}/messages",
-            {"content": "Your views?", "mention_agent_ids": [guest["id"], sleeper["id"]]},
+            {
+                "content": "Your views?",
+                "mention_agent_ids": [guest["id"], sleeper["id"], doomed["id"]],
+            },
         )
         assert sent["run_ids"] == [], sent
         assert await peer_runs(fixture, guest["id"]) == []
+        # A guest deleted while the host is paused is skipped; the resume still answers.
+        await fixture.request("DELETE", f"/agents/{doomed['id']}")
+        fixture.agents.remove(doomed["id"])
 
         await fixture.request("PATCH", f"/agents/{host['id']}", {"paused": False})
         runs = await owner_runs(fixture, host["id"], thread["id"])

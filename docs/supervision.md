@@ -111,10 +111,10 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   message is the run's trigger, so when that latest message is a reply to its wake's
   question, or the next message right after it, it answers that question. The guests
   that message @mentions in its direct chat are invited into that run as admission
-  invites them (`invite_guests`), except a paused one. A paused guest mentioned
-  elsewhere is not carried over: a guest is invited only if it is not paused when the
-  message is admitted (when it is sent, or when the resume of the chat's own agent
-  admits it), and its own resume never answers that mention. Whoever
+  invites them (`invite_guests`), except a paused one or one deleted since. A paused
+  guest mentioned elsewhere is not carried over: a guest is invited only if it is not
+  paused when the message is admitted (when it is sent, or when the resume of the
+  chat's own agent admits it), and its own resume never answers that mention. Whoever
   resumes it, only the owner's messages get a run, and a conversation where the owner
   sent it nothing gets none. Admission reads the pause without the agent's lock, so a
   message sent while a resume commits can be kept after the resume looked: the gateway's
