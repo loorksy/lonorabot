@@ -1,6 +1,15 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+// The version of the built-in memory skill that this commit ships.
+const MEMORY_VERSION = JSON.parse(
+  readFileSync(
+    new URL("../../packages/agent-runtime/resources/skills/memory/skill.json", import.meta.url),
+    "utf8",
+  ),
+).version;
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -37,7 +46,7 @@ async function fixture(context) {
     title: "Owner review procedure",
     description: "Review actual evidence before presenting the result",
     source: "owner",
-    activation: { mode: "explicit", intents: [], triggers: [] },
+    activation: { mode: "explicit", triggers: [] },
     required_tools: ["memory_read"],
     required_capabilities: ["memory.read"],
     dependencies: ["memory"],
@@ -106,7 +115,7 @@ for (const locale of ["en", "ar"]) {
       expect(controls.revoked).toHaveLength(1);
       expect(controls.revoked[0]).toMatchObject({
         skill_id: "memory",
-        version: "1.0.0",
+        version: MEMORY_VERSION,
         reason: "owner_revoked",
       });
       await expect(page.getByText(labels.history, { exact: true })).toBeVisible();
@@ -155,6 +164,54 @@ test("Expo Skills edits installed version and enabled state without dropping its
         .getByTestId(`skill-entry-${f.name}`)
         .getByText("This skill is disabled", { exact: true }),
     ).toBeVisible();
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("Expo Skills says a skill loads on an event only when it has triggers", async ({
+  page,
+  context,
+}) => {
+  const f = await fixture(context);
+  const names = {};
+  try {
+    // Unless explicit, a skill loads by itself only when the run's trigger is one of its
+    // triggers, whatever its mode; with no triggers it loads only on request.
+    for (const [key, mode, triggers] of [
+      ["request", "automatic", []],
+      ["event", "automatic", ["watch"]],
+      ["untriggered", "trigger_based", []],
+    ]) {
+      const name = `${key}-${randomUUID().slice(0, 8)}`;
+      const saved = await context.request.post("/api/skills", {
+        headers: f.headers,
+        data: {
+          agent_id: f.agent.id,
+          payload: {
+            name,
+            content: "Keep all evidence attributed.",
+            enabled: true,
+            manifest: { ...f.manifest, id: name, activation: { mode, triggers } },
+          },
+        },
+      });
+      expect(saved.status()).toBe(201);
+      names[key] = name;
+    }
+    await page.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+    await page.goto(`/skills?botId=${f.agent.id}`);
+    for (const [key, label] of [
+      ["request", "التفعيل: عند الطلب"],
+      ["event", "التفعيل: بحدث"],
+      ["untriggered", "التفعيل: عند الطلب"],
+    ]) {
+      await page.getByTestId(`skill-entry-${names[key]}`).click();
+      const details = page.getByTestId("skill-details");
+      await expect(details.getByText(label, { exact: true })).toBeVisible();
+      await details.getByRole("button", { name: "إغلاق", exact: true }).click();
+      await expect(details).toHaveCount(0);
+    }
   } finally {
     await f.cleanup();
   }
@@ -228,7 +285,7 @@ test("Expo Skills creates typed owner instructions and deletes only after confir
       version: "1.0.0",
       source: "owner",
       risk_class: "read_only",
-      activation: { mode: "explicit", intents: [], triggers: [] },
+      activation: { mode: "explicit", triggers: [] },
       required_tools: [],
       required_capabilities: [],
       dependencies: [],

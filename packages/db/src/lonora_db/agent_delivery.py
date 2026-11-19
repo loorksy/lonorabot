@@ -65,7 +65,7 @@ async def delivery_block(
     timezone: str,
     now: datetime | None = None,
 ) -> str | None:
-    """Why this agent's alert stays in Activity only, or None when it may show.
+    """Why this agent's alert is recorded but not shown, or None when it may show.
 
     Urgent items always show. The daily limit counts the agent's earlier non-urgent alerts
     since the owner's local midnight (the alert being decided is not yet recorded)."""

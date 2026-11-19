@@ -176,7 +176,9 @@ export const ownerActionLabels = {
     targetWatch: "Watch",
     targetTask: "Task",
     pauseHint: "The agent cannot resume it on its own. Resume lifts the pause now.",
-    pauseOwnerHolds: "You paused it too, so only you resume it.",
+    pauseOwnerHolds: "This pause is yours: only you resume it.",
+    pauseOwnerAsked:
+      "You asked for this pause: it stays until you resume it, or an agent resumes it acting on your message in chat.",
     pauseEnded: "This pause already ended.",
     resumeWork: "Resume",
     keepPaused: "Keep paused",
@@ -235,6 +237,10 @@ export const ownerActionLabels = {
     expiresIn: "The request expires in",
     statusPending: "Waiting for your decision",
     statusConfirmed: "Done",
+    statusFailed: "Failed",
+    statusSaved: "Saved",
+    statusConnecting: "Connecting",
+    statusChanging: "Changing",
     statusCancelled: "Cancelled",
     statusExpired: "Expired",
     statusSuperseded: "Replaced",
@@ -385,7 +391,9 @@ export const ownerActionLabels = {
     targetWatch: "مراقبة",
     targetTask: "مهمة",
     pauseHint: "لا يستطيع الوكيل استئنافه بنفسه. الاستئناف يرفع الإيقاف الآن.",
-    pauseOwnerHolds: "أوقفته أنت أيضًا، فلا يستأنفه غيرك.",
+    pauseOwnerHolds: "هذا الإيقاف لك: لا يستأنفه غيرك.",
+    pauseOwnerAsked:
+      "طلبت هذا الإيقاف: يبقى حتى تستأنفه أنت، أو يستأنفه وكيل بناءً على رسالتك في المحادثة.",
     pauseEnded: "انتهى هذا الإيقاف مسبقًا.",
     resumeWork: "استئناف",
     keepPaused: "إبقاؤه موقوفًا",
@@ -441,6 +449,10 @@ export const ownerActionLabels = {
     expiresIn: "ينتهي الطلب خلال",
     statusPending: "بانتظار قرارك",
     statusConfirmed: "تم",
+    statusFailed: "تعذّر",
+    statusSaved: "حُفظ",
+    statusConnecting: "جارٍ الربط",
+    statusChanging: "جارٍ التغيير",
     statusCancelled: "أُلغي",
     statusExpired: "انتهت المهلة",
     statusSuperseded: "استُبدل",
@@ -517,6 +529,52 @@ function actionLabel(action: string | null, lang: Language): string {
   return action ? (labels[action] ?? isolate(action)) : "";
 }
 
+/** A broker card's purpose (raised only by the broker tools); null for every other card,
+ * a credential card converted by 0071 included. */
+export function brokerPurpose(
+  card: OwnerAction,
+): NonNullable<NonNullable<OwnerAction["facts"]["secret"]>["purpose"]> | null {
+  const secret = card.facts.secret;
+  return secret?.destination === "broker" && !secret.connect ? (secret.purpose ?? "connect") : null;
+}
+
+/**
+ * The status chip beside a card's title. A saved broker card's chip says how provisioning
+ * stands, as its line does at length: "Done" only once the terminal answered a read (a
+ * connection) or MetaApi took the change (a new password or token); never beside a failed
+ * connection, one saved without a balance, or one still being made.
+ */
+/** A saved broker card whose provisioning failed: its line and chip say so, never "Done". */
+export function brokerCardFailed(card: OwnerAction): boolean {
+  return (
+    card.status === "confirmed" &&
+    brokerPurpose(card) !== null &&
+    card.result.provisioning === "failed"
+  );
+}
+
+export function ownerActionStatus(card: OwnerAction, locale: string): string {
+  const text = ownerActionText(locale);
+  const purpose = card.status === "confirmed" ? brokerPurpose(card) : null;
+  if (purpose)
+    return card.result.provisioning === "failed"
+      ? text.statusFailed
+      : card.result.provisioning === "connected"
+        ? text.statusConfirmed
+        : card.result.provisioning === "linked"
+          ? text.statusSaved
+          : purpose === "connect"
+            ? text.statusConnecting
+            : text.statusChanging;
+  return {
+    pending: text.statusPending,
+    confirmed: text.statusConfirmed,
+    cancelled: text.statusCancelled,
+    expired: text.statusExpired,
+    superseded: text.statusSuperseded,
+  }[card.status];
+}
+
 function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
@@ -550,8 +608,9 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.restored;
       case "supervision_paused":
         return text.resumedWork;
-      case "secret":
-        if (card.facts.secret?.destination === "broker" && !card.facts.secret.connect)
+      case "secret": {
+        const purpose = brokerPurpose(card);
+        if (purpose)
           // A broker card: the card's own record of how provisioning ended, read on the
           // server ("connected" only once the terminal answered a read; "linked" when it was
           // saved but no read answered). A new password or token waits for MetaApi, never
@@ -559,15 +618,16 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           return card.result.provisioning === "failed"
             ? text.brokerFailed
             : card.result.provisioning === "connected"
-              ? (card.facts.secret.purpose ?? "connect") === "connect"
+              ? purpose === "connect"
                 ? text.brokerConnected
                 : text.brokerChanged
               : card.result.provisioning === "linked"
                 ? text.brokerLinked
-                : (card.facts.secret.purpose ?? "connect") === "connect"
+                : purpose === "connect"
                   ? text.brokerSaved
                   : text.brokerSending;
         return card.facts.secret?.connect ? text.connected : text.secretSaved;
+      }
       case "settle_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted
@@ -1125,8 +1185,9 @@ export function ownerActionCard(
       title = text.supervisionTitle;
       lines.push(...supervisionLines(card, lang, text));
       if (!card.facts.supervision?.active) {
-        // Revoked elsewhere (the profile): the card can only be dismissed.
-        hint = text.supervisionEnded;
+        // Revoked elsewhere (the profile), or Lonora's, which leads by its role whatever
+        // its grant: the card can only be dismissed.
+        hint = card.facts.supervision?.lead ? text.supervisionAlreadySet : text.supervisionEnded;
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
@@ -1162,7 +1223,14 @@ export function ownerActionCard(
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
-      hint = card.facts.supervision.owner_holds ? text.pauseOwnerHolds : text.pauseHint;
+      // The owner's pause from a control is lifted only by the owner's control or this
+      // card; one the owner asked for in chat also by an agent acting on the owner's
+      // message in chat (refuse_held, control_work).
+      hint = !card.facts.supervision.owner_holds
+        ? text.pauseHint
+        : card.facts.supervision.from_owner_message
+          ? text.pauseOwnerAsked
+          : text.pauseOwnerHolds;
       buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
@@ -1382,6 +1450,10 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   trade_approval_drifted: {
     en: "The price moved outside this request's range, so it can no longer be approved.",
     ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
+  },
+  trade_approval_agent_paused: {
+    en: "This agent is paused, so this request cannot be approved now. Resume the agent first.",
+    ar: "هذا الوكيل متوقف مؤقتًا، فلا يمكن الموافقة على هذا الطلب الآن. استأنف الوكيل أولًا.",
   },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",

@@ -3,6 +3,7 @@
 import type {
   Agent,
   AttentionNotification,
+  AttentionViewRow,
   ChatList,
   Group,
   InboxEntry,
@@ -10,7 +11,7 @@ import type {
   ThreadPrefs,
   ThreadSettings,
 } from "@lonora/contracts";
-import { activeStatuses, mergePrefs } from "@lonora/core";
+import { activeStatuses, appOpenReporter, mergePrefs } from "@lonora/core";
 import {
   createContext,
   type ReactNode,
@@ -26,6 +27,9 @@ import { api } from "./api";
 import { conversationCache, type InboxSnapshot } from "./conversation-cache";
 import { useSession } from "./session";
 
+// The owner opened the app: the morning brief's time is learned from it (VISION 11.1).
+const reportAppOpen = appOpenReporter((body) => api.post("/app-opens", body));
+
 export type ShellData = {
   agents: Agent[];
   groups: Group[];
@@ -34,6 +38,9 @@ export type ShellData = {
   threadSettings: ThreadSettings | null;
   runs: Run[];
   attention: AttentionNotification[];
+  /** How many rows «يحتاج انتباهك» lists that the owner has not seen yet
+   * (GET /attention/view): the tab's dot. */
+  attentionUnseen: number;
   busyIds: Set<string>;
   /** False until the first inbox read of this owner landed. */
   loaded: boolean;
@@ -44,7 +51,6 @@ export type ShellData = {
   patchInbox: (prefs: ThreadPrefs[]) => void;
   setChatLists: (update: (lists: ChatList[]) => ChatList[]) => void;
   setThreadSettings: (settings: ThreadSettings) => void;
-  clearAttention: (id: string) => void;
 };
 const Context = createContext<ShellData | null>(null);
 
@@ -66,6 +72,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
   const [threadSettings, setThreadSettingsState] = useState<ThreadSettings | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [attention, setAttention] = useState<AttentionNotification[]>([]);
+  const [attentionUnseen, setAttentionUnseen] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   // Local confirmed writes bump this; a primary read that started before the last one is dropped.
@@ -78,6 +85,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     setGroups(cached?.groups ?? []);
     setRuns(cached?.runs ?? []);
     setAttention(cached?.attention ?? []);
+    setAttentionUnseen(0);
     setChatListsState([]);
     setThreadSettingsState(null);
     setLoadedOwner(cached ? currentOwner.current : undefined);
@@ -126,7 +134,14 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
           setRuns(nextRuns);
           setAttention(nextAttention);
         });
-        await Promise.all([primary, auxiliary]);
+        // A failed read of the view keeps the last dot; the view itself says why.
+        const listed = api
+          .get<AttentionViewRow[]>("/attention/view")
+          .then((rows) => {
+            if (current()) setAttentionUnseen(rows.filter((row) => !row.seen).length);
+          })
+          .catch(() => undefined);
+        await Promise.all([primary, auxiliary, listed]);
       } catch (reason) {
         if (stillLive() && requestOwner === currentOwner.current) {
           setError(reportError.current(reason));
@@ -162,7 +177,10 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
         if (!disposed) timer = setTimeout(() => void tick(), 5000);
       }
     };
+    // Only an app in the front counts: a launch in the background is not an open.
+    if (AppState.currentState === "active") reportAppOpen();
     const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") reportAppOpen();
       if (state === "active" && !disposed) {
         clearTimeout(timer);
         void tick();
@@ -204,10 +222,6 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     writes.current += 1;
     setThreadSettingsState(settings);
   }, []);
-  const clearAttention = useCallback(
-    (id: string) => setAttention((rows) => rows.filter((row) => row.id !== id)),
-    [],
-  );
   const busyIds = useMemo(
     () =>
       new Set(runs.filter((run) => activeStatuses.includes(run.status)).map((run) => run.agent_id)),
@@ -222,6 +236,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       threadSettings,
       runs,
       attention,
+      attentionUnseen,
       busyIds,
       loaded: Boolean(owner) && loadedOwner === owner?.id,
       offline,
@@ -230,7 +245,6 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       patchInbox,
       setChatLists,
       setThreadSettings,
-      clearAttention,
     }),
     [
       agents,
@@ -240,6 +254,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       threadSettings,
       runs,
       attention,
+      attentionUnseen,
       busyIds,
       owner,
       loadedOwner,
@@ -248,7 +263,6 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       patchInbox,
       setChatLists,
       setThreadSettings,
-      clearAttention,
     ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;

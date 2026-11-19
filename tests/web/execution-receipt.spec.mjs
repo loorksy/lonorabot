@@ -105,6 +105,7 @@ for (const locale of ["ar", "en"])
     await page.route("**/api/trading/journal?*", (route) => route.fulfill({ json: [journal] }));
     try {
       await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+      const journalRead = page.waitForResponse((r) => r.url().includes("/api/trading/journal?"));
       await page.goto(`/app/${agent.id}`);
       const card = page.locator(`[data-execution-receipt="${fill.operation_id}"]`);
       await expect(card.getByText(text.kicker)).toBeVisible();
@@ -118,7 +119,8 @@ for (const locale of ["ar", "en"])
       await expect(changed).toHaveAttribute("data-receipt-kind", "modify");
       await expect(changed.locator("[data-receipt-status]")).toHaveText(text.verified);
       await expect(changed.locator("[data-receipt-reason]")).toHaveCount(0);
-      // One representation: no order line for the confirmed operation.
+      // One representation: no order line for the confirmed operation, once the journal is in.
+      await journalRead;
       await expect(page.locator(`[data-operation-id="${fill.operation_id}"]`)).toHaveCount(0);
       // No raw operation id in the normal view.
       await expect(page.getByText(fill.operation_id)).toHaveCount(0);

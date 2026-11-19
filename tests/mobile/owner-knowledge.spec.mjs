@@ -22,6 +22,27 @@ asyncio.run(main())`,
   ]);
 }
 
+/* Five mornings at 07:30 Riyadh before today: a waking habit learned from app opens (11.1). */
+function seedOpens() {
+  execFileSync(".venv/bin/python", [
+    "-c",
+    `import asyncio, os
+from datetime import UTC, datetime, timedelta
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+async def main():
+    engine = create_async_engine(os.environ["LONORA_DATABASE_URL"])
+    today = datetime.now(UTC).date()
+    async with engine.begin() as connection:
+        for days in range(1, 6):
+            day = today - timedelta(days=days)
+            at = datetime(day.year, day.month, day.day, 4, 30, tzinfo=UTC)
+            await connection.execute(text("INSERT INTO ln_app_opens (owner_id, local_date, opened_at, timezone) SELECT id, :day, :at, 'Asia/Riyadh' FROM ln_owners ON CONFLICT (owner_id, local_date) DO UPDATE SET opened_at = excluded.opened_at, timezone = excluded.timezone"), {"day": day.isoformat(), "at": at})
+    await engine.dispose()
+asyncio.run(main())`,
+  ]);
+}
+
 /* «ما أعرفه عنك» on mobile (8.4): the same lines and origins the web shows; a correction and a
    deletion are recorded as the owner's word. */
 test("Expo Arabic what-I-know view lists origins and records corrections", async ({
@@ -89,4 +110,20 @@ test("Expo Arabic what-I-know view lists origins and records corrections", async
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
   ).toBeTruthy();
+  // The waking habit learned from app opens, with the brief time it sets; the owner forgets it.
+  expect((await context.request.delete("/api/app-opens", { headers })).ok()).toBe(true);
+  seedOpens();
+  await page.goto("/settings");
+  await page.getByTestId("what-i-know").click();
+  const habit = page.getByTestId("known-habit");
+  await expect(habit).toContainText(
+    "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو 07:30، ويصلك موجز الصباح الساعة",
+  );
+  await expect(habit).toContainText("ملاحظة من أول مرة تفتح فيها التطبيق كل يوم");
+  await habit.getByRole("button", { name: "انسَ هذه العادة", exact: true }).click();
+  await expect(habit).toHaveCount(0);
+  expect(await (await context.request.get("/api/app-opens")).json()).toEqual({
+    first_open: null,
+    brief: "07:00",
+  });
 });

@@ -109,6 +109,10 @@ def save_task(session: AsyncSession, row: TicketRow, state: TaskState) -> None:
             "version": row.version,
             "status": state.status,
             "waiting_reason": state.waiting_reason,
+            # A Task completed with nothing to report is nothing new (VISION 11.5).
+            **(
+                {"result_empty": not row.state.get("result")} if state.status == "completed" else {}
+            ),
         },
     )
 
@@ -403,11 +407,15 @@ async def control_task(
 ) -> TicketRow:
     """Pause, resume, cancel or revise a Task; ``complete`` turns the owner's cancel into
     «تحديد كمكتملة» (the same stop, recorded as completed)."""
-    from .supervision import owner_takes_over, refuse_held
+    from .pauses import owner_takes_over, refuse_held
 
     row = await get_task(session, owner_id, request.task_id)
     if agent_id and row.agent_id != agent_id:
         raise LonoraError("task_agent_mismatch", 403)
+    if agent_id and request.action == "cancel":
+        from .management_task import refuse_agent_cancel
+
+        refuse_agent_cancel(row)
     if agent_id is None:
         # The owner's pause, resume or cancel wins over a supervisor's pause of this Task.
         if request.action != "revise":
@@ -578,7 +586,7 @@ async def complete_task(
     if state.status in {"completed", "cancelled"}:
         raise LonoraError("task_terminal", 409)
     if state.status == "failed" or not await active_task_run(session, row):
-        from .supervision import owner_takes_over
+        from .pauses import owner_takes_over
 
         # The owner's decision wins over a supervisor's hold, as with the owner's cancel.
         await owner_takes_over(

@@ -411,7 +411,7 @@
       "v": 2,
       "kind": "summary",
       "title": "ينتظر قرارك",
-      "sub": "مفتاح المنصة",
+      "sub": "طلب معلّق",
       "icon": "check",
       "agent_id": "agent-1",
       "facts": {},
@@ -420,8 +420,28 @@
       "blocks": [
         {
           "type": "Text",
-          "text": "أحتاج مفتاح المنصة لأقرأ رصيدك."
+          "text": "الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."
         },
+        {
+          "type": "Slot",
+          "card": "mandate",
+          "record": "parity-mandate"
+        }
+      ],
+      "why": "الطلب في مكانه من الشرح، فتقرر وأنت تقرأ.",
+      "fallback": "طلب موافقة بانتظار قرارك."
+    },
+    {
+      "v": 2,
+      "kind": "summary",
+      "title": "ينتظر قرارك",
+      "sub": "مفتاح المنصة",
+      "icon": "check",
+      "agent_id": "agent-1",
+      "facts": {},
+      "state": {},
+      "calc": {},
+      "blocks": [
         {
           "type": "Slot",
           "card": "secret",

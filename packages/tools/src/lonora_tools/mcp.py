@@ -360,7 +360,7 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         run = await require_lease(session, context.lease)
         if await owner_named(session, run, own, others=others) is None:
             # Checked before the server is contacted: a server he did not name is not read.
-            return refusal(connection_id=connection_id)
+            return await refusal(session, run, connection_id=connection_id)
     config = await connection_config(context, connection_id)
     advertised = await advertised_tools(context.secrets, config)
     # A server saved from a Secret card keeps its address in the store.
@@ -373,7 +373,7 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease)
         if await owner_named(session, run, own, others=others) is None:
-            return refusal(connection_id=connection_id)
+            return await refusal(session, run, connection_id=connection_id)
         writes = params.tier == "write_nonfinancial"
         # A server that offers a tool that can trade or move money is read only.
         tier = "write_nonfinancial" if writes and not review.blocked else "read"

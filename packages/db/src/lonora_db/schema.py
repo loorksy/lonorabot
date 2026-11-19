@@ -600,12 +600,25 @@ class SettingRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AppOpenRow(Base):
+    """The owner's first app open on each local date of the device (VISION 11.1, 8.1)."""
+
+    __tablename__ = "ln_app_opens"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    local_date: Mapped[str] = mapped_column(String(10), primary_key=True)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    timezone: Mapped[str] = mapped_column(String(64))
+
+
 class MorningBriefRow(Base):
     """One per owner: when the morning brief is due and what the last one saw (11.1).
 
-    ``brief_minute`` is minutes after local midnight in the owner's time zone (07:00 until
-    app opens are recorded); ``baseline``  holds balance and equity per account at the
-    last brief; ``pending`` is the brief of ``local_date`` that Lonora is writing now.
+    ``brief_minute`` is minutes after local midnight in the owner's time zone, planned
+    once per local date (``planned_date``); ``baseline`` holds balance and equity per
+    account at the last brief; ``pending`` is the brief of ``local_date`` that Lonora is
+    writing now.
     """
 
     __tablename__ = "ln_morning_briefs"
@@ -613,6 +626,7 @@ class MorningBriefRow(Base):
         ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
     )
     brief_minute: Mapped[int] = mapped_column(Integer, default=420)
+    planned_date: Mapped[str | None] = mapped_column(String(10))
     last_local_date: Mapped[str | None] = mapped_column(String(10))
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     baseline: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -1299,9 +1313,10 @@ class SupervisionGrantRow(Base):
 class SupervisionHoldRow(Base):
     """A pause on an agent's work (the agent itself, one of its Tasks, routines or
     watches), put there by a supervising agent or by the owner. On its own initiative
-    only the agent that set it (still supervising) lifts it; a run that answers the
-    owner's message lifts it too. The owner pausing the same work makes it the owner's
-    (``source='owner'``, the holder kept for attribution), lifted only by the owner; the
+    only the agent that set it (still supervising) lifts it; a team agent's run that
+    answers the owner's message lifts it too, Lonora never one it did not make (4.7.2).
+    A pause made from the owner's words, or the owner pausing the same work, makes it the
+    owner's (``source='owner'``, the holder kept for attribution), lifted only by the owner; the
     owner resuming the work releases it. The owner's own pause with no supervisor is a
     hold with no holder, and a deleted supervisor's hold stays as the owner's."""
 
@@ -1311,9 +1326,7 @@ class SupervisionHoldRow(Base):
             "target_kind IN ('agent','task','routine','watch')",
             name="ln_supervision_hold_target_kind",
         ),
-        CheckConstraint(
-            "source IN ('agent','owner_message','owner')", name="ln_supervision_hold_source"
-        ),
+        CheckConstraint("source IN ('agent','owner')", name="ln_supervision_hold_source"),
         CheckConstraint(
             "released_by IS NULL OR released_by IN ('holder','owner','stale')",
             name="ln_supervision_hold_released_by",

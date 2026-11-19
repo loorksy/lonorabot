@@ -24,6 +24,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.incoming_calls import IncomingCallPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import TradingJournalRow
+from lonora_session.idempotency import broker_operation_tag
 from lonora_tools.base import HELPER_EFFECTS, Tool, run_scope
 from lonora_tools.loader import load_tools
 from lonora_trading.manual_activity import attributed_agent, detect_activity, journal_agent
@@ -50,6 +51,10 @@ def journal(
     updated_at: datetime = NOW,
 ) -> TradingJournalRow:
     execution = {"run_id": "run-" + operation_id, "agent_id": agent_id} if agent_id else None
+    details: dict[str, Any] = {"execution": execution} if execution else {}
+    if broker_id:
+        # MetaApi's result: the order's own ticket, also its broker id.
+        details["order_id"] = broker_id
     return TradingJournalRow(
         operation_id=operation_id,
         owner_id="owner",
@@ -57,11 +62,7 @@ def journal(
         request_hash="h",
         request={"account_id": "acc", **request},
         status=status,
-        result={
-            "status": status,
-            "broker_id": broker_id,
-            "details": {"execution": execution} if execution else {},
-        },
+        result={"status": status, "broker_id": broker_id, "details": details},
         updated_at=updated_at,
     )
 
@@ -110,9 +111,12 @@ def test_the_journal_attributes_tickets_to_the_agent_that_opened_or_manages_them
         "op-open", {"action": "buy", "symbol": "XAUUSD"}, agent_id="gold", broker_id="T1"
     )
     assert journal_agent(opened) == "gold"
-    # The opening operation decides, by broker id or by the operation id it carries.
+    # The opening operation decides, by its order's ticket or by the operation id (or its
+    # broker tag, MetaApi's clientId) the ticket carries.
     assert attributed_agent(position("T1"), None, [opened]) == "gold"
     assert attributed_agent(position("T9", operation_id="op-open"), None, [opened]) == "gold"
+    tagged = position("T8", operation_id=broker_operation_tag("op-open"))
+    assert attributed_agent(tagged, None, [opened]) == "gold"
     # The owner's manual position, and the owner's own order through Lonora, are nobody's.
     owner_order = journal(
         "op-owner", {"action": "buy", "symbol": "XAUUSD"}, agent_id=None, broker_id="T2"
@@ -128,10 +132,45 @@ def test_the_journal_attributes_tickets_to_the_agent_that_opened_or_manages_them
     assert attributed_agent(position("T2"), None, [managed, owner_order]) == "lonora"
     # A reservation never reached the broker and attributes nothing.
     reserved = journal(
-        "op-res", {"action": "buy", "symbol": "XAUUSD"}, agent_id="gold", status="reserved"
+        "op-res",
+        {"action": "buy", "symbol": "XAUUSD"},
+        agent_id="gold",
+        status="reserved",
+        broker_id="T3",
     )
-    reserved.result["broker_id"] = "T3"
     assert attributed_agent(position("T3"), None, [reserved]) is None
+
+
+def test_an_agents_netting_fill_never_takes_the_owners_position_for_its_wake():
+    # On a netting account Gold's order added to the owner's terminal position: the
+    # result names that position, but the order has its own ticket. The position stays
+    # the owner's (3.3.4), as at the door, so the owner's close in the terminal wakes
+    # Lonora observe-only, never Gold with its normal authority.
+    fill = journal(
+        "op-add",
+        {"action": "buy", "symbol": "XAUUSD"},
+        agent_id="gold",
+        broker_id="O2",
+        updated_at=NOW - timedelta(hours=1),
+    )
+    fill.result["details"]["position_id"] = "P1"
+    assert attributed_agent(position("P1"), None, [fill]) is None
+    previous = BrokerRecoverySnapshot(
+        status="connected",
+        reason_code="broker_reconciled",
+        since=NOW - timedelta(hours=1),
+        observed_at=NOW - timedelta(minutes=1),
+        revision=4,
+        positions=[position("P1")],
+    )
+    (change,) = detect_activity("acc", previous, [], [], [fill], revision=5, now=NOW)
+    assert (change.change, change.origin, change.agent_id) == ("closed", "external", None)
+    # A simulation entry's broker id is its order's ticket.
+    simulated = journal(
+        "op-sim", {"action": "buy", "symbol": "XAUUSD"}, agent_id="gold", broker_id="S1"
+    )
+    simulated.result["details"] = {"simulation": True, "execution": {"agent_id": "gold"}}
+    assert attributed_agent(position("S1"), None, [simulated]) == "gold"
 
 
 def test_a_stop_loss_hit_is_external_activity_attributed_to_its_agent():
@@ -684,40 +723,52 @@ async def test_a_stop_loss_hit_wakes_the_agent_that_opened_the_position():
 
 
 @pytest.mark.asyncio
-async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
+async def test_a_paused_agent_still_wakes_for_its_own_tickets():
+    """4.7.1: a paused agent wakes only for its own positions and orders, with its normal
+    authority (the door lets only risk-reducing requests through); a paused Lonora is not
+    woken for the owner's unattributed activity."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.broker_activity import BrokerActivity
     from lonora_db.personal_agent import ensure_personal_agent
-    from lonora_db.schema import AgentRow, RunRow
+    from lonora_db.schema import AgentRow, EventRow, RunRow
     from lonora_trading.broker_recovery import wake_for_activity
     from sqlalchemy import select
 
     fixture = await Fixture().open()
     connection = ""
+    personal_paused = False
     try:
         connection = await simulation(fixture)
         gold = await fixture.agent("Paused gold")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            row = await session.get(AgentRow, gold["id"])
-            assert row is not None
-            row.paused = True
-            change = BrokerActivity(
+
+        def change(ticket: str, agent_id: str | None) -> BrokerActivity:
+            return BrokerActivity(
                 id=str(uuid4()),
                 account_id=connection,
                 symbol="XAUUSD",
-                ticket="T-paused",
+                ticket=ticket,
                 resource="position",
                 change="closed",
                 origin="external",
                 observed_at=utcnow(),
-                previous=position("T-paused"),
-                agent_id=gold["id"],
+                previous=position(ticket),
+                agent_id=agent_id,
             )
-            await wake_for_activity(session, fixture.owner, connection, 99, [change])
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AgentRow, gold["id"])
+            assert row is not None
+            row.paused = True
+            own = change("T-paused", gold["id"])
+            await wake_for_activity(session, fixture.owner, connection, 99, [own])
             # Delivered once: the same change again creates nothing.
-            await wake_for_activity(session, fixture.owner, connection, 99, [change])
+            await wake_for_activity(session, fixture.owner, connection, 99, [own])
             personal = await ensure_personal_agent(session, fixture.owner)
+            personal.paused = personal_paused = True
+            await wake_for_activity(
+                session, fixture.owner, connection, 100, [change("T-owner", None)]
+            )
         async with fixture.runtime.db.sessions() as session:
             runs = list(
                 await session.scalars(
@@ -726,9 +777,27 @@ async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
                     )
                 )
             )
-        assert len(runs) == 1 and runs[0].agent_id == personal.id
-        assert runs[0].model_metadata["authority"] == "observe_only"
+        assert len(runs) == 1 and runs[0].agent_id == gold["id"]
+        assert "authority" not in runs[0].model_metadata
+        assert "You are paused" in runs[0].prompt
+        # The woken agent reports its own ticket, so that change raises no owner item;
+        # the owner's activity no paused Lonora was woken for stays the owner's (11.5).
+        async with fixture.runtime.db.sessions() as session:
+            events = {
+                row.payload["ticket"]: row.payload["wakes_agent"]
+                for row in await session.scalars(
+                    select(EventRow).where(
+                        EventRow.owner_id == fixture.owner,
+                        EventRow.kind == "broker.external_activity",
+                        EventRow.payload["account_id"].as_string() == connection,
+                    )
+                )
+            }
+        assert events == {"T-paused": True, "T-owner": False}, events
     finally:
+        if personal_paused:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                (await ensure_personal_agent(session, fixture.owner)).paused = False
         await retire(fixture, connection)
         await fixture.close()
 
@@ -774,7 +843,7 @@ async def other_symbol_records(fixture: Any, account_id: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair():
+async def test_a_fixed_market_agent_reads_and_trades_every_account_but_watches_its_pair():
     database()
     from check_streaming import Fixture
     from lonora_db.schema import AgentRow
@@ -791,10 +860,9 @@ async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair
             row.trading_account_id, row.trading_symbol = primary, "XAUUSD"
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         accounts = await call(context, "list_accounts")
-        scope = {item["connection_id"]: item["in_execution_scope"] for item in accounts["accounts"]}
-        assert scope[primary] is True and scope[secondary] is False
+        assert {primary, secondary} <= {item["connection_id"] for item in accounts["accounts"]}
         other = await call(context, "account_read", account_id=secondary)
-        assert "positions" in other and other["execution_scope"]["account_id"] == primary
+        assert "positions" in other and other["focus_pair"]["account_id"] == primary
         quote = await call(context, "market_quote", account_id=secondary, symbol="XAUUSD")
         assert quote["symbol"] == "XAUUSD"
         assert (await call(context, "account_activity", account_id=secondary))["activities"] == []
@@ -807,7 +875,10 @@ async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair
         assert decisions["decisions"][0]["recorded_by"]["you"] is False
         # The focus account still defaults to the focus symbol.
         assert (await call(context, "trade_record_history"))["records"] == []
-        with pytest.raises(LonoraError, match="agent_trading_account_mismatch"):
+        # Its orders are not bound (3.1.2, 6.9): new risk in Ask asks for
+        # its tolerance, on another account too; nothing is sent.
+
+        with pytest.raises(LonoraError, match="tolerance_required"):
             await call(
                 context,
                 "trade_execute",
@@ -912,21 +983,9 @@ async def test_owner_notify_follows_dedupe_quiet_hours_rate_and_reach_me():
             dedupe_key="margin-" + uuid4().hex[:6],
         )
         assert urgent["status"] == "ready"
-        # "Activity only" keeps non-critical alerts out of the owner's notifications.
-        await reach_me(fixture, channel="activity")
-        quiet = await call(
-            context,
-            "owner_notify",
-            importance="important_change",
-            summary="Silver range is tightening",
-            dedupe_key="silver-" + uuid4().hex[:6],
-        )
-        assert quiet["status"] == "activity_only" and quiet["attention_id"] is None
-        # The Agent is told where the record goes instead of a notification.
-        assert "your reply" in quiet["note"] and "Shown in" not in quiet["note"]
         # A bounded rate per Agent and hour.
         await reach_me(fixture, channel="message")
-        sent = 4  # Every alert counts, the activity-only one too.
+        sent = 3  # Every alert counts.
         while sent < NOTIFY_LIMIT_PER_HOUR:
             await call(
                 context,

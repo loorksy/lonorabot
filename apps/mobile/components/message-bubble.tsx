@@ -1,5 +1,5 @@
 import type { Agent, Artifact, Message } from "@lonora/contracts";
-import { callPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
+import { callPart, commandPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { fill } from "../lib/i18n";
@@ -18,6 +18,13 @@ import {
 } from "./native-rich-response";
 import { NativeSymbol } from "./native-symbol";
 import { UploadRing } from "./upload-ring";
+
+const COMMAND_LABELS = {
+  task: "cmdTask",
+  search: "cmdSearch",
+  summary: "cmdSummary",
+} as const;
+
 export function MessageBubble({
   message,
   body,
@@ -79,6 +86,8 @@ export function MessageBubble({
   // A voice note or a call log has no text: it is named, never drawn as a blank bubble.
   const voice = voicePart(message);
   const call = callPart(message);
+  // A command chip marks only the owner's own words, as on Web.
+  const command = isOwner ? commandPart(message) : null;
   const clock = (seconds: number) => {
     const s = Math.max(0, Math.round(seconds || 0));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -105,13 +114,29 @@ export function MessageBubble({
       style={{
         alignSelf: isOwner ? (rtl ? "flex-start" : "flex-end") : "stretch",
         maxWidth: isOwner ? "88%" : "100%",
-        backgroundColor: flash ? shell.muted : isOwner ? shell.chatUser : "transparent",
-        ...(flash ? { borderWidth: 1, borderColor: shell.link } : {}),
+        backgroundColor: isOwner ? shell.chatUser : "transparent",
         borderRadius: 18,
-        padding: isOwner || flash ? 14 : 0,
+        padding: isOwner ? 14 : 0,
         gap: 8,
       }}
     >
+      {flash ? (
+        // The jump's mark, as Web's ring: drawn around the bubble, never changing its size.
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: isOwner ? 0 : -8,
+            bottom: isOwner ? 0 : -8,
+            left: isOwner ? 0 : -10,
+            right: isOwner ? 0 : -10,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: shell.link,
+            backgroundColor: isOwner ? "transparent" : shell.muted,
+          }}
+        />
+      ) : null}
       {!grouped && !isOwner && !tool ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           {agent ? (
@@ -131,6 +156,30 @@ export function MessageBubble({
               hour: "2-digit",
               minute: "2-digit",
             })}
+          </Text>
+        </View>
+      ) : null}
+      {command ? (
+        // The / command this owner message is (server-written), as Web's chip.
+        <View
+          testID="command-chip"
+          style={{
+            flexDirection: rtl ? "row-reverse" : "row",
+            alignSelf: rtl ? "flex-end" : "flex-start",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 12,
+            backgroundColor: shell.muted,
+          }}
+        >
+          <Text style={{ color: shell.secondary, fontSize: 12, fontWeight: "600" }}>
+            {/* RLM: in Arabic the «/» stays before the name, read from the right. */}
+            {rtl ? "\u200f/" : "/"}
+            {command.name === "skill"
+              ? command.skill_name || t("cmdSkill")
+              : t(COMMAND_LABELS[command.name])}
           </Text>
         </View>
       ) : null}
@@ -199,6 +248,12 @@ export function MessageBubble({
             onAction={onVisualAction}
             onChartLink={onChartLink}
           />
+        ) : command ? (
+          // As Web: after the chip, only the owner's words after the command (a summary of
+          // nothing more names the conversation); the typed «/name» is not shown again.
+          command.argument || command.name === "summary" ? (
+            <Markdown content={command.argument || t("cmdSummaryOf")} onChartLink={onChartLink} />
+          ) : null
         ) : message.content ? (
           <Markdown content={peerOutcome(message.content).body} onChartLink={onChartLink} />
         ) : partLine ? (
@@ -213,6 +268,11 @@ export function MessageBubble({
               <Text style={{ color: shell.link, fontSize: 14, writingDirection: "auto" }}>
                 {partLine}
               </Text>
+              {call.missed ? (
+                <Text style={{ color: shell.secondary, fontSize: 12, writingDirection: "auto" }}>
+                  {t("tapToCallBack")}
+                </Text>
+              ) : null}
             </Pressable>
           ) : (
             <Text style={{ color: shell.secondary, fontSize: 14, writingDirection: "auto" }}>

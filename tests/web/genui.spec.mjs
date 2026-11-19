@@ -469,6 +469,7 @@ test("Parity: the web card draws every node the server accepts and runs every ac
 test("Slots: a fixed card in the agent's card is the live record, and its row steps aside", async ({
   page,
   context,
+  browser,
 }) => {
   // Three replies, a stale tap, Enter, two decisions and two reloads: more than the default.
   test.setTimeout(60_000);
@@ -486,6 +487,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(page.locator(".ux-slot")).toHaveCount(0);
     python("slots", { ...fixture.input, record: ids.approval, number: true });
     python("slots", { ...fixture.input, card: "settle", record: ids.settle });
+    python("slots", { ...fixture.input, card: "mandate", record: ids.mandate });
     python("slots", { ...fixture.input, card: "secret", record: ids.secret });
     const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
     const settleSlot = page.locator('.ux .ux-slot[data-slot-card="settle"]');
@@ -515,17 +517,61 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
     // Each slot fits the height the compiler counts for it at rest at 390 px (SLOT_HEIGHTS in
-    // genui_compile.py: trade approval 230 px, settle 460 px, frame included).
+    // genui_compile.py: trade approval 230 px, settle 460 px, mandate 405 px, frame included).
     expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
     expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
+    // The Mandate card in its slot: the agent's mode read live and one button for the other
+    // mode (mandate 10.3), which is the card's own action on the owner session.
+    const mandateSlot = page.locator('.ux .ux-slot[data-slot-card="mandate"]');
+    const mandate = page.locator(`[data-owner-action="${ids.mandate}"]`);
+    await expect(mandateSlot.locator(`[data-owner-action="${ids.mandate}"]`)).toBeVisible();
+    await expect(mandate).toHaveCount(1);
+    await expect(mandateSlot).toContainText("التفويض");
+    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(405);
     // The Secret card in its slot: W-ENV's own form, whose values go straight to the
-    // encrypted store; its row steps aside too. The compiler counts it 305 px and 95 px a
-    // field (SLOT_HEIGHTS, SLOT_ROW_HEIGHTS): 495 px for these two fields.
+    // encrypted store; its row steps aside too. The compiler counts it 365 px and 95 px a
+    // field (SLOT_HEIGHTS, SLOT_ROW_HEIGHTS): 555 px for these two fields.
     const secretSlot = page.locator('.ux .ux-slot[data-slot-card="secret"]');
     await expect(secretSlot.locator(`[data-owner-action="${ids.secret}"]`)).toBeVisible();
     await expect(page.locator(`[data-owner-action="${ids.secret}"]`)).toHaveCount(1);
     await expect(secretSlot).toContainText("بيانات سرّية");
-    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(305 + 2 * 95);
+    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(365 + 2 * 95);
+    // The Mandate and Secret cards at their tallest as the compiler counts them: the
+    // longest name (both cards show it), Ask's line and the line a signed grant adds, in
+    // Arabic and in English, whose lines are the longer. A Secret card that replaces saved
+    // values shows one more line, which is not counted (docs/genui.md 4a).
+    python("tallest_mandate", fixture.input);
+    await page.reload();
+    await expect(mandateSlot).toContainText("صلاحيته الموقّعة تبقى سارية");
+    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(405);
+    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(365 + 2 * 95);
+    const english = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+    try {
+      await english.addCookies(
+        fixture.cookies.map((cookie) => ({
+          ...cookie,
+          url: test.info().project.use.baseURL,
+          httpOnly: cookie.name === "lonora_session",
+          sameSite: "Strict",
+        })),
+      );
+      await english.addInitScript(() => {
+        localStorage.setItem("lonora.locale", "en");
+        localStorage.setItem("lonora.theme", JSON.stringify("dark"));
+      });
+      const en = await english.newPage();
+      await en.setViewportSize({ width: 390, height: 844 });
+      await en.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+      const enSlot = en.locator('.ux .ux-slot[data-slot-card="mandate"]');
+      await expect(enSlot).toContainText("Now: Ask");
+      await expect(enSlot).toContainText("Its signed grant still lets it trade");
+      expect((await enSlot.boundingBox()).height).toBeLessThanOrEqual(405);
+      const enSecret = en.locator('.ux .ux-slot[data-slot-card="secret"]');
+      await expect(enSecret.locator(`[data-owner-action="${ids.secret}"]`)).toBeVisible();
+      expect((await enSecret.boundingBox()).height).toBeLessThanOrEqual(365 + 2 * 95);
+    } finally {
+      await english.close();
+    }
     // Decided elsewhere while this screen still shows it pending: the second tap is refused
     // and the slot shows the record as it is now.
     await page.route("**/api/trading/approvals?*", (route) => route.abort());
@@ -558,6 +604,16 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
+    // Last, as it withdraws the agent's pending approvals (4.2.3): the Mandate slot's button
+    // switches the mode, and the slot then offers the other mode.
+    const [switched] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/owner-actions/${ids.mandate}/decision`),
+      ),
+      mandateSlot.getByRole("button", { name: "وكّله", exact: true }).click(),
+    ]);
+    expect(switched.status()).toBe(200);
+    await expect(mandateSlot.getByRole("button", { name: "يستأذن", exact: true })).toBeVisible();
   } finally {
     await fixture.cleanup();
   }

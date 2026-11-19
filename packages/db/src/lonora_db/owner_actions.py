@@ -168,18 +168,22 @@ async def stale_reason(
         agent = await session.get(AgentRow, payload["agent_id"])
         return "agent_already_removed" if agent is None or agent.owner_id != owner_id else None
     if kind == "supervise":
-        from .supervision import supervises
+        from .lead import reaches
 
         supervisor = str(payload["supervisor_id"])
         wanted = [str(item) for item in payload["supervised_ids"]]
         names = await agent_names(session, owner_id, {supervisor, *wanted})
         if any(item not in names for item in (supervisor, *wanted)):
             return "supervision_agent_missing"
+        # Lonora already reaches every team agent by its role: a grant would add nothing.
         for item in wanted:
-            if not await supervises(session, owner_id, supervisor, item):
+            if not await reaches(session, owner_id, supervisor, item):
                 return None
         return "supervision_already_set"
     if kind == "supervision_created":
+        # An older card for a grant of Lonora's: Undo would stop nothing, it leads by its role.
+        if await _lead_grants(session, owner_id, payload):
+            return "supervision_already_set"
         return None if await _active_grants(session, owner_id, payload) else "supervision_ended"
     if kind == "supervision_stopped":
         grants = await _stopped_grants(session, owner_id, payload)
@@ -388,13 +392,14 @@ async def _stopped_grants(
 async def _restorable(
     session: AsyncSession, owner_id: str, grants: list[SupervisionGrantRow]
 ) -> list[SupervisionGrantRow]:
-    """The stopped grants whose pair is not supervised again by now."""
-    from .supervision import supervises
+    """The stopped grants whose pair is not supervised again by now (Lonora's never: its
+    lead role reaches every team agent)."""
+    from .lead import reaches
 
     return [
         grant
         for grant in grants
-        if not await supervises(
+        if not await reaches(
             session, owner_id, grant.supervisor_agent_id, grant.supervised_agent_id
         )
     ]
@@ -404,7 +409,7 @@ async def _live_pause(
     session: AsyncSession, owner_id: str, payload: dict[str, Any]
 ) -> SupervisionHoldRow | None:
     """The hold a pause card names while it still holds paused work."""
-    from .supervision import work_paused
+    from .pauses import work_paused
 
     hold = await session.get(SupervisionHoldRow, payload["hold_id"])
     if hold is None or hold.owner_id != owner_id or hold.released_at is not None:
@@ -429,6 +434,29 @@ async def _active_grants(
             )
             .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.id)
         )
+    )
+
+
+async def _lead_grants(session: AsyncSession, owner_id: str, payload: dict[str, Any]) -> bool:
+    """Whether a supervision card names grants of Lonora's: its lead role reaches every
+    team agent, so neither the grant nor its revoke changes anything."""
+    from .lead import personal_agent_id
+
+    ids = [str(item) for item in payload.get("grant_ids", [])]
+    lead = await personal_agent_id(session, owner_id)
+    if not ids or lead is None:
+        return False
+    return (
+        await session.scalar(
+            select(SupervisionGrantRow.id)
+            .where(
+                SupervisionGrantRow.owner_id == owner_id,
+                SupervisionGrantRow.id.in_(ids),
+                SupervisionGrantRow.supervisor_agent_id == lead,
+            )
+            .limit(1)
+        )
+        is not None
     )
 
 
@@ -716,9 +744,13 @@ async def supervision_facts(
             "active": False,
         }
         return facts
+    # An Undo card for a grant of Lonora's has nothing in force to stop: it leads by its role.
+    lead = row.kind == "supervision_created" and await _lead_grants(session, owner_id, row.payload)
     grants = (
         await _restorable(session, owner_id, await _stopped_grants(session, owner_id, row.payload))
         if row.kind == "supervision_stopped"
+        else []
+        if lead
         else await _active_grants(session, owner_id, row.payload)
     )
     supervisor = grants[0].supervisor_agent_id if grants else row.result.get("supervisor_id")
@@ -735,6 +767,8 @@ async def supervision_facts(
         ],
         "active": bool(grants),
     }
+    if lead:
+        facts["supervision"]["lead"] = True
     return facts
 
 
@@ -779,8 +813,8 @@ async def pause_facts(
         "active": await _live_pause(session, row.owner_id, row.payload) is not None,
         "target": hold.target_kind,
         "target_label": await pause_label(session, hold),
-        "from_owner_message": hold.source == "owner_message",
-        # The owner paused the same work too: the pause is the owner's now.
+        "from_owner_message": hold.source_message_id is not None,
+        # The owner paused it or asked for it: only the owner resumes it.
         "owner_holds": hold.source == "owner",
     }
     return facts

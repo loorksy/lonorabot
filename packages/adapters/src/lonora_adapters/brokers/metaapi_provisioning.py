@@ -15,6 +15,7 @@ account. MetaApi's long-running ``202`` wait inside one call stays on.
 import hashlib
 import importlib
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import partial
@@ -59,6 +60,9 @@ REFUSALS = frozenset(
         "broker_rate_limited",
     }
 )
+# MetaApi's refusal of a deploy, redeploy or undeploy while the account is still being
+# deployed, undeployed or redeployed ("... because it is in the process of being deployed").
+BUSY = re.compile(r"\bis in the process of being (?:un|re)?deployed\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -118,8 +122,22 @@ def _detail_codes(error: Exception) -> set[str]:
     return codes
 
 
+def _busy(error: Exception) -> bool:
+    # The message and the details are read for MetaApi's busy phrase only: nothing else
+    # of them reaches a code (they can echo request fields).
+    details: Any = getattr(error, "details", None)
+    items: list[Any] = cast(list[Any], details) if isinstance(details, list) else [details]
+    texts = [str(error)]
+    for item in items:
+        text = cast(dict[str, Any], item).get("message") if isinstance(item, dict) else item
+        if isinstance(text, str):
+            texts.append(text)
+    return any(BUSY.search(text) for text in texts)
+
+
 def provisioning_error(error: Exception) -> LonoraError:
-    """Map an SDK failure to a code. Validation details are read for their code only."""
+    """Map an SDK failure to a code. Validation details are read for their code only, and
+    the message and details for MetaApi's busy phrase only."""
     if isinstance(error, LonoraError):
         return error
     status = getattr(error, "status_code", None)
@@ -129,6 +147,9 @@ def provisioning_error(error: Exception) -> LonoraError:
             return LonoraError("broker_password_rejected", 422)
         if "E_SRV_NOT_FOUND" in codes:
             return LonoraError("broker_server_not_found", 422)
+        if _busy(error):
+            # Not a judgement of the request: MetaApi takes it once that work is done.
+            return LonoraError("broker_provisioning_busy", 409)
         return LonoraError("broker_provisioning_rejected", 422)
     if status in {401, 403} or type(error).__name__ == "MethodAccessException":
         # MethodAccessException: an account access token, which cannot provision.

@@ -9,6 +9,7 @@ from lonora_contracts.usage import TokenUsage
 
 from .base import (
     BaseModelAdapter,
+    chosen_silence,
     interrupted_stream,
     invalid_response,
     stopped_reply,
@@ -75,6 +76,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
         payload: dict[str, Any] = {
             "model": model,
@@ -89,7 +91,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                 {"type": "function", "function": tool.model_dump()} for tool in tools
             ]
         if on_delta:
-            return await self.stream_complete(payload, on_delta)
+            return await self.stream_complete(payload, on_delta, allow_empty)
         value = await self.request("POST", "/chat/completions", json=payload)
         if value.get("error"):
             # Some compatible gateways answer 200 with an error object.
@@ -111,7 +113,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                 for call in raw_calls
             ]
             usage = value.get("usage", {})
-            if not text and not calls:
+            if not text and not calls and not chosen_silence(allow_empty, stop["stop_reason"]):
                 raise ValueError()
             return ModelReply(
                 text=text,
@@ -174,7 +176,10 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
         return descriptors
 
     async def stream_complete(
-        self, payload: dict[str, Any], on_delta: Callable[[str], Awaitable[None]]
+        self,
+        payload: dict[str, Any],
+        on_delta: Callable[[str], Awaitable[None]],
+        allow_empty: bool = False,
     ) -> ModelReply:
         payload = {**payload, "stream": True, "stream_options": {"include_usage": True}}
         text = ""
@@ -215,7 +220,11 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                 raise interrupted_stream()
             stop = stopped_reply(metadata.get("finish_reason"), text, bool(calls))
             stop.pop("stop_reason")
-            if not text and not calls:
+            if (
+                not text
+                and not calls
+                and not chosen_silence(allow_empty, metadata.get("finish_reason"))
+            ):
                 raise ValueError()
             return ModelReply(
                 text=text,

@@ -56,7 +56,7 @@ export function Welcome({
         <ActionRow icon="chat" label={<Trans>New chat</Trans>} onClick={onNewChat} />
         <ActionRow icon="task" label={<Trans>New task</Trans>} onClick={onNewTask} />
         <ActionRow icon="users" label={<Trans>New group</Trans>} onClick={onNewGroup} />
-        <ActionRow icon="bell" label={<Trans>Updates</Trans>} onClick={onUpdates} />
+        <ActionRow icon="bell" label={<Trans>Needs your attention</Trans>} onClick={onUpdates} />
       </div>
       <small>
         <Icon name="shield" /> <Trans>Permissions are independent for each agent</Trans>

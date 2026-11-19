@@ -125,12 +125,12 @@ async def capability_report(
                 .limit(100)
             )
         )
+        # Every integration: agents read every feed, so the owner sees and removes each one.
         integrations = list(
             await session.scalars(
                 select(IntegrationRow)
                 .where(IntegrationRow.owner_id == owner_id)
                 .order_by(IntegrationRow.created_at, IntegrationRow.id)
-                .limit(200)
             )
         )
         threads = {

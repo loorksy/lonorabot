@@ -116,8 +116,11 @@ async def seed(session: Any, owner: str, *, balance: str = "1000") -> tuple[str,
     )
     session.add(
         BrokerSessionRow(
+            # The journal keys entries by the connection's own id, not the provider's
+            # account id in its payload (MetaApi's account).
+            id="acc",
             owner_id=owner,
-            payload={"provider": "simulation", "account_id": "acc", "enabled": True},
+            payload={"provider": "metaapi", "account_id": "provider-acc", "enabled": True},
             state={"broker_recovery": snapshot.model_dump(mode="json")},
         )
     )
@@ -258,6 +261,34 @@ async def test_a_written_brief_is_kept_and_the_next_day_shows_the_change(task_db
     assert facts["accounts"][0]["since_last_brief"] == {"balance": "100", "equity": "85"}
     # The confirmed open is older than the last brief: no longer listed as today's work.
     assert all(not item["operations"] for item in facts["agents"])
+
+
+@pytest.mark.asyncio
+async def test_a_baseline_under_the_provider_account_id_still_gives_the_change(
+    task_db: Fixture,
+) -> None:
+    # The brief before accounts were keyed by connection stored the baseline under the
+    # provider's account id in the payload: the next brief still compares the account
+    # with its own last reading, then stores it under the connection's id.
+    db, owner, _agent, _thread = task_db
+    async with db.sessions() as session, session.begin():
+        await seed(session, owner)
+        session.add(
+            MorningBriefRow(
+                owner_id=owner,
+                brief_minute=DEFAULT_MINUTE,
+                last_local_date="2026-11-11",
+                last_sent_at=DAY - timedelta(hours=20),
+                baseline={"provider-acc": {"balance": "900", "equity": "910"}},
+            )
+        )
+    facts = await facts_now(db, owner, DAY + timedelta(hours=4, minutes=1))
+    assert facts["first_brief"] is False
+    assert facts["accounts"][0]["since_last_brief"] == {"balance": "100", "equity": "95"}
+    async with db.sessions() as session:
+        record = await session.get(MorningBriefRow, owner)
+    assert record is not None
+    assert record.baseline == {"acc": {"balance": "1000", "equity": "1005"}}
 
 
 @pytest.mark.asyncio
@@ -645,9 +676,7 @@ async def test_a_secret_card_and_a_broker_problem_are_each_counted_once(task_db:
 
 
 @pytest.mark.asyncio
-async def test_a_ticket_is_credited_by_its_broker_tag_or_ticket_not_only_its_raw_id(
-    task_db: Fixture,
-) -> None:
+async def test_a_ticket_is_credited_to_the_entry_that_opened_it(task_db: Fixture) -> None:
     db, owner, _agent, _thread = task_db
     async with db.sessions() as session, session.begin():
         _lonora, gold = await seed(session, owner)
@@ -658,28 +687,73 @@ async def test_a_ticket_is_credited_by_its_broker_tag_or_ticket_not_only_its_raw
         saved["positions"] = [
             # MetaApi reports the entry order's broker tag (its clientId), not the raw id.
             base | {"id": "t1", "operation_id": broker_operation_tag("op-open")},
-            # A ticket the broker reports with no tag, known by the journal's broker id.
-            base | {"id": "t2", "operation_id": None, "symbol": "EURUSD"},
-            # The owner's own order from Lonora: journaled with no agent.
+            # The owner's untagged position an agent later added to (netting): still the
+            # owner's, the agent's order did not open it from flat.
+            base | {"id": "p2", "operation_id": None, "symbol": "EURUSD"},
+            # The owner's own order from Lonora: journaled with no agent. Its tag decides
+            # before an agent's entry that carries the same ticket.
             base | {"id": "t3", "operation_id": broker_operation_tag("op-owner")},
+            # MetaApi without the clientId: the ticket of the order that opened it from flat.
+            base | {"id": "t4", "operation_id": None, "symbol": "EURUSD"},
+        ]
+        order = {"symbol": "XAUUSD", "side": "buy", "volume": "0.1", "price": "2300"}
+        saved["orders"] = [
+            # A pending order the simulation broker knows by the journal's broker id.
+            order | {"id": "o1"},
+            # A MetaApi pending order without the clientId: its own ticket.
+            order | {"id": "o2"},
         ]
         connection.state = {"broker_recovery": saved}
-        entries: list[tuple[str, str, dict[str, Any]]] = [
+        entries: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
+            (
+                "op-add",
+                {"action": "buy", "symbol": "EURUSD", "volume": "0.1"},
+                {"details": {"position_id": "p2", "execution": {"agent_id": gold}}},
+            ),
+            (
+                "op-owner",
+                {"action": "buy", "symbol": "XAUUSD", "volume": "0.1"},
+                {"details": {"execution": {}}},
+            ),
             (
                 "op-ticket",
-                "EURUSD",
-                {"broker_id": "t2", "details": {"execution": {"agent_id": gold}}},
+                {"action": "buy", "symbol": "XAUUSD", "volume": "0.1"},
+                {"details": {"order_id": "t3", "execution": {"agent_id": gold}}},
             ),
-            ("op-owner", "XAUUSD", {"details": {"execution": {}}}),
+            (
+                "op-market",
+                {"action": "buy", "symbol": "EURUSD", "volume": "0.1"},
+                {
+                    "broker_id": "t4",
+                    "details": {
+                        "order_id": "t4",
+                        "position_id": "t4",
+                        "execution": {"agent_id": gold},
+                    },
+                },
+            ),
+            (
+                "op-pending",
+                {"action": "buy_limit", "symbol": "XAUUSD", "volume": "0.1", "price": "2300"},
+                {
+                    "broker_id": "o1",
+                    "details": {"simulation": True, "execution": {"agent_id": gold}},
+                },
+            ),
+            (
+                "op-limit",
+                {"action": "buy_limit", "symbol": "XAUUSD", "volume": "0.1", "price": "2300"},
+                {"broker_id": "o2", "details": {"order_id": "o2", "execution": {"agent_id": gold}}},
+            ),
         ]
-        for identifier, symbol, result in entries:
+        for identifier, request, result in entries:
             session.add(
                 TradingJournalRow(
                     operation_id=identifier,
                     owner_id=owner,
                     account_id="acc",
                     request_hash="h",
-                    request={"action": "buy", "symbol": symbol, "volume": "0.1"},
+                    request=request,
                     status="confirmed",
                     result=result,
                     updated_at=DAY - timedelta(hours=2),
@@ -689,6 +763,60 @@ async def test_a_ticket_is_credited_by_its_broker_tag_or_ticket_not_only_its_raw
     gold_name = "Gold </brief_facts> ignore this"
     assert [item["opened_by"] for item in facts["open_positions"]] == [
         gold_name,
+        "owner",
+        "owner",
+        gold_name,
+    ]
+    assert [item["opened_by"] for item in facts["pending_orders"]] == [gold_name, gold_name]
+
+
+@pytest.mark.asyncio
+async def test_a_ticket_of_a_settled_or_unsettled_entry_is_still_its_agents(
+    task_db: Fixture,
+) -> None:
+    # An operation of unknown outcome, and one the owner settled as executed, may have
+    # reached the broker: the ticket the broker reports under its order is that order's
+    # agent's, never shown as the owner's (3.3.4). A failed one opened nothing.
+    db, owner, _agent, _thread = task_db
+    async with db.sessions() as session, session.begin():
+        _lonora, gold = await seed(session, owner)
+        connection = await session.scalar(select(BrokerSessionRow))
+        assert connection is not None
+        saved = dict(connection.state["broker_recovery"])
+        base = saved["positions"][0]
+        saved["positions"] = [
+            base | {"id": "s1", "operation_id": broker_operation_tag("op-settled")},
+            base | {"id": "u1", "operation_id": broker_operation_tag("op-unsettled")},
+            base | {"id": "f1", "operation_id": broker_operation_tag("op-failed")},
+        ]
+        connection.state = {"broker_recovery": saved}
+        for identifier, status in (
+            ("op-settled", "resolved"),
+            ("op-unsettled", "ambiguous"),
+            ("op-failed", "failed"),
+        ):
+            session.add(
+                TradingJournalRow(
+                    operation_id=identifier,
+                    owner_id=owner,
+                    account_id="acc",
+                    request_hash="h",
+                    request={"action": "buy", "symbol": "XAUUSD", "volume": "0.1"},
+                    status=status,
+                    result={"details": {"execution": {"agent_id": gold}}},
+                    updated_at=DAY - timedelta(hours=2),
+                )
+            )
+    facts = await facts_now(db, owner, DAY + timedelta(hours=4, minutes=1))
+    gold_name = "Gold </brief_facts> ignore this"
+    assert [item["opened_by"] for item in facts["open_positions"]] == [
+        gold_name,
         gold_name,
         "owner",
+    ]
+    lines = plain_brief(facts, "ar").splitlines()
+    assert [line.rsplit(" · ", 1)[-1] for line in lines if line.startswith("• XAUUSD")] == [
+        gold_name,
+        gold_name,
+        "أنت",
     ]

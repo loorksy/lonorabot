@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from lonora_adapter_kit.context_sections import context_message
 from lonora_agent.automation.webhooks import PROMPT, webhook_wake
-from lonora_agent.context.routine import wake_context, webhook_section
+from lonora_agent.context.routine import BACKGROUND, wake_context, webhook_section
 from lonora_contracts.runs import RunRequest
 from lonora_db.schema import RunRow
 from lonora_tools.base import run_scope
@@ -85,5 +85,8 @@ def test_a_webhook_run_from_before_the_data_frame_stays_a_request() -> None:
     never read as server text: it stays the user-role turn it was."""
     old = RunRow(trigger="webhook", prompt=HOSTILE, model_metadata={})
     assert HOSTILE not in wake_context(old)
-    assert wake_context(old) == "<wake trigger='webhook' request='in_the_conversation_turn'/>"
+    # A webhook run is background work (11.5): its frame carries the fixed sentence only.
+    assert wake_context(old) == (
+        "<wake trigger='webhook' request='in_the_conversation_turn'>\n" + BACKGROUND + "\n</wake>"
+    )
     assert webhook_section(old) is None

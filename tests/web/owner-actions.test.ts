@@ -5,6 +5,7 @@ import type { Message, OwnerAction } from "../../packages/contracts/src/index";
 import { conversationTimeline } from "../../packages/core/src/conversation-timeline";
 import { financialBoundaryError } from "../../packages/core/src/financial-boundary";
 import {
+  brokerCardFailed,
   mergeOwnerAction,
   OWNER_ACTION_CHANGED,
   ownerActionCard,
@@ -12,6 +13,7 @@ import {
   ownerActionChoose,
   ownerActionError,
   ownerActionLabels,
+  ownerActionStatus,
   rereadOwnerAction,
 } from "../../packages/core/src/owner-actions";
 import { readinessTime } from "../../packages/core/src/trading-readiness";
@@ -651,4 +653,116 @@ test("a Settle card answered Unknown stays pending with Executed and Not execute
       /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
     );
   }
+});
+
+const broker: OwnerAction = {
+  ...base,
+  kind: "secret",
+  status: "confirmed",
+  facts: {
+    several_accounts: false,
+    secret: {
+      label: "70000001 @ Exness-MT5Trial16",
+      fields: [{ key: "PASSWORD", label: "Trading password", secret: true }],
+      destination: "broker",
+      agent_name: "Lonora",
+      account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+    },
+  },
+};
+const withPurpose = (purpose: "rotate_password" | "replace_token"): OwnerAction => ({
+  ...broker,
+  facts: {
+    ...broker.facts,
+    secret: { ...(broker.facts.secret as NonNullable<OwnerAction["facts"]["secret"]>), purpose },
+  },
+});
+
+test("a saved broker card's chip says how connecting stands, never Done beside a failure", () => {
+  assert.equal(ownerActionLabels.ar.statusFailed, "تعذّر");
+  assert.equal(ownerActionLabels.ar.statusSaved, "حُفظ");
+  assert.equal(ownerActionLabels.ar.statusConnecting, "جارٍ الربط");
+  assert.equal(ownerActionLabels.ar.statusChanging, "جارٍ التغيير");
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const chip = (card: OwnerAction, provisioning?: OwnerAction["result"]["provisioning"]) =>
+      ownerActionStatus({ ...card, result: provisioning ? { provisioning } : {} }, locale);
+    // The production finding: «تعذّر الربط…» under a «تم» chip.
+    const failed = { ...broker, result: { provisioning: "failed" as const } };
+    assert.equal(ownerActionCard(failed, locale, now).outcome, text.brokerFailed);
+    assert.equal(ownerActionStatus(failed, locale), text.statusFailed);
+    assert.notEqual(ownerActionStatus(failed, locale), text.statusConfirmed);
+    assert.equal(brokerCardFailed(failed), true);
+    assert.equal(brokerCardFailed({ ...broker, result: { provisioning: "connected" } }), false);
+    assert.equal(chip(broker, "connected"), text.statusConfirmed);
+    assert.equal(chip(broker, "linked"), text.statusSaved);
+    for (const running of [undefined, "pending", "deploying", "reading"] as const)
+      assert.equal(chip(broker, running), text.statusConnecting, String(running));
+    // A new password or token: still running reads as a change, not a connection.
+    for (const purpose of ["rotate_password", "replace_token"] as const) {
+      const changed = withPurpose(purpose);
+      assert.equal(chip(changed, "failed"), text.statusFailed);
+      assert.equal(chip(changed, "connected"), text.statusConfirmed);
+      assert.equal(chip(changed, "linked"), text.statusSaved);
+      for (const running of [undefined, "pending", "deploying", "reading"] as const)
+        assert.equal(chip(changed, running), text.statusChanging, `${purpose} ${running}`);
+    }
+    // An unsaved broker card keeps the chip of its status.
+    assert.equal(chip({ ...broker, status: "pending" }), text.statusPending);
+    assert.equal(chip({ ...broker, status: "cancelled" }), text.statusCancelled);
+    assert.equal(chip({ ...broker, status: "expired" }, "failed"), text.statusExpired);
+  }
+});
+
+test("every other card keeps the chip of its status", () => {
+  const credential: OwnerAction = {
+    ...broker,
+    facts: {
+      several_accounts: false,
+      secret: {
+        label: null,
+        connect: "broker",
+        fields: [],
+        destination: "broker",
+        agent_name: null,
+      },
+    },
+  };
+  const workspace: OwnerAction = {
+    ...broker,
+    facts: {
+      several_accounts: false,
+      secret: { label: "Keys", fields: [], destination: "workspace", agent_name: "Gold" },
+    },
+  };
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    for (const [status, chip] of [
+      ["pending", text.statusPending],
+      ["confirmed", text.statusConfirmed],
+      ["cancelled", text.statusCancelled],
+      ["expired", text.statusExpired],
+      ["superseded", text.statusSuperseded],
+    ] as const)
+      for (const card of [base, resolve, grantCard(), workspace])
+        assert.equal(
+          ownerActionStatus({ ...card, status }, locale),
+          chip,
+          `${card.kind} ${status}`,
+        );
+    // A credential card converted by 0071 says what it connected, as before.
+    assert.equal(
+      ownerActionStatus({ ...credential, result: { provisioning: "failed" } }, locale),
+      text.statusConfirmed,
+    );
+  }
+  // Web's settled line shows the shared chip, never its own status map.
+  const source = readFileSync(
+    new URL("../../apps/web/src/components/owner-actions/OwnerActionCard.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /ownerActionStatus\(row, i18n\.locale\)/);
+  assert.doesNotMatch(source, /statusConfirmed/);
+  // Nor a check mark beside «تعذّر»: the icon follows the same failed rule.
+  assert.match(source, /brokerCardFailed\(row\) \? "close"/);
 });

@@ -6,25 +6,23 @@
  * and the labels say so instead of promising a notification on a closed phone.
  */
 
-export type ReachMe = "activity" | "notify" | "message" | "call";
-export const reachMeChannels: readonly ReachMe[] = ["activity", "notify", "message", "call"];
+export type ReachMe = "notify" | "message" | "call";
+export const reachMeChannels: readonly ReachMe[] = ["notify", "message", "call"];
 export type ReplyLanguage = "auto" | "ar" | "en";
 export const replyLanguages: readonly ReplyLanguage[] = ["auto", "ar", "en"];
 
 type Text = { readonly en: string; readonly ar: string };
 
 const channels: Readonly<Record<ReachMe, Text>> = {
-  activity: { en: "Activity only", ar: "النشاط فقط" },
   notify: { en: "Notify me", ar: "أرسل لي تنبيهًا" },
   message: { en: "Message me", ar: "راسلني" },
   call: { en: "Call me", ar: "اتصل بي" },
 };
 
+// «النشاط فقط» is no longer offered (P5); earlier history still names it in plain words.
+const activityOnly: Text = { en: "Activity only", ar: "النشاط فقط" };
+
 const channelHints: Readonly<Record<ReachMe, Text>> = {
-  activity: {
-    en: "Agents keep it in Activity and do not interrupt you.",
-    ar: "يسجّل الوكلاء ذلك في النشاط ولا يقاطعونك.",
-  },
   // Agents cannot raise inbox alerts of their own yet; the hint promises only what happens.
   notify: {
     en: "Agents write to you in their conversation, and alerts Lonora raises stay in your inbox.",
@@ -147,6 +145,10 @@ const errors: Readonly<Record<string, Text>> = {
     en: "Choose a valid time zone, such as Asia/Riyadh.",
     ar: "اختر منطقة زمنية صحيحة، مثل Asia/Riyadh.",
   },
+  reach_me_choice_removed: {
+    en: "“Activity only” is no longer a choice, so nothing was undone. Choose another way to reach you.",
+    ar: "لم يعد «النشاط فقط» خيارًا متاحًا، فلم يُتراجع عن شيء. اختر طريقة أخرى للتواصل معك.",
+  },
   memory_revert_conflict: {
     en: "A later change edited the same lines, so nothing was undone. Undo that later change first, or edit the text directly.",
     ar: "عدّل تغيير لاحق الأسطر نفسها، فلم يُتراجع عن شيء. تراجع عن ذلك التغيير اللاحق أولًا، أو عدّل النص مباشرة.",
@@ -190,6 +192,7 @@ export function preferenceValueText(field: string, value: unknown, locale: strin
   if (typeof value === "boolean") return pick(value ? labels.on : labels.off, locale);
   if (field === "reach_me" && typeof value === "string" && value in channels)
     return pick(channels[value as ReachMe], locale);
+  if (field === "reach_me" && value === "activity") return pick(activityOnly, locale);
   if (field === "reply_language" && (value === "ar" || value === "en"))
     return pick(languages[value], locale);
   return String(value);

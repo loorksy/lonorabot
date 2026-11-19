@@ -282,7 +282,9 @@ async def untrusted_source(context: ToolContext, repository_url: str) -> dict[st
         run = await scoped_run(session, context)
         if await repository_trusted(session, context, run, owner, repository):
             return None
-    return refusal(repository=(owner + "/" + repository).casefold(), installed=False)
+        return await refusal(
+            session, run, repository=(owner + "/" + repository).casefold(), installed=False
+        )
 
 
 async def import_package(

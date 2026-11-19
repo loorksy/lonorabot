@@ -15,8 +15,8 @@ BINDING_POLICY = (
     "pair, account, or symbol, and never ask the owner to repeat or retype it. Letter case is "
     "not a different symbol; never strip suffixes. "
     "Reading is open: quotes, candles, instruments, accounts, full history, activity and "
-    "records of every owned account and symbol; reading never authorizes trading. Executing "
-    "follows your grant and stays on this pair. Child agents inherit this binding; delegation "
+    "records of every owned account and symbol; reading never authorizes trading. Trade this "
+    "pair unless told otherwise; the server does not refuse other symbols. Child agents inherit this binding; delegation "
     "cannot bypass financial authority. "
     "An active signed account grant may cover matching trades without per-order approval. Otherwise trade approval requires the real Approve or Reject controls in chat or voice. "
     "Never ask for a spoken or typed yes. Speech and chat text are not approval."
@@ -67,14 +67,14 @@ def same_binding(value: object, bound: str | None) -> bool:
 def assert_market_binding(
     agent: AgentRow, account_id: str | None = None, symbol: str | None = None
 ) -> None:
-    """A fixed-market agent's mutations stay on its pair; callers never apply it to reads."""
+    """A fixed-market agent's charts, watches and decisions stay on its pair; callers never
+    apply it to reads or to orders (3.1.2, 6.9)."""
     if flexible_scope(agent):
         return
     if agent.trading_account_id is None and agent.trading_symbol is None:
         if agent.role not in {None, "personal", "delegated", "legacy"}:
             raise LonoraError("agent_trading_binding_invalid", 409)
-        # This guard governs visibility only. Financial paths additionally call
-        # require_financial_agent; an empty binding never grants authority.
+        # This guard governs visibility only; an empty binding never grants authority.
         return
     if not agent.trading_account_id or not agent.trading_symbol:
         raise LonoraError("agent_trading_binding_invalid", 409)

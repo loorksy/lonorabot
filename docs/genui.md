@@ -43,9 +43,9 @@ The server contract `lonora_contracts.genui` is the single source of the set (ma
   both clients draw.
 
 - **Trusted slots (`Slot {card, record}`, mandate 10.2):** a fixed card placed inside the
-  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval`, `settle` and `secret`); `record` is
-  the record's id. The agent chooses only where the slot sits; section 4a says what the server
-  and the clients do with it.
+  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval`, `settle`, `mandate` and
+  `secret`); `record` is the record's id. The agent chooses only where the slot sits; section
+  4a says what the server and the clients do with it.
 
 `scripts/export_genui_catalog.py` generates `packages/contracts/src/genui-catalog.ts` (node
 types, props, server rows, actions, routes, tones; `--check` in `scripts/build.sh`). Each part
@@ -106,11 +106,11 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
 
 - **Placement (10.2.1).** The projector reads the records a card's slots name
   (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
-  `settle_operation` owner-action card (`settle`) or a `secret` owner-action card, the Secret
-  card (`secret`), of this owner, in the reply's conversation
-  (the Run's origin conversation when it works in its own thread, as broker-event and watch
-  Runs do). A slot
-  whose record is missing, of another kind, another owner's or another conversation's is
+  `settle_operation` owner-action card (`settle`), a `trading_mode` owner-action card, the
+  Mandate card (`mandate`), or a `secret` owner-action card, the Secret card (`secret`), of
+  this owner, in the reply's conversation (the Run's origin conversation when it works in its
+  own thread, as broker-event and watch Runs do). A slot whose record is missing, of another
+  kind, another owner's or another conversation's is
   refused (`slot_refused`) and the card shows its fallback. A record appears once per card.
 - **Protection (10.2.2).** A slot sits at the top level only (`slot_nested` drops it from a
   container); it takes no `when`, text or style (dropped as `prop_dropped`), so the stored node
@@ -121,12 +121,21 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   the frame's `shield` icon, when a heading or label (head title and sub, label, title, the
   Slider readout, Badge, Title, option labels) or one of its parts between separators
   (· • : | / – — -) is a fixed card's title or button, when a Button label is or starts with one
-  (`FIXED_LABELS`, the clients' own strings, checked by a test), or when anything it shows,
-  why and fallback included, carries the frame's mark (`FRAME_MARKS`). Templates are read as
+  (`FIXED_LABELS`, the clients' own strings, checked by a test; the everyday words «Full» and
+  «Ask» in `FIXED_WHOLE` only as a whole Button label), or when anything it shows,
+  why and fallback included, carries the frame's mark (`FRAME_MARKS`) or the Mandate card's
+  state line in its own form: a line, or a part of one between · • | – — or a dash, slash or
+  tatweel (ـ) that does not join two letters, that ends with «الآن:» or "Now:" and a mode word
+  after its start or any punctuation («الذهب · الآن: وكّله», «الذهب ـ الآن: وكّله», «الذهب، الآن:
+  وكّله», "Gold: Now: Full", `STATE_LINE`; the line is split before folding removes the
+  tatweel). Templates are read as
   written, at each sampled state and by their quoted literals, after compatibility forms are
-  unified, invisible format characters removed and look-alike letters (Cyrillic, Greek, Persian)
-  read as the letters they imitate. Sentences, values and state may
-  use the same words.
+  unified, invisible format characters and marks (the grapheme joiner, variation selectors)
+  removed and look-alike letters (Cyrillic, Greek, Persian) read as the letters they imitate.
+  Otherwise sentences, values and state may use the same
+  words («You can now ask me», «الآن وكله ترقب», «قرّرت الآن: يستأذن», "What to do now: ask."),
+  and a compound stays one word ("Order book, now: Ask-heavy."), as a stretched one does
+  («الذهب · الآن: وكّـله» is still refused).
 - **Words, numbers and buttons.** Everything inside a slot is the record as the clients read it
   from the server (`/trading/approvals`, `/owner-actions`) with the card's own owner-session
   actions; nothing comes from the agent's card. A generated element still never approves,
@@ -134,11 +143,24 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   agent's own field presses the agent's own primary Button only, never a button inside a slot,
   and a sent card dims its own blocks, never a slot.
 - **Budget (10.1.4).** A slot counts its height toward the 560 px resting height and is one
-  of the 6 visible blocks: trade approval 230 px and settle 460 px; a Secret card 305 px and
-  95 px for each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads
-  the field count). Each is measured at 390 px with its frame by the web "Slots" journey. The
-  agent's other blocks fold first; a slot is never folded, and a card over 720 px falls back,
-  which brings the record's row back (a Secret card of eight fields always does).
+  of the 6 visible blocks: trade approval 230 px, settle 460 px and mandate 405 px (its
+  tallest for an 80-character name of words, Ask and a signed grant's line, which is the
+  English card: measured 404 px, the Arabic card 362 px and 386 with a Latin name; a name of
+  wide capitals such as W and M wraps further, up to 500 px); a Secret card 365 px and 95 px for
+  each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads the field
+  count), its tallest for an 80-character name of words without the line below, which is the
+  English card: measured 460, 555 and 650 px for one, two and three fields with an Arabic or a
+  Latin name, a broker card's two fields 550, the Arabic card 440, 535 and 630 (398, 493 and
+  588 with a short name); a name of wide capitals adds 63 px to it. Each is measured at
+  390 px with its frame by the web "Slots" journey, the Mandate and Secret cards in both
+  languages. The agent's other blocks fold first; a slot is never folded, and a card over
+  720 px falls back, which brings the record's row back (a Secret card of three fields or more
+  always does). One limit: a Secret card that replaces values already saved (never a broker
+  card) shows one more line, 48 px more for one field, 69 for two and 90 for three, and it is
+  not counted. Counting it would make every two-field card that can show it fall back
+  (724 px), and the clients read it when the card is shown, after it was compiled. Such a card
+  is that much taller than counted: a two-field one with the longest English name, about
+  724 px, is not caught by the 720 px rule.
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
   standalone row while a loaded assistant message of the conversation draws it as a slot
   (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is

@@ -32,7 +32,7 @@ from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 FIXTURES = Path(__file__).parent / "fixtures/genui"
 PARITY = (FIXTURES / "documents/valid/parity.lonora-ui").read_text()
 SLOTS = (FIXTURES / "documents/valid/slot.lonora-ui").read_text()
-# The other fixed card that exists today. A settle card is tall (SLOT_HEIGHTS), so its card
+# The settle card. A settle card is tall (SLOT_HEIGHTS), so its card
 # holds the head and the slot alone at rest; two slots would exceed 560 px.
 SETTLE = "\n".join(
     line
@@ -46,20 +46,27 @@ SETTLE = "\n".join(
 SLOT_RECORDS = {
     ("trade_approval", "parity-approval"): 0,
     ("settle", "parity-settle"): 0,
+    ("mandate", "parity-mandate"): 0,
     ("secret", "parity-secret"): 1,  # a Secret card with one field
 }
-# The Secret card: its own words around the slot (W-ENV's form does the rest).
-SECRET = (
-    SLOTS.replace(
+MANDATE = SLOTS.replace(
+    '"trade_approval","record":"parity-approval"', '"mandate","record":"parity-mandate"'
+)
+# The Secret card: its own words around the slot (W-ENV's form does the rest). A Secret card
+# is tall too, so its card holds the head and the slot alone, like the settle card.
+SECRET = "\n".join(
+    line
+    for line in SLOTS.replace(
         '"trade_approval","record":"parity-approval"', '"secret","record":"parity-secret"'
     )
     .replace("طلب معلّق", "مفتاح المنصة")
-    .replace("الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك.", "أحتاج مفتاح المنصة لأقرأ رصيدك.")
     .replace(
         "الطلب في مكانه من الشرح، فتقرر وأنت تقرأ.",
         "البطاقة في مكانها من الشرح، فتحفظ المفتاح وأنت تقرأ.",
     )
     .replace("طلب موافقة بانتظار قرارك.", "أحتاج مفتاح المنصة؛ احفظه في بطاقة البيانات السرّية.")
+    .splitlines()
+    if '"type":"Text"' not in line
 )
 COMPILED = FIXTURES / "parity-compiled.json"
 OWNER = "احسب حجم الصفقة لرصيد 10000 كما في https://example.com/position-size"
@@ -79,6 +86,7 @@ async def compiled_documents() -> list[dict[str, Any]]:
         (reply(), messages()),
         (reply(SLOTS), history),
         (reply(SETTLE), history),
+        (reply(MANDATE), history),
         (reply(SECRET), history),
     ):
         with patch("lonora_agent.visual_response.slot_records", records):

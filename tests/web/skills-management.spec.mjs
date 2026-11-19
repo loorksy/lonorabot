@@ -136,7 +136,7 @@ test("Web Skill editing retains complete manifest, explicit version and optimist
       description: "Explicitly scoped owner instructions.",
       source: "owner",
       stability: "experimental",
-      activation: { mode: "explicit", intents: [], triggers: [] },
+      activation: { mode: "explicit", triggers: [] },
       risk_class: "read_only",
       required_tools: ["market_quote"],
       required_capabilities: ["market.read"],

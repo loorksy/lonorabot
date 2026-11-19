@@ -31,13 +31,43 @@ balance could be read when Lonora checked), or `failed` with a code. A terminal 
 has deployed that is still not logged in to the broker 3 minutes after it was first seen
 deployed fails as `broker_login_rejected` (MetaApi reports DISCONNECTED_FROM_BROKER) or
 `broker_login_not_established` (DISCONNECTED, no reason given); when the whole wait ends
-before that, it fails as `broker_connect_timeout` unless MetaApi reports a refusal. The
-wake names what was observed and the usual fixes (a wrong password, or the server name
-exactly as the MT5 app shows it now). A `broker_connect` for a login with a saved
-connection on another server of the same broker (the server name's part before the
-first "-") raises a new-password card for that connection instead: the card says it
-moves the connection, MetaApi's account gets the new server, and the connection records
-it; never a second connection. A plain new password never changes the server. The same
+before that, it fails as `broker_connect_timeout` unless MetaApi reports a refusal. While
+MetaApi is still deploying or undeploying the account (it reads DEPLOYING or UNDEPLOYING,
+or refuses a deploy or redeploy because the account "is in the process of being"
+deployed, undeployed or redeployed: `broker_provisioning_busy`), a pass only waits; the
+card fails as `broker_provisioning_busy` only when the whole wait ends. An account the
+token already had gets the card's password and a redeploy: once MetaApi stores that
+password (`password_stored`), a later pass does not send it again but only redeploys,
+until MetaApi takes the redeploy (`password_set`), also when the terminal logged in again
+with its earlier password meanwhile. A redeploy is recorded as
+sent before it goes out (`redeploy_sent`; a busy refusal of the first one clears it): one
+whose answer was lost is not sent again once MetaApi reports the terminal deployed and
+logged in. The pass that redeploys does not read the outcome from that call (MetaApi
+answers once the redeploy is scheduled); the next pass reads the account. A connect card
+that fails with the password stored but no redeploy confirmed says so in its wake: the
+terminal logs in with what it was last deployed with until it is redeployed. The wake
+names what was observed and, for a login MetaApi reports failing, the usual fixes (a
+wrong password, or the server name exactly as the MT5 app shows it now). Every code that
+can end a broker card, or a connection's first account read, has a fixed cause in
+`BROKER_CAUSES` (`lonora_db/secret_cards.py`) saying only what MetaApi or Lonora
+observed: a MetaApi refusal, timeout or busy answer says that nothing at the broker
+judged the login. Every wake but a confirmed connection tells the agent to name no cause
+beyond that text and to quote the account login exactly as written
+(`tests/test_secret_card.py` walks the codes, also those the secret store and the account
+read raise, such as `secret_not_found`). A new-token card's wake says that making the new
+MetaApi API token the one every MetaApi connection uses failed, not one account's credential.
+A `broker_connect` for a login with a saved connection on another server of the same
+broker (the server name's part before the first "-") raises a new-password card for that
+connection instead: the card says it moves the connection, MetaApi's account gets the new
+server, and the connection records it; never a second connection. A plain new password
+never changes the server. A new-password card stores the password at MetaApi, records it
+on the connection and the card (`password_stored`), then redeploys; while MetaApi refuses
+the redeploy as busy, the card waits and a later pass only redeploys. A card that ends
+with the password stored but no redeploy confirmed keeps the code of what stopped it, and
+its wake says so and that `broker_manage rotate_password` again (the same new password)
+redeploys it: nothing else redeploys a terminal that is running. A card whose password
+another new-password card replaced, or whose connection was disconnected, while it
+waited ends as `broker_rotation_superseded` and says neither. The same
 login number at another broker is another account, and the exact login and server
 already saved are refused. Otherwise the agent chooses its label and fields
 (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
@@ -314,6 +344,60 @@ Switching an agent to Full withdraws its pending Trade Approval cards (status
 `withdrawn`): a withdrawn card is never approved or executed, and the agent is woken
 with fixed server text to decide again under Full. A card for an agent that is deleted
 ends with it.
+
+A pause ends no card (10.3.1.3 names no pause): a paused agent's pending card stays
+pending and drift still watches it. A paused agent sends no new risk (4.7.1), so the
+owner's Approve is refused while it is paused (`trade_approval_agent_paused`, "resume
+the agent first") and the card waits for the resume; Reject still ends it. A broker wake
+of a paused agent whose card is pending, or approved and not yet sent, is held until the
+resume (`claimable_while_paused`), so an Approve given before the pause is kept, never
+spent on the door's refusal.
+
+## Full mode keeps working (mandate 4.5)
+
+An agent in Full that is not paused runs one continuous account-management Task
+(`lonora_db.management_task`), except while a signed grant's own Task drives the account,
+or after the owner cancelled or completed it or it failed for good (below). The tap that
+sets Full starts it in the same transaction;
+switching to Ask, pausing the agent or deleting it ends it, and resuming a paused agent
+in Full starts it again. A second Full tap finds the running Task and adds none; a
+mode Task that failed for good is closed before a new one starts, and one that failed
+with a retry due is the agent's Task. The Task is bound to no account: each wake reads
+the accounts connected at that moment, so an account connected later joins it and a
+disconnected one leaves it. Its Runs are ordinary Runs of the agent under its mode (the
+kickoff Run's `account_management_id` is the agent's id).
+
+Ending the Task (`close_task`) keeps what the agent set up:
+
+- A Run of the Task that is working, waiting for the owner (a question or a Trade
+  Approval card), queued after a wake, or failed leaves the Task and goes on as an
+  ordinary Run of the agent. Its cards stay decidable and end only as 10.3.1.3 says; a
+  request it is sending is decided under the agent's mode; a watch it creates afterwards
+  belongs to the agent's conversation. A paused agent's Runs wait for the owner's resume.
+- The kickoff Run that never started is cancelled. A Run suspended on its own
+  `task_wait` (or held by the owner's pause of the Task) is cancelled; a pending timer
+  becomes a one-shot routine in the agent's conversation at the same time, held while the
+  agent is paused.
+- The Task's watches move to the agent's conversation and keep watching. Routines are
+  untouched. The agent keeps managing its own positions and orders in Ask.
+- A Task the owner already asked to cancel or complete ends that way.
+
+While an active signed grant's own management Task runs for the agent, that Task drives
+the account and the Full-mode Task does not start; revoking the grant starts it, also
+when a broker connection or the conversation the grant was signed in is deleted. A
+deleted conversation is gone first, so the Task reports to the agent's own conversation:
+its oldest remaining direct conversation, or a new one when none is left. Deleting the
+agent starts none.
+
+The gateway's `management_tasks` step (every minute) catches what no tap reached. An
+agent in Full, not paused, that no grant's Task drives gets a mode Task when it has never
+had one (an agent already in Full when this shipped), or when its last one was closed by
+`close_task` (a switch to Ask, a pause, a grant's Task taking over) rather than cancelled
+or completed by the owner or left failed for good, for example once that grant expired.
+An open mode Task of an agent in Ask, or paused, ends. A mode Task the owner cancelled or
+completed, or one that failed for good, stays as it is; the next Full tap or resume
+starts a new one. The agent cannot cancel its own mode Task
+(`management_task_cancel_forbidden`); it may switch itself to Ask, which ends it.
 
 ## No model cards
 

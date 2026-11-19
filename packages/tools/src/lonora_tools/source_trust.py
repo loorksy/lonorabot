@@ -25,7 +25,7 @@ from lonora_db.schema import MessageRow, RunRow, SteeringRow
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .provenance import owner_message_id
+from .provenance import attachment_hint, owner_message_id
 
 CODE = "trust_requires_owner_message"
 # Not after a word character, a dot, "@" or "-", nor right after "word/" (a longer path).
@@ -88,8 +88,10 @@ async def owner_named(
     )
 
 
-def refusal(**facts: Any) -> dict[str, Any]:
-    """Nothing trusted: only the owner's own words in chat trust a source."""
+async def refusal(session: AsyncSession, run: RunRow, **facts: Any) -> dict[str, Any]:
+    """Nothing trusted: only the owner's own words in chat trust a source (and when an
+    attachment on his message is why they do not stand, the refusal says so)."""
+    hint = await attachment_hint(session, run)
     return {
         "ok": False,
         "code": CODE,
@@ -97,5 +99,5 @@ def refusal(**facts: Any) -> dict[str, Any]:
         **facts,
         "recovery": "Nothing was trusted. Only the owner trusts a source: ask him to name it "
         "in chat (its domain, GitHub owner/repository or server name), then call this again "
-        "before reading anything else in that run.",
+        "before reading anything else in that run." + (" " + hint if hint else ""),
     }

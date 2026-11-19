@@ -28,6 +28,7 @@ export {
   watchCondition,
   watchUntil,
 } from "./agent-status";
+export { type AppOpenPost, appOpenReporter } from "./app-open";
 export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
 export * from "./avatar-motion";
@@ -97,6 +98,7 @@ export {
 export {
   type ConversationItem,
   conversationTimeline,
+  embeddedSlots,
   nearConversationBottom,
   SLOT_OWNER_ACTION_KINDS,
 } from "./conversation-timeline";
@@ -151,6 +153,7 @@ export {
   orderLineText,
 } from "./order-line";
 export {
+  brokerCardFailed,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -164,6 +167,7 @@ export {
   ownerActionError,
   ownerActionLabels,
   ownerActionLive,
+  ownerActionStatus,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
@@ -224,7 +228,6 @@ export {
   supervisionLabels,
   supervisionRows,
   supervisionText,
-  unsupervisedAgents,
 } from "./supervision";
 export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";

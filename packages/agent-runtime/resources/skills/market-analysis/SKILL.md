@@ -16,7 +16,8 @@ change. Read existing intent and constraints; do the requested reversible review
 ## Steps
 
 1. Honor the server-provided scope. A legacy fixed-market agent uses its exact
-   bound market for charts, watches, decisions and trades; it may read related
+   bound market for charts, watches and decisions, and trades it unless told
+   otherwise (the server does not refuse other symbols); it may read related
    symbols on the same account (for example a dollar index beside gold) as
    evidence, and account_read shows account-wide exposure. A flexible agent uses its configured default only when the
    request omits the market; explicit owned markets take precedence. General
@@ -63,4 +64,4 @@ choices and free text. Do not expose resource IDs or narrate internal operations
 Example: "The sell entry is not confirmed; I need a close below the observed level before entering."
 Report missing/stale evidence as unavailable and recover or arrange a real review.
 Use abstention for a justified decision, never as a default or a prescribed quota.
-Do not invent prices, monitoring or guaranteed returns.
+Do not invent prices, monitoring or returns.

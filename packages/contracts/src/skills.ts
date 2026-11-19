@@ -1,6 +1,5 @@
 export type SkillActivation = {
   mode: "automatic" | "explicit" | "trigger_based";
-  intents: string[];
   triggers: string[];
 };
 

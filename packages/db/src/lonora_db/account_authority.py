@@ -185,8 +185,15 @@ async def require_authority(
     return row, envelope
 
 
-async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> AccountAuthorityRow:
+async def revoke(
+    session: AsyncSession, owner_id: str, identifier: str, *, handover: bool = True
+) -> AccountAuthorityRow:
+    """``handover``: an agent in Full then runs its own continuous task (4.5). Deleting
+    the agent passes False, because the agent is going. Deleting a conversation passes
+    False too: the delete hands over once the conversation is gone (``prepare_delete``
+    returns those agents), so the task never reports to the deleted conversation."""
     from .agent_permissions import bump_permission
+    from .management_task import ensure_management_task
 
     candidate = await owned_authority(session, owner_id, identifier)
     await authority_lock(session, candidate.agent_id)
@@ -195,6 +202,8 @@ async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> Accou
     await stop_management_task(session, row)
     changed(session, row)
     await bump_permission(session, owner_id, row.agent_id)
+    if handover:
+        await ensure_management_task(session, owner_id, row.agent_id)
     return row
 
 

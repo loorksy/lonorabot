@@ -1,5 +1,6 @@
 import type { Agent } from "@lonora/contracts";
-import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { AppState, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../lib/api";
@@ -23,6 +24,11 @@ export function IncomingCallOverlay() {
   const [device, setDevice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // «الرد برسالة»: this call steps aside here and its chat opens, as Web's incoming page does.
+  const [aside, setAside] = useState<ReadonlySet<string>>(new Set());
+  const router = useRouter();
+  const asideRef = useRef(aside);
+  asideRef.current = aside;
   const text = labels[locale];
   useEffect(() => {
     if (!owner) {
@@ -43,7 +49,8 @@ export function IncomingCallOverlay() {
           return;
         }
         const rows = await api.get<IncomingCall[]>("/voice/incoming");
-        if (!disposed) setCall(visibleIncoming(rows));
+        if (!disposed)
+          setCall(visibleIncoming(rows.filter((row) => !asideRef.current.has(row.id))));
       } catch {
         /* Session recovery owns transport failures; do not spam ordinary chat. */
       } finally {
@@ -126,6 +133,16 @@ export function IncomingCallOverlay() {
           />
         </View>
       </View>
+      <Button
+        label={text.replyMessage}
+        secondary
+        disabled={busy}
+        onPress={() => {
+          setAside((old) => new Set([...old, call.id]));
+          setCall(null);
+          router.push({ pathname: "/thread", params: { id: call.thread_id } });
+        }}
+      />
     </View>
   );
 }

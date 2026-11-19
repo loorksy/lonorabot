@@ -38,7 +38,7 @@ from pydantic import Field, model_validator
 from .base import Tool, eager_for
 from .context import ToolContext
 from .profile_taint import profile_tainted
-from .provenance import owner_message_id
+from .provenance import attachment_hint, owner_message_id
 
 
 class Empty(Contract):
@@ -318,6 +318,10 @@ async def update_preferences(context: ToolContext, args: dict[str, Any]) -> dict
             return receipt.result
         message_id = await owner_message_id(session, run)
         if message_id is None:
+            hint = await attachment_hint(session, run)
+            if hint:
+                recovery = str(PREFERENCES_MESSAGE_REQUIRED["recovery"]) + " " + hint
+                return {**PREFERENCES_MESSAGE_REQUIRED, "recovery": recovery}
             return PREFERENCES_MESSAGE_REQUIRED
         # Lock before reading, so the change applies to the settings as they are now and
         # an owner save or another Agent's change that landed meanwhile is kept.
@@ -424,7 +428,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "owner_preferences_update",
-            "Set the owner's shared preferences from what he typed: reach_me (activity, notify, "
+            "Set the owner's shared preferences from what he typed: reach_me (notify, "
             "message or call: how to reach him when something needs him), reply_language (ar, "
             "en, or auto: his latest message's language), quiet hours as local HH:MM "
             "(quiet_start, quiet_end), timezone. Every Agent "

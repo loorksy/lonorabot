@@ -28,11 +28,11 @@ conversation thread, so a participant sees the request it answered there and
 nothing of the host's private thread. A persistent child Agent has its own
 identity and therefore its own scope.
 
-A supervisor also reads the threads, decisions, memory and Runs of the agents it
-supervises now, through the owner's visible, revocable supervision grant
-(`docs/supervision.md`; Lonora holds one over every agent by default). Each such
-result names the agent and is labelled untrusted; without a grant everything below
-is unchanged.
+Lonora reads the threads, decisions, memory and Runs of every team agent by its lead
+role, whatever its grant (`lonora_db.lead`); another supervisor reads those of the
+agents it supervises now, through the owner's visible, revocable supervision grant
+(`docs/supervision.md`). Each such result names the agent and is labelled untrusted;
+for any other agent everything below is unchanged.
 
 `subagent_inspect` follows the same rule for Runs
 (`lonora_agent/collaboration/subagents.py`, `delegated_by`): it returns a Run
@@ -66,8 +66,8 @@ own document keeps only its private views:
 The structured part of the profile is the reply language
 (`ln_owner_profile.reply_language`: Arabic, English, or none = the language of
 the owner's latest message) and the reach-me preference. The reach-me preference
-is the existing incoming-call policy record with a `channel` (activity only,
-notify, message or call; see `docs/incoming-attention.md`), so the call gate and
+is the existing incoming-call policy record with a `channel` (notify,
+message or call; see `docs/incoming-attention.md`), so the call gate and
 the profile can never disagree.
 
 **Reading.** `memory_read` returns the Agent's own view (`MEMORY.md` and
@@ -125,7 +125,9 @@ sections) as `profile`, and Lonora's observations as `lonora_observations`, its
 inference, ranked below his words. «ما أعرفه عنك» (`GET/POST /owner/profile/lines`,
 web and mobile) shows each line as said, observed or earlier (a revert keeps the
 origin from before the reverted change); the owner's correction or deletion is his
-word. An Agent's `patch` or `remove` that touches a line of his word or an earlier
+word. Above the lines it shows the waking habit learned from his app opens, once
+learned, with the brief time it sets; he can forget it (`GET/DELETE /app-opens`,
+`docs/morning-brief.md`). An Agent's `patch` or `remove` that touches a line of his word or an earlier
 line, without his message, gets `owner_profile_line_is_owners_word` and nothing is
 saved (8.4). A team Agent's profile write needs a
 Run that answers the owner's message (`owner_message_id`): a wake, peer or task
@@ -167,9 +169,10 @@ earlier contract: it is untrusted data.
 **Uploaded PDFs.** On upload the server extracts a PDF's text layer into a file beside it
 (`text_key`) and keeps the images of scanned pages (`page_image_keys`); the owner's
 message context and `artifact_read` read them. Text past 24,000 characters, pages past 100 and
-scans past 8 are named, never cut silently. A text file, a PDF's text layer or its scanned
-pages on the owner's message mark the Run as having read third-party content (6.10), so
-owner-only settings refuse a request written in a file; the owner's own photos do not.
+scans past 8 are named, never cut silently. Any attachment on the owner's message (a photo,
+a text file, a PDF's text layer or its scanned pages) marks the Run as having read third-party content (6.10), so
+owner-only settings refuse a request written in a file. Photos count the same way: only the
+owner's typed words are the owner's words.
 
 **Method and skill versions (VISION.md 5.5.5).** An Agent's method is its `OPERATING.md`.
 Every write that changes it is a method version, kept past the 100-revision window;
@@ -210,7 +213,8 @@ what the change did. A downgrade therefore still finds every earlier preference 
 
 Every commit to the owner profile, the structured preferences or an Agent's
 memory stores one `ln_memory_revisions` row: the text before and after, the
-author (`owner`, `agent` with its Agent id, or `system` for the merge), the owner
+author (`owner`, `agent` with its Agent id, or `system` for the merge and for the
+reach-me move of migration 0173), the owner
 message an Agent answered, the Run and the kind of change. The newest 100 are kept
 per document. The owner API lists them with a bounded line diff (or, for
 preferences, plain field changes without device identifiers):
@@ -227,11 +231,16 @@ preferences, plain field changes without device identifiers):
   wrote, nothing is saved and the answer is `memory_revert_conflict` (409): undo the
   later change first or edit the text. For preferences only the settings that
   change touched go back (undoing an Agent's "reply in Arabic" leaves a later "message
-  me instead of calling" as it is). The document is locked before anything is read.
+  me instead of calling" as it is). Undoing a change that moved the reach-me away from
+  the removed "activity only" (Lonora's own move, migration 0173, among them) saves
+  nothing, not even the other settings that change touched (`reach_me_choice_removed`,
+  409); a change made while "activity only" was chosen that left the reach-me as it was
+  still undoes what it touched. The document is locked before anything is read.
 
 On the web the profile lives in Settings: «الملف الشخصي» (`/app/owner`) edits the name, the
 form of address, the time zone and the profile text, lists what agents wrote and shows the
-change log with «استعادة»; «الإشعارات والتواصل» (`/app/notify-settings`) holds the reach-me
+change log with «استعادة» (not on a change that moved the reach-me away from "activity only",
+since its undo is refused); «الإشعارات والتواصل» (`/app/notify-settings`) holds the reach-me
 choice, quiet hours to the minute and each agent's delivery rules. The Knowledge panel
 links to both. The memory tab of each Agent shows its own history the same way. Labels and error texts come from one table in
 `@lonora/core` (`owner-profile.ts`) in Arabic and English, read by both Web

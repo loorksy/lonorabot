@@ -146,6 +146,42 @@ def test_undoing_an_older_preference_change_keeps_later_unrelated_settings():
     assert error.value.code == "incoming_call_device_required"
 
 
+def test_undoing_a_change_away_from_activity_only_says_the_choice_is_gone():
+    # History keeps «النشاط فقط» as the owner chose it (migration 0173 never rewrites it).
+    after = preferences_snapshot(
+        IncomingCallPolicy(channel="notify", quiet_start_hour=22, quiet_end_hour=6), None
+    )
+    before = json.loads(after)
+    before["reach_me"]["channel"] = "activity"
+    stored = MemoryRevisionRow(previous_content=json.dumps(before), content=after)
+    assert preference_changes(stored.previous_content, stored.content) == [
+        {"field": "reach_me", "before": "activity", "after": "notify"}
+    ]
+    with pytest.raises(LonoraError) as error:
+        undone_preferences(stored, IncomingCallPolicy(channel="notify"))
+    assert error.value.code == "reach_me_choice_removed"
+    # Refused as a whole: a reply language the same change set is not undone either.
+    with_language = MemoryRevisionRow(
+        previous_content=json.dumps(before),
+        content=json.dumps({**json.loads(after), "reply_language": "ar"}),
+    )
+    with pytest.raises(LonoraError) as error:
+        undone_preferences(with_language, IncomingCallPolicy(channel="notify"))
+    assert error.value.code == "reach_me_choice_removed"
+    # A change made while «النشاط فقط» was chosen still undoes what it touched.
+    no_quiet = {
+        key: None
+        for key in ("quiet_start_hour", "quiet_end_hour", "quiet_start_minute", "quiet_end_minute")
+    }
+    quiet = MemoryRevisionRow(
+        previous_content=json.dumps({**before, "reach_me": {**before["reach_me"], **no_quiet}}),
+        content=json.dumps(before),
+    )
+    current = IncomingCallPolicy(channel="message", quiet_start_hour=22, quiet_end_hour=6)
+    policy, _ = undone_preferences(quiet, current)
+    assert policy is not None and policy.channel == "message" and policy.quiet_start_hour is None
+
+
 def test_reach_me_checks_name_what_the_owner_should_fix():
     for payload, code in (
         ({"channel": "call"}, "incoming_call_device_required"),
@@ -829,12 +865,12 @@ async def test_a_preference_set_from_chat_while_the_owner_saves_keeps_both():
         task = await while_locked(
             db,
             owner_saving,
-            lambda: call(registry, context, "owner_preferences_update", reach_me="activity"),
+            lambda: call(registry, context, "owner_preferences_update", reach_me="notify"),
         )
         result = await task
-        assert result["reach_me"] == "activity" and result["quiet_start_hour"] == 22, result
+        assert result["reach_me"] == "notify" and result["quiet_start_hour"] == 22, result
         policy = await fixture.request("GET", "/voice/incoming/policy")
-        assert policy["channel"] == "activity" and policy["quiet_end_hour"] == 6
+        assert policy["channel"] == "notify" and policy["quiet_end_hour"] == 6
     finally:
         await reset_profile(fixture)
         await fixture.close()
@@ -899,7 +935,7 @@ async def test_undoing_an_older_change_keeps_every_later_change():
                 "reply_language": "ar",
                 "reach_me": {
                     **{key: value for key, value in policy.items() if key != "enabled"},
-                    "channel": "activity",
+                    "channel": "notify",
                     "quiet_start_hour": 22,
                     "quiet_end_hour": 6,
                 },
@@ -913,7 +949,7 @@ async def test_undoing_an_older_change_keeps_every_later_change():
         await fixture.request("POST", f"/memory/revisions/{first['id']}/revert", {})
         profile = await fixture.request("GET", "/owner/profile")
         assert profile["reply_language"] is None
-        assert profile["reach_me"]["channel"] == "activity"
+        assert profile["reach_me"]["channel"] == "notify"
         assert profile["reach_me"]["quiet_start_hour"] == 22
         # A reach-me check the owner can act on keeps its own code.
         refused = await fixture.client.put(

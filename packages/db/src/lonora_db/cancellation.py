@@ -18,6 +18,14 @@ async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRo
     row = await session.get(RunRow, run_id, with_for_update=True, populate_existing=True)
     if row is None:
         raise LonoraError("run_not_found", 404)
+    await cancel_locked(session, thread.owner_id, row)
+    return row
+
+
+async def cancel_locked(session: AsyncSession, owner_id: str, row: RunRow) -> None:
+    """Cancel a Run the caller holds locked, and its unfinished children: its stream ends,
+    its lease is fenced off, clients are told (``run.cancelled``) and a card send it never
+    started is marked so."""
     if row.status not in TERMINAL:
         row.status = "cancelled"
         settle_stream(row, "cancelled")
@@ -26,7 +34,7 @@ async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRo
         row.updated_at = utcnow()
         emit(
             session,
-            thread.owner_id,
+            owner_id,
             "run.cancelled",
             thread_id=row.thread_id,
             agent_id=row.agent_id,
@@ -49,4 +57,3 @@ async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRo
         settle_stream(child, "cancelled")
         child.lease_fence += 1
         child.lease_expires_at = None
-    return row

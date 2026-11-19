@@ -44,8 +44,11 @@ Reconciliation (`reconcile_broker_account`) compares broker snapshots and marks 
 change `external` when no journaled Lonora operation explains it: a stop-loss or
 take-profit hit, a manual close or edit. `attributed_agent` in
 `lonora_trading/manual_activity.py` then reads the journal, newest first: the Agent
-whose sent operation opened the ticket (by the broker id or the operation id the
-ticket carries), else the latest Agent that managed it. The Agent comes from the
+whose sent operation opened the ticket, by the keys the door's `entry_holder` reads
+(the operation id or its broker tag the ticket carries, else its order's ticket:
+`details.order_id`, or the simulation's broker id; never a position id in its result,
+which on a netting account is the position the order added to), else the latest Agent
+that managed it. The Agent comes from the
 executor's own `details.execution.agent_id`, written from the fenced Run, never from
 broker data. Each `BrokerActivity` carries that `agent_id` (None for the owner's
 manual activity).
@@ -60,13 +63,20 @@ manual activity).
   approval card in its conversation.
 - Unattributed activity (the owner's own) goes to the Personal Agent, as before, with
   `authority: observe_only`.
-- Activity of a paused, delegated or missing Agent falls back to the Personal Agent,
-  observe-only.
+- Activity of a delegated or missing Agent falls back to the Personal Agent,
+  observe-only. A paused Agent is woken for its own positions and orders, with its
+  normal authority, and the door sends only its risk-reducing requests (mandate 4.7.1;
+  the wake's prompt says so). A paused Personal Agent is not woken for unattributed
+  activity.
 
 Run identities are stable (`external:<revision>` for the Personal Agent,
 `external:<revision>:<agent>` for an attributed one), so a repeated reconciliation
-creates no second wake. The owner's attention item for an attributed change opens
-the responsible Agent's conversation.
+creates no second wake. A change that wakes an agent raises no attention item: the
+woken agent's reply is the owner's news, and an agent with nothing new stays silent
+(VISION 11.5). A change no agent can be woken for (Lonora paused), or whose woken run
+(or the background follow-up that continues its work) fails before that work replied, is
+an attention item: in the responsible Agent's conversation for an attributed change,
+otherwise in Lonora's.
 
 An opportunity transition (`wake_opportunity` in `opportunities.py`) is the Agent's own
 work, so its wake also carries normal authority.
@@ -118,10 +128,9 @@ decision history, opportunities, performance reads, sizing and
 relationships. The read guard is the registry's own effect metadata
 (`guard_market_tool(..., read=tool.read_only)`). Mutations keep the binding:
 `agent_trading_account_mismatch` and `agent_trading_symbol_mismatch` now come only
-from charts, watches, decisions, opportunity and relationship records and
-financial tools, and the executor asserts the binding of every leased
-request. `in_execution_scope` on accounts, positions and orders shows what the agent
-may execute. See
+from charts, watches, decisions, opportunity and relationship records; orders are not
+bound (mandate 3.1.2, 6.9), and the catalog and account reads carry a `focus_pair`
+note. See
 [market-analysis.md](market-analysis.md#readable-and-executable-scope-of-fixed-market-agents).
 
 Trading decisions on owner accounts are shared operational records: decision history,
@@ -131,8 +140,8 @@ reader recorded it). Agents' private memory stays private.
 ## Agents alert the owner
 
 `owner_notify` creates an owner attention item under the reach-me rules (dedupe, a
-rate limit, quiet hours, "activity only"), and `owner_call_request` can target it. An
-agent-declared critical alert passes quiet hours and "activity only"; beyond
+rate limit, quiet hours), and `owner_call_request` can target it. An
+agent-declared critical alert passes quiet hours; beyond
 `CRITICAL_LIMIT_PER_HOUR` (6) critical alerts per owner and rolling hour, across every
 agent, a critical alert counts as an important change.
 Delivery is in-app only until Wave 3. See
@@ -149,12 +158,15 @@ Delivery is in-app only until Wave 3. See
   observe-only, attributed broker and opportunity wakes read their conversation; a
   stop-loss hit on a simulation position an Agent opened wakes that Agent with normal
   authority, the owner's manual position wakes the Personal Agent, a repeated
-  reconciliation wakes nobody twice; a paused Agent's activity falls back to the
-  Personal Agent once; a fixed-market Agent reads another account (its other-symbol
-  records and decisions unfiltered) and is refused trading and watches there;
+  reconciliation wakes nobody twice; a paused Agent is still woken once for its own
+  ticket and a paused Personal Agent not for unattributed activity
+  (`test_a_paused_agent_still_wakes_for_its_own_tickets`, and `tests/test_paused_agent.py`
+  for what that wake may send); a fixed-market Agent reads another account (its
+  other-symbol records and decisions unfiltered), its trade there asks for a card like
+  any other, and it is refused watches there;
   `owner_notify` dedupe, quiet
   hours, critical bypass,
-  activity only, the rate limit and a call request from the wake.
+  the rate limit and a call request from the wake.
 - `tests/test_tool_discovery.py`: the eager budget for every scope, helper and
   observe-only membership, and the financial refusal before any work.
 - `tests/check_opportunity_runtime.py`: one opportunity wake with normal authority.
@@ -175,8 +187,16 @@ Delivery is in-app only until Wave 3. See
 - Attribution reads the newest 1000 live journal rows of the account; an older
   position whose opening operation fell out of that window is unattributed and wakes
   the Personal Agent observe-only.
-- An attributed wake that finds its Agent paused falls back to the Personal Agent; the
-  paused Agent is not woken when it resumes.
+- An attributed wake of a paused Agent runs while it is paused, for its own tickets
+  only; its other runs (routines, watches, timers, Tasks) wait for the resume, and the
+  owner's messages to it are kept and start no run. So does the wake itself while its
+  Trade Approval card is pending or approved and not yet sent, and the owner's answer
+  to a question it asks (the wake's prompt says so). The resume, whoever makes it,
+  queues one run in each conversation where the owner sent the Agent messages while it
+  was paused (in a group, those that addressed it), admitted as the latest of them would
+  have been, with the owner's message as its trigger: when that latest message is a
+  reply to the wake's question, or the next message right after it, it answers it
+  (`docs/supervision.md`).
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
-  runs and memory through its default, revocable supervision grant, on demand.
+  runs and memory by its lead role, whatever its grant, on demand.

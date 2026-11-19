@@ -112,16 +112,15 @@ class IntegrationRepository(ResourceRepository):
 
 
 async def subscribed_feed(session: AsyncSession, owner_id: str, url: str) -> IntegrationRow | None:
-    rows = await session.scalars(
-        select(IntegrationRow).where(IntegrationRow.owner_id == owner_id).limit(500)
-    )
-    return next(
-        (
-            row
-            for row in rows
-            if row.payload.get("type") == "news_feed" and row.payload.get("url") == url
-        ),
-        None,
+    return await session.scalar(
+        select(IntegrationRow)
+        .where(
+            IntegrationRow.owner_id == owner_id,
+            IntegrationRow.payload["type"].as_string() == "news_feed",
+            IntegrationRow.payload["url"].as_string() == url,
+        )
+        .order_by(IntegrationRow.created_at, IntegrationRow.id)
+        .limit(1)
     )
 
 
