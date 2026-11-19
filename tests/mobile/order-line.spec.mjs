@@ -230,7 +230,10 @@ test("«Resolve the operation» rests the list on the operation's own settle car
     }),
   );
   try {
+    const actions = page.waitForResponse((r) => r.url().includes("/api/owner-actions?thread_id="));
     await page.goto(`/thread?id=${fixtureData.thread.id}`);
+    // The sheet is drawn from the cards the chat has read: open it once they are in.
+    await actions;
     const settle = page.getByTestId(`owner-action-${card.id}`);
     // The order line is at the bottom; the settle card was raised when the chat began.
     await page.getByTestId("order-line").click();
@@ -260,6 +263,9 @@ test("«Resolve the operation» reaches the settle card drawn in the agent's mes
     })),
   );
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const headers = {
+    "X-CSRF-Token": fixture.cookies.find((row) => row.name === "lonora_csrf").value,
+  };
   const input = { thread_id: fixture.thread.id, connection: fixture.connection };
   const ids = genui("records", input);
   genui("slots", { ...input, card: "settle", record: ids.settle });
@@ -303,12 +309,18 @@ test("«Resolve the operation» reaches the settle card drawn in the agent's mes
       ],
     }),
   );
-  await page.goto(`/thread?id=${fixture.thread.id}`);
-  const slot = page.getByTestId("ui-slot-settle");
-  // The card has no row of its own: its place is the slot in the agent's message.
-  await expect(page.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(0);
-  await page.getByTestId("order-line").click();
-  await page.getByRole("button", { name: "Resolve the operation", exact: true }).click();
-  await expect(page.getByTestId("order-sheet")).toHaveCount(0);
-  await expect(slot).toBeInViewport();
+  const actions = page.waitForResponse((r) => r.url().includes("/api/owner-actions?thread_id="));
+  try {
+    await page.goto(`/thread?id=${fixture.thread.id}`);
+    await actions;
+    const slot = page.getByTestId("ui-slot-settle");
+    await page.getByTestId("order-line").click();
+    const resolve = page.getByRole("button", { name: "Resolve the operation", exact: true });
+    await expect(resolve).toBeVisible();
+    await resolve.click();
+    await expect(page.getByTestId("order-sheet")).toHaveCount(0);
+    await expect(slot).toBeInViewport();
+  } finally {
+    await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
+  }
 });

@@ -869,6 +869,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
   }, [around, loaded, visibleMessages, approvals, ownerActions, journal, id, undrawn]);
 
+  // The order the sheet shows: drawn again when the chat's cards change, so «حسم العملية»
+  // appears (or goes) with the card even when the sheet opened before the cards were read.
+  const orderShown = useRef<Journal | null>(null);
+  const reopenOrder = useRef<((row: Journal) => void) | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the cards are the change signal
+  useEffect(() => {
+    if (sheets.current === "order" && orderShown.current) reopenOrder.current?.(orderShown.current);
+  }, [ownerActions]);
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const agent = agents.find((value) => value.id === thread?.agent_id);
@@ -887,6 +895,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   timelineRef.current = timeline;
   /** The order sheet; «حسم العملية» rests the list on the operation's own settle card. */
   const openOrder = (row: Journal) => {
+    orderShown.current = row;
     const settle = ownerActions.find(
       (card) =>
         card.kind === "resolve_operation" &&
@@ -924,6 +933,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       ),
     });
   };
+  reopenOrder.current = openOrder;
   const send = async (mentions?: MentionAddress, followUp?: string) => {
     if (
       sendLocks.current.has(outboxKey) ||
