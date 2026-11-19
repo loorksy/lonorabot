@@ -50,7 +50,11 @@ test("Expo Arabic attention view lists what needs the owner and opens its conver
       ],
     });
   });
+  // The 50 newest open items may hold none of the view's rows (an old card under newer
+  // updates): the tab's dot follows the view itself.
+  await page.route("**/api/attention", (route) => route.fulfill({ json: [] }));
   await page.goto("/");
+  await expect(page.getByTestId("tab-updates")).toHaveAttribute("aria-label", /جديد/);
   await page.getByTestId("tab-updates").click();
   // «يحتاج انتباهك» (11.7): the same server view as the web, in Arabic.
   const view = page.getByTestId("attention-view");

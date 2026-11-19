@@ -88,4 +88,5 @@ projection with no model: `GET /attention/view` (`attention_view`, `AttentionVie
   conversation, where the fixed card or the question stands; opening it decides
   nothing. Opening an alert (an agent's or the watchdog's) marks it read, so it leaves
   the list.
-- The tab's dot shows while an item the view lists is unread (`inAttentionView`).
+- The tab's dot shows while the view lists anything: both clients read `GET /attention/view`
+  for it, so a card or a waiting question lights it however old it is.

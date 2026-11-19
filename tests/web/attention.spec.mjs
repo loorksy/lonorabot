@@ -39,12 +39,16 @@ test("the attention view lists what needs the owner, opens its conversation and 
     await held;
     await route.continue();
   });
+  // The 50 newest open items may hold none of the view's rows (an old card under newer
+  // updates): the tab's dot follows the view itself.
+  await page.route("**/api/attention", (route) => route.fulfill({ json: [] }));
   await page.goto("/app/updates");
   const main = page.getByRole("main");
   await expect(main.locator(".sk-page[aria-busy='true']")).toBeVisible();
   release();
   await expect(main.locator(".sk-page")).toHaveCount(0);
   await expect(page.getByTestId("attention-view")).toBeVisible();
+  await expect(page.locator('[data-rail="updates"] .rail-dot')).toBeVisible();
   // The uncertain trade: owner text, the agent that placed it and the symbol, no raw id.
   const uncertain = page.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
   await expect(

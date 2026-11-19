@@ -3,6 +3,7 @@
 import type {
   Agent,
   AttentionNotification,
+  AttentionViewRow,
   ChatList,
   Group,
   InboxEntry,
@@ -34,6 +35,8 @@ export type ShellData = {
   threadSettings: ThreadSettings | null;
   runs: Run[];
   attention: AttentionNotification[];
+  /** How many rows «يحتاج انتباهك» lists now (GET /attention/view): the tab's dot. */
+  attentionListed: number;
   busyIds: Set<string>;
   /** False until the first inbox read of this owner landed. */
   loaded: boolean;
@@ -65,6 +68,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
   const [threadSettings, setThreadSettingsState] = useState<ThreadSettings | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [attention, setAttention] = useState<AttentionNotification[]>([]);
+  const [attentionListed, setAttentionListed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   // Local confirmed writes bump this; a primary read that started before the last one is dropped.
@@ -77,6 +81,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     setGroups(cached?.groups ?? []);
     setRuns(cached?.runs ?? []);
     setAttention(cached?.attention ?? []);
+    setAttentionListed(0);
     setChatListsState([]);
     setThreadSettingsState(null);
     setLoadedOwner(cached ? currentOwner.current : undefined);
@@ -125,7 +130,14 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
           setRuns(nextRuns);
           setAttention(nextAttention);
         });
-        await Promise.all([primary, auxiliary]);
+        // A failed read of the view keeps the last dot; the view itself says why.
+        const listed = api
+          .get<AttentionViewRow[]>("/attention/view")
+          .then((rows) => {
+            if (current()) setAttentionListed(rows.length);
+          })
+          .catch(() => undefined);
+        await Promise.all([primary, auxiliary, listed]);
       } catch (reason) {
         if (stillLive() && requestOwner === currentOwner.current) {
           setError(reportError.current(reason));
@@ -217,6 +229,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       threadSettings,
       runs,
       attention,
+      attentionListed,
       busyIds,
       loaded: Boolean(owner) && loadedOwner === owner?.id,
       offline,
@@ -234,6 +247,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       threadSettings,
       runs,
       attention,
+      attentionListed,
       busyIds,
       owner,
       loadedOwner,

@@ -1,9 +1,11 @@
-import type { AttentionNotification } from "@lonora/contracts";
+import type { AttentionNotification, AttentionViewRow } from "@lonora/contracts";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 type Attention = {
   items: AttentionNotification[];
+  /** What «يحتاج انتباهك» lists now (GET /attention/view): the tab's dot shows while it lists any. */
+  view: AttentionViewRow[];
   error: unknown;
   seen: (id: string) => Promise<void>;
   /** Read the open items again (after «تحديد الكل كمقروء»). */
@@ -18,6 +20,7 @@ export function AttentionProvider({
   children: ReactNode;
 }) {
   const [items, setItems] = useState<AttentionNotification[]>([]);
+  const [view, setView] = useState<AttentionViewRow[]>([]);
   const [error, setError] = useState<unknown>();
   const [manual, setManual] = useState(0);
   useEffect(() => {
@@ -54,6 +57,13 @@ export function AttentionProvider({
       .catch((cause) => {
         if (active) setError(cause);
       });
+    void api
+      .get<AttentionViewRow[]>("/attention/view")
+      .then((rows) => {
+        if (active) setView(rows);
+      })
+      // A failed read keeps the last dot; the page itself says why it cannot load.
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -62,10 +72,12 @@ export function AttentionProvider({
     <Context.Provider
       value={{
         items,
+        view,
         error,
         seen: async (id) => {
           await api.post("/attention/seen", { notification_id: id });
           setItems((rows) => rows.filter((row) => row.id !== id));
+          setView((rows) => rows.filter((row) => row.id !== id));
         },
         refresh: () => setManual((value) => value + 1),
       }}

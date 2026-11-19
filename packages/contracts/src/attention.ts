@@ -102,16 +102,6 @@ export type AttentionViewKind =
   | "task_review"
   | "agent_alert"
   | "system_alert";
-/** Whether an item of this code is listed in the attention view (the tab's dot). */
-export function inAttentionView(code: AttentionCode): boolean {
-  return (
-    code in ATTENTION_EVENTS ||
-    code === "task_review" ||
-    code === "agent_notification" ||
-    code === "operation_unresolved" ||
-    code === "run_quarantined"
-  );
-}
 /** One row of GET /attention/view; it opens its conversation, and opening decides nothing. */
 export interface AttentionViewRow {
   kind: AttentionViewKind;
