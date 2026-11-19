@@ -14,8 +14,7 @@ export function userError(error: unknown) {
   const code = errorCode(error);
   const permissionMessage = agentPermissionError(code, i18n.locale);
   if (permissionMessage) return permissionMessage;
-  // Money limits and boundary blocks: why nothing was
-  // sent, in text shared with Mobile (@lonora/core).
+  // Boundary blocks: why nothing was sent, in text shared with Mobile (@lonora/core).
   const boundaryMessage = financialBoundaryError(code, i18n.locale);
   if (boundaryMessage) return boundaryMessage;
   const cardMessage = ownerActionError(code, i18n.locale);
@@ -31,10 +30,6 @@ export function userError(error: unknown) {
       return t`Choose a complete market scope and reload the saved settings before continuing.`;
     case "collaboration_round_limit":
       return t`This collaboration has used all its rounds. Mention the agents in a new message to start a new one.`;
-    case "risk_currency_required":
-      return t`Amount limits are in the account currency: enter it to save.`;
-    case "trading_day_timezone_invalid":
-      return t`Choose a valid time zone for the trading day.`;
     case "input_answer_invalid":
       return t`Choose an available answer.`;
     case "input_answer_expired":
@@ -150,9 +145,11 @@ export function userError(error: unknown) {
     case "broker_account_mismatch":
       return t`Broker data does not match the selected account. Nothing was sent.`;
     case "broker_account_undeployed":
-      return t`The broker connection is stopped at the connection provider. Start it there, then retry.`;
+      return t`The broker account is not running at MetaApi. Ask Lonora in chat to start it.`;
     case "broker_account_not_ready":
-      return t`The broker account is not ready at the connection provider. Check its status, then retry.`;
+      return t`The broker account is not ready at MetaApi yet. If it lasts, ask Lonora in chat.`;
+    case "broker_login_rejected":
+      return t`The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat.`;
     case "broker_credentials_rejected":
       return t`Broker authentication was rejected.`;
     case "broker_candles_timeout":
