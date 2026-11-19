@@ -14,12 +14,16 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``card``    the same for a card the journey writes (``owner``, ``lead``, ``document``).
 ``pad``     ``count`` plain assistant messages at the end of the thread, so an earlier
             message falls outside the newest history page.
-``records`` a pending Trade Approval, a resolve card for an uncertain operation and a
-            Secret card in the conversation, as their own paths raise them; prints ids.
+``records`` a pending Trade Approval, a resolve card for an uncertain operation, the agent's
+            Mandate card and a Secret card in the conversation, as their own paths raise
+            them; prints ids.
 ``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
             trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
             to give the slot; with ``number``, also the agent's own Number field, whose Enter
             must never reach the slot's buttons.
+``tallest_mandate`` the conversation's agent with every line its Mandate card can show: an
+            80-character name (the contract's longest) and an active signed grant; it is in
+            Ask, whose line is the longer.
 """
 
 import asyncio
@@ -370,7 +374,24 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
                     "destination": "workspace",
                 },
             )
-            ids = {"approval": approval.id, "settle": settle.id, "secret": secret.id}
+            mandate = await create_card(
+                session,
+                thread.owner_id,
+                card_id=uuid4().hex,
+                agent_id=thread.agent_id,
+                thread=thread,
+                run_id=None,
+                source="agent",
+                kind="trading_mode",
+                subject="trading_mode:" + thread.agent_id,
+                payload={"agent_id": thread.agent_id},
+            )
+            ids = {
+                "approval": approval.id,
+                "settle": settle.id,
+                "secret": secret.id,
+                "mandate": mandate.id,
+            }
             if data.get("broker"):
                 # A broker card as broker_connect raises it: two fixed fields and the
                 # account line (lonora_db.secret_cards.broker_card_payload).
@@ -443,6 +464,36 @@ async def slots(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+async def tallest_mandate(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.schema import AccountAuthorityRow, AgentRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"])
+            assert thread is not None and thread.agent_id is not None
+            agent = await session.get(AgentRow, thread.agent_id)
+            assert agent is not None and agent.trading_mode == "ask"
+            agent.name = (
+                "وكيل الذهب والفضة والنفط والعملات الرئيسية في جلستي لندن ونيويورك وفي جلسة طوكيو"
+            )
+            session.add(
+                AccountAuthorityRow(
+                    owner_id=thread.owner_id,
+                    agent_id=agent.id,
+                    thread_id=thread.id,
+                    account_id=data["connection"],
+                    status="active",
+                    envelope={"account_id": data["connection"]},
+                    envelope_hash="hash",
+                    activation_expires_at=utcnow(),
+                )
+            )
+        return {}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
     command = sys.argv[1]
     payload = json.loads(sys.stdin.read() or "{}")
@@ -455,5 +506,6 @@ if __name__ == "__main__":
         "pad": pad,
         "records": records,
         "slots": slots,
+        "tallest_mandate": tallest_mandate,
     }[command]
     print(json.dumps(asyncio.run(action(payload))))

@@ -58,4 +58,13 @@ async def slot_records(
         found[("secret", identity)] = (
             len(cast(list[Any], fields)) if isinstance(fields, list) else 0
         )
+    mandates = await session.scalars(
+        select(OwnerActionRow.id).where(
+            OwnerActionRow.id.in_(wanted),
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.thread_id == thread_id,
+            OwnerActionRow.kind == "trading_mode",
+        )
+    )
+    found |= {("mandate", identity): 0 for identity in mandates}
     return found
