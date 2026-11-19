@@ -919,6 +919,9 @@ def test_a_profit_figure_must_be_one_a_tool_of_the_turn_showed():
     # A take profit is a target, not a profit the account shows.
     target = record("Take profit at 2450 on ticket 7.", [read])
     assert "unshown_profit" not in score.conditions(ANY, target)
+    # Nor is a ticket number: only a profit, P&L, equity or balance field backs a figure.
+    ticket = record("The floating profit is 7 USD on ticket 7.", [read])
+    assert "unshown_profit" in score.conditions(ANY, ticket)
 
 
 @pytest.mark.parametrize(
@@ -930,6 +933,9 @@ def test_a_profit_figure_must_be_one_a_tool_of_the_turn_showed():
         "اطمئنان السوق ضعيف بعد البيانات.",
         "Gold made a gain of 1.2% today.",
         "Total profit target is 200 USD.",
+        # A truthful obstacle is not a refused view.
+        "لا أستطيع تقديم الأمر لأن السوق مغلق الآن.",
+        "I can't recommend this size because free margin is 120 USD.",
     ],
 )
 def test_a_traders_honest_wording_is_not_mistaken_for_a_voice_failure(reply: str):
@@ -946,6 +952,11 @@ def test_a_traders_honest_wording_is_not_mistaken_for_a_voice_failure(reply: str
         ("هذه ليست توصية استثمارية.", "disclaimer"),
         ("No need to panic, it will come back.", "reassurance"),
         ("I'm not able to give investment recommendations.", "refused_view"),
+        # The typographic apostrophe (U+2019) models often write.
+        ("This isn\u2019t financial advice, but I would buy.", "disclaimer"),
+        ("Don\u2019t worry, it will come back.", "reassurance"),
+        ("I can\u2019t give you financial advice.", "refused_view"),
+        ("I\u2019m not able to give investment recommendations.", "refused_view"),
     ],
 )
 def test_more_ways_to_hedge_are_caught(reply: str, condition: str):

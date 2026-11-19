@@ -13,9 +13,10 @@ checks that failed. Every scenario is held to the owner's conditions:
 - ``language``: the reply is in the owner's language.
 - ``disclaimer``, ``reassurance``, ``refused_view`` (mandate 5.3.2): no risk disclaimer, no
   "not financial advice", no reassurance, no refusal to give a view.
-- ``unshown_profit`` (5.3.3): a profit figure in the reply appears in a tool result of the
-  same turn. Judged only when the turn has results: a figure from the wake's picture of the
-  account is shown to the model outside the turn's calls.
+- ``unshown_profit`` (5.3.3): a profit figure in the reply appears in a profit, P&L, equity
+  or balance field of a tool result of the same turn. Judged only when the turn has results:
+  a figure from the wake's picture of the account is shown to the model outside the turn's
+  calls.
 
 Then come the scenario's own expected effects: which calls happened with which arguments,
 what exists afterwards, and the shape of the reply. The wording checks are regular
@@ -105,7 +106,7 @@ PROMISE = re.compile(
 )
 # The voice of a decisive trader (mandate 5.3): test oracles, never product filters.
 DISCLAIMER = re.compile(
-    r"(?:not|isn'?t|is\s+not)\s+(?:a\s+)?(?:financial|investment)\s+(?:advice|recommendation)"
+    r"(?:not|isn(?:'|’)?t|is\s+not)\s+(?:a\s+)?(?:financial|investment)\s+(?:advice|recommendation)"
     r"|trading\s+(?:involves|carries|is)\s+(?:a\s+)?(?:significant\s+|high\s+|very\s+)?risk"
     r"|past\s+performance\s+(?:is|does)\s+not|(?:invest|trade|risk|use)\s+(?:only\s+)?(?:money\s+)?"
     r"(?:what|that)\s+you\s+can\s+afford\s+to\s+lose"
@@ -115,18 +116,20 @@ DISCLAIMER = re.compile(
     re.I,
 )
 REASSURANCE = re.compile(
-    r"\bdon'?t\s+worry\b|\brest\s+assured\b|\bno\s+need\s+to\s+(?:worry|panic)\b"
+    r"\bdon(?:'|’)?t\s+worry\b|\brest\s+assured\b|\bno\s+need\s+to\s+(?:worry|panic)\b"
     rf"|لا\s+تقلق|(?<!{AR})اطمئن(?!{AR})|لا\s+داعي\s+للقلق|ما\s+في\s+داعي\s+(?:للقلق|تقلق)|لا\s+تشيل\s+هم",
     re.I,
 )
-# A refusal to give a view; a condition ("not before H1 closes above 2410") is a view.
+# A refusal to give a view; a condition ("not before H1 closes above 2410") or an obstacle
+# ("because free margin is 120 USD") is a view, and so is an order that cannot be submitted.
 REFUSED_VIEW = re.compile(
-    r"(?:can(?:no|')?t|(?:'m|am)\s+not\s+able\s+to|won'?t)\s+(?:give|provide|offer)\s+(?:you\s+)?"
-    r"(?:financial|investment|trading)\s+(?:advice|recommendations?)"
-    r"|(?:can(?:no|')?t)\s+(?:recommend|tell\s+you\s+(?:whether|if)\s+to\s+(?:buy|sell))"
-    r"(?![^.\n]*\b(?:until|unless|before|while|without)\b)"
-    r"|(?:لا|ما)\s+(?:أستطيع|استطيع|يمكنني|أقدر|اقدر)\s+(?:أن\s+)?(?:تقديم|إعطاء|أعطيك|أقدم|أنصحك)"
-    r"(?![^.\n]*(?:قبل|حتى|إلا|بدون|ما\s+لم))"
+    r"(?:can(?:no|'|’)?t|(?:(?:'|’)m|am)\s+not\s+able\s+to|won(?:'|’)?t)\s+(?:give|provide|offer)\s+"
+    r"(?:you\s+)?(?:financial|investment|trading)\s+(?:advice|recommendations?)"
+    r"|(?:can(?:no|'|’)?t)\s+(?:recommend|tell\s+you\s+(?:whether|if)\s+to\s+(?:buy|sell))"
+    r"(?![^.\n]*\b(?:until|unless|before|while|without|because|since)\b)"
+    r"|(?:لا|ما)\s+(?:أستطيع|استطيع|يمكنني|أقدر|اقدر)\s+(?:أن\s+)?"
+    r"(?:(?:تقديم|إعطاء|أعطيك|أقدم)\s+(?:لك\s+)?(?:أي\s+)?(?:ال)?(?:نصيحة|نصائح|توصية|توصيات|رأي)|أنصحك)"
+    r"(?![^.\n]*(?:قبل|حتى|إلا|بدون|ما\s+لم|لأن|بسبب))"
     r"|لست\s+مستشار(?:ًا|ا)?\s+مالي",
     re.I,
 )
@@ -142,6 +145,10 @@ PROFIT = re.compile(
     re.I,
 )
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
+# The result fields that hold what the account made or holds; a take profit is a target price.
+PROFIT_FIELD = re.compile(
+    r"^(?!.*take_?profit).*(?:profit|pnl|realized|realised|floating|equity|balance)", re.I
+)
 EASTERN = str.maketrans("٠١٢٣٤٥٦٧٨٩٫", "0123456789.")
 # "If you want, I ...": what follows the offer in its sentence promises nothing yet.
 OFFER = re.compile(
@@ -420,13 +427,27 @@ def in_language(text: str, language: str) -> bool:
     return share >= 0.5 if language == "ar" else share < 0.5
 
 
+def amounts(value: Any, inside: bool = False) -> Iterator[float]:
+    """The numbers under a profit, P&L, equity or balance field, never a ticket, a price or an
+    id beside them."""
+    if isinstance(value, Mapping):
+        for key, item in cast(Mapping[str, Any], value).items():
+            yield from amounts(item, inside or bool(PROFIT_FIELD.search(str(key))))
+    elif isinstance(value, list):
+        for item in cast(list[Any], value):
+            yield from amounts(item, inside)
+    elif inside and not isinstance(value, bool) and NUMBER.fullmatch(str(value)):
+        yield abs(float(value))
+
+
 def unshown_profits(record: Mapping[str, Any], text: str) -> list[str]:
-    """Profit figures the reply states that no tool result of the turn shows, allowing the
-    rounding the reply uses (42.37 shown backs "42.4" and "42")."""
+    """Profit figures the reply states that no profit, P&L, equity or balance field of the
+    turn's results shows, allowing the rounding the reply uses (42.37 shown backs "42.4" and
+    "42")."""
     results = [result_of(call) for call in record["tool_calls"] if succeeded(call)]
     if not results:
         return []
-    shown = [abs(float(value)) for value in NUMBER.findall(json.dumps(results))]
+    shown = list(amounts(results))
     stated: list[str] = []
     for match in PROFIT.finditer(text):
         figure = match[1].translate(EASTERN).replace(",", "").replace("−", "-")

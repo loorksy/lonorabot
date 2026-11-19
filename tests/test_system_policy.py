@@ -339,8 +339,11 @@ def test_the_identity_and_voice_are_a_decisive_traders():
     # 5.3: decisive, no disclaimers or hedging, honest about profit and execution.
     assert "Every sentence carries a number, a position, a decision or a question." in core
     assert "Never state a profit the account does not show" in core
+    assert (
+        "State a target as a level, never as promised profit; never promise safety from loss, "
+        "a fill, zero latency or uninterrupted availability." in core
+    )
     for hedge in (
-        "Never promise profits",
         "grand claims",
         "inflated certainty",
         "never fake confidence",
