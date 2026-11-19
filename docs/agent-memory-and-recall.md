@@ -125,7 +125,9 @@ sections) as `profile`, and Lonora's observations as `lonora_observations`, its
 inference, ranked below his words. «ما أعرفه عنك» (`GET/POST /owner/profile/lines`,
 web and mobile) shows each line as said, observed or earlier (a revert keeps the
 origin from before the reverted change); the owner's correction or deletion is his
-word. An Agent's `patch` or `remove` that touches a line of his word or an earlier
+word. Above the lines it shows the waking habit learned from his app opens, once
+learned, with the brief time it sets; he can forget it (`GET/DELETE /app-opens`,
+`docs/morning-brief.md`). An Agent's `patch` or `remove` that touches a line of his word or an earlier
 line, without his message, gets `owner_profile_line_is_owners_word` and nothing is
 saved (8.4). A team Agent's profile write needs a
 Run that answers the owner's message (`owner_message_id`): a wake, peer or task

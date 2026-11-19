@@ -46,7 +46,7 @@ msgid "{0} B"
 msgstr "{0} B"
 
 #. placeholder {0}: Math.round(minutes / 1440)
-#: src/shell/settings/OwnerPage.tsx:45
+#: src/shell/settings/OwnerPage.tsx:47
 msgid "{0} days ago"
 msgstr "{0} days ago"
 
@@ -66,7 +66,7 @@ msgid "{0} GB"
 msgstr "{0} GB"
 
 #. placeholder {0}: Math.round(minutes / 60)
-#: src/shell/settings/OwnerPage.tsx:43
+#: src/shell/settings/OwnerPage.tsx:45
 msgid "{0} h ago"
 msgstr "{0} h ago"
 
@@ -182,7 +182,7 @@ msgstr "{label}. Tap to call back"
 msgid "{linked} linked"
 msgstr "{linked} linked"
 
-#: src/shell/settings/OwnerPage.tsx:42
+#: src/shell/settings/OwnerPage.tsx:44
 msgid "{minutes} min ago"
 msgstr "{minutes} min ago"
 
@@ -218,7 +218,7 @@ msgstr "{reads} read"
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/shell/Shell.tsx:486
+#: src/shell/Shell.tsx:499
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
@@ -356,7 +356,7 @@ msgstr "A new version is available"
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 
-#: src/shell/settings/OwnerPage.tsx:115
+#: src/shell/settings/OwnerPage.tsx:120
 msgid "A removed agent"
 msgstr "A removed agent"
 
@@ -1498,7 +1498,7 @@ msgstr "Camera not allowed"
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:273
-#: src/shell/settings/OwnerPage.tsx:303
+#: src/shell/settings/OwnerPage.tsx:342
 #: src/shell/settings/SettingsRoot.tsx:314
 msgid "Cancel"
 msgstr "Cancel"
@@ -1573,7 +1573,7 @@ msgstr "Card view"
 #~ msgid "Change a value to save it."
 #~ msgstr "Change a value to save it."
 
-#: src/shell/settings/OwnerPage.tsx:352
+#: src/shell/settings/OwnerPage.tsx:391
 msgid "Change log"
 msgstr "Change log"
 
@@ -2278,8 +2278,8 @@ msgstr "Copy table"
 msgid "Copy text"
 msgstr "Copy text"
 
-#: src/shell/settings/OwnerPage.tsx:289
-#: src/shell/settings/OwnerPage.tsx:323
+#: src/shell/settings/OwnerPage.tsx:328
+#: src/shell/settings/OwnerPage.tsx:362
 msgid "Correct the fact"
 msgstr "Correct the fact"
 
@@ -2600,7 +2600,7 @@ msgstr "Delete schedule"
 msgid "Delete the chats?"
 msgstr "Delete the chats?"
 
-#: src/shell/settings/OwnerPage.tsx:336
+#: src/shell/settings/OwnerPage.tsx:375
 msgid "Delete the fact"
 msgstr "Delete the fact"
 
@@ -2825,7 +2825,7 @@ msgstr "Each agent has its own permissions"
 msgid "Each member keeps its own permissions. The group has no shared financial authority."
 msgstr "Each member keeps its own permissions. The group has no shared financial authority."
 
-#: src/shell/settings/OwnerPage.tsx:188
+#: src/shell/settings/OwnerPage.tsx:204
 msgid "Earlier"
 msgstr "Earlier"
 
@@ -3370,7 +3370,15 @@ msgstr "For urgent matters: the agent calls you"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "For your account's safety, sign in again. Your conversations and drafts are saved."
 
-#: src/shell/settings/OwnerPage.tsx:223
+#: src/shell/settings/OwnerPage.tsx:302
+msgid "Forget this habit"
+msgstr "Forget this habit"
+
+#: src/shell/settings/OwnerPage.tsx:193
+msgid "Forgotten. Your morning brief is at 07:00 until you open the app on 3 days."
+msgstr "Forgotten. Your morning brief is at 07:00 until you open the app on 3 days."
+
+#: src/shell/settings/OwnerPage.tsx:239
 msgid "Form of address"
 msgstr "Form of address"
 
@@ -4574,7 +4582,7 @@ msgstr "Muted"
 #: src/pages/shell/bot-settings.tsx:99
 #: src/shell/agent/IdentityPage.tsx:164
 #: src/shell/domain/SkillsPages.tsx:309
-#: src/shell/settings/OwnerPage.tsx:210
+#: src/shell/settings/OwnerPage.tsx:226
 msgid "Name"
 msgstr "Name"
 
@@ -5125,7 +5133,7 @@ msgstr "Nothing becomes active before your passkey signature; the next step show
 msgid "Nothing is running in the workspace."
 msgstr "Nothing is running in the workspace."
 
-#: src/shell/settings/OwnerPage.tsx:347
+#: src/shell/settings/OwnerPage.tsx:386
 msgid "Nothing yet."
 msgstr "Nothing yet."
 
@@ -5185,7 +5193,7 @@ msgid "now"
 msgstr "now"
 
 #: src/pages/ActivityList.tsx:180
-#: src/shell/settings/OwnerPage.tsx:41
+#: src/shell/settings/OwnerPage.tsx:43
 msgid "Now"
 msgstr "Now"
 
@@ -5193,14 +5201,18 @@ msgstr "Now"
 msgid "Objects"
 msgstr "Objects"
 
-#: src/shell/settings/OwnerPage.tsx:191
+#: src/shell/settings/OwnerPage.tsx:207
 msgid "Observed"
 msgstr "Observed"
 
 #. placeholder {0}: fact.author_agent_name
-#: src/shell/settings/OwnerPage.tsx:190
+#: src/shell/settings/OwnerPage.tsx:206
 msgid "Observed by {0}"
 msgstr "Observed by {0}"
+
+#: src/shell/settings/OwnerPage.tsx:296
+msgid "Observed from your first app open each day"
+msgstr "Observed from your first app open each day"
 
 #. placeholder {0}: bytes(cap)
 #: src/shell/settings/DevicePages.tsx:159
@@ -5252,7 +5264,7 @@ msgstr "One model for text work"
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "One profile all your agents read, with its change log, is in Settings."
 
-#: src/shell/settings/OwnerPage.tsx:414
+#: src/shell/settings/OwnerPage.tsx:453
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 
@@ -5759,8 +5771,8 @@ msgstr "Position ID"
 msgid "Positions"
 msgstr "Positions"
 
-#: src/shell/settings/OwnerPage.tsx:250
-#: src/shell/settings/OwnerPage.tsx:360
+#: src/shell/settings/OwnerPage.tsx:266
+#: src/shell/settings/OwnerPage.tsx:399
 msgid "Preferences"
 msgstr "Preferences"
 
@@ -6306,7 +6318,7 @@ msgid "Responsible agent"
 msgstr "Responsible agent"
 
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:406
+#: src/shell/settings/OwnerPage.tsx:445
 msgid "Restore"
 msgstr "Restore"
 
@@ -6315,7 +6327,7 @@ msgstr "Restore"
 #~ msgid "Restore to version {0}"
 #~ msgstr "Restore to version {0}"
 
-#: src/shell/settings/OwnerPage.tsx:402
+#: src/shell/settings/OwnerPage.tsx:441
 msgid "Restored"
 msgstr "Restored"
 
@@ -6481,8 +6493,8 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
 #: src/shell/settings/IntegrationsPage.tsx:444
 #: src/shell/settings/NotifyPages.tsx:397
-#: src/shell/settings/OwnerPage.tsx:262
-#: src/shell/settings/OwnerPage.tsx:296
+#: src/shell/settings/OwnerPage.tsx:278
+#: src/shell/settings/OwnerPage.tsx:335
 msgid "Save"
 msgstr "Save"
 
@@ -6541,7 +6553,7 @@ msgstr "Save the settings"
 #: src/shell/settings/ModelsPage.tsx:103
 #: src/shell/settings/ModelsPage.tsx:262
 #: src/shell/settings/NotifyPages.tsx:344
-#: src/shell/settings/OwnerPage.tsx:145
+#: src/shell/settings/OwnerPage.tsx:150
 msgid "Saved"
 msgstr "Saved"
 
@@ -7740,7 +7752,7 @@ msgstr "The broker specifications are unavailable for this exact symbol."
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 
-#: src/shell/Shell.tsx:385
+#: src/shell/Shell.tsx:398
 msgid "The call ended."
 msgstr "The call ended."
 
@@ -7815,11 +7827,11 @@ msgstr "The device did not confirm. Try again."
 msgid "The existing fixed market stays unchanged until you choose a new scope."
 msgstr "The existing fixed market stays unchanged until you choose a new scope."
 
-#: src/shell/settings/OwnerPage.tsx:177
+#: src/shell/settings/OwnerPage.tsx:182
 msgid "The fact is corrected"
 msgstr "The fact is corrected"
 
-#: src/shell/settings/OwnerPage.tsx:177
+#: src/shell/settings/OwnerPage.tsx:182
 msgid "The fact is removed"
 msgstr "The fact is removed"
 
@@ -7967,7 +7979,7 @@ msgstr "the previous seven days"
 msgid "the previous thirty days"
 msgstr "the previous thirty days"
 
-#: src/shell/settings/OwnerPage.tsx:160
+#: src/shell/settings/OwnerPage.tsx:165
 msgid "The previous value is restored"
 msgstr "The previous value is restored"
 
@@ -8299,7 +8311,7 @@ msgstr "This operation will not be sent again."
 msgid "This page could not be displayed"
 msgstr "This page could not be displayed"
 
-#: src/shell/Shell.tsx:335
+#: src/shell/Shell.tsx:348
 msgid "This page is available in the development build only"
 msgstr "This page is available in the development build only"
 
@@ -8381,7 +8393,7 @@ msgstr "Tick size"
 msgid "Time"
 msgstr "Time"
 
-#: src/shell/settings/OwnerPage.tsx:234
+#: src/shell/settings/OwnerPage.tsx:250
 msgid "Time zone"
 msgstr "Time zone"
 
@@ -9152,7 +9164,7 @@ msgstr "What are you looking for?"
 #~ msgid "What happened at the broker"
 #~ msgstr "What happened at the broker"
 
-#: src/shell/settings/OwnerPage.tsx:267
+#: src/shell/settings/OwnerPage.tsx:283
 msgid "What I know about you"
 msgstr "What I know about you"
 
@@ -9222,7 +9234,7 @@ msgstr "Working"
 msgid "Working…"
 msgstr "Working…"
 
-#: src/shell/Shell.tsx:892
+#: src/shell/Shell.tsx:905
 msgid "Workspace"
 msgstr "Workspace"
 
@@ -9284,7 +9296,7 @@ msgid "Wrong code. {0} tries left"
 msgstr "Wrong code. {0} tries left"
 
 #: src/conversation/Conversation.tsx:102
-#: src/shell/settings/OwnerPage.tsx:44
+#: src/shell/settings/OwnerPage.tsx:46
 #: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "Yesterday"
@@ -9294,7 +9306,7 @@ msgstr "Yesterday"
 #: src/conversation/Message.tsx:132
 #: src/conversation/Message.tsx:151
 #: src/shell/lists/UnifiedSearch.tsx:153
-#: src/shell/settings/OwnerPage.tsx:112
+#: src/shell/settings/OwnerPage.tsx:117
 msgid "You"
 msgstr "You"
 
@@ -9335,7 +9347,7 @@ msgstr "You reached the name's maximum length"
 msgid "You rejected a request"
 msgstr "You rejected a request"
 
-#: src/shell/settings/OwnerPage.tsx:186
+#: src/shell/settings/OwnerPage.tsx:202
 msgid "You said"
 msgstr "You said"
 
@@ -9354,6 +9366,10 @@ msgstr "You stopped the reply"
 #: src/components/genui/UiCard.tsx:963
 msgid "You stopped the reply before the interface was complete"
 msgstr "You stopped the reply before the interface was complete"
+
+#: src/shell/settings/OwnerPage.tsx:293
+msgid "You usually first open Lonora around {firstOpen}; your morning brief comes at {brief}."
+msgstr "You usually first open Lonora around {firstOpen}; your morning brief comes at {brief}."
 
 #: src/shell/navigation.tsx:107
 msgid "You will lose the unsaved edits."

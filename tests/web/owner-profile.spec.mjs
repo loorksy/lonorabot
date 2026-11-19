@@ -272,6 +272,27 @@ asyncio.run(main())`,
   ]);
 }
 
+/* Five mornings at 07:30 Riyadh before today: a waking habit learned from app opens (11.1). */
+function seedOpens() {
+  execFileSync(".venv/bin/python", [
+    "-c",
+    `import asyncio, os
+from datetime import UTC, datetime, timedelta
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+async def main():
+    engine = create_async_engine(os.environ["LONORA_DATABASE_URL"])
+    today = datetime.now(UTC).date()
+    async with engine.begin() as connection:
+        for days in range(1, 6):
+            day = today - timedelta(days=days)
+            at = datetime(day.year, day.month, day.day, 4, 30, tzinfo=UTC)
+            await connection.execute(text("INSERT INTO ln_app_opens (owner_id, local_date, opened_at, timezone) SELECT id, :day, :at, 'Asia/Riyadh' FROM ln_owners ON CONFLICT (owner_id, local_date) DO UPDATE SET opened_at = excluded.opened_at, timezone = excluded.timezone"), {"day": day.isoformat(), "at": at})
+    await engine.dispose()
+asyncio.run(main())`,
+  ]);
+}
+
 /* «ما أعرفه عنك» (8.4): every profile line shows its origin; the owner corrects or deletes one,
    and the server records the change as his own word. */
 test("what I know about you lists each line with its origin, corrected or deleted", async ({
@@ -324,4 +345,63 @@ test("what I know about you lists each line with its origin, corrected or delete
   ]);
   const revisions = await (await context.request.get("/api/owner/profile/revisions")).json();
   expect(revisions[0]).toMatchObject({ author: "owner", change: "correction" });
+});
+
+/* The waking habit learned from app opens is in «ما أعرفه عنك» (8.4) with the brief time it
+   sets; the owner forgets it, and the brief is at 07:00 again. */
+test("what I know about you shows the learned waking habit, which the owner forgets", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  // Start from no recorded opens: earlier tests opened the app at their own times.
+  expect((await context.request.delete("/api/app-opens", { headers: owner.headers })).ok()).toBe(
+    true,
+  );
+  seedOpens();
+  await page.goto("/app/owner");
+  const habit = page
+    .locator(".pf-known .row")
+    .filter({ hasText: "You usually first open Lonora around 07:30; your morning brief comes at" });
+  await expect(habit).toContainText("Observed from your first app open each day");
+  await habit.getByRole("button", { name: "Forget this habit", exact: true }).click();
+  await expect(
+    page.getByText("Forgotten. Your morning brief is at 07:00 until you open the app on 3 days."),
+  ).toBeVisible();
+  await expect(habit).toHaveCount(0);
+  expect(await (await context.request.get("/api/app-opens")).json()).toEqual({
+    first_open: null,
+    brief: "07:00",
+  });
+});
+
+/* In Arabic the owner is the one who opens the app, and the brief waits for 3 different days. */
+test("the learned waking habit and its forget toast read right in Arabic", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "ar");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  expect((await context.request.delete("/api/app-opens", { headers: owner.headers })).ok()).toBe(
+    true,
+  );
+  seedOpens();
+  await page.goto("/app/owner");
+  const habit = page.locator(".pf-known .row").filter({
+    hasText: "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو 07:30، ويصلك موجز الصباح الساعة",
+  });
+  await habit.getByRole("button", { name: "انسَ هذه العادة", exact: true }).click();
+  await expect(
+    page.getByText(
+      "نسيتُ هذه العادة. يصلك موجز الصباح الساعة 07:00 حتى تفتح التطبيق في 3 أيام مختلفة.",
+    ),
+  ).toBeVisible();
+  await expect(habit).toHaveCount(0);
 });

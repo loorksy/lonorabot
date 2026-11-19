@@ -11,6 +11,7 @@ effect receipt per local date keeps it to one brief per day, also after downtime
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from statistics import median
 from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -20,6 +21,7 @@ from lonora_contracts.runs import RunRequest
 from lonora_core.attention import CARD_ATTENTION
 from lonora_core.run_state import TERMINAL
 from lonora_core.user_error import LonoraError
+from lonora_db.app_opens import DAY_START_HOUR, recorded_opens
 from lonora_db.cancellation import cancel_run
 from lonora_db.client import Database
 from lonora_db.conversation_locale import conversation_locale
@@ -30,6 +32,7 @@ from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run
 from lonora_db.schema import (
     AgentRow,
+    AppOpenRow,
     AttentionRow,
     BrokerSessionRow,
     EffectReceiptRow,
@@ -45,7 +48,7 @@ from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository
 from lonora_market.sessions import fx_week
 from lonora_session.idempotency import broker_operation_tag, stable_id
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,8 +59,12 @@ from .manual_activity import SENT_STATUSES, journal_agent
 
 TRIGGER = "morning_brief"
 # 07:00 in the owner's time zone until Lonora has seen the owner open the app on at least
-# 3 days (11.1). App opens are not recorded yet, so this is the brief time for now.
+# 3 days (11.1); then the median first open, a little earlier, moving at most an hour a day.
 DEFAULT_MINUTE = 7 * 60
+MINIMUM_OPEN_DAYS = 3
+LEAD_MINUTES = 15
+DAILY_MOVE_MINUTES = 60
+DAY_START_MINUTE = DAY_START_HOUR * 60
 # How long Lonora has to write the brief before the server posts the plain one.
 WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
@@ -87,15 +94,43 @@ Locale = Literal["ar", "en"]
 # --- When ---------------------------------------------------------------------------
 
 
-def owner_zone(reach_me: dict[str, Any]) -> ZoneInfo:
-    """``reach_me.timezone`` when the owner stored one, else UTC. Reading it never writes
-    reach-me (8.2)."""
-    name = reach_me.get("timezone")
-    if isinstance(name, str) and name:
-        try:
-            return ZoneInfo(name)
-        except (ZoneInfoNotFoundError, ValueError):
-            pass
+def learned_minute(first_opens: Sequence[int]) -> int | None:
+    """The brief time learned from the owner's first app open per recorded day (minutes
+    after local midnight, oldest first, the last 14 recorded days at most): their median,
+    15 minutes earlier; None until the owner opened the app on at least 3 days (11.1)."""
+    if len(first_opens) < MINIMUM_OPEN_DAYS:
+        return None
+    return min(24 * 60 - 1, max(0, int(median(first_opens)) - LEAD_MINUTES))
+
+
+def first_open_minutes(opens: Sequence[AppOpenRow]) -> list[int]:
+    """Each recorded day's first open, minutes after midnight on the device's clock where it
+    was opened: a habit of 07:00 stays 07:00 when the owner travels. The owner's day starts
+    at 04:00: an open before it (a late session) is read after the day's last minutes, not
+    as an early waking."""
+    return [
+        minute if minute >= DAY_START_MINUTE else minute + 24 * 60
+        for minute in (
+            stamp.hour * 60 + stamp.minute
+            for stamp in (_aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens)
+        )
+    ]
+
+
+def moved_minute(previous: int, target: int) -> int:
+    """Today's brief time: toward the target by at most one hour from yesterday's."""
+    return previous + max(-DAILY_MOVE_MINUTES, min(DAILY_MOVE_MINUTES, target - previous))
+
+
+def owner_zone(reach_me: dict[str, Any], device_zone: str | None = None) -> ZoneInfo:
+    """``reach_me.timezone`` when the owner stored one, else the zone of the owner's
+    latest recorded app open, else UTC. Reading it never writes reach-me (8.2)."""
+    for name in (reach_me.get("timezone"), device_zone):
+        if isinstance(name, str) and name:
+            try:
+                return ZoneInfo(name)
+            except (ZoneInfoNotFoundError, ValueError):
+                continue
     return ZoneInfo("UTC")
 
 
@@ -795,9 +830,24 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
             await _settle_pending(session, owner_id, record, now)
             return None
         reach_me = await SettingsRepository().get(session, REACH_ME_KEY + owner_id)
-        local = now.astimezone(owner_zone(reach_me))
+        opens = await recorded_opens(session, owner_id)
+        zone = owner_zone(reach_me, opens[-1].timezone if opens else None)
+        local = now.astimezone(zone)
         today = local.date().isoformat()
-        if record.last_local_date == today or local.hour * 60 + local.minute < record.brief_minute:
+        # Planned once per local date, and only for a later one: a zone change that steps
+        # the owner's date back does not plan it again.
+        if (record.planned_date or "") < today:
+            target = learned_minute(first_open_minutes(opens))
+            record.brief_minute = moved_minute(
+                record.brief_minute, DEFAULT_MINUTE if target is None else target
+            )
+            record.planned_date = today
+            record.updated_at = now
+        # A date at or before the last brief's never gets one: a zone change can step the
+        # owner's date back (a laptop in New York after a phone in Dubai).
+        if (record.last_local_date or "") >= today or (
+            local.hour * 60 + local.minute < record.brief_minute
+        ):
             return None
         key = brief_key(owner_id, today)
         if await session.get(EffectReceiptRow, key) is not None:
@@ -848,3 +898,32 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         )
         record.pending = pending | {"run_id": run.id}
         return today
+
+
+# --- What Lonora knows ----------------------------------------------------------------
+
+
+def _clock(minute: int) -> str:
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
+async def learned_habit(session: AsyncSession, owner_id: str) -> dict[str, str | None]:
+    """What «ما أعرفه عنك» shows of the learned time (8.4): the owner's usual first open on
+    the device's clock, once learned (11.1, else None), and today's brief time."""
+    minutes = first_open_minutes(await recorded_opens(session, owner_id))
+    record = await session.get(MorningBriefRow, owner_id)
+    return {
+        "first_open": None
+        if learned_minute(minutes) is None
+        else _clock(int(median(minutes)) % (24 * 60)),
+        "brief": _clock(record.brief_minute if record else DEFAULT_MINUTE),
+    }
+
+
+async def forget_habit(session: AsyncSession, owner_id: str) -> None:
+    """The owner's correction in «ما أعرفه عنك» (8.4): the recorded opens are forgotten and
+    the brief is at 07:00 again, until the owner opens the app on 3 days (11.1)."""
+    record = await locked_record(session, owner_id)
+    await session.execute(delete(AppOpenRow).where(AppOpenRow.owner_id == owner_id))
+    record.brief_minute = DEFAULT_MINUTE
+    record.updated_at = utcnow()

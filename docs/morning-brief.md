@@ -6,14 +6,28 @@ owner in `ln_morning_briefs`.
 
 ## When
 
-- **Time zone:** `reach_me.timezone` when the owner stored one, else UTC. The step only
-  reads reach-me.
-- **Time:** 07:00 in that zone. VISION 11.1 keeps 07:00 until Lonora has seen the owner
-  open the app on 3 days; app opens are not recorded yet, so the learned time is not
-  built.
-- **Once per local date.** The effect receipt `morning-brief:<owner>:<date>` claims a
-  date's brief in the transaction that starts it, under the record's row lock. After
-  downtime the step sends only today's brief: missed dates are not sent.
+- **App opens.** The owner's day starts at 04:00 on the device's clock, so a session at
+  00:30 belongs to the day before. Web (the shell, while the page is visible) and mobile
+  (while the app is active) post the device's time zone to `POST /api/app-opens` at most
+  once per owner day (`ownerDay` in `packages/core/src/app-open.ts`). The server keeps
+  the first open of each owner day in `ln_app_opens` (`lonora_db/app_opens.py`, the same
+  04:00 as `DAY_START_HOUR`). Owner session only.
+- **Time zone:** `reach_me.timezone` when the owner stored one, else the zone of the
+  latest recorded app open, else UTC. The step only reads reach-me.
+- **Time:** 07:00 until the owner has opened the app on 3 days (VISION 11.1). Then the
+  median of the first opens of the last recorded days (at most 14), each read on the
+  clock of the device it was made on, 15 minutes earlier. The time is planned once per
+  local date and moves at most one hour a day.
+- **What I know about you (VISION 8.4).** Once learned, «ما أعرفه عنك» on web and
+  mobile shows the owner's usual first open and today's brief time
+  (`GET /api/app-opens`). Forgetting it (`DELETE /api/app-opens`) deletes the recorded
+  opens and sets the brief back to 07:00 until the owner opens the app on 3 days.
+- **Once per local date, never backwards.** The effect receipt
+  `morning-brief:<owner>:<date>` claims a date's brief in the transaction that starts
+  it, under the record's row lock. After downtime the step sends only today's brief:
+  missed dates are not sent. A date at or before the last brief's never gets a brief,
+  and the time is not planned again for it, even when a zone change steps the owner's
+  date back.
 
 ## Who writes it
 

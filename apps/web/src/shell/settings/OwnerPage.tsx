@@ -21,6 +21,8 @@ type ProfileLine = {
   created_at: string | null;
 };
 type ProfileLines = { version: number; lines: ProfileLine[] };
+// The waking habit learned from app opens (8.1, 11.1): first_open is null until it is learned.
+type LearnedHabit = { first_open: string | null; brief: string };
 type FieldChange = { field: string; before: unknown; after: unknown };
 type LineChange = { change: "added" | "removed"; text: string };
 type Revision = {
@@ -106,6 +108,9 @@ export function OwnerPage() {
   const known = useLoad(() => api.get<ProfileLines>("/owner/profile/lines"), [profile?.version]);
   const facts = known.value?.lines ?? [];
   const [editing, setEditing] = useState<{ text: string; value: string } | null>(null);
+  const learned = useLoad(() => api.get<LearnedHabit>("/app-opens"), []);
+  const firstOpen = learned.value?.first_open;
+  const brief = learned.value?.brief;
 
   const who = (row: Revision) =>
     row.author === "owner"
@@ -175,6 +180,17 @@ export function OwnerPage() {
       setDraft(null);
       setEditing(null);
       toast(replacement === null ? t`The fact is removed` : t`The fact is corrected`, {
+        type: "success",
+      });
+    } catch (error) {
+      toast(userError(error), { type: "error" });
+    }
+  };
+  // Forgetting the habit puts the brief back at 07:00 until it is learned again.
+  const forgetHabit = async () => {
+    try {
+      learned.set(await api.delete<LearnedHabit>("/app-opens"));
+      toast(t`Forgotten. Your morning brief is at 07:00 until you open the app on 3 days.`, {
         type: "success",
       });
     } catch (error) {
@@ -267,7 +283,30 @@ export function OwnerPage() {
         <Trans>What I know about you</Trans>
       </h3>
       <div className="group pf-known">
-        {facts.length ? (
+        {firstOpen && brief && (
+          <div className="row">
+            <span className="row-icon">
+              <Icon name="info" />
+            </span>
+            <span className="body">
+              <strong>
+                {t`You usually first open Lonora around ${firstOpen}; your morning brief comes at ${brief}.`}
+              </strong>
+              <small>
+                <Trans>Observed from your first app open each day</Trans>
+              </small>
+            </span>
+            <button
+              type="button"
+              className="icon"
+              aria-label={t`Forget this habit`}
+              onClick={() => void forgetHabit()}
+            >
+              <Icon name="close" />
+            </button>
+          </div>
+        )}
+        {facts.length || firstOpen ? (
           facts.map((fact) => (
             <div className="row" key={fact.text}>
               <span className="row-icon">

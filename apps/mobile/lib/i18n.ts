@@ -644,6 +644,15 @@ export const labels = {
   correctFact: ["صحّح المعلومة", "Correct the fact"],
   deleteFact: ["احذف المعلومة", "Delete the fact"],
   nothingKnown: ["لا شيء بعد.", "Nothing yet."],
+  habitLine: [
+    "أول مرة تفتح فيها التطبيق كل يوم تكون عادةً نحو {firstOpen}، ويصلك موجز الصباح الساعة {brief}.",
+    "You usually first open Lonora around {firstOpen}; your morning brief comes at {brief}.",
+  ],
+  habitOrigin: [
+    "ملاحظة من أول مرة تفتح فيها التطبيق كل يوم",
+    "Observed from your first app open each day",
+  ],
+  forgetHabit: ["انسَ هذه العادة", "Forget this habit"],
   saveCorrection: ["حفظ", "Save"],
   cancelCorrection: ["إلغاء", "Cancel"],
   voiceNote: ["رسالة صوتية", "Voice message"],
