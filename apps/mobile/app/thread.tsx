@@ -69,6 +69,7 @@ import { TimeSeparator } from "../components/time-separator";
 import { TradeApprovalCard } from "../components/trade-approval";
 import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
+import { WebSearchRow } from "../components/web-search-row";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
 import {
@@ -93,6 +94,7 @@ import {
 import { projectConversation } from "../lib/conversation-projection";
 import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
+import { fill } from "../lib/i18n";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
@@ -855,6 +857,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const agent = agents.find((value) => value.id === thread?.agent_id);
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
+  // A group: «X يكتب» while a member's reply runs (as Web's header).
+  const replying = thread?.group_id
+    ? runs.find(
+        (run) => run.thread_id === id && ["queued", "leased", "running"].includes(run.status),
+      )
+    : undefined;
+  const typingName = replying ? agents.find((row) => row.id === replying.agent_id)?.name : null;
   const send = async (mentions?: MentionAddress, followUp?: string) => {
     if (
       sendLocks.current.has(outboxKey) ||
@@ -945,6 +954,19 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     await deliver(intent, outboxKey, id);
   };
   const questions = threadQuestions([...asking, ...runs], id);
+  // The agent's own suggested reply (Q23) under its last plain answer, until the owner sent it.
+  const lastAgent = [...visibleMessages]
+    .reverse()
+    .find((row) => row.role !== "user" && !row.id.startsWith("preview:"));
+  const lastMine = [...visibleMessages].reverse().find((row) => row.role === "user");
+  const suggestion =
+    lastAgent?.suggested_reply &&
+    visibleMessages.at(-1)?.id === lastAgent.id &&
+    !(lastAgent.rich_content?.parts ?? []).some((part) => part.type !== "text") &&
+    !questions.has(lastAgent.id) &&
+    lastMine?.content.trim() !== lastAgent.suggested_reply
+      ? lastAgent.suggested_reply
+      : "";
   // «+»: Files or Photos from the system picker (no storage or camera permission), several
   // at once; each file uploads on its own with a ring and a cancel, as on Web.
   const pick = async (kind: "files" | "photos") => {
@@ -1003,11 +1025,17 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             lead={<Icon name="image" size={22} color={shellTheme.text} />}
             title={t("pickPhotos")}
             sub={t("attachLimit")}
-            last
             onPress={() => {
               sheets.close();
               void pick("photos");
             }}
+          />
+          <WebSearchRow
+            threadId={id}
+            initial={Boolean(thread?.options?.web_search)}
+            onChange={(options) =>
+              setThread((old) => (old && old.id === id ? { ...old, options } : old))
+            }
           />
         </GroupBox>
       ),
@@ -1148,6 +1176,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     <Screen background={shell.background}>
       <ThreadHeader
         title={title}
+        subtitle={typingName ? fill(t("isTyping"), typingName) : null}
         settingsLabel={group ? t("groupSettings") : t("agentSettings")}
         onBack={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         onSettings={() => {
@@ -1520,6 +1549,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
+          suggestion={draft ? "" : suggestion}
+          onSuggestion={(text) => updateDraft({ text })}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}

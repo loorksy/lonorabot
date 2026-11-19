@@ -434,6 +434,10 @@ export const labels = {
   clearStopLoss: ["إزالة وقف الخسارة", "Remove stop loss"],
   clearTakeProfit: ["إزالة جني الربح", "Remove take profit"],
   reply: ["رد", "Reply"],
+  webSearch: ["البحث في الويب", "Web search"],
+  webSearchOn: ["يجمع المصادر قبل الرد", "Gathers sources before replying"],
+  isTyping: ["{0} يكتب", "{0} is typing…"],
+  suggestedReply: ["رد مقترح: {0}", "Suggested reply: {0}"],
   newMessage: ["رسالة جديدة", "New message"],
   cancelReply: ["إلغاء الرد", "Cancel reply"],
   // The message menu (Web's conversation menu, its Arabic wording).

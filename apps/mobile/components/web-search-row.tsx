@@ -1,0 +1,57 @@
+// «البحث في الويب» in the «+» sheet, as Web's tools sheet: the chat's own option
+// (PUT /threads/{id}/options); on, the agent gathers sources before replying.
+import type { ThreadOptions } from "@lonora/contracts";
+import { useState } from "react";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { useTheme } from "../lib/theme";
+import { Icon } from "./shell/icon";
+import { Row, Switch } from "./shell/kit";
+
+export function WebSearchRow({
+  threadId,
+  initial,
+  onChange,
+}: {
+  threadId: string;
+  initial: boolean;
+  onChange: (options: ThreadOptions) => void;
+}) {
+  const { t, errorText } = useSession();
+  const { c } = useTheme();
+  const [on, setOn] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Row
+      testID="web-search-row"
+      lead={<Icon name="search" size={22} color={c.text} />}
+      title={t("webSearch")}
+      sub={error ?? (on ? t("webSearchOn") : undefined)}
+      last
+      trailing={
+        <Switch
+          label={t("webSearch")}
+          value={on}
+          onChange={(next) => {
+            setOn(next);
+            setError(null);
+            void api
+              .put<{ options?: ThreadOptions }>(
+                `/threads/${encodeURIComponent(threadId)}/options`,
+                { web_search: next },
+              )
+              .then((row) => {
+                const options = { web_search: Boolean(row.options?.web_search) };
+                setOn(options.web_search);
+                onChange(options);
+              })
+              .catch((reason) => {
+                setOn(!next);
+                setError(errorText(reason));
+              });
+          }}
+        />
+      }
+    />
+  );
+}

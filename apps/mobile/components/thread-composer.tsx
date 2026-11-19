@@ -51,6 +51,8 @@ export function ThreadComposer({
   onCancelReply,
   editing,
   onCancelEdit,
+  suggestion,
+  onSuggestion,
   permissionControl,
 }: {
   draft: string;
@@ -77,6 +79,9 @@ export function ThreadComposer({
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
+  /** The agent's own suggested reply (Q23); a tap puts it in the composer. */
+  suggestion?: string;
+  onSuggestion?: (text: string) => void;
   /** Edit and resend (Q21): the owner's message this send replaces. */
   editing?: Message | null;
   onCancelEdit?: () => void;
@@ -120,6 +125,30 @@ export function ThreadComposer({
         backgroundColor: shell.background,
       }}
     >
+      {suggestion && onSuggestion ? (
+        <Pressable
+          testID="suggested-reply"
+          accessibilityRole="button"
+          accessibilityLabel={fill(t("suggestedReply"), suggestion)}
+          onPress={() => onSuggestion(suggestion)}
+          style={({ pressed }) => ({
+            alignSelf: rtl ? "flex-end" : "flex-start",
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: shell.border,
+            backgroundColor: pressed ? shell.muted : "transparent",
+          })}
+        >
+          <Text
+            numberOfLines={1}
+            style={{ color: shell.foreground, fontSize: 14, writingDirection: "auto" }}
+          >
+            {suggestion}
+          </Text>
+        </Pressable>
+      ) : null}
       {editing ? (
         <ComposerReplyPreview message={editing} onClose={onCancelEdit} editing />
       ) : reply ? (
