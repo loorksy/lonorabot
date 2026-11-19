@@ -12,7 +12,6 @@ The owner selects an account and reviews automatic management once. The new
 leave volume, position count, activity, equity-floor and expiry limits unset.
 No large numeric sentinel represents unlimited permission. The nullable expiry
 is persisted through migration0030. Optional explicit limits remain enforced.
-There is no product-imposed monetary loss ceiling when none is selected.
 
 The Personal Agent may receive explicit `symbol_scope=account` for all exact
 broker instruments on that one account. Specialists retain their immutable
@@ -27,12 +26,10 @@ conversation (`owner-actions.md`), built only from the card's stored draft.
 The grant card offers one choice in its list of options: Custom (the D1 defaults above,
 selected by default) or Full delegation. Full signs the same v2 full-management envelope
 with `symbol_scope=account`, every action, no expiry, `allow_manual_positions` true and
-no numerical cap, and sets no daily loss limit from the card; the composer's identical
-proposal is the same pending envelope. It needs the same passkey ceremony, is offered
-only where account-wide scope is allowed (the Personal Agent and flexible root agents),
-and changes no limit: the account's money limits and execution caps (`ExecutionPolicy`),
-and pauses bind it like any grant, and removing a limit is a separate
-passkey step. Nothing in the envelope names the choice: a signed grant with exactly these
+no numerical cap; the composer's identical proposal is the same pending envelope. It
+needs the same passkey ceremony, is offered only where account-wide scope is allowed
+(the Personal Agent and flexible root agents); pauses bind it like any grant. Nothing
+in the envelope names the choice: a signed grant with exactly these
 terms is recognized as Full delegation (`full_delegation`) by the readiness projection
 (`full_delegation` on each grant and in the On its own params), the safety sheet and
 the permission frame (`full_delegation` on each authorized scope). Grants already signed
@@ -152,7 +149,7 @@ itself authorize a symbol. Broker-discovered symbols are checked before proposal
 
 Each execution revalidates signature state, expiry, device, ownership, current
 broker snapshot and envelope limits inside the existing serialized financial
-boundary. The owner's pauses, risk/preflight, execution quality,
+boundary. The owner's pauses, preflight, execution quality,
 manual intervention, idempotency, durable journal and reconciliation still apply.
 Submitted, ambiguous, confirmed, owner-resolved and broker-rejected submitted
 attempts consume the lifetime budget. Known pre-submission failures and released
@@ -173,14 +170,9 @@ Broker contracts retain optional sourced tick economics and contract metadata. T
 read-only [market-entry sizing estimate](broker-position-sizing.md) uses exact account
 money units and an explicit stop; it grants no permission. Signed per-trade monetary
 ceilings and daily monetary loss fields are **not part of the signed envelope**: such
-envelope fields remain rejected, not silently interpreted as protection. Monetary
-limits are instead owner policy enforced at the execution boundary for every path (see
-"Monetary risk limits" below). Volume limits, an equity floor and a required stop
-cannot guarantee a maximum loss. Grant summaries from the owner routes and the live
-Agent projection carry the account's `money_limits` (configured limits, or none), and
-the Web and Mobile review show them, or "No money limit set", before signing (see
-`trading-safety.md`). No authorization was activated on a production account while
-implementing or testing this capability.
+envelope fields remain rejected, not silently interpreted as protection. Volume limits,
+an equity floor and a required stop cannot guarantee a maximum loss. No authorization
+was activated on a production account while implementing or testing this capability.
 
 The compact Web/Mobile bot settings reuse existing account/market selectors and
 passkey enrollment/signing. The advanced bounded form requires explicit limits;
@@ -193,85 +185,17 @@ the badge is presentation, never permission.
 ## Verification
 
 `tests/check_full_delegation.py` signs Full delegation from a grant card and shows that
-the account's per-trade risk limit and position cap still refuse under it, while another
-pair and the owner's own position are managed without a card.
+another pair and the owner's own position are managed without a card.
 
 `tests/check_account_authority.py` uses disposable PostgreSQL, genuine WebAuthn
 signatures and the simulation adapter. It covers exact forex/metal/index/crypto
 symbols; market/pending/management commands; concurrency and budgets; real
-approval fallback; global controls; provisional voice; expiry, revoked devices,
+approval fallback; provisional voice; expiry, revoked devices,
 tampering, stale material targets, uncertain execution and no duplicate resend.
 `tests/web/account-authority.spec.mjs` exercises the actual Web review/sign/revoke
 flow with a virtual WebAuthn authenticator and EN/AR layouts. Shared client tests
 reject optimistic activation, wrong returned scope/limits, cancelled proof and
 expired signing. Native hardware verification remains separate.
-
-## Monetary risk limits
-
-`ExecutionPolicy.risk` (`PUT /trading/accounts/{id}/execution-policy`, owner only)
-holds optional limits in the broker account currency, which the owner names in
-`risk.currency`; a policy whose currency differs from the account blocks new risk
-instead of converting. Unset means not enforced; no money amount is chosen for the
-owner. The agent sees configured and unset limits in its permission frame; the owner
-reads the current book against them with `GET /trading/accounts/{id}/risk-status`.
-The conversation's money-limit card changes the same policy; raising or removing a limit
-there needs the owner's passkey (`owner-actions.md`), and so does a widening through the
-policy route itself (`…/execution-policy/challenge` and `…/verify`); adding or lowering
-a limit stays one request.
-
-- `max_trade_risk` / `max_trade_risk_equity_percent`: modeled loss at the stop-loss of
-  a new entry, a pending-entry edit or a risk-increasing position edit. A stop-loss is
-  required while a per-trade limit is set. The stricter of amount and percent of
-  current equity applies.
-- `max_open_risk` / `max_open_risk_equity_percent`: modeled loss at the stops across
-  open positions (from the current closing price), pending orders (from their price),
-  `submitted`/`ambiguous` entries and confirmed entries still awaiting state
-  verification whose ticket is not yet visible, plus the request itself. An unresolved
-  stop or pending-order edit counts as the worse of current and requested state.
-  Anything without a stop makes open risk unbounded, which blocks new risk.
-- `max_daily_loss`: broker-reported realized P&L since local midnight in
-  `trading_day_timezone`, plus the current floating profit of open positions. Deals
-  count conservatively: trade deals (`DEAL_TYPE_BUY`, `DEAL_TYPE_SELL`) with profit,
-  commission and swap; balance, credit and bonus cash flows not at all; every other
-  type (correction, charge, commission-only, interest, dividend, tax, cancelled deals
-  and unknown or missing types) only when its total is negative, so a non-trading
-  credit never offsets a trading loss. Reaching the limit blocks new risk. A full
-  history page (1,000 deals) or unreadable history blocks rather than counting as zero
-  loss.
-- `min_free_margin`: new entries need at least this current free margin (the new
-  order's own margin is not modeled).
-
-Risk at a stop reuses the sizing arithmetic (`broker-position-sizing.md`): whole ticks
-between reference price and stop rounded up, times the broker's per-lot loss tick value,
-times volume. Limits apply to every admission path, owner-manual included, like the rest
-of `ExecutionPolicy`. They are evaluated in `before_send` under the account send lock
-with fresh broker economics; the evaluation is stored as `details.risk_assessment` on
-admitted and blocked operations. Risk-reducing requests are never blocked by a limit,
-so closing, cancelling and tightening remain possible when a position exceeds a newly
-set ceiling. Estimates exclude gaps, slippage, future commission, swap and new-order
-margin: a stop-loss limit is not a guaranteed maximum loss. Limits are owner policy,
-not part of the signed grant envelope; signed monetary envelope fields remain rejected.
-Blocked operations carry tool recovery metadata that matches the boundary: every
-`risk_*` code is `risk_limit_blocked` / `inspect_risk_assessment` (resize or protect to
-fit the limit, reduce exposure, or wait for the owner).
-
-`tests/test_risk_limits.py` covers per-trade risk from stop distance and tick value, open
-risk with pending and unresolved operations, daily loss with conservative deal types and
-history coverage, free margin, currency mismatch, permission-frame rendering and the
-recorded assessment. `tests/check_risk_limits.py` (disposable PostgreSQL, simulation
-broker, real owner API and approval path) covers every monetary limit on the owner and
-agent paths, the passkey for a widening, and closing and cancelling under a limit.
-
-## Remaining monetary limitations
-
-Daily loss is what broker history reports at the decision: a deal the broker has not yet
-synchronized is not counted, so a position closed by its stop moments earlier can
-briefly drop out of both floating and realized P&L. Positions carried over from an
-earlier day count with their full current floating P&L (no opening-equity baseline is
-recorded), which over-counts a loss that began earlier and lets an earlier floating gain
-offset today's losses. Open risk values every symbol with its current quote's loss tick
-value; a stale quote outside market hours is used as reported. Estimated stop fills
-cannot guarantee a maximum loss, and the new order's own margin is not modeled.
 
 ## New acceptance
 
@@ -283,8 +207,8 @@ work, four symbol classes, market/pending orders, manual position management,
 partial close, discretionary stops, broker constraints and
 revocation. The older authority fixture signs the genuinely original v1 envelope
 shape so migration cannot reinterpret its absent fields. Browser checks exercise
-actual EN/AR owner surfaces, full and bounded signatures, and unchanged global
-controls; Expo Web checks are not physical native acceptance.
+actual EN/AR owner surfaces and full and bounded signatures; Expo Web checks are not
+physical native acceptance.
 
 The complete trading mandate remains open: this scope does not implement generic
 strategy equivalence or native background calls. A fresh
