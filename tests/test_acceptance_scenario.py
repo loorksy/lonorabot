@@ -12,7 +12,9 @@ import os
 import re
 import subprocess
 import sys
+from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -264,6 +266,81 @@ def test_the_demo_broker_says_what_metaapi_holds_when_the_step_fails():
         ], row
     # Each run created its account at the fake MetaApi, and each was removed.
     assert outcome["creates"] == 2 and outcome["left"] == 0
+
+
+class MetaApiAnswers:
+    """MetaApi's answers to the harness's lookups for the demo login and server, in turn;
+    the last answer repeats."""
+
+    def __init__(self, *answers: str | None):
+        self.answers, self.finds = list(answers), 0
+
+    async def find(self, login: str, server: str) -> SimpleNamespace | None:
+        assert (login, server) == ("50000077", "Exness-MT5Trial16")
+        self.finds += 1
+        state = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+        return SimpleNamespace(state=state) if state else None
+
+    async def close(self) -> None:
+        pass
+
+
+async def left_at_metaapi(
+    monkeypatch: pytest.MonkeyPatch, metaapi: MetaApiAnswers, existed: bool, wait: float
+) -> tuple[str, bool, str]:
+    async def no_connection(*_: object) -> dict[str, str]:
+        return {}
+
+    def client(token: str) -> MetaApiAnswers:
+        assert token == "accept.demo.token"
+        return metaapi
+
+    monkeypatch.setattr(acceptance, "card_result", no_connection)
+    monkeypatch.setattr(acceptance.broker_provisioning, "provisioning_client", client)
+    monkeypatch.setattr(acceptance, "DEMO_PASS_SECONDS", 0.01)
+    monkeypatch.setattr(acceptance, "REMOVAL_WAIT", timedelta(seconds=wait))
+    demo = {"login": "50000077", "server": "Exness-MT5Trial16", "token": "accept.demo.token"}
+    stage = SimpleNamespace(demo=demo)
+    [row] = await acceptance.removed_demo(stage, "card", existed)  # type: ignore[arg-type]
+    return row
+
+
+@pytest.mark.asyncio
+async def test_the_demo_cleanup_waits_for_metaapi_to_finish_a_removal(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """MetaApi removes an account asynchronously: DELETING is not a leftover yet."""
+    metaapi = MetaApiAnswers("DELETING", "DELETING", None)
+    row = await left_at_metaapi(monkeypatch, metaapi, existed=False, wait=60)
+    assert row == ("nothing is left at MetaApi", True, "no account for this login and server")
+    assert metaapi.finds == 3
+
+
+@pytest.mark.asyncio
+async def test_the_demo_cleanup_reports_an_account_still_there_after_the_wait(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    metaapi = MetaApiAnswers("DEPLOYED")
+    name, ok, seen = await left_at_metaapi(monkeypatch, metaapi, existed=False, wait=0.05)
+    assert (name, ok) == ("nothing is left at MetaApi", False)
+    assert seen == "an account for this login and server is still at MetaApi: remove it there"
+    assert metaapi.finds > 1
+
+
+@pytest.mark.asyncio
+async def test_the_demo_cleanup_keeps_an_account_that_was_there_before_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The product reuses an account already at MetaApi and never removes it: the run did
+    not leave it, so it is neither a failure nor something to remove."""
+    metaapi = MetaApiAnswers("DEPLOYED")
+    row = await left_at_metaapi(monkeypatch, metaapi, existed=True, wait=60)
+    assert row == (
+        "nothing is left at MetaApi",
+        True,
+        "the account for this login and server was there before the run: kept",
+    )
+    assert metaapi.finds == 1
 
 
 def test_a_balance_is_read_from_the_agents_words():

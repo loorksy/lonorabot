@@ -115,6 +115,9 @@ DEMO_STEPS = frozenset({"1"})
 DEMO_VALUES = ("login", "server", "password", "token")
 # The product's own deploy and read deadlines, and a margin for its cleanup pass.
 DEMO_WAIT, DEMO_PASS_SECONDS = DEPLOY_DEADLINE + READ_DEADLINE + timedelta(minutes=2), 10
+# MetaApi removes an account asynchronously (it is DELETING first): how long the harness
+# waits for it to be gone, the SDK's own ``wait_removed`` default.
+REMOVAL_WAIT = timedelta(minutes=5)
 # Runs the harness drives after one induced event: the wake, and the wakes it causes.
 MAXIMUM_RUNS = 6
 
@@ -1009,12 +1012,20 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         else ("accept-master-" + uuid4().hex, "accept.metaapi." + uuid4().hex)
     )
     api = None if demo else broker.FakeProvisioningApi(servers={server: {login: password}})
+    existed = False
     if demo:
         # The template's own connection is a fake; with no fake installed it is switched
         # off so nothing in the run reaches MetaApi with it.
         await set_enabled(
             stage.api.runtime.db, stage.brokers, stage.api.owner, stage.ids["account_id"], False
         )
+        # An account already at MetaApi for this login and server is reused by the product
+        # and kept: the run did not leave it.
+        client = broker_provisioning.provisioning_client(token)
+        try:
+            existed = await client.find(login, server) is not None
+        finally:
+            await client.close()
     if stage.model is not None:
         stage.model.names |= {"$login": login, "$server": server}
     await says(stage, step["owner_says"])
@@ -1131,7 +1142,7 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         ]
     finally:
         if demo and card is not None:
-            stage.cleanup = await removed_demo(stage, card.id)
+            stage.cleanup = await removed_demo(stage, card.id, existed)
     return checks
 
 
@@ -1145,12 +1156,14 @@ def states(figure: str, text: str) -> bool:
     return figure.split(".")[0] in re.findall(r"\d+", plain)
 
 
-async def removed_demo(stage: Stage, card_id: str) -> list[Check]:
+async def removed_demo(stage: Stage, card_id: str, existed: bool) -> list[Check]:
     """--broker demo leaves nothing behind. A connected account is removed by the product's
     own disconnect (9.3); one whose connect failed is removed by the provisioning step's own
     cleanup, which ``provision`` waits for. Then MetaApi itself is asked, with the owner's
-    token, whether any account for this login and server is left (one already there before
-    the run is never removed by the product, and is reported). No id is printed."""
+    token, whether any account for this login and server is left, until none is or
+    REMOVAL_WAIT has passed: MetaApi finishes a removal on its own time. One that was there
+    before the run (``existed``) is never removed by the product, and is said to be kept.
+    No id is printed."""
     assert stage.demo is not None
     result = await card_result(stage, card_id)
     if result.get("connection_id"):
@@ -1161,8 +1174,13 @@ async def removed_demo(stage: Stage, card_id: str) -> list[Check]:
         except Exception:  # what MetaApi still holds is asked next and reported
             pass
     client = broker_provisioning.provisioning_client(stage.demo["token"])
+    deadline = asyncio.get_running_loop().time() + REMOVAL_WAIT.total_seconds()
     try:
-        left = await client.find(stage.demo["login"], stage.demo["server"])
+        while True:
+            left = await client.find(stage.demo["login"], stage.demo["server"])
+            if left is None or existed or asyncio.get_running_loop().time() > deadline:
+                break
+            await asyncio.sleep(DEMO_PASS_SECONDS)
     except Exception as failure:  # an unanswered lookup is reported, never lost
         return [
             (
@@ -1173,15 +1191,13 @@ async def removed_demo(stage: Stage, card_id: str) -> list[Check]:
         ]
     finally:
         await client.close()
-    return [
-        (
-            "nothing is left at MetaApi",
-            left is None,
-            "no account for this login and server"
-            if left is None
-            else "an account for this login and server is still at MetaApi: remove it there",
-        )
-    ]
+    if left is None:
+        seen = "no account for this login and server"
+    elif existed:
+        seen = "the account for this login and server was there before the run: kept"
+    else:
+        seen = "an account for this login and server is still at MetaApi: remove it there"
+    return [("nothing is left at MetaApi", left is None or existed, seen)]
 
 
 RUNNERS: dict[str, Callable[[Stage, dict[str, Any]], Awaitable[list[Check]]]] = {
