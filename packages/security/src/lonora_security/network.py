@@ -75,11 +75,26 @@ def endpoint_sha256(url: str) -> str:
 # whose DNS answer is such an address is not caught (DNS can change after any check).
 SERVICE_NAME = re.compile(r"[a-z][a-z0-9-]*")
 LONORA_SERVICES = frozenset(
-    {"api", "browser", "caddy", "db", "gateway", "migrate", "postgres", "searxng", "workspace"}
+    {
+        "api",
+        "browser",
+        "caddy",
+        "db",
+        "gateway",
+        "migrate",
+        "postgres",
+        "searxng",
+        "workspace",
+        "workspace-net",
+    }
 )
 METADATA_HOSTS = frozenset({"instance-data", "metadata", "metadata.google.internal"})
-# Docker names a service's containers <project>-<service>-<n> (lonora-api-1).
-CONTAINER_NAME = re.compile(r"[a-z0-9][a-z0-9_.-]*-(?P<service>[a-z0-9]+)-[0-9]+")
+# Docker names a service's containers <project>-<service>-<n> (lonora-api-1); a service
+# name may itself have a hyphen (lonora-workspace-net-1).
+CONTAINER_NAMES = tuple(
+    re.compile(rf"[a-z0-9][a-z0-9_.-]*-{re.escape(service)}-[0-9]+")
+    for service in sorted(LONORA_SERVICES)
+)
 
 
 def _address(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
@@ -104,8 +119,7 @@ def _lonora_host(host: str) -> bool:
         or host in METADATA_HOSTS
     ):
         return True
-    container = CONTAINER_NAME.fullmatch(host)
-    if container is not None and container["service"] in LONORA_SERVICES:
+    if any(pattern.fullmatch(host) for pattern in CONTAINER_NAMES):
         return True
     address = _address(host)
     return address is not None and (

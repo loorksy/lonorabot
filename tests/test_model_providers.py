@@ -178,6 +178,9 @@ def test_an_owner_endpoint_is_accepted_over_https_or_on_the_owners_network(url: 
         "http://lonora-db-1:5432/v1",
         "http://lonora-gateway-1/v1",
         "http://myproject-api-2:8000/v1",
+        # A service whose name has a hyphen, by name and by container name.
+        "http://workspace-net/v1",
+        "http://lonora-workspace-net-1/v1",
         "https://metadata.google.internal/v1",
         "ftp://llm.example.test/v1",
         "https://user:pass@llm.example.test/v1",
