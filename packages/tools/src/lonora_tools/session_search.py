@@ -27,8 +27,8 @@ class SessionSearchInput(Contract):
 
 async def search(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # A subagent Run carries its parent's Agent id, so it shares exactly the
-    # parent's history scope; the agents it supervises come from the owner's grants,
-    # re-read on every call. Nothing here is widened by the model's arguments.
+    # parent's history scope. The agents it reaches (every team agent for Lonora, else
+    # those under a grant) are re-read on every call. Nothing here is widened by the model's arguments.
     query, thread_id, limit = args["query"].strip(), args["thread_id"], args["limit"]
     async with context.db.sessions() as session:
         scope = await history_scope(session, context.owner_id, context.agent_id)

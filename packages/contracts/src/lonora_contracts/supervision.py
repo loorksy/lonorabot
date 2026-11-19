@@ -2,7 +2,7 @@
 
 A grant never carries money authority: the supervisor reads, messages, pauses and
 resumes the supervised agent's work, and never trades for it, uses its grant or lifts
-a brake. The Personal Agent supervises every agent by default;
+a brake. Lonora leads every team agent by its role, with no grant (lonora_db.lead);
 the owner revokes any grant with one tap.
 """
 

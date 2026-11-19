@@ -11,7 +11,7 @@ function simulation(data) {
   );
 }
 
-// Lonora (supervising every agent by default), a gold agent and a watcher that
+// Lonora (with a default grant over Gold, as migration 0041 stored one), a gold agent and a watcher that
 // proposed to supervise it, as supervision_change raises the card without an owner
 // message (no model involved); Lonora paused one of Gold's routines on its own, which
 // raises the pause card in Gold's conversation.
@@ -28,7 +28,7 @@ from lonora_db.personal_agent import ensure_personal_agent
 from lonora_contracts.routines import RoutineCreate
 from lonora_db.routines import create_routine
 from lonora_db.schema import OwnerActionRow
-from lonora_db.supervision import control_work
+from lonora_db.supervision import control_work, grant_supervision
 from sqlalchemy import select
 from lonora_db.threads import conversation_thread
 async def main():
@@ -39,6 +39,7 @@ async def main():
             lonora=await ensure_personal_agent(session,f.owner)
             gold=await create_agent(session,f.owner,AgentCreate(name=data['gold'],scope_mode='flexible'))
             watcher=await create_agent(session,f.owner,AgentCreate(name=data['watcher'],scope_mode='flexible'))
+            await grant_supervision(session,f.owner,lonora.id,gold.id,via='default')
             thread=await conversation_thread(session,f.owner,watcher.id)
             card,_=await propose_supervision(session,f.owner,watcher.id,[gold.id],card_id=str(uuid4()),agent_id=watcher.id,thread_id=thread.id,run_id=None)
             routine=await create_routine(session,f.owner,gold.id,RoutineCreate(prompt=data['routine'],interval_seconds=3600))
@@ -63,10 +64,7 @@ const copy = {
     settings: "Agent info",
     section: "Lonora supervises your agents",
     byDefault: "by default",
-    byYou: "set by you",
     stop: "Stop",
-    supervise: "Supervise",
-    notSupervised: "Not supervised by Lonora",
     title: "Let it supervise?",
     allow: "Allow",
     set: "Supervision set.",
@@ -82,10 +80,7 @@ const copy = {
     settings: "معلومات الوكيل",
     section: "لونورا تشرف على وكلائك",
     byDefault: "افتراضيًا",
-    byYou: "عيّنته أنت",
     stop: "إيقاف",
-    supervise: "إشراف",
-    notSupervised: "لا تشرف عليهم لونورا",
     title: "السماح له بالإشراف؟",
     allow: "السماح",
     set: "تم تعيين الإشراف.",
@@ -126,7 +121,8 @@ for (const locale of ["en", "ar"])
       routine: `Review gold ${suffix}`,
     });
     try {
-      // Lonora's profile: every agent is supervised by default, each with one-tap Stop.
+      // Lonora's profile: a stored default grant, with one-tap Stop; no new grant is offered
+      // (Lonora reads and steers every team agent by its lead role).
       await page.goto(`/app/${seeded.lonora}`);
       await page.getByRole("button", { name: text.settings, exact: true }).click();
       const section = page.getByTestId("supervision-settings");
@@ -139,23 +135,11 @@ for (const locale of ["en", "ar"])
         await section.screenshot({ path: test.info().outputPath("supervision-profile-ar.png") });
       }
       await row.getByRole("button", { name: text.stop, exact: true }).click();
-      const offered = section
-        .locator(".supervision-list")
-        .filter({ hasText: text.notSupervised })
-        .locator("li")
-        .filter({ hasText: `Gold ${suffix}` });
-      await expect(offered).toBeVisible();
+      await expect(section.locator("li").filter({ hasText: `Gold ${suffix}` })).toHaveCount(0);
       const view = await (
         await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)
       ).json();
       expect(view.supervised_by.some((grant) => grant.supervisor.id === seeded.lonora)).toBe(false);
-      await offered.getByRole("button", { name: text.supervise, exact: true }).click();
-      await expect(
-        section
-          .locator("li")
-          .filter({ hasText: `Gold ${suffix}` })
-          .first(),
-      ).toContainText(text.byYou);
 
       // The watcher's card: Allow sets supervision; its Undo card stops it again.
       await page.goto(`/app/${seeded.watcher}`);
