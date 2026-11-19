@@ -235,6 +235,10 @@ export const ownerActionLabels = {
     expiresIn: "The request expires in",
     statusPending: "Waiting for your decision",
     statusConfirmed: "Done",
+    statusFailed: "Failed",
+    statusSaved: "Saved",
+    statusConnecting: "Connecting",
+    statusChanging: "Changing",
     statusCancelled: "Cancelled",
     statusExpired: "Expired",
     statusSuperseded: "Replaced",
@@ -441,6 +445,10 @@ export const ownerActionLabels = {
     expiresIn: "ينتهي الطلب خلال",
     statusPending: "بانتظار قرارك",
     statusConfirmed: "تم",
+    statusFailed: "تعذّر",
+    statusSaved: "حُفظ",
+    statusConnecting: "جارٍ الربط",
+    statusChanging: "جارٍ التغيير",
     statusCancelled: "أُلغي",
     statusExpired: "انتهت المهلة",
     statusSuperseded: "استُبدل",
@@ -517,6 +525,52 @@ function actionLabel(action: string | null, lang: Language): string {
   return action ? (labels[action] ?? isolate(action)) : "";
 }
 
+/** A broker card's purpose (raised only by the broker tools); null for every other card,
+ * a credential card converted by 0071 included. */
+export function brokerPurpose(
+  card: OwnerAction,
+): NonNullable<NonNullable<OwnerAction["facts"]["secret"]>["purpose"]> | null {
+  const secret = card.facts.secret;
+  return secret?.destination === "broker" && !secret.connect ? (secret.purpose ?? "connect") : null;
+}
+
+/**
+ * The status chip beside a card's title. A saved broker card's chip says how provisioning
+ * stands, as its line does at length: "Done" only once the terminal answered a read (a
+ * connection) or MetaApi took the change (a new password or token); never beside a failed
+ * connection, one saved without a balance, or one still being made.
+ */
+/** A saved broker card whose provisioning failed: its line and chip say so, never "Done". */
+export function brokerCardFailed(card: OwnerAction): boolean {
+  return (
+    card.status === "confirmed" &&
+    brokerPurpose(card) !== null &&
+    card.result.provisioning === "failed"
+  );
+}
+
+export function ownerActionStatus(card: OwnerAction, locale: string): string {
+  const text = ownerActionText(locale);
+  const purpose = card.status === "confirmed" ? brokerPurpose(card) : null;
+  if (purpose)
+    return card.result.provisioning === "failed"
+      ? text.statusFailed
+      : card.result.provisioning === "connected"
+        ? text.statusConfirmed
+        : card.result.provisioning === "linked"
+          ? text.statusSaved
+          : purpose === "connect"
+            ? text.statusConnecting
+            : text.statusChanging;
+  return {
+    pending: text.statusPending,
+    confirmed: text.statusConfirmed,
+    cancelled: text.statusCancelled,
+    expired: text.statusExpired,
+    superseded: text.statusSuperseded,
+  }[card.status];
+}
+
 function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
@@ -550,8 +604,9 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.restored;
       case "supervision_paused":
         return text.resumedWork;
-      case "secret":
-        if (card.facts.secret?.destination === "broker" && !card.facts.secret.connect)
+      case "secret": {
+        const purpose = brokerPurpose(card);
+        if (purpose)
           // A broker card: the card's own record of how provisioning ended, read on the
           // server ("connected" only once the terminal answered a read; "linked" when it was
           // saved but no read answered). A new password or token waits for MetaApi, never
@@ -559,15 +614,16 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           return card.result.provisioning === "failed"
             ? text.brokerFailed
             : card.result.provisioning === "connected"
-              ? (card.facts.secret.purpose ?? "connect") === "connect"
+              ? purpose === "connect"
                 ? text.brokerConnected
                 : text.brokerChanged
               : card.result.provisioning === "linked"
                 ? text.brokerLinked
-                : (card.facts.secret.purpose ?? "connect") === "connect"
+                : purpose === "connect"
                   ? text.brokerSaved
                   : text.brokerSending;
         return card.facts.secret?.connect ? text.connected : text.secretSaved;
+      }
       case "settle_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted

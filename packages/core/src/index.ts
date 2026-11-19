@@ -151,6 +151,7 @@ export {
   orderLineText,
 } from "./order-line";
 export {
+  brokerCardFailed,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -164,6 +165,7 @@ export {
   ownerActionError,
   ownerActionLabels,
   ownerActionLive,
+  ownerActionStatus,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,

@@ -1,6 +1,7 @@
 import { i18n } from "@lingui/core";
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
+  brokerCardFailed,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -10,6 +11,7 @@ import {
   ownerActionChoices,
   ownerActionChoose,
   ownerActionLive,
+  ownerActionStatus,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
@@ -418,16 +420,6 @@ const STATUS_ICON: Record<string, IconName> = {
   superseded: "layers",
 };
 
-function statusLabel(labels: ReturnType<typeof ownerActionText>, status: OwnerAction["status"]) {
-  return {
-    pending: labels.statusPending,
-    confirmed: labels.statusConfirmed,
-    cancelled: labels.statusCancelled,
-    expired: labels.statusExpired,
-    superseded: labels.statusSuperseded,
-  }[status];
-}
-
 function ownerActionKindName(row: OwnerAction) {
   return ownerActionCard(row, i18n.locale).title;
 }
@@ -478,8 +470,9 @@ function DecisionLine({
       data-owner-action-kind={row.kind}
       data-owner-action-status={row.status}
     >
-      <span className="oa-line-ic">
-        <Icon name={STATUS_ICON[row.status] ?? "check"} />
+      {/* A failed broker connection shows no check mark beside «تعذّر». */}
+      <span className={`oa-line-ic${brokerCardFailed(row) ? " bad" : ""}`}>
+        <Icon name={brokerCardFailed(row) ? "close" : (STATUS_ICON[row.status] ?? "check")} />
       </span>
       <button
         type="button"
@@ -488,7 +481,7 @@ function DecisionLine({
         onClick={() => setOpen((value) => !value)}
       >
         <span className="oa-line-kind">
-          {kind} · {statusLabel(labels, row.status)}
+          {kind} · {ownerActionStatus(row, i18n.locale)}
           {choice && (
             <>
               {" · "}
