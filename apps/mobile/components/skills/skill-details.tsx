@@ -191,14 +191,13 @@ export function SkillDetails({
                 <Text style={[styles.hint, { textAlign }]}>
                   {t("skillsActivation")}
                   {": "}
-                  {/* With no triggers, an automatic skill loads only on request. */}
+                  {/* Unless explicit, a skill loads by itself only when the run's trigger
+                      is one of its triggers; otherwise only on request. */}
                   {t(
-                    detail.manifest.activation.mode === "trigger_based"
+                    detail.manifest.activation.mode !== "explicit" &&
+                      detail.manifest.activation.triggers.length > 0
                       ? "skillsTriggered"
-                      : detail.manifest.activation.mode === "automatic" &&
-                          detail.manifest.activation.triggers.length > 0
-                        ? "skillsAutomatic"
-                        : "skillsExplicit",
+                      : "skillsExplicit",
                   )}
                 </Text>
                 <Text style={[styles.hint, { textAlign }]}>

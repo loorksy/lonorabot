@@ -160,16 +160,19 @@ test("Expo Skills edits installed version and enabled state without dropping its
   }
 });
 
-test("Expo Skills says an automatic skill without triggers loads on request", async ({
+test("Expo Skills says a skill loads on an event only when it has triggers", async ({
   page,
   context,
 }) => {
   const f = await fixture(context);
   const names = {};
   try {
-    for (const [key, triggers] of [
-      ["request", []],
-      ["event", ["watch"]],
+    // Unless explicit, a skill loads by itself only when the run's trigger is one of its
+    // triggers, whatever its mode; with no triggers it loads only on request.
+    for (const [key, mode, triggers] of [
+      ["request", "automatic", []],
+      ["event", "automatic", ["watch"]],
+      ["untriggered", "trigger_based", []],
     ]) {
       const name = `${key}-${randomUUID().slice(0, 8)}`;
       const saved = await context.request.post("/api/skills", {
@@ -180,7 +183,7 @@ test("Expo Skills says an automatic skill without triggers loads on request", as
             name,
             content: "Keep all evidence attributed.",
             enabled: true,
-            manifest: { ...f.manifest, id: name, activation: { mode: "automatic", triggers } },
+            manifest: { ...f.manifest, id: name, activation: { mode, triggers } },
           },
         },
       });
@@ -191,7 +194,8 @@ test("Expo Skills says an automatic skill without triggers loads on request", as
     await page.goto(`/skills?botId=${f.agent.id}`);
     for (const [key, label] of [
       ["request", "التفعيل: عند الطلب"],
-      ["event", "التفعيل: تلقائي"],
+      ["event", "التفعيل: بحدث"],
+      ["untriggered", "التفعيل: عند الطلب"],
     ]) {
       await page.getByTestId(`skill-entry-${names[key]}`).click();
       const details = page.getByTestId("skill-details");
