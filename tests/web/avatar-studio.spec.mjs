@@ -199,12 +199,12 @@ for (const locale of ["en", "ar"])
     page.on("pageerror", (error) => errors.push(error.message));
     try {
       agent = await (
-        await context.request.post("/api/agents/create", {
+        await context.request.post("/api/agents", {
           headers,
           data: {
-            template: "general",
             name: `Avatar ${randomUUID().slice(0, 8)}`,
-            responsibility: "Answers questions",
+            description: "Answers questions",
+            scope_mode: "flexible",
           },
         })
       ).json();
