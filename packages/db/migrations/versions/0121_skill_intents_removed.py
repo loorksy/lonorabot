@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0121_skill_intents_removed"
-down_revision = "0088_end_notice_cards"
+down_revision = "0177_app_opens"
 branch_labels = None
 depends_on = None
 

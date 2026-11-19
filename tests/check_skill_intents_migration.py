@@ -5,7 +5,7 @@ wrote, each manifest carrying ``intents``: an owner skill, a package skill whose
 holds a package version, two saved skill versions, and a run whose ``skill_snapshot``
 pins a manifest. Upgrade: every copy reads with today's ``SkillManifest`` (``extra="forbid"``)
 and the snapshot reader, nothing else in those rows changed. Downgrade: every copy, read
-at 0088, still lacks ``intents`` and validates with the earlier contract (today's manifest,
+at 0177, still lacks ``intents`` and validates with the earlier contract (today's manifest,
 its activation a copy of the earlier model: ``intents`` defaults to [], ``extra="forbid"``),
 and the upgrade runs again.
 """
@@ -168,7 +168,7 @@ async def verify(connection: AsyncConnection, ids: dict[str, str], run: str) -> 
 
 
 async def verify_earlier(connection: AsyncConnection, ids: dict[str, str], run: str) -> None:
-    """At 0088, every stored manifest validates with the earlier contract, ``intents`` []."""
+    """At 0177, every stored manifest validates with the earlier contract, ``intents`` []."""
     manifests: list[Any] = []
     for key in ("owner_skill", "package_skill"):
         row = (
