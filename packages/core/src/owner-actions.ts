@@ -46,7 +46,6 @@ export const ownerActionLabels = {
     byYou: "your order",
     by: "by",
     at: "at",
-    notSet: "not set",
     account: "Account",
     simulation: "Simulation",
     brokerAccount: "Broker account",
@@ -225,16 +224,6 @@ export const ownerActionLabels = {
     renew: "New request",
     latest: "Show the latest",
     undone: "Undone",
-    watchChangedTitle: "Watch extended",
-    watchChangedHint:
-      "The agent moved this watch's end without asking. Undo puts the earlier end back.",
-    watchNoEnd: "until cancelled",
-    watchUndone: "Undone: the watch ends as before.",
-    watchChangedAgain: "This watch changed since. Nothing to undo.",
-    watchRemoved: "This watch no longer exists.",
-    stopTightenedTitle: "Stop loss tightened",
-    stopLoss: "Stop loss",
-    stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
     notNow: "ليس الآن",
@@ -254,7 +243,6 @@ export const ownerActionLabels = {
     byYou: "أمرك",
     by: "من",
     at: "في",
-    notSet: "غير محدد",
     account: "الحساب",
     simulation: "محاكاة",
     brokerAccount: "حساب الوسيط",
@@ -428,15 +416,6 @@ export const ownerActionLabels = {
     renew: "طلب جديد",
     latest: "عرض الأحدث",
     undone: "تم التراجع",
-    watchChangedTitle: "مُدّدت مراقبة",
-    watchChangedHint: "مدّد الوكيل نهاية هذه المراقبة دون أن يسأل. «تراجع» يعيد النهاية السابقة.",
-    watchNoEnd: "حتى الإلغاء",
-    watchUndone: "تم التراجع: تنتهي المراقبة كما كانت.",
-    watchChangedAgain: "تغيّرت هذه المراقبة بعد ذلك. لا شيء للتراجع عنه.",
-    watchRemoved: "لم تعد هذه المراقبة موجودة.",
-    stopTightenedTitle: "شُدّ وقف الخسارة",
-    stopLoss: "وقف الخسارة",
-    stopTightenedLine: "شُدّ وقف الخسارة. لا تراجع: إرخاؤه من جديد أمر جديد.",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -522,7 +501,7 @@ function actionLabel(action: string | null, lang: Language): string {
 function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
-    return card.kind === "agent_created" || card.kind === "watch_changed"
+    return card.kind === "agent_created"
       ? text.kept
       : card.kind === "supervision_created" || card.kind === "supervision_stopped"
         ? text.supervisionKept
@@ -559,10 +538,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           : card.result.provisioning === "connected"
             ? text.brokerConnected
             : text.brokerSaved;
-      case "watch_changed":
-        return text.watchUndone;
-      case "stop_tightened":
-        return text.stopTightenedLine;
       case "resolve_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted
@@ -598,10 +573,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.alreadyEnded;
     case "watch_expired":
       return text.watchExpired;
-    case "watch_changed_again":
-      return text.watchChangedAgain;
-    case "watch_removed":
-      return text.watchRemoved;
     case "credential_already_configured":
       return text.alreadyConnected;
     case "expired":
@@ -1166,44 +1137,6 @@ export function ownerActionCard(
       ];
       break;
     }
-    case "watch_changed": {
-      title = text.watchChangedTitle;
-      const watch = facts.watch;
-      if (watch) {
-        const end = (value: string | null) =>
-          value ? `${text.until} ${readinessTime(value, locale, now)}` : text.watchNoEnd;
-        lines.push(
-          [
-            ...(watch.symbol ? [isolate(watch.symbol)] : []),
-            `${end(watch.previous_expires_at)} ${arrow(lang)} ${end(watch.expires_at)}`,
-          ].join(" · "),
-        );
-      }
-      if (!watch?.active) {
-        // Changed again or removed since: the notice can only be dismissed.
-        hint = watch ? text.watchChangedAgain : text.watchRemoved;
-        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
-        break;
-      }
-      hint = text.watchChangedHint;
-      buttons = [
-        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
-        { key: "cancel", label: text.keep, decision: "cancel", primary: false },
-      ];
-      break;
-    }
-    case "stop_tightened": {
-      // A notice only (Q31): recorded settled, nothing to tap.
-      title = text.stopTightenedTitle;
-      const stop = facts.stop;
-      if (stop)
-        lines.push(
-          `${isolate(stop.symbol)} · ${text.stopLoss}: ${
-            stop.previous_stop_loss ? isolate(stop.previous_stop_loss) : text.notSet
-          } ${arrow(lang)} ${isolate(stop.stop_loss)}`,
-        );
-      break;
-    }
     case "supervise": {
       title = text.superviseTitle;
       lines.push(...supervisionLines(card, lang, text));
@@ -1462,11 +1395,10 @@ export function ownerActionError(code: string | null | undefined, locale: string
   return entry ? entry[language(locale)] : null;
 }
 
-// The notices whose «تراجع» is their confirm decision; the others (stop_tightened) are records.
-const UNDOABLE_NOTICES = new Set<string>(["agent_created", "supervision_created", "watch_changed"]);
+// The notices whose «تراجع» is their confirm decision.
+const UNDOABLE_NOTICES = new Set<string>(["agent_created", "supervision_created"]);
 
-/** A settled notice reads «تم التراجع» only when its confirm was the owner's Undo (Q31); a
-    settled stop_tightened record was applied, never undone. */
+/** A settled notice reads «تم التراجع» only when its confirm was the owner's Undo (Q31). */
 export function noticeUndone(card: Pick<OwnerAction, "kind" | "status">): boolean {
   return card.status === "confirmed" && UNDOABLE_NOTICES.has(card.kind);
 }

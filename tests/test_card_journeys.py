@@ -1,21 +1,18 @@
 """Card journeys (WP-F cards) through the tools, the owner routes and the passkey.
 
-Expired trade approvals are never executed and «طلب جديد» only asks the agent again; an
-agent's watch extension is a notice with one-use Undo, the owner's «تمديد» is not; a
-tightened stop is a notice without Undo; the mandate sheet's draft grants nothing until
-the owner signs it, the signature covers exactly the draft, and stopping another agent
-only narrows it. Runs on the real migrated PostgreSQL schema with the simulation broker
+Expired trade approvals are never executed and «طلب جديد» only asks the agent again; the
+owner's «تمديد» moves a watch's expiry later; the mandate sheet's draft grants nothing
+until the owner signs it, the signature covers exactly the draft, and stopping another
+agent only narrows it. Runs on the real migrated PostgreSQL schema with the simulation broker
 (skipped without ``LONORA_DATABASE_URL``).
 """
 
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 from lonora_adapter_kit.types import ToolCall
-from lonora_contracts.account import Position
 from lonora_contracts.account_authority import ALL_AUTHORITY_ACTIONS
 from lonora_contracts.domain import utcnow
 from lonora_tools.loader import load_tools
@@ -124,7 +121,7 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
 
 
 @pytest.mark.asyncio
-async def test_an_agents_watch_extension_has_one_use_undo_the_owners_extend_has_none() -> None:
+async def test_an_agents_watch_update_and_the_owners_extend_move_the_expiry() -> None:
     database()
     from check_streaming import Fixture
     from lonora_db.schema import MarketWatchRow
@@ -155,63 +152,26 @@ async def test_an_agents_watch_extension_has_one_use_undo_the_owners_extend_has_
                 assert row is not None
                 return datetime.fromisoformat(str(row.payload["expires_at"]))
 
-        def notices() -> Any:
-            return [item for item in shown if item["kind"] == "watch_changed"]
-
         await call(
             context,
             "watch_update",
             watch_id=watch["id"],
             expires_at=(start + timedelta(hours=2)).isoformat(),
         )
-        shown = await cards(fixture, thread["id"])
-        [first] = notices()
-        assert first["status"] == "pending" and first["requires_passkey"] is False
-        assert first["facts"]["watch"]["active"] is True
-        assert first["facts"]["watch"]["symbol"] == "XAUUSD"
-        assert datetime.fromisoformat(first["facts"]["watch"]["previous_expires_at"]) == start
-        # Moved earlier: no notice, and the extension it changed can no longer be undone.
+        # Moved earlier: the expiry follows.
         await call(
             context,
             "watch_update",
             watch_id=watch["id"],
             expires_at=(start + timedelta(hours=1)).isoformat(),
         )
-        shown = await cards(fixture, thread["id"])
-        assert len(notices()) == 1 and notices()[0]["facts"]["watch"]["active"] is False
-        status, stale = await raw(
-            fixture, "POST", f"/owner-actions/{first['id']}/decision", {"decision": "confirm"}
-        )
-        assert status == 200 and stale["status_reason"] == "watch_changed_again", stale
         assert await expiry() == start + timedelta(hours=1)
-        # Extended again: a fresh notice; Undo restores the expiry before it, once.
-        await call(
-            context,
-            "watch_update",
-            watch_id=watch["id"],
-            expires_at=(start + timedelta(hours=5)).isoformat(),
-        )
-        shown = await cards(fixture, thread["id"])
-        latest = next(item for item in notices() if item["status"] == "pending")
-        status, undone = await raw(
-            fixture, "POST", f"/owner-actions/{latest['id']}/decision", {"decision": "confirm"}
-        )
-        assert status == 200 and undone["status"] == "confirmed", undone
-        assert undone["result"]["undone"] is True
-        assert await expiry() == start + timedelta(hours=1)
-        status, repeated = await raw(
-            fixture, "POST", f"/owner-actions/{latest['id']}/decision", {"decision": "confirm"}
-        )
-        assert status == 200 and repeated["status"] == "confirmed"
-        assert await expiry() == start + timedelta(hours=1)
-        # The owner's «تمديد ساعتين»: two hours later, no notice (the owner did it).
+        # The owner's «تمديد ساعتين»: two hours later.
         status, extended = await raw(
             fixture, "POST", f"/watches/{watch['id']}/control", {"action": "extend", "hours": 2}
         )
         assert status == 200, extended
         assert await expiry() == start + timedelta(hours=3)
-        shown = await cards(fixture, thread["id"])
-        assert len(notices()) == 2
         for body in (
             {"action": "extend"},
             {"action": "extend", "hours": 0},
@@ -259,15 +219,7 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
     db = fixture.runtime.db
     connection = ""
     try:
-        held = Position(
-            id="held-ticket",
-            symbol="XAUUSD",
-            side="buy",
-            volume=Decimal("0.1"),
-            open_price=Decimal(100),
-            stop_loss=Decimal(95),
-        )
-        connection = await simulation(fixture, [held])
+        connection = await simulation(fixture, [])
 
         async def trading_agent(name: str, scope: str) -> dict[str, Any]:
             agent = await fixture.request(
@@ -403,38 +355,6 @@ async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
         [kept] = await active(flexible["id"])
         assert kept.envelope["symbols"] == ["XAUUSD"]
         assert sorted(kept.envelope["actions"]) == sorted(ALL_AUTHORITY_ACTIONS)
-
-        # Under its grant the agent tightens the stop: a notice, nothing to undo.
-        context = await fixture.lease(await fixture.run(flexible, flexible_thread))
-        moved = await call(
-            context,
-            "trade_execute",
-            action="modify_position",
-            account_id=connection,
-            symbol="XAUUSD",
-            position_id="held-ticket",
-            stop_loss="97",
-        )
-        assert moved.get("authorization") == "account_authority", moved
-        assert moved["status"] == "confirmed", moved
-        [notice] = [
-            item
-            for item in await cards(fixture, flexible_thread["id"])
-            if item["kind"] == "stop_tightened"
-        ]
-        assert notice["status"] == "confirmed" and notice["decided_via"] is None
-        assert notice["facts"]["stop"] == {
-            "symbol": "XAUUSD",
-            "position_id": "held-ticket",
-            "previous_stop_loss": "95",
-            "stop_loss": "97",
-        }
-        status, refused = await raw(
-            fixture, "POST", f"/owner-actions/{notice['id']}/decision", {"decision": "cancel"}
-        )
-        assert status == 409 and refused["code"] == "owner_action_already_decided"
-        status, refused = await raw(fixture, "POST", f"/owner-actions/{notice['id']}/renew")
-        assert (status, refused["code"]) == (409, "owner_action_not_renewable")
     finally:
         await retire(fixture, connection)
         await fixture.close()

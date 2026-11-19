@@ -606,10 +606,8 @@ test("no card resumes or starts trading, and no refusal names a Stop (amendment 
     assert.equal(financialBoundaryError(code, "en"), null, code);
 });
 
-test("M5: a settled stop_tightened notice reads as applied, only an Undo reads as undone", async () => {
+test("M5: only a confirmed Undo notice reads as undone", async () => {
   const { noticeUndone } = await import("../../packages/core/src/owner-actions");
-  assert.equal(noticeUndone({ kind: "stop_tightened", status: "confirmed" }), false);
-  assert.equal(noticeUndone({ kind: "watch_changed", status: "confirmed" }), true);
   assert.equal(noticeUndone({ kind: "agent_created", status: "confirmed" }), true);
   assert.equal(noticeUndone({ kind: "agent_created", status: "pending" }), false);
 });

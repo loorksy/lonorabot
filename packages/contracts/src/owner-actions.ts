@@ -13,11 +13,7 @@ export type OwnerActionKind =
   | "supervision_paused"
   | "connect_credential"
   /** The Secret card: fields the agent chose; values go straight to the encrypted store. */
-  | "secret"
-  /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
-  | "watch_changed"
-  /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
-  | "stop_tightened";
+  | "secret";
 /**
  * A grant card's one choice: Custom (the markets, actions, duration and own positions the
  * card shows) or Full delegation (every pair on the account, every action and the owner's
@@ -174,22 +170,6 @@ export type OwnerAction = {
       /** A broker card: connect the account, store its new password, or a new token. */
       purpose?: "connect" | "rotate_password" | "replace_token";
     };
-    /** watch_changed: the agent's extension; active while Undo still restores it. */
-    watch?: {
-      symbol: string | null;
-      kind: string | null;
-      previous_expires_at: string | null;
-      /** null: the agent removed the end (the watch runs until cancelled). */
-      expires_at: string | null;
-      active: boolean;
-    };
-    /** stop_tightened: the position's stop loss before and after (no Undo). */
-    stop?: {
-      symbol: string;
-      position_id: string;
-      previous_stop_loss: string | null;
-      stop_loss: string;
-    };
   };
   /** Confirming needs the owner's passkey: it signs a grant. */
   requires_passkey: boolean;
@@ -199,7 +179,6 @@ export type OwnerAction = {
     delegation?: GrantDelegation;
     stopped_agents?: string[];
     allowed_added?: boolean;
-    undone?: boolean;
     agent_id?: string;
     agent_name?: string;
     undo?: "deleted" | "paused";
@@ -218,8 +197,6 @@ export type OwnerAction = {
     /** A broker card: how provisioning stands (9.2). */
     provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
-    /** watch_changed Undo: the watch's expiry now. */
-    expires_at?: string | null;
   };
   expires_at: string;
   decided_at: string | null;
