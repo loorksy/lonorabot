@@ -2,8 +2,8 @@
 
 One bounded projection for the owner's header safety pill, its sheet and the agent's
 status line. It is built from the same records the financial boundary reads: the
-agent's ladder level and signed grants, each
-account's money limits and unresolved operations with their scoped block.
+agent's ladder level and signed grants, and each account's unresolved operations with
+their scoped block.
 
 It is never consulted for enforcement. The single executor re-reads every one of
 these at the moment of sending (``lonora_trading.execution``), so a stale or wrong
@@ -15,7 +15,6 @@ from typing import Any, cast
 
 from lonora_contracts.account_authority import full_delegation
 from lonora_contracts.domain import utcnow
-from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.trading import UNRESOLVED_STATUSES
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,45 +28,9 @@ from .schema import (
     ThreadRow,
     TradingJournalRow,
 )
-from .transactions import SettingsRepository, execution_policy_key
 
-RISK_LIMIT_NAMES = (
-    "max_trade_risk",
-    "max_trade_risk_equity_percent",
-    "max_daily_loss",
-    "max_open_risk",
-    "max_open_risk_equity_percent",
-    "min_free_margin",
-)
 ACCOUNT_LIMIT = 10
 LIST_LIMIT = 5
-
-
-def risk_limit_frame(account_id: str, policy: ExecutionPolicy) -> dict[str, Any]:
-    """An account's owner money limits; a limit that is not configured is not enforced."""
-    limits = policy.risk
-    values = {name: getattr(limits, name) for name in RISK_LIMIT_NAMES}
-    return {
-        "account_id": account_id,
-        "configured": limits.configured,
-        "currency": limits.currency,
-        "limits": {name: str(value) for name, value in values.items() if value is not None},
-        "not_configured": [name for name, value in values.items() if value is None],
-        **(
-            {"trading_day_timezone": limits.trading_day_timezone}
-            if limits.max_daily_loss is not None
-            else {}
-        ),
-    }
-
-
-async def account_money_limits(
-    session: AsyncSession, owner_id: str, account_id: str
-) -> dict[str, Any]:
-    policy = ExecutionPolicy.model_validate(
-        await SettingsRepository().get(session, execution_policy_key(owner_id, account_id))
-    )
-    return risk_limit_frame(account_id, policy)
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -120,12 +83,9 @@ async def trading_readiness(
     # lists operations on the other accounts, each with its account named.
     granted = {str(row["account_id"]) for row in permission["active_authorities"]}
     # A signed grant's account is always read, however many other accounts the owner has:
-    # otherwise its money limits would be missing from the line it speaks for.
+    # otherwise its unresolved operations would be missing from the line it speaks for.
     accounts += sorted(granted - set(accounts))
     in_scope = granted if level == "autonomous" and granted else set(accounts)
-    money_limits = [
-        await account_money_limits(session, owner_id, account_id) for account_id in accounts
-    ]
     operations: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
     if accounts:
@@ -213,7 +173,6 @@ async def trading_readiness(
         unresolved_count=sum(
             count for account_id, count in counts.items() if account_id in in_scope
         ),
-        money_limits=money_limits,
     )
     return {
         "presentation_only": True,
@@ -222,7 +181,6 @@ async def trading_readiness(
         "params": params,
         "level": level,
         "grants": grants,
-        "money_limits": money_limits,
         "unresolved_operations": operations,
         "unresolved_count": sum(counts.values()),
     }
@@ -235,10 +193,8 @@ def _headline(
     grants: list[dict[str, Any]],
     operations: list[dict[str, Any]],
     unresolved_count: int,
-    money_limits: list[dict[str, Any]],
 ) -> tuple[str, dict[str, Any]]:
     """The one line: the agent's ladder level, or the strongest thing stopping it."""
-    granted = {grant["account_id"] for grant in grants}
     if level == "analysis":
         return "no_trading", {}
     if paused:
@@ -249,19 +205,8 @@ def _headline(
             "symbol": operations[0]["symbol"] if operations else None,
         }
     if level == "supervised":
-        return "ask_me", {"money_limit_set": any(item["configured"] for item in money_limits)}
+        return "ask_me", {}
     first_grant = grants[0] if grants else None
-    # The daily loss limit of the grant's account, the money line the owner set with it.
-    daily_loss = next(
-        (
-            {"amount": item["limits"]["max_daily_loss"], "currency": item["currency"]}
-            for item in money_limits
-            if first_grant
-            and item["account_id"] == first_grant["account_id"]
-            and "max_daily_loss" in item["limits"]
-        ),
-        None,
-    )
     return "on_its_own", {
         "symbol_scope": first_grant["symbol_scope"] if first_grant else "selected",
         "full_delegation": bool(first_grant and first_grant["full_delegation"]),
@@ -271,8 +216,4 @@ def _headline(
         # Grants on several accounts: the line counts them and the sheet lists each.
         "account_count": len({item["account_id"] for item in grants}),
         "account_id": first_grant["account_id"] if first_grant else None,
-        "money_limit_set": any(
-            item["configured"] for item in money_limits if item["account_id"] in granted
-        ),
-        "daily_loss": daily_loss,
     }

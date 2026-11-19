@@ -36,11 +36,10 @@ async def main():
             proposal=OwnerActionProposal(**fields)
             if data['kind']=='grant_authority':
                 # The draft the tool resolves: this account, this pair, every action, until
-                # stopped, own positions excluded and a 3% daily loss (D1), suggested, or
-                # from the owner's sentence when the account already has its own limit.
-                from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
+                # stopped and own positions excluded (D1).
+                from lonora_contracts.owner_actions import GrantDraft
                 from lonora_db.owner_actions import ALL_ACTIONS
-                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis=data.get('basis','suggested'),percent='3',equity='10000'))
+                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS))
                 if data.get('delegation')=='full':
                     # Preselected because the owner's own message asked for full delegation.
                     draft=draft.with_delegation('full')
@@ -146,10 +145,7 @@ const copy = {
     password: "Account password",
     register: "Register this device first",
     signed: "Signed. It trades on its own inside this grant.",
-    dailyLoss: "Daily loss limit",
-    keepLimit: "Keep my current limit",
     ownExcluded: "Positions you opened yourself are excluded",
-    arrow: "→",
   },
   ar: {
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
@@ -162,10 +158,7 @@ const copy = {
     password: "كلمة مرور الحساب",
     register: "سجّل هذا الجهاز أولًا",
     signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
-    dailyLoss: "حد الخسارة اليومية",
-    keepLimit: "أبقِ حدي الحالي",
     ownExcluded: "لا يشمل المراكز التي فتحتها بنفسك",
-    arrow: "←",
   },
 };
 
@@ -197,19 +190,12 @@ for (const locale of ["en", "ar"])
       },
     });
     try {
-      // The owner's own 500 daily loss limit; the sentence asked for 3% (300).
-      const limit = await context.request.put(
-        `/api/trading/accounts/${state.account}/execution-policy`,
-        { headers: state.headers, data: { risk: { currency: "USD", max_daily_loss: "500" } } },
-      );
-      expect(limit.ok()).toBeTruthy();
       const seeded = seedCard({
         kind: "grant_authority",
         account: state.account,
         symbol: state.data.symbol,
         agent: state.agent.id,
         thread: state.thread.id,
-        basis: "requested",
       });
       const bodies = [];
       page.on("request", (request) => {
@@ -222,11 +208,6 @@ for (const locale of ["en", "ar"])
       await expect(card.locator(".oa-kind")).toContainText(text.grantTitle);
       await expect(card.locator(".oa-kind")).toContainText(state.agent.name);
       await expect(card.getByText(state.data.symbol)).toBeVisible();
-      // One line from the owner's own limit to the lower one, and the opt-out keeps it.
-      const daily = card.getByText(text.dailyLoss, { exact: false });
-      await expect(daily).toBeVisible();
-      await expect(daily).toContainText(`500⁩ ${text.arrow} ⁨300.00 USD`);
-      await expect(card.getByRole("switch", { name: text.keepLimit })).not.toBeChecked();
       // The switch states the owner's own positions; no fixed line contradicts it.
       await expect(card.getByText(text.ownExcluded, { exact: true })).toHaveCount(0);
       // D1: the owner's own positions are excluded unless switched on.
@@ -255,17 +236,12 @@ for (const locale of ["en", "ar"])
       const decision = bodies.find(([kind]) => kind === "decision")?.[1];
       expect(decision.decision).toBe("confirm");
       expect(decision).not.toHaveProperty("resume_trading");
-      expect(decision.money_limit).toBe("apply");
       expect(decision.proof?.challenge_id).toBeTruthy();
       const permission = await (
         await context.request.get(`/api/agents/${state.agent.id}/permissions`)
       ).json();
       expect(permission.effective_level).toBe("autonomous");
       expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-      const policy = await (
-        await context.request.get(`/api/trading/accounts/${state.account}/execution-policy`)
-      ).json();
-      expect(Number(policy.risk.max_daily_loss)).toBe(300);
     } finally {
       await state.cleanup();
     }
@@ -277,8 +253,6 @@ const delegationCopy = {
     full: "Full delegation",
     customMeaning: "Custom: only the markets, actions and time shown here",
     fullMeaning: "Full delegation: every pair on this account and every action",
-    fullLimits:
-      "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
     allPairs: "Markets: All pairs on this account",
     ownIncluded: "Positions you opened yourself are included",
     notNow: "Not now",
@@ -290,8 +264,6 @@ const delegationCopy = {
     full: "تفويض كامل",
     customMeaning: "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط",
     fullMeaning: "تفويض كامل: كل أزواج هذا الحساب وكل العمليات",
-    fullLimits:
-      "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
     allPairs: "الأسواق: كل أزواج هذا الحساب",
     ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
     notNow: "ليس الآن",
@@ -344,12 +316,6 @@ for (const locale of ["en", "ar"])
       })
     ).json();
     try {
-      // A money limit the owner set elsewhere: Full keeps it in force.
-      const limit = await context.request.put(
-        `/api/trading/accounts/${state.account}/execution-policy`,
-        { headers: state.headers, data: { risk: { currency: "USD", max_open_risk: "400" } } },
-      );
-      expect(limit.ok()).toBeTruthy();
       const seeded = seedCard({
         kind: "grant_authority",
         account: state.account,
@@ -366,8 +332,6 @@ for (const locale of ["en", "ar"])
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
       await expect(card).toHaveAttribute("data-owner-action-status", "pending");
       const custom = card.getByRole("radio", { name: text.custom, exact: true });
-      // The card's daily loss line (the choice's own meaning mentions the limit too).
-      const dailyLine = card.locator("p", { hasText: new RegExp(`^${text.dailyLoss}:`) });
       const full = card.getByRole("radio", { name: text.full, exact: true });
       // One choice inside the card's own list, Custom selected; no separate button.
       await expect(custom).toBeChecked();
@@ -377,22 +341,18 @@ for (const locale of ["en", "ar"])
         text.customMeaning,
       );
       await expect(card.getByRole("switch", { name: text.includeOwn })).not.toBeChecked();
-      await expect(dailyLine).toContainText("300.00 USD");
       // Choosing Full updates the card's stored draft; the card then reads as Full.
       await full.check();
       await expect(full).toBeChecked();
       const detail = card.locator("[data-owner-action-choice-detail]");
       await expect(detail).toContainText(text.fullMeaning);
-      await expect(detail).toContainText(text.fullLimits);
       await expect(card.getByRole("switch", { name: text.includeOwn })).toHaveCount(0);
       await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
       await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
-      await expect(dailyLine).toHaveCount(0);
       // Back to Custom restores it exactly, then Full again.
       await custom.check();
       await expect(custom).toBeChecked();
       await expect(card.getByRole("switch", { name: text.includeOwn })).toBeVisible();
-      await expect(dailyLine).toContainText("300.00 USD");
       await full.check();
       await expect(full).toBeChecked();
       if (locale === "ar") {
@@ -426,12 +386,6 @@ for (const locale of ["en", "ar"])
       expect(envelope.actions).toHaveLength(10);
       expect(envelope.allow_manual_positions).toBe(true);
       expect(envelope.valid_until).toBeNull();
-      const policy = await (
-        await context.request.get(`/api/trading/accounts/${state.account}/execution-policy`)
-      ).json();
-      // No daily loss limit from the card; the owner's own limit stays.
-      expect(policy.risk.max_daily_loss).toBeNull();
-      expect(Number(policy.risk.max_open_risk)).toBe(400);
       await page.reload();
       // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
       await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
@@ -441,16 +395,6 @@ for (const locale of ["en", "ar"])
         })
         .click();
       await expect(page.getByTestId("agent-mode-line")).toContainText(text.full);
-      // The owner's absolute open-risk cap stays and is shown as set, never «دون حد».
-      const openRisk = page.locator(
-        `#dialog [data-account-limits="${state.account}"] [data-money-limit="max_open_risk"]`,
-      );
-      await expect(openRisk).toContainText("400");
-      await expect(
-        page.locator(
-          `#dialog [data-account-limits="${state.account}"] [data-money-limit="max_open_risk_equity_percent"]`,
-        ),
-      ).toHaveCount(0);
     } finally {
       await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
       await state.cleanup();
@@ -515,9 +459,8 @@ for (const locale of ["en", "ar"])
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
       const custom = card.getByRole("radio", { name: text.custom, exact: true });
       const full = card.getByRole("radio", { name: text.full, exact: true });
-      const dailyLine = card.locator("p", { hasText: new RegExp(`^${text.dailyLoss}:`) });
       await expect(custom).toBeChecked();
-      await expect(dailyLine).toContainText("300.00 USD");
+      await expect(card.getByRole("switch", { name: text.includeOwn })).toBeVisible();
       frozen = await cards();
       // The owner picks Full on another screen; this one still shows Custom.
       const other = await context.request.post(`/api/owner-actions/${seeded.id}/decision`, {
@@ -535,7 +478,7 @@ for (const locale of ["en", "ar"])
         text.fullMeaning,
       );
       await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
-      await expect(dailyLine).toHaveCount(0);
+      await expect(card.getByRole("switch", { name: text.includeOwn })).toHaveCount(0);
       expect(challenges).toEqual([{ delegation: "custom", allow_manual_positions: true }]);
       // Nothing was prepared or signed.
       const stored = (await cards()).find((row) => row.id === seeded.id);

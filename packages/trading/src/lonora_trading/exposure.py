@@ -3,12 +3,10 @@
 from typing import Literal
 
 from lonora_contracts.execution_quality import (
-    ExecutionPolicy,
     ExecutionSnapshot,
     ExposureBucket,
     ExposureSnapshot,
 )
-from lonora_contracts.trading import TradeRequest
 
 ENTRY_ACTIONS = {"buy", "sell", "buy_limit", "sell_limit", "buy_stop", "sell_stop"}
 
@@ -48,37 +46,3 @@ def account_exposure(snapshot: ExecutionSnapshot) -> ExposureSnapshot:
         free_margin=snapshot.account.free_margin,
         buckets=[buckets[key] for key in sorted(buckets)],
     )
-
-
-def exposure_reasons(
-    snapshot: ExecutionSnapshot, request: TradeRequest, policy: ExecutionPolicy
-) -> list[str]:
-    if request.action not in ENTRY_ACTIONS:
-        return []  # Risk-reducing actions must not be blocked by an entry limit.
-    reasons: list[str] = []
-    market = request.action in {"buy", "sell"}
-    if (
-        market
-        and policy.max_positions is not None
-        and len(snapshot.positions) >= policy.max_positions
-    ):
-        reasons.append("portfolio_position_limit")
-    if (
-        not market
-        and policy.max_pending_orders is not None
-        and len(snapshot.orders) >= policy.max_pending_orders
-    ):
-        reasons.append("portfolio_pending_order_limit")
-    if policy.max_symbol_direction_volume is not None:
-        bucket = next(
-            (
-                item
-                for item in account_exposure(snapshot).buckets
-                if item.symbol == request.symbol and item.direction == direction(request.action)
-            ),
-            None,
-        )
-        existing = bucket.position_volume + bucket.pending_volume if bucket else 0
-        if existing + (request.volume or 0) > policy.max_symbol_direction_volume:
-            reasons.append("portfolio_direction_volume_limit")
-    return reasons

@@ -84,12 +84,12 @@ its lead role whatever its grant (`lonora_db.lead`), so a revoke never ends Lono
 `agent_control` (toolset `collaboration`, long-tail, replay-safe) pauses or resumes the
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
-It has no action that trades, grants, raises a limit or edits memory or instructions.
+It has no action that trades, grants or edits memory or instructions.
 Lonora steers every team agent's work by its lead role, with or without a grant; any
 other agent only as its supervisor, whatever message its Run answers
 (`supervision_required`). The owner's message counts only while the Run has read
-nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on another agent's routine follows the same
-rules.
+nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on another
+agent's routine follows the same rules.
 
 Holds (`ln_supervision_holds`) record each pause a supervisor sets:
 
