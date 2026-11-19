@@ -294,10 +294,11 @@ async def test_the_card_is_refreshed_when_the_mode_changes_elsewhere() -> None:
 async def test_lonoras_card_for_a_deleted_agent_ends_with_it() -> None:
     database()
     from check_streaming import Fixture
-    from lonora_db.schema import AgentRow
+    from lonora_db.schema import AgentRow, RunRow
     from sqlalchemy import select
 
     fixture = await Fixture().open()
+    run_id = ""
     try:
         async with fixture.runtime.db.sessions() as session:
             lonora = await session.scalar(
@@ -311,6 +312,7 @@ async def test_lonoras_card_for_a_deleted_agent_ends_with_it() -> None:
         context = await fixture.lease(
             await fixture.run(personal, await fixture.conversation(personal))
         )
+        run_id = context.lease.run_id
         card = (
             await call(context, "owner_action_propose", kind="trading_mode", agent_id=team["id"])
         )["owner_action"]
@@ -323,6 +325,13 @@ async def test_lonoras_card_for_a_deleted_agent_ends_with_it() -> None:
         row = next(item for item in shown if item["id"] == card["id"])
         assert row["status"] != "pending", row
     finally:
+        if run_id:
+            # Lonora outlives the fixture: a run left working in its conversation would
+            # take every later owner message there as steering (admit_runs).
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                run = await session.get(RunRow, run_id, with_for_update=True)
+                if run is not None:
+                    run.status = "completed"
         await fixture.close()
 
 
