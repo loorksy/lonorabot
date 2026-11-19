@@ -128,7 +128,6 @@ async def resolution_event(session: AsyncSession, row: TradingJournalRow) -> Non
             "action": row.request.get("action"),
             "outcome": resolution.get("outcome"),
             "statement": resolution.get("statement"),
-            "broker_reference": resolution.get("broker_reference"),
             "actor": resolution.get("actor"),
             "resolved_at": resolution.get("resolved_at"),
             "prior_code": _details(row).get("prior_receipt", {}).get("code"),

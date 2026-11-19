@@ -89,7 +89,7 @@ export function Trading() {
           />
         </>
       )}
-      <TradingJournal entries={trading.journal} onChange={refresh} />
+      <TradingJournal entries={trading.journal} />
     </section>
   );
 }
