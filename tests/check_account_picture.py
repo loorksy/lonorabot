@@ -24,7 +24,7 @@ from lonora_contracts.tasks import TaskCreate
 from lonora_contracts.trading import TradeRequest
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.runs import claim_next
-from lonora_db.schema import RunRow, TradingJournalRow
+from lonora_db.schema import ClosedTradeRow, RunRow, TradingJournalRow
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.tasks import create_task
 from lonora_tools.loader import load_tools
@@ -165,6 +165,50 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     assert own["floating_pnl"] == "36" and own["currency"] == "USD"
     assert own["status"] == "connected" and own["stale"] is False and own["as_of"]
     print("PASS own book: only the agent's tickets, largest first, bounded, exposure and P&L")
+
+    # Realized P&L from the closed-trade ledger (W-LEDGER's statistics), per label.
+    c = (await f.agent("Probe book"))["id"]
+    async with f.runtime.db.sessions() as session, session.begin():
+        trades: list[tuple[str | None, str | None, str, str]] = [
+            ("scale_in", "12.5", a, "USD"),
+            ("scale_in", "-2.5", a, "USD"),
+            ("scale_in", None, a, "USD"),  # a priced net with one unpriced trade beside it
+            ("scale_in", "4", a, "EUR"),  # another account currency: never added to USD
+            (None, None, a, "USD"),
+            ("x", "99", b, "USD"),
+            # 21 labels of another agent: its block keeps the 20 most used rows.
+            *[(f"probe_{n:02d}", "1", c, "USD") for n in range(21)],
+        ]
+        for index, (label, pnl, agent, currency) in enumerate(trades):
+            session.add(
+                ClosedTradeRow(
+                    id=new_id(),
+                    owner_id=f.owner,
+                    account_id=book.account,
+                    position_id=f"closed-{index}",
+                    closing_deal_id=f"deal-{index}",
+                    symbol="EURUSD",
+                    side="buy",
+                    volume=Decimal("0.1"),
+                    agent_id=agent,
+                    label=label,
+                    currency=currency,
+                    realized_pnl=Decimal(pnl) if pnl else None,
+                    closed_at=utcnow(),
+                    deals=[],
+                )
+            )
+    async with f.runtime.db.sessions() as session:
+        results = picture_of(await account_picture(session, f.owner, a))["own_results"]
+    rows = {(row["label"], row["currency"]): row for row in results["closed_trades"]}
+    usd = rows[("scale_in", "USD")]
+    assert usd["count"] == 3 and usd["net_realized_pnl"] == "10" and usd["unpriced"] == 1, usd
+    assert rows[("scale_in", "EUR")]["net_realized_pnl"] == "4", results
+    async with f.runtime.db.sessions() as session:
+        probes = picture_of(await account_picture(session, f.owner, c))["own_results"]
+    assert len(probes["closed_trades"]) == 20, len(probes["closed_trades"])
+    assert all(label != "x" for label, _ in rows), results
+    print("PASS own results: realized P&L per opening label from the closed-trade ledger")
 
     # A failed read keeps the last successful figures: they carry that read's time.
     earlier = utcnow() - timedelta(hours=6)
