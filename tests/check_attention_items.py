@@ -667,7 +667,7 @@ async def migration(fixture: Fixture) -> None:
 
     # The code before 0172 does not know mandate_proposed: its downgrade removes those
     # rows, and 0170's removes secret_requested ones.
-    await asyncio.to_thread(alembic, "downgrade", "0060_agent_trading_mode")
+    await asyncio.to_thread(alembic, "downgrade", "0087_end_money_limits")
     assert await remaining("mandate_proposed") == []
     assert await remaining("secret_requested")
     await asyncio.to_thread(alembic, "downgrade", "0068_end_trading_goals")
