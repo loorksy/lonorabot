@@ -271,6 +271,26 @@ async def deleted_owner(f: Fixture, account: str) -> None:
     print("PASS a deleted agent's closed trade wakes Lonora")
 
 
+async def lonora_paused(f: Fixture, account: str) -> None:
+    """While Lonora is paused, deleted agents' trades wait and never crowd out a close
+    of a live agent; they wake Lonora once it resumes."""
+
+    async def pause(value: bool) -> None:
+        async with f.runtime.db.sessions() as session, session.begin():
+            (await ensure_personal_agent(session, f.owner)).paused = value
+
+    await pause(True)
+    for index in range(MAXIMUM_PER_PASS):
+        await closed(f, account, new_id(), f"gone-{index}", "1")
+    live = await f.agent("Gold live")
+    await closed(f, account, live["id"], "live-close", "2")
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    assert len(await runs_of(f, live["id"], "broker_event")) == 1
+    await pause(False)
+    assert await wake_for_closes(f.runtime.db, f.owner) == MAXIMUM_PER_PASS
+    print("PASS while Lonora is paused, deleted agents' trades wait and crowd out no close")
+
+
 async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
     agent = await f.agent("Gold manager")
     operation = new_id()
@@ -390,6 +410,7 @@ async def main() -> None:
         await paused_and_owner(f, account)
         await many_woken(f, account)
         await deleted_owner(f, account)
+        await lonora_paused(f, account)
         await busy_notices(f, account)
     finally:
         await f.close()
