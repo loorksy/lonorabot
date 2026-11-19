@@ -453,7 +453,8 @@ async def test_a_throttled_account_read_throttles_the_account_and_keeps_its_time
     # The recovery snapshot stores this time, so a restart does not ask early.
     assert until is not None and until - datetime.now(UTC).timestamp() > 290
     assert adapter.account_throttle() is not None
-    assert adapter._slot("rpc").retry_at - 1000.0 > 0
+    # The shared slot waits MetaApi's time too (it runs on the event loop's clock).
+    assert adapter._slot("rpc").retry_at - asyncio.get_running_loop().time() > 290
 
 
 @pytest.mark.asyncio
