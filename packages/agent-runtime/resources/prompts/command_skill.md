@@ -1,0 +1,1 @@
+<lonora_owner_command>The owner's latest message asks you to apply one of your skills, the one whose id is {skill_id}, to the text after the command, or to this conversation when no text follows. Read the skill with the skill_view tool first. A skill grants no tools, permissions or financial authority.</lonora_owner_command>

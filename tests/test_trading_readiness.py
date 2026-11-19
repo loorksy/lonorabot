@@ -7,7 +7,6 @@ injected through ``permission_state``: the signature path itself is covered by
 """
 
 import ast
-import os
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -18,20 +17,17 @@ from lonora_contracts.domain import utcnow
 from lonora_db.agent_state import agent_live_state
 from lonora_db.client import Database
 from lonora_db.schema import (
-    AccountAuthorityRow,
     AgentRow,
     BrokerSessionRow,
     OwnerActionRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_db.trading_readiness import trading_readiness
-from lonora_db.transactions import SettingsRepository, execution_policy_key
+from lonora_db.transactions import execution_policy_key
 from lonora_trading.execution_quality import policy_key
 from test_task_runtime import task_db as task_db
 
 Fixture = tuple[Database, str, str, str]
-POSTGRES = bool(os.environ.get("LONORA_TASK_TEST_DATABASE_URL"))
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -72,29 +68,10 @@ async def readiness(db: Database, owner: str, agent: str) -> dict[str, Any]:
         return await trading_readiness(session, owner, row)
 
 
-def restriction(
-    owner: str, acct: str, action_class: str, *, symbol: str | None = None, **values: Any
-) -> TradingRestrictionRow:
-    """An owner pause in force now, for every agent unless ``agent_id`` is given."""
-    return TradingRestrictionRow(
-        owner_id=owner,
-        account_id=acct,
-        agent_id=values.pop("agent_id", None),
-        symbol=symbol,
-        action_class=action_class,
-        valid_from=utcnow() - timedelta(minutes=1),
-        source="owner_ui",
-        created_by="owner",
-        **values,
-    )
-
-
 @pytest.mark.asyncio
-async def test_no_grant_reads_as_no_trading_with_unset_limits(
-    task_db: Fixture,
-) -> None:
+async def test_no_grant_reads_as_no_trading(task_db: Fixture) -> None:
     db, owner, agent, _ = task_db
-    acct = await account(db, owner)
+    await account(db, owner)
     result = await readiness(db, owner, agent)
     assert result["presentation_only"] is True
     # The per-agent default is analysis: the one line says it does not trade.
@@ -102,161 +79,57 @@ async def test_no_grant_reads_as_no_trading_with_unset_limits(
     assert result["grants"] == []
     # Lonora has no Stop: the projection carries no global trading state.
     assert "global_trading" not in result
-    assert result["money_limits"] == [
-        {
-            "account_id": acct,
-            "configured": False,
-            "currency": None,
-            "limits": {},
-            "not_configured": [
-                "max_trade_risk",
-                "max_trade_risk_equity_percent",
-                "max_daily_loss",
-                "max_open_risk",
-                "max_open_risk_equity_percent",
-                "min_free_margin",
-            ],
-        }
-    ]
-    assert result["restrictions"] == [] and result["unresolved_operations"] == []
-    assert result["exits_allowed"] is True
+    assert result["unresolved_operations"] == []
+    assert "restrictions" not in result and "exits_allowed" not in result
 
 
 @pytest.mark.asyncio
-async def test_ask_me_and_signed_grant_lines_report_whether_a_money_limit_is_set(
+async def test_ask_me_and_signed_grant_lines(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db, owner, agent, _ = task_db
     acct = await account(db, owner)
     level(monkeypatch, "supervised")
     asked = await readiness(db, owner, agent)
-    assert asked["state"] == "ask_me" and asked["params"] == {"money_limit_set": False}
+    assert asked["state"] == "ask_me" and asked["params"] == {}
 
     level(monkeypatch, "autonomous", grant(acct, valid_until="2026-12-01T00:00:00+00:00"))
     signed = await readiness(db, owner, agent)
     assert signed["state"] == "on_its_own"
     assert signed["params"]["symbols"] == ["XAUUSD"]
     assert signed["params"]["symbol_scope"] == "selected"
-    assert signed["params"]["money_limit_set"] is False
-    assert signed["params"]["daily_loss"] is None
     assert signed["grants"][0]["actions"] == ["buy", "sell", "close_position"]
     assert signed["grants"][0]["allow_manual_positions"] is False
-
-    async with db.sessions() as session, session.begin():
-        await SettingsRepository().put(
-            session,
-            execution_policy_key(owner, acct),
-            {"risk": {"currency": "USD", "max_daily_loss": "300"}},
-        )
-    limited = await readiness(db, owner, agent)
-    assert limited["params"]["money_limit_set"] is True
-    # The line names the daily loss limit the owner trades under.
-    assert limited["params"]["daily_loss"] == {"amount": "300", "currency": "USD"}
-    assert limited["money_limits"][0]["limits"] == {"max_daily_loss": "300"}
-    assert limited["money_limits"][0]["trading_day_timezone"] == "UTC"
-    # The executor and this projection read the same settings key.
+    # The executor reads the account's stored policy (its freshness bounds) at this key.
     assert policy_key(owner, acct) == execution_policy_key(owner, acct)
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
 async def test_a_granted_account_is_read_whatever_the_owner_s_other_accounts(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The line names the daily loss and pauses of the account the grant signs for, even
+    """The line reads the account the grant signs for (its unresolved operations), even
     when the owner has more accounts than the projection lists by default."""
     db, owner, agent, _ = task_db
     for _ in range(12):
         await account(db, owner)
     granted = await account(db, owner)  # Created last: beyond the first ten.
     async with db.sessions() as session, session.begin():
-        await SettingsRepository().put(
-            session,
-            execution_policy_key(owner, granted),
-            {"risk": {"currency": "USD", "max_daily_loss": "200.00"}},
+        session.add(
+            TradingJournalRow(
+                operation_id="op-granted",
+                owner_id=owner,
+                account_id=granted,
+                request_hash="hash",
+                request={"symbol": "XAUUSD", "action": "buy"},
+                status="ambiguous",
+                result={},
+            )
         )
     level(monkeypatch, "autonomous", grant(granted))
     signed = await readiness(db, owner, agent)
-    assert signed["state"] == "on_its_own", signed
-    assert signed["params"]["money_limit_set"] is True
-    assert signed["params"]["daily_loss"] == {"amount": "200.00", "currency": "USD"}
-    async with db.sessions() as session, session.begin():
-        session.add(restriction(owner, granted, "no_new_entries"))
-    paused = await readiness(db, owner, agent)
-    assert paused["state"] == "paused" and paused["params"]["account_id"] == granted, paused
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
-async def test_active_restriction_pauses_and_a_freeze_traps_no_exit_but_shows_it(
-    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    db, owner, agent, _ = task_db
-    acct = await account(db, owner)
-    level(monkeypatch, "supervised")
-    now = utcnow()
-    async with db.sessions() as session, session.begin():
-        session.add_all(
-            [
-                TradingRestrictionRow(
-                    owner_id=owner,
-                    account_id=acct,
-                    agent_id=None,
-                    action_class="no_new_entries",
-                    valid_from=now - timedelta(minutes=1),
-                    valid_until=now + timedelta(hours=3),
-                    source="owner_message",
-                    created_by="agent",
-                    created_by_agent_id=agent,
-                ),
-                TradingRestrictionRow(
-                    owner_id=owner,
-                    account_id=acct,
-                    agent_id=agent,
-                    symbol="XAUUSD",
-                    action_class="all_mutations",
-                    valid_from=now + timedelta(hours=1),
-                    valid_until=now + timedelta(hours=2),
-                    source="owner_ui",
-                    created_by="owner",
-                ),
-                TradingRestrictionRow(
-                    owner_id=owner,
-                    account_id=acct,
-                    agent_id="another-agent",
-                    action_class="all_mutations",
-                    valid_from=now - timedelta(minutes=1),
-                    source="owner_ui",
-                    created_by="owner",
-                ),
-            ]
-        )
-    paused = await readiness(db, owner, agent)
-    assert paused["state"] == "paused"
-    assert paused["params"]["action_class"] == "no_new_entries"
-    assert paused["params"]["count"] == 1 and paused["params"]["symbol"] is None
-    # Active first; the scheduled one is listed; another agent's pause is not.
-    assert [item["state"] for item in paused["restrictions"]] == ["active", "scheduled"]
-    first = paused["restrictions"][0]
-    assert first["applies_to"] == "all_agents" and first["source"] == "owner_message"
-    assert first["created_by_agent_id"] == agent and "reason" not in first
-    assert paused["restrictions"][1]["applies_to"] == "this_agent"
-    assert paused["exits_allowed"] is True
-    async with db.sessions() as session, session.begin():
-        session.add(
-            TradingRestrictionRow(
-                owner_id=owner,
-                account_id=acct,
-                agent_id=agent,
-                action_class="all_mutations",
-                valid_from=now - timedelta(minutes=1),
-                source="owner_ui",
-                created_by="owner",
-            )
-        )
-    frozen = await readiness(db, owner, agent)
-    assert frozen["params"]["action_class"] == "all_mutations"
-    assert frozen["exits_allowed"] is False
+    assert signed["state"] == "uncertain", signed
+    assert signed["params"] == {"count": 1, "symbol": "XAUUSD"}
 
 
 @pytest.mark.asyncio
@@ -379,40 +252,18 @@ async def test_paused_agent_and_market_bound_scope(
         row.paused = False
     scoped = await readiness(db, owner, agent)
     # A market-bound agent sees only its own account and market.
-    assert [item["account_id"] for item in scoped["money_limits"]] == [bound]
     assert [item["operation_id"] for item in scoped["unresolved_operations"]] == ["op-bound"]
     assert scoped["state"] == "uncertain"
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
-async def test_a_freeze_never_claims_exits_are_allowed(
-    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    db, owner, agent, _ = task_db
-    acct = await account(db, owner)
-    level(monkeypatch, "supervised")
-    asked = await readiness(db, owner, agent)
-    assert asked["state"] == "ask_me" and asked["exits_allowed"] is True
-    async with db.sessions() as session, session.begin():
-        session.add(restriction(owner, acct, "all_mutations"))
-    frozen = await readiness(db, owner, agent)
-    # The same projection says exits are frozen too, so the line cannot say "exits
-    # allowed" next to the sheet's "exits are blocked too".
-    assert frozen["state"] == "paused" and frozen["exits_allowed"] is False
-    assert frozen["restrictions"][0]["action_class"] == "all_mutations"
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
-async def test_pauses_and_operations_count_only_on_the_accounts_the_agent_acts_on(
+async def test_operations_count_only_on_the_accounts_the_agent_acts_on(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db, owner, agent, _ = task_db
     granted, other = await account(db, owner), await account(db, owner)
     level(monkeypatch, "autonomous", grant(granted))
     async with db.sessions() as session, session.begin():
-        session.add(restriction(owner, other, "all_mutations"))
         session.add(
             TradingJournalRow(
                 operation_id="op-elsewhere",
@@ -425,47 +276,14 @@ async def test_pauses_and_operations_count_only_on_the_accounts_the_agent_acts_o
             )
         )
     elsewhere = await readiness(db, owner, agent)
-    # A freeze and an uncertain operation on another account do not stop this agent
-    # trading on its own on its granted account; the sheet still lists both.
-    assert elsewhere["state"] == "on_its_own" and elsewhere["exits_allowed"] is True
-    assert [item["account_id"] for item in elsewhere["restrictions"]] == [other]
+    # An uncertain operation on another account does not stop this agent trading on its
+    # own on its granted account; the sheet still lists it.
+    assert elsewhere["state"] == "on_its_own"
     assert [item["operation_id"] for item in elsewhere["unresolved_operations"]] == ["op-elsewhere"]
     assert elsewhere["unresolved_count"] == 1
-    async with db.sessions() as session, session.begin():
-        session.add(restriction(owner, granted, "no_new_entries", symbol="XAUUSD"))
-    here = await readiness(db, owner, agent)
-    assert here["state"] == "paused"
-    assert here["params"]["account_id"] == granted and here["params"]["count"] == 1
-    # The pause on the agent's own account is listed first.
-    assert [item["account_id"] for item in here["restrictions"]] == [granted, other]
-    # An agent that asks before each trade may ask on any account: every pause counts,
-    # and the line names the account it is on.
+    # An agent that asks before each trade may ask on any account: the operation counts.
     level(monkeypatch, "supervised")
-    asked = await readiness(db, owner, agent)
-    assert asked["state"] == "paused" and asked["params"]["action_class"] == "all_mutations"
-    assert asked["params"]["account_id"] == other and asked["params"]["count"] == 2
-    assert asked["exits_allowed"] is False
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
-async def test_a_freeze_on_a_bound_agents_market_blocks_its_exits(
-    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    db, owner, agent, _ = task_db
-    bound = await account(db, owner)
-    level(monkeypatch, "supervised")
-    async with db.sessions() as session, session.begin():
-        row = await session.get(AgentRow, agent)
-        assert row is not None
-        row.trading_account_id, row.trading_symbol = bound, "XAUUSD"
-        session.add(restriction(owner, bound, "all_mutations", symbol="EURUSD"))
-    other_market = await readiness(db, owner, agent)
-    assert other_market["state"] == "ask_me" and other_market["exits_allowed"] is True
-    async with db.sessions() as session, session.begin():
-        session.add(restriction(owner, bound, "all_mutations", symbol="xauusd"))
-    own_market = await readiness(db, owner, agent)
-    assert own_market["state"] == "paused" and own_market["exits_allowed"] is False
+    assert (await readiness(db, owner, agent))["state"] == "uncertain"
 
 
 @pytest.mark.asyncio
@@ -477,36 +295,6 @@ async def test_live_state_carries_readiness_only_for_the_owner_view(task_db: Fix
     assert plain.trading_readiness is None
     assert owner_view.trading_readiness is not None
     assert owner_view.trading_readiness["state"] == "no_trading"
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(not POSTGRES, reason="grant expiry needs timezone-aware timestamps")
-async def test_owner_grant_summary_reports_money_limits_once(task_db: Fixture) -> None:
-    db, owner, agent, thread = task_db
-    acct = await account(db, owner)
-    async with db.sessions() as session, session.begin():
-        # A grant awaiting the owner's signature is listed; it is never authority.
-        session.add(
-            AccountAuthorityRow(
-                owner_id=owner,
-                agent_id=agent,
-                thread_id=thread,
-                account_id=acct,
-                status="pending",
-                envelope={"account_id": acct, "symbols": ["XAUUSD"], "actions": ["buy"]},
-                envelope_hash="hash",
-                activation_expires_at=utcnow() + timedelta(minutes=10),
-            )
-        )
-    async with db.sessions() as session:
-        plain = await agent_live_state(session, owner, agent)
-        owner_view = await agent_live_state(session, owner, agent, readiness=True)
-    # The owner's grant summary reports the account's money limits; the model's live
-    # state does not repeat them (its permission frame carries them every turn), and
-    # neither claims a monetary limit is "unavailable".
-    assert owner_view.account_authorities[0]["money_limits"]["configured"] is False
-    assert "money_limits" not in plain.account_authorities[0]
-    assert "monetary_stop_risk" not in plain.account_authorities[0]
 
 
 @pytest.mark.asyncio
@@ -529,7 +317,7 @@ async def test_the_status_line_waits_for_the_owner_or_the_broker_like_the_pill(
                 thread_id=thread,
                 timeline_seq=1,
                 source="agent",
-                kind="trust_source",
+                kind="connect_credential",
                 subject="probe",
                 payload={},
                 payload_hash="probe",

@@ -93,6 +93,14 @@ test("schedules: a titled daily routine and a one-shot, with the switch", async 
   await page.goto(`/app/new-schedule?agent=${agent.id}`);
   let form = page.locator('form[data-form="schedule"]');
   await form.getByLabel("Task", { exact: true }).fill(`${prefix} brief`);
+  // The select menu pops in like the reference's (opacity and a 4px rise).
+  const repeat = form.getByRole("button", { name: /^Repeat: / });
+  await repeat.click();
+  const popup = page.locator(".select-popup");
+  await expect(popup).toBeVisible();
+  expect(await popup.evaluate((node) => getComputedStyle(node).animationName)).toBe("pop-in");
+  await repeat.click();
+  await expect(popup).toHaveCount(0);
   await form.getByLabel("Repeat", { exact: true }).selectOption("workdays");
   await form.getByLabel("Time", { exact: true }).fill("07:15");
   let created = saved(page, "POST", new RegExp(`^/api/routines/${agent.id}$`));
@@ -125,6 +133,23 @@ test("schedules: a titled daily routine and a one-shot, with the switch", async 
   // A general agent has no account: no conditional type is offered.
   await page.goto(`/app/new-schedule?agent=${agent.id}`);
   await expect(page.locator('select[name="type"] option[value="condition"]')).toHaveCount(0);
+  // The Tasks tab is in the address: Back from another page returns to it.
+  await page.goto("/app/tasks");
+  await page.getByRole("tab", { name: "Scheduled", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/tasks\?tab=scheduled$/);
+  await page.goto(`/app/routines?agent=${agent.id}`);
+  await page.goBack();
+  await expect(page.getByRole("tab", { name: "Scheduled", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("tab", { name: "Active", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/tasks$/);
+  await page.goto("/app/tasks?tab=unknown");
+  await expect(page.getByRole("tab", { name: "Active", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
 
 /** Marks a one-shot as fired («نُفّذت»): its time passed, it ran and switched itself off. */
@@ -276,6 +301,78 @@ test("skills: create, edit, version history, restore and undo", async ({ page, o
   await toggle.click();
   await expect(page.locator("#toast")).toContainText("Skill disabled");
   expect((await call("GET", `/skills/${skill.id}`)).payload.enabled).toBe(false);
+});
+
+test("a conditional alert is saved for a trading agent and waits in its schedules", async ({
+  page,
+  context,
+}) => {
+  const data = JSON.parse(
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ action: "init" }),
+      encoding: "utf8",
+    }),
+  );
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  let agent;
+  try {
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Alerts ${randomUUID().slice(0, 8)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    agent = await created.json();
+    const title = `Tell me ${randomUUID().slice(0, 6)}`;
+    await page.goto(`/app/new-schedule?agent=${agent.id}`);
+    const form = page.locator('form[data-form="schedule"]');
+    await expect(form.locator('select[name="agent"]')).toHaveValue(agent.id);
+    await form.getByLabel("Task", { exact: true }).fill(title);
+    await form.getByLabel("Schedule type", { exact: true }).selectOption("condition");
+    await form.getByLabel("Condition — for the conditional alert").fill("above 2350");
+    const posted = saved(page, "POST", /^\/api\/watches$/);
+    await form.getByRole("button", { name: "Save schedule", exact: true }).click();
+    const watch = await (await posted).json();
+    expect(watch.payload).toMatchObject({
+      kind: "price",
+      account_id: data.account,
+      symbol: data.symbol,
+      condition: "above",
+      level: "2350",
+      prompt: title,
+    });
+    // It waits with the agent's schedules; «Upcoming» in Updates lists only schedules.
+    await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}$`));
+    await page.goto("/app/updates");
+    await expect(page.getByText("Upcoming", { exact: true })).toBeVisible();
+    await expect(page.locator(".row", { hasText: title })).toHaveCount(0);
+    await page.goto(`/app/routines?agent=${agent.id}`);
+    const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    const control = saved(page, "POST", new RegExp(`^/api/watches/${watch.id}/control$`));
+    await toggle.click();
+    expect((await control).request().postDataJSON()).toEqual({ action: "pause" });
+  } finally {
+    if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ ...data, action: "cleanup" }),
+      encoding: "utf8",
+    });
+  }
 });
 
 test("task page: a task held for the owner offers pause and resume, each sending its own action", async ({

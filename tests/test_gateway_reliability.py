@@ -48,7 +48,6 @@ from lonora_db.schema import (
     ThreadRow,
     TradeApprovalRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_gateway.health import gateway_health
 from lonora_gateway.liveness import Liveness, StepLiveness, StepSpec, supervise_step
@@ -713,15 +712,6 @@ async def financial_fixture(db: Database, owner: str) -> dict[str, str]:
                     requests=[{"account_id": account.id, "symbol": "XAUUSD"}],
                     status="completed",
                 ),
-                TradingRestrictionRow(
-                    owner_id=owner,
-                    account_id=account.id,
-                    agent_id=agent.id,
-                    action_class="no_new_entries",
-                    valid_from=now,
-                    source="owner_ui",
-                    created_by="owner",
-                ),
                 SuperBotRequestRow(
                     owner_id=owner,
                     agent_id=agent.id,
@@ -764,9 +754,6 @@ async def test_deleting_a_conversation_agent_or_account_keeps_financial_records(
             select(AccountAuthorityRow).where(AccountAuthorityRow.owner_id == owner)
         )
         approval = await session.get(TradeApprovalRow, "ap-" + ids["run"][:8])
-        restriction = await session.scalar(
-            select(TradingRestrictionRow).where(TradingRestrictionRow.owner_id == owner)
-        )
         request = await session.scalar(
             select(SuperBotRequestRow).where(SuperBotRequestRow.owner_id == owner)
         )
@@ -775,9 +762,6 @@ async def test_deleting_a_conversation_agent_or_account_keeps_financial_records(
     assert (authority.agent_id, authority.account_id) == (ids["agent"], ids["account"])
     assert approval and approval.run_id is None and approval.thread_id is None
     assert approval.agent_id == ids["agent"]
-    # A restriction on a deleted agent never turns into an account-wide one.
-    assert restriction and restriction.agent_id == ids["agent"]
-    assert restriction.account_id == ids["account"]
     assert request and request.thread_id is None and request.goal_id == RETIRED_GOAL
 
 

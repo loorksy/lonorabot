@@ -13,7 +13,7 @@ from typing import Any, cast
 from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import MessageRow, RunRow
+from .schema import MessageRow, RunRow, SteeringRow
 
 OWNER = "owner"
 
@@ -75,6 +75,16 @@ async def owner_typed_message(session: AsyncSession, run: RunRow) -> MessageRow 
             MessageRow.thread_id == run.thread_id,
             MessageRow.role == "user",
             MessageRow.seq <= run.input_seq,
+            # An answer the owner gave a background run's question went to that run in
+            # its own thread: it never stands for this run's owner words.
+            ~exists(
+                select(SteeringRow.id)
+                .join(RunRow, RunRow.id == SteeringRow.run_id)
+                .where(
+                    SteeringRow.message_id == MessageRow.id,
+                    RunRow.thread_id != MessageRow.thread_id,
+                )
+            ),
         )
         .order_by(MessageRow.seq.desc())
         .limit(12)

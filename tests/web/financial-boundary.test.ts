@@ -45,30 +45,11 @@ test("only server evidence promotes a stage; a never-sent failure reads Not sent
 
 test("boundary blocks explain why nothing was sent, in both languages, never a raw code", () => {
   const codes = [
-    "trading_restriction_active",
     "broker_reconciliation_required",
     "broker_observation_unavailable",
-    "risk_trade_limit",
-    "risk_stop_loss_required",
-    "risk_open_limit",
-    "risk_open_unbounded",
-    "risk_daily_loss_limit",
-    "risk_free_margin_floor",
-    "risk_limit_currency_mismatch",
-    "risk_economics_unavailable",
-    "risk_daily_history_incomplete",
-    "risk_daily_history_unavailable",
-    "risk_daily_history_invalid",
     "batch_halted_after_unconfirmed_result",
     "target_state_not_reached",
     "order_filled_before_cancel",
-    "restriction_not_found",
-    "restriction_window_invalid",
-    "restriction_time_zone_required",
-    "restriction_owner_manual_agent_conflict",
-    "restriction_valid_until_required",
-    "restriction_window_too_long",
-    "restriction_account_required",
     "delete_blocked_unresolved_operation",
   ];
   for (const code of codes) {

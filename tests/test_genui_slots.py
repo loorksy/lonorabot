@@ -24,7 +24,7 @@ from test_task_runtime import task_db as task_db
 
 Fixture = tuple[Database, str, str, str]
 OWNER = ModelMessage(role="user", content="ما الذي ينتظر قراري؟")
-HEAD = '{"v":2,"kind":"receipt","title":"ينتظر قرارك","icon":"check"}'
+HEAD = '{"v":2,"kind":"summary","title":"ينتظر قرارك","icon":"check"}'
 CLOSE = '{"why":"الطلب في مكانه من الشرح.","fallback":"طلب موافقة ينتظر قرارك."}'
 
 
@@ -278,8 +278,8 @@ async def test_body_text_option_values_and_state_may_use_a_fixed_cards_words(
         '{"type":"Text","text":"موافقة المالك تأتي من بطاقة الطلب نفسها."}',
         '{"type":"Segmented","bind":"view","label":"العرض","options":[{"value":"approve","label":"الملخّص"},{"value":"reject","label":"التفاصيل"}]}',
     ).replace(
-        '{"v":2,"kind":"receipt","title":"ينتظر قرارك","icon":"check"}',
-        '{"v":2,"kind":"receipt","title":"ينتظر قرارك","icon":"check"}\n{"state":{"view":"approve"}}',
+        '{"v":2,"kind":"summary","title":"ينتظر قرارك","icon":"check"}',
+        '{"v":2,"kind":"summary","title":"ينتظر قرارك","icon":"check"}\n{"state":{"view":"approve"}}',
     )
     ui, projector = await project(db, owner, agent, thread, text)
     assert ui is not None, projector.diagnostics

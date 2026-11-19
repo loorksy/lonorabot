@@ -439,7 +439,7 @@ async def test_an_opportunity_saved_by_tainted_work_wakes_tainted() -> None:
 
 @pytest.mark.asyncio
 async def test_the_continuation_of_a_card_a_tainted_run_proposed_is_tainted() -> None:
-    """Review round 4 (b): a card a card's send proposed (e.g. a trust_source card) and
+    """Review round 4 (b): a card a card's send proposed (e.g. a connect_credential card) and
     the owner tapped continues in a Run that keeps the proposing Run's taint."""
     from lonora_contracts.domain import utcnow
     from lonora_db.owner_actions import continue_after_card
@@ -455,9 +455,9 @@ async def test_the_continuation_of_a_card_a_tainted_run_proposed_is_tainted() ->
                 thread_id=card.thread["id"],
                 run_id=submit_run["id"],
                 source="agent",
-                kind="trust_source",
-                subject="source:card-test",
-                payload={"source_kind": "mcp", "identifier": "card-test"},
+                kind="connect_credential",
+                subject="credential:news_feed",
+                payload={"target": "news_feed", "service": None},
                 payload_hash="0" * 64,
                 status="confirmed",
                 expires_at=utcnow() + timedelta(hours=1),

@@ -63,16 +63,3 @@ def document_chunks(document: str) -> list[tuple[int, str]]:
         for offset in range(start, end, CHUNK_CHARS)
         if document[offset : min(offset + CHUNK_CHARS, end)].strip()
     ]
-
-
-def retrieve_sections(document: str, query: str, limit: int = 6) -> list[str]:
-    scored = [
-        (lexical_score(text, query), offset, text) for offset, text in document_chunks(document)
-    ]
-    return [
-        text
-        for score, _, text in sorted(scored, key=lambda item: (-item[0], item[1]))[
-            : max(0, min(limit, 8))
-        ]
-        if score > 0
-    ]

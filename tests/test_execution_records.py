@@ -7,6 +7,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionSnapshot
 from lonora_contracts.trading import TradeRequest
 from lonora_db.schema import TradingJournalRow
+from lonora_db.trading_journal import SERVER_EVIDENCE
 from lonora_trading.journal import execution_evidence, record_excerpt
 
 
@@ -94,3 +95,31 @@ def test_legacy_receipt_reports_missing_evidence_without_substitution():
     data = record_excerpt(row)
     assert data["historical_evidence_available"] is False
     assert data["result"]["details"] == {}
+
+
+def test_older_risk_evidence_survives_receipts_and_reaches_the_record():
+    assert {"risk_assessment", "admission_block"} <= set(SERVER_EVIDENCE)
+    row = TradingJournalRow(
+        operation_id="op-blocked",
+        owner_id="owner",
+        account_id="account",
+        request={"symbol": "XAUUSD.r"},
+        result={
+            "operation_id": "op-blocked",
+            "status": "failed",
+            "code": "broker_reconciliation_required",
+            "details": {
+                "send_state": "not_sent",
+                "admission_block": {"code": "broker_reconciliation_required"},
+                "risk_assessment": {
+                    "items": [{"symbol": "XAUUSD.r"}, {"symbol": "EURUSD.r"}],
+                    "open_risk": "9",
+                },
+            },
+        },
+        updated_at=utcnow(),
+    )
+    details = record_excerpt(row, symbol="XAUUSD.r")["result"]["details"]
+    assert details["admission_block"] == {"code": "broker_reconciliation_required"}
+    assert details["risk_assessment"]["items"] == [{"symbol": "XAUUSD.r"}]
+    assert details["risk_assessment"]["open_risk"] == "9"
