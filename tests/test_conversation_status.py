@@ -409,6 +409,53 @@ async def test_a_renewed_approval_keeps_the_spoken_requests_provenance():
 
 
 @pytest.mark.asyncio
+async def test_a_renewed_approval_keeps_a_card_sends_provenance():
+    """«طلب جديد» on an expired approval a card's send raised (or its retry) starts a run
+    that keeps the send's provenance-only mark: it never spends the signed grant (6.10)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.genui_submit import SUBMIT
+    from lonora_db.owner_words import RETRY_OF_SUBMIT
+    from lonora_db.schema import RunRow, TradeApprovalRow
+    from lonora_db.trade_approvals import renew_approval
+    from lonora_trading.account_authority import provisional_voice
+
+    fixture = await Fixture().open()
+    try:
+        for marks in ({SUBMIT: {"message_id": "card-send"}}, {RETRY_OF_SUBMIT: "card-send"}):
+            thread, run_id = await conversation_run(fixture, "اشترِ الذهب")
+            approval_id = str(uuid4())
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                run = await session.get(RunRow, run_id)
+                assert run is not None
+                run.model_metadata = {**run.model_metadata, **marks}
+                session.add(
+                    TradeApprovalRow(
+                        id=approval_id,
+                        owner_id=fixture.owner,
+                        run_id=run_id,
+                        thread_id=thread["id"],
+                        agent_id=run.agent_id,
+                        call_id="call",
+                        requests=[{"action": "buy", "symbol": "XAUUSD"}],
+                        status="expired",
+                        results=[],
+                    )
+                )
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                renewed_id = (await renew_approval(session, fixture.owner, approval_id)).id
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.get(RunRow, renewed_id)
+                assert row is not None
+                send = marks.get(RETRY_OF_SUBMIT) or run_id
+                assert row.model_metadata[RETRY_OF_SUBMIT] == send, row.model_metadata
+                assert SUBMIT not in row.model_metadata
+                assert await provisional_voice(session, row) is True
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_journal_operations_carry_their_conversation_anchor():
     database()
     from check_streaming import Fixture

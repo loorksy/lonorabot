@@ -433,7 +433,7 @@ async def test_never_run_submission_stays_out_of_every_run_and_unlocks_the_card(
 async def test_card_words_never_stand_for_the_owner() -> None:
     from lonora_db.owner_words import owner_typed_message
     from lonora_db.schema import MessageRow, RunRow, ThreadRow
-    from lonora_tools.restrictions import owner_message_id
+    from lonora_tools.provenance import owner_message_id
 
     fixture = await open_fixture()
     try:
@@ -654,7 +654,7 @@ async def test_alert_off_names_the_watch_in_the_conversations_language(language:
         )
         receipt = "\n".join(
             [
-                '{"v":2,"kind":"receipt","title":"تنبيه فعّال","icon":"check"}',
+                '{"v":2,"kind":"summary","title":"تنبيه فعّال","icon":"check"}',
                 '{"type":"Button","label":"إيقاف التنبيه","icon":"bellOff","action":'
                 '{"do":"send","intent":"alert.off","data":{"watch_id":"' + watch["id"] + '"}}}',
                 '{"why":"w","fallback":"التنبيه فعّال."}',
@@ -860,6 +860,20 @@ async def fail_and_retry(fixture: Any, card: Card, run_id: str, *, started: bool
     response = await fixture.client.post(f"/api/runs/{run_id}/retry")
     assert response.status_code == 202, response.text
     return str(response.json()["id"])
+
+
+def test_a_retry_queued_before_the_upgrade_keeps_its_old_mark() -> None:
+    """A card send's retry queued by the previous release carries ``ui_tainted``: it is
+    still a card send's retry (6.10). Any other run that release marked (a wake, a Task)
+    stays an ordinary run: the mark never spreads."""
+    from lonora_db.owner_words import ui_submit_provenance
+    from lonora_db.schema import RunRow
+
+    old = {"origin_run_id": "card-send"}
+    retry = RunRow(thread_id="t", agent_id="a", model_metadata={"retry_of": "r", "ui_tainted": old})
+    wake = RunRow(thread_id="t", agent_id="a", model_metadata={"ui_tainted": old})
+    assert ui_submit_provenance(retry) is True
+    assert ui_submit_provenance(wake) is False
 
 
 @pytest.mark.asyncio

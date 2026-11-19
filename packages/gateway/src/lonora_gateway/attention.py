@@ -42,7 +42,6 @@ from lonora_db.schema import (
     TradeApprovalRow,
     TradingJournalRow,
     TradingOpportunityRow,
-    TradingRestrictionRow,
 )
 from lonora_db.system_alerts import wake_for_alerts
 from lonora_db.threads import conversation_thread
@@ -176,8 +175,6 @@ async def candidate(
                 agent_id, thread_id = resource.agent_id, resource.thread_id
                 parameters["owner_action_id"] = resource.id
                 scope = "owner_action:" + resource.id
-        elif event.kind.startswith("trading.restriction_"):
-            resource = await session.get(TradingRestrictionRow, identifier)
         elif event.kind.startswith("watch."):
             resource = await session.get(MarketWatchRow, identifier)
             if resource and resource.owner_id == event.owner_id:

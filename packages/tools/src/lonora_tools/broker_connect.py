@@ -22,7 +22,7 @@ from sqlalchemy import select
 from .base import Tool
 from .context import ToolContext
 from .owner_actions import card_scope, card_summary
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 
 
 class BrokerConnectInput(Contract):
@@ -119,13 +119,13 @@ def tools() -> list[Tool]:
 
 class BrokerManageInput(Contract):
     account_id: str = Field(min_length=1, max_length=64)
-    action: Literal["disconnect", "enable", "disable", "rotate_password", "replace_token"]
+    action: Literal["disconnect", "enable", "disable", "deploy", "rotate_password", "replace_token"]
 
 
 async def manage(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     """9.3 from chat. Every action is the owner's own: the run must carry their typed
     message (Q10), so a page or a peer cannot disconnect, switch off or re-key an account."""
-    from lonora_trading.broker_manage import disconnect, refuse_unsettled, set_enabled
+    from lonora_trading.broker_manage import deploy, disconnect, refuse_unsettled, set_enabled
 
     params = BrokerManageInput.model_validate(args)
     async with context.db.sessions() as session:
@@ -146,6 +146,8 @@ async def manage(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             params.account_id,
             params.action == "enable",
         )
+    if params.action == "deploy":
+        return await deploy(context.db, context.brokers, context.owner_id, params.account_id)
     if params.action == "disconnect":
         return await disconnect(context.db, context.brokers, context.owner_id, params.account_id)
     if params.action == "rotate_password":
@@ -187,11 +189,13 @@ def manage_tools() -> list[Tool]:
             "broker_manage",
             "Change one of the owner's broker connections on the owner's own request: "
             "disconnect (an account Lonora created at MetaApi is removed there too; its open "
-            "positions and orders stay at the broker, unmanaged), enable, "
+            "positions and orders stay at the broker, unmanaged), enable, deploy (start an "
+            "account MetaApi reports not running, once the owner says yes in chat), "
             "disable (its positions are then not read or managed), rotate_password or "
             "replace_token (each shows a card for the new value; you never see it). "
-            "account_id is the connection_id from list_accounts. Refused while an operation "
-            "on the account has no confirmed outcome.",
+            "account_id is the connection_id from list_accounts. disable, disconnect and "
+            "rotate_password are refused while an operation on the account has no confirmed "
+            "outcome.",
             BrokerManageInput,
             manage,
             search_terms="disconnect unlink remove disable enable password token broker "

@@ -1,7 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { type EdgeOptions, placeScroll, syncEdge } from "./chrome";
-import { foldNav, type LensRect, lensRect, placeLens } from "./lens";
+import { foldNav, type LensRect, lensRect, placeLens, setLens } from "./lens";
 import { isDesktop, reducedMotion } from "./motion";
 import { ROOTS, type Root, rootPath } from "./routes";
 import { suppressClicks } from "./sheets/SheetHost";
@@ -119,8 +119,8 @@ function createPager(refs: PagerRefs, live: RefObject<Live>, busy: RefObject<boo
     }
     stretch += Math.min(14, Math.abs(vel) * 0.006);
     lens.style.transition = "none";
-    lens.style.width = `${w.toFixed(1)}px`;
-    lens.style.transform = `translateX(${(x - stretch / 2 + shift).toFixed(1)}px) scaleX(${((w + stretch) / w).toFixed(4)})`;
+    lens.style.width = `${(w + stretch).toFixed(1)}px`;
+    lens.style.transform = `translateX(${(x - stretch / 2 + shift).toFixed(1)}px)`;
     if (s.toBtn) {
       s.fromBtn?.style.setProperty("--on", (1 - p).toFixed(3));
       s.toBtn.style.setProperty("--on", p.toFixed(3));
@@ -253,7 +253,7 @@ function createPager(refs: PagerRefs, live: RefObject<Live>, busy: RefObject<boo
     s.ghost?.shade.remove();
     clearUnit(s.cur);
     settleTabs(s);
-    placeLens(s.nav, false);
+    setLens(s.nav, lensRect(s.toBtn), false);
   };
   const settle = (s: State, commit: boolean, v0: number, spec: Spring) => {
     const to = commit ? s.side * s.W : 0;

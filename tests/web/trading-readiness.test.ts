@@ -22,24 +22,13 @@ const base: TradingReadiness = {
   params: {},
   level: "analysis",
   grants: [],
-  restrictions: [],
   money_limits: [],
   unresolved_operations: [],
   unresolved_count: 0,
-  exits_allowed: true,
 };
 const states: Array<[TradingReadiness["state"], TradingReadiness["params"]]> = [
   ["no_trading", {}],
   ["agent_paused", {}],
-  [
-    "paused",
-    {
-      action_class: "no_new_entries",
-      valid_until: "2026-11-08T17:00:00Z",
-      symbol: "XAUUSD",
-      count: 1,
-    },
-  ],
   ["uncertain", { count: 2, symbol: "XAUUSD" }],
   ["ask_me", { money_limit_set: false }],
   [
@@ -69,7 +58,7 @@ test("every readiness state has one plain line in English and Arabic, never a ra
     assert.match(ar, /[؀-ۿ]/, state);
     if (JSON.stringify(params).includes("XAUUSD")) assert.ok(ar.includes(isolate("XAUUSD")), ar);
   }
-  const own = { ...base, state: "on_its_own" as const, params: states[5][1] };
+  const own = { ...base, state: "on_its_own" as const, params: states[4][1] };
   assert.match(tradingReadinessLine(own, "en", now), /until you stop it · No money limit set$/);
   const account = { ...own, params: { ...own.params, symbol_scope: "account" as const } };
   assert.ok(tradingReadinessLine(account, "en", now).includes("All pairs on this account"));
@@ -124,50 +113,12 @@ test("every readiness state has one plain line in English and Arabic, never a ra
   assert.equal(tradingReadinessLine(two, "ar", now), `يتداول باستقلال على ${isolate("2")} حسابات`);
 });
 
-test("the sheet's freeze alert says exits are blocked too, in English and Arabic", () => {
-  assert.match(tradingSafetyLabels.en.exitsFrozen, /exits are blocked too/);
-  assert.match(tradingSafetyLabels.ar.exitsFrozen, /الخروج محظور أيضًا/);
-});
-
-test("a pause names its account when the owner has several, and only then", () => {
-  const paused = {
-    ...base,
-    state: "paused" as const,
-    params: {
-      action_class: "no_new_entries" as const,
-      valid_until: null,
-      symbol: null,
-      account_id: "account-b",
-      count: 1,
-    },
-  };
-  const named = (id: string) => (id === "account-b" ? "Simulation · 2" : null);
-  assert.equal(
-    tradingReadinessLine(paused, "en", now),
-    "Paused: no new entries · until you lift it",
-  );
-  assert.equal(
-    tradingReadinessLine(paused, "en", now, named),
-    `Paused (${isolate("Simulation · 2")}): no new entries · until you lift it`,
-  );
-  assert.equal(
-    tradingReadinessLine(paused, "ar", now, named),
-    `إيقاف (${isolate("Simulation · 2")}): لا صفقات جديدة · حتى ترفعه`,
-  );
-  const market = { ...paused, params: { ...paused.params, symbol: "XAUUSD" } };
-  assert.equal(
-    tradingReadinessLine(market, "en", now, named),
-    `Paused on ${isolate("XAUUSD")} (${isolate("Simulation · 2")}): no new entries · until you lift it`,
-  );
-});
-
 test("the pill tone follows what is stopping or holding new trades", () => {
   const tone = (state: TradingReadiness["state"]) => tradingReadinessTone({ ...base, state });
   assert.equal(tone("on_its_own"), "ready");
   assert.equal(tone("ask_me"), "asks");
   assert.equal(tone("no_trading"), "idle");
-  for (const held of ["paused", "uncertain", "agent_paused"] as const)
-    assert.equal(tone(held), "held");
+  for (const held of ["uncertain", "agent_paused"] as const) assert.equal(tone(held), "held");
 });
 
 test("money limits read as amounts, or say plainly that none is set", () => {
@@ -207,9 +158,8 @@ test("the sheet labels exist in both languages with the same keys, and name no S
     assert.ok(!(key in tradingSafetyLabels.en) && !(key in tradingSafetyLabels.ar), key);
 });
 
-test("Web and Mobile explain every pause and money-limit code from one shared table", () => {
+test("Web and Mobile explain every money-limit code from one shared table", () => {
   const codes = [
-    "trading_restriction_active",
     "risk_daily_loss_limit",
     "risk_trade_limit",
     "risk_open_limit",
@@ -254,19 +204,15 @@ test("Web and Mobile explain every pause and money-limit code from one shared ta
   const mobilePill = readFileSync("apps/mobile/components/safety-pill.tsx", "utf8");
   for (const source of [webTrading, mobilePill])
     assert.ok(!source.includes("/trading/controls") && !source.includes("emergency_stop"));
-  // Both sheets name the agent that set a pause and the account of every item when
-  // there are several (web: the conversation's AgentSheet).
+  // Both sheets name the account of every item when there are several (web: the
+  // conversation's AgentSheet).
   const mobileChecks = [
-    "agentName(item.created_by_agent_id)",
-    "accountName(item.account_id)",
     "accountName(operation.account_id)",
     "tradingReadinessLine(readiness, locale, new Date(), accountName)",
   ];
   for (const check of mobileChecks) assert.ok(mobilePill.includes(check), check);
   const webSheet = readFileSync("apps/web/src/conversation/sheets/AgentSheet.tsx", "utf8");
   for (const check of [
-    "agentName(r.created_by_agent_id)",
-    "accountName(r.account_id)",
     "accountName(op.account_id)",
     "tradingReadinessLine(readiness, i18n.locale, new Date(), accountName)",
   ])

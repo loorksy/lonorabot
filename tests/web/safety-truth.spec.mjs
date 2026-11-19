@@ -300,7 +300,7 @@ test("header safety capsule: abnormal states only, and no Stop control", async (
   });
   expect(response.status()).toBe(201);
   const agent = await response.json();
-  let pause;
+  let uncertain;
   try {
     const permissions = await (
       await context.request.get(`/api/agents/${agent.id}/permissions`)
@@ -314,19 +314,20 @@ test("header safety capsule: abnormal states only, and no Stop control", async (
     // The capsule under the header shows abnormal states only (reference safetyCap).
     const capsule = page.getByTestId("safety-capsule");
     await expect(capsule).toHaveCount(0);
-    const paused = await context.request.post("/api/trading/restrictions", {
-      headers: state.headers,
-      data: { account_id: state.data.account, action_class: "no_new_entries" },
-    });
-    expect(paused.status()).toBe(201);
-    pause = (await paused.json()).id;
+    // An abnormal state: a close on this market the broker never confirmed.
+    const [position] = (await openPositions(context, state, 1)).positions;
+    uncertain = seedCloses({
+      account: state.data.account,
+      symbol: state.data.symbol,
+      rows: [[position.id, "ambiguous", "broker_timeout"]],
+    })[position.id];
     await page.reload();
-    await expect(capsule).toHaveAttribute("data-readiness", "paused");
+    await expect(capsule).toHaveAttribute("data-readiness", "uncertain");
     await capsule.click();
     const sheet = page.locator("#dialog");
     // The sheet's head repeats the server's line; the money limits say none is set.
     await expect(sheet.getByTestId("agent-mode-line")).toHaveText(
-      "Paused: no new entries · until you lift it",
+      `1 operation awaiting broker confirmation · new risk on ${state.data.symbol} held`,
     );
     await expect(sheet.getByText("No money limit set", { exact: true })).toBeVisible();
     // Amendment 1: no Trading switch, Stop or Resume anywhere in the sheet.
@@ -335,105 +336,15 @@ test("header safety capsule: abnormal states only, and no Stop control", async (
       0,
     );
   } finally {
-    if (pause)
-      await context.request.post(`/api/trading/restrictions/${pause}/revoke`, {
+    if (uncertain)
+      await context.request.post(`/api/trading/journal/${uncertain}/resolve`, {
         headers: state.headers,
-        data: {},
+        data: { outcome: "not_executed", statement: "Checked the terminal: still open." },
       });
     await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
     await state.cleanup();
   }
 });
-
-for (const locale of ["en", "ar"])
-  test(`${locale}: a freeze says exits are frozen too, in the line and the sheet`, async ({
-    page,
-    context,
-  }) => {
-    test.setTimeout(60000);
-    const state = await setup(context, locale);
-    const response = await context.request.post("/api/agents", {
-      headers: state.headers,
-      data: {
-        name: `Freeze ${randomUUID()}`,
-        trading_account_id: state.data.account,
-        trading_symbol: state.data.symbol,
-      },
-    });
-    expect(response.status()).toBe(201);
-    const agent = await response.json();
-    const text =
-      locale === "ar"
-        ? {
-            frozen: "إيقاف: تجميد كامل، والخروج أيضًا · حتى ترفعه",
-            alert: "يوجد تجميد نشط: الخروج محظور أيضًا.",
-          }
-        : {
-            frozen: "Paused: frozen, exits too · until you lift it",
-            alert: "A freeze is active: exits are blocked too.",
-          };
-    let freeze;
-    let pause;
-    try {
-      const permissions = await (
-        await context.request.get(`/api/agents/${agent.id}/permissions`)
-      ).json();
-      const changed = await context.request.put(`/api/agents/${agent.id}/permissions`, {
-        headers: state.headers,
-        data: { level: "supervised", expected_revision: permissions.revision },
-      });
-      expect(changed.ok()).toBeTruthy();
-      await page.goto(`/app/${agent.id}`);
-      const pill = page.getByTestId("safety-capsule");
-      const created = await context.request.post("/api/trading/restrictions", {
-        headers: state.headers,
-        data: { account_id: state.data.account, action_class: "all_mutations" },
-      });
-      expect(created.status()).toBe(201);
-      freeze = (await created.json()).id;
-      // A plain pause next to the freeze: its row speaks for its own class only.
-      const paused = await context.request.post("/api/trading/restrictions", {
-        headers: state.headers,
-        data: { account_id: state.data.account, action_class: "no_new_entries" },
-      });
-      expect(paused.status()).toBe(201);
-      pause = (await paused.json()).id;
-      await page.reload();
-      await expect(pill).toHaveAttribute("data-readiness", "paused");
-      // A freeze blocks exits too: the capsule says it in the server's words.
-      await expect(pill.locator(".sc-text")).toHaveText(text.frozen);
-      await pill.click();
-      const sheet = page.locator("#dialog");
-      // The sheet's head repeats the frozen line; it never contradicts the freeze alert.
-      await expect(sheet.getByTestId("agent-mode-line")).toHaveText(text.frozen);
-      await expect(sheet.getByRole("alert")).toHaveText(text.alert);
-      // No row or toast claims closing is allowed under the freeze.
-      await expect(
-        sheet.getByText(/closing (is still |is always )?allowed|الإغلاق مسموح/),
-      ).toHaveCount(0);
-      // R3: each restriction row tells its own class: the freeze freezes closing, the pause
-      // does not (and never borrows the freeze's words).
-      await expect(sheet.locator(`[data-restriction="${freeze}"]`)).toHaveAttribute(
-        "data-closing",
-        "frozen",
-      );
-      await expect(sheet.locator(`[data-restriction="${pause}"]`)).toHaveAttribute(
-        "data-closing",
-        "allowed",
-      );
-      await expect(sheet.locator(`[data-restriction="${pause}"]`)).not.toContainText(
-        locale === "ar" ? "مجمّد" : "frozen",
-      );
-    } finally {
-      for (const id of [freeze, pause].filter(Boolean))
-        await context.request.post(`/api/trading/restrictions/${id}/revoke`, {
-          headers: state.headers,
-          data: {},
-        });
-      await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
-      await state.cleanup();
-    }
-  });
 
 test("M11: an amount limit saves in the account's own currency, prefilled from the broker", async ({
   page,
@@ -461,7 +372,7 @@ test("M11: an amount limit saves in the account's own currency, prefilled from t
     });
     await page.goto(`/app/${agent.id}`);
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Status and safety" }).click();
     await page.locator("#dialog").getByRole("button", { name: "Edit the limits" }).click();
     const sheet = page.locator("#dialog");
     // Daily loss is an amount: «استعادة» sets it, the currency comes from the account.

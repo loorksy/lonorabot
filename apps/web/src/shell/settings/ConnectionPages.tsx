@@ -1,9 +1,10 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { Icon } from "@lonora/ui-web";
+import { Icon, PairIcon } from "@lonora/ui-web";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
+import { readAccount } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
 import { clearDirty, markDirty, useNavigation } from "../navigation";
@@ -212,15 +213,6 @@ export function BrokerFormPage() {
   );
 }
 
-type AccountSnapshot = {
-  id: string;
-  broker: string | null;
-  login: string | null;
-  server: string | null;
-  currency: string;
-  balance: string;
-};
-
 /* One account (accountPage 8705-8717, symGrid 8727-8733): hero, balance, type, the symbols in two
    columns, the agents on it and «فصل الحساب» with what the server really does. */
 export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
@@ -230,10 +222,8 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
   const toast = useToast();
   const connections = useLoad(() => api.get<BrokerConnectionRow[]>("/trading/connections"), []);
   const row = connections.value?.find((item) => item.id === connectionId);
-  const account = useLoad(
-    () => api.get<AccountSnapshot>(`/trading/accounts/${encodeURIComponent(connectionId)}`),
-    [connectionId],
-  );
+  const account = useLoad(() => readAccount(connectionId), [connectionId]);
+  const snap = account.value?.account;
   const symbols = useLoad(
     () => api.get<string[]>(`/market/symbols?account_id=${encodeURIComponent(connectionId)}`),
     [connectionId],
@@ -253,8 +243,8 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
   const demo = row.payload.provider === "simulation";
   const agents = data.agents.filter((agent) => agent.trading_account_id === row.id);
   const names = agents.map((agent) => agent.name).join("، ");
-  const number = row.payload.account_id;
-  const broker = account.value?.broker ?? (demo ? t`Demo account` : "MetaApi");
+  const number = snap?.login || row.payload.account_id;
+  const broker = snap?.broker ?? (demo ? t`Demo account` : "MetaApi");
   const list = symbols.value ?? [];
   const remove = () => {
     const title = t`Unlink the account`;
@@ -328,9 +318,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
     return (
       // biome-ignore lint/a11y/useSemanticElements: the reference's own role on its row
       <div className="sym-cell" role="listitem" key={symbol}>
-        <span className="pair-ic none" aria-hidden="true">
-          {symbol.slice(0, 1)}
-        </span>
+        <PairIcon symbol={symbol} />
         <span className="sym-t">
           <strong>
             <span className="ltr">{symbol}</span>
@@ -359,10 +347,10 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
           <small>
             <span className="ltr">{number}</span>
             {demo ? ` · ${t`Demo`}` : ""}
-            {account.value?.server ? (
+            {snap?.server ? (
               <>
                 {" "}
-                · <span className="ltr">{account.value.server}</span>
+                · <span className="ltr">{snap.server}</span>
               </>
             ) : null}
           </small>
@@ -372,9 +360,9 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
         <ValueRow
           label={t`Balance`}
           value={
-            account.value ? (
+            snap ? (
               <span className="ltr">
-                {account.value.balance} {account.value.currency}
+                {snap.balance} {snap.currency}
               </span>
             ) : account.error ? (
               userError(account.error)

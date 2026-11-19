@@ -18,6 +18,7 @@ function fixture() {
     reject: (error: Error) => void;
   }[] = [];
   const exports = {} as Client;
+  const navigator = { onLine: true };
   const source = readFileSync(new URL("../../apps/web/src/lib/api.ts", import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -30,6 +31,7 @@ function fixture() {
     },
     window,
     document,
+    navigator,
     Headers,
     FormData,
     Event,
@@ -41,7 +43,7 @@ function fixture() {
         init.signal?.addEventListener("abort", () => reject(new Error("aborted")));
       }),
   });
-  return { client: exports, window, document, waiting };
+  return { client: exports, window, document, navigator, waiting };
 }
 
 test("concurrent projections share one read but always revalidate after completion", async () => {
@@ -194,4 +196,34 @@ test("Send starts while slow projection reads fill their bounded slots", async (
   }
   await Promise.all(reads);
   assert.equal(waiting.length, 8);
+});
+
+test("an unnamed 502 or 504 counts toward maintenance like an unnamed 503; a named one does not", async () => {
+  const { client, window, waiting } = fixture();
+  let unavailable = 0;
+  window.addEventListener("lonora:api-unavailable", () => unavailable++);
+  const answer = async (index: number, response: Response) => {
+    const read = client.api.get(`/threads/inbox?attempt=${index}`);
+    const check = assert.rejects(read, client.ApiError);
+    waiting[index].resolve(response);
+    await check;
+  };
+  await answer(0, new Response("", { status: 502 }));
+  await answer(1, new Response("<html>Gateway Timeout</html>", { status: 504 }));
+  assert.equal(unavailable, 2);
+  await answer(2, new Response('{"code":"broker_unreachable"}', { status: 502 }));
+  assert.equal(unavailable, 2);
+});
+
+test("the service is unavailable on a gateway error with no reason, or a request that never completed online", () => {
+  const { client, navigator } = fixture();
+  const dropped = Object.assign(new Error("Failed to fetch"), { name: "TypeError" });
+  assert.equal(client.isServiceUnavailable(new client.ApiError("request_failed", 502)), true);
+  assert.equal(client.isServiceUnavailable(new client.ApiError("request_failed", 503)), true);
+  assert.equal(client.isServiceUnavailable(new client.ApiError("request_failed", 504)), true);
+  assert.equal(client.isServiceUnavailable(new client.ApiError("broker_unreachable", 502)), false);
+  assert.equal(client.isServiceUnavailable(new client.ApiError("request_failed", 500)), false);
+  assert.equal(client.isServiceUnavailable(dropped), true);
+  navigator.onLine = false;
+  assert.equal(client.isServiceUnavailable(dropped), false);
 });

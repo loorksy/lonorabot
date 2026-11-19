@@ -23,7 +23,7 @@ def text_card(text: str, when: str | None = None) -> str:
     if when is not None:
         block["when"] = when
     lines = [
-        {"v": 2, "kind": "receipt", "title": "Preview", "icon": "info"},
+        {"v": 2, "kind": "summary", "title": "Preview", "icon": "info"},
         block,
         {"why": "A short preview.", "fallback": "A preview."},
     ]
