@@ -1127,6 +1127,101 @@ async def test_an_owner_message_taken_by_background_work_is_answered():
 
 
 @pytest.mark.asyncio
+async def test_a_follow_up_tap_taken_by_background_work_is_answered():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MessageRow, ThreadRow
+    from test_background_questions import send
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Tapped desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, conversation, with_for_update=True)
+            assert thread is not None
+            session.add(
+                MessageRow(
+                    thread_id=thread.id,
+                    agent_id=agent["id"],
+                    role="assistant",
+                    seq=thread.next_seq,
+                    content="Gold is quiet.",
+                    rich_content={
+                        "parts": [
+                            {
+                                "type": "ui",
+                                "document": {
+                                    "root": {"action": {"kind": "follow_up", "text": "And silver?"}}
+                                },
+                            }
+                        ]
+                    },
+                )
+            )
+            thread.next_seq += 1
+        watch = await make_run(fixture, agent, conversation, "watch")
+        await ended(fixture, watch)
+        await returned_helper(fixture, agent, watch, "completed", "Gold held 2,400.")
+        [follow_up] = await follow_ups(fixture, watch.id)
+        # A tap on the card's follow-up is the owner asking, as much as typed words are.
+        status, body = await send(fixture, conversation, "And silver?")
+        assert status < 300 and body["message"]["origin"] == "ui_follow_up", body
+        assert body["run_ids"] == [follow_up.id]
+        row = await reload(fixture, follow_up.id)
+        assert row.model_metadata["owner_spoke"] is True
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_background_follow_up_never_reads_the_owners_latest_message_as_its_own():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MessageRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Focused desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        watch = await make_run(fixture, agent, conversation, "watch")
+        await ended(fixture, watch)
+        # The owner's latest words quote an earlier card; their own run has not answered.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, conversation, with_for_update=True)
+            assert thread is not None
+            card = MessageRow(
+                thread_id=thread.id,
+                agent_id=agent["id"],
+                role="assistant",
+                seq=thread.next_seq,
+                content="Gold is quiet at 2,400.",
+            )
+            session.add(card)
+            await session.flush()
+            session.add(
+                MessageRow(
+                    thread_id=thread.id,
+                    role="user",
+                    origin="owner",
+                    seq=thread.next_seq + 1,
+                    content="Why?",
+                    reply_to=card.id,
+                )
+            )
+            thread.next_seq += 2
+        await returned_helper(fixture, agent, watch, "completed", "Silver held 31.")
+        [follow_up] = await follow_ups(fixture, watch.id)
+        complete, requests = router("")
+        await execute(fixture, follow_up, complete)
+        assert said(requests, "Silver held 31.")
+        # Its input is the helper's outcome: the owner's quote is not its reply context.
+        assert not said(requests, 'name="quoted_reply"')
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_an_empty_background_turn_is_never_sent_back_to_the_model():
     database()
     from check_streaming import Fixture

@@ -177,7 +177,8 @@ Boundaries are always complete blocks, so a tool call is never separated from
 its results. The owner's request at summary time stays verbatim in front of the
 summary. Summarizer input and the digest label speakers truthfully (`speaker`):
 only an owner-authored conversation turn is `owner`; another Agent's message in a
-shared thread (`[Peer …]`) is `peer_agent`, and in a subagent or peer Run the
+shared thread (`[Peer …]`), and any agent's message steered into a Run (a helper's or a
+peer's returned outcome) in the same frame, is `peer_agent`, and in a subagent or peer Run the
 conversation input is `requesting_agent`, so injected peer or delegated text can
 never be laundered into "the owner asked". A peer's message is never the kept
 request, and every pseudo-attribute (a provider-emitted tool name included) is

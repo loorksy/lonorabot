@@ -7,6 +7,7 @@ from lonora_adapter_kit.context_sections import ContextSection, context_message
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.model_routing import Capability
 from lonora_contracts.runs import WORK_TRIGGERS
+from lonora_core.run_state import is_background, may_end_silent
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
 from lonora_db.agent_creation import agent_origin, agent_written_instructions
@@ -140,14 +141,33 @@ async def build_context(
         )
         scratchpad = await timed("scratchpad", scratchpad_context(session, agent.id))
         # A card submission's own message is read by id, not by its widened window (rule W).
-        focus = await submission_seq(session, run) or run.input_seq
-        quoted = await timed("reply", reply_context(session, thread.id, focus))
-        attachments, images = await timed(
-            "attachments",
-            attachment_parts(session, context.owner_id, thread.id, focus, context.artifact_root),
+        # Background follow-up work has no message of its own here: its input is the
+        # outcome steered to it, never the conversation's latest message (11.5).
+        focus = await submission_seq(session, run) or (
+            None
+            if run.trigger == "follow_up"
+            and may_end_silent(is_background(run.trigger, run.model_metadata), run.execution_state)
+            else run.input_seq
         )
-        if attachments and await third_party_attachment(
-            session, context.owner_id, thread.id, focus
+        quoted = (
+            await timed("reply", reply_context(session, thread.id, focus))
+            if focus is not None
+            else ""
+        )
+        attachments, images = (
+            await timed(
+                "attachments",
+                attachment_parts(
+                    session, context.owner_id, thread.id, focus, context.artifact_root
+                ),
+            )
+            if focus is not None
+            else ("", [])
+        )
+        if (
+            focus is not None
+            and attachments
+            and await third_party_attachment(session, context.owner_id, thread.id, focus)
         ):
             # A file's text is someone else's words: the run no longer stands for the
             # owner's typed message alone (6.10).

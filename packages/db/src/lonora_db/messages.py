@@ -683,9 +683,12 @@ async def admit_runs(
             None,
         )
         if active and takes_message(active):
-            if message.origin == "owner" and is_background(active.trigger, active.model_metadata):
-                # Background work the owner writes to answers them from now on (11.5),
-                # even a queued run that will read the words only from its history.
+            if message.role == "user" and is_background(active.trigger, active.model_metadata):
+                # Background work the owner writes to (or taps a follow-up for) answers them
+                # from now on (11.5), even a queued run that will read the words only from
+                # its history. The row is locked first (thread before run, as everywhere):
+                # a running Run's own writes to its metadata are never overwritten.
+                await session.get(RunRow, active.id, with_for_update=True, populate_existing=True)
                 active.model_metadata = {**active.model_metadata, OWNER_SPOKE: True}
             if pending_question and active.status == "waiting_input":
                 updated = [

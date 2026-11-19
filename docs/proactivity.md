@@ -88,9 +88,10 @@ or a channel.
   report, and a Task that is not finished still asks its owner. `complete_run` posts no
   message and `return_outcome` copies nothing, and no attention item stands in for its
   reply (below).
-- **The owner's words are answered.** When an owner message reaches background work (a
-  follow-up or a wake that takes messages in a chat, or an answer to its question),
-  admission marks the run `owner_spoke`; a message merged into a running one marks its
+- **The owner's words are answered.** When an owner message or a follow-up tap reaches
+  background work (a follow-up or a wake that takes messages in a chat, or an answer to
+  its question), admission marks the run `owner_spoke`, under the run's lock so the
+  running work's own writes are kept; a message merged into a running one marks its
   state the same way. From then on it answers like an owner turn: it streams, is nudged
   rather than allowed to end empty, its failure shows in the mobile run strip
   (`run.background` is false), and its helpers' outcomes and its follow-up reach the
@@ -103,24 +104,31 @@ or a channel.
   news. Web shows a failure only under the owner's own message, as before. Background work that may end silent in a
   conversation (a watch set in a chat, `lonora wake`, a webhook) reads its helpers'
   outcomes out of the owner's sight: each goes to a hidden thread of that work
-  (`outcome_thread_id`) and reaches the run, or its follow-up, only by steering. Nothing
-  acts on the outcome once the work failed, was cancelled or got nothing back. In a work
-  thread every outcome stays, as that work's memory. A subagent of background work
-  works in a hidden work thread of its own; its cards and questions go where its parent
-  reports, and its outcome returns to its parent as any helper's does.
+  (`outcome_thread_id`) and reaches the run, or its follow-up, only by steering, in the
+  data frame of another agent's words (6.10). A background follow-up takes no message of
+  the conversation as its own input: no quote and no attachment of the owner's latest
+  message. Nothing acts on an outcome once the work failed or was cancelled, nor on a
+  helper that brought nothing back; a helper's failure goes to a follow-up that finishes
+  or reports the work. In a work thread every outcome stays, as that work's memory. A
+  subagent of background work that reports to the agent's own conversation works in a
+  hidden work thread of its own; its cards and questions go to that conversation, and
+  its outcome returns to its parent as any helper's does. A helper of work that reports
+  to a group keeps a chat of its own, where its questions show.
 - **Attention items.** A wake's source raises no item beside the woken run: a watch
   confirmation that woke its agent, broker activity that woke an agent (`wakes_agent`), a
   server-detected opportunity change whose wake reports in the agent's own conversation,
   and a collaboration synthesis or a Task that completed with an empty result. A woken
   broker or opportunity change withdraws no other item; a woken watch confirmation still
   supersedes the stale state of the same watch, as any confirmation does. If the woken
-  run fails, its `run.failed` is decided as the source it stood for (the confirmation that
-  woke it, or the account's broker activity), so the owner still learns of the change. A confirmation that woke nobody
-  (its wake already spent), broker activity while Lonora is paused, an opportunity whose
-  wake cannot report in the agent's conversation, watch invalidation and expiry, and the
-  11.4 items stay items.
-- **Channels.** A Telegram or webhook integration without a thread never forwards a work
-  thread's messages; the conversation copy is sent once.
+  run, or a background follow-up that continues its work, fails, its `run.failed` is
+  decided as the source the wake stood for (the confirmation that woke it, or the
+  account's broker activity), so the owner still learns of the change. A Task's watch
+  confirmation wakes only a Task that waits on that watch with no control pending. A
+  confirmation that woke nobody (its wake already spent, or its Task paused), broker
+  activity while Lonora is paused, an opportunity whose wake cannot report in the
+  agent's conversation, watch invalidation and expiry, and the 11.4 items stay items.
+- **Channels.** A webhook integration without a thread never forwards a work thread's
+  messages; the conversation copy is sent once. Telegram carries only the 11.4 alerts.
 - **Kept on purpose.** A run that sent an order whose result is not verified always says
   so (5.3.3), also when it ends through `group_silence` or at its work limit. Explicit acts are the agent's own
   choice: `owner_notify`, cards, peer requests, `collaboration_finish`.
