@@ -11,7 +11,7 @@ from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository, execution_policy_key
 from lonora_market.health import assess_account, assess_quote
 
-from .exposure import account_exposure, exposure_reasons
+from .exposure import account_exposure
 
 
 def policy_key(owner_id: str, account_id: str) -> str:
@@ -31,7 +31,7 @@ def evaluate_execution(
     *,
     planned_quote: Quote | None = None,
 ) -> ExecutionQuality:
-    reasons = exposure_reasons(snapshot, request, policy)
+    reasons: list[str] = []
     account_health = assess_account(
         snapshot.account,
         account_id=request.account_id,
@@ -54,33 +54,20 @@ def evaluate_execution(
         health.append(quote_health)
         if quote_health.state != "healthy":
             reasons.append(quote_health.reason_code)
-        if policy.max_spread is not None and spread is not None and spread > policy.max_spread:
-            reasons.append("execution_spread_limit")
     planned_price = None
     drift = None
-    tolerance = None
     if quote and planned_quote and request.action in {"buy", "sell"}:
         if planned_quote.symbol != request.symbol:
             reasons.append("planned_symbol_mismatch")
         planned_price = planned_quote.ask if request.action == "buy" else planned_quote.bid
         submission_price = quote.ask if request.action == "buy" else quote.bid
         drift = (submission_price - planned_price) * (1 if request.action == "buy" else -1)
-        if policy.max_entry_drift_stop_fraction is not None:
-            if request.stop_loss is None:
-                reasons.append("execution_drift_reference_unavailable")
-            else:
-                tolerance = (
-                    abs(planned_price - request.stop_loss) * policy.max_entry_drift_stop_fraction
-                )
-                if drift > tolerance:
-                    reasons.append("execution_entry_deteriorated")
     return ExecutionQuality(
         state="blocked" if reasons else "executable",
         health=health,
         reasons=reasons,
         planned_price=planned_price,
         adverse_price_drift=drift,
-        drift_tolerance=tolerance,
         observed_at=snapshot.observed_at,
         spread=spread,
         exposure=account_exposure(snapshot),

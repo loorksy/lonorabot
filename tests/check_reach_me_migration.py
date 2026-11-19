@@ -25,7 +25,7 @@ from lonora_db.schema import MemoryRevisionRow
 from sqlalchemy import text
 
 ROOT = Path(__file__).resolve().parents[1]
-PREVIOUS = "0138_skill_package_files"
+PREVIOUS = "0087_end_money_limits"
 
 
 def alembic(action: str, revision: str) -> None:

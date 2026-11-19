@@ -214,10 +214,7 @@ async def main() -> None:
         proposal = await propose()
         assert proposal["status"] == "pending"
         assert (await propose())["id"] == proposal["id"]
-        # The grant summary reports the account's T3 money limits; none is set here.
         assert "monetary_stop_risk" not in proposal
-        assert proposal["money_limits"]["configured"] is False
-        assert proposal["money_limits"]["limits"] == {}
         before = await broker.snapshot()
         # The trade the owner just refused, asked again in this Run, returns that refusal.
         refused = await operation(volume="0.1", stop_loss="90")
@@ -333,17 +330,15 @@ async def main() -> None:
             "PASS repeated signed account trades across exact forex/metal/index/crypto symbols; pending and management use one verified executor"
         )
 
-        # The grant excludes the owner's own position: closing it asks the owner with an
-        # approval card (the ladder is monotonic) and sends nothing before the tap.
+        # The grant excludes the owner's own position, and the ticket is not this agent's
+        # (3.3.4): refused, nothing sent, no card.
         before = await broker.snapshot()
-        asked_manual = await operation("close_position", position_id="manual-ticket")
-        assert asked_manual["_runtime_wait"], asked_manual
+        try:
+            await operation("close_position", position_id="manual-ticket")
+            raise AssertionError("An agent closed the owner's own position")
+        except LonoraError as error:
+            assert error.code == "ticket_not_owned", error.code
         assert await broker.snapshot() == before
-        await f.request(
-            "POST",
-            f"/trading/approvals/{asked_manual['approval_id']}/decision",
-            {"decision": "reject"},
-        )
         # A request outside the grant's own terms asks the owner too (correction 6) and
         # sends nothing; the executor itself still refuses it under the grant.
         await outside_grant(

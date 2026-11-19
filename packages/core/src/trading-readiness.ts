@@ -5,7 +5,7 @@
  * in a client decides whether a trade may be sent. Arabic is first-class: tickers and
  * numbers are isolated (U+2068/U+2069) so they keep their order inside Arabic text.
  */
-import type { MoneyLimitName, MoneyLimits, TradingReadiness } from "@lonora/contracts";
+import type { TradingReadiness } from "@lonora/contracts";
 
 type Language = "ar" | "en";
 type Text = { readonly en: string; readonly ar: string };
@@ -41,8 +41,6 @@ export const tradingSafetyLabels = {
     until: "until",
     manualIncluded: "Your own positions included",
     manualExcluded: "Your own positions excluded",
-    moneyLimits: "Money limits",
-    noMoneyLimit: "No money limit set",
     unresolved: "Awaiting broker confirmation",
     noUnresolved: "No operation is waiting for the broker.",
     uncertainHint:
@@ -63,8 +61,6 @@ export const tradingSafetyLabels = {
     until: "حتى",
     manualIncluded: "يشمل مراكزك اليدوية",
     manualExcluded: "لا يشمل مراكزك اليدوية",
-    moneyLimits: "الحدود المالية",
-    noMoneyLimit: "لا حد مالي محدد",
     unresolved: "بانتظار تأكيد الوسيط",
     noUnresolved: "لا توجد عملية بانتظار الوسيط.",
     uncertainHint:
@@ -78,25 +74,6 @@ export function tradingSafetyText(locale: string): TradingSafetyText {
   return tradingSafetyLabels[language(locale)];
 }
 
-const moneyLimitNames: Readonly<Record<MoneyLimitName, Text>> = {
-  max_daily_loss: { en: "Daily loss", ar: "الخسارة اليومية" },
-  max_trade_risk: { en: "Risk per trade", ar: "المخاطرة لكل صفقة" },
-  max_trade_risk_equity_percent: {
-    en: "Risk per trade, % of equity",
-    ar: "المخاطرة لكل صفقة، ٪ من حقوق الملكية",
-  },
-  max_open_risk: { en: "Total open risk", ar: "إجمالي المخاطرة المفتوحة" },
-  max_open_risk_equity_percent: {
-    en: "Total open risk, % of equity",
-    ar: "إجمالي المخاطرة المفتوحة، ٪ من حقوق الملكية",
-  },
-  min_free_margin: { en: "Free-margin floor", ar: "الحد الأدنى للهامش الحر" },
-};
-
-export function moneyLimitLabel(name: MoneyLimitName, locale: string): string {
-  return moneyLimitNames[name][language(locale)];
-}
-
 /** A short local time today, otherwise day and time; isolated for Arabic text. */
 export function readinessTime(iso: string, locale: string, now: Date = new Date()): string {
   const when = new Date(iso);
@@ -108,19 +85,6 @@ export function readinessTime(iso: string, locale: string, now: Date = new Date(
       : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" },
   );
   return isolate(formatted);
-}
-
-/** "Daily loss 300 USD · Risk per trade 1%" or "No money limit set". */
-export function moneyLimitsLine(value: MoneyLimits, locale: string): string {
-  const lang = language(locale);
-  const entries = Object.entries(value.limits) as Array<[MoneyLimitName, string]>;
-  if (!value.configured || !entries.length) return tradingSafetyLabels[lang].noMoneyLimit;
-  return entries
-    .map(([name, amount]) => {
-      const unit = name.endsWith("_percent") ? "%" : value.currency ? ` ${value.currency}` : "";
-      return `${moneyLimitNames[name][lang]} ${isolate(amount + unit)}`;
-    })
-    .join(" · ");
 }
 
 /**
@@ -165,7 +129,7 @@ export function tradingReadinessLine(
     case "on_its_own": {
       const accounts = params.account_count ?? 1;
       if (accounts > 1)
-        // One grant per account: the line counts them, the sheet names each with its limit.
+        // One grant per account: the line counts them, the sheet names each.
         return ar
           ? `يتداول باستقلال على ${isolate(String(accounts))} حسابات`
           : `Trades on its own on ${accounts} accounts`;
@@ -177,14 +141,7 @@ export function tradingReadinessLine(
           ? tradingSafetyLabels[lang].allPairs
           : (params.symbols ?? []).map(isolate).join(listSeparator(locale));
       const end = until(params.valid_until, { en: "until you stop it", ar: "حتى توقفه" });
-      // The money line the owner signed with: the daily loss limit, or none at all.
-      const daily = params.daily_loss;
-      const money = daily
-        ? ` · ${moneyLimitNames.max_daily_loss[lang]} ${isolate(daily.currency ? `${daily.amount} ${daily.currency}` : daily.amount)}`
-        : params.money_limit_set === false
-          ? ` · ${tradingSafetyLabels[lang].noMoneyLimit}`
-          : "";
-      return `${ar ? "يتداول باستقلال" : "Trades on its own"}${account ? ` · ${isolate(account)}` : ""}${markets ? ` · ${markets}` : ""} · ${end}${money}`;
+      return `${ar ? "يتداول باستقلال" : "Trades on its own"}${account ? ` · ${isolate(account)}` : ""}${markets ? ` · ${markets}` : ""} · ${end}`;
     }
   }
 }

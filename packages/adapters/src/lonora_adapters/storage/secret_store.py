@@ -33,7 +33,8 @@ class EncryptedSecretStore:
     """The owner's secrets of every scope except ``broker``.
 
     Broker values (7.2.3) are read and written only through ``BrokerSecrets``; this store,
-    which every tool context carries, refuses them.
+    which every tool context carries, refuses to read or write them. Deleting one stays
+    allowed, as for every scope, only while nothing uses it (14.3.11).
     """
 
     def __init__(self, db: Database, key: str, owner_id: str):
