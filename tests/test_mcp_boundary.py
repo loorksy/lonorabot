@@ -322,7 +322,7 @@ def test_validation_errors_do_not_disclose_inputs_and_execute_stays_non_readonly
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure", ["oversize", "timeout", "error"])
+@pytest.mark.parametrize("failure", ["oversize", "timeout", "error", "sign_in"])
 async def test_http_failures_are_bounded_and_never_resent(
     monkeypatch: pytest.MonkeyPatch, failure: str
 ):
@@ -342,6 +342,9 @@ async def test_http_failures_are_bounded_and_never_resent(
             raise httpx.ReadTimeout("private-token-in-remote-error", request=request)
         if failure == "error":
             return httpx.Response(500, text="private-token-in-remote-error")
+        if failure == "sign_in":
+            # No credential, or one the server no longer takes: it asks for a sign-in.
+            return httpx.Response(401, headers={"WWW-Authenticate": "Bearer"})
         return httpx.Response(200, content=b"x" * 101)
 
     transport = HttpMcpTransport(URL, "private-token")
@@ -356,6 +359,7 @@ async def test_http_failures_are_bounded_and_never_resent(
                 "oversize": "mcp_response_too_large",
                 "timeout": "mcp_connection_timeout",
                 "error": "mcp_request_failed",
+                "sign_in": "mcp_sign_in_required",
             }[failure]
         )
         assert "private-token" not in str(caught.value)

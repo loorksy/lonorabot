@@ -7,11 +7,13 @@ refresh, and the callback's issuer (RFC 9207). No network: a scripted resource s
 authorization server answer through httpx's MockTransport.
 """
 
+import asyncio
 import base64
+import gzip
 import hashlib
 import json
 import re
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -278,6 +280,15 @@ async def test_registration_asks_for_a_public_client_with_lonora_s_callback(
     for answer in (
         httpx.Response(201, json={"client_secret": "x"}),
         httpx.Response(201, json={"client_id": "a\nb"}),
+        # Saved as a workspace secret: a value shorter than three characters cannot be.
+        httpx.Response(
+            201,
+            json={
+                "client_id": "c",
+                "client_secret": "xy",
+                "token_endpoint_auth_method": "client_secret_post",
+            },
+        ),
         httpx.Response(400, json={"error": "invalid_redirect_uri"}),
         httpx.Response(201, text="not json"),
     ):
@@ -380,8 +391,12 @@ async def test_the_code_exchange_sends_the_verifier_and_checks_the_tokens(
         httpx.Response(200, json={"token_type": "Bearer"}),
         httpx.Response(200, json={"access_token": "a", "token_type": "mac"}),
         httpx.Response(200, json={"access_token": "line\nbreak"}),
-        httpx.Response(200, json={"access_token": "a", "expires_in": "soon"}),
-        httpx.Response(400, json={"error": "invalid_grant"}),
+        httpx.Response(200, json={"access_token": "abc", "expires_in": "soon"}),
+        # Tokens are saved as workspace secrets: shorter than three characters, they
+        # cannot be.
+        httpx.Response(200, json={"access_token": "ab"}),
+        httpx.Response(200, json={"access_token": "abc", "refresh_token": "r"}),
+        httpx.Response(500, json={"error": "server_error"}),
         httpx.Response(302, headers={"Location": ISSUER + "/elsewhere"}),
         httpx.Response(200, text="<html>"),
         httpx.Response(200, content=b'{"access_token": "' + b"a" * oauth.MAX_BYTES + b'"}'),
@@ -393,7 +408,7 @@ async def test_the_code_exchange_sends_the_verifier_and_checks_the_tokens(
             )
         assert caught.value.code == "mcp_sign_in_failed"
         # The authorization server's words never become the error.
-        assert "invalid_grant" not in str(caught.value)
+        assert "server_error" not in str(caught.value)
 
 
 @pytest.mark.asyncio
@@ -416,6 +431,78 @@ async def test_a_refresh_sends_the_refresh_token_for_the_same_resource(
         "resource": [SERVER],
         "client_id": ["c-1"],
     }
+
+
+@pytest.mark.asyncio
+async def test_a_refused_grant_is_told_apart_from_a_server_that_failed(
+    remote: Callable[[dict[tuple[str, str], Answer]], Remote],
+) -> None:
+    """The token endpoint's refusal (400 or 401, RFC 6749 5.2) means the grant is gone; a
+    server that fails or is busy leaves the sign-in as it was, to try again."""
+    token = ("POST", ISSUER + "/token")
+    for status, code in (
+        (400, "mcp_sign_in_refused"),
+        (401, "mcp_sign_in_refused"),
+        (429, "mcp_sign_in_failed"),
+        (500, "mcp_sign_in_failed"),
+        (503, "mcp_sign_in_failed"),
+    ):
+        remote({token: httpx.Response(status, json={"error": "invalid_grant"})})
+        with pytest.raises(LonoraError) as caught:
+            await oauth.refresh(ISSUER + "/token", SERVER, oauth.Client("c-1"), "refresh-1")
+        assert caught.value.code == code, status
+        assert "invalid_grant" not in str(caught.value)
+    # A lifetime no clock can hold is none: the token is renewed when the server refuses it.
+    remote({token: httpx.Response(200, json={"access_token": "access-1", "expires_in": 10**12})})
+    tokens = await oauth.refresh(ISSUER + "/token", SERVER, oauth.Client("c-1"), "refresh-1")
+    assert tokens == oauth.Tokens("access-1", None, None)
+
+
+class Drip(httpx.AsyncByteStream):
+    """A body that arrives one byte at a time, each within any read timeout."""
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for _ in range(40):
+            await asyncio.sleep(0.05)
+            yield b" "
+
+
+@pytest.mark.asyncio
+async def test_an_answer_is_read_as_sent_and_within_one_deadline(
+    remote: Callable[[dict[tuple[str, str], Answer]], Remote],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No decompressor runs before the size limit: Lonora asks for the body as it is and
+    refuses an encoded one. One deadline covers the whole answer, however slowly it comes,
+    so a renewal never holds its lock for longer."""
+    token = ("POST", ISSUER + "/token")
+    packed = gzip.compress(json.dumps({"access_token": "a" * 10_000}).encode())
+    script = remote(
+        {token: httpx.Response(200, content=packed, headers={"Content-Encoding": "gzip"})}
+    )
+    with pytest.raises(LonoraError) as caught:
+        await oauth.exchange_code(ISSUER + "/token", SERVER, oauth.Client("c"), "c", "v", CALLBACK)
+    assert caught.value.code == "mcp_sign_in_failed"
+    assert script.requests[0].headers["accept-encoding"] == "identity"
+
+    monkeypatch.setattr(oauth, "TIMEOUT_SECONDS", 0.3)
+    remote({token: httpx.Response(200, stream=Drip())})
+    started = asyncio.get_running_loop().time()
+    with pytest.raises(LonoraError) as caught:
+        await oauth.refresh(ISSUER + "/token", SERVER, oauth.Client("c"), "refresh-1")
+    assert caught.value.code == "mcp_sign_in_failed"
+    assert asyncio.get_running_loop().time() - started < 1.5
+
+
+@pytest.mark.asyncio
+async def test_an_address_with_a_port_no_address_can_have_is_refused() -> None:
+    """Metadata may name any https address: one whose port is out of range is refused as
+    an unsafe address, never raised as another error."""
+    with pytest.raises(LonoraError) as caught:
+        await oauth.exchange_code(
+            "https://auth.example.test:99999/token", SERVER, oauth.Client("c"), "c", "v", CALLBACK
+        )
+    assert caught.value.code == "mcp_sign_in_failed"
 
 
 @pytest.mark.asyncio

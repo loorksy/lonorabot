@@ -10,12 +10,15 @@ back is exchanged for tokens, which the caller keeps as workspace secrets; a ref
 token renews the access token.
 
 Every request goes to a public https address that passes ``validate_public_url``, follows
-no redirect, and reads at most ``MAX_BYTES``. Metadata that cannot be trusted (another
-origin's resource, another issuer, no S256) refuses the sign-in
-(``mcp_sign_in_unsupported``); a server that misbehaves while signing in fails it
-(``mcp_sign_in_failed``). No remote text and no token is ever part of an error.
+no redirect, reads at most ``MAX_BYTES`` as sent (never decompressed) and ends within
+``TIMEOUT_SECONDS``. Metadata that cannot be trusted (another origin's resource, another
+issuer, no S256) refuses the sign-in (``mcp_sign_in_unsupported``); a server that
+misbehaves while signing in fails it (``mcp_sign_in_failed``); a token endpoint that
+refuses the grant ends it (``mcp_sign_in_refused``). No remote text and no token is ever
+part of an error.
 """
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -28,12 +31,16 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 import httpx
 from lonora_core.user_error import LonoraError
 from lonora_security.network import validate_public_url
+from lonora_security.secrets import SHORTEST_SECRET
 
 MAX_BYTES = 64 * 1024
 TIMEOUT_SECONDS = 15
 PROTOCOL_VERSION = "2025-06-18"
 UNSUPPORTED = "mcp_sign_in_unsupported"
 FAILED = "mcp_sign_in_failed"
+REFUSED = "mcp_sign_in_refused"
+# A longer lifetime is none at all: the token is renewed when the server refuses it.
+MAX_LIFETIME_SECONDS = 10 * 365 * 24 * 3600
 RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
 CLIENT_METHODS = ("none", "client_secret_basic", "client_secret_post")
 ClientMethod = Literal["none", "client_secret_basic", "client_secret_post"]
@@ -111,23 +118,30 @@ async def fetch(
     form: dict[str, str] | None = None,
 ) -> tuple[int, bytes]:
     """One request to a public https address: its status and at most ``MAX_BYTES`` of
-    its body. ``unsafe`` is the refusal for an address that is not one."""
+    its body as sent, all within ``TIMEOUT_SECONDS`` however slowly it arrives. No
+    decompressor runs before the limit: an encoded body is refused. ``unsafe`` is the
+    refusal for an address that is not one."""
     try:
         await validate_public_url(url)
-    except LonoraError:
+    except (LonoraError, ValueError):
         raise refusal(unsafe) from None
+    sent = {**(headers or {}), "Accept-Encoding": "identity"}
     try:
         async with (
+            asyncio.timeout(TIMEOUT_SECONDS),
             http_client() as client,
-            client.stream(method, url, headers=headers, json=body, data=form) as response,
+            client.stream(method, url, headers=sent, json=body, data=form) as response,
         ):
+            encoding = response.headers.get("Content-Encoding", "identity").strip().casefold()
+            if encoding not in {"", "identity"}:
+                raise refusal(FAILED)
             raw = bytearray()
             async for chunk in response.aiter_bytes():
                 raw.extend(chunk)
                 if len(raw) > MAX_BYTES:
                     raise refusal(FAILED)
             return response.status_code, bytes(raw)
-    except httpx.HTTPError:
+    except (TimeoutError, httpx.HTTPError):
         raise refusal(FAILED) from None
 
 
@@ -194,6 +208,7 @@ async def needs_sign_in(url: str) -> Challenge | None:
     try:
         await validate_public_url(url)
         async with (
+            asyncio.timeout(TIMEOUT_SECONDS),
             http_client() as client,
             client.stream(
                 "POST",
@@ -218,7 +233,7 @@ async def needs_sign_in(url: str) -> Challenge | None:
             if response.status_code != 401:
                 return None
             return bearer_challenge(response.headers.get("WWW-Authenticate"))
-    except (LonoraError, httpx.HTTPError):
+    except (LonoraError, ValueError, TimeoutError, httpx.HTTPError):
         return None
 
 
@@ -318,6 +333,12 @@ def visible(value: Any) -> bool:
     return isinstance(value, str) and VISIBLE.fullmatch(value) is not None
 
 
+def storable(value: Any) -> bool:
+    """A token or client secret Lonora can keep as a workspace secret, which the scan of
+    workspace output must be able to find."""
+    return visible(value) and len(value) >= SHORTEST_SECRET
+
+
 async def register(server: AuthorizationServer, redirect_uri: str, scope: str | None) -> Client:
     """Lonora registered as a client of this server (RFC 7591), public unless the
     server says otherwise."""
@@ -348,7 +369,7 @@ async def register(server: AuthorizationServer, redirect_uri: str, scope: str | 
         raise refusal(FAILED)
     if method == "none":
         return Client(cast(str, client_id))
-    if not visible(secret):
+    if not storable(secret):
         raise refusal(FAILED)
     return Client(cast(str, client_id), cast(str, secret), cast(ClientMethod, method))
 
@@ -396,19 +417,24 @@ async def token_request(
         if client.method == "client_secret_post":
             form["client_secret"] = client.client_secret or ""
     status, raw = await fetch("POST", token_endpoint, unsafe=FAILED, headers=headers, form=form)
+    if status in (400, 401):
+        # The grant or the client is refused (RFC 6749 5.2): asking again cannot help.
+        raise refusal(REFUSED)
     if status != 200:
         raise refusal(FAILED)
     data = json_object(raw, FAILED)
     access, refresh_token = data.get("access_token"), data.get("refresh_token")
     token_type, expires_in = data.get("token_type", "Bearer"), data.get("expires_in")
-    if not visible(access) or not isinstance(token_type, str) or token_type.lower() != "bearer":
+    if not storable(access) or not isinstance(token_type, str) or token_type.lower() != "bearer":
         raise refusal(FAILED)
-    if refresh_token is not None and not visible(refresh_token):
+    if refresh_token is not None and not storable(refresh_token):
         raise refusal(FAILED)
     if expires_in is not None and (
         isinstance(expires_in, bool) or not isinstance(expires_in, int) or expires_in <= 0
     ):
         raise refusal(FAILED)
+    if expires_in is not None and expires_in > MAX_LIFETIME_SECONDS:
+        expires_in = None
     return Tokens(cast(str, access), cast(str | None, refresh_token), expires_in)
 
 
