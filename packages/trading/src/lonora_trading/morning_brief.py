@@ -819,7 +819,9 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
         zone = owner_zone(reach_me, opens[-1].timezone if opens else None)
         local = now.astimezone(zone)
         today = local.date().isoformat()
-        if record.planned_date != today:
+        # Planned once per local date, and only for a later one: a zone change that steps
+        # the owner's date back does not plan it again.
+        if (record.planned_date or "") < today:
             # Each recorded day's first open, minutes after midnight on the device's clock
             # where it was opened: a habit of 07:00 stays 07:00 when the owner travels.
             # The owner's day starts at 04:00: an open before it (a late session) is read

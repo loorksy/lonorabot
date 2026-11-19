@@ -18,11 +18,12 @@ owner in `ln_morning_briefs`.
   median of the first opens of the last recorded days (at most 14), each read on the
   clock of the device it was made on, 15 minutes earlier. The time is planned once per
   local date and moves at most one hour a day.
-- **Once per local date, never backwards.** A date at or before the last brief's never
-  gets a brief, even when a zone change steps the owner's date back.
-- **Once per local date.** The effect receipt `morning-brief:<owner>:<date>` claims a
-  date's brief in the transaction that starts it, under the record's row lock. After
-  downtime the step sends only today's brief: missed dates are not sent.
+- **Once per local date, never backwards.** The effect receipt
+  `morning-brief:<owner>:<date>` claims a date's brief in the transaction that starts
+  it, under the record's row lock. After downtime the step sends only today's brief:
+  missed dates are not sent. A date at or before the last brief's never gets a brief,
+  and the time is not planned again for it, even when a zone change steps the owner's
+  date back.
 
 ## Who writes it
 
