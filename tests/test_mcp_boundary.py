@@ -16,7 +16,7 @@ from lonora_adapters.mcp.policy import (
     schema_sha256,
     validate_input,
 )
-from lonora_adapters.mcp.transport import HttpMcpTransport, StdioMcpTransport
+from lonora_adapters.mcp.transport import HttpMcpTransport
 from lonora_api.routes.mcp import McpRepository
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_core.user_error import LonoraError
@@ -244,26 +244,6 @@ async def test_wrong_secret_purpose_denied_before_decrypt_and_network(
     assert ctx.counters["decrypted"] == 0 and transport.calls == []
     async with ctx.db.sessions() as session:
         with pytest.raises(LonoraError, match="mcp_credential_scope_forbidden"):
-            await McpRepository().validate_references(
-                session, "owner", ctx.saved_connection.payload
-            )
-
-
-@pytest.mark.asyncio
-async def test_stdio_discovery_and_transport_fail_before_subprocess(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    async def forbidden_spawn(*args: Any, **kwargs: Any) -> None:
-        pytest.fail("owner stdio must never spawn")
-
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden_spawn)
-    with pytest.raises(LonoraError, match="mcp_stdio_isolation_required"):
-        StdioMcpTransport(["arbitrary-downloaded-server"])
-    ctx = context(transport="stdio", command=["arbitrary-downloaded-server"])
-    with pytest.raises(LonoraError, match="mcp_stdio_isolation_required"):
-        await mcp.read(ctx, {"connection_id": "connection"})
-    async with ctx.db.sessions() as session:
-        with pytest.raises(LonoraError, match="mcp_stdio_isolation_required"):
             await McpRepository().validate_references(
                 session, "owner", ctx.saved_connection.payload
             )

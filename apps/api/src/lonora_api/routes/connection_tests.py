@@ -56,7 +56,7 @@ async def dry_run_provider(
 
 
 class McpTest(Contract):
-    """Remote servers only (owner decision Q56): there is no local/stdio test."""
+    """Remote servers only (owner decision Q56); a local one runs in the workspace."""
 
     url: str = Field(min_length=8, max_length=2048, pattern=r"^https://")
     token: str | None = Field(default=None, max_length=4096)
