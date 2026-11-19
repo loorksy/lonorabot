@@ -20,9 +20,33 @@ either agent.
 
 Migration 0063 (mandate 14.3.18.4 and .6) revoked every grant whose supervisor is not
 Lonora (`revoked_via` empty) and made delegated, child and supervisor-template agents
-ordinary team agents. A pause such an agent set on its own (`source='agent'`) ended and
-its work resumed; a pause the owner asked for (`owner_message`) became the owner's
-(`owner`); the owner's pauses and Lonora's stayed.
+ordinary team agents, each with `agent.updated`; a bound account and symbol became one
+plain line of the agent's OPERATING.md that names the account as the owner knows it
+(broker · login · server once the broker verified the connection as it now is, else its
+provider and account number). A pause such an agent set on its own (`source='agent'`)
+ended and its work resumed through each item's own control: an unpaused agent with
+`agent.updated`, and a Task as `control_task`'s resume does, each Task it changed with
+`task.updated`:
+
+- a pause asked of a Task whose Run a worker held was withdrawn (the Run reads it at its
+  next checkpoint);
+- a paused Task whose Run waited for takeover was queued again with its Run, also one
+  that had failed before: only a failure still being retried (`retry_control`) is the
+  retry's;
+- a paused Task, or one asked to pause, whose Run held the owner's question resumed the
+  work, not the question (`release_attention`): the question was cancelled, the Run
+  queued without its lease, and the owner-attention wait cleared;
+- a Task paused after a failure, waiting to retry or failed, which the live resume hands
+  to the retry (`resume_failure`), was released as it was, and its agent was woken once
+  in the Task's thread by a Run with fixed server text (trigger `owner_card`, a stable
+  id): the Task, named by its id, is no longer held, and the agent may resume it with
+  `task_control`. An agent still paused by the owner or Lonora was not woken, as
+  `create_run` refuses a paused agent; its Task waits for it as it is;
+- an ended Task, among them one the migration's grant revocation stopped, and work no
+  longer paused were only released.
+
+A pause the owner asked for (`owner_message`) became the owner's (`owner`); the owner's
+pauses and Lonora's stayed.
 
 - **Default.** The migration gives each owner's Personal Agent a `default` grant over
   every other agent. A Personal Agent created later supervises every agent that already
