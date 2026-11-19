@@ -9,7 +9,7 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.account_authority import require_authority
 from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow, TradingAccountRow
 from lonora_session.idempotency import stable_id
@@ -276,8 +276,13 @@ async def main():
         )
 
         await sign(await propose())
-        invalid = await trade(volume="0.15")
-        assert invalid["status"] == "failed" and invalid["code"] == "volume_step_mismatch", invalid
+        # An off-step volume is refused before anything is journaled or sent.
+        try:
+            invalid = await trade(volume="0.15")
+        except ToolRefusal as refused:
+            assert refused.code == "volume_step_mismatch", refused.code
+        else:
+            raise AssertionError(invalid)
         print("PASS full management preserves broker volume validity")
 
         specialist = await f.request(
