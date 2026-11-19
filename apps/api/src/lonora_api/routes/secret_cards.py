@@ -230,7 +230,6 @@ async def connect(
             owner.id,
             McpConnection(
                 name=details["name"],
-                transport="http",
                 url_secret_id=address_id,
                 endpoint_sha256=endpoint_sha256(address),
                 secret_id=token_id,
