@@ -22,6 +22,7 @@ import {
   commandQuery,
   conversationTimeline,
   type LiveReplyStream,
+  latestCardIndex,
   liveAvatarState,
   type MentionAddress,
   mergeOwnerAction,
@@ -703,9 +704,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           .then(() => snapshotRef.current())
       }
       onLatest={(cardId) => {
-        const index = [...timeline]
-          .reverse()
-          .findIndex((item) => item.kind === "owner_action" && item.action.id === cardId);
+        const index = latestCardIndex(timeline, cardId, undrawn);
         if (index < 0) return;
         following.current = false;
         list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });

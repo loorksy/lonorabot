@@ -120,6 +120,36 @@ export function conversationTimeline(
   );
 }
 
+/** Index of an owner-action card in the newest-first timeline the thread scrolls.
+ * The card's own row when the timeline kept it. When that row is omitted because a
+ * message embeds the record as a trusted slot, the message that draws it (mandate
+ * 10.2.3). -1 when this page does not show the card. */
+export function latestCardIndex(
+  timeline: readonly ConversationItem[],
+  cardId: string,
+  undrawn: ReadonlySet<string> = new Set(),
+): number {
+  const reversed = [...timeline].reverse();
+  const row = reversed.findIndex(
+    (item) => item.kind === "owner_action" && item.action.id === cardId,
+  );
+  if (row >= 0) return row;
+  return reversed.findIndex(
+    (item) => item.kind === "message" && embedsRecord(item.message, cardId, undrawn),
+  );
+}
+
+/** A drawn trusted slot names this record. The card half of the key may differ; the
+ * record is everything after the first colon, so a record that itself contains one
+ * still has to match whole. */
+function embedsRecord(message: Message, cardId: string, undrawn: ReadonlySet<string>): boolean {
+  for (const key of embeddedSlots([message], undrawn)) {
+    const colon = key.indexOf(":");
+    if (colon >= 0 && key.slice(colon + 1) === cardId) return true;
+  }
+  return false;
+}
+
 export function nearConversationBottom(
   contentHeight: number,
   viewportHeight: number,

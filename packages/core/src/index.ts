@@ -100,6 +100,7 @@ export {
   type ConversationItem,
   conversationTimeline,
   embeddedSlots,
+  latestCardIndex,
   nearConversationBottom,
   SLOT_OWNER_ACTION_KINDS,
 } from "./conversation-timeline";
