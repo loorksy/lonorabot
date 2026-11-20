@@ -4,11 +4,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
 #. placeholder {0}: list.name
-#: src/shell/lists/ListSheets.tsx:367
+#: src/shell/lists/ListSheets.tsx:354
 msgid "«{0}» deleted"
 msgstr "حُذفت «{0}»"
 
-#: src/shell/lists/ListSheets.tsx:288
+#: src/shell/lists/ListSheets.tsx:283
 msgid "«{name}» saved"
 msgstr "حُفظت «{name}»"
 
@@ -31,7 +31,7 @@ msgstr "{0} نشطة"
 
 #. placeholder {0}: chatsWord(added.length)
 #. placeholder {1}: list.name
-#: src/shell/lists/ListSheets.tsx:429
+#: src/shell/lists/ListSheets.tsx:416
 msgid "{0} added to «{1}»"
 msgstr "أُضيفت {0} إلى «{1}»"
 
@@ -83,7 +83,7 @@ msgstr "{0} يكتب"
 #. placeholder {0}: (value / 1024).toFixed(1)
 #. placeholder {0}: Math.max(1, Math.ceil(Number(file.payload.size ?? 0) / 1024))
 #. placeholder {0}: kilobytes(row.payload.size)
-#: src/conversation/Composer.tsx:821
+#: src/conversation/Composer.tsx:830
 #: src/shell/domain/FilesPages.tsx:175
 #: src/shell/settings/DevicePages.tsx:109
 msgid "{0} KB"
@@ -116,7 +116,7 @@ msgid "{0} requests have no list price"
 msgstr "{0} طلبات دون سعر معلن"
 
 #. placeholder {0}: chatsWord(rows.length)
-#: src/shell/lists/ListSheets.tsx:460
+#: src/shell/lists/ListSheets.tsx:447
 msgid "{0} will be added to it"
 msgstr "{0} ستُضاف إليها"
 
@@ -271,7 +271,7 @@ msgstr "اقتراحات @"
 msgid "<0>{0}</0> tokens reused"
 msgstr "<0>{0}</0> توكن أُعيد استخدامها"
 
-#: src/conversation/Composer.tsx:646
+#: src/conversation/Composer.tsx:655
 msgid "<0>{name}</0>'s skills"
 msgstr "مهارات <0>{name}</0>"
 
@@ -352,7 +352,7 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 msgid "A line under the agent's name says what it is doing now, such as «Analysing» or «Waiting for your decision», and its picture changes with it. When off: only «Active», «Paused» or «Typing…»"
 msgstr "سطر تحت اسم الوكيل يقول ما يفعله الآن، مثل «يحلّل» أو «بانتظار قرارك»، وتتغيّر صورته معه. عند الإيقاف: «نشط» أو «متوقف مؤقتًا» أو «يكتب…» فقط"
 
-#: src/shell/lists/ListSheets.tsx:254
+#: src/shell/lists/ListSheets.tsx:250
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
@@ -570,7 +570,7 @@ msgstr "إضافة مزود"
 msgid "Add a provider credential"
 msgstr "أضف مفتاح المزود"
 
-#: src/shell/settings/IntegrationsPage.tsx:834
+#: src/shell/settings/IntegrationsPage.tsx:840
 msgid "Add a trading account"
 msgstr "إضافة حساب تداول"
 
@@ -599,7 +599,7 @@ msgstr "أضف مصدرًا للتقويم الاقتصادي في التكام�
 msgid "Add an emoji"
 msgstr "إضافة رمز تعبيري"
 
-#: src/shell/settings/IntegrationsPage.tsx:842
+#: src/shell/settings/IntegrationsPage.tsx:848
 msgid "Add an MCP server"
 msgstr "إضافة خادم MCP"
 
@@ -653,11 +653,11 @@ msgid "Add the server"
 msgstr "إضافة الخادم"
 
 #. placeholder {0}: draft.name.trim()
-#: src/shell/lists/ListSheets.tsx:296
+#: src/shell/lists/ListSheets.tsx:291
 msgid "Add to «{0}»"
 msgstr "إضافة إلى «{0}»"
 
-#: src/shell/lists/ListSheets.tsx:417
+#: src/shell/lists/ListSheets.tsx:404
 #: src/shell/lists/Selection.tsx:229
 msgid "Add to a list"
 msgstr "إضافة إلى قائمة"
@@ -786,7 +786,7 @@ msgstr "حالة الوكيل"
 msgid "Agents"
 msgstr "الوكلاء"
 
-#: src/shell/lists/ListSheets.tsx:178
+#: src/shell/lists/ListSheets.tsx:174
 #: src/shell/lists/UnifiedSearch.tsx:319
 #: src/shell/lists/UnifiedSearch.tsx:326
 msgid "Agents and groups"
@@ -808,8 +808,8 @@ msgstr "يقرأ الوكلاء الأخبار من هذه النطاقات فق
 msgid "Alert channel"
 msgstr "قناة التنبيه"
 
-#: src/conversation/Composer.tsx:344
-#: src/conversation/Composer.tsx:725
+#: src/conversation/Composer.tsx:353
+#: src/conversation/Composer.tsx:734
 msgid "all"
 msgstr "الكل"
 
@@ -828,7 +828,7 @@ msgstr "الكل"
 #~ msgstr "كل النشاط"
 
 #. placeholder {0}: list.name
-#: src/shell/lists/ListSheets.tsx:430
+#: src/shell/lists/ListSheets.tsx:417
 msgid "All already in «{0}»"
 msgstr "كلها موجودة في «{0}»"
 
@@ -1085,7 +1085,7 @@ msgstr "بسعر السوق"
 #~ msgid "Attach file"
 #~ msgstr "إرفاق ملف"
 
-#: src/conversation/Composer.tsx:408
+#: src/conversation/Composer.tsx:417
 #: src/conversation/Conversation.tsx:540
 msgid "Attached files"
 msgstr "ملفات مرفقة"
@@ -1094,12 +1094,12 @@ msgstr "ملفات مرفقة"
 #~ msgid "Attachment"
 #~ msgstr "مرفق"
 
-#: src/conversation/Composer.tsx:802
+#: src/conversation/Composer.tsx:811
 msgid "Attachments"
 msgstr "المرفقات"
 
-#: src/conversation/Composer.tsx:1014
-#: src/conversation/Composer.tsx:1015
+#: src/conversation/Composer.tsx:1023
+#: src/conversation/Composer.tsx:1024
 msgid "Attachments and tools"
 msgstr "مرفقات وأدوات"
 
@@ -1297,7 +1297,7 @@ msgstr "رمز البوت"
 #~ msgid "Bring agents together in a group."
 #~ msgstr "اجمع الوكلاء في مجموعة."
 
-#: src/conversation/Composer.tsx:697
+#: src/conversation/Composer.tsx:706
 msgid "Bring an agent into the conversation"
 msgstr "إشراك وكيل في المحادثة"
 
@@ -1404,7 +1404,7 @@ msgstr "ذاكرة المتصفح المؤقتة"
 msgid "Built in"
 msgstr "مدمجة"
 
-#: src/shell/settings/IntegrationsPage.tsx:788
+#: src/shell/settings/IntegrationsPage.tsx:794
 msgid "Built-in"
 msgstr "مدمجة"
 
@@ -1541,11 +1541,11 @@ msgstr "إلغاء"
 msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
-#: src/conversation/Composer.tsx:787
+#: src/conversation/Composer.tsx:796
 msgid "Cancel the edit"
 msgstr "إلغاء التعديل"
 
-#: src/conversation/Composer.tsx:787
+#: src/conversation/Composer.tsx:796
 msgid "Cancel the reply"
 msgstr "إلغاء الرد"
 
@@ -1963,7 +1963,7 @@ msgstr "اضغط أيقونة التثبيت في شريط العنوان."
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
 #: src/components/ai/AvatarStudio.tsx:121
 #: src/components/common/FilePreviewPanel.tsx:99
-#: src/conversation/Composer.tsx:749
+#: src/conversation/Composer.tsx:758
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
 #: src/pages/shell/bot-settings.tsx:152
@@ -2065,8 +2065,8 @@ msgstr "اللون"
 msgid "Colour {color}"
 msgstr "لون {color}"
 
-#: src/conversation/Composer.tsx:629
-#: src/conversation/Composer.tsx:650
+#: src/conversation/Composer.tsx:638
+#: src/conversation/Composer.tsx:659
 msgctxt "composer list"
 msgid "Commands"
 msgstr "الأوامر"
@@ -2248,7 +2248,7 @@ msgstr "المحتوى"
 #~ msgid "Context panel"
 #~ msgstr "لوحة السياق"
 
-#: src/conversation/Composer.tsx:1518
+#: src/conversation/Composer.tsx:1527
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
@@ -2420,11 +2420,11 @@ msgstr "إنشاء المهمة"
 msgid "Create the group"
 msgstr "إنشاء المجموعة"
 
-#: src/shell/lists/ListSheets.tsx:236
+#: src/shell/lists/ListSheets.tsx:232
 msgid "Create the list"
 msgstr "إنشاء القائمة"
 
-#: src/shell/lists/ListSheets.tsx:235
+#: src/shell/lists/ListSheets.tsx:231
 msgid "Create the list · {count}"
 msgstr "إنشاء القائمة · {count}"
 
@@ -2634,11 +2634,11 @@ msgstr "حذف المحادثات؟"
 msgid "Delete the fact"
 msgstr "حذف المعلومة"
 
-#: src/shell/lists/ListSheets.tsx:408
+#: src/shell/lists/ListSheets.tsx:395
 msgid "Delete the list"
 msgstr "حذف القائمة"
 
-#: src/conversation/Composer.tsx:1491
+#: src/conversation/Composer.tsx:1500
 msgid "Delete the recording"
 msgstr "حذف التسجيل"
 
@@ -2727,27 +2727,27 @@ msgstr "فشل التحقق من الجهاز. لم يُمنح أي تفويض."
 #~ msgid "Diamond"
 #~ msgstr "معيّن"
 
-#: src/conversation/Composer.tsx:511
+#: src/conversation/Composer.tsx:520
 msgid "Dictation could not start."
 msgstr "تعذّر بدء الإملاء الصوتي."
 
-#: src/conversation/Composer.tsx:499
+#: src/conversation/Composer.tsx:508
 msgid "Dictation failed"
 msgstr "تعذّر الإملاء الصوتي"
 
-#: src/conversation/Composer.tsx:469
+#: src/conversation/Composer.tsx:478
 msgid "Dictation is not available here — hold the microphone to record a voice message."
 msgstr "الإملاء غير متاح هنا — اضغط مطولًا على الميكروفون لتسجيل رسالة صوتية."
 
-#: src/conversation/Composer.tsx:490
+#: src/conversation/Composer.tsx:499
 msgid "Dictation is not available in this browser; hold the microphone to record a voice message"
 msgstr "الإملاء غير متاح في هذا المتصفح؛ اضغط مطولًا لتسجيل رسالة صوتية"
 
-#: src/conversation/Composer.tsx:496
+#: src/conversation/Composer.tsx:505
 msgid "Dictation needs an internet connection"
 msgstr "الإملاء يحتاج اتصالًا بالإنترنت"
 
-#: src/conversation/Composer.tsx:1071
+#: src/conversation/Composer.tsx:1080
 msgid "Dictation, or hold to record a voice message"
 msgstr "إملاء صوتي، أو اضغط مطولًا لتسجيل رسالة صوتية"
 
@@ -2818,7 +2818,7 @@ msgstr "المسودات والرسائل غير المرسلة"
 msgid "Dreamy"
 msgstr "حالم"
 
-#: src/conversation/Composer.tsx:1131
+#: src/conversation/Composer.tsx:1140
 msgid "Drop here to attach"
 msgstr "أفلت هنا للإرفاق"
 
@@ -2930,12 +2930,12 @@ msgstr "تعديل الوقف والهدف"
 #~ msgid "Edit the limits"
 #~ msgstr "تعديل الحدود"
 
-#: src/shell/lists/ListSheets.tsx:320
-#: src/shell/lists/ListSheets.tsx:398
+#: src/shell/lists/ListSheets.tsx:307
+#: src/shell/lists/ListSheets.tsx:385
 msgid "Edit the list"
 msgstr "تعديل القائمة"
 
-#: src/conversation/Composer.tsx:774
+#: src/conversation/Composer.tsx:783
 msgid "Edit the message"
 msgstr "تعديل الرسالة"
 
@@ -3551,8 +3551,8 @@ msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صل�
 msgid "Great, that is clear now."
 msgstr "ممتاز، واضح الآن."
 
-#: src/shell/lists/ListSheets.tsx:159
-#: src/shell/lists/ListSheets.tsx:202
+#: src/shell/lists/ListSheets.tsx:155
+#: src/shell/lists/ListSheets.tsx:198
 msgid "Group"
 msgstr "مجموعة"
 
@@ -3566,7 +3566,7 @@ msgstr "مجموعة من المحددين"
 msgid "Group info"
 msgstr "معلومات المجموعة"
 
-#: src/conversation/Composer.tsx:695
+#: src/conversation/Composer.tsx:704
 msgid "Group members"
 msgstr "أعضاء المجموعة"
 
@@ -3627,11 +3627,11 @@ msgstr "انتهت مهلة تحميل شموع الوسيط التاريخية.
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة."
 
-#: src/conversation/Composer.tsx:534
+#: src/conversation/Composer.tsx:543
 msgid "Hold the microphone to record, release to send."
 msgstr "اضغط مطولًا على الميكروفون للتسجيل، وأفلت للإرسال."
 
-#: src/conversation/Composer.tsx:1205
+#: src/conversation/Composer.tsx:1214
 msgid "Hold to record a voice message"
 msgstr "اضغط مطولًا لتسجيل رسالة صوتية"
 
@@ -4012,7 +4012,7 @@ msgstr "لاحقًا"
 msgid "Laugh"
 msgstr "ضاحك"
 
-#: src/conversation/Composer.tsx:731
+#: src/conversation/Composer.tsx:740
 msgid "Lead"
 msgstr "القائد"
 
@@ -4050,7 +4050,7 @@ msgstr "محدد عند"
 msgid "Limit order"
 msgstr "أمر محدد"
 
-#: src/shell/settings/IntegrationsPage.tsx:758
+#: src/shell/settings/IntegrationsPage.tsx:764
 msgid "Link"
 msgstr "ربط"
 
@@ -4063,7 +4063,7 @@ msgid "Link"
 msgstr "رابط"
 
 #: src/shell/settings/ConnectionPages.tsx:245
-#: src/shell/settings/IntegrationsPage.tsx:834
+#: src/shell/settings/IntegrationsPage.tsx:840
 msgid "Link a trading account"
 msgstr "ربط حساب تداول"
 
@@ -4087,15 +4087,15 @@ msgstr "ربط الحساب"
 msgid "Link the broker"
 msgstr "ربط الوسيط"
 
-#: src/shell/settings/IntegrationsPage.tsx:754
+#: src/shell/settings/IntegrationsPage.tsx:760
 msgid "Linked"
 msgstr "مرتبط"
 
-#: src/shell/settings/IntegrationsPage.tsx:746
+#: src/shell/settings/IntegrationsPage.tsx:752
 msgid "Linked · alerts reach your chat, your messages reach {telegramAgent}"
 msgstr "مرتبط · تصل التنبيهات إلى محادثتك، ورسائلك تصل إلى {telegramAgent}"
 
-#: src/shell/settings/IntegrationsPage.tsx:747
+#: src/shell/settings/IntegrationsPage.tsx:753
 msgid "Linked · alerts reach your chat, your messages reach an agent"
 msgstr "مرتبط · تصل التنبيهات إلى محادثتك، ورسائلك تصل إلى وكيل"
 
@@ -4111,7 +4111,7 @@ msgstr "مرتبط · تصل التنبيهات إلى محادثتك، ورسا
 msgid "Linked symbol"
 msgstr "الرمز المرتبط"
 
-#: src/shell/lists/ListSheets.tsx:288
+#: src/shell/lists/ListSheets.tsx:283
 msgid "List «{name}» created"
 msgstr "أُنشئت قائمة «{name}»"
 
@@ -4140,7 +4140,7 @@ msgstr "عرض القائمة"
 msgid "Listening to you"
 msgstr "أستمع إليك"
 
-#: src/conversation/Composer.tsx:895
+#: src/conversation/Composer.tsx:904
 msgid "Listening… speak now"
 msgstr "أستمع إليك… تكلّم الآن"
 
@@ -4421,7 +4421,7 @@ msgstr "الذاكرة"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "اذكر الوكلاء باستخدام ‎@الاسم. عند عدم تحديد وكيل، يرد العضو الأول."
 
-#: src/conversation/Composer.tsx:630
+#: src/conversation/Composer.tsx:639
 #: src/shell/ShortcutsSheet.tsx:18
 msgid "Mention an agent"
 msgstr "الإشارة إلى وكيل"
@@ -4439,7 +4439,7 @@ msgctxt "reach mode"
 msgid "Message"
 msgstr "رسالة"
 
-#: src/conversation/Composer.tsx:895
+#: src/conversation/Composer.tsx:904
 msgid "Message {name}"
 msgstr "راسل {name}"
 
@@ -4447,7 +4447,7 @@ msgstr "راسل {name}"
 #~ msgid "Message {recipientName}"
 #~ msgstr "راسل {recipientName}"
 
-#: src/conversation/Composer.tsx:594
+#: src/conversation/Composer.tsx:603
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
@@ -4457,7 +4457,7 @@ msgstr "محرر الرسالة"
 msgid "Message options"
 msgstr "خيارات الرسالة"
 
-#: src/conversation/Composer.tsx:894
+#: src/conversation/Composer.tsx:903
 msgid "Message to {name}"
 msgstr "رسالة إلى {name}"
 
@@ -4591,7 +4591,7 @@ msgstr "تعديل الوقف والهدف"
 msgid "More"
 msgstr "المزيد"
 
-#: src/conversation/Composer.tsx:741
+#: src/conversation/Composer.tsx:750
 msgid "Move"
 msgstr "تنقّل"
 
@@ -4680,8 +4680,8 @@ msgstr "مجموعة جديدة"
 
 #: src/shell/lists/ChatList.tsx:265
 #: src/shell/lists/ChatList.tsx:266
-#: src/shell/lists/ListSheets.tsx:320
-#: src/shell/lists/ListSheets.tsx:458
+#: src/shell/lists/ListSheets.tsx:307
+#: src/shell/lists/ListSheets.tsx:445
 msgid "New list"
 msgstr "قائمة جديدة"
 
@@ -4754,7 +4754,7 @@ msgid "News and channels"
 msgstr "الأخبار والقنوات"
 
 #: src/shell/settings/IntegrationsPage.tsx:306
-#: src/shell/settings/IntegrationsPage.tsx:707
+#: src/shell/settings/IntegrationsPage.tsx:713
 msgid "News domains"
 msgstr "نطاقات الأخبار"
 
@@ -4844,7 +4844,7 @@ msgstr "لا محادثات في «{0}» بعد."
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
-#: src/conversation/Composer.tsx:635
+#: src/conversation/Composer.tsx:644
 msgid "No command by that name"
 msgstr "لا يوجد أمر بهذا الاسم"
 
@@ -4872,7 +4872,7 @@ msgstr "دون تنفيذ"
 msgid "No expiry"
 msgstr "دون انتهاء"
 
-#: src/shell/settings/IntegrationsPage.tsx:730
+#: src/shell/settings/IntegrationsPage.tsx:736
 msgid "No feeds"
 msgstr "لا توجد خلاصات"
 
@@ -4921,7 +4921,7 @@ msgstr "لا توجد رموز مطابقة"
 msgid "No matching emojis"
 msgstr "لا توجد رموز مطابقة"
 
-#: src/conversation/Composer.tsx:494
+#: src/conversation/Composer.tsx:503
 msgid "No microphone was found on this device"
 msgstr "لم يُعثر على ميكروفون في هذا الجهاز"
 
@@ -4977,7 +4977,7 @@ msgstr "لا توجد نتائج"
 msgid "No results in this category"
 msgstr "لا توجد نتائج في هذه الفئة"
 
-#: src/shell/lists/ListSheets.tsx:212
+#: src/shell/lists/ListSheets.tsx:208
 msgid "No results."
 msgstr "لا نتائج."
 
@@ -5021,7 +5021,7 @@ msgstr "لا توجد مهارات مفعّلة"
 msgid "No skills for this agent."
 msgstr "لا توجد مهارات لهذا الوكيل."
 
-#: src/shell/settings/IntegrationsPage.tsx:822
+#: src/shell/settings/IntegrationsPage.tsx:828
 msgid "No skills."
 msgstr "لا توجد مهارات."
 
@@ -5143,7 +5143,7 @@ msgctxt "integrations"
 msgid "Not linked"
 msgstr "غير مرتبطة"
 
-#: src/shell/settings/IntegrationsPage.tsx:748
+#: src/shell/settings/IntegrationsPage.tsx:754
 msgid "Not linked · alerts can reach you in Telegram"
 msgstr "غير مرتبط · يمكن أن تصلك التنبيهات في Telegram"
 
@@ -5544,7 +5544,7 @@ msgstr "مخرج {0}"
 msgid "Overall usage"
 msgstr "الاستهلاك العام"
 
-#: src/shell/settings/IntegrationsPage.tsx:788
+#: src/shell/settings/IntegrationsPage.tsx:794
 msgid "Owner"
 msgstr "المالك"
 
@@ -5625,7 +5625,7 @@ msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 msgid "Pause for now"
 msgstr "إيقاف مؤقت"
 
-#: src/conversation/Composer.tsx:1518
+#: src/conversation/Composer.tsx:1527
 msgid "Pause recording"
 msgstr "إيقاف التسجيل مؤقتًا"
 
@@ -5633,7 +5633,7 @@ msgstr "إيقاف التسجيل مؤقتًا"
 msgid "paused"
 msgstr "موقوفة مؤقتًا"
 
-#: src/conversation/Composer.tsx:731
+#: src/conversation/Composer.tsx:740
 #: src/pages/Board.tsx:29
 #: src/shell/ChatHeader.tsx:117
 msgid "Paused"
@@ -5767,11 +5767,11 @@ msgstr "صورة، اضغط لعرضها"
 msgid "Photos"
 msgstr "صور"
 
-#: src/conversation/Composer.tsx:1134
+#: src/conversation/Composer.tsx:1143
 msgid "Photos and files up to 8 MB"
 msgstr "صور وملفات حتى 8 ميغابايت"
 
-#: src/conversation/Composer.tsx:745
+#: src/conversation/Composer.tsx:754
 msgid "Pick"
 msgstr "اختيار"
 
@@ -6125,7 +6125,7 @@ msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسي
 #~ msgid "Recorded in Updates without any alert"
 #~ msgstr "يُسجَّل في المستجدات دون أي تنبيه"
 
-#: src/conversation/Composer.tsx:1497
+#: src/conversation/Composer.tsx:1506
 msgid "Recording length"
 msgstr "مدة التسجيل"
 
@@ -6213,7 +6213,7 @@ msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها �
 msgid "Remove {0}"
 msgstr "إزالة {0}"
 
-#: src/conversation/Composer.tsx:828
+#: src/conversation/Composer.tsx:837
 msgid "Remove {label}"
 msgstr "إزالة {label}"
 
@@ -6268,7 +6268,7 @@ msgid "Reply"
 msgstr "رد"
 
 #. placeholder {0}: replyAgent?.name ?? "Lonora"
-#: src/conversation/Composer.tsx:779
+#: src/conversation/Composer.tsx:788
 msgid "Reply to {0}"
 msgstr "ردّ على {0}"
 
@@ -6277,7 +6277,7 @@ msgstr "ردّ على {0}"
 #~ msgid "Reply to an earlier message"
 #~ msgstr "رد على رسالة سابقة"
 
-#: src/conversation/Composer.tsx:777
+#: src/conversation/Composer.tsx:786
 msgid "Reply to your message"
 msgstr "ردّ على رسالتك"
 
@@ -6524,7 +6524,7 @@ msgstr "التوجيه حسب القدرة"
 #~ msgstr "المهام المجدولة"
 
 #: src/shell/settings/IntegrationsPage.tsx:389
-#: src/shell/settings/IntegrationsPage.tsx:728
+#: src/shell/settings/IntegrationsPage.tsx:734
 msgid "RSS feeds"
 msgstr "خلاصات RSS"
 
@@ -6595,11 +6595,11 @@ msgstr "حفظ الجدولة"
 msgid "Save skill"
 msgstr "حفظ المهارة"
 
-#: src/shell/lists/ListSheets.tsx:233
+#: src/shell/lists/ListSheets.tsx:229
 msgid "Save the list"
 msgstr "حفظ القائمة"
 
-#: src/shell/lists/ListSheets.tsx:232
+#: src/shell/lists/ListSheets.tsx:228
 msgid "Save the list · {count}"
 msgstr "حفظ القائمة · {count}"
 
@@ -6707,7 +6707,7 @@ msgctxt "slash command"
 msgid "search"
 msgstr "بحث"
 
-#: src/shell/lists/ListSheets.tsx:170
+#: src/shell/lists/ListSheets.tsx:166
 msgid "Search"
 msgstr "بحث"
 
@@ -6722,7 +6722,7 @@ msgstr "البحث في النشاط"
 #~ msgid "Search agents"
 #~ msgstr "البحث عن الوكلاء"
 
-#: src/shell/lists/ListSheets.tsx:172
+#: src/shell/lists/ListSheets.tsx:168
 msgid "Search agents and groups"
 msgstr "بحث في الوكلاء والمجموعات"
 
@@ -6844,7 +6844,7 @@ msgstr "بيع عند الكسر"
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/conversation/Composer.tsx:1105
+#: src/conversation/Composer.tsx:1114
 msgid "Send"
 msgstr "إرسال"
 
@@ -6861,11 +6861,11 @@ msgstr "إرسال (Shift+Enter لسطر جديد)"
 msgid "Send the answer"
 msgstr "إرسال الإجابة"
 
-#: src/conversation/Composer.tsx:1104
+#: src/conversation/Composer.tsx:1113
 msgid "Send the message"
 msgstr "إرسال الرسالة"
 
-#: src/conversation/Composer.tsx:1539
+#: src/conversation/Composer.tsx:1548
 msgid "Send the voice message"
 msgstr "إرسال الرسالة الصوتية"
 
@@ -7170,7 +7170,7 @@ msgstr "تعذر التحقق من ضوابط إصدارات المهارات. �
 #: src/pages/Knowledge.tsx:44
 #: src/shell/agent/AgentPage.tsx:262
 #: src/shell/pages.tsx:129
-#: src/shell/settings/IntegrationsPage.tsx:767
+#: src/shell/settings/IntegrationsPage.tsx:773
 msgid "Skills"
 msgstr "المهارات"
 
@@ -7199,7 +7199,7 @@ msgstr "تخطي"
 msgid "Sleepy"
 msgstr "نعسان"
 
-#: src/conversation/Composer.tsx:1512
+#: src/conversation/Composer.tsx:1521
 msgid "Slide to cancel"
 msgstr "اسحب للإلغاء"
 
@@ -7326,7 +7326,7 @@ msgstr "الحالة: {text}"
 #~ msgid "Still unknown"
 #~ msgstr "لا تزال غير معروفة"
 
-#: src/conversation/Composer.tsx:1113
+#: src/conversation/Composer.tsx:1122
 #: src/pages/ActivityList.tsx:259
 #: src/shell/settings/RunningPage.tsx:159
 msgid "Stop"
@@ -7371,7 +7371,7 @@ msgstr "أمر إيقاف"
 msgid "Stop the agent"
 msgstr "إيقاف الوكيل"
 
-#: src/conversation/Composer.tsx:1112
+#: src/conversation/Composer.tsx:1121
 msgid "Stop the reply"
 msgstr "إيقاف الرد"
 
@@ -7550,11 +7550,11 @@ msgstr "اضغط زر المشاركة أسفل المتصفح."
 msgid "Tap to call back"
 msgstr "اضغط لمعاودة الاتصال"
 
-#: src/conversation/Composer.tsx:1202
+#: src/conversation/Composer.tsx:1211
 msgid "Tap to dictate"
 msgstr "اضغط للإملاء"
 
-#: src/conversation/Composer.tsx:1072
+#: src/conversation/Composer.tsx:1081
 msgid "Tap to dictate · hold for a voice message"
 msgstr "اضغط للإملاء · اضغط مطولًا لرسالة صوتية"
 
@@ -7835,7 +7835,7 @@ msgstr "يُحذف سجل الدردشات في {0} من عندك فقط. يبق
 msgid "The chat history of {0} is hidden for you. The agents stay in the agents list."
 msgstr "يُحذف سجل الدردشات في {0} من عندك فقط. يبقى الوكلاء في قائمة الوكلاء."
 
-#: src/shell/lists/ListSheets.tsx:401
+#: src/shell/lists/ListSheets.tsx:388
 msgid "The chats"
 msgstr "المحادثات"
 
@@ -7971,7 +7971,7 @@ msgstr "لم تُرسل الرسالة. خيارات"
 msgid "The messages of {0} are hidden for you; the chats stay in the list."
 msgstr "تُحذف رسائل {0} من عندك فقط، وتبقى المحادثات في القائمة."
 
-#: src/conversation/Composer.tsx:533
+#: src/conversation/Composer.tsx:542
 msgid "The microphone is not available on this page."
 msgstr "الميكروفون غير متاح في هذه الصفحة."
 
@@ -8152,7 +8152,7 @@ msgstr "استُوردت بيانات المحاكاة"
 msgid "The skill no longer exists."
 msgstr "لم تعد المهارة موجودة."
 
-#: src/shell/settings/IntegrationsPage.tsx:807
+#: src/shell/settings/IntegrationsPage.tsx:813
 msgid "The skill version is undone"
 msgstr "أُلغي إصدار المهارة"
 
@@ -8744,13 +8744,13 @@ msgstr "عملية غير مؤكَّدة · لم يؤكدها الوسيط"
 
 #: src/shell/agent/AgentPage.tsx:185
 #: src/shell/domain/SkillsPages.tsx:202
-#: src/shell/lists/ListSheets.tsx:369
+#: src/shell/lists/ListSheets.tsx:356
 #: src/shell/lists/Selection.tsx:142
 #: src/shell/settings/IntegrationsPage.tsx:328
 msgid "Undo"
 msgstr "تراجع"
 
-#: src/shell/settings/IntegrationsPage.tsx:812
+#: src/shell/settings/IntegrationsPage.tsx:818
 msgid "Undo this version"
 msgstr "التراجع عن هذا الإصدار"
 
@@ -8862,7 +8862,7 @@ msgstr "بيانات وصفية غير موثقة"
 msgid "Up {pct}%"
 msgstr "ارتفاع {pct}%"
 
-#: src/conversation/Composer.tsx:373
+#: src/conversation/Composer.tsx:382
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "حتى 6 صور وملفات، 8 ميغابايت لكلٍّ منها"
 
@@ -8887,7 +8887,7 @@ msgstr "حدّث للحصول على آخر التحسينات."
 msgid "Upload a file"
 msgstr "رفع ملف"
 
-#: src/conversation/Composer.tsx:839
+#: src/conversation/Composer.tsx:848
 #: src/conversation/Conversation.tsx:505
 msgid "Upload cancelled"
 msgstr "أُلغي الرفع"
@@ -8905,7 +8905,7 @@ msgstr "رفع ملف"
 #~ msgid "Uploading · {0} KB"
 #~ msgstr "جارٍ الرفع · {0} ك.ب"
 
-#: src/conversation/Composer.tsx:854
+#: src/conversation/Composer.tsx:863
 #: src/conversation/Message.tsx:243
 msgid "Uploading · {kb} KB"
 msgstr "جارٍ الرفع · {kb} ك.ب"
@@ -8961,11 +8961,11 @@ msgstr "استخدم الأسهم للتنقل بين الأعمدة."
 msgid "Use the configured secure website for device authentication."
 msgstr "استخدم الموقع الآمن المعتمد لمصادقة الجهاز."
 
-#: src/conversation/Composer.tsx:988
+#: src/conversation/Composer.tsx:997
 msgid "Use the suggestion (Tab)"
 msgstr "استخدم الاقتراح (Tab)"
 
-#: src/conversation/Composer.tsx:987
+#: src/conversation/Composer.tsx:996
 msgid "Use the suggestion: {suggestion}"
 msgstr "استخدم الاقتراح: {suggestion}"
 
@@ -8990,7 +8990,7 @@ msgid "Version"
 msgstr "الإصدار"
 
 #. placeholder {0}: skill.version
-#: src/shell/settings/IntegrationsPage.tsx:789
+#: src/shell/settings/IntegrationsPage.tsx:795
 msgid "version {0}"
 msgstr "الإصدار {0}"
 
@@ -9065,8 +9065,8 @@ msgstr "مكالمة صوتية"
 #~ msgid "Voice calls stop too."
 #~ msgstr "وتتوقف المكالمات الصوتية أيضًا."
 
-#: src/conversation/Composer.tsx:1080
-#: src/conversation/Composer.tsx:1081
+#: src/conversation/Composer.tsx:1089
+#: src/conversation/Composer.tsx:1090
 msgid "Voice conversation"
 msgstr "محادثة صوتية"
 
@@ -9208,21 +9208,21 @@ msgstr "نجري تحسينات سريعة على الخدمة. محادثاتك
 msgid "We found no results for «{q}». Try a shorter word or a different term."
 msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر أو مصطلحًا مختلفًا."
 
-#: src/conversation/Composer.tsx:498
+#: src/conversation/Composer.tsx:507
 msgid "We heard nothing. Try again."
 msgstr "لم نسمع شيئًا. حاول مرة أخرى."
 
-#: src/conversation/Composer.tsx:1057
+#: src/conversation/Composer.tsx:1066
 #: src/conversation/ToolsSheet.tsx:210
 #: src/shell/domain/SkillsPages.tsx:22
 msgid "Web search"
 msgstr "البحث في الويب"
 
-#: src/conversation/Composer.tsx:1056
+#: src/conversation/Composer.tsx:1065
 msgid "Web search is on, tap to turn it off"
 msgstr "البحث في الويب مفعّل، اضغط لإيقافه"
 
-#: src/conversation/Composer.tsx:1060
+#: src/conversation/Composer.tsx:1069
 msgid "Web search turned off"
 msgstr "أُوقف البحث في الويب"
 
@@ -9346,7 +9346,7 @@ msgstr "قلق"
 msgid "Write the alert condition."
 msgstr "اكتب شرط التنبيه."
 
-#: src/conversation/Composer.tsx:401
+#: src/conversation/Composer.tsx:410
 msgid "Write the task title after {slash}"
 msgstr "اكتب عنوان المهمة بعد الأمر {slash}"
 
@@ -9354,7 +9354,7 @@ msgstr "اكتب عنوان المهمة بعد الأمر {slash}"
 msgid "Write to the group, or pick a suggestion below."
 msgstr "اكتب للمجموعة، أو اختر اقتراحًا من الأسفل."
 
-#: src/conversation/Composer.tsx:402
+#: src/conversation/Composer.tsx:411
 msgid "Write what you are looking for after {slash}"
 msgstr "اكتب ما تبحث عنه بعد الأمر {slash}"
 
@@ -9423,7 +9423,7 @@ msgstr "أنت صاحب القرار"
 msgid "You have not added a provider yet."
 msgstr "لم تضف مزودًا بعد."
 
-#: src/shell/lists/ListSheets.tsx:334
+#: src/shell/lists/ListSheets.tsx:321
 msgid "You reached the name's maximum length"
 msgstr "وصلت إلى الحد الأقصى للاسم"
 
