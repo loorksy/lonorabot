@@ -289,7 +289,7 @@ test("message text: signed numbers keep their sign, Latin-only reads LTR, a quot
   }
 });
 
-test("the one-time mic tip never covers a fixed card; with one under it, it waits", async ({
+test("the one-time mic tip never covers a card or a message, and a scroll ends it", async ({
   page,
   context,
 }) => {
@@ -328,9 +328,10 @@ test("the one-time mic tip never covers a fixed card; with one under it, it wait
       reference_price: "101",
     };
     let approvals = [pending];
+    let messages = [];
     await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: approvals }));
     await page.route(`**/api/threads/${thread.id}/messages*`, (route) =>
-      route.fulfill({ json: [] }),
+      route.fulfill({ json: messages }),
     );
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/app/${agent.id}`);
@@ -338,10 +339,31 @@ test("the one-time mic tip never covers a fixed card; with one under it, it wait
     await page.waitForTimeout(1500);
     await expect(page.locator(".mic-tip")).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("lonora.tips.mic"))).toBeNull();
-    // With nothing fixed under it, it shows on a later visit.
+    // With nothing fixed under it, it shows on a later visit, and the first scroll ends it: a
+    // card scrolled under it is never covered.
     approvals = [];
     await page.reload();
     await expect(page.locator(".mic-tip")).toHaveClass(/show/);
+    await page.getByTestId("transcript").dispatchEvent("scroll");
+    await expect(page.locator(".mic-tip")).toHaveCount(0);
+    // Never over a message either: with the latest bubbles under it, it waits.
+    await page.evaluate(() => localStorage.removeItem("lonora.tips.mic"));
+    messages = Array.from({ length: 24 }, (_, index) => ({
+      id: `tip-${index + 1}`,
+      thread_id: thread.id,
+      agent_id: agent.id,
+      seq: index + 1,
+      role: index % 2 ? "assistant" : "user",
+      content: `حلّل الذهب وأخبرني قبل أي صفقة ${index + 1}`,
+      reply_to: null,
+      attachment_ids: [],
+      created_at: "2026-11-19T10:00:00Z",
+    }));
+    await page.reload();
+    await expect(page.getByText("حلّل الذهب وأخبرني قبل أي صفقة 24")).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(page.locator(".mic-tip")).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("lonora.tips.mic"))).toBeNull();
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

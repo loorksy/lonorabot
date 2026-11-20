@@ -1160,9 +1160,10 @@ function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
     el.style.left = `${left}px`;
     el.style.bottom = `${innerHeight - card.getBoundingClientRect().top + 12}px`;
     el.style.setProperty("--ax", `${cx - left}px`);
+    // It never covers a message or a card: with one under it, it waits for a later visit.
     const box = el.getBoundingClientRect();
-    const covers = [...document.querySelectorAll(".mcard, .oa")].some((fixed) => {
-      const r = fixed.getBoundingClientRect();
+    const covers = [...document.querySelectorAll(".msg .bubble, .mcard, .oa")].some((item) => {
+      const r = item.getBoundingClientRect();
       return r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top;
     });
     if (covers) {
@@ -1176,18 +1177,22 @@ function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
     }
     const frame = requestAnimationFrame(() => setShow(true));
     let gone = 0;
+    // The first press or scroll ends it: nothing scrolled under it is ever covered.
     const off = () => {
       document.removeEventListener("pointerdown", off, true);
+      document.removeEventListener("scroll", off, true);
       setShow(false);
       gone = window.setTimeout(onDone, 260);
     };
     document.addEventListener("pointerdown", off, true);
+    document.addEventListener("scroll", off, true);
     const timer = setTimeout(off, 5200);
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(timer);
       clearTimeout(gone);
       document.removeEventListener("pointerdown", off, true);
+      document.removeEventListener("scroll", off, true);
     };
   }, [mic, onDone]);
   return createPortal(
