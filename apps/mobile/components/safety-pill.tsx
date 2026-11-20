@@ -62,6 +62,7 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
         accessibilityLabel={`${text.open}: ${line}`}
         testID="safety-pill"
         onPress={() => setOpen(true)}
+        hitSlop={{ top: 7, bottom: 7 }}
         style={({ pressed }) => ({
           alignSelf: "center",
           flexDirection: rtl ? "row-reverse" : "row",

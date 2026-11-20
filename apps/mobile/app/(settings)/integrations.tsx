@@ -103,8 +103,11 @@ export default function Capabilities() {
       await api.post(`/trusted-sources/mcp/${preview.id}`, { tier, digest: preview.tools.digest });
       setPreview(null);
     });
+  // The server's own title of each tool; its name only when the server gives no title.
   const names = (values: string[]) =>
-    values.map((name) => `\u2068${name}\u2069`).join(rtl ? "، " : ", ");
+    values
+      .map((name) => `\u2068${preview?.tools.titles[name] ?? name}\u2069`)
+      .join(rtl ? "، " : ", ");
   const previewBlock = (connectionId: string) =>
     preview?.id === connectionId ? (
       <View key={`mcp-preview-${connectionId}`} testID="mcp-preview" style={{ gap: 6 }}>

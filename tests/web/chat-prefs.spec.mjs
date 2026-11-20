@@ -81,6 +81,16 @@ test("the page: its sections and rows, a dependent switch, and the choices kept"
   await page.evaluate(() => localStorage.setItem("lonora.locale", "ar"));
   await page.reload();
   await expect(page.locator("main h3").nth(2)).toHaveText("الكتابة");
+  // v38: the status row says truly what the switch changes, and a row with a switch is never
+  // cut (no line clamp).
+  const status = page
+    .locator(".row")
+    .filter({ has: page.getByRole("switch", { name: "حالة الوكيل التفصيلية" }) })
+    .locator("small");
+  await expect(status).toHaveText(
+    "سطر تحت اسم الوكيل يقول ما يفعله الآن، مثل «يحلّل» أو «بانتظار قرارك»، وتتغيّر صورته معه. عند الإيقاف: «نشط» أو «متوقف مؤقتًا» أو «يكتب…» فقط",
+  );
+  expect(await status.evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe("none");
   execFileSync(".venv/bin/python", ["tests/agent_pages_browser.py"], {
     input: JSON.stringify({ ...owner, groups: [], agents: [], action: "cleanup" }),
     encoding: "utf8",

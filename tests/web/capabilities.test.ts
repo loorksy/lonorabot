@@ -163,6 +163,7 @@ test("capability lines name source, tier and state in both languages", () => {
     credentials_configured: true,
     trusted_tier: "read",
     trusted_tools: ["post_reply", "search_posts"],
+    tool_titles: {},
     write_tools: ["post_reply"],
     blocked_tools: ["place_order"],
     operator_declared: 0,
@@ -174,6 +175,7 @@ test("capability lines name source, tier and state in both languages", () => {
     agent_id: "a",
     agent_name: "News",
     skill_id: "briefing",
+    title: "موجز الصباح",
     version: "1.0.0",
     provenance: "external",
     repository: "example/briefings",
@@ -219,6 +221,10 @@ test("capability lines name source, tier and state in both languages", () => {
     const declared = sourceLine(operator, locale);
     assert.ok(declared.includes(text.needsReview) && !declared.includes(text.read), declared);
     assert.ok(skillLine(skill, locale).includes(isolated("example/briefings")));
+    // A Skill is listed by its title; its id only when it was saved without one.
+    assert.ok(skillLine(skill, locale).startsWith(isolated("موجز الصباح")));
+    assert.ok(!skillLine(skill, locale).includes(isolated("briefing")));
+    assert.ok(skillLine({ ...skill, title: null }, locale).startsWith(isolated("briefing")));
     assert.ok(skillLine({ ...skill, undone: true, can_undo: false }, locale).endsWith(text.undone));
     assert.equal(
       builtInLine({ capability: "web_browse", state: "ready", via: null }, locale),

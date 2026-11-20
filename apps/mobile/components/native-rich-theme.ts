@@ -1,12 +1,13 @@
 import { appearance, type Theme } from "@lonora/ui-tokens";
 import { useEffect, useState } from "react";
-import { Platform, useColorScheme } from "react-native";
+import { Platform } from "react-native";
+import { useTheme } from "../lib/theme";
 
 export type NativeVisualPalette = (typeof appearance)[Theme];
 
 /** Native responses use the same semantic palette as the website, never model colors. */
 export function useNativeVisualTheme(): NativeVisualPalette {
-  const system = useColorScheme();
+  const { mode } = useTheme();
   const [browserTheme, setBrowserTheme] = useState<Theme | null>(null);
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
@@ -22,12 +23,9 @@ export function useNativeVisualTheme(): NativeVisualPalette {
     });
     return () => observer.disconnect();
   }, []);
-  // Native conversation surfaces use ui.tsx's dark palette. Following a light
-  // OS theme here would put dark rich prose on that dark conversation surface.
-  // The browser renderer still follows its actual page theme in both modes.
-  return appearance[
-    Platform.OS === "web" ? (browserTheme ?? (system === "light" ? "light" : "dark")) : "dark"
-  ];
+  // Rich answers follow the app's own theme (light or dark), as its conversation surface
+  // does; a browser page that sets data-theme keeps its own.
+  return appearance[Platform.OS === "web" ? (browserTheme ?? mode) : mode];
 }
 
 export function visualTone(palette: NativeVisualPalette, tone?: string): string {

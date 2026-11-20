@@ -140,6 +140,7 @@ async function setup(context, locale) {
 
 const copy = {
   en: {
+    settleKind: "Unconfirmed operation",
     resolveTitle: "The broker did not confirm this trade",
     notExecuted: "It did not execute",
     unknown: "Unknown",
@@ -153,6 +154,7 @@ const copy = {
     ownExcluded: "Positions you opened yourself are excluded",
   },
   ar: {
+    settleKind: "عملية غير مؤكدة",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     notExecuted: "لم تُنفذ",
     unknown: "غير معروفة",
@@ -553,9 +555,13 @@ for (const locale of ["en", "ar"])
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         await card.screenshot({ path: test.info().outputPath("owner-action-mandate-ar.png") });
       }
+      const line = page.locator(".msg.k-oa", { has: card }).locator(".msg-line");
+      const before = (await line.boundingBox()).width;
       await card.getByRole("button", { name: text.full, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card).toContainText(text.fullNow);
+      // A tapped Mandate card keeps its frame and its width (10.2.2, v38).
+      expect((await line.boundingBox()).width).toBe(before);
       // Still the agent's switch: the button now shows Ask, and applies exactly Ask.
       await card.getByRole("button", { name: text.ask, exact: true }).click();
       await expect(card).toContainText(text.askNow);
@@ -592,7 +598,10 @@ for (const locale of ["en", "ar"])
       });
       await page.goto(`/app/${state.agent.id}`);
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      await expect(card.locator(".oa-kind")).toHaveText(text.resolveTitle);
+      // v38: the kind in the head, the broker's silence as the title; no timer.
+      await expect(card.locator(".oa-kind")).toHaveText(text.settleKind);
+      await expect(card.locator(".oa-title")).toHaveText(text.resolveTitle);
+      await expect(card.locator(".oa-exp")).toHaveCount(0);
       await expect(card.locator("[data-owner-action-button]")).toHaveCount(3);
       // "Unknown" says that it releases the hold; it never reads as "wait".
       await expect(card.locator('[data-owner-action-button="unknown"]')).toHaveText(text.unknown);
@@ -610,6 +619,12 @@ for (const locale of ["en", "ar"])
       await card.getByRole("button", { name: text.notExecuted, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.recorded);
+      // Never folded (10.2.2): the answered card keeps its frame, in an unchanged wrapper.
+      await expect(card.locator(".oa-kind")).toHaveText(text.settleKind);
+      await expect(card.locator(".oa-title")).toHaveText(text.resolveTitle);
+      await expect(card.getByText(state.data.symbol)).toBeVisible();
+      await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
+      await expect(page.locator(".oa-line, .msg.k-line")).toHaveCount(0);
       const journal = await (
         await context.request.get(`/api/trading/journal?account_id=${state.account}`)
       ).json();

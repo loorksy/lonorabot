@@ -53,6 +53,14 @@ test("an answer in another chat shows with its text", () => {
   assert.equal(banner?.text, "Gold broke 2,425; I added 0.05.");
 });
 
+test("the banner reads one plain line: no Markdown marks, a signed number kept whole", () => {
+  const banner = messageBanner(
+    event("t-a", { content: "**الذهب** ارتفع\n| XAUUSD | +1.5% |" }),
+    base,
+  );
+  assert.equal(banner?.text, "الذهب ارتفع XAUUSD · \u2066+1.5%\u2069");
+});
+
 test("the open chat, a muted chat, the owner's own messages and old news do not show", () => {
   assert.equal(messageBanner(event("t-a"), { ...base, current: "t-a" }), null);
   assert.equal(messageBanner(event("t-b"), base), null);

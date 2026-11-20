@@ -498,7 +498,7 @@ html.theme-vt::view-transition-group(ts-thumb) {
   width: 34px;
   flex-shrink: 0;
   font-size: 10.5px;
-  color: var(--faint);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .u-yaxis span {
@@ -570,7 +570,7 @@ html.theme-vt::view-transition-group(ts-thumb) {
   margin-top: 8px;
   padding-inline-start: 44px;
   font-size: 10.5px;
-  color: var(--faint);
+  color: var(--muted);
 }
 .u-table-wrap {
   max-height: 300px;
@@ -896,7 +896,7 @@ html.theme-vt::view-transition-group(ts-thumb) {
 }
 .auth-legal {
   text-align: center;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-xs);
   margin-top: auto;
   padding-top: 18px;
@@ -1124,7 +1124,7 @@ html.theme-vt::view-transition-group(ts-thumb) {
 }
 .oa-input > span small {
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .oa-input input {
   height: 40px;

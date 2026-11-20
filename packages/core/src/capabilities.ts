@@ -207,7 +207,7 @@ export function skillLine(skill: CapabilitySkill, locale: string): string {
       ? `${text.external} ${skill.repository ? isolate(skill.repository) : "GitHub"}`
       : text[skill.provenance];
   return dot([
-    isolate(skill.skill_id),
+    isolate(skill.title ?? skill.skill_id),
     skill.version ? isolate(skill.version) : null,
     skill.agent_name ? isolate(skill.agent_name) : null,
     origin,

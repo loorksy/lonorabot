@@ -251,11 +251,16 @@ test("the call screen survives navigation with its origin, real track mute and o
     const approvedCard = call.locator(`[data-trade-approval="${approval.id}"]`);
     await expect(approvedCard.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
     await approvedCard.getByRole("button", { name: "Approve", exact: true }).click();
-    await expect(call.getByText("voice-native-ticket", { exact: true })).toBeVisible();
+    // Decided, the card keeps its frame with its end state inside (10.2.2); the confirmed fill
+    // is its Execution Receipt in the conversation (10.3), never a line of this card.
+    await expect(approvedCard.getByText("Broker result", { exact: true })).toBeVisible();
+    await expect(call.getByText("voice-native-ticket", { exact: true })).toHaveCount(0);
     await expect(approvedCard.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
     const rejectedCard = call.locator(`[data-trade-approval="${rejectable.id}"]`);
     await rejectedCard.getByRole("button", { name: "Reject", exact: true }).click();
-    await expect(rejectedCard.getByText("Rejected", { exact: true })).toBeVisible();
+    await expect(
+      rejectedCard.getByText("Rejected — nothing was sent", { exact: true }),
+    ).toBeVisible();
     await expect(rejectedCard.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
     expect(decisions).toBe(1);
 

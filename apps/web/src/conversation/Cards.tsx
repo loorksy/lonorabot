@@ -319,8 +319,18 @@ export function OrderLine({ row, onOpen }: { row: Journal; onOpen: (row: Journal
   );
 }
 
-/** The order sheet: the timeline, the evidence and the technical details (reference odSheet). */
-export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: () => void }) {
+/** The order sheet: the timeline, the evidence, the broker ticket and the account (reference
+ * odSheet, Desktop-38). Never a raw operation id, provisioning id or broker return code. */
+export function OrderSheetBody({
+  row,
+  account,
+  onResolve,
+}: {
+  row: Journal;
+  /** The account by its broker name (accountLabel), never the provisioning id. */
+  account?: string;
+  onResolve?: () => void;
+}) {
   const line = orderLineState(row);
   const state = line.state;
   // The shared timeline (core orderLineState): a never-sent order reads Requested → Blocked
@@ -448,42 +458,26 @@ export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: (
           </button>
         </div>
       )}
-      <details className="od-tech">
-        <summary>
-          <Icon name="down" />
-          <span>
-            <Trans>Technical details</Trans>
-          </span>
-        </summary>
-        <dl>
-          <div>
-            <dt>
-              <Trans>Operation id</Trans>
-            </dt>
-            <dd className="ltr">{row.operation_id}</dd>
-          </div>
+      {line.ticket && (
+        <dl className="oa-dl">
           <div>
             <dt>
               <Trans>Broker ticket</Trans>
             </dt>
-            <dd className="ltr">{ticket}</dd>
+            <dd className="ltr">{line.ticket}</dd>
           </div>
-          <div>
-            <dt>
-              <Trans>Account</Trans>
-            </dt>
-            <dd className="ltr">{row.account_id}</dd>
-          </div>
-          {row.result?.string_code != null && (
+          {account && (
             <div>
               <dt>
-                <Trans>Broker return code</Trans>
+                <Trans>Account</Trans>
               </dt>
-              <dd className="ltr">{String(row.result.string_code)}</dd>
+              <dd>
+                <bdi>{account}</bdi>
+              </dd>
             </div>
           )}
         </dl>
-      </details>
+      )}
     </div>
   );
 }

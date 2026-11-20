@@ -45,27 +45,23 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
       : null,
   );
   const others = data.agents.filter((row) => row.role !== "delegated");
-  const templates: Record<Template, { icon: IconName; label: string; sub: string; code: string }> =
-    {
-      trading: {
-        icon: "trend",
-        label: t`Trading agent`,
-        sub: t`Follows one pair and trades within your permissions`,
-        code: t`Specialist role · Fixed market`,
-      },
-      general: {
-        icon: "bot",
-        label: t`General agent`,
-        sub: t`Gets daily tasks done without a set pair`,
-        code: t`General role · Flexible scope`,
-      },
-      research: {
-        icon: "search",
-        label: t`Research agent`,
-        sub: t`Gathers information and summarises it without trading`,
-        code: t`Specialist role · Flexible scope`,
-      },
-    };
+  const templates: Record<Template, { icon: IconName; label: string; sub: string }> = {
+    trading: {
+      icon: "trend",
+      label: t`Trading agent`,
+      sub: t`Follows one pair and trades within your permissions`,
+    },
+    general: {
+      icon: "bot",
+      label: t`General agent`,
+      sub: t`Gets daily tasks done without a set pair`,
+    },
+    research: {
+      icon: "search",
+      label: t`Research agent`,
+      sub: t`Gathers information and summarises it without trading`,
+    },
+  };
   if (step === "template")
     return (
       <>
@@ -79,7 +75,6 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
               <span>
                 <strong>{templates[key].label}</strong>
                 <small className="tpl-sub">{templates[key].sub}</small>
-                <small className="tpl-code">{templates[key].code}</small>
               </span>
               <input
                 type="radio"

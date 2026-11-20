@@ -449,7 +449,7 @@ export function NativeUiCard({
           <Text style={{ color: p.muted, fontSize: 13, lineHeight: 21 }}>{doc.why}</Text>
           {/* When the card's facts were read; never the tools' internal names (mandate 17). */}
           {sources.length > 0 && Number.isFinite(oldest) ? (
-            <Text style={{ color: p.faint, fontSize: 12 }}>
+            <Text style={{ color: p.muted, fontSize: 12 }}>
               {t("uiLastUpdated")} {clock(oldest)}
             </Text>
           ) : null}

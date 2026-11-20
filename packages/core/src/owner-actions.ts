@@ -47,9 +47,9 @@ export const ownerActionLabels = {
     until: "until",
     fromYourMessage: "from your message",
     anAgent: "an agent",
+    settleKind: "Unconfirmed operation",
     resolveTitle: "The broker did not confirm this trade",
-    resolveHint:
-      "It will not be sent again. New risk on this market is held until the outcome is known: Executed or Not executed releases it; Unknown keeps it while the broker is still checked. Exits still work.",
+    resolveHint: "It will not be sent again.",
     resolveRecord: "Your answer is recorded as your statement, not as broker confirmation.",
     executed: "It executed",
     notExecuted: "It did not execute",
@@ -63,7 +63,7 @@ export const ownerActionLabels = {
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
     recordedUnknown:
-      "Recorded: the outcome stays unknown. It will not be resent; the broker is still checked, and new risk on this market stays held until the outcome is known.",
+      "Recorded: the outcome stays unknown and the broker is still checked. It will not be sent again.",
     cancelled: "Dismissed. Nothing changed.",
     expired: "This card expired. Nothing changed.",
     alreadyEnded: "This pause already ended. Nothing changed.",
@@ -234,7 +234,6 @@ export const ownerActionLabels = {
     brokerChanged: "Saved and sent to MetaApi. Lonora said in the conversation what changed.",
     brokerFailed: "Could not connect. Lonora said why in the conversation.",
     deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
-    expiresIn: "The request expires in",
     statusPending: "Waiting for your decision",
     statusConfirmed: "Done",
     statusFailed: "Failed",
@@ -264,9 +263,9 @@ export const ownerActionLabels = {
     until: "حتى",
     fromYourMessage: "من رسالتك",
     anAgent: "وكيل",
+    settleKind: "عملية غير مؤكدة",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
-    resolveHint:
-      "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُعرف النتيجة: «نُفذت» أو «لم تُنفذ» ترفع التعليق، و«غير معروفة» تبقيه بينما يُراجَع الوسيط؛ يبقى الخروج متاحًا.",
+    resolveHint: "لن تُرسل مجددًا.",
     resolveRecord: "تُسجَّل إجابتك كتصريح منك، لا كتأكيد من الوسيط.",
     executed: "نُفذت",
     notExecuted: "لم تُنفذ",
@@ -279,8 +278,7 @@ export const ownerActionLabels = {
     brokerAccount: "حساب الوسيط",
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
-    recordedUnknown:
-      "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها؛ يُراجَع الوسيط، وتبقى المخاطرة الجديدة على هذا السوق معلّقة حتى تُعرف النتيجة.",
+    recordedUnknown: "سُجّل: تبقى النتيجة غير معروفة ويُراجَع الوسيط، ولن تُرسل مجددًا.",
     cancelled: "تم التجاهل. لم يتغير شيء.",
     expired: "انتهت صلاحية هذه البطاقة. لم يتغير شيء.",
     alreadyEnded: "انتهى هذا الإيقاف مسبقًا. لم يتغير شيء.",
@@ -446,7 +444,6 @@ export const ownerActionLabels = {
     brokerChanged: "حُفظت وأُرسلت إلى MetaApi. أوضحت لونورا في المحادثة ما تغيّر.",
     brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
     deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
-    expiresIn: "ينتهي الطلب خلال",
     statusPending: "بانتظار قرارك",
     statusConfirmed: "تم",
     statusFailed: "تعذّر",
@@ -1100,7 +1097,8 @@ export function ownerActionCard(
       break;
     }
     case "settle_operation": {
-      title = text.resolveTitle;
+      title = text.settleKind;
+      lines.push(text.resolveTitle);
       const operation = facts.operation;
       if (operation) {
         const what = [
@@ -1458,6 +1456,18 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",
     ar: "هذا الطلب ما زال بانتظارك أو سبقت الإجابة عليه.",
+  },
+  trade_approval_already_decided: {
+    en: "This request was already answered.",
+    ar: "سبقت الإجابة على هذا الطلب.",
+  },
+  trade_approval_run_unavailable: {
+    en: "This request is no longer waiting for you. Nothing was sent.",
+    ar: "لم يعد هذا الطلب بانتظارك. لم يُرسل شيء.",
+  },
+  trade_approval_not_found: {
+    en: "This request no longer exists.",
+    ar: "لم يعد هذا الطلب موجودًا.",
   },
   mcp_owner_trust_disabled: {
     en: "This server's operator allows only declared MCP tools.",

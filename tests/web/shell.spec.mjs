@@ -766,7 +766,7 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
         await expect(page.locator(".desktop-content")).toHaveClass(/is-home/);
         await expect(page.locator(".welcome h2")).toContainText("مرحبًا");
         await expect(page.locator(".welcome")).toContainText("ماذا سنفعل اليوم مع وكلائك؟");
-        await expect(page.locator(".welcome")).toContainText("الصلاحيات مستقلة لكل وكيل");
+        await expect(page.locator(".welcome")).toContainText("لكل وكيل تفويضه: يستأذن أو وكّله");
         expect(
           await page.locator("#app").evaluate((app) => getComputedStyle(app).backgroundColor),
         ).toBe(theme === "light" ? "rgb(247, 245, 239)" : "rgb(11, 12, 16)");
@@ -775,10 +775,12 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
         await expect(page).toHaveURL(/\/app\/updates$/);
         await expect(page.locator(".topbar header h1")).toHaveText("يحتاج انتباهك");
         await expect(page.locator(".topbar")).not.toHaveClass(/bare/);
-        // The list collapses from the rail and the state is not persisted.
+        // The list collapses from the rail and stays folded after a reload (v38).
         await rail.getByRole("button", { name: "طي قائمة المحادثات" }).click();
         await expect(page.locator("#app")).toHaveClass(/list-collapsed/);
         await page.reload();
+        await expect(page.locator("#app")).toHaveClass(/list-collapsed/);
+        await rail.getByRole("button", { name: "إظهار قائمة المحادثات" }).click();
         await expect(page.locator("#app")).not.toHaveClass(/list-collapsed/);
         // Sheets are centred modals: the welcome's «محادثة جديدة» opens one; Escape closes it.
         await rail.getByRole("button", { name: "المحادثات", exact: true }).click();

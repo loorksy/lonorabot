@@ -199,6 +199,7 @@ def server_entry(
         "credentials_configured": bool(row.payload.get("secret_id")),
         "trusted_tier": trust.effect_tier if trust else None,
         "trusted_tools": sorted(trust.tool_hashes) if trust else [],
+        "tool_titles": tool_titles(row, trust),
         "write_tools": write_tools(trust) if trust else [],
         "blocked_tools": list(trust.blocked_tools) if trust else [],
         "operator_declared": sum(
@@ -208,6 +209,19 @@ def server_entry(
         ),
         "trust_source_id": trust.id if trust and not for_agent else None,
         "last_used_at": trust.last_used_at.isoformat() if trust and trust.last_used_at else None,
+    }
+
+
+def tool_titles(row: McpConnectionRow, trust: TrustedSourceRow | None) -> dict[str, str]:
+    """The server's titles of the trusted tools, as read at the owner's last review."""
+    saved = (row.state or {}).get("tool_titles")
+    if trust is None or not isinstance(saved, dict):
+        return {}
+    titles = cast(dict[str, Any], saved)
+    return {
+        name: title
+        for name in sorted(trust.tool_hashes)
+        if isinstance(title := titles.get(name), str) and title
     }
 
 
@@ -231,6 +245,7 @@ def skill_entry(
         "agent_id": row.agent_id,
         "agent_name": agents.get(row.agent_id or ""),
         "skill_id": skill_id,
+        "title": manifest.get("title") or None,
         "version": version,
         "provenance": provenance,
         "repository": urlsplit(repository).path.strip("/") if isinstance(repository, str) else None,

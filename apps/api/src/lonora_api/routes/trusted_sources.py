@@ -121,6 +121,7 @@ async def preview(
         "tools": sorted(reviewed.tools),
         "writes": reviewed.writes,
         "blocked": reviewed.blocked,
+        "titles": reviewed.titles,
         "unsupported": reviewed.unsupported,
         "digest": digest,
         "trusted_tier": trusted.effect_tier if owned and trusted is not None else None,
@@ -160,6 +161,7 @@ async def trust_mcp(
             tool_hashes=reviewed.tools,
             read_only_tools=reviewed.read_only,
             blocked_tools=reviewed.blocked,
+            tool_titles=reviewed.titles,
         )
         agents, connections = await source_names(session, owner.id, [trusted])
         return source_data(trusted, agents, connections, declared(rt, owner.id))

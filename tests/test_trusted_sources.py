@@ -106,6 +106,35 @@ def test_tools_that_can_move_money_are_never_trustable() -> None:
     assert digest != review_digest("e" * 64, review.tools, review.blocked, [])
 
 
+def test_the_owner_sees_each_tool_by_its_servers_title_which_is_never_pinned() -> None:
+    review = review_tools(
+        [
+            {"name": "search_posts", "title": "البحث في المنشورات", "inputSchema": SCHEMA},
+            {"name": "post_note", "annotations": {"title": "Save a note"}, "inputSchema": SCHEMA},
+            {
+                "name": "read_post",
+                "description": "Read one post.\nIt returns the text.",
+                "inputSchema": SCHEMA,
+            },
+            {"name": "list_tags", "inputSchema": SCHEMA},
+            {"name": "mirror", "title": "\u202eetirw\u202c", "inputSchema": SCHEMA},
+            {"name": "place_order", "title": "Place an order", "inputSchema": SCHEMA},
+        ]
+    )
+    # The title, else the annotation's title, else the description's first sentence; no
+    # bidi controls; a tool without any keeps no title (the client shows its name).
+    assert review.titles == {
+        "search_posts": "البحث في المنشورات",
+        "post_note": "Save a note",
+        "read_post": "Read one post.",
+        "mirror": "etirw",
+        "place_order": "Place an order",
+    }
+    # Titles are shown to the owner only: the pinned review is the same without them.
+    bare = review_tools([{"name": name, "inputSchema": SCHEMA} for name in review.tools])
+    assert bare.tools == review.tools and bare.titles == {}
+
+
 # Wallet, payment and betting shapes a real MCP server offers; each must be blocked.
 MONEY_TOOLS: list[dict[str, Any]] = [
     {"name": "send_transaction", "description": "Broadcast a signed transaction"},
@@ -759,17 +788,35 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
             assert refused_write.status_code == 422, refused_write.text
             assert refused_write.json()["code"] == "trusted_source_write_blocked"
             server.tools = [
-                {"name": "search_posts", "inputSchema": server.schema, "annotations": READS},
-                {"name": "post_note", "inputSchema": SCHEMA, "annotations": WRITES},
+                {
+                    "name": "search_posts",
+                    "title": "البحث في المنشورات",
+                    "inputSchema": server.schema,
+                    "annotations": READS,
+                },
+                {
+                    "name": "post_note",
+                    "description": "Save a note. It returns the note's id.",
+                    "inputSchema": SCHEMA,
+                    "annotations": WRITES,
+                },
             ]
             preview = await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
             assert preview["blocked"] == []
+            # The owner reviews each tool by the server's own title, never by its name.
+            titles = {"search_posts": "البحث في المنشورات", "post_note": "Save a note."}
+            assert preview["titles"] == titles
             trusted = await fixture.request(
                 "POST",
                 f"/trusted-sources/mcp/{connection_id}",
                 {"tier": "write_nonfinancial", "digest": preview["digest"]},
             )
             assert trusted["effect_tier"] == "write_nonfinancial" and trusted["active"]
+            listed = await fixture.request("GET", "/capabilities")
+            entry = next(
+                item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
+            )
+            assert entry["tool_titles"] == titles
             same = ToolCall(
                 id="write-once",
                 name="mcp_execute",
@@ -1252,6 +1299,8 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
             if item["skill_id"] == "briefing" and item["agent_id"] == agent["id"]
         )
         assert skill["provenance"] == "external"
+        # Listed by its manifest's title, not only its id.
+        assert skill["title"] == "briefing"
         assert skill["repository"] == "Example/" + repository
         assert skill["agent_name"] == agent["name"] and skill["enabled"]
         assert skill["can_undo"] and not skill["undone"]

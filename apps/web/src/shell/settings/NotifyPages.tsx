@@ -240,7 +240,7 @@ export function NotifyPage() {
                   <Trans>Urgent always arrives</Trans>
                 </strong>
                 <small>
-                  <Trans>An unconfirmed operation on your account</Trans>
+                  <Trans>An approval request or an unconfirmed operation</Trans>
                 </small>
               </span>
               <span className="reach-check">
@@ -277,7 +277,7 @@ export function NotifyPage() {
                       <bdi>{device.name}</bdi>
                     </strong>
                     <small>
-                      <Trans>A call rings this device · registered for the passkey</Trans>
+                      <Trans>A call rings this device</Trans>
                     </small>
                   </span>
                   {on && (

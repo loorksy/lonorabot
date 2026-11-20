@@ -8,7 +8,9 @@ const copy = {
   ar: {
     words: "بكلمات الوكيل",
     band: "صالحة ما دام السعر ضمن",
-    price: "السعر",
+    kicker: "طلب موافقة",
+    title: "شراء محدد 0.1",
+    price: "الدخول",
     stopLoss: "وقف الخسارة",
     takeProfit: "جني الربح",
     drifted: "خرج السعر عن الهامش — لم يُرسل شيء",
@@ -16,7 +18,9 @@ const copy = {
   en: {
     words: "In the agent's words",
     band: "Valid while the price stays within",
-    price: "Price",
+    kicker: "Approval request",
+    title: "Buy limit 0.1",
+    price: "Entry",
     stopLoss: "Stop loss",
     takeProfit: "Take profit",
     drifted: "Price moved outside the tolerance — nothing was sent",
@@ -93,10 +97,21 @@ for (const locale of ["ar", "en"])
     try {
       await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
       await page.goto(`/thread?id=${thread.id}`);
-      // The native card renders the same shared texts.
+      // The native card renders the same shared texts: «طلب موافقة · XAUUSD», the request in
+      // words (never «buy_limit · XAUUSD · 0.1»).
+      await expect(
+        page.getByText(`${text.kicker} · \u2068XAUUSD\u2069`, { exact: true }).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByText(text.title.replace(/ (\S+)$/, " \u2068$1\u2069"), { exact: true }).first(),
+      ).toBeVisible();
+      await expect(page.getByText("buy_limit")).toHaveCount(0);
       await expect(page.getByText(text.words, { exact: true })).toBeVisible();
       await expect(page.getByText(pending.reason, { exact: true })).toBeVisible();
-      await expect(page.getByText(`${text.band} 101 ± 1.5`, { exact: true }).first()).toBeVisible();
+      // The tolerance stays whole and in order (isolated left-to-right, no-break spaces).
+      await expect(
+        page.getByText(`${text.band} \u2066101 ± 1.5\u2069`, { exact: true }).first(),
+      ).toBeVisible();
       await expect(page.getByText(text.drifted, { exact: true })).toBeVisible();
       // 10.3: entry, stop loss and take profit are labelled, never bare numbers.
       for (const [label, value] of [

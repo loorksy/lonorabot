@@ -4,16 +4,34 @@ import { expect, test } from "@playwright/test";
 
 // A Trade Approval card shows the agent's reason labelled as the agent's words and the
 // band it stays valid within (mandate 10.3, 10.3.1); a drifted card says nothing was sent.
+// v38: the request reads in words with its entry, and an ended card is never folded: it
+// keeps its frame and shows its end state inside, with no raw broker code or id.
 const copy = {
   ar: {
-    words: "بكلمات الوكيل",
+    kicker: "طلب موافقة",
+    title: "شراء 0.1",
+    entry: "الدخول",
+    market: "بسعر السوق",
+    words: "بكلمات الوكيل:",
     band: "صالحة ما دام السعر ضمن",
     drifted: "خرج السعر عن الهامش — لم يُرسل شيء",
+    rejected: "مرفوض — لم يُرسل شيء",
+    expired: "انتهت صلاحيته",
+    renew: "طلب جديد",
+    limit: "بيع محدد 0.2",
   },
   en: {
-    words: "In the agent's words",
+    kicker: "Approval request",
+    title: "Buy 0.1",
+    entry: "Entry",
+    market: "At market price",
+    words: "In the agent's words:",
     band: "Valid while the price stays within",
     drifted: "Price moved outside the tolerance — nothing was sent",
+    rejected: "Rejected — nothing was sent",
+    expired: "Expired",
+    renew: "New request",
+    limit: "Sell limit 0.2",
   },
 };
 
@@ -72,21 +90,90 @@ for (const locale of ["ar", "en"])
       reason: "Breakout above 100 on the London open",
     };
     const drifted = { ...base, id: randomUUID(), timeline_seq: 2, status: "drifted", reason: "" };
+    const rejected = { ...base, id: randomUUID(), timeline_seq: 3, status: "rejected", reason: "" };
+    const expired = {
+      ...base,
+      id: randomUUID(),
+      timeline_seq: 4,
+      status: "expired",
+      reason: "",
+      expires_at: "2026-11-12T12:45:00Z",
+    };
+    // A pending entry with a broker refusal recorded: the broker's codes and ids stay off it.
+    const failed = {
+      ...base,
+      id: randomUUID(),
+      timeline_seq: 5,
+      status: "completed",
+      reason: "",
+      requests: [{ action: "sell_limit", symbol: "XAUUSD", volume: "0.2", price: "105.5" }],
+      results: [
+        {
+          operation_id: randomUUID(),
+          status: "failed",
+          code: "broker_rejected",
+          details: {
+            numeric_code: 10019,
+            string_code: "TRADE_RETCODE_NO_MONEY",
+            message: "No money",
+            order_id: "77001",
+            deal_id: "77002",
+            position_id: "77003",
+            description: "Not enough money",
+          },
+        },
+      ],
+    };
     await page.route("**/api/trading/approvals?*", (route) =>
-      route.fulfill({ json: [pending, drifted] }),
+      route.fulfill({ json: [pending, drifted, rejected, expired, failed] }),
     );
     try {
       await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
       await page.goto(`/app/${agent.id}`);
       const card = page.locator(`[data-trade-approval="${pending.id}"]`);
-      await expect(card.getByText(text.words, { exact: true })).toBeVisible();
-      await expect(card.locator("[data-trade-reason] p")).toHaveText(pending.reason);
+      await expect(card.locator(".mcard-kicker")).toHaveText(`${text.kicker} · XAUUSD`);
+      // The request in words, never its raw action id.
+      await expect(card.locator(".mcard-request strong")).toHaveText(text.title);
+      await expect(card).not.toContainText("buy");
+      await expect(card.getByText(text.entry, { exact: true })).toBeVisible();
+      await expect(card.getByText(text.market, { exact: true })).toBeVisible();
+      await expect(card.locator("[data-trade-reason] b")).toHaveText(text.words);
+      await expect(card.locator("[data-trade-reason] bdi")).toHaveText(pending.reason);
       await expect(card.getByText(text.band, { exact: true })).toBeVisible();
       await expect(card.getByText("101 ± 1.5", { exact: true })).toBeVisible();
       const ended = page.locator(`[data-trade-approval="${drifted.id}"]`);
       await expect(ended).toHaveAttribute("data-trade-status", "drifted");
       await expect(ended.getByText(text.drifted, { exact: true })).toBeVisible();
       await expect(ended.getByRole("button", { name: /Approve|موافقة/ })).toHaveCount(0);
+      // Never folded (10.2.2): the ended card keeps its frame, request and facts.
+      await expect(ended.locator(".mcard-kicker")).toHaveText(`${text.kicker} · XAUUSD`);
+      await expect(ended.locator(".mcard-request strong")).toHaveText(text.title);
+      await expect(ended.getByText(text.band, { exact: true })).toBeVisible();
+      await expect(page.locator(".msg.k-line")).toHaveCount(0);
+      const width = async (id) =>
+        (
+          await page
+            .locator(".msg", { has: page.locator(`[data-trade-approval="${id}"]`) })
+            .locator(".msg-line")
+            .boundingBox()
+        ).width;
+      expect(await width(drifted.id)).toBe(await width(pending.id));
+      const no = page.locator(`[data-trade-approval="${rejected.id}"]`);
+      await expect(no.getByText(text.rejected, { exact: true })).toBeVisible();
+      await expect(no.locator(".mcard-request strong")).toHaveText(text.title);
+      // A stored card that expired: the shared text, and «طلب جديد» inside its frame.
+      const old = page.locator(`[data-trade-approval="${expired.id}"]`);
+      await expect(old.getByText(text.expired, { exact: true })).toBeVisible();
+      await expect(old.getByRole("button", { name: text.renew, exact: true })).toBeVisible();
+      // A pending entry shows its price; a broker refusal shows its words, not its codes.
+      const refused = page.locator(`[data-trade-approval="${failed.id}"]`);
+      await expect(refused.locator(".mcard-request strong")).toHaveText(text.limit);
+      await expect(refused.getByText("105.5", { exact: true })).toBeVisible();
+      await expect(refused.locator('[data-trade-result="failed"]')).toContainText(
+        "Not enough money",
+      );
+      for (const raw of ["TRADE_RETCODE_NO_MONEY", "10019", "No money", "77001", "77002", "77003"])
+        await expect(refused).not.toContainText(raw);
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         await card.screenshot({ path: test.info().outputPath("trade-approval-validity-ar.png") });

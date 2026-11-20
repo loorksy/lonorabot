@@ -1,5 +1,5 @@
 import type { ExecutionReceipt } from "@lonora/contracts";
-import { orderLineAction } from "@lonora/core";
+import { orderLineAction, ownerActionText } from "@lonora/core";
 import { Text, View } from "react-native";
 import type { Label } from "../lib/i18n";
 import { useSession } from "../lib/session";
@@ -8,8 +8,8 @@ import { colors } from "./ui";
 /**
  * The Execution Receipt (mandate 10.3, 11.2), drawn natively: the server posts it when the
  * broker confirms an operation, with the broker's own facts. The agent's reason is
- * labelled as the agent's words; it never reads as verified before the account state was
- * read back. Same record and same facts as the web card.
+ * labelled as the agent's words, and the owner's own order says so; it never reads as
+ * verified before the account state was read back. Same record and same facts as the web card.
  */
 export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
   const { t, rtl, locale } = useSession();
@@ -48,6 +48,7 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
       <Text style={{ color: colors.foreground, fontWeight: "700", textAlign: align }}>
         {orderLineAction({ action: row.action }, locale).label}
         {row.partial ? ` · ${t("partiallyFilled")}` : ""}
+        {row.agent_id == null ? ` · ${ownerActionText(locale).byYou}` : ""}
       </Text>
       <View style={{ flexDirection: rtl ? "row-reverse" : "row", flexWrap: "wrap", gap: 12 }}>
         {facts

@@ -10,6 +10,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { Appearance } from "react-native";
 import { applyLegacyTheme } from "../components/ui";
 import { loadSetting, saveSetting } from "./storage";
 
@@ -29,7 +30,10 @@ type Theme = { mode: ThemeMode; c: Palette; setMode: (mode: ThemeMode) => void }
 const Context = createContext<Theme>({ mode: "dark", c: palettes.dark, setMode: () => undefined });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("dark");
+  // With no saved choice the first launch follows the device; a saved choice still wins.
+  const [mode, setModeState] = useState<ThemeMode>(() =>
+    Appearance.getColorScheme() === "light" ? "light" : "dark",
+  );
   useEffect(() => {
     let live = true;
     void loadSetting("lonora.theme")

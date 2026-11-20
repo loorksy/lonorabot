@@ -2,14 +2,14 @@ import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { ExecutionReceipt } from "@lonora/contracts";
-import { orderLineAction } from "@lonora/core";
+import { orderLineAction, ownerActionText } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 
 /**
  * The Execution Receipt (mandate 10.3, 11.2): a fixed card the server posts when the
  * broker confirms an operation. Every fact comes from the receipt record (the broker's
- * own numbers); the agent's reason is labelled as the agent's words. It never reads as
- * verified before the account state was read back.
+ * own numbers); the agent's reason is labelled as the agent's words, and the owner's own
+ * order says so. It never reads as verified before the account state was read back.
  */
 export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
   const action = orderLineAction({ action: row.action }, i18n.locale);
@@ -52,6 +52,7 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
               <Trans>Partially filled</Trans>
             </>
           )}
+          {row.agent_id == null && ` · ${ownerActionText(i18n.locale).byYou}`}
         </strong>
         <dl className="mcard-facts">
           {facts
@@ -124,11 +125,14 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
         </span>
       </div>
       {row.reason && (
-        <div className="mcard-reason" data-receipt-reason>
-          <span className="oa-line-kind">
-            <Trans>In the agent's words</Trans>
+        <div className="od-ev" data-receipt-reason>
+          <Icon name="chat" />
+          <span>
+            <b>
+              <Trans>In the agent's words</Trans>:
+            </b>{" "}
+            <bdi>{row.reason}</bdi>
           </span>
-          <p dir="auto">{row.reason}</p>
         </div>
       )}
     </div>

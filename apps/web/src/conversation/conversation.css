@@ -1505,7 +1505,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   padding: 8px 12px 5px;
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--faint);
+  color: var(--muted);
 }
 .as-row {
   width: 100%;
@@ -1599,7 +1599,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 .as-end {
   flex: none;
   font-size: var(--fs-xs);
-  color: var(--faint);
+  color: var(--muted);
 }
 .as-end.tag {
   padding: 3px 9px;
@@ -1626,7 +1626,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   padding: 7px 12px 8px;
   border-top: 1px solid var(--line);
   font-size: var(--fs-xs);
-  color: var(--faint);
+  color: var(--muted);
 }
 .as-foot span {
   display: inline-flex;
@@ -1929,7 +1929,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 .meta .edited {
   margin-inline-end: 6px;
   font-style: italic;
-  color: var(--faint);
+  color: var(--muted);
 }
 .steps {
   margin: 2px 0 8px;
@@ -2035,7 +2035,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   font-weight: 600;
 }
 .st-t small {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-xs);
 }
 .md {
@@ -3111,7 +3111,6 @@ p.pad {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.oa-exp,
 .oa-st {
   margin-inline-start: auto;
   flex: none;
@@ -3123,18 +3122,9 @@ p.pad {
   background: var(--fill);
   font-variant-numeric: tabular-nums;
 }
-.oa-exp span {
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-.oa-exp svg,
 .oa-st svg {
   width: 13px;
   height: 13px;
-}
-.oa-exp.soon {
-  color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
 }
 .oa-st.st-confirmed {
   color: var(--accent-ink);
@@ -3178,13 +3168,19 @@ p.pad {
 .oa-dl dt {
   color: var(--muted);
   font-size: var(--fs-xs);
-  flex: none;
+  /* v38: the label wraps so a number never breaks («2346.80 ± 1.50» stays whole at 320px) */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .oa-dl dd {
   margin: 0;
   font-size: var(--fs-sm);
   text-align: end;
   min-width: 0;
+}
+.oa-dl dd.ltr {
+  white-space: nowrap;
+  flex: none;
 }
 .oa-fields {
   display: grid;
@@ -3210,7 +3206,7 @@ p.pad {
 }
 .oa-l small {
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .oa-v {
   font-size: var(--fs-sm);
@@ -3448,7 +3444,7 @@ p.pad {
 }
 .oa-input > span small {
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .oa-input input {
   height: 40px;
@@ -3827,7 +3823,7 @@ p.pad {
   font-weight: 600;
 }
 .od-line li.next {
-  color: var(--faint);
+  color: var(--muted);
 }
 .od-line li.next i {
   background: transparent;
@@ -3878,51 +3874,6 @@ p.pad {
 }
 .od-ev.bad svg {
   color: var(--red);
-}
-.od-tech {
-  border-top: 1px solid var(--line);
-  padding-top: 4px;
-}
-.od-tech summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  list-style: none;
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  padding: 4px 0;
-}
-.od-tech summary::-webkit-details-marker {
-  display: none;
-}
-.od-tech summary svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s;
-}
-.od-tech[open] summary svg {
-  transform: rotate(180deg);
-}
-.od-tech dl {
-  margin: 4px 0 0;
-  display: grid;
-  gap: 2px;
-}
-.od-tech dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: var(--fs-xs);
-}
-.od-tech dt {
-  color: var(--muted);
-}
-.od-tech dd {
-  margin: 0;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 11.5px;
 }
 .od-sheet {
   display: grid;
@@ -4271,70 +4222,16 @@ h2 .oa-tag {
 }
 
 /* ==== v34 · simplified: one card in the chat, everything else a line, a sheet or a page ==== */
-/* a decided (or lapsed) decision is one line */
-.msg.k-line .msg-line,
-.msg.k-odl .msg-line {
-  width: auto;
-  max-width: 92%;
-}
-.oa-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 2px 0;
-}
-.oa-line-ic {
-  width: 26px;
-  height: 26px;
-  flex: none;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent-ink);
-}
-.oa-line-ic svg {
-  width: 14px;
-  height: 14px;
-}
-.oa-line-ic.bad,
-.oa-line.st-cancelled .oa-line-ic,
-.oa-line.st-expired .oa-line-ic,
-.oa-line.st-superseded .oa-line-ic {
-  background: var(--fill);
-  color: var(--muted);
-}
-.oa-line.st-pending .oa-line-ic {
-  background: color-mix(in srgb, var(--amber) 15%, transparent);
-  color: var(--amber);
-}
-.oa-line-body {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-.oa-line-kind {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  color: var(--muted);
-}
-.oa-line-text {
-  font-size: var(--fs-sm);
-  line-height: 1.55;
-}
-.oa-line-text b {
-  font-weight: 700;
-}
 .oa-line-text .sep {
   color: var(--faint);
 }
-.oa-line .btn {
-  flex: none;
-  min-height: 30px;
-  padding: 2px 6px;
-}
 .mcard.is-done {
   padding: 2px 0;
+}
+/* one request of a fixed card: its title above its facts */
+.mcard-request {
+  display: grid;
+  gap: 6px;
 }
 .mcard-line {
   display: flex;
@@ -4449,46 +4346,6 @@ h2 .oa-tag {
 .oa-lapsed svg {
   width: 18px;
   height: 18px;
-}
-
-/* ---- reference 2146-2178 */
-/* v34: a decided card is one line; tapping it shows the whole decision line */
-button.oa-line-body {
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-  min-width: 0;
-  flex: 1;
-}
-.oa-line-body .oa-line-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  overflow: hidden;
-}
-.oa-line-body[aria-expanded="true"] .oa-line-text {
-  display: block;
-  -webkit-line-clamp: unset;
-  overflow: visible;
-}
-button.oa-line-body:focus-visible {
-  outline: 2px solid var(--focus, var(--accent));
-  outline-offset: 3px;
-  border-radius: 6px;
-}
-.oa-line .btn {
-  font-size: var(--fs-sm);
-}
-.oa-line-kind {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ==== v35 · trading accounts, pickers, the markets dropdown, group avatars, sign-out */

@@ -59,7 +59,12 @@ test("rows show the server's state: previews, ticks, unread counts and the badge
   await expect(desktopRow(page, key(beta)).locator(".count")).toContainText("2");
   await expect(desktopRow(page, key(beta))).toContainText("Second update");
   // Q2: one grey tick when the server accepted it; two accent ticks once the run started.
-  await expect(desktopRow(page, key(gamma))).toContainText("You: Accepted only");
+  // v38: after «You: » the Latin text keeps its own direction; a Latin-only line reads LTR.
+  await expect(desktopRow(page, key(gamma))).toContainText("You: \u2066Accepted only\u2069");
+  await expect(desktopRow(page, key(gamma)).locator(".pv > span[dir]")).toHaveAttribute(
+    "dir",
+    "ltr",
+  );
   await expect(desktopRow(page, key(gamma)).locator(".pv .tick")).toHaveCount(1);
   await expect(desktopRow(page, key(gamma)).locator(".pv .read")).toHaveCount(0);
   await expect(desktopRow(page, key(delta)).locator(".pv .read")).toHaveCount(1);

@@ -11,6 +11,7 @@ import {
   type ChatRow,
   headsUpAllowed,
   inQuietHours,
+  plainLine,
   type QuietHours,
   rowKey,
 } from "@lonora/core";
@@ -45,7 +46,8 @@ export function messageBanner(
   const row = context.rows.find((candidate) => candidate.threadId === event.thread_id);
   if (!row || !headsUpAllowed(row.entry)) return null;
   if (typeof payload.agent_id === "string" && context.off.has(payload.agent_id)) return null;
-  const content = typeof payload.content === "string" ? payload.content.trim() : "";
+  // One plain line (no Markdown marks or table pipes), as Web.
+  const content = typeof payload.content === "string" ? plainLine(payload.content) : "";
   const speaker =
     row.kind === "group"
       ? context.agents.find((agent) => agent.id === payload.agent_id)?.name

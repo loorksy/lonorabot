@@ -42,7 +42,8 @@ import { useListSheets } from "./list-sheets";
 import { ThreadRow } from "./thread-row";
 import { useToast } from "./toast";
 
-const FILTER_H = 41;
+// 44px chips (a tap area the scroller would clip as hitSlop) and the bar's 1px line (v38).
+const FILTER_H = 45;
 
 /** Opens a row's conversation: an agent with none gets it now; a group opens its own screen. */
 export function useOpenChat() {
@@ -93,7 +94,7 @@ function Filters() {
         onPress={() => lists.setFilter(filter)}
         onLongPress={onLong}
         delayLongPress={480}
-        style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: "center" }}
+        style={{ minHeight: 44, paddingHorizontal: 12, justifyContent: "center" }}
       >
         <Text
           style={{
@@ -136,7 +137,7 @@ function Filters() {
           accessibilityRole="button"
           accessibilityLabel={t("sh_newList")}
           onPress={() => sheets.newList()}
-          style={{ width: 40, minHeight: 40, alignItems: "center", justifyContent: "center" }}
+          style={{ width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}
         >
           <Icon name="plus" size={18} color={c.muted} />
         </Pressable>
@@ -320,6 +321,7 @@ export function ChatList({
         accessibilityRole="button"
         accessibilityLabel={t("sh_addChats")}
         onPress={() => sheets.editList(activeList, "pick")}
+        hitSlop={4}
         style={{
           flexDirection: "row",
           gap: 6,
@@ -425,7 +427,7 @@ export function ArchivedContent() {
             <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 8, margin: 18 }}>
               <Icon name="info" size={18} color={c.faint} />
               <Text
-                style={{ flex: 1, color: c.faint, fontSize: 14, textAlign: rtl ? "right" : "left" }}
+                style={{ flex: 1, color: c.muted, fontSize: 14, textAlign: rtl ? "right" : "left" }}
               >
                 {t("sh_archivedNote")}
               </Text>

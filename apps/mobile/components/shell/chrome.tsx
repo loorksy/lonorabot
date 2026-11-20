@@ -38,6 +38,8 @@ export function CircleButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
+      // 42 + 1 on each side: a 44px tap area, the circle unchanged (v38).
+      hitSlop={1}
       style={({ pressed }) => ({
         width: 42,
         height: 42,
@@ -141,6 +143,7 @@ export function ChatsHeader({
             accessibilityRole="button"
             accessibilityLabel={t("sh_closeSearch")}
             onPress={onClear}
+            hitSlop={7}
             style={{
               width: 30,
               height: 30,
@@ -158,6 +161,7 @@ export function ChatsHeader({
           accessibilityRole="button"
           accessibilityLabel={t("sh_newChat")}
           onPress={onNewChat}
+          hitSlop={1}
           style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center" }}
         >
           <Icon name="plus" size={22} color={c.text} />

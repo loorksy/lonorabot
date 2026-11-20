@@ -1,7 +1,7 @@
 // The heads-up, as Web's HeadsUp: an agent's answer that arrives in another chat shows at the
-// top for 5.2 s with «رد»; a tap opens that chat; a swipe up, or the time, hides it. Mute,
-// archive, the owner's quiet hours and an agent's in-app rule suppress it (Q4, Q47); an urgent
-// attention item always shows.
+// top for 5.2 s with «رد» (held while pressed, then 2.4 s more); a tap opens that chat; a swipe
+// up, or the time, hides it. Mute, archive, the owner's quiet hours and an agent's in-app rule
+// suppress it (Q4, Q47); an urgent attention item always shows.
 import type { Event } from "@lonora/contracts";
 import type { QuietHours } from "@lonora/core";
 import { useGlobalSearchParams, usePathname } from "expo-router";
@@ -87,6 +87,8 @@ export function HeadsUp() {
         ? data.groups.find((group) => group.id === first(params.groupId))?.state?.thread_id
         : undefined;
   const [banner, setBanner] = useState<(Banner & { serial: number }) | null>(null);
+  // Pressed: it waits; released: 2.4 s more (v38).
+  const [held, setHeld] = useState<boolean | null>(null);
   const offset = useRef(new Animated.Value(-160)).current;
   // News is what arrives after this owner signed in (or the app opened).
   const openedAt = useRef(Date.now());
@@ -107,6 +109,7 @@ export function HeadsUp() {
   const show = useCallback(
     (next: Banner) => {
       serial.current += 1;
+      setHeld(null);
       setBanner({ ...next, serial: serial.current });
       offset.setValue(-160);
       Animated.spring(offset, { toValue: 0, useNativeDriver: true }).start();
@@ -114,10 +117,10 @@ export function HeadsUp() {
     [offset],
   );
   useEffect(() => {
-    if (!banner) return;
-    const timer = setTimeout(hide, 5200);
+    if (!banner || held) return;
+    const timer = setTimeout(hide, held === false ? 2400 : 5200);
     return () => clearTimeout(timer);
-  }, [banner, hide]);
+  }, [banner, hide, held]);
 
   useEffect(() => {
     openedAt.current = Date.now();
@@ -216,6 +219,8 @@ export function HeadsUp() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${banner.row.name}: ${banner.text}`}
+          onPressIn={() => setHeld(true)}
+          onPressOut={() => setHeld(false)}
           onPress={open}
           style={{
             flex: 1,
@@ -254,6 +259,8 @@ export function HeadsUp() {
         </Pressable>
         <Pressable
           accessibilityRole="button"
+          onPressIn={() => setHeld(true)}
+          onPressOut={() => setHeld(false)}
           onPress={open}
           style={{
             paddingHorizontal: 14,

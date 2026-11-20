@@ -318,7 +318,7 @@ test("Expo: a slot is the live record in its trust frame, and its row steps asid
     const ids = python("records", input);
     await page.goto(`/thread?id=${fixture.thread.id}`);
     // No message embeds the approval yet: it stands in its own row.
-    await expect(page.getByText("طلب تداول", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("طلب موافقة · \u2068XAUUSD\u2069", { exact: true })).toHaveCount(1);
     await expect(page.getByText("الوسيط لم يؤكد هذه الصفقة", { exact: true })).toHaveCount(1);
     await expect(page.getByTestId("ui-slot-trade_approval")).toHaveCount(0);
     python("slots", { ...input, record: ids.approval });
@@ -350,7 +350,7 @@ test("Expo: a slot is the live record in its trust frame, and its row steps asid
     for (const forged of ["صفقة مضمونة", "0.50 لوت"])
       await expect(slot.getByText(forged)).toHaveCount(0);
     // The slot is its place now: one approval card on the screen, inside the slot.
-    await expect(page.getByText("طلب تداول", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("طلب موافقة · \u2068XAUUSD\u2069", { exact: true })).toHaveCount(1);
     const [decision] = await Promise.all([
       page.waitForResponse((response) =>
         response.url().endsWith(`/api/trading/approvals/${ids.approval}/decision`),
@@ -361,7 +361,7 @@ test("Expo: a slot is the live record in its trust frame, and its row steps asid
     await expect(slot.getByRole("button", { name: "رفض", exact: true })).toHaveCount(0);
     await page.reload();
     await expect(page.getByTestId("ui-slot-trade_approval")).toBeVisible();
-    await expect(page.getByText("طلب تداول", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("طلب موافقة · \u2068XAUUSD\u2069", { exact: true })).toHaveCount(1);
   } finally {
     await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
     await context.request.delete(`/api/trading/connections/${fixture.connection}`, { headers });

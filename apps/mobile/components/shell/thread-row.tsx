@@ -6,6 +6,7 @@ import {
   type ChatRow,
   isMuted,
   isPinned,
+  plainLine,
   rowCount,
   rowIsUnread,
   rowMarkedOnly,
@@ -80,7 +81,8 @@ function Preview({
     !mine && row.kind === "group" && last.agent_id
       ? agents.find((agent) => agent.id === last.agent_id)?.name
       : undefined;
-  const text = last.preview || last.content;
+  // One plain line (no Markdown marks), as Web.
+  const text = plainLine(last.preview || last.content);
   const icon = kindIcon[last.kind];
   return (
     <>

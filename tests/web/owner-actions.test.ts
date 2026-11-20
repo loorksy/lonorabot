@@ -81,33 +81,38 @@ test("every pending card has its one-tap buttons in both languages", () => {
     // Settle Uncertain Operation: exactly these three answers, no free-text fields (10.3).
     assert.equal("notes" in answer, false);
   }
+  // v38: the kind in the head, the broker's silence as the card's title, then the operation.
   const en = ownerActionCard(resolve, "en", now);
-  assert.equal(en.title, "The broker did not confirm this trade");
-  assert.match(en.lines[0] ?? "", /^Market buy ⁨0\.10⁩ ⁨XAUUSD⁩ · at .+ · by ⁨Gold agent⁩$/);
-  assert.match(en.hint ?? "", /will not be sent again/);
-  assert.match(en.hint ?? "", /not as broker confirmation/);
+  assert.equal(en.title, "Unconfirmed operation");
+  assert.equal(en.lines[0], "The broker did not confirm this trade");
+  assert.match(en.lines[1] ?? "", /^Market buy ⁨0\.10⁩ ⁨XAUUSD⁩ · at .+ · by ⁨Gold agent⁩$/);
+  assert.equal(
+    en.hint,
+    "It will not be sent again. Your answer is recorded as your statement, not as broker confirmation.",
+  );
   const ar = ownerActionCard(resolve, "ar", now);
-  assert.equal(ar.title, "الوسيط لم يؤكد هذه الصفقة");
+  assert.equal(ar.title, "عملية غير مؤكدة");
+  assert.equal(ar.lines[0], "الوسيط لم يؤكد هذه الصفقة");
+  assert.equal(ar.hint, "لن تُرسل مجددًا. تُسجَّل إجابتك كتصريح منك، لا كتأكيد من الوسيط.");
   assert.deepEqual(
     ar.buttons.map((button) => button.label),
     ["نُفذت", "لم تُنفذ", "غير معروفة"],
   );
-  // "Unknown" settles the card and releases the hold: the label and hint say so, so it
-  // is never mistaken for "wait".
   assert.equal(en.buttons[2]?.label, "Unknown");
-  // Unknown keeps the hold while the broker is still checked (6.3).
-  assert.match(en.hint ?? "", /Unknown keeps it while the broker is still checked/);
-  assert.match(ar.hint ?? "", /و«غير معروفة» تبقيه بينما يُراجَع الوسيط/);
-  for (const locale of ["en", "ar"]) {
+  // Unknown: the outcome stays unknown, the broker is still checked, nothing is resent.
+  for (const [locale, line] of [
+    [
+      "en",
+      "Recorded: the outcome stays unknown and the broker is still checked. It will not be sent again.",
+    ],
+    ["ar", "سُجّل: تبقى النتيجة غير معروفة ويُراجَع الوسيط، ولن تُرسل مجددًا."],
+  ]) {
     const settled = ownerActionCard(
       { ...resolve, status: "confirmed", result: { outcome: "unknown" } },
       locale,
       now,
     );
-    assert.match(
-      settled.outcome ?? "",
-      /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
-    );
+    assert.equal(settled.outcome, line);
   }
 });
 
@@ -167,11 +172,36 @@ test("card refusals have owner text in both languages", () => {
     "owner_action_already_decided",
     "owner_action_expired_or_decided",
     "owner_action_outcome_required",
+    "trade_approval_already_decided",
+    "trade_approval_run_unavailable",
+    "trade_approval_not_found",
   ]) {
     assert.ok(ownerActionError(code, "en"));
     assert.match(ownerActionError(code, "ar") ?? "", /[؀-ۿ]/);
   }
   assert.equal(ownerActionError("unrelated", "en"), null);
+});
+
+test("a Trade Approval tap the server refuses never says «try again» on money", () => {
+  assert.equal(
+    ownerActionError("trade_approval_already_decided", "ar"),
+    "سبقت الإجابة على هذا الطلب.",
+  );
+  assert.equal(
+    ownerActionError("trade_approval_already_decided", "en"),
+    "This request was already answered.",
+  );
+  assert.equal(
+    ownerActionError("trade_approval_run_unavailable", "ar"),
+    "لم يعد هذا الطلب بانتظارك. لم يُرسل شيء.",
+  );
+  for (const code of [
+    "trade_approval_already_decided",
+    "trade_approval_run_unavailable",
+    "trade_approval_not_found",
+  ])
+    for (const locale of ["en", "ar"])
+      assert.doesNotMatch(ownerActionError(code, locale) ?? "", /try again|حاول مرة أخرى/i);
 });
 
 test("Web and Mobile render the same shared spec and never show agent text", () => {
@@ -648,10 +678,7 @@ test("a Settle card answered Unknown stays pending with Executed and Not execute
       card.buttons.map((button) => button.outcome),
       ["executed", "not_executed"],
     );
-    assert.match(
-      card.lines.join(" "),
-      /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
-    );
+    assert.match(card.lines.join(" "), /It will not be sent again\.|ولن تُرسل مجددًا\./);
   }
 });
 
@@ -756,13 +783,21 @@ test("every other card keeps the chip of its status", () => {
       text.statusConfirmed,
     );
   }
-  // Web's settled line shows the shared chip, never its own status map.
+  // A settled Web card is never folded into a line (10.2.2, v38): it keeps its frame and
+  // shows the shared settled line inside it, never its own status map, check mark or timer.
   const source = readFileSync(
     new URL("../../apps/web/src/components/owner-actions/OwnerActionCard.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(source, /ownerActionStatus\(row, i18n\.locale\)/);
-  assert.doesNotMatch(source, /statusConfirmed/);
-  // Nor a check mark beside «تعذّر»: the icon follows the same failed rule.
-  assert.match(source, /brokerCardFailed\(row\) \? "close"/);
+  assert.match(source, /\{spec\.outcome\}/);
+  assert.doesNotMatch(source, /statusConfirmed|DecisionLine|oa-line|Countdown|oa-exp|expiresIn/);
+  // «طلب جديد» and «عرض الأحدث» sit inside that frame.
+  assert.match(source, /\{text\.renew\}/);
+  assert.match(source, /\{text\.latest\}/);
+  // Every fixed card keeps its frame in the conversation: a tapped Mandate card its width.
+  const conversation = readFileSync(
+    new URL("../../apps/web/src/conversation/Conversation.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(conversation, /cardKind=\{|"line"|OrderLine|\/trading\/journal/);
 });

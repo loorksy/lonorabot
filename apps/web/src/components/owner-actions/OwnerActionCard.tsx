@@ -1,7 +1,6 @@
 import { i18n } from "@lingui/core";
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
-  brokerCardFailed,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -11,7 +10,6 @@ import {
   ownerActionChoices,
   ownerActionChoose,
   ownerActionLive,
-  ownerActionStatus,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
@@ -209,7 +207,6 @@ export function OwnerActionCard({
   }
   const settled = !ownerActionLive(row);
   const notice = NOTICE_KINDS.has(row.kind);
-  const kind = ownerActionKindName(row);
   if (notice)
     return (
       <NoticeLine
@@ -222,20 +219,8 @@ export function OwnerActionCard({
         onUndo={(button) => void decide(button)}
       />
     );
-  if (settled && !inSheet)
-    return (
-      <DecisionLine
-        row={row}
-        kind={kind}
-        // A signed grant names Full delegation (the core spec's line for the signed terms).
-        choice={spec.lines.find((line) => line === text.delegationFull)}
-        text={spec.outcome ?? spec.title}
-        onRenew={onRenew}
-        onLatest={onLatest}
-      />
-    );
-  const resolve = row.kind === "settle_operation";
-  const left = Date.parse(row.expires_at) - Date.now();
+  // A card is never folded (10.2.2): settled, it keeps its frame and shows its outcome inside.
+  const supersededBy = (row as OwnerAction & { superseded_by?: string | null }).superseded_by;
   return (
     // biome-ignore lint/a11y/useSemanticElements: the reference's card is a named group
     <div
@@ -252,7 +237,6 @@ export function OwnerActionCard({
           <Icon name={KIND_ICON[row.kind] ?? "shield"} />
         </span>
         <span className="oa-kind">{spec.title}</span>
-        {resolve && left > 0 && left < 3_600_000 && <Countdown until={row.expires_at} />}
       </div>
       {spec.lines.length > 0 && (
         <strong className="oa-title" dir="auto">
@@ -389,6 +373,20 @@ export function OwnerActionCard({
           {spec.outcome}
         </p>
       )}
+      {row.status === "expired" && row.kind === "settle_operation" && onRenew && (
+        <div className="oa-actions">
+          <button type="button" className="btn sm outline" onClick={() => onRenew(row)}>
+            {text.renew}
+          </button>
+        </div>
+      )}
+      {row.status === "superseded" && supersededBy && onLatest && (
+        <div className="oa-actions">
+          <button type="button" className="btn sm outline" onClick={() => onLatest(supersededBy)}>
+            {text.latest}
+          </button>
+        </div>
+      )}
       {error != null && (
         <p className="oa-warn" role="alert">
           <Icon name="alert" />
@@ -412,105 +410,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   supervision_paused: "pause",
   secret: "key",
 };
-const STATUS_ICON: Record<string, IconName> = {
-  pending: "timer",
-  confirmed: "check",
-  cancelled: "close",
-  expired: "timer",
-  superseded: "layers",
-};
-
-function ownerActionKindName(row: OwnerAction) {
-  return ownerActionCard(row, i18n.locale).title;
-}
-
-/** Server lifetimes; shown only on resolve cards and only under one hour (Q13). */
-function Countdown({ until }: { until: string }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const left = Math.max(0, Date.parse(until) - now);
-  const s = Math.ceil(left / 1000);
-  const label = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-  return (
-    <span className={`oa-exp${left < 60_000 ? " soon" : ""}`}>
-      <span className="sr-only">{ownerActionText(i18n.locale).expiresIn}</span>
-      <Icon name="timer" />
-      <span className="ltr">{label}</span>
-    </span>
-  );
-}
-
-/** A decided or lapsed card is one line; tap for all of it; «طلب جديد» / «عرض الأحدث». */
-function DecisionLine({
-  row,
-  kind,
-  choice,
-  text,
-  onRenew,
-  onLatest,
-}: {
-  row: OwnerAction;
-  kind: string;
-  /** The choice the owner decided with (e.g. Custom or Full delegation). */
-  choice?: string;
-  text: string;
-  onRenew?: (row: OwnerAction) => void;
-  onLatest?: (id: string) => void;
-}) {
-  const labels = ownerActionText(i18n.locale);
-  const [open, setOpen] = useState(false);
-  const supersededBy = (row as OwnerAction & { superseded_by?: string | null }).superseded_by;
-  return (
-    <div
-      className={`oa-line st-${row.status}`}
-      data-owner-action={row.id}
-      data-owner-action-kind={row.kind}
-      data-owner-action-status={row.status}
-    >
-      {/* A failed broker connection shows no check mark beside «تعذّر». */}
-      <span className={`oa-line-ic${brokerCardFailed(row) ? " bad" : ""}`}>
-        <Icon name={brokerCardFailed(row) ? "close" : (STATUS_ICON[row.status] ?? "check")} />
-      </span>
-      <button
-        type="button"
-        className="oa-line-body"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="oa-line-kind">
-          {kind} · {ownerActionStatus(row, i18n.locale)}
-          {choice && (
-            <>
-              {" · "}
-              <span dir="auto">{choice}</span>
-            </>
-          )}
-        </span>
-        <span
-          className="oa-line-text"
-          role="status"
-          dir="auto"
-          data-owner-action-outcome={row.status}
-        >
-          {text}
-        </span>
-      </button>
-      {row.status === "expired" && row.kind === "settle_operation" && onRenew && (
-        <button type="button" className="btn sm ghost" onClick={() => onRenew(row)}>
-          {labels.renew}
-        </button>
-      )}
-      {row.status === "superseded" && supersededBy && onLatest && (
-        <button type="button" className="btn sm ghost" onClick={() => onLatest(supersededBy)}>
-          {labels.latest}
-        </button>
-      )}
-    </div>
-  );
-}
 
 function NoticeLine({
   row,

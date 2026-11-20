@@ -334,7 +334,7 @@ export function SettingsRoot() {
         <NavRow
           icon={<span className="avatar initial">{ownerInitial(name)}</span>}
           label={<bdi>{name}</bdi>}
-          sub={t`Profile · shared by all your agents`}
+          sub={t`Profile · What I know about you`}
           to="/app/owner"
         />
         <NavRow

@@ -190,6 +190,7 @@ function Tool({ icon, label, onPress }: { icon: IconName; label: string; onPress
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
+      hitSlop={1}
       style={({ pressed }) => ({
         width: 42,
         height: 42,

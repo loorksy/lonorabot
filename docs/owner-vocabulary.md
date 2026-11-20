@@ -55,14 +55,16 @@ It is presentation only.
   it in sync with the registry. The phase follows the same metadata instead of a
   pattern on tool names. Events from before the metadata read as "Using a tool". The
   registry id stays available as `data-tool` / a test id.
-- The trading journal shows the symbol, the status
-  and the broker ticket; the operation id, the decision evidence and the raw broker
-  result sit behind "Technical details".
+- The trading journal and the order sheet show the symbol, the status and the broker
+  ticket (the sheet also the account by its broker name); no operation id, provisioning
+  id, broker return code or raw broker result.
 - A colleague's result reaches a conversation inside a `<peer_outcome>` wrapper that
   agents read; `peerOutcome` in `@lonora/core` strips it for inbox previews and Mobile
   message bubbles.
-- Approval cards show labeled values: "Broker ticket" before a broker reference, and a
-  result code only as its owner sentence. The reason under a broker result comes from
+- Approval cards show the request in words («شراء 0.10», core `orderLineAction`), never
+  its action id, and labeled values: "Broker ticket" («تذكرة الوسيط») before a broker
+  reference, and a result code only as its owner sentence; the broker's raw codes and
+  ids stay off the card. The reason under a broker result comes from
   `financialResultReason` in `@lonora/core` on both clients: an uncertain result
   (`broker_result_ambiguous`, `execution_interrupted_after_send`,
   `broker_result_mismatch`, `operation_in_progress` or any code recorded after the send

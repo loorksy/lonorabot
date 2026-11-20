@@ -2,10 +2,13 @@ import { t } from "@lingui/core/macro";
 import {
   type ChatRow,
   isMuted,
+  isolateText,
   isPinned,
+  plainLine,
   rowCount,
   rowIsUnread,
   rowMarkedOnly,
+  textDirection,
 } from "@lonora/core";
 import { GroupAvatar, Icon, type IconName } from "@lonora/ui-web";
 import { memo } from "react";
@@ -108,7 +111,10 @@ function Preview({
     !mine && row.kind === "group" && last.agent_id
       ? agents.find((agent) => agent.id === last.agent_id)?.name
       : undefined;
-  const text = last.preview || last.content;
+  // One plain line; after «أنت: » or a speaker the text keeps its own direction, and the line
+  // reads left-to-right when its letters are all Latin.
+  const text = isolateText(plainLine(last.preview || last.content));
+  const line = mine ? t`You: ${text}` : speaker ? `${speaker}: ${text}` : text;
   const icon = kindIcon[last.kind];
   return (
     <>
@@ -123,9 +129,7 @@ function Preview({
           </span>
         ))}
       {icon && <Icon name={icon} />}
-      <span>
-        <bdi>{mine ? t`You: ${text}` : speaker ? `${speaker}: ${text}` : text}</bdi>
-      </span>
+      <span dir={textDirection(line)}>{line}</span>
     </>
   );
 }

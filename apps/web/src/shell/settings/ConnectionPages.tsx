@@ -4,6 +4,7 @@ import { Icon, PairIcon } from "@lonora/ui-web";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
+import { brokerIdentity } from "../../lib/broker-identity";
 import { readAccount } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
@@ -78,7 +79,8 @@ const fieldLabel = (field: BrokerField) =>
 
 /* «ربط حساب تداول» (brokerFormPage 8701-8703) with the server's fields (Q52): MetaApi is the default
    broker (preselected, its fields shown); the simulation provider is the second choice; secrets are stored encrypted and never
-   shown again. «اختبار الاتصال» is a real read-only round trip that stores nothing. */
+   shown again. «اختبار الاتصال» is a real read-only round trip that stores nothing. A simulation has no connection: its
+   button reads «فحص الحقول» and says what the server checked (the fields, and that the account is not linked yet). */
 export function BrokerFormPage() {
   const nav = useNavigation();
   const toast = useToast();
@@ -87,6 +89,7 @@ export function BrokerFormPage() {
   const [test, setTest] = useState<TestState>(null);
   const [busy, setBusy] = useState(false);
   const entry = catalog.value?.find((item) => item.provider === provider);
+  const simulation = entry?.environment === "simulation";
   const body = (form: HTMLFormElement) => ({
     provider,
     enabled: true,
@@ -145,9 +148,7 @@ export function BrokerFormPage() {
           ))}
         </select>
       </label>
-      {entry?.environment === "simulation" && (
-        <ValueRow label={t`Account type`} value={t`Simulation`} />
-      )}
+      {simulation && <ValueRow label={t`Account type`} value={t`Simulation`} />}
       {entry?.fields.map((item) => (
         <label className="field" key={`${provider}:${item.name}`}>
           <span>{fieldLabel(item)}</span>
@@ -173,10 +174,10 @@ export function BrokerFormPage() {
           setBusy(true);
           setTest(null);
           try {
-            const result = await api.post<{ identity?: Record<string, string> }>(
-              "/trading/connections/test",
-              body(form),
-            );
+            const result = await api.post<{
+              provider?: string;
+              identity?: Record<string, string>;
+            }>("/trading/connections/test", body(form));
             const who = result.identity
               ? [result.identity.broker, result.identity.server, result.identity.login]
                   .filter(Boolean)
@@ -184,13 +185,16 @@ export function BrokerFormPage() {
               : "";
             setTest({
               ok: true,
-              text: who ? (
-                <Trans>
-                  The connection works · <bdi>{who}</bdi>
-                </Trans>
-              ) : (
-                <Trans>The connection works</Trans>
-              ),
+              text:
+                result.provider === "simulation" ? (
+                  <Trans>The fields are valid, and this account is not linked yet.</Trans>
+                ) : who ? (
+                  <Trans>
+                    The connection works · <bdi>{who}</bdi>
+                  </Trans>
+                ) : (
+                  <Trans>The connection works</Trans>
+                ),
             });
           } catch (error) {
             setTest({ ok: false, text: userError(error) });
@@ -199,7 +203,7 @@ export function BrokerFormPage() {
           }
         }}
       >
-        <Trans>Test the connection</Trans>
+        {simulation ? <Trans>Check the fields</Trans> : <Trans>Test the connection</Trans>}
       </button>
       <Note>
         <Trans>
@@ -246,7 +250,8 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
   const demo = row.payload.provider === "simulation";
   const agents = data.agents.filter((agent) => agent.trading_account_id === row.id);
   const names = agents.map((agent) => agent.name).join("، ");
-  const number = snap?.login || row.payload.account_id;
+  // The MetaApi account id is the adapter's provisioning UUID, never shown as an account number.
+  const number = snap?.login || brokerIdentity(row)?.login || (demo ? row.payload.account_id : "");
   const broker = snap?.broker ?? (demo ? t`Simulation with an imported snapshot` : "MetaApi");
   const list = symbols.value ?? [];
   const remove = () => {
@@ -258,9 +263,16 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
       body: (
         <>
           <p>
-            <Trans>
-              The account <span className="ltr">{number}</span> at <bdi>{broker}</bdi> is unlinked.
-            </Trans>{" "}
+            {number ? (
+              <Trans>
+                The account <span className="ltr">{number}</span> at <bdi>{broker}</bdi> is
+                unlinked.
+              </Trans>
+            ) : (
+              <Trans>
+                This account at <bdi>{broker}</bdi> is unlinked.
+              </Trans>
+            )}{" "}
             {agents.length > 0 && (
               <Trans>
                 Any signed delegation on this account is revoked, and {names} go back to «Execute
@@ -281,7 +293,9 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
                   sheets.close(true);
                   data.refresh();
                   nav.go("/app/integrations", { replace: true });
-                  toast(t`Account ${number} is unlinked`, { type: "success" });
+                  toast(number ? t`Account ${number} is unlinked` : t`The account is unlinked`, {
+                    type: "success",
+                  });
                 } catch (error) {
                   sheets.close();
                   toast(userError(error), { type: "error" });
@@ -348,7 +362,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
             <bdi>{broker}</bdi>
           </strong>
           <small>
-            <span className="ltr">{number}</span>
+            {number ? <span className="ltr">{number}</span> : t`Unverified broker account`}
             {demo ? ` · ${t`Simulation`}` : ""}
             {snap?.server ? (
               <>

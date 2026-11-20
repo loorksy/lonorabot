@@ -586,7 +586,7 @@ test("S15: on a phone the history picker sits under the header, not beneath it",
   expect(await picker.evaluate((element) => getComputedStyle(element).marginTop)).toBe("0px");
 });
 
-test("R1/R2: the order sheet draws the executor's own rows: blocked before sending, the broker's reason", async ({
+test("R1/R2 (v38): the chat draws no order line; an operation shows only as its fixed cards", async ({
   page,
   conversation,
 }) => {
@@ -601,21 +601,11 @@ test("R1/R2: the order sheet draws the executor's own rows: blocked before sendi
     route.fulfill({ json: anchored }),
   );
   await page.goto(`/app/${conversation.agent.id}`);
-  const sheet = page.locator("#dialog");
-  await page.locator("[data-operation-id='op-not-sent']").click();
-  await expect(sheet.locator(".od-line")).toHaveAttribute("data-steps", "requested blocked");
-  await expect(sheet.locator(".od-line li")).toHaveText([/Requested/, /Blocked before sending/]);
-  await expect(sheet.locator(".od-line")).not.toContainText("Sent");
-  await expect(sheet.locator(".od-line")).not.toContainText("Accepted by the broker");
-  await expect(sheet.locator("[data-order-reason='blocked']")).toContainText(
-    "Not sent to the broker",
-  );
-  await page.keyboard.press("Escape");
-  await page.locator("[data-operation-id='op-rejected']").click();
-  const reason = sheet.locator("[data-order-reason='rejected']");
-  await expect(reason).toContainText("The broker rejected the order");
-  await expect(reason).toContainText("Not enough money to complete the request");
-  await expect(sheet).not.toContainText(/try again/i);
+  await expect(page.locator(".composer")).toBeVisible();
+  // Not sent, rejected or uncertain: no line of its own in the chat, and none of its ids.
+  await expect(page.locator(".od-chat, [data-operation-id]")).toHaveCount(0);
+  for (const row of anchored) await expect(page.getByText(row.operation_id)).toHaveCount(0);
+  await expect(page.getByText("Blocked before sending")).toHaveCount(0);
 });
 
 test("R5: «Resolve» in Lonora's sheet opens the conversation that holds the card", async ({

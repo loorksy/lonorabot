@@ -84,11 +84,13 @@ export function IntegrationsPage() {
     const tools = preview
       ? preview.tools.map((name) => ({ name, write: preview.writes.includes(name) }))
       : server.trusted_tools.map((name) => ({ name, write: server.write_tools.includes(name) }));
+    // The server's own title of each tool; its name only when the server gives no title.
+    const titles = preview ? preview.titles : server.tool_titles;
     const writes = tools.some((tool) => tool.write);
     sheets.open({
       id: "mcp",
-      title: <span className="ltr">{server.name ?? server.connection_id}</span>,
-      label: server.name ?? server.connection_id,
+      title: server.name ? <span className="ltr">{server.name}</span> : t`Unnamed server`,
+      label: server.name ?? t`Unnamed server`,
       body: (
         <>
           {review && (
@@ -110,7 +112,13 @@ export function IntegrationsPage() {
                     <Icon name={tool.write ? "edit" : "eye"} />
                   </span>
                   <span className="body">
-                    <strong className="ltr">{tool.name}</strong>
+                    {titles[tool.name] ? (
+                      <strong>
+                        <bdi>{titles[tool.name]}</bdi>
+                      </strong>
+                    ) : (
+                      <strong className="ltr">{tool.name}</strong>
+                    )}
                   </span>
                   <span className={`oa-lv lv-${tool.write ? "write" : "read"}`}>
                     {tool.write ? t`Non-financial write` : t`Read`}
@@ -129,7 +137,12 @@ export function IntegrationsPage() {
           </div>
           {preview?.blocked.length ? (
             <Note>
-              <Trans>Tools that could move money are refused: {preview.blocked.join("، ")}</Trans>
+              <Trans>
+                Tools that could move money are refused:{" "}
+                {preview.blocked
+                  .map((name) => `\u2068${preview.titles[name] ?? name}\u2069`)
+                  .join("، ")}
+              </Trans>
             </Note>
           ) : null}
           {!preview && (!server.trusted_tier || review) ? (
@@ -183,8 +196,8 @@ export function IntegrationsPage() {
           )}
           <Note>
             <Trans>
-              MCP servers are never given a financial tool; write tools are non-financial (notes and
-              alerts).
+              MCP servers are never given a financial tool; their write tools run only if you
+              approve non-financial writes.
             </Trans>
           </Note>
         </>
@@ -426,7 +439,12 @@ export function IntegrationsPage() {
             <span>
               <Trans>Messages reach</Trans>
             </span>
-            <select name="agent" defaultValue={data.agents[0]?.id ?? ""}>
+            <select
+              name="agent"
+              defaultValue={
+                (data.agents.find((agent) => agent.role === "personal") ?? data.agents[0])?.id ?? ""
+              }
+            >
               {data.agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}
@@ -488,7 +506,12 @@ export function IntegrationsPage() {
                       {identity?.broker ??
                         (demo ? t`Simulation with an imported snapshot` : "MetaApi")}
                     </bdi>{" "}
-                    · <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
+                    ·{" "}
+                    {identity?.login || demo ? (
+                      <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
+                    ) : (
+                      t`Unverified broker account`
+                    )}
                   </>
                 }
                 sub={
@@ -550,7 +573,13 @@ export function IntegrationsPage() {
                 <Icon name="server" />
               </span>
               <span className="body">
-                <strong className="ltr">{server.name ?? server.connection_id}</strong>
+                {server.name ? (
+                  <strong className="ltr">{server.name}</strong>
+                ) : (
+                  <strong>
+                    <Trans>Unnamed server</Trans>
+                  </strong>
+                )}
                 <small>
                   <Trans>MCP server · {levelText(server)}</Trans>
                 </small>
@@ -661,7 +690,13 @@ export function IntegrationsPage() {
                 <Icon name="bolt" />
               </span>
               <span className="body">
-                <strong className="ltr">{skill.skill_id}</strong>
+                {skill.title ? (
+                  <strong>
+                    <bdi>{skill.title}</bdi>
+                  </strong>
+                ) : (
+                  <strong className="ltr">{skill.skill_id}</strong>
+                )}
                 <small>
                   {skill.provenance === "bundled" ? t`Built-in` : (skill.repository ?? t`Owner`)}
                   {skill.version ? ` · ${t`version ${skill.version}`}` : ""}

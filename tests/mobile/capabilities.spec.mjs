@@ -196,6 +196,7 @@ for (const locale of ["ar", "en"])
       credentials_configured: true,
       trusted_tier: null,
       trusted_tools: [],
+      tool_titles: {},
       write_tools: [],
       blocked_tools: [],
       operator_declared: 0,
@@ -214,6 +215,7 @@ for (const locale of ["ar", "en"])
           tools: ["post_note", "search_posts"],
           writes: ["post_note"],
           blocked: ["send_usdc"],
+          titles: { post_note: "حفظ ملاحظة", search_posts: "Search posts" },
           unsupported: 0,
           digest: "a".repeat(64),
           trusted_tier: null,
@@ -230,8 +232,11 @@ for (const locale of ["ar", "en"])
       const line = page.getByTestId("mcp-server-scripted-server");
       await line.getByRole("button", { name: text.review, exact: true }).click();
       const preview = page.getByTestId("mcp-preview");
-      await expect(preview).toContainText("⁨search_posts⁩");
-      await expect(preview).toContainText(`${text.writes}: ⁨post_note⁩`);
+      // Each tool by the server's own title; a tool it gave no title keeps its name.
+      await expect(preview).toContainText("⁨Search posts⁩");
+      await expect(preview).toContainText(`${text.writes}: ⁨حفظ ملاحظة⁩`);
+      await expect(preview).not.toContainText("search_posts");
+      await expect(preview).not.toContainText("post_note");
       await expect(preview).toContainText("⁨send_usdc⁩");
       // A server that offers a blocked money tool is trusted to read only: no write tier.
       await expect(preview.getByRole("button", { name: text.trustWrite, exact: true })).toHaveCount(
@@ -243,6 +248,9 @@ for (const locale of ["ar", "en"])
       await expect(preview).toHaveCount(0);
       expect(trusted).toEqual([{ tier: "read", digest: "a".repeat(64) }]);
     } finally {
+      // The list reloads after trusting; a handler still reading it when the page closes is not
+      // a failure of this test.
+      await page.unrouteAll({ behavior: "ignoreErrors" });
       simulation({ ...data, action: "cleanup" });
     }
   });

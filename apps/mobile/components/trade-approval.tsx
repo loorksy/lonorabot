@@ -3,7 +3,9 @@ import {
   approvalStatusText,
   brokerTicketLabel,
   financialResultReason,
+  isolate,
   operationStatusText,
+  orderLineAction,
 } from "@lonora/core";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
@@ -47,47 +49,66 @@ export function TradeApprovalCard({
       setBusy(false);
     }
   }
+  const symbol = row.requests.find((request) => request.symbol)?.symbol;
   return (
     <View style={{ borderWidth: 1, borderColor: colors.border, padding: 12, gap: 8 }}>
       <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
         {t("tradeApproval")}
+        {symbol ? ` · ${isolate(String(symbol))}` : ""}
       </Text>
-      {row.requests.map((request, index) => (
-        <View key={String(request.operation_id ?? index)}>
-          <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
-            {[request.action, request.symbol, request.volume]
-              .filter((value) => value != null)
-              .join(" · ")}
-          </Text>
-          {(
-            [
-              ["approvalPrice", request.price],
-              ["stopLoss", request.stop_loss],
-              ["takeProfit", request.take_profit],
-              ["approvalTicket", request.position_id ?? request.order_id],
-            ] as const
-          )
-            .filter(([, value]) => value != null)
-            .map(([label, value]) => (
-              <Text
-                key={label}
-                style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}
-              >
-                {t(label)}: <Text style={{ writingDirection: "ltr" }}>{String(value)}</Text>
+      {row.requests.map((request, index) => {
+        // The request in words and its volume («شراء 0.10»), never a raw action id.
+        const action = orderLineAction(request, locale);
+        const market = request.action === "buy" || request.action === "sell";
+        return (
+          <View key={String(request.operation_id ?? index)}>
+            <Text
+              style={{
+                color: colors.foreground,
+                fontWeight: "700",
+                textAlign: rtl ? "right" : "left",
+              }}
+            >
+              {action.label}
+              {action.volume ? ` ${isolate(action.volume)}` : ""}
+            </Text>
+            {market ? (
+              <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+                {t("approvalEntry")}: {t("approvalAtMarket")}
               </Text>
-            ))}
-          {request.clear_stop_loss === true && (
-            <Text style={{ color: colors.foreground }}>{t("clearStopLoss")}</Text>
-          )}
-          {request.clear_take_profit === true && (
-            <Text style={{ color: colors.foreground }}>{t("clearTakeProfit")}</Text>
-          )}
-        </View>
-      ))}
+            ) : null}
+            {(
+              [
+                ["approvalEntry", market ? null : request.price],
+                ["stopLoss", request.stop_loss],
+                ["takeProfit", request.take_profit],
+                ["approvalTicket", request.position_id ?? request.order_id],
+              ] as const
+            )
+              .filter(([, value]) => value != null)
+              .map(([label, value]) => (
+                <Text
+                  key={label}
+                  style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}
+                >
+                  {t(label)}: <Text style={{ writingDirection: "ltr" }}>{String(value)}</Text>
+                </Text>
+              ))}
+            {request.clear_stop_loss === true && (
+              <Text style={{ color: colors.foreground }}>{t("clearStopLoss")}</Text>
+            )}
+            {request.clear_take_profit === true && (
+              <Text style={{ color: colors.foreground }}>{t("clearTakeProfit")}</Text>
+            )}
+          </View>
+        );
+      })}
       {row.tolerance ? (
         <Text style={{ color: colors.secondary }}>
           {t("validWithin")}{" "}
-          {row.reference_price ? `${row.reference_price} ± ${row.tolerance}` : `± ${row.tolerance}`}
+          {/* Isolated left-to-right with no-break spaces: «2346.80 ± 1.50» stays whole and in
+              order inside the Arabic sentence (v38). */}
+          {`\u2066${row.reference_price ? `${row.reference_price}\u00a0±\u00a0` : "±\u00a0"}${row.tolerance}\u2069`}
         </Text>
       ) : null}
       {row.reason ? (

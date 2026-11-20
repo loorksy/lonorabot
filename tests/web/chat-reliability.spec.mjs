@@ -89,9 +89,9 @@ test("approval remains causal in chat, resolves in place and reconnect clears re
     expect(before.y).toBeLessThan(anchor.y);
     expect(after.y).toBeGreaterThan(anchor.y);
     await card.getByRole("button", { name: "Reject", exact: true }).click();
-    await expect(card.getByText("Rejected", { exact: true })).toBeVisible();
+    await expect(card.getByText("Rejected — nothing was sent", { exact: true })).toBeVisible();
     await page.reload();
-    await expect(card.getByText("Rejected", { exact: true })).toBeVisible();
+    await expect(card.getByText("Rejected — nothing was sent", { exact: true })).toBeVisible();
     await expect(card).toHaveCount(1);
     expect((await card.boundingBox()).y).toBeLessThan(
       (await page.getByText("after broker result", { exact: true }).boundingBox()).y,

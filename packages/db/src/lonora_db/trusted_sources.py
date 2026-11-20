@@ -123,6 +123,7 @@ async def trust_source(
     tool_hashes: dict[str, str] | None = None,
     read_only_tools: list[str] | None = None,
     blocked_tools: list[str] | None = None,
+    tool_titles: dict[str, str] | None = None,
 ) -> tuple[TrustedSourceRow, bool]:
     """Add a source, or (an MCP server reviewed again) replace its pinned review.
 
@@ -130,6 +131,8 @@ async def trust_source(
     owner's routes and the tools that act on the owner's own words in chat (checked there
     first, ``owner_message``); nothing else reaches this. The owner's
     review of an operator entry makes it the owner's own, even when nothing else changed.
+    ``tool_titles`` (the server's titles read at this review) is kept on the connection for
+    the owner's views only; it is never part of the pinned review.
     """
     try:
         identifier = normalize_identifier(kind, identifier)
@@ -147,6 +150,7 @@ async def trust_source(
             # A server that offers a tool that can trade or move money is a trading server:
             # its other writes are not trusted either, only its reading tools run.
             raise LonoraError("trusted_source_write_blocked", 422)
+        connection.state = {**(connection.state or {}), "tool_titles": dict(tool_titles or {})}
     await lock_sources(session, owner_id)
     await ensure_defaults(session, owner_id)
     row = await active_source(session, owner_id, kind, identifier, lock=True)

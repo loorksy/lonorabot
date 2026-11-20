@@ -47,6 +47,8 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
     await expect(page.getByText(/^Lonora · version \d/)).toBeVisible();
     await expect(page.getByText("About Lonora")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Sign out/ })).toBeVisible();
+    // The owner's row says what it holds: what Lonora knows about the owner.
+    await expect(page.getByText("Profile · What I know about you")).toBeVisible();
     // The preferences row keeps the group's 14px inline padding (the reference's `.group > .row`).
     expect(
       await page
@@ -97,6 +99,8 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
     const mute = page.getByRole("switch", { name: "Mute notifications at night" });
     if ((await mute.getAttribute("aria-checked")) !== "true") await mute.click();
     await expect(page.getByText("Urgent always arrives")).toBeVisible();
+    // Quiet hours hold neither an approval request nor an unconfirmed operation (push.py).
+    await expect(page.getByText("An approval request or an unconfirmed operation")).toBeVisible();
     await page.getByLabel("From").fill("22:30");
     await expect
       .poll(
@@ -333,6 +337,8 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     // MetaApi is the default broker (Q52): preselected with its token and region fields.
     await expect(page.getByLabel("Broker")).toHaveValue("metaapi");
     await expect(page.getByLabel("Region")).toBeVisible();
+    // MetaApi's test is a real round trip to the broker.
+    await expect(page.getByRole("button", { name: "Test the connection" })).toBeVisible();
     await page.getByLabel("Broker").selectOption("simulation");
     // Named as a simulation, never "Demo": a broker's demo account connects through MetaApi.
     await expect(page.getByLabel("Broker").locator("option:checked")).toHaveText(
@@ -341,10 +347,16 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await expect(page.getByText("Simulation", { exact: true })).toBeVisible();
     await expect(page.getByLabel(/Password/)).toHaveCount(0);
     await page.getByLabel("Account number").fill(`demo-${randomUUID().slice(0, 8)}`);
-    await page.getByRole("button", { name: "Test the connection" }).click();
+    // A simulation has no connection: its button says it checks the fields, and the result
+    // says what the server checked, never «The connection works».
+    await expect(page.getByRole("button", { name: "Test the connection" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Check the fields" }).click();
     await expect(
-      page.getByRole("status").filter({ hasText: "The connection works" }),
+      page
+        .getByRole("status")
+        .filter({ hasText: "The fields are valid, and this account is not linked yet." }),
     ).toBeVisible();
+    await expect(page.getByText("The connection works")).toHaveCount(0);
     await page.goto("/app/mcp");
     await expect(page.getByText("Streamable HTTP")).toBeVisible();
     await expect(page.locator("option", { hasText: /stdio/ })).toHaveCount(0);
@@ -465,6 +477,139 @@ test("a simulation connection is named a simulation in the list and on its page,
     await expect(page.getByText("Simulation with an imported snapshot")).toBeVisible();
     await expect(page.getByText("Import the simulation data")).toBeVisible();
     await expect(page.getByText(/demo/i)).toHaveCount(0);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("integrations name tools, skills, servers and accounts in words, never by raw ids", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, "ar");
+    const now = new Date().toISOString();
+    // A MetaApi account the broker has not identified yet: its id is MetaApi's provisioning UUID.
+    const provisioning = randomUUID();
+    const account = {
+      id: randomUUID(),
+      agent_id: null,
+      thread_id: null,
+      version: 1,
+      created_at: now,
+      updated_at: now,
+      state: {},
+      payload: { provider: "metaapi", account_id: provisioning, region: null, enabled: true },
+    };
+    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [account] }));
+    const connection = randomUUID();
+    await page.route("**/api/capabilities", async (route) => {
+      const response = await route.fetch();
+      const report = await response.json();
+      await route.fulfill({
+        response,
+        json: {
+          ...report,
+          integrations: report.integrations.filter((item) => item.type !== "telegram"),
+          mcp_servers: [
+            {
+              connection_id: connection,
+              name: null,
+              enabled: true,
+              credentials_configured: false,
+              trusted_tier: "read",
+              trusted_tools: ["list_tags", "search_posts"],
+              tool_titles: { search_posts: "البحث في المنشورات" },
+              write_tools: [],
+              blocked_tools: [],
+              operator_declared: 0,
+              trust_source_id: null,
+              last_used_at: null,
+            },
+          ],
+          skills: [
+            {
+              resource_id: randomUUID(),
+              agent_id: null,
+              agent_name: null,
+              skill_id: "morning-brief",
+              title: "موجز الصباح",
+              version: null,
+              provenance: "owner",
+              repository: null,
+              commit: null,
+              enabled: true,
+              undone: false,
+              can_undo: false,
+              installed_at: now,
+              updated_at: now,
+            },
+          ],
+        },
+      });
+    });
+    // Another agent listed before Lonora: Telegram still delivers to Lonora by default.
+    let lonora = null;
+    await page.route("**/api/agents", async (route) => {
+      const response = await route.fetch();
+      const agents = await response.json();
+      lonora = agents.find((agent) => agent.role === "personal");
+      const others = agents.filter((agent) => agent.role !== "personal");
+      const first = others[0] ?? { ...lonora, id: randomUUID(), name: "محلل", role: "specialist" };
+      await route.fulfill({
+        response,
+        json: [first, ...agents.filter((agent) => agent.id !== first.id)],
+      });
+    });
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await page.goto("/app/integrations");
+    await expect(page.getByText("حساب وسيط لم تُتحقق هويته")).toBeVisible();
+    await expect(page.getByText(provisioning)).toHaveCount(0);
+    await expect(page.getByText("موجز الصباح")).toBeVisible();
+    await expect(page.getByText("morning-brief")).toHaveCount(0);
+    await expect(page.getByText(connection)).toHaveCount(0);
+    await page.getByRole("button", { name: /خادم بلا اسم/ }).click();
+    const sheet = page.locator("#dialog[open]");
+    await expect(sheet.getByText("البحث في المنشورات")).toBeVisible();
+    await expect(sheet.getByText("search_posts")).toHaveCount(0);
+    // A tool the server gave no title keeps its name, the only true label left.
+    await expect(sheet.getByText("list_tags")).toBeVisible();
+    await expect(
+      sheet.getByText(
+        "لا تُمنح خوادم MCP أي أداة مالية؛ ولا تعمل أدوات الكتابة فيها إلا إذا اعتمدت الكتابة غير المالية.",
+      ),
+    ).toBeVisible();
+    await expect(sheet.getByText(/ملاحظات وتنبيهات/)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await page.getByRole("button", { name: /^Telegram/ }).click();
+    await expect(page.getByLabel("تصل الرسائل إلى")).toHaveValue(lonora.id);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("the call device row says only that a call rings it", async ({ page, context }) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, "ar");
+    await page.route("**/api/owner/profile", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      const profile = await response.json();
+      await route.fulfill({
+        response,
+        json: { ...profile, devices: [{ id: randomUUID(), name: "هاتف المالك" }] },
+      });
+    });
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await page.goto("/app/settings");
+    await expect(page.getByText("الملف الشخصي · ما أعرفه عنك")).toBeVisible();
+    await page.getByRole("button", { name: /^الإشعارات والتواصل/ }).click();
+    const device = page.getByRole("radio", { name: /هاتف المالك/ });
+    await expect(device).toContainText("تصل المكالمة إلى هذا الجهاز");
+    await expect(device).not.toContainText("مفتاح المرور");
   } finally {
     fixture({ ...data, action: "cleanup" });
   }
@@ -597,6 +742,14 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ pa
     await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toBeVisible();
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Next" }).click();
+    // The last slide names the two trading modes the owner has (Ask, Full), not permissions.
+    await expect(page.getByRole("heading", { name: "You decide" })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Every agent asks you before any trade that adds risk, until you switch it to Full with one tap.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/permission you grant/)).toHaveCount(0);
     await page.getByRole("button", { name: "Start now" }).click();
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
     // The #auth layer is the reference's full-screen layer; ≥900px the card is a floating panel.
@@ -635,4 +788,21 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ pa
   } finally {
     fixture({ ...data, action: "cleanup" });
   }
+});
+
+test("auth intro, Arabic: the last slide names the two trading modes", async ({
+  page,
+  context,
+}) => {
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app");
+  await expect(page.getByRole("heading", { name: "مرحبًا بك في Lonora" })).toBeVisible();
+  await page.getByRole("button", { name: "التالي" }).click();
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByRole("heading", { name: "أنت صاحب القرار" })).toBeVisible();
+  await expect(
+    page.getByText("كل وكيل يستأذنك قبل أي صفقة تزيد المخاطرة، حتى توكّله بلمسة."),
+  ).toBeVisible();
+  await expect(page.getByText(/صلاحية تمنحها/)).toHaveCount(0);
 });

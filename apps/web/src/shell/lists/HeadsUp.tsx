@@ -6,8 +6,11 @@ import {
   type ChatRow,
   headsUpAllowed,
   inQuietHours,
+  isolateText,
+  plainLine,
   type QuietHours,
   rowKey,
+  textDirection,
 } from "@lonora/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAttentionLabels } from "../../components/ai/AttentionInbox";
@@ -23,10 +26,10 @@ import { chatPath } from "./ChatList";
 import { useLists } from "./state";
 import { RowAvatar } from "./ThreadRow";
 
-/* HeadsUp: an answer that arrives in another chat shows at the top for 5.2s with «رد»; a
-   swipe up hides it. Mute, archive and the owner's quiet hours suppress it and its tone
-   (owner decision Q4, the reach-me policy); a critical or action_required attention item
-   always shows. */
+/* HeadsUp: an answer that arrives in another chat shows at the top for 5.2s with «رد»; while
+   the pointer or focus is on it, it waits, then stays 2.4s more; a swipe up hides it. Mute,
+   archive and the owner's quiet hours suppress it and its tone (owner decision Q4, the
+   reach-me policy); a critical or action_required attention item always shows. */
 /** `path`: where a tap goes when it is not the row's chat (a broker outage → recovery). */
 type Banner = { row: ChatRow; text: string; serial: number; path?: string };
 
@@ -112,6 +115,8 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   const nav = useNavigation();
   const [banner, setBanner] = useState<Banner | null>(null);
   const [phase, setPhase] = useState<"in" | "out">("out");
+  // Reached for (pointer or focus on it): it waits; let go: 2.4s more.
+  const [held, setHeld] = useState<boolean | null>(null);
   const mounted = useRef(Date.now());
   const cursor = useRef(-1);
   const announced = useRef(new Set<string>());
@@ -136,6 +141,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   const show = useCallback((row: ChatRow, text: string, path?: string) => {
     const prefs = readDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
     serial.current += 1;
+    setHeld(null);
     setBanner({
       row,
       text: prefs.preview ? text : t`New message`,
@@ -167,12 +173,16 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       if (!row || !headsUpAllowed(row.entry)) continue;
       // The agent's own rule «رسائل داخل التطبيق» (Q47).
       if (typeof payload.agent_id === "string" && off.has(payload.agent_id)) continue;
-      const content = typeof payload.content === "string" ? payload.content.trim() : "";
+      const content = typeof payload.content === "string" ? plainLine(payload.content) : "";
       const speaker =
         row.kind === "group"
           ? agents.find((agent) => agent.id === payload.agent_id)?.name
           : undefined;
-      const text = content ? (speaker ? `${speaker}: ${content}` : content) : t`New message`;
+      const text = content
+        ? speaker
+          ? `${speaker}: ${isolateText(content)}`
+          : content
+        : t`New message`;
       show(row, text.length > 120 ? `${text.slice(0, 120)}…` : text);
     }
   }, [events, show]);
@@ -213,9 +223,10 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       const gone = setTimeout(() => setBanner(null), 300);
       return () => clearTimeout(gone);
     }
-    const timer = setTimeout(() => setPhase("out"), 5200);
+    if (held) return;
+    const timer = setTimeout(() => setPhase("out"), held === false ? 2400 : 5200);
     return () => clearTimeout(timer);
-  }, [phase, banner]);
+  }, [phase, banner, held]);
   if (!banner) return null;
   const open = () => {
     setPhase("out");
@@ -227,6 +238,10 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       key={banner.serial}
       role="status"
       className={phase === "out" ? "out" : entered === banner.serial ? "in" : ""}
+      onPointerEnter={() => setHeld(true)}
+      onPointerLeave={() => setHeld(false)}
+      onFocus={() => setHeld(true)}
+      onBlur={() => setHeld(false)}
       onPointerDown={(event) => {
         startY.current = event.clientY;
       }}
@@ -244,9 +259,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
           <strong>
             <bdi>{banner.row.name}</bdi>
           </strong>
-          <small>
-            <bdi>{banner.text}</bdi>
-          </small>
+          <small dir={textDirection(banner.text)}>{banner.text}</small>
         </span>
       </button>
       <button type="button" className="btn small outline hu-reply" onClick={open}>

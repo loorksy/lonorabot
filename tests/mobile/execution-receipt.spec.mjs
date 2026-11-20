@@ -13,6 +13,8 @@ const copy = {
     confirmed: "أكّده الوسيط · جارٍ التحقق من حالة الحساب…",
     verified: "أكّده الوسيط · تم التحقق من حالة الحساب",
     price: "سعر التنفيذ",
+    ticket: "تذكرة الوسيط",
+    mine: "بيع · أمرك",
   },
   en: {
     kicker: "Execution receipt",
@@ -20,6 +22,8 @@ const copy = {
     confirmed: "Confirmed by the broker · Checking the account state…",
     verified: "Confirmed by the broker · Account state verified",
     price: "Fill price",
+    ticket: "Broker ticket",
+    mine: "Sell · your order",
   },
 };
 
@@ -88,6 +92,17 @@ for (const locale of ["ar", "en"])
       reason: null,
       verification: "verified",
     };
+    // The owner's own order: no agent, no agent's words, and the receipt says it is yours.
+    const mine = {
+      ...fill,
+      operation_id: randomUUID(),
+      timeline_seq: 3,
+      agent_id: null,
+      action: "sell",
+      ticket: "50072",
+      reason: null,
+      verification: "verified",
+    };
     // The journal still lists the confirmed fill: it must not draw a second line for it.
     const journal = {
       operation_id: fill.operation_id,
@@ -101,7 +116,7 @@ for (const locale of ["ar", "en"])
       timeline_seq: 1,
     };
     await page.route("**/api/trading/receipts?*", (route) =>
-      route.fulfill({ json: [fill, modify] }),
+      route.fulfill({ json: [fill, modify, mine] }),
     );
     await page.route("**/api/trading/journal?*", (route) => route.fulfill({ json: [journal] }));
     try {
@@ -109,22 +124,26 @@ for (const locale of ["ar", "en"])
       const journalRead = page.waitForResponse((r) => r.url().includes("/api/trading/journal?"));
       await page.goto(`/thread?id=${thread.id}`);
       const cards = page.getByTestId("execution-receipt");
-      await expect(cards).toHaveCount(2);
+      await expect(cards).toHaveCount(3);
       // No order line for the confirmed operation, once the journal is in.
       await journalRead;
       await expect(page.getByTestId("order-line")).toHaveCount(0);
       // The list is inverted: pick each card by what it holds, not by its place.
       const card = cards.filter({ hasText: fill.reason });
-      const changed = cards.filter({ hasNotText: fill.reason });
+      const changed = cards.filter({ hasNotText: fill.reason }).filter({ hasNotText: "50072" });
+      const own = cards.filter({ hasText: "50072" });
       await expect(card.getByText(text.kicker)).toBeVisible();
       await expect(card.getByText("50071", { exact: true })).toBeVisible();
       await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
       await expect(card.getByText(text.price, { exact: true })).toBeVisible();
+      await expect(card.getByText(text.ticket, { exact: true })).toBeVisible();
       await expect(card.getByTestId("execution-receipt-status")).toHaveText(text.confirmed);
       await expect(card.getByText(text.words, { exact: true })).toBeVisible();
       await expect(card.getByText(fill.reason, { exact: true })).toBeVisible();
       await expect(changed.getByTestId("execution-receipt-status")).toHaveText(text.verified);
       await expect(changed.getByTestId("execution-receipt-reason")).toHaveCount(0);
+      await expect(own.getByText(text.mine, { exact: true })).toBeVisible();
+      await expect(own.getByTestId("execution-receipt-reason")).toHaveCount(0);
       await expect(page.getByText(fill.operation_id)).toHaveCount(0);
       if (locale === "ar")
         await page.screenshot({ path: test.info().outputPath("execution-receipt-native-ar.png") });

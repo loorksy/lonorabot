@@ -1,12 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type {
-  ExecutionReceipt,
-  Journal,
-  OwnerAction,
-  TradeApproval,
-  VisualAction,
-} from "@lonora/contracts";
+import type { ExecutionReceipt, OwnerAction, TradeApproval, VisualAction } from "@lonora/contracts";
 import {
   conversationTimeline,
   isWorking,
@@ -57,8 +51,6 @@ import { useToast } from "../shell/Toast";
 import {
   AgentErrorCard,
   type FailureFamily,
-  OrderLine,
-  OrderSheetBody,
   PeerCard,
   peersByMessage,
   QuestionCard,
@@ -113,8 +105,7 @@ type Row =
   | { kind: "message"; id: string; message: ConversationMessage }
   | { kind: "approval"; id: string; approval: TradeApproval; at: string }
   | { kind: "owner_action"; id: string; action: OwnerAction; at: string }
-  | { kind: "receipt"; id: string; receipt: ExecutionReceipt; at: string }
-  | { kind: "order"; id: string; journal: Journal; at: string };
+  | { kind: "receipt"; id: string; receipt: ExecutionReceipt; at: string };
 
 export function Conversation({
   threadId,
@@ -154,7 +145,6 @@ export function Conversation({
   const approvals = useTradeApprovals(threadId);
   const ownerActions = useOwnerActions(threadId);
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
-  const [journal, setJournal] = useState<Journal[]>([]);
   const [receipts, setReceipts] = useState<ExecutionReceipt[]>([]);
   const [collaboration, setCollaboration] = useState<Resource | null>(null);
   const [peers, setPeers] = useState<Resource[]>([]);
@@ -191,7 +181,7 @@ export function Conversation({
     return () => window.removeEventListener("lonora:jump", listener);
   }, [threadId]);
 
-  /* ---- side data: files, order lines, the collaboration session */
+  /* ---- side data: files, receipts, the collaboration session */
   useEffect(() => {
     void revision;
     let live = true;
@@ -199,21 +189,6 @@ export function Conversation({
       .get<Resource[]>(`/artifacts?thread_id=${threadId}`)
       .then((rows) => live && setArtifacts(rows))
       .catch(() => undefined);
-    void api
-      .get<Journal[]>(`/trading/journal?thread_id=${encodeURIComponent(threadId)}`)
-      .then(
-        (rows) =>
-          live &&
-          setJournal(
-            // A confirmed operation is shown once: as its Execution Receipt (10.3).
-            rows.filter(
-              (row) =>
-                (row as Journal & { thread_id?: string }).thread_id === threadId &&
-                row.status !== "confirmed",
-            ),
-          ),
-      )
-      .catch(() => live && setJournal([]));
     void api
       .get<ExecutionReceipt[]>(`/trading/receipts?thread_id=${encodeURIComponent(threadId)}`)
       .then((rows) => live && setReceipts(rows))
@@ -330,7 +305,9 @@ export function Conversation({
     return out;
   }, [runs]);
 
-  /* ---- the rows: messages, approvals, owner cards and order lines in server order */
+  /* ---- the rows: messages, approvals, owner cards and receipts in server order. An operation
+     is drawn only by the server's fixed cards: its receipt once the broker confirms it, its
+     Settle card while the outcome is unknown (v38); no order line in the chat. */
   // Messages drawn as a peer's or a question's card instead of their rich content (Message
   // `card`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
   const undrawn = useMemo(
@@ -366,23 +343,8 @@ export function Conversation({
                 at: item.action.created_at,
               },
     );
-    // Order lines sit at their anchor (WP-F journal thread_id/timeline_seq).
-    for (const row of journal) {
-      const seq = (row as Journal & { timeline_seq?: number | null }).timeline_seq;
-      const at = row.submitted_at ?? row.updated_at;
-      const index =
-        seq != null
-          ? out.findIndex((item) => item.kind === "message" && item.message.seq > seq)
-          : out.findIndex(
-              (item) =>
-                item.kind === "message" && Date.parse(item.message.created_at) > Date.parse(at),
-            );
-      const line: Row = { kind: "order", id: `order:${row.operation_id}`, journal: row, at };
-      if (index < 0) out.push(line);
-      else out.splice(index, 0, line);
-    }
     return out;
-  }, [messages, approvals.rows, ownerActions.rows, receipts, journal, undrawn]);
+  }, [messages, approvals.rows, ownerActions.rows, receipts, undrawn]);
 
   /* ---- actions */
   const send: ComposerSend = useCallback(
@@ -908,20 +870,20 @@ export function Conversation({
           key={row.id}
           message={cardMessage(row.id, row.approval.agent_id, row.at, threadId)}
           previous={prev}
-          cardKind={row.approval.status === "pending" ? "card" : "line"}
+          cardKind="card"
           card={approvalCard(row.approval)}
         />,
       );
       return;
     }
     if (row.kind === "owner_action") {
-      const pending = row.action.status === "pending";
+      // A fixed card keeps its frame once decided (10.2.2): a tapped Mandate card keeps its width.
       body.push(
         <Message
           key={row.id}
           message={cardMessage(row.action.id, row.action.agent_id, row.at, threadId)}
           previous={prev}
-          cardKind={pending ? "oa" : "line"}
+          cardKind="oa"
           card={ownerActionCard(row.action)}
         />,
       );
@@ -935,50 +897,6 @@ export function Conversation({
           previous={prev}
           cardKind="card"
           card={<ExecutionReceiptCard row={row.receipt} />}
-        />,
-      );
-      return;
-    }
-    if (row.kind === "order") {
-      body.push(
-        <Message
-          key={row.id}
-          message={cardMessage(row.id, row.journal.agent_id ?? agentId, row.at, threadId)}
-          previous={prev}
-          cardKind="odl"
-          card={
-            <OrderLine
-              row={row.journal}
-              onOpen={(journalRow) => {
-                // «حسم العملية»: the operation's own pending resolve card in this chat.
-                const resolve = ownerActions.rows.find(
-                  (card) =>
-                    card.kind === "settle_operation" &&
-                    card.status === "pending" &&
-                    card.facts.operation?.operation_id === journalRow.operation_id,
-                );
-                sheets.open({
-                  id: "order",
-                  title: t`Trade order`,
-                  body: (
-                    <OrderSheetBody
-                      row={journalRow}
-                      onResolve={
-                        resolve
-                          ? () => {
-                              sheets.close();
-                              window.dispatchEvent(
-                                new CustomEvent("lonora:jump", { detail: { id: resolve.id } }),
-                              );
-                            }
-                          : undefined
-                      }
-                    />
-                  ),
-                });
-              }}
-            />
-          }
         />,
       );
       return;

@@ -1,4 +1,5 @@
-// The reference's toast: a glass pill above the tab bar; one at a time; «تراجع» as its action.
+// The reference's toast: a glass pill above the tab bar; one at a time; «تراجع» as its action,
+// which holds the toast while it is pressed and leaves it 2.4 s more after release (v38).
 import {
   createContext,
   type ReactNode,
@@ -100,6 +101,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             {item.action ? (
               <Pressable
                 accessibilityRole="button"
+                onPressIn={() => clearTimeout(timer.current)}
+                onPressOut={() => {
+                  clearTimeout(timer.current);
+                  timer.current = setTimeout(() => setItem(null), 2400);
+                }}
                 onPress={() => {
                   const run = item.action?.run;
                   setItem(null);

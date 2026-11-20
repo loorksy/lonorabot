@@ -96,6 +96,55 @@ test("Web and Mobile read operation and approval labels from the one shared tabl
   }
 });
 
+test("the fixed cards say one word for each thing on both clients (v38), never a raw id", () => {
+  // One word for the broker ticket: the shared label, the web catalog and Mobile's labels.
+  assert.equal(brokerTicketLabel("ar"), "تذكرة الوسيط");
+  assert.match(
+    read("apps/web/src/i18n/locales/ar/messages.po"),
+    /\nmsgid "Broker ticket"\nmsgstr "تذكرة الوسيط"\n/,
+  );
+  const mobile = read("apps/mobile/lib/i18n.ts");
+  assert.match(mobile, /approvalTicket: \["تذكرة الوسيط", "Broker ticket"\]/);
+  assert.match(mobile, /receiptTicket: \["تذكرة الوسيط", "Broker ticket"\]/);
+  assert.doesNotMatch(mobile, /رقم العملية لدى الوسيط/);
+  // One kicker: «طلب موافقة · SYMBOL» on both.
+  assert.match(mobile, /tradeApproval: \["طلب موافقة", "Approval request"\]/);
+  // An ended card's own words come from the shared table, an expired one included.
+  assert.equal(approvalStatusText("rejected", "ar"), "مرفوض — لم يُرسل شيء");
+  assert.equal(approvalStatusText("rejected", "en"), "Rejected — nothing was sent");
+  assert.equal(approvalStatusText("expired", "ar"), "انتهت صلاحيته");
+  const web = read("apps/web/src/components/trading/TradeApprovals.tsx");
+  assert.doesNotMatch(web, /<Trans>Expired<\/Trans>/);
+  // The request reads in words («شراء 0.10»), never its raw action id, on both clients.
+  for (const file of [
+    "apps/web/src/components/trading/TradeApprovals.tsx",
+    "apps/mobile/components/trade-approval.tsx",
+  ]) {
+    assert.match(read(file), /orderLineAction\(request,/, file);
+    assert.doesNotMatch(read(file), /String\(request\.action\)|\[request\.action,/, file);
+  }
+  // A decided card's result line shows no raw broker codes or ids (17).
+  const fields = web.match(/const RECEIPT_FIELDS = \[([^\]]*)\]/)?.[1] ?? "";
+  for (const raw of [
+    "numeric_code",
+    "string_code",
+    "message",
+    "order_id",
+    "deal_id",
+    "position_id",
+  ])
+    assert.doesNotMatch(fields, new RegExp(`"${raw}"`), raw);
+  // The order sheet and the legacy journal show no operation id, provisioning id or JSON.
+  const cards = read("apps/web/src/conversation/Cards.tsx");
+  const sheet = cards.slice(
+    cards.indexOf("export function OrderSheetBody"),
+    cards.indexOf("export function Steps"),
+  );
+  assert.doesNotMatch(sheet, /row\.operation_id|row\.account_id|string_code|Technical details/);
+  const journal = read("apps/web/src/components/trading/TradingJournal.tsx");
+  assert.doesNotMatch(journal, /JSON\.stringify|Technical details/);
+});
+
 test("an uncertain broker result never tells the owner to try again, on either client", () => {
   const codes = [
     "broker_result_ambiguous",

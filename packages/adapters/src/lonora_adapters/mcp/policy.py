@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from jsonschema import Draft202012Validator, validate
 from jsonschema.exceptions import SchemaError, ValidationError
+from lonora_contracts.agent_creation import strip_bidi_controls
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_core.user_error import LonoraError
 from lonora_security.network import endpoint_sha256 as endpoint_sha256
@@ -451,12 +452,15 @@ class ToolReview:
     """What a review may trust: {name: input schema sha256} of the tools that cannot move
     money and have a supported schema, which of those the server marks read-only (the only
     ones the read tier runs), the names that can move money (blocked, shown as such) and
-    how many others were left out (an unsupported name or schema)."""
+    how many others were left out (an unsupported name or schema). ``titles`` is the
+    server's own title of each trusted or blocked tool that has one: shown to the owner in
+    place of the name, never pinned or matched."""
 
     tools: dict[str, str]
     read_only: list[str]
     blocked: list[str]
     unsupported: int
+    titles: dict[str, str]
 
     @property
     def writes(self) -> list[str]:
@@ -464,18 +468,40 @@ class ToolReview:
         return sorted(set(self.tools) - set(self.read_only))
 
 
+def tool_title(item: dict[str, Any]) -> str | None:
+    """The server's display title of a tool: its ``title``, else ``annotations.title``, else
+    the first sentence of its description, without bidi controls."""
+    annotations = item.get("annotations")
+    named = (
+        cast(dict[str, Any], annotations).get("title") if isinstance(annotations, dict) else None
+    )
+    for value in (item.get("title"), named):
+        if isinstance(value, str) and (text := " ".join(strip_bidi_controls(value).split())):
+            return text[:128]
+    description = item.get("description")
+    if isinstance(description, str):
+        first = re.split(r"(?<=[.!?؟])\s|\n", description.strip(), maxsplit=1)[0]
+        if text := " ".join(strip_bidi_controls(first).split()):
+            return text[:128]
+    return None
+
+
 def review_tools(advertised: list[dict[str, Any]]) -> ToolReview:
     trusted: dict[str, str] = {}
     read_only: list[str] = []
     blocked: list[str] = []
+    titles: dict[str, str] = {}
     unsupported = 0
     for item in advertised:
         name = item.get("name")
         if not isinstance(name, str) or not SAFE_TOOL_NAME.match(name):
             unsupported += 1
             continue
+        title = tool_title(item)
         if financial_tool(item):
             blocked.append(name)
+            if title:
+                titles[name] = title
             continue
         try:
             digest = advertised_schema_sha256(item)
@@ -484,6 +510,8 @@ def review_tools(advertised: list[dict[str, Any]]) -> ToolReview:
             unsupported += 1
             continue
         trusted[name] = digest
+        if title:
+            titles[name] = title
         if marked_read_only(item):
             read_only.append(name)
-    return ToolReview(trusted, sorted(read_only), sorted(blocked), unsupported)
+    return ToolReview(trusted, sorted(read_only), sorted(blocked), unsupported, titles)

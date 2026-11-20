@@ -1,8 +1,15 @@
-// Apply saved appearance before styles and React paint the first frame.
+// Apply saved appearance before styles and React paint the first frame. With no saved choice
+// the first visit follows the device (prefers-color-scheme); a saved choice wins.
 (() => {
   const root = document.documentElement;
   try {
-    const theme = JSON.parse(localStorage.getItem("lonora.theme") ?? '"dark"');
+    const saved = localStorage.getItem("lonora.theme");
+    const theme =
+      saved === null
+        ? typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark"
+        : JSON.parse(saved);
     root.dataset.theme = theme === "light" ? "light" : "dark";
     root.classList.toggle("dark", root.dataset.theme === "dark");
     // The browser's own bar takes the page colour from the first frame (the reference's values).

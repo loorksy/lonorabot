@@ -199,7 +199,7 @@ export function operationStatusText(status: string, details: unknown, locale: st
 const approvalTexts: Readonly<Record<string, Text>> = {
   pending: { en: "Waiting for your approval", ar: "بانتظار موافقتك" },
   approved: { en: "Approved — awaiting broker result", ar: "تمت الموافقة — بانتظار نتيجة الوسيط" },
-  rejected: { en: "Rejected", ar: "مرفوض" },
+  rejected: { en: "Rejected — nothing was sent", ar: "مرفوض — لم يُرسل شيء" },
   cancelled: { en: "Cancelled", ar: "أُلغي" },
   expired: { en: "Expired", ar: "انتهت صلاحيته" },
   withdrawn: { en: "Withdrawn — nothing was sent", ar: "سُحب — لم يُرسل شيء" },

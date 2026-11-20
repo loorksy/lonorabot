@@ -37,27 +37,11 @@ export default function NewAgent() {
   const [error, setError] = useState<string | null>(null);
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
-  const templates: Record<Template, { icon: IconName; label: string; sub: string; code: string }> =
-    {
-      trading: {
-        icon: "trend",
-        label: t("sh_tplTrading"),
-        sub: t("sh_tplTradingSub"),
-        code: t("sh_tplTradingCode"),
-      },
-      general: {
-        icon: "bot",
-        label: t("sh_tplGeneral"),
-        sub: t("sh_tplGeneralSub"),
-        code: t("sh_tplGeneralCode"),
-      },
-      research: {
-        icon: "search",
-        label: t("sh_tplResearch"),
-        sub: t("sh_tplResearchSub"),
-        code: t("sh_tplResearchCode"),
-      },
-    };
+  const templates: Record<Template, { icon: IconName; label: string; sub: string }> = {
+    trading: { icon: "trend", label: t("sh_tplTrading"), sub: t("sh_tplTradingSub") },
+    general: { icon: "bot", label: t("sh_tplGeneral"), sub: t("sh_tplGeneralSub") },
+    research: { icon: "search", label: t("sh_tplResearch"), sub: t("sh_tplResearchSub") },
+  };
   const trading = template === "trading";
   const create = async () => {
     if (busy) return;
@@ -124,7 +108,7 @@ export default function NewAgent() {
                     last={index === all.length - 1}
                     lead={<Icon name={templates[key].icon} size={24} color={c.text} />}
                     title={templates[key].label}
-                    sub={`${templates[key].sub}\n${templates[key].code}`}
+                    sub={templates[key].sub}
                     trailing={
                       <View
                         style={{
