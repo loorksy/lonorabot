@@ -475,7 +475,6 @@ function ShellBody() {
     group,
     memberAgents,
     threadId: openThread,
-    liveTasks: liveState?.tasks?.length ?? 0,
   });
   const reading = useRef("");
   const { patchInbox } = data;

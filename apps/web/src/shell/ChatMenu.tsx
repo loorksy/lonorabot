@@ -24,14 +24,11 @@ export function useChatMenu({
   group,
   memberAgents,
   threadId,
-  liveTasks,
 }: {
   agent?: Agent;
   group?: Resource;
   memberAgents: Agent[];
   threadId?: string;
-  /** The agent's open tasks: one that may need the owner shows «الحالة والأمان». */
-  liveTasks: number;
 }) {
   const sheets = useSheets();
   const popover = usePopover();
@@ -174,22 +171,21 @@ export function useChatMenu({
             label={group ? <Trans>Group info</Trans> : <Trans>Agent info</Trans>}
             onSelect={openInfo}
           />
-          {(group || trading || agent?.trading_symbol) && (
+          {(group || agent) && (
             <PopItem
               icon="chart"
               label={<Trans>Chart</Trans>}
               onSelect={fromAnchor(() => openChart())}
             />
           )}
-          {agent &&
-            (trading || agent.role === "personal" || prefs.agentStatus || liveTasks > 0) && (
-              <PopItem
-                icon="shield"
-                label={<Trans>Status and safety</Trans>}
-                onSelect={fromAnchor(() => statusSheet(agent, trading, prefs.agentStatus))}
-              />
-            )}
-          {agent && trading && agent.trading_account_id && (
+          {agent && (
+            <PopItem
+              icon="shield"
+              label={<Trans>Status and safety</Trans>}
+              onSelect={fromAnchor(() => statusSheet(agent, trading, prefs.agentStatus))}
+            />
+          )}
+          {agent?.trading_account_id && (
             <PopItem
               icon="radar"
               label={<Trans>Watches</Trans>}
@@ -227,7 +223,6 @@ export function useChatMenu({
       memberAgents,
       trading,
       prefs.agentStatus,
-      liveTasks,
       openInfo,
       openChart,
       statusSheet,
