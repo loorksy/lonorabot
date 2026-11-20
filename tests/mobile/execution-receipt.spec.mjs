@@ -150,6 +150,11 @@ for (const locale of ["ar", "en"])
       const changed = cards.filter({ hasNotText: fill.reason }).filter({ hasNotText: "50072" });
       const own = cards.filter({ hasText: "50072" });
       await expect(card.getByText(text.kicker)).toBeVisible();
+      // The kicker carries its check, and a receipt still verifying waits with the hourglass
+      // (never the calendar), as the web card's (v38).
+      await expect(card.locator('path[d^="M5 12l4 4L19 6"]')).toHaveCount(1);
+      await expect(card.locator('path[d^="M6 2h12M6 22h12"]')).toHaveCount(1);
+      await expect(card.locator('path[d^="M7 3v3M17 3v3"]')).toHaveCount(0);
       await expect(card.getByText("50071", { exact: true })).toBeVisible();
       await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
       await expect(card.getByText(text.price, { exact: true })).toBeVisible();

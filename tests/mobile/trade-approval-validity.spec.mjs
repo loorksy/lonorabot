@@ -182,6 +182,10 @@ for (const locale of ["ar", "en"])
       await expect(page.getByTestId("trade-approval-status-warn")).toHaveCount(1);
       await expect(page.getByTestId("trade-approval-status-plain")).toHaveCount(1);
       await expect(page.getByTestId("trade-approval-status-wait")).toHaveCount(1);
+      // The wait is the hourglass, as on Web, never the calendar.
+      await expect(
+        page.getByTestId("trade-approval-status-wait").locator('path[d^="M6 2h12M6 22h12"]'),
+      ).toHaveCount(1);
       await expect(page.getByTestId("trade-approval-status-ok")).toHaveCount(0);
       const result = page.getByTestId("trade-approval-result-failed");
       // The shared fallback for a code no catalog explains, as on Web (D10).

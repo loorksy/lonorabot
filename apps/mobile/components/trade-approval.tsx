@@ -141,7 +141,7 @@ export function TradeApprovalCard({
             tone === "ok"
               ? "check"
               : tone === "wait"
-                ? "clock"
+                ? "hourglass"
                 : tone === "warn"
                   ? "alert"
                   : "close"

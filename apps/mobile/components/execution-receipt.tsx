@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import type { Label } from "../lib/i18n";
 import { useSession } from "../lib/session";
 import { EvidenceLine, FactRows } from "./card-facts";
+import { Icon } from "./shell/icon";
 import { colors } from "./ui";
 
 /**
@@ -43,9 +44,13 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
       testID="execution-receipt"
       style={{ borderWidth: 1, borderColor: colors.border, padding: 12, gap: 8 }}
     >
-      <Text style={{ color: colors.secondary, textAlign: align }}>
-        {t("executionReceipt")} · <Text style={{ writingDirection: "ltr" }}>{row.symbol}</Text>
-      </Text>
+      {/* The kicker with its check on the reading side, as the web card's (v38). */}
+      <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 6 }}>
+        <Icon name="check" size={14} color={colors.secondary} />
+        <Text style={{ color: colors.secondary, textAlign: align }}>
+          {t("executionReceipt")} · <Text style={{ writingDirection: "ltr" }}>{row.symbol}</Text>
+        </Text>
+      </View>
       <Text style={{ color: colors.foreground, fontWeight: "700", textAlign: align }}>
         {orderLineAction({ action: row.action }, locale).label}
         {row.partial ? ` · ${t("partiallyFilled")}` : ""}
@@ -75,7 +80,7 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
           row.verification === "unverified"
             ? "alert"
             : row.verification === "pending"
-              ? "clock"
+              ? "hourglass"
               : "check"
         }
       >
