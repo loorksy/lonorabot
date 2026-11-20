@@ -232,7 +232,10 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await page.getByRole("button", { name: "محادثة جديدة", exact: true }).click();
       await expect(dialog).toHaveAttribute("open", "");
       await expect(dialog).toHaveAttribute("aria-label", "محادثة جديدة");
-      await expect(dialog.getByRole("button", { name: "وكيل جديد" })).toBeVisible();
+      // A new group, then the existing agents; no agent creation form (P5): a new agent is
+      // asked of Lonora in chat (mandate 3.1.2).
+      await expect(dialog.getByRole("button", { name: "مجموعة جديدة" })).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "وكيل جديد" })).toHaveCount(0);
       await expect(dialog.locator(`[data-new-chat-agent="${agent.id}"]`)).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(dialog).not.toHaveAttribute("open", "");
