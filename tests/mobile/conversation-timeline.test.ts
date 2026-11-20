@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ExecutionReceipt, Message, OwnerAction, TradeApproval } from "@lonora/contracts";
-import { conversationTimeline } from "../../packages/core/src/conversation-timeline";
+import {
+  conversationTimeline,
+  latestCardIndex,
+} from "../../packages/core/src/conversation-timeline";
 
 function message(id: string, seq: number, created_at: string): Message {
   return {
@@ -181,4 +184,80 @@ test("a fixed card's row is shown only while no message embeds its record as a s
   // A slot of another kind never hides the record.
   const other = [...messages, slotting(3, "settle", "request")];
   assert.ok(ids(conversationTimeline(other, [approval])).includes("approval:request"));
+});
+
+const mandate = {
+  id: "mode-card",
+  kind: "trading_mode",
+  thread_id: "thread",
+  created_at: "2026-10-15T10:00:01Z",
+  timeline_seq: 2,
+} as unknown as OwnerAction;
+
+test("show latest lands on the message that embeds the card when its row is omitted", () => {
+  const embedded = slotting(2, "mandate", "mode-card");
+  const later = message("later", 3, "2026-10-15T10:00:03Z");
+  const rows = conversationTimeline(
+    [message("before", 1, "2026-10-15T10:00:00Z"), embedded, later],
+    [],
+    [mandate],
+  );
+  // The slot is the card's place, so the standalone row the old lookup required is absent.
+  assert.ok(!rows.some((row) => row.kind === "owner_action"));
+  const indexOf = (id: string) =>
+    [...rows].reverse().findIndex((item) => item.kind === "message" && item.message.id === id);
+  assert.equal(latestCardIndex(rows, "mode-card"), indexOf(embedded.id));
+  assert.notEqual(indexOf(embedded.id), 0);
+
+  // A newer copy the client does not draw is not the card. The drawn slot still is.
+  const asked = slotting(4, "mandate", "mode-card");
+  const hidden = new Set([asked.id]);
+  const withAsked = conversationTimeline(
+    [message("before", 1, "2026-10-15T10:00:00Z"), embedded, later, asked],
+    [],
+    [mandate],
+    hidden,
+  );
+  assert.equal(
+    latestCardIndex(withAsked, "mode-card", hidden),
+    [...withAsked]
+      .reverse()
+      .findIndex((item) => item.kind === "message" && item.message.id === embedded.id),
+  );
+
+  // Two drawn copies: Show latest goes to the newer one.
+  const again = slotting(5, "mandate", "mode-card");
+  const twice = conversationTimeline(
+    [message("before", 1, "2026-10-15T10:00:00Z"), embedded, again],
+    [],
+    [mandate],
+  );
+  assert.equal(
+    latestCardIndex(twice, "mode-card"),
+    [...twice]
+      .reverse()
+      .findIndex((item) => item.kind === "message" && item.message.id === again.id),
+  );
+});
+
+test("show latest lands on the card's own row when the timeline kept it", () => {
+  const rows = conversationTimeline(messages, [], [mandate]);
+  const own = [...rows]
+    .reverse()
+    .findIndex((item) => item.kind === "owner_action" && item.action.id === mandate.id);
+  assert.ok(own >= 0);
+  assert.equal(latestCardIndex(rows, mandate.id), own);
+  assert.equal(latestCardIndex(rows, "missing"), -1);
+  // A slot of another card does not hide this row, so Show latest stays on the row.
+  const mismatched = conversationTimeline(
+    [...messages, slotting(3, "settle", "mode-card")],
+    [],
+    [mandate],
+  );
+  assert.equal(
+    latestCardIndex(mismatched, "mode-card"),
+    [...mismatched]
+      .reverse()
+      .findIndex((item) => item.kind === "owner_action" && item.action.id === "mode-card"),
+  );
 });
