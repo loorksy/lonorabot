@@ -27,7 +27,11 @@ import {
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { FilePreviewPanel } from "../components/common/FilePreviewPanel";
 import { GenuiHost } from "../components/genui";
-import { OwnerActionCard, useOwnerActions } from "../components/owner-actions/OwnerActionCard";
+import {
+  OwnerActionCard,
+  ownerActionFolds,
+  useOwnerActions,
+} from "../components/owner-actions/OwnerActionCard";
 import { ExecutionReceiptCard } from "../components/trading/ExecutionReceipt";
 import { TradeApprovalCard, useTradeApprovals } from "../components/trading/TradeApprovals";
 import { useTheme } from "../hooks/useTheme";
@@ -870,7 +874,8 @@ export function Conversation({
           key={row.id}
           message={cardMessage(row.id, row.approval.agent_id, row.at, threadId)}
           previous={prev}
-          cardKind="card"
+          // Every fixed card has the same frame width (v38 msgMarkup: k-oa).
+          cardKind="oa"
           card={approvalCard(row.approval)}
         />,
       );
@@ -878,12 +883,13 @@ export function Conversation({
     }
     if (row.kind === "owner_action") {
       // A fixed card keeps its frame once decided (10.2.2): a tapped Mandate card keeps its width.
+      // A settled card of an old kind is one line (ownerActionFolds).
       body.push(
         <Message
           key={row.id}
           message={cardMessage(row.action.id, row.action.agent_id, row.at, threadId)}
           previous={prev}
-          cardKind="oa"
+          cardKind={ownerActionFolds(row.action) ? "line" : "oa"}
           card={ownerActionCard(row.action)}
         />,
       );
@@ -895,7 +901,7 @@ export function Conversation({
           key={row.id}
           message={cardMessage(row.id, row.receipt.agent_id ?? agentId, row.at, threadId)}
           previous={prev}
-          cardKind="card"
+          cardKind="oa"
           card={<ExecutionReceiptCard row={row.receipt} />}
         />,
       );

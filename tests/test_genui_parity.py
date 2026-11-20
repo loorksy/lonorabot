@@ -32,6 +32,9 @@ from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 FIXTURES = Path(__file__).parent / "fixtures/genui"
 PARITY = (FIXTURES / "documents/valid/parity.lonora-ui").read_text()
 SLOTS = (FIXTURES / "documents/valid/slot.lonora-ui").read_text()
+# The Trade Approval card. A Trade Approval is tall (SLOT_HEIGHTS: its tallest realistic
+# card), so its card holds the head and the slot alone; any other block would fold.
+APPROVAL = "\n".join(line for line in SLOTS.splitlines() if '"type":"Text"' not in line)
 # The settle card. A settle card is tall (SLOT_HEIGHTS), so its card
 # holds the head and the slot alone at rest; two slots would exceed 560 px.
 SETTLE = "\n".join(
@@ -84,7 +87,7 @@ async def compiled_documents() -> list[dict[str, Any]]:
     for text, past in (
         (reply(PARITY), history),
         (reply(), messages()),
-        (reply(SLOTS), history),
+        (reply(APPROVAL), history),
         (reply(SETTLE), history),
         (reply(MANDATE), history),
         (reply(SECRET), history),

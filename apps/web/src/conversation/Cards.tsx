@@ -319,18 +319,9 @@ export function OrderLine({ row, onOpen }: { row: Journal; onOpen: (row: Journal
   );
 }
 
-/** The order sheet: the timeline, the evidence, the broker ticket and the account (reference
- * odSheet, Desktop-38). Never a raw operation id, provisioning id or broker return code. */
-export function OrderSheetBody({
-  row,
-  account,
-  onResolve,
-}: {
-  row: Journal;
-  /** The account by its broker name (accountLabel), never the provisioning id. */
-  account?: string;
-  onResolve?: () => void;
-}) {
+/** The order sheet: the timeline, the evidence and the broker ticket (reference odSheet,
+ * Desktop-38). Never a raw operation id, provisioning id or broker return code. */
+export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: () => void }) {
   const line = orderLineState(row);
   const state = line.state;
   // The shared timeline (core orderLineState): a never-sent order reads Requested → Blocked
@@ -466,16 +457,6 @@ export function OrderSheetBody({
             </dt>
             <dd className="ltr">{line.ticket}</dd>
           </div>
-          {account && (
-            <div>
-              <dt>
-                <Trans>Account</Trans>
-              </dt>
-              <dd>
-                <bdi>{account}</bdi>
-              </dd>
-            </div>
-          )}
         </dl>
       )}
     </div>

@@ -503,25 +503,6 @@ export const labels = {
   webSearchOff: ["أُوقف البحث في الويب", "Web search turned off"],
   isTyping: ["{0} يكتب…", "{0} is typing…"],
   suggestedReply: ["رد مقترح: {0}", "Suggested reply: {0}"],
-  // The order line and its sheet (Web's wording).
-  odTradeOrder: ["أمر تداول", "Trade order"],
-  odLimitAt: ["محدد عند", "Limit at"],
-  odAtMarket: ["بسعر السوق", "At market price"],
-  odOwnerEvidence: [
-    "مسجَّل من تصريحك، وليس تأكيدًا من الوسيط",
-    "Recorded from your statement, not broker confirmation",
-  ],
-  odFillEvidence: ["دليل التنفيذ: تذكرة", "Fill evidence: ticket"],
-  odUncertain: [
-    "لم يصل تأكيد الوسيط، ولا تُعرض حالة «منفَّذ» قبل وصول الدليل.",
-    "The broker's confirmation did not arrive; «Filled» is never shown before the evidence.",
-  ],
-  odRejected: ["رفض الوسيط الأمر", "The broker rejected the order"],
-  odNotSent: ["لم يُرسَل إلى الوسيط", "Not sent to the broker"],
-  odWaiting: ["بانتظار رد الوسيط…", "Waiting for the broker's answer…"],
-  odResolve: ["حسم العملية", "Resolve the operation"],
-  odNoAnswer: ["لا رد من الوسيط", "No answer from the broker"],
-  odOpen: ["أمر {0}: {1}. اعرض التفاصيل", "Order {0}: {1}. Show details"],
   // «تجربة المحادثة» (Web's chat preferences), from the conversation's menu.
   chatPrefs: ["تجربة المحادثة", "Chat experience"],
   chatPrefsIntro: [

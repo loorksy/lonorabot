@@ -220,7 +220,7 @@ the owner types it into the card with the secret:
 A trading account is not one of these: `broker_connect` raises its own Secret card with
 the `broker` destination (`docs/owner-actions.md`).
 
-The card shows the names its values are saved under. Saving it
+The card names the fields it saves by their labels, never by these names. Saving it
 (`POST /owner-actions/{id}/secret`) stores the values encrypted and creates the
 connection in the same transaction:
 - A saved name is made unique, and one card's names share their number

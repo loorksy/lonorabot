@@ -2,8 +2,12 @@ import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
 import type { TradeApproval as Approval } from "@lonora/contracts";
 import {
+  approvalEndTone,
   approvalStatusText,
+  brokerPriceLabel,
   brokerTicketLabel,
+  brokerWordsLabel,
+  failedResultFallback,
   financialResultReason,
   orderLineAction,
 } from "@lonora/core";
@@ -27,13 +31,14 @@ const rank: Record<string, number> = {
 
 /**
  * The reason under a broker result, from the table Mobile reads too. Only a result
- * known not to have executed may fall back to the general error text; an uncertain
- * result always says it will not be sent again.
+ * known not to have executed may fall back to the error catalog, and a code it does not
+ * know reads the shared fallback, as on Mobile; an uncertain result always says it will
+ * not be sent again.
  */
 function resultReason(result: Approval["results"][number]): string | null {
   const shared = financialResultReason(result.status, result.code, i18n.locale);
   if (shared || result.status !== "failed" || !result.code) return shared;
-  return userError({ code: result.code });
+  return userError({ code: result.code }, failedResultFallback(i18n.locale));
 }
 
 function merge(previous: Approval[], rows: Approval[]) {
@@ -158,7 +163,8 @@ export function TradeApprovalCard({
 }) {
   const symbol = row.requests.find((request) => request.symbol)?.symbol;
   const status = row.status;
-  const done = status === "approved" || status === "completed";
+  // ok only once every result is confirmed; never a success look on a failure (0.4).
+  const tone = approvalEndTone(row);
   return (
     <div
       className={`mcard${status === "pending" ? "" : " is-done"}`}
@@ -288,8 +294,22 @@ export function TradeApprovalCard({
           </button>
         </div>
       ) : (
-        <div className={`od-ev${done ? " ok" : status === "drifted" ? " warn" : ""}`} role="status">
-          <Icon name={done ? "check" : status === "drifted" ? "alert" : "close"} />
+        <div
+          className={`od-ev${tone === "plain" ? "" : ` ${tone}`}`}
+          role="status"
+          data-trade-status-tone={tone}
+        >
+          <Icon
+            name={
+              tone === "ok"
+                ? "check"
+                : tone === "wait"
+                  ? "hourglass"
+                  : tone === "warn"
+                    ? "alert"
+                    : "close"
+            }
+          />
           <span data-trade-status-text>{approvalStatusText(status, i18n.locale)}</span>
         </div>
       )}
@@ -317,15 +337,25 @@ export function TradeApprovalCard({
                   <span>{resultReason(result)}</span>
                 </>
               )}
-              {/* The broker's own prices and words, as it returned them; never its raw codes or ids. */}
-              {Object.entries(result.details ?? {})
-                .filter(([key]) => RECEIPT_FIELDS.includes(key))
-                .map(([key, value]) => (
-                  <span key={key}>
-                    {" · "}
-                    <b className="ltr">{String(value)}</b>
-                  </span>
-                ))}
+              {/* The broker's own prices, as it returned them and labelled; never its raw
+                  codes or ids. */}
+              {RECEIPT_FIELDS.filter(
+                (key) => result.details?.[key] != null && result.details[key] !== "",
+              ).map((key) => (
+                <span key={key}>
+                  {" · "}
+                  {brokerPriceLabel(key, i18n.locale)}{" "}
+                  <b className="ltr">{String(result.details[key])}</b>
+                </span>
+              ))}
+              {/* The broker's own sentence, labelled as its words, after our reason. */}
+              {result.details?.description != null && result.details.description !== "" && (
+                <span data-trade-broker-words>
+                  {" · "}
+                  <b>{brokerWordsLabel(i18n.locale)}:</b>{" "}
+                  <bdi>{String(result.details.description)}</bdi>
+                </span>
+              )}
             </span>
           </div>
         ))}
@@ -340,7 +370,7 @@ export function TradeApprovalCard({
   );
 }
 
-const RECEIPT_FIELDS = ["price", "execution_price", "description"];
+const RECEIPT_FIELDS = ["price", "execution_price"] as const;
 
 export function TradeApprovals({
   threadId,

@@ -15,6 +15,7 @@ function simulation(data) {
 function seedCard(data) {
   const script = `
 import asyncio,json,sys
+from datetime import timedelta
 from uuid import uuid4
 sys.path.insert(0,'tests')
 from check_streaming import Fixture
@@ -49,6 +50,9 @@ async def main():
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
                 row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
+            if data.get('expired'):
+                # A stored card whose server lifetime ran out while the outcome stays unknown.
+                row.expires_at=utcnow()-timedelta(minutes=1)
             print(json.dumps({'id':row.id if row else None,'operation_id':fields.get('operation_id')}))
     finally:
         await f.close(cleanup=False)
@@ -176,6 +180,149 @@ for (const locale of ["ar", "en"])
       simulation({ ...data, action: "cleanup" });
     }
   });
+
+test("Expo ar: an expired Settle card asks again, then shows the newer card", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000);
+  const data = simulation({ action: "init", empty: true });
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+  };
+  const agent = await (
+    await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Renew ${randomUUID().slice(0, 6)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    })
+  ).json();
+  const thread = await (
+    await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+  ).json();
+  try {
+    const seeded = seedCard({
+      kind: "settle_operation",
+      account: data.account,
+      symbol: data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+      expired: true,
+    });
+    await page.goto(`/thread?id=${thread.id}`);
+    const card = page.getByTestId(`owner-action-${seeded.id}`);
+    const renew = card.getByRole("button", { name: "طلب جديد", exact: true });
+    await expect(renew).toBeVisible();
+    const [renewed] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/owner-actions/${seeded.id}/renew`),
+      ),
+      renew.click(),
+    ]);
+    expect(renewed.status()).toBe(200);
+    const fresh = await renewed.json();
+    // The fresh card waits for the same operation; the old one now shows it, and never asks
+    // again (the server would refuse a second renewal).
+    await expect(page.getByTestId(`owner-action-${fresh.id}`)).toBeVisible();
+    await expect(card.getByRole("button", { name: "عرض الأحدث", exact: true })).toBeVisible();
+    await expect(renew).toHaveCount(0);
+    // Settled, so its account can be removed: an unconfirmed operation blocks that.
+    const settled = await context.request.post(`/api/owner-actions/${fresh.id}/decision`, {
+      headers,
+      data: { decision: "confirm", outcome: "not_executed" },
+    });
+    expect(settled.ok()).toBeTruthy();
+  } finally {
+    await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    simulation({ ...data, action: "cleanup" });
+  }
+});
+
+test("Expo ar: a broker card whose connection failed says so, never that it is done", async ({
+  page,
+  context,
+}) => {
+  const data = simulation({ action: "init", empty: true });
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+  };
+  const agent = await (
+    await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Broker ${randomUUID().slice(0, 6)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    })
+  ).json();
+  const thread = await (
+    await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+  ).json();
+  try {
+    // A saved broker card whose provisioning failed (D3), as /owner-actions returns it.
+    const card = {
+      id: randomUUID(),
+      kind: "secret",
+      status: "confirmed",
+      status_reason: null,
+      superseded_by: null,
+      source: "agent",
+      agent_id: agent.id,
+      thread_id: thread.id,
+      run_id: null,
+      timeline_seq: 1,
+      facts: {
+        several_accounts: false,
+        secret: {
+          label: "70000001 @ Exness-MT5Trial16",
+          fields: [{ key: "PASSWORD", label: "كلمة مرور التداول", secret: true }],
+          destination: "broker",
+          agent_name: "Lonora",
+          account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+        },
+      },
+      requires_passkey: false,
+      result: { provisioning: "failed" },
+      expires_at: null,
+      decided_at: new Date().toISOString(),
+      decided_via: "owner",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await page.route("**/api/owner-actions?*", (route) => route.fulfill({ json: [card] }));
+    await page.goto(`/thread?id=${thread.id}`);
+    const shown = page.getByTestId(`owner-action-${card.id}`);
+    await expect(
+      shown.getByText("تعذّر الربط. أوضحت لونورا السبب في المحادثة.", { exact: true }),
+    ).toBeVisible();
+    await expect(shown.getByText("حُفظت مشفّرة. لا يرى أي وكيل القيم.")).toHaveCount(0);
+  } finally {
+    await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    simulation({ ...data, action: "cleanup" });
+  }
+});
 
 const mandate = {
   ar: { full: "وكّله", ask: "يستأذن", askNow: "الآن: يستأذن", fullNow: "الآن: وكّله" },

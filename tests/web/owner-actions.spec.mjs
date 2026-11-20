@@ -15,6 +15,7 @@ function simulation(data) {
 function seedCard(data) {
   const script = `
 import asyncio,json,sys
+from datetime import timedelta
 from uuid import uuid4
 sys.path.insert(0,'tests')
 from check_streaming import Fixture
@@ -51,6 +52,9 @@ async def main():
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
                 row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
+            if data.get('expired'):
+                # A stored card whose server lifetime ran out while the outcome stays unknown.
+                row.expires_at=utcnow()-timedelta(minutes=1)
             print(json.dumps({'id':row.id if row else None,'operation_id':fields.get('operation_id')}))
     finally:
         await f.close(cleanup=False)
@@ -142,6 +146,8 @@ const copy = {
   en: {
     settleKind: "Unconfirmed operation",
     resolveTitle: "The broker did not confirm this trade",
+    hold: "New risk on this market is held until it settles; exits stay allowed.",
+    renew: "New request",
     notExecuted: "It did not execute",
     unknown: "Unknown",
     recorded: "Recorded: it did not execute (your statement, not broker confirmation).",
@@ -154,8 +160,11 @@ const copy = {
     ownExcluded: "Positions you opened yourself are excluded",
   },
   ar: {
-    settleKind: "عملية غير مؤكدة",
+    settleKind: "عملية غير مؤكَّدة",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
+    hold: "المخاطرة الجديدة على هذا السوق معلّقة حتى تُحسم؛ يبقى الخروج متاحًا.",
+    renew: "طلب جديد",
+    latest: "عرض الأحدث",
     notExecuted: "لم تُنفذ",
     unknown: "غير معروفة",
     recorded: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
@@ -237,6 +246,10 @@ for (const locale of ["en", "ar"])
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.signed);
       await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
+      // A grant is not one of the five fixed cards: settled, it stays one line until W-AUTH
+      // deletes the kind; only the fixed cards keep their whole frame (10.2.2).
+      await expect(card).toHaveClass(/\boa-line\b/);
+      await expect(page.locator(".msg.k-line", { has: card })).toHaveCount(1);
       const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
       // The challenge names the choice the card showed: Custom, with its own switch.
       expect(challenges.at(-1)).toEqual({ delegation: "custom", allow_manual_positions: false });
@@ -603,8 +616,10 @@ for (const locale of ["en", "ar"])
       await expect(card.locator(".oa-title")).toHaveText(text.resolveTitle);
       await expect(card.locator(".oa-exp")).toHaveCount(0);
       await expect(card.locator("[data-owner-action-button]")).toHaveCount(3);
-      // "Unknown" says that it releases the hold; it never reads as "wait".
       await expect(card.locator('[data-owner-action-button="unknown"]')).toHaveText(text.unknown);
+      // The hint keeps the true safety sentence: new risk on this market stays held while the
+      // outcome is unknown, and exits stay allowed (admission; 6).
+      await expect(card.locator(".oa-hint")).toContainText(text.hold);
       await expect(card.getByText(state.data.symbol)).toBeVisible();
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
@@ -637,3 +652,102 @@ for (const locale of ["en", "ar"])
       await state.cleanup();
     }
   });
+
+test("ar: an expired Settle card keeps its frame and asks again from inside it", async ({
+  page,
+  context,
+}) => {
+  const text = copy.ar;
+  const state = await setup(context, "ar");
+  try {
+    const seeded = seedCard({
+      kind: "settle_operation",
+      account: state.account,
+      symbol: state.data.symbol,
+      agent: state.agent.id,
+      thread: state.thread.id,
+      expired: true,
+    });
+    await page.goto(`/app/${state.agent.id}`);
+    const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+    await expect(card).toHaveAttribute("data-owner-action-status", "expired");
+    // Never folded (10.2.2): its kind, title and operation, with «طلب جديد» inside the frame.
+    await expect(card.locator(".oa-kind")).toHaveText(text.settleKind);
+    await expect(card.locator(".oa-title")).toHaveText(text.resolveTitle);
+    await expect(card.getByText(state.data.symbol)).toBeVisible();
+    await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
+    const [renewed] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/owner-actions/${seeded.id}/renew`),
+      ),
+      card.locator(".oa-actions").getByRole("button", { name: text.renew, exact: true }).click(),
+    ]);
+    expect(renewed.status()).toBe(200);
+    // «طلب جديد» asks again: a fresh card for the same operation waits; nothing is decided.
+    const fresh = await renewed.json();
+    expect(fresh.id).not.toBe(seeded.id);
+    expect(fresh.kind).toBe("settle_operation");
+    expect(fresh.status).toBe("pending");
+    expect(fresh.facts.operation.operation_id).toBe(seeded.operation_id);
+    // Once renewed, the old card shows the newer one, never «طلب جديد» again (which the
+    // server would refuse).
+    await page.reload();
+    await expect(card).toHaveAttribute("data-owner-action-status", "expired");
+    await expect(card.getByRole("button", { name: text.renew, exact: true })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: text.latest, exact: true })).toBeVisible();
+    await expect(page.locator(`[data-owner-action="${fresh.id}"]`)).toHaveCount(1);
+  } finally {
+    await state.cleanup();
+  }
+});
+
+test("ar: a broker card whose connection failed shows its failed end state inside the frame", async ({
+  page,
+  context,
+}) => {
+  const state = await setup(context, "ar");
+  try {
+    // A saved broker card whose provisioning failed (D3), as /owner-actions returns it.
+    const card = {
+      id: randomUUID(),
+      kind: "secret",
+      status: "confirmed",
+      status_reason: null,
+      superseded_by: null,
+      source: "agent",
+      agent_id: state.agent.id,
+      thread_id: state.thread.id,
+      run_id: null,
+      timeline_seq: 1,
+      facts: {
+        several_accounts: false,
+        secret: {
+          label: "70000001 @ Exness-MT5Trial16",
+          fields: [{ key: "PASSWORD", label: "كلمة مرور التداول", secret: true }],
+          destination: "broker",
+          agent_name: "Lonora",
+          account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+        },
+      },
+      requires_passkey: false,
+      result: { provisioning: "failed" },
+      expires_at: null,
+      decided_at: new Date().toISOString(),
+      decided_via: "owner",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await page.route("**/api/owner-actions?*", (route) => route.fulfill({ json: [card] }));
+    await page.goto(`/app/${state.agent.id}`);
+    const frame = page.locator(`[data-owner-action="${card.id}"]`);
+    await expect(frame).toHaveAttribute("data-owner-action-kind", "secret");
+    // Never folded, and its end state is the failure in the neutral tint, never «Done».
+    await expect(page.locator(".oa-line")).toHaveCount(0);
+    const done = frame.locator(".oa-done");
+    await expect(done).toHaveText("تعذّر الربط. أوضحت لونورا السبب في المحادثة.");
+    await expect(done).toHaveClass(/\bbad\b/);
+    await expect(done).toHaveAttribute("data-owner-action-failed", "true");
+  } finally {
+    await state.cleanup();
+  }
+});

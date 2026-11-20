@@ -87,22 +87,31 @@ HEIGHTS = {
 }
 # A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
 # journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
-# counts toward the 560 px budget like any block, and is never folded). The Secret and
-# Mandate cards are counted at their tallest for an 80-character name of words (the
-# contract's longest), which is the English card, whose lines are longer; a Secret card
-# without the line below. A Secret card grows with the fields the agent asked for: 365 px
-# and 95 px a field (measured 460 px for one field, 555 for two, 650 for three with an
-# Arabic or a Latin name, a broker card's two fields 550; the Arabic card 440, 535 and 630,
-# and 398, 493 and 588 with a short name). A Mandate card is counted with Ask and a signed
-# grant's line (measured 404 px with an Arabic or a Latin name; the Arabic card 362 px, 386
-# with a Latin name). A name of wide capitals (W, M) wraps further: a Mandate card up to
-# 500 px, a Secret card 63 px more. Not counted: a Secret card that replaces values already
-# saved (never a broker card) shows one more line, 48 px more for one field, 69 for two, 90
-# for three. Counting it would make every two-field card that can show it fall back
-# (100 + 555 + 69 = 724 px), and the clients read it when the card is shown, after it was
-# compiled. Such a card is that much taller than counted: a two-field one with that name,
-# about 724 px, is not caught by the 720 px rule.
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 405, "secret": 365}
+# counts toward the 560 px budget like any block, and is never folded). A Trade Approval is
+# counted at its tallest realistic shape: a pending entry with stop loss and take profit, the
+# tolerance row and a two-line reason (measured 393 px in Arabic and in English), and decided
+# with a non-confirmed result line (a broker refusal 464 and 485 px; an outcome the broker
+# never confirmed, with its ticket, 505 px in Arabic under every code the executor records,
+# and in English 526 px for broker_result_ambiguous and 546 px for broker_result_mismatch
+# and execution_interrupted_after_send). Not counted: a modify_order with its ticket row is
+# 34 px taller (427 px pending, up to 580 px decided), so its card can render past 720 px
+# while counted under it. The Secret and Mandate cards are counted at their tallest for an
+# 80-character name of words (the contract's longest), which is the English card, whose lines
+# are longer; a Secret card without the line below. A Secret card grows with the fields the
+# agent asked for: 365 px and 95 px a field (measured with short field labels, «Key 1»: 460 px
+# for one field and 534 for two with an Arabic or a Latin name, a broker card's two fields
+# 550; the Arabic card 440 and 514, and 398 and 472 with a short name; three fields always
+# fall back). A Mandate card is counted with Ask and a signed grant's line (measured 404 px
+# with an Arabic or a Latin name; the Arabic card 362 px, 386 with a Latin name). A name of
+# wide capitals (W, M) wraps further: a Mandate card up to 500 px, a Secret card 42 px more.
+# Not counted: a Secret card that replaces values already saved (never a broker card) shows
+# one more line, 48 px more for one or two fields; and field labels at the contract's longest
+# (60 characters) wrap the form and its saving lines, up to 574 px for one field and 756 px
+# for two (both with that line). Counting them would make every two-field card that can show
+# them fall back, and the clients read the saved values when the card is shown, after it was
+# compiled: such a card is that much taller than counted, and is not caught by the 720 px
+# rule.
+SLOT_HEIGHTS = {"trade_approval": 550, "settle": 460, "mandate": 405, "secret": 365}
 SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
@@ -116,6 +125,8 @@ FIXED_LABELS = (
     "موافقة",
     "Reject",
     "رفض",
+    "Unconfirmed operation",
+    "عملية غير مؤكَّدة",
     "The broker did not confirm this trade",
     "الوسيط لم يؤكد هذه الصفقة",
     "It executed",

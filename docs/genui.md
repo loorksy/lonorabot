@@ -143,24 +143,35 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   agent's own field presses the agent's own primary Button only, never a button inside a slot,
   and a sent card dims its own blocks, never a slot.
 - **Budget (10.1.4).** A slot counts its height toward the 560 px resting height and is one
-  of the 6 visible blocks: trade approval 230 px, settle 460 px and mandate 405 px (its
+  of the 6 visible blocks: trade approval 550 px (its tallest realistic card: a pending entry
+  with stop loss and take profit, the tolerance row and a two-line reason, measured 393 px in
+  both languages, and decided with a non-confirmed result line, up to 546 px for the English
+  card whose outcome the broker never confirmed under `broker_result_mismatch` or
+  `execution_interrupted_after_send`, 526 px under `broker_result_ambiguous`, 505 px in Arabic
+  under each; a card holding it is over the resting height by itself, 650 px with its head,
+  so its other blocks fold and a second slot makes it fall back; a decided entry card renders
+  up to 706 px. Not counted: a `modify_order` with its ticket row is 34 px taller, up to
+  580 px decided, so its card renders up to 740 px while counted under 720), settle 460 px
+  and mandate 405 px (its
   tallest for an 80-character name of words, Ask and a signed grant's line, which is the
   English card: measured 404 px, the Arabic card 362 px and 386 with a Latin name; a name of
   wide capitals such as W and M wraps further, up to 500 px); a Secret card 365 px and 95 px for
   each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads the field
   count), its tallest for an 80-character name of words without the line below, which is the
-  English card: measured 460, 555 and 650 px for one, two and three fields with an Arabic or a
-  Latin name, a broker card's two fields 550, the Arabic card 440, 535 and 630 (398, 493 and
-  588 with a short name); a name of wide capitals adds 63 px to it. Each is measured at
-  390 px with its frame by the web "Slots" journey, the Mandate and Secret cards in both
-  languages. The agent's other blocks fold first; a slot is never folded, and a card over
-  720 px falls back, which brings the record's row back (a Secret card of three fields or more
-  always does). One limit: a Secret card that replaces values already saved (never a broker
-  card) shows one more line, 48 px more for one field, 69 for two and 90 for three, and it is
-  not counted. Counting it would make every two-field card that can show it fall back
-  (724 px), and the clients read it when the card is shown, after it was compiled. Such a card
-  is that much taller than counted: a two-field one with the longest English name, about
-  724 px, is not caught by the 720 px rule.
+  English card: measured with short field labels («Key 1») 460 and 534 px for one and two
+  fields with an Arabic or a Latin name, a broker card's two fields 550, the Arabic card 440
+  and 514 (398 and 472 with a short name); a name of wide capitals adds 42 px to it. Each is
+  measured at 390 px with its frame by the web "Slots" journeys, the Trade Approval, Mandate
+  and Secret cards in both languages. The agent's other blocks fold first; a slot is never
+  folded, and a card over 720 px falls back, which brings the record's row back (a Secret card
+  of three fields or more always does). Two limits, not counted: a Secret card that replaces
+  values already saved (never a broker card) shows one more line, 48 px more for one or two
+  fields; and field labels at the contract's longest (60 characters) wrap the form and its
+  saving lines, up to 574 px for one field and 756 px for two (both with that line). Counting
+  them would make every two-field card that can show them fall back, and the clients read the
+  saved values when the card is shown, after it was compiled. Such a card is that much taller
+  than counted: a two-field one with the longest labels, about 916 px with its head, is not
+  caught by the 720 px rule.
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
   standalone row while a loaded assistant message of the conversation draws it as a slot
   (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is

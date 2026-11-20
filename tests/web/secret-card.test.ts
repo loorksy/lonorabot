@@ -102,7 +102,7 @@ test("the values go only to the card's own route", async () => {
   assert.deepEqual(answer, { id: "card/1", status: "confirmed" });
 });
 
-test("a Secret card says, in our words, where each value goes and what it replaces", () => {
+test("a Secret card says, in our words, what each value is saved as and what it replaces", () => {
   const rotating: OwnerAction = {
     ...card,
     facts: {
@@ -118,16 +118,14 @@ test("a Secret card says, in our words, where each value goes and what it replac
     const text = ownerActionLabels[locale];
     const lines = ownerActionCard(rotating, locale).lines;
     const separator = locale === "ar" ? "، " : ", ";
+    // By the fields' own labels, never the workspace names they are stored under (17).
+    const [key, user] = secret.fields.map((field) => isolated(String(field.label)));
     assert.ok(
-      lines.includes(
-        text.secretSavesAs.replace(
-          "{names}",
-          [isolated("BINANCE_API_KEY"), isolated("BINANCE_USER")].join(separator),
-        ),
-      ),
+      lines.includes(text.secretSavesAs.replace("{fields}", [key, user].join(separator))),
       lines.join(" | "),
     );
-    assert.ok(lines.includes(text.secretReplaces.replace("{names}", isolated("BINANCE_API_KEY"))));
+    assert.ok(lines.includes(text.secretReplaces.replace("{fields}", key)), lines.join(" | "));
+    assert.ok(!lines.some((line) => /BINANCE_/.test(line)), lines.join(" | "));
   }
 });
 

@@ -49,7 +49,10 @@ export const ownerActionLabels = {
     anAgent: "an agent",
     settleKind: "Unconfirmed operation",
     resolveTitle: "The broker did not confirm this trade",
-    resolveHint: "It will not be sent again.",
+    // The hold the server keeps (admission: an unresolved operation holds new risk on its
+    // market), in the safety capsule's own words (trading-readiness).
+    resolveHint:
+      "It will not be sent again. New risk on this market is held until it settles; exits stay allowed.",
     resolveRecord: "Your answer is recorded as your statement, not as broker confirmation.",
     executed: "It executed",
     notExecuted: "It did not execute",
@@ -216,8 +219,8 @@ export const ownerActionLabels = {
       "Saved encrypted for your broker connection only. It never enters the chat or the workspace, and no agent sees it.",
     secretSave: "Save",
     secretSaved: "Saved encrypted. No agent sees the values.",
-    secretSavesAs: "Saved as {names}",
-    secretReplaces: "Replaces the value saved as {names}",
+    secretSavesAs: "Saves: {fields}",
+    secretReplaces: "Replaces what was saved before: {fields}",
     brokerConnectTitle: "Connect trading account",
     brokerRotateTitle: "New trading password",
     brokerTokenNew: "New MetaApi API token",
@@ -236,10 +239,6 @@ export const ownerActionLabels = {
     deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
     statusPending: "Waiting for your decision",
     statusConfirmed: "Done",
-    statusFailed: "Failed",
-    statusSaved: "Saved",
-    statusConnecting: "Connecting",
-    statusChanging: "Changing",
     statusCancelled: "Cancelled",
     statusExpired: "Expired",
     statusSuperseded: "Replaced",
@@ -263,9 +262,9 @@ export const ownerActionLabels = {
     until: "حتى",
     fromYourMessage: "من رسالتك",
     anAgent: "وكيل",
-    settleKind: "عملية غير مؤكدة",
+    settleKind: "عملية غير مؤكَّدة",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
-    resolveHint: "لن تُرسل مجددًا.",
+    resolveHint: "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُحسم؛ يبقى الخروج متاحًا.",
     resolveRecord: "تُسجَّل إجابتك كتصريح منك، لا كتأكيد من الوسيط.",
     executed: "نُفذت",
     notExecuted: "لم تُنفذ",
@@ -427,8 +426,8 @@ export const ownerActionLabels = {
       "تُحفظ مشفّرة لاتصال الوسيط فقط. لا تدخل المحادثة ولا مساحة العمل، ولا يراها أي وكيل.",
     secretSave: "حفظ",
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
-    secretSavesAs: "تُحفظ باسم {names}",
-    secretReplaces: "تحلّ محل القيمة المحفوظة باسم {names}",
+    secretSavesAs: "تُحفظ: {fields}",
+    secretReplaces: "تحلّ محل ما حُفظ سابقًا: {fields}",
     brokerConnectTitle: "ربط حساب التداول",
     brokerRotateTitle: "كلمة مرور تداول جديدة",
     brokerTokenNew: "رمز MetaApi API الجديد",
@@ -446,10 +445,6 @@ export const ownerActionLabels = {
     deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
     statusPending: "بانتظار قرارك",
     statusConfirmed: "تم",
-    statusFailed: "تعذّر",
-    statusSaved: "حُفظ",
-    statusConnecting: "جارٍ الربط",
-    statusChanging: "جارٍ التغيير",
     statusCancelled: "أُلغي",
     statusExpired: "انتهت المهلة",
     statusSuperseded: "استُبدل",
@@ -536,12 +531,9 @@ export function brokerPurpose(
 }
 
 /**
- * The status chip beside a card's title. A saved broker card's chip says how provisioning
- * stands, as its line does at length: "Done" only once the terminal answered a read (a
- * connection) or MetaApi took the change (a new password or token); never beside a failed
- * connection, one saved without a balance, or one still being made.
+ * A saved broker card whose provisioning failed: its end state in the frame says so in the
+ * neutral tint, never the success one.
  */
-/** A saved broker card whose provisioning failed: its line and chip say so, never "Done". */
 export function brokerCardFailed(card: OwnerAction): boolean {
   return (
     card.status === "confirmed" &&
@@ -550,19 +542,12 @@ export function brokerCardFailed(card: OwnerAction): boolean {
   );
 }
 
+/**
+ * The status beside a folded card's kind (DecisionLine). Only kinds outside the fixed cards
+ * fold, so a Secret card, broker or not, never shows it: its frame says how it ended.
+ */
 export function ownerActionStatus(card: OwnerAction, locale: string): string {
   const text = ownerActionText(locale);
-  const purpose = card.status === "confirmed" ? brokerPurpose(card) : null;
-  if (purpose)
-    return card.result.provisioning === "failed"
-      ? text.statusFailed
-      : card.result.provisioning === "connected"
-        ? text.statusConfirmed
-        : card.result.provisioning === "linked"
-          ? text.statusSaved
-          : purpose === "connect"
-            ? text.statusConnecting
-            : text.statusChanging;
   return {
     pending: text.statusPending,
     confirmed: text.statusConfirmed,
@@ -1023,6 +1008,27 @@ function secretForm(
 }
 
 /**
+ * The labels of the fields a Secret card saves under these workspace names: the agent's card
+ * saves each field under its own key, a model provider's card its key under the provider's
+ * name, and a connecting card its fields in order. Never the names themselves (17).
+ */
+function savedLabels(
+  secret: NonNullable<OwnerAction["facts"]["secret"]>,
+  fields: SecretForm["fields"],
+  names: string[],
+): string[] {
+  return names.flatMap((name, index) => {
+    const field =
+      secret.connect === "model_provider"
+        ? fields[secret.fields.findIndex((item) => item.role === "api_key")]
+        : secret.connect
+          ? fields[index]
+          : fields.find((item) => item.key === name);
+    return field ? [field.label] : [];
+  });
+}
+
+/**
  * Save a Secret card: the owner's values go to the card's own route, which stores them
  * encrypted and settles the card in one transaction; it answers with the card as saved.
  */
@@ -1285,11 +1291,14 @@ export function ownerActionCard(
           lines.push(`${text.fieldName}: ${isolate(details.name)}`);
         if (secret.agent_name)
           lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
-        // Where each value goes, and the saved values it would replace: never silently.
-        if (secret.saves_as?.length)
-          lines.push(fill(text.secretSavesAs, { names: nameList(secret.saves_as, lang) }));
-        if (secret.replaces?.length)
-          lines.push(fill(text.secretReplaces, { names: nameList(secret.replaces, lang) }));
+        form = secretForm(secret, text);
+        // What each value is saved as, and the saved values it would replace: never silently,
+        // and by the field's label, never by the workspace name it is stored under (17).
+        const saves = savedLabels(secret, form.fields, secret.saves_as ?? []);
+        if (saves.length) lines.push(fill(text.secretSavesAs, { fields: nameList(saves, lang) }));
+        const replaces = savedLabels(secret, form.fields, secret.replaces ?? []);
+        if (replaces.length)
+          lines.push(fill(text.secretReplaces, { fields: nameList(replaces, lang) }));
         hint =
           secret.connect === "model_provider"
             ? secret.fields.some((field) => field.role === "server_url")
@@ -1302,7 +1311,6 @@ export function ownerActionCard(
                 : secret.service === "x"
                   ? `${text.connectHint} ${text.connectXHint}`
                   : text.connectHint;
-        form = secretForm(secret, text);
       }
       // Save is the form's own submit: the values go to the card's route, never here.
       buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];

@@ -9,7 +9,8 @@ import {
   supervisionError,
 } from "@lonora/core";
 import { isRequestCancelled } from "./api";
-export function userError(error: unknown) {
+/** `fallback`: the text for a code this catalog does not know, instead of the general one. */
+export function userError(error: unknown, fallback?: string) {
   if (isRequestCancelled(error)) return "";
   const code = errorCode(error);
   const permissionMessage = agentPermissionError(code, i18n.locale);
@@ -214,6 +215,6 @@ export function userError(error: unknown) {
     case "tool_round_limit":
       return t`I paused at this run's step budget. Send a message and I continue from here.`;
     default:
-      return t`The request could not be completed. Try again.`;
+      return fallback ?? t`The request could not be completed. Try again.`;
   }
 }

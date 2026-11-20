@@ -279,6 +279,9 @@ const ALLOWED = {
   ".ux": ["height"],
   ".ux-body": ["height"],
   ".ux-picks": ["height"],
+  // v38 raised the field hint from --faint to --muted for contrast (Desktop-38 2271); the
+  // port follows v38, Desktop-37 still draws it faint. Its border colour is currentColor.
+  ".ux-field > label small": ["color", "border-top-color"],
 };
 
 async function probe(page) {
@@ -466,6 +469,85 @@ test("Parity: the web card draws every node the server accepts and runs every ac
   }
 });
 
+// The Trade Approval at its tallest realistic shape, in Arabic and in English at 390 px: a
+// pending entry with stop loss and take profit, the tolerance row and a two-line reason; and
+// decided, with a non-confirmed result line: a broker refusal, or an outcome never confirmed
+// under each code the executor records for it (core uncertainMessages). SLOT_HEIGHTS counts
+// the tallest of them.
+const APPROVAL_SLOT = 550;
+const TALL_REASON = {
+  ar: "اختراق فوق 2,400 مع افتتاح لندن، والوقف تحت القاع.",
+  en: "Breakout above 2,400 at the London open.",
+};
+
+test("Slots: the Trade Approval slot at its tallest fits the height the compiler counts", async ({
+  page,
+  context,
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const fixture = await open(page, context);
+  const english = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+  try {
+    const ids = python("records", fixture.input);
+    python("slots", { ...fixture.input, record: ids.approval });
+    await english.addCookies(
+      fixture.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await english.addInitScript(() => {
+      localStorage.setItem("lonora.locale", "en");
+      localStorage.setItem("lonora.theme", JSON.stringify("dark"));
+    });
+    const en = await english.newPage();
+    await en.setViewportSize({ width: 390, height: 844 });
+    for (const [result, code] of [
+      [undefined],
+      ["failed"],
+      ["uncertain", "broker_result_ambiguous"],
+      ["uncertain", "broker_result_mismatch"],
+      ["uncertain", "execution_interrupted_after_send"],
+    ])
+      for (const [locale, target] of [
+        ["ar", page],
+        ["en", en],
+      ]) {
+        python("tallest_approval", {
+          ...fixture.input,
+          record: ids.approval,
+          reason: TALL_REASON[locale],
+          result,
+          code,
+        });
+        await target.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+        const slot = target.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
+        const shown = slot.locator(`[data-trade-approval="${ids.approval}"]`);
+        await expect(shown).toHaveAttribute("data-trade-status", result ? "completed" : "pending");
+        await expect(shown.locator("[data-trade-reason] bdi")).toHaveText(TALL_REASON[locale]);
+        if (result) await expect(shown.locator("[data-trade-result]")).toBeVisible();
+        // The reason is two lines at this width, as the budget counts it.
+        const lines = await shown.locator("[data-trade-reason] > span").evaluate((node) => {
+          const style = getComputedStyle(node);
+          return Math.round(
+            node.getBoundingClientRect().height / Number.parseFloat(style.lineHeight),
+          );
+        });
+        expect(lines, `${locale} ${code ?? result ?? "pending"} reason lines`).toBe(2);
+        const height = (await slot.boundingBox()).height;
+        expect(height, `${locale} ${code ?? result ?? "pending"}`).toBeLessThanOrEqual(
+          APPROVAL_SLOT,
+        );
+      }
+  } finally {
+    await english.close();
+    await fixture.cleanup();
+  }
+});
+
 test("Slots: a fixed card in the agent's card is the live record, and its row steps aside", async ({
   page,
   context,
@@ -505,7 +587,12 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
         await expect(frame).not.toContainText(forged);
     }
     // Enter in the agent's own Number field never reaches the fixed card's buttons: the
-    // approval is still pending on the server afterwards.
+    // approval is still pending on the server afterwards. The Trade Approval is counted at its
+    // tallest, so the agent's own blocks fold under More; the slot never does (10.2.2).
+    await page
+      .locator(".ux", { has: page.locator('.ux-slot[data-slot-card="trade_approval"]') })
+      .getByRole("button", { name: "المزيد" })
+      .click();
     const lots = page.getByLabel("الحجم المقترح");
     await lots.fill("0.2");
     await lots.press("Enter");
@@ -517,8 +604,8 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
     // Each slot fits the height the compiler counts for it at rest at 390 px (SLOT_HEIGHTS in
-    // genui_compile.py: trade approval 230 px, settle 460 px, mandate 405 px, frame included).
-    expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
+    // genui_compile.py: trade approval 550 px, settle 460 px, mandate 405 px, frame included).
+    expect((await slot.boundingBox()).height).toBeLessThanOrEqual(APPROVAL_SLOT);
     expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
     // The Mandate card in its slot: the agent's mode read live and one button for the other
     // mode (mandate 10.3), which is the card's own action on the owner session.

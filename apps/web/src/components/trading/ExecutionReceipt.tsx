@@ -54,7 +54,8 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
           )}
           {row.agent_id == null && ` · ${ownerActionText(i18n.locale).byYou}`}
         </strong>
-        <dl className="mcard-facts">
+        {/* The broker's facts as the Trade Approval's label/value rows (v38 oaDL). */}
+        <dl className="oa-dl">
           {facts
             .filter(([, value]) => value != null && value !== "")
             .map(([label, value]) => (

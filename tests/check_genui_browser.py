@@ -24,6 +24,10 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``tallest_mandate`` the conversation's agent with every line its Mandate card can show: an
             80-character name (the contract's longest) and an active signed grant; it is in
             Ask, whose line is the longer.
+``tallest_approval`` the ``record`` approval at its tallest realistic shape: a pending entry
+            with stop loss and take profit, the tolerance row and the agent's ``reason``; with
+            ``result`` ("failed" or "uncertain"), decided, with that non-confirmed result line,
+            an uncertain one under the executor's ``code`` (default broker_result_ambiguous).
 """
 
 import asyncio
@@ -494,6 +498,65 @@ async def tallest_mandate(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+# A decided approval's non-confirmed result, as the trade tool records it: a broker refusal
+# with its own sentence, or an outcome the broker never confirmed, with its ticket.
+APPROVAL_RESULTS: dict[str, dict[str, Any]] = {
+    "failed": {
+        "status": "failed",
+        "code": "broker_rejected",
+        "details": {"price": "2360.00", "description": "Not enough money"},
+    },
+    "uncertain": {
+        "status": "ambiguous",
+        "code": "broker_result_ambiguous",
+        "broker_id": "50071",
+        "details": {},
+    },
+}
+
+
+async def tallest_approval(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.schema import TradeApprovalRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(TradeApprovalRow, data["record"])
+            assert row is not None
+            # The result is read by its request's operation (routes/trading.py approvals).
+            operation = uuid4().hex
+            row.requests = [
+                {
+                    **row.requests[0],
+                    "operation_id": operation,
+                    "action": "buy_limit",
+                    "price": "2360.00",
+                    "stop_loss": "2345.50",
+                    "take_profit": "2392.00",
+                }
+            ]
+            # The executable side read when the card was made, inside the band (no drift).
+            row.validity = {
+                "tolerance": "1.50",
+                "reference": {
+                    "account_id": data["connection"],
+                    "symbol": "XAUUSD",
+                    "side": "ask",
+                    "price": QUOTES["XAUUSD"],
+                },
+            }
+            row.reason = data["reason"]
+            result = data.get("result")
+            row.status = "completed" if result else "pending"
+            code = {"code": data["code"]} if result == "uncertain" and data.get("code") else {}
+            row.results = (
+                [{"operation_id": operation, **APPROVAL_RESULTS[result], **code}] if result else []
+            )
+        return {}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
     command = sys.argv[1]
     payload = json.loads(sys.stdin.read() or "{}")
@@ -507,5 +570,6 @@ if __name__ == "__main__":
         "records": records,
         "slots": slots,
         "tallest_mandate": tallest_mandate,
+        "tallest_approval": tallest_approval,
     }[command]
     print(json.dumps(asyncio.run(action(payload))))

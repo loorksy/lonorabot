@@ -68,18 +68,20 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
       await route.fulfill({ json: approval });
     });
     await page.goto(`/thread?id=${thread.id}`);
-    await expect(
-      page.getByText("close_position · BTCUSD.demo · manual-ticket-5", { exact: true }),
-    ).toBeVisible();
+    // The request in words with its ticket as a labelled row (v38), never the raw action id.
+    await expect(page.getByText("إغلاق صفقة", { exact: true })).toBeVisible();
+    await expect(page.getByText("تذكرة الوسيط", { exact: true })).toBeVisible();
+    await expect(page.getByText("manual-ticket-5", { exact: true })).toBeVisible();
+    await expect(page.getByText(/close_position/)).toHaveCount(0);
     await page.getByRole("button", { name: "موافقة", exact: true }).click();
-    // A broker reference is labeled, never a bare number; the shared table names the stage.
-    const ticket = page.getByText("تذكرة الوسيط: manual-ticket-5", { exact: true });
-    await expect(ticket).toBeVisible();
-    await expect(page.getByText("65000.25", { exact: true })).toBeVisible();
-    await expect(page.getByText("نتيجة الوسيط", { exact: true })).toBeVisible();
+    // Every result the broker confirmed: the end state reads as a success, and the confirmed
+    // fill itself is shown once, as its Execution Receipt (10.3), never on this card.
+    const done = page.getByTestId("trade-approval-status-ok");
+    await expect(done).toHaveText("نتيجة الوسيط");
+    await expect(page.getByText("65000.25", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
     await page.reload();
-    await expect(ticket).toBeVisible();
+    await expect(done).toBeVisible();
     expect(decisions).toBe(1);
     const rejected = {
       ...approval,
@@ -105,9 +107,8 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
       await route.fulfill({ json: rejected });
     });
     await page.reload();
-    await expect(page.getByText("تداول ظلي — أوامر افتراضية فقط", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "رفض", exact: true }).click();
-    await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("trade-approval-status-plain")).toHaveText("مرفوض — لم يُرسل شيء");
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
     // An uncertain result reads the same shared reason as Web and never says "try again".
     const uncertain = {
@@ -127,6 +128,9 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
     await page.unroute("**/api/trading/approvals?*");
     await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [uncertain] }));
     await page.reload();
+    // Completed, but the broker never confirmed it: a warning, never a success (D2).
+    await expect(page.getByTestId("trade-approval-status-warn")).toHaveText("نتيجة الوسيط");
+    await expect(page.getByTestId("trade-approval-status-ok")).toHaveCount(0);
     await expect(page.getByText("نتيجة غير مؤكدة — لن تُرسل مجددًا", { exact: true })).toBeVisible();
     await expect(
       page.getByText(

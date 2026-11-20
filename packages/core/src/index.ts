@@ -105,8 +105,12 @@ export {
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export {
+  approvalEndTone,
   approvalStatusText,
+  brokerPriceLabel,
   brokerTicketLabel,
+  brokerWordsLabel,
+  failedResultFallback,
   financialBoundaryError,
   financialResultReason,
   type OperationStatusKey,

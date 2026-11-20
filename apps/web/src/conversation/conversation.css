@@ -3496,7 +3496,8 @@ p.pad {
 }
 .oa.st-cancelled .oa-done,
 .oa.st-expired .oa-done,
-.oa.st-superseded .oa-done {
+.oa.st-superseded .oa-done,
+.oa-done.bad {
   background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 .oa-done b {
@@ -4246,6 +4247,51 @@ h2 .oa-tag {
 }
 
 /* ==== v34 · simplified: one card in the chat, everything else a line, a sheet or a page ==== */
+/* a decided (or lapsed) card of a kind outside the fixed cards is one line */
+.msg.k-line .msg-line {
+  width: auto;
+  max-width: 92%;
+}
+.oa-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+.oa-line-ic {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-ink);
+}
+.oa-line-ic svg {
+  width: 14px;
+  height: 14px;
+}
+.oa-line.st-cancelled .oa-line-ic,
+.oa-line.st-expired .oa-line-ic,
+.oa-line.st-superseded .oa-line-ic {
+  background: var(--fill);
+  color: var(--muted);
+}
+.oa-line-body {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.oa-line-kind {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--muted);
+}
+.oa-line-text {
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+}
 .oa-line-text .sep {
   color: var(--faint);
 }
@@ -4274,22 +4320,6 @@ h2 .oa-tag {
 .mcard-line .badge {
   margin: 0;
   flex: none;
-}
-/* the Execution Receipt's broker facts: label above value, as many per row as fit */
-.mcard-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 4px 0 0;
-}
-.mcard-facts dt {
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-.mcard-facts dd {
-  margin: 0;
-  font-size: var(--fs-sm);
-  font-weight: 600;
 }
 /* an order in the chat: one line that updates in place; tap → the full record */
 .od-chat {
@@ -4370,6 +4400,49 @@ h2 .oa-tag {
 .oa-lapsed svg {
   width: 18px;
   height: 18px;
+}
+
+/* ---- reference 2146-2178 */
+/* v34: a decided card of an old kind is one line; tapping it shows the whole decision line */
+button.oa-line-body {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+}
+.oa-line-body .oa-line-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+.oa-line-body[aria-expanded="true"] .oa-line-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+button.oa-line-body:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.oa-line .btn {
+  flex: none;
+  min-height: 30px;
+  padding: 2px 6px;
+  font-size: var(--fs-sm);
+}
+.oa-line-kind {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ==== v35 · trading accounts, pickers, the markets dropdown, group avatars, sign-out */

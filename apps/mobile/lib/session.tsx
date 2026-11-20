@@ -40,7 +40,8 @@ type Session = {
   changeServer: (server: string) => Promise<void>;
   changeLocale: (locale: Locale) => Promise<void>;
   t: (key: Label) => string;
-  errorText: (error: unknown) => string;
+  /** `fallback`: the text for a code the catalog does not know, instead of the general one. */
+  errorText: (error: unknown, fallback?: string) => string;
 };
 const Context = createContext<Session | null>(null);
 
@@ -189,7 +190,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setLocale(next);
   };
   const t = (key: Label) => translate(locale, key);
-  const errorText = (error: unknown) => {
+  const errorText = (error: unknown, fallback?: string) => {
     if (error instanceof SessionRequestCancelled) return "";
     if (error instanceof ApiError) {
       const permissionMessage = agentPermissionError(error.code, locale);
@@ -205,7 +206,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (supervisionMessage) return supervisionMessage;
       return Object.hasOwn(labels, error.code)
         ? translate(locale, error.code as Label)
-        : t("request_failed");
+        : (fallback ?? t("request_failed"));
     }
     return t("network");
   };

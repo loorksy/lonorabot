@@ -130,6 +130,16 @@ for (const locale of ["ar", "en"])
       await expect(card.getByText(text.price, { exact: true })).toBeVisible();
       await expect(card.locator("[data-receipt-status]")).toHaveText(text.confirmed);
       await expect(card.getByText(text.ticket, { exact: true })).toBeVisible();
+      // The facts are the Trade Approval's label/value rows (v38 oaDL), in the same frame
+      // width as every fixed card.
+      const rows = card.locator(".oa-dl > div");
+      await expect(rows).toHaveCount(3);
+      await expect(rows.nth(0).locator("dt")).toHaveText(text.ticket);
+      await expect(rows.nth(0).locator("dd")).toHaveText("50071");
+      await expect(rows.nth(2).locator("dt")).toHaveText(text.price);
+      await expect(rows.nth(2).locator("dd")).toHaveText("2400.55");
+      await expect(card.locator(".mcard-facts")).toHaveCount(0);
+      await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
       await expect(card.locator("[data-receipt-reason] b")).toHaveText(text.words);
       await expect(card.locator("[data-receipt-reason] bdi")).toHaveText(fill.reason);
       const changed = page.locator(`[data-execution-receipt="${modify.operation_id}"]`);

@@ -29,9 +29,15 @@ import { Button, colors, ErrorNotice, Field } from "./ui";
 export function OwnerActionCard({
   row,
   onChange,
+  onRenew,
+  onLatest,
 }: {
   row: OwnerAction;
   onChange: (value: OwnerAction) => void;
+  /** «طلب جديد» on an expired Settle card not renewed yet (POST /owner-actions/{id}/renew). */
+  onRenew?: (row: OwnerAction) => Promise<unknown>;
+  /** «عرض الأحدث» on a card a newer one replaced: shows that card. */
+  onLatest?: (id: string) => void;
 }) {
   const { errorText, rtl, locale } = useSession();
   const text = ownerActionText(locale);
@@ -52,6 +58,7 @@ export function OwnerActionCard({
     if (!open) setValues({});
   }, [open]);
   const pending = useRef(false);
+  const supersededBy = row.superseded_by;
   const align = { textAlign: rtl ? ("right" as const) : ("left" as const) };
   useEffect(() => {
     if (!spec.passkey) return;
@@ -156,6 +163,7 @@ export function OwnerActionCard({
       if (waiting.current) await submit(waiting.current);
     });
   const blocked = spec.passkey && supported === false;
+  const bar = row.status === "pending" ? colors.foreground : colors.border;
   const selected = (option: OwnerActionOption) =>
     choosing ? choosing === option.key : option.initial;
   return (
@@ -165,15 +173,28 @@ export function OwnerActionCard({
       style={{
         borderWidth: 1,
         borderColor: colors.border,
-        borderStartWidth: 3,
-        borderStartColor: row.status === "pending" ? colors.foreground : colors.border,
+        // The bar on the reading side: the app lays out by its own language, not the device's,
+        // so a start border would sit on the left in Arabic.
+        ...(rtl
+          ? { borderRightWidth: 3, borderRightColor: bar }
+          : { borderLeftWidth: 3, borderLeftColor: bar }),
         padding: 12,
         gap: 8,
       }}
     >
-      <Text style={[{ color: colors.foreground, fontWeight: "600" }, align]}>{spec.title}</Text>
-      {spec.lines.map((line) => (
-        <Text key={line} style={[{ color: colors.foreground }, align]}>
+      {/* As on Web: the kind as the head, the card's first line as its strong title. */}
+      <Text style={[{ color: colors.secondary, fontSize: 13, fontWeight: "600" }, align]}>
+        {spec.title}
+      </Text>
+      {spec.lines.map((line, index) => (
+        <Text
+          key={line}
+          style={[
+            { color: colors.foreground },
+            index === 0 ? { fontSize: 16, fontWeight: "700" } : null,
+            align,
+          ]}
+        >
           {line}
         </Text>
       ))}
@@ -315,6 +336,24 @@ export function OwnerActionCard({
         <Text accessibilityRole="text" style={[{ color: colors.secondary }, align]}>
           {spec.outcome}
         </Text>
+      ) : null}
+      {/* As on Web: a card a newer one replaced shows the newer one; only an expired Settle
+          card that was not renewed yet asks again. */}
+      {supersededBy ? (
+        onLatest ? (
+          <Button label={text.latest} secondary onPress={() => onLatest(supersededBy)} />
+        ) : null
+      ) : row.status === "expired" && row.kind === "settle_operation" && onRenew ? (
+        <Button
+          label={text.renew}
+          secondary
+          disabled={busy}
+          onPress={() =>
+            void run(async () => {
+              await onRenew(row);
+            })
+          }
+        />
       ) : null}
       <ErrorNotice text={error} />
     </View>

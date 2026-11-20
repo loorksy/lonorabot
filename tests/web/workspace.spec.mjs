@@ -621,9 +621,10 @@ test("financial approval buttons persist decisions and display broker receipts a
     ];
     await page.reload();
     await expect(card.locator("[data-trade-result='failed']")).toBeVisible();
-    // A broker code reads as a sentence, never raw; the broker's own description stays.
+    // A broker code reads as a sentence, never raw (the shared line for a code no catalog
+    // explains: a decided card offers no retry); the broker's own description stays.
     await expect(
-      card.getByText("The request could not be completed. Try again.", { exact: true }),
+      card.getByText("This request was not carried out.", { exact: true }),
     ).toBeVisible();
     await expect(card.getByText("TRADE_RETCODE_INVALID_VOLUME")).toHaveCount(0);
     await expect(card.getByText("Invalid volume", { exact: true })).toBeVisible();

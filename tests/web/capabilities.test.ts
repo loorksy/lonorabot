@@ -71,9 +71,18 @@ test("a connecting Secret card shows the agent's details and asks for the addres
     assert.ok(spec.hint?.includes(text.connectXHint));
     // The address may carry a key: the owner types it into the card, never into chat.
     assert.ok(!spec.lines.some((line) => line.includes("https://")));
+    // What each value is saved as, by its field's label, never its workspace name (17).
+    const separator = locale === "ar" ? "، " : ", ";
     assert.ok(
-      spec.lines.some((line) => line.includes("MCP_X_URL") && line.includes("MCP_X_TOKEN")),
+      spec.lines.includes(
+        text.secretSavesAs.replace(
+          "{fields}",
+          [isolated(text.fieldServerUrl), isolated(text.fieldToken)].join(separator),
+        ),
+      ),
+      spec.lines.join(" | "),
     );
+    assert.ok(!spec.lines.some((line) => line.includes("MCP_X_")));
     assert.deepEqual(spec.secret, {
       fields: [
         { key: "URL", label: text.fieldServerUrl, type: "url", required: true },

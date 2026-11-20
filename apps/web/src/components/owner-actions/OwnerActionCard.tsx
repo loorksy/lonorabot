@@ -1,6 +1,7 @@
 import { i18n } from "@lingui/core";
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
+  brokerCardFailed,
   mergeOwnerAction,
   noticeUndone,
   OWNER_ACTION_CHANGED,
@@ -10,9 +11,11 @@ import {
   ownerActionChoices,
   ownerActionChoose,
   ownerActionLive,
+  ownerActionStatus,
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
+  SLOT_OWNER_ACTION_KINDS,
   submitSecret,
   webDeviceProof,
   webDeviceSupported,
@@ -219,8 +222,23 @@ export function OwnerActionCard({
         onUndo={(button) => void decide(button)}
       />
     );
-  // A card is never folded (10.2.2): settled, it keeps its frame and shows its outcome inside.
   const supersededBy = (row as OwnerAction & { superseded_by?: string | null }).superseded_by;
+  // Only a kind outside the fixed cards folds into one line once settled (W-AUTH and the team
+  // stack delete those kinds); a fixed card is never folded (10.2.2).
+  if (ownerActionFolds(row) && !inSheet)
+    return (
+      <DecisionLine
+        row={row}
+        kind={spec.title}
+        // A signed grant names Full delegation (the core spec's line for the signed terms).
+        choice={spec.lines.find((line) => line === text.delegationFull)}
+        text={spec.outcome ?? spec.title}
+        supersededBy={supersededBy}
+        onLatest={onLatest}
+      />
+    );
+  // A broker card whose connection failed never shows its outcome in the success tint.
+  const failed = brokerCardFailed(row);
   return (
     // biome-ignore lint/a11y/useSemanticElements: the reference's card is a named group
     <div
@@ -369,24 +387,39 @@ export function OwnerActionCard({
         </div>
       )}
       {settled && spec.outcome && (
-        <p className="oa-done" role="status" dir="auto" data-owner-action-outcome={row.status}>
+        <p
+          className={`oa-done${failed ? " bad" : ""}`}
+          role="status"
+          dir="auto"
+          data-owner-action-outcome={row.status}
+          data-owner-action-failed={failed || undefined}
+        >
           {spec.outcome}
         </p>
       )}
-      {row.status === "expired" && row.kind === "settle_operation" && onRenew && (
-        <div className="oa-actions">
-          <button type="button" className="btn sm outline" onClick={() => onRenew(row)}>
-            {text.renew}
-          </button>
-        </div>
-      )}
-      {row.status === "superseded" && supersededBy && onLatest && (
-        <div className="oa-actions">
-          <button type="button" className="btn sm outline" onClick={() => onLatest(supersededBy)}>
-            {text.latest}
-          </button>
-        </div>
-      )}
+      {/* A card a newer one replaced (renewed, or superseded) shows the newer one; only an
+          expired Settle card that was not renewed yet asks again. */}
+      {supersededBy
+        ? onLatest && (
+            <div className="oa-actions">
+              <button
+                type="button"
+                className="btn sm outline"
+                onClick={() => onLatest(supersededBy)}
+              >
+                {text.latest}
+              </button>
+            </div>
+          )
+        : row.status === "expired" &&
+          row.kind === "settle_operation" &&
+          onRenew && (
+            <div className="oa-actions">
+              <button type="button" className="btn sm outline" onClick={() => onRenew(row)}>
+                {text.renew}
+              </button>
+            </div>
+          )}
       {error != null && (
         <p className="oa-warn" role="alert">
           <Icon name="alert" />
@@ -410,6 +443,85 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   supervision_paused: "pause",
   secret: "key",
 };
+/** The fixed cards among the owner-action kinds (10.3: Settle, Secret, Mandate), the kinds a
+ * trusted slot can name. */
+const FIXED_KINDS = new Set<string>(Object.values(SLOT_OWNER_ACTION_KINDS));
+
+/** A settled card of a kind outside the fixed cards: one line, until W-AUTH and the team stack
+ * delete those kinds. A fixed card keeps its frame (10.2.2). */
+export function ownerActionFolds(row: OwnerAction): boolean {
+  return !ownerActionLive(row) && !FIXED_KINDS.has(row.kind);
+}
+
+const STATUS_ICON: Record<string, IconName> = {
+  pending: "timer",
+  confirmed: "check",
+  cancelled: "close",
+  expired: "timer",
+  superseded: "layers",
+};
+
+/** A decided or lapsed card of an old kind is one line; tap for all of it; «عرض الأحدث». */
+function DecisionLine({
+  row,
+  kind,
+  choice,
+  text,
+  supersededBy,
+  onLatest,
+}: {
+  row: OwnerAction;
+  kind: string;
+  /** The choice the owner decided with (e.g. Custom or Full delegation). */
+  choice?: string;
+  text: string;
+  supersededBy?: string | null;
+  onLatest?: (id: string) => void;
+}) {
+  const labels = ownerActionText(i18n.locale);
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className={`oa-line st-${row.status}`}
+      data-owner-action={row.id}
+      data-owner-action-kind={row.kind}
+      data-owner-action-status={row.status}
+    >
+      <span className="oa-line-ic">
+        <Icon name={STATUS_ICON[row.status] ?? "check"} />
+      </span>
+      <button
+        type="button"
+        className="oa-line-body"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="oa-line-kind">
+          {kind} · {ownerActionStatus(row, i18n.locale)}
+          {choice && (
+            <>
+              {" · "}
+              <span dir="auto">{choice}</span>
+            </>
+          )}
+        </span>
+        <span
+          className="oa-line-text"
+          role="status"
+          dir="auto"
+          data-owner-action-outcome={row.status}
+        >
+          {text}
+        </span>
+      </button>
+      {row.status === "superseded" && supersededBy && onLatest && (
+        <button type="button" className="btn sm ghost" onClick={() => onLatest(supersededBy)}>
+          {labels.latest}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function NoticeLine({
   row,

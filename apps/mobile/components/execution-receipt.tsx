@@ -3,6 +3,7 @@ import { orderLineAction, ownerActionText } from "@lonora/core";
 import { Text, View } from "react-native";
 import type { Label } from "../lib/i18n";
 import { useSession } from "../lib/session";
+import { EvidenceLine, FactRows } from "./card-facts";
 import { colors } from "./ui";
 
 /**
@@ -50,44 +51,50 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
         {row.partial ? ` · ${t("partiallyFilled")}` : ""}
         {row.agent_id == null ? ` · ${ownerActionText(locale).byYou}` : ""}
       </Text>
-      <View style={{ flexDirection: rtl ? "row-reverse" : "row", flexWrap: "wrap", gap: 12 }}>
-        {facts
-          .filter(([, value]) => value != null && value !== "")
-          .map(([label, value]) => (
-            <View key={label}>
-              <Text style={{ color: colors.secondary, textAlign: align }}>{t(label)}</Text>
-              <Text style={{ color: colors.foreground, writingDirection: "ltr", textAlign: align }}>
-                {value}
-              </Text>
-            </View>
-          ))}
-        {row.stop_loss_removed ? (
-          <View>
-            <Text style={{ color: colors.secondary, textAlign: align }}>{t("stopLoss")}</Text>
-            <Text style={{ color: colors.foreground, textAlign: align }}>{t("removedValue")}</Text>
-          </View>
-        ) : null}
-        {row.take_profit_removed ? (
-          <View>
-            <Text style={{ color: colors.secondary, textAlign: align }}>{t("takeProfit")}</Text>
-            <Text style={{ color: colors.foreground, textAlign: align }}>{t("removedValue")}</Text>
-          </View>
-        ) : null}
-      </View>
-      <Text
-        testID="execution-receipt-status"
-        style={{ color: colors.foreground, textAlign: align }}
+      {/* The broker's facts as the Trade Approval's label/value rows (v38 `.oa-dl`), as on Web. */}
+      <FactRows
+        rows={[
+          ...facts
+            .filter(([, value]) => value != null && value !== "")
+            .map(([label, value]) => ({ label: t(label), value: String(value), ltr: true })),
+          ...(row.stop_loss_removed ? [{ label: t("stopLoss"), value: t("removedValue") }] : []),
+          ...(row.take_profit_removed
+            ? [{ label: t("takeProfit"), value: t("removedValue") }]
+            : []),
+        ]}
+      />
+      <EvidenceLine
+        tone={
+          row.verification === "unverified"
+            ? "warn"
+            : row.verification === "pending"
+              ? "plain"
+              : "ok"
+        }
+        icon={
+          row.verification === "unverified"
+            ? "alert"
+            : row.verification === "pending"
+              ? "clock"
+              : "check"
+        }
       >
-        {t("confirmedByBroker")}
-        {status ? ` · ${status}` : ""}
-      </Text>
+        <Text
+          testID="execution-receipt-status"
+          style={{ color: colors.foreground, textAlign: align }}
+        >
+          {t("confirmedByBroker")}
+          {status ? ` · ${status}` : ""}
+        </Text>
+      </EvidenceLine>
       {row.reason ? (
-        <View testID="execution-receipt-reason">
-          <Text style={{ color: colors.secondary, textAlign: align }}>{t("agentWords")}</Text>
-          <Text style={{ color: colors.foreground, writingDirection: "auto", textAlign: align }}>
-            {row.reason}
+        <EvidenceLine tone="plain" icon="chat" testID="execution-receipt-reason">
+          <Text style={{ color: colors.foreground, textAlign: align }}>
+            <Text style={{ fontWeight: "700" }}>{t("agentWords")}</Text>
+            {": "}
+            <Text style={{ writingDirection: "auto" }}>{row.reason}</Text>
           </Text>
-        </View>
+        </EvidenceLine>
       ) : null}
     </View>
   );

@@ -144,8 +144,15 @@ async def test_a_slot_of_a_real_record_is_placed_with_only_its_card_and_record(
     )
     ui, projector = await project(db, owner, agent, thread, text)
     assert ui is not None, projector.diagnostics
-    assert ui["blocks"][1] == {"type": "Slot", "card": "trade_approval", "record": record}
+    assert {"type": "Slot", "card": "trade_approval", "record": record} in ui["blocks"]
     assert "prop_dropped" in codes(projector)
+    # A Trade Approval counts its tallest realistic card (SLOT_HEIGHTS): the agent's own
+    # words fold under More first; the slot is never folded (10.2.2).
+    assert ui["blocks"][1] == {
+        "type": "More",
+        "children": [{"type": "Text", "text": "الذهب عند المقاومة."}],
+    }
+    assert "budget_folded" in codes(projector)
 
 
 @pytest.mark.asyncio
@@ -389,6 +396,10 @@ async def test_an_agent_node_that_imitates_a_fixed_card_is_refused(
 def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert imitates_fixed_card("«موافقة»") and imitates_fixed_card("APPROVE")
     assert imitates_fixed_card("الوسيط لم يؤكد هذه الصفقة")
+    # The Settle card's kind in its head (v38), with or without the shadda, both languages.
+    assert imitates_fixed_card("عملية غير مؤكَّدة") and imitates_fixed_card("عملية غير مؤكدة")
+    assert imitates_fixed_card("Unconfirmed operation · XAUUSD")
+    assert not imitates_fixed_card("Unconfirmed operations this week")
     assert imitates_fixed_card("نُفذت") and imitates_fixed_card("نفذت")
     # The Secret card's titles, both languages, the broker ones included.
     assert imitates_fixed_card("Secret") and imitates_fixed_card("Secret · Binance")

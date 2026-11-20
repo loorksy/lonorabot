@@ -3,8 +3,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { showsTradingControl } from "../../packages/core/src/agent-permission";
 import {
+  approvalEndTone,
   approvalStatusText,
+  brokerPriceLabel,
   brokerTicketLabel,
+  brokerWordsLabel,
+  failedResultFallback,
   financialBoundaryError,
   financialResultReason,
   operationStatusText,
@@ -183,6 +187,63 @@ test("an uncertain broker result never tells the owner to try again, on either c
     "apps/mobile/components/trade-approval.tsx",
   ])
     assert.match(read(file), /financialResultReason\(result\.status, result\.code/, file);
+});
+
+test("a decided approval reads as a success only once every result is confirmed", () => {
+  const result = (status: string) => ({ status });
+  // Approved is still awaiting the broker's result: it waits, never a success yet (D2).
+  assert.equal(approvalEndTone({ status: "approved", results: [] }), "wait");
+  assert.equal(
+    approvalEndTone({ status: "completed", results: [result("confirmed"), result("confirmed")] }),
+    "ok",
+  );
+  // Completed whatever the results are (trade.py): a refusal is never green, an uncertain
+  // result is a warning, and no result is no success either (0.4).
+  assert.equal(approvalEndTone({ status: "completed", results: [result("failed")] }), "plain");
+  assert.equal(
+    approvalEndTone({ status: "completed", results: [result("confirmed"), result("failed")] }),
+    "plain",
+  );
+  for (const status of ["ambiguous", "submitted", "reserved"])
+    assert.equal(
+      approvalEndTone({ status: "completed", results: [result("confirmed"), result(status)] }),
+      "warn",
+      status,
+    );
+  assert.equal(approvalEndTone({ status: "completed", results: [] }), "plain");
+  assert.equal(approvalEndTone({ status: "drifted", results: [] }), "warn");
+  for (const status of ["rejected", "withdrawn", "expired", "cancelled"])
+    assert.equal(approvalEndTone({ status, results: [] }), "plain", status);
+  // The broker's own sentence is labelled as its words, as the agent's reason is.
+  assert.equal(brokerWordsLabel("ar"), "بكلمات الوسيط");
+  assert.equal(brokerWordsLabel("en"), "In the broker's words");
+  // A broker's price is labelled; a failed result no catalog explains reads one shared line,
+  // which offers no retry: a decided card has none (D10).
+  assert.equal(brokerPriceLabel("price", "ar"), "سعر الوسيط");
+  assert.equal(brokerPriceLabel("execution_price", "en"), "Execution price");
+  assert.equal(failedResultFallback("ar"), "لم يُنفَّذ هذا الطلب.");
+  assert.equal(failedResultFallback("en"), "This request was not carried out.");
+  // Both approval cards read the one tone and labels, and both fall back to their error
+  // catalog for a result known not to have executed, with the shared line for a code it does
+  // not know.
+  for (const file of [
+    "apps/web/src/components/trading/TradeApprovals.tsx",
+    "apps/mobile/components/trade-approval.tsx",
+  ]) {
+    assert.match(read(file), /approvalEndTone\(row\)/, file);
+    assert.match(read(file), /brokerWordsLabel\(/, file);
+    assert.match(read(file), /brokerPriceLabel\(key, /, file);
+    assert.match(read(file), /failedResultFallback\(/, file);
+    assert.doesNotMatch(read(file), /status === "approved" \|\| status === "completed"/, file);
+  }
+  assert.match(
+    read("apps/mobile/components/trade-approval.tsx"),
+    /result\.status === "failed" && result\.code\s*\? errorText\(new ApiError\(result\.code, 0\), failedResultFallback\(locale\)\)/,
+  );
+  assert.match(
+    read("apps/web/src/components/trading/TradeApprovals.tsx"),
+    /userError\(\{ code: result\.code \}, failedResultFallback\(i18n\.locale\)\)/,
+  );
 });
 
 test("activity rows say what the agent does from registry metadata, never a raw tool id", () => {

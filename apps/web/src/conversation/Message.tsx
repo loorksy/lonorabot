@@ -52,8 +52,8 @@ type Props = {
   previous?: ConversationMessage;
   /** A card in the agent's frame (owner decision, approval, receipt, question). */
   card?: ReactNode;
-  /** k-* class for cards, as the reference: k-card, k-oa. */
-  cardKind?: "card" | "oa";
+  /** k-* class for cards, as the reference: k-card, k-oa, k-line (an old kind's settled card). */
+  cardKind?: "card" | "oa" | "line";
   live?: LiveReply;
   steps?: ReactNode;
   stopped?: boolean;

@@ -19,6 +19,9 @@ const copy = {
     expired: "انتهت صلاحيته",
     renew: "طلب جديد",
     limit: "بيع محدد 0.2",
+    brokerWords: "بكلمات الوسيط:",
+    failedReason: "لم يُنفَّذ هذا الطلب.",
+    brokerPrice: "سعر الوسيط 105.4",
   },
   en: {
     kicker: "Approval request",
@@ -32,6 +35,9 @@ const copy = {
     expired: "Expired",
     renew: "New request",
     limit: "Sell limit 0.2",
+    brokerWords: "In the broker's words:",
+    failedReason: "This request was not carried out.",
+    brokerPrice: "Broker price 105.4",
   },
 };
 
@@ -119,13 +125,37 @@ for (const locale of ["ar", "en"])
             order_id: "77001",
             deal_id: "77002",
             position_id: "77003",
+            price: "105.4",
             description: "Not enough money",
           },
         },
       ],
     };
+    // Approved, and completed with every result confirmed: the only success looks (D2).
+    const approved = { ...base, id: randomUUID(), timeline_seq: 6, status: "approved", reason: "" };
+    const filled = {
+      ...base,
+      id: randomUUID(),
+      timeline_seq: 7,
+      status: "completed",
+      reason: "",
+      results: [{ operation_id: randomUUID(), status: "confirmed", details: {} }],
+    };
+    // Completed with an outcome the broker never confirmed: a warning, never a success.
+    const unsure = {
+      ...base,
+      id: randomUUID(),
+      timeline_seq: 8,
+      status: "completed",
+      reason: "",
+      results: [
+        { operation_id: randomUUID(), status: "ambiguous", code: "broker_timeout", details: {} },
+      ],
+    };
     await page.route("**/api/trading/approvals?*", (route) =>
-      route.fulfill({ json: [pending, drifted, rejected, expired, failed] }),
+      route.fulfill({
+        json: [pending, drifted, rejected, expired, failed, approved, filled, unsure],
+      }),
     );
     try {
       await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
@@ -174,6 +204,46 @@ for (const locale of ["ar", "en"])
       );
       for (const raw of ["TRADE_RETCODE_NO_MONEY", "10019", "No money", "77001", "77002", "77003"])
         await expect(refused).not.toContainText(raw);
+      // The broker's own sentence is labelled as its words, after our localized reason (D10).
+      const words = refused.locator("[data-trade-broker-words]");
+      await expect(words.locator("b")).toHaveText(text.brokerWords);
+      await expect(words.locator("bdi")).toHaveText("Not enough money");
+      const resultText = await refused.locator('[data-trade-result="failed"]').innerText();
+      expect(resultText.indexOf(text.brokerWords)).toBeGreaterThan(0);
+      // A code no catalog explains reads the shared fallback, as on Mobile, never «try
+      // again» on a decided card; the broker's price is labelled, never a bare number.
+      expect(resultText).toContain(text.failedReason);
+      expect(resultText).toContain(text.brokerPrice);
+      expect(resultText.indexOf(text.failedReason)).toBeLessThan(
+        resultText.indexOf(text.brokerWords),
+      );
+      // A completed card whose broker refused it never reads as a success (0.4, D2): no
+      // success tint and no check mark beside «نتيجة الوسيط».
+      const tone = (row) =>
+        page.locator(`[data-trade-approval="${row.id}"] [data-trade-status-tone]`);
+      const check = '[data-trade-status-tone] path[d="M5 12l4 4L19 6"]';
+      await expect(tone(failed)).toHaveAttribute("data-trade-status-tone", "plain");
+      await expect(tone(failed)).not.toHaveClass(/\bok\b/);
+      await expect(refused.locator(check)).toHaveCount(0);
+      // The success look is kept for a fill the broker confirmed; an approval still awaiting
+      // the broker's result waits; drift and an unconfirmed outcome warn; a rejection is plain.
+      for (const [row, expected] of [
+        [approved, "wait"],
+        [filled, "ok"],
+        [drifted, "warn"],
+        [unsure, "warn"],
+        [rejected, "plain"],
+      ]) {
+        await expect(tone(row)).toHaveAttribute("data-trade-status-tone", expected);
+        await expect(tone(row)).toHaveClass(
+          expected === "plain" ? /^od-ev$/ : new RegExp(`\\b${expected}\\b`),
+        );
+      }
+      await expect(page.locator(`[data-trade-approval="${filled.id}"] ${check}`)).toHaveCount(1);
+      await expect(page.locator(`[data-trade-approval="${unsure.id}"] ${check}`)).toHaveCount(0);
+      await expect(page.locator(`[data-trade-approval="${approved.id}"] ${check}`)).toHaveCount(0);
+      // As wide as every other fixed card (v38 k-oa).
+      await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         await card.screenshot({ path: test.info().outputPath("trade-approval-validity-ar.png") });

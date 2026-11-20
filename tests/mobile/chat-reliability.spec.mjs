@@ -123,8 +123,9 @@ test("native timeline opens latest, preserves history reading and keeps approval
     const newest = page.getByText(messages[99].content, { exact: true });
     await expect(newest).toBeInViewport();
     await page.getByRole("button", { name: "رفض", exact: true }).click();
-    await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
-    const approvalY = await page.getByText("buy · EURUSDm", { exact: false }).boundingBox();
+    // The shared end state and the request in words (core approvalStatusText, orderLineAction).
+    await expect(page.getByText("مرفوض — لم يُرسل شيء", { exact: true })).toBeVisible();
+    const approvalY = await page.getByText("طلب موافقة · \u2068EURUSDm\u2069").boundingBox();
     const newestY = await newest.boundingBox();
     expect(newestY.y).toBeGreaterThan(approvalY.y);
     await transcript.evaluate((element) => {

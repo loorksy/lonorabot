@@ -140,16 +140,7 @@
             },
             {
               "type": "KeyValue",
-              "rows": [
-                [
-                  "الرصيد",
-                  "{@Fmt($balance,0)} $"
-                ],
-                [
-                  "الوقف",
-                  "{$stop}"
-                ]
-              ]
+              "rows": [["الرصيد", "{@Fmt($balance,0)} $"], ["الوقف", "{$stop}"]]
             },
             {
               "type": "Col",
@@ -337,9 +328,7 @@
         },
         {
           "type": "Delivery",
-          "channels": [
-            "app"
-          ]
+          "channels": ["app"]
         },
         {
           "type": "Button",
@@ -374,10 +363,6 @@
       "state": {},
       "calc": {},
       "blocks": [
-        {
-          "type": "Text",
-          "text": "الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."
-        },
         {
           "type": "Slot",
           "card": "trade_approval",
