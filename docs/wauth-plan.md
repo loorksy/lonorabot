@@ -293,7 +293,7 @@ All file:line references are to origin/main **de1e2827** (fetched 2026-11-19) un
 - **Risks**
   - Chain position against the team stack's 0125/0126/0127.
   - 1688d8e3's code predates the batch-19 pause stack (tasks.py:399, pauses.py:86, supervision.py:463), so re-read the schema at head.
-  - The longer previous-grant line against `SLOT_HEIGHTS mandate=405`: re-measure with `tests/check_genui_browser.py:467`.
+  - The longer previous-grant line against `MANDATE` in `genui_compile.slot_height`: re-measure with `tests/check_genui_browser.py:467`.
   - Merging D without S1a reopens the grant window, so deploy D, S1a and S1b together.
 
 ### S1a — No new grants; the Mandate is the only way to Full (server, web, mobile in one change, 14.1.4)

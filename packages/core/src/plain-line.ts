@@ -52,12 +52,15 @@ export function plainLine(text: string, max = Number.POSITIVE_INFINITY): string 
 const isolateNumbers = (line: string) => line.replace(SIGNED_NUMBER, "$1\u2066$2\u2069");
 
 // An upper bound of each character's advance, in em, in the apps' system fonts (measured at
-// 12 to 15 px in the test browser, where wide glyphs are widest): the wide Latin letters and
-// signs, the other capitals, the narrow marks, the widest Arabic letters (seen, sheen, sad, dad)
-// and the other Arabic letters; Arabic vowel marks take no room. Anything else counts as wide.
+// 12 to 16 px in the test browser, where wide glyphs are widest): the wide Latin letters and
+// signs, the other capitals, the narrow marks, lower case, the rest of ASCII, the widest Arabic
+// letters (seen, sheen, sad, dad) and the other Arabic letters; Arabic vowel marks take no
+// room. Anything else counts as wide. The GenUI compiler counts slot heights by the same bound
+// (genui_compile.wrapped_lines).
 const WIDE = /[WMmw%@]/;
 const CAPITAL = /[A-Z]/;
 const NARROW = /[ijlI.,:;!'|()[\]frt]/;
+const LOWER = /[a-z]/;
 const LATIN = /[\x21-\x7e]/;
 const SEEN = /[\u0633-\u0636]/;
 const ARABIC = /[\u0600-\u06ff\ufb50-\ufdff\ufe70-\ufeff]/;
@@ -68,10 +71,11 @@ function advance(char: string): number {
   if (WIDE.test(char)) return 1;
   if (CAPITAL.test(char)) return 0.78;
   if (NARROW.test(char)) return 0.4;
+  if (LOWER.test(char)) return 0.62;
   if (LATIN.test(char)) return 0.66;
   if (MARK.test(char)) return 0;
   if (SEEN.test(char)) return 0.96;
-  if (ARABIC.test(char)) return 0.55;
+  if (ARABIC.test(char)) return 0.5;
   return 1;
 }
 

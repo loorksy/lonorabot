@@ -28,6 +28,15 @@ a scripted model, the simulation broker quoting the screenshot's prices.
             with stop loss and take profit, the tolerance row and the agent's ``reason``; with
             ``result`` ("failed" or "uncertain"), decided, with that non-confirmed result line,
             an uncertain one under the executor's ``code`` (default broker_result_ambiguous).
+            ``action`` "modify_order" changes an order and adds its ticket row; ``count``
+            repeats the request.
+``slot_heights`` the heights the compiler counts for the ``card`` slot of ``record`` as it is
+            now (genui_compile.slot_height): at rest and at its tallest later state.
+``fixed_card`` the ``record`` owner-action card as a journey needs it: the conversation's agent
+            named ``name`` (and, for a Settle card, its operation sent by that agent); the
+            card's ``status`` (``expired``: past its lifetime; ``renewed``: a newer card
+            replaced it) and ``result``; a Secret card's field ``labels``; workspace values
+            saved under its names (``saved``: its «replaces» line; false removes them).
 """
 
 import asyncio
@@ -525,15 +534,23 @@ async def tallest_approval(data: dict[str, Any]) -> dict[str, Any]:
             assert row is not None
             # The result is read by its request's operation (routes/trading.py approvals).
             operation = uuid4().hex
+            request = {
+                key: value
+                for key, value in row.requests[0].items()
+                if key not in {"order_id", "operation_id"}
+            }
+            action = data.get("action", "buy_limit")
             row.requests = [
                 {
-                    **row.requests[0],
-                    "operation_id": operation,
-                    "action": "buy_limit",
+                    **request,
+                    "operation_id": operation if index == 0 else uuid4().hex,
+                    "action": action,
                     "price": "2360.00",
                     "stop_loss": "2345.50",
                     "take_profit": "2392.00",
+                    **({"order_id": str(50070 + index)} if action == "modify_order" else {}),
                 }
+                for index in range(data.get("count", 1))
             ]
             # The executable side read when the card was made, inside the band (no drift).
             row.validity = {
@@ -550,8 +567,98 @@ async def tallest_approval(data: dict[str, Any]) -> dict[str, Any]:
             row.status = "completed" if result else "pending"
             code = {"code": data["code"]} if result == "uncertain" and data.get("code") else {}
             row.results = (
-                [{"operation_id": operation, **APPROVAL_RESULTS[result], **code}] if result else []
+                [
+                    {"operation_id": request["operation_id"], **APPROVAL_RESULTS[result], **code}
+                    for request in row.requests
+                ]
+                if result
+                else []
             )
+        return {}
+    finally:
+        await fixture.close(cleanup=False)
+
+
+async def slot_heights(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_agent.genui_compile import slot_height
+    from lonora_db.genui_slots import slot_records
+    from lonora_db.schema import ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session:
+            thread = await session.get(ThreadRow, data["thread_id"])
+            assert thread is not None
+            found = await slot_records(session, thread.owner_id, None, thread.id, [data["record"]])
+        rest, later = slot_height(data["card"], found[(data["card"], data["record"])])
+        return {"rest": rest, "later": later}
+    finally:
+        await fixture.close(cleanup=False)
+
+
+async def fixed_card(data: dict[str, Any]) -> dict[str, Any]:
+    from datetime import timedelta
+
+    from lonora_db.schema import (
+        AgentRow,
+        OwnerActionRow,
+        SecretRow,
+        ThreadRow,
+        TradingJournalRow,
+    )
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"])
+            row = await session.get(OwnerActionRow, data["record"])
+            assert thread is not None and row is not None and thread.agent_id is not None
+            if "name" in data:
+                agent = await session.get(AgentRow, thread.agent_id)
+                assert agent is not None
+                agent.name = data["name"]
+                if row.kind == "settle_operation":
+                    journal = await session.get(TradingJournalRow, row.payload["operation_id"])
+                    assert journal is not None
+                    journal.result = {"details": {"execution": {"agent_id": agent.id}}}
+                    journal.submitted_at = utcnow()
+            if data.get("labels"):
+                row.payload = {
+                    **row.payload,
+                    "fields": [
+                        {**field, "label": data["labels"][index % len(data["labels"])][:60]}
+                        for index, field in enumerate(row.payload["fields"])
+                    ],
+                }
+            if "saved" in data:
+                for field in row.payload["fields"]:
+                    held = await session.scalar(
+                        select(SecretRow).where(
+                            SecretRow.owner_id == thread.owner_id,
+                            SecretRow.scope == "workspace",
+                            SecretRow.name == field["key"],
+                        )
+                    )
+                    if held is not None and not data["saved"]:
+                        await session.delete(held)
+                    elif held is None and data["saved"]:
+                        session.add(
+                            SecretRow(
+                                owner_id=thread.owner_id,
+                                scope="workspace",
+                                name=field["key"],
+                                ciphertext="x",
+                            )
+                        )
+            if data.get("status"):
+                row.status, row.decided_at = data["status"], utcnow()
+            if data.get("result") is not None:
+                row.result = data["result"]
+            if data.get("expired"):
+                row.status, row.expires_at = "expired", utcnow() - timedelta(minutes=1)
+            if data.get("renewed"):
+                row.superseded_by = uuid4().hex
         return {}
     finally:
         await fixture.close(cleanup=False)
@@ -571,5 +678,7 @@ if __name__ == "__main__":
         "slots": slots,
         "tallest_mandate": tallest_mandate,
         "tallest_approval": tallest_approval,
+        "slot_heights": slot_heights,
+        "fixed_card": fixed_card,
     }[command]
     print(json.dumps(asyncio.run(action(payload))))

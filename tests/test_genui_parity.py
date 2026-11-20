@@ -21,6 +21,7 @@ from unittest.mock import patch
 import pytest
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES, SLOT, node_props, walk
+from lonora_db.genui_slots import SlotRecord
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
@@ -32,10 +33,10 @@ from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 FIXTURES = Path(__file__).parent / "fixtures/genui"
 PARITY = (FIXTURES / "documents/valid/parity.lonora-ui").read_text()
 SLOTS = (FIXTURES / "documents/valid/slot.lonora-ui").read_text()
-# The Trade Approval card. A Trade Approval is tall (SLOT_HEIGHTS: its tallest realistic
-# card), so its card holds the head and the slot alone; any other block would fold.
+# The Trade Approval card. A Trade Approval is tall (genui_compile.slot_height: decided, its
+# card would outgrow 720 px with any other block), so its card holds the head and the slot alone.
 APPROVAL = "\n".join(line for line in SLOTS.splitlines() if '"type":"Text"' not in line)
-# The settle card. A settle card is tall (SLOT_HEIGHTS), so its card
+# The settle card. A settle card is tall (genui_compile.slot_height), so its card
 # holds the head and the slot alone at rest; two slots would exceed 560 px.
 SETTLE = "\n".join(
     line
@@ -47,10 +48,10 @@ SETTLE = "\n".join(
 # The records the slot card names, as ``lonora_db.genui_slots`` finds them in this
 # conversation (tests/test_genui_slots.py checks the lookup against real rows).
 SLOT_RECORDS = {
-    ("trade_approval", "parity-approval"): 0,
-    ("settle", "parity-settle"): 0,
-    ("mandate", "parity-mandate"): 0,
-    ("secret", "parity-secret"): 1,  # a Secret card with one field
+    ("trade_approval", "parity-approval"): SlotRecord(reason="Breakout above 2,400."),
+    ("settle", "parity-settle"): SlotRecord(operation="sell 1 XAGUSD"),
+    ("mandate", "parity-mandate"): SlotRecord(name="Gold"),
+    ("secret", "parity-secret"): SlotRecord(labels=("Key",)),  # a Secret card with one field
 }
 MANDATE = SLOTS.replace(
     '"trade_approval","record":"parity-approval"', '"mandate","record":"parity-mandate"'
@@ -81,7 +82,7 @@ async def compiled_documents() -> list[dict[str, Any]]:
     documents: list[dict[str, Any]] = []
     history = [ModelMessage(role="user", content=OWNER)]
 
-    async def records(*_args: Any) -> dict[tuple[str, str], int]:
+    async def records(*_args: Any) -> dict[tuple[str, str], SlotRecord]:
         return SLOT_RECORDS
 
     for text, past in (
