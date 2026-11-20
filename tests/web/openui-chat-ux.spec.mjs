@@ -172,7 +172,13 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   page,
   conversation,
 }) => {
-  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    // Every error event reaches the owner as «An unexpected error occurred», including a
+    // ResizeObserver loop, which is no page error.
+    window.__errors = [];
+    window.addEventListener("error", (event) => window.__errors.push(event.message));
+  });
   const rows = Array.from({ length: 24 }, (_, index) =>
     message(
       conversation,
@@ -224,6 +230,8 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   const newest = await page.locator("[data-message-id='ux-message-25']").boundingBox();
   const restingBar = await page.locator(".composer-card").boundingBox();
   expect(newest.y + newest.height).toBeLessThan(restingBar.y);
+  // The composer grew and shrank above the transcript without an error.
+  expect(await page.evaluate(() => window.__errors)).toEqual([]);
 });
 
 test("M6: leaving the chat while recording releases the microphone and sends nothing", async ({
