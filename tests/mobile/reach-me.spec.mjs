@@ -26,7 +26,7 @@ test("Expo Arabic reach-me preference is the same one the Web and agents read", 
     headers,
   });
   expect(reset.ok()).toBeTruthy();
-  await page.goto("/voice");
+  await page.goto("/notify-settings");
   await expect(page.getByText("كيف نتواصل معك", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "✓ راسلني", exact: true })).toBeVisible();
   // Without an enrolled passkey device, calling is not offered.
