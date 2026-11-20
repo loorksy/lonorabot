@@ -217,6 +217,8 @@ test("the tab says «Attention»; the held line and the live chip read whole; th
         trading_readiness: {
           ...readiness,
           state: "uncertain",
+          // The server sets this count with the uncertain state. The pill reads the count.
+          unresolved_count: 1,
           params: { ...(readiness.params ?? {}), count: 1, symbol: "XAUUSD" },
         },
       },
