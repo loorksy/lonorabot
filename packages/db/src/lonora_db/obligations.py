@@ -149,4 +149,8 @@ async def prepare_delete(
         else:
             grant.status = "revoked"
             changed(session, grant)
+    if account_id is not None:
+        from .agent_permissions import forget_account
+
+        await forget_account(session, owner_id, account_id)
     return handover
