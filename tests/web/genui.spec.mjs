@@ -562,15 +562,23 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await english.close();
   }
   // Decided elsewhere while this screen still shows it pending: the second tap is refused
-  // and the slot shows the record as it is now.
-  await page.route("**/api/trading/approvals?*", (route) => route.abort());
+  // and the slot shows the record as it is now. The page's reads of the approvals wait
+  // until that tap is answered: the decision's event reaches the page when it does, and
+  // a read it starts before the tap would take the button away under the pointer.
+  let answered;
+  const tapped = new Promise((resolve) => {
+    answered = resolve;
+  });
+  await page.route("**/api/trading/approvals?*", async (route) => {
+    await tapped;
+    await route.continue();
+  });
   const elsewhere = await context.request.post(`/api/trading/approvals/${ids.approval}/decision`, {
     data: { decision: "reject" },
     headers: { "X-CSRF-Token": csrf },
   });
   expect(elsewhere.status()).toBe(200);
   await expect(slot.getByRole("button", { name: "موافقة", exact: true })).toBeVisible();
-  await page.unroute("**/api/trading/approvals?*");
   const [stale] = await Promise.all([
     page.waitForResponse((response) =>
       response.url().endsWith(`/api/trading/approvals/${ids.approval}/decision`),
@@ -578,7 +586,11 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     slot.getByRole("button", { name: "موافقة", exact: true }).click(),
   ]);
   expect(stale.status()).toBe(409);
+  answered();
   await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
+  // The held reads go on before the route goes: removing it under one answers that read
+  // already, and the handler's own answer then fails the test.
+  await page.unrouteAll({ behavior: "wait" });
   // The settle slot's buttons are the card's own server action on the owner session.
   const [settled] = await Promise.all([
     page.waitForResponse((response) =>
