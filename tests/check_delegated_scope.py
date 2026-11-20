@@ -19,8 +19,9 @@ from lonora_db.schema import AgentRow
 from lonora_tools.loader import load_tools
 
 # The door no longer refuses a role or an ancestry (6.9): an order of a delegated
-# identity is refused by its own trading permission, which keeps it at analysis until
-# the 14.3.18 migration makes it an ordinary team agent.
+# identity is refused by its own trading permission: "No trading" where it is stored,
+# else "Ask me" in Ask, every agent's default since W-AUTH's data step (default_level;
+# migration 0128 made every stored delegated agent an ordinary team agent).
 ORDER_REFUSALS = ("agent_analysis_only", "trade_approval_required")
 
 

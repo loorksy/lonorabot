@@ -689,6 +689,37 @@ test("the migration's Mandate card names the agent's old grant in one line (14.3
     );
     assert.ok(markets.includes("⁨XAUUSD⁩") && markets.includes("⁨EURUSD⁩"), markets);
     assert.ok(markets.includes("IC Markets · 5001") && !markets.includes(text.mandatePreviousFull));
+    // Two grants on two accounts: the plural line, one semicolon between the grants and the
+    // list comma only between one grant's markets.
+    const other = { id: "acc2", label: "Pepperstone · 7002", provider: "metaapi" };
+    const lines = ownerActionCard(
+      {
+        ...mandate,
+        facts: {
+          ...mandate.facts,
+          several_accounts: true,
+          previous_grants: [
+            { ...grant, symbol_scope: "selected", symbols: ["XAUUSD", "EURUSD"] },
+            { ...grant, full_delegation: true, account: other },
+          ],
+        },
+      } as OwnerAction,
+      locale,
+      now,
+    ).lines;
+    const singular = text.mandatePreviousGrant.split("{grant}")[0] ?? "";
+    const plural = text.mandatePreviousGrants.split("{grants}")[0] ?? "";
+    assert.ok(!lines.some((line) => line.startsWith(singular)), lines.join("|"));
+    const [both, ...more] = lines.filter((line) => line.startsWith(plural));
+    assert.ok(both && more.length === 0, lines.join("|"));
+    const comma = locale === "ar" ? "، " : ", ";
+    assert.deepEqual(
+      both.slice(plural.length, both.lastIndexOf(")")).split(locale === "ar" ? "؛ " : "; "),
+      [
+        `⁨XAUUSD⁩${comma}⁨EURUSD⁩ · ⁨IC Markets · 5001⁩`,
+        `${text.mandatePreviousFull} · ⁨Pepperstone · 7002⁩`,
+      ],
+    );
   }
 });
 

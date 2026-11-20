@@ -146,7 +146,10 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   of the 6 visible blocks: trade approval 230 px, settle 460 px and mandate 405 px (its
   tallest for an 80-character name of words, Ask and a signed grant's line, which is the
   English card: measured 404 px, the Arabic card 362 px and 386 with a Latin name; a name of
-  wide capitals such as W and M wraps further, up to 500 px); a Secret card 365 px and 95 px for
+  wide capitals such as W and M wraps further, up to 500 px; not counted is the line naming
+  the grants that ended, which only the card migration 0128 shows once: naming two grants
+  on two accounts it is more than twice the signed grant's line, and the journey records
+  that card's height in both languages without bounding it); a Secret card 365 px and 95 px for
   each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads the field
   count), its tallest for an 80-character name of words without the line below, which is the
   English card: measured 460, 555 and 650 px for one, two and three fields with an Arabic or a

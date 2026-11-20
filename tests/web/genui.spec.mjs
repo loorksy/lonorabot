@@ -569,6 +569,26 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
       const enSecret = en.locator('.ux .ux-slot[data-slot-card="secret"]');
       await expect(enSecret.locator(`[data-owner-action="${ids.secret}"]`)).toBeVisible();
       expect((await enSecret.boundingBox()).height).toBeLessThanOrEqual(365 + 2 * 95);
+      // The Mandate card migration 0128 shows once grants are gone (R2 ships it with S1a,
+      // so no grant is in force beside it): the plural line naming two earlier grants on
+      // two accounts. It is not counted in SLOT_HEIGHTS (genui_compile.py, docs/genui.md);
+      // its height in both languages is recorded here for the count to be decided on.
+      python("migration_mandate", fixture.input);
+      await page.reload();
+      await en.reload();
+      await expect(mandateSlot).toContainText("انتهت صلاحياته الموقّعة السابقة");
+      await expect(enSlot).toContainText("Its earlier signed grants");
+      await expect(mandateSlot).not.toContainText("صلاحيته الموقّعة تبقى سارية");
+      await expect(enSlot).not.toContainText("Its signed grant still lets it trade");
+      const migrationCard = {
+        ar: (await mandateSlot.boundingBox()).height,
+        en: (await enSlot.boundingBox()).height,
+      };
+      console.log(`Mandate card of migration 0128 at 390 px: ${JSON.stringify(migrationCard)}`);
+      test.info().annotations.push({
+        type: "mandate-migration-card-height",
+        description: JSON.stringify(migrationCard),
+      });
     } finally {
       await english.close();
     }

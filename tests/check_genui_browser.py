@@ -21,9 +21,13 @@ a scripted model, the simulation broker quoting the screenshot's prices.
             trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
             to give the slot; with ``number``, also the agent's own Number field, whose Enter
             must never reach the slot's buttons.
-``tallest_mandate`` the conversation's agent with every line its Mandate card can show: an
-            80-character name (the contract's longest) and an active signed grant; it is in
-            Ask, whose line is the longer.
+``tallest_mandate`` the conversation's agent with every line its Mandate card can show
+            before migration 0128: an 80-character name (the contract's longest) and an
+            active signed grant; it is in Ask, whose line is the longer.
+``migration_mandate`` after ``tallest_mandate``: the Mandate card as migration 0128 shows it
+            once grants are gone (R2 ships it with S1a, so no grant is in force beside it):
+            the grant has ended and the card names it with a second one, on two accounts
+            the broker verified, one with two selected markets and one a Full delegation.
 """
 
 import asyncio
@@ -494,6 +498,69 @@ async def tallest_mandate(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+async def migration_mandate(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.broker_sessions import BrokerSessionRepository
+    from lonora_db.schema import AccountAuthorityRow, BrokerSessionRow, OwnerActionRow, ThreadRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"])
+            assert thread is not None and thread.agent_id is not None
+            for grant in await session.scalars(
+                select(AccountAuthorityRow).where(AccountAuthorityRow.agent_id == thread.agent_id)
+            ):
+                grant.status = "revoked"
+            other = await BrokerSessionRepository().create(
+                session,
+                thread.owner_id,
+                {"provider": "simulation", "account_id": "mm-" + uuid4().hex[:8], "enabled": True},
+            )
+            for account_id, (broker, login, server) in (
+                (data["connection"], ("IC Markets", "51234567", "ICMarketsSC-Demo")),
+                (other.id, ("Pepperstone", "7002318", "Pepperstone-Edge01")),
+            ):
+                account = await session.get(BrokerSessionRow, account_id)
+                assert account is not None
+                account.state = {
+                    **account.state,
+                    "broker_identity": {
+                        "broker": broker,
+                        "login": login,
+                        "server": server,
+                        "connection_version": account.version,
+                    },
+                }
+            card = await session.scalar(
+                select(OwnerActionRow).where(
+                    OwnerActionRow.subject == "trading_mode:" + thread.agent_id,
+                    OwnerActionRow.status == "pending",
+                )
+            )
+            assert card is not None
+            card.payload = {
+                **card.payload,
+                "previous_grants": [
+                    {
+                        "account_id": data["connection"],
+                        "full_delegation": False,
+                        "symbol_scope": "selected",
+                        "symbols": ["XAUUSD", "EURUSD"],
+                    },
+                    {
+                        "account_id": other.id,
+                        "full_delegation": True,
+                        "symbol_scope": "account",
+                        "symbols": [],
+                    },
+                ],
+            }
+        return {}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
     command = sys.argv[1]
     payload = json.loads(sys.stdin.read() or "{}")
@@ -507,5 +574,6 @@ if __name__ == "__main__":
         "records": records,
         "slots": slots,
         "tallest_mandate": tallest_mandate,
+        "migration_mandate": migration_mandate,
     }[command]
     print(json.dumps(asyncio.run(action(payload))))

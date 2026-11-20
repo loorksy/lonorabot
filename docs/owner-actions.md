@@ -357,9 +357,13 @@ grant). The card reads them as `facts.previous_grants`, with the account read li
 names the old grant in one line: Full delegation, «كل أزواج الحساب» / "every pair on the
 account" for a Custom grant on the whole account, or its markets, with the account when
 the owner has several («انتهت صلاحيته الموقّعة السابقة (تفويض كامل)، وهذه البطاقة تحلّ
-محلّها.»); the line stays after a tap. That card replaced an older pending Mandate card of
-the same agent. The same migration deleted every card of the grant kind
-(`grant_authority`), the confirmed ones included.
+محلّها.»); several grants make the line plural («انتهت صلاحياته الموقّعة السابقة (…)» /
+"Its earlier signed grants (…) have ended; this card replaces them."), with «؛» / ";"
+between grants, since a comma already separates one grant's markets. The line stays
+after a tap. It also showed, once, the card of each agent in Full whose level was No
+trading, which it switched to Ask (14.3.18.1): a card with no `previous_grants`. Each
+card replaced an older pending Mandate card of the same agent. The same migration
+deleted every card of the grant kind (`grant_authority`), the confirmed ones included.
 
 Switching an agent to Full withdraws its pending Trade Approval cards (status
 `withdrawn`): a withdrawn card is never approved or executed, and the agent is woken

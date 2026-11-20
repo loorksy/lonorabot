@@ -96,12 +96,16 @@ HEIGHTS = {
 # and 398, 493 and 588 with a short name). A Mandate card is counted with Ask and a signed
 # grant's line (measured 404 px with an Arabic or a Latin name; the Arabic card 362 px, 386
 # with a Latin name). A name of wide capitals (W, M) wraps further: a Mandate card up to
-# 500 px, a Secret card 63 px more. Not counted: a Secret card that replaces values already
-# saved (never a broker card) shows one more line, 48 px more for one field, 69 for two, 90
-# for three. Counting it would make every two-field card that can show it fall back
-# (100 + 555 + 69 = 724 px), and the clients read it when the card is shown, after it was
-# compiled. Such a card is that much taller than counted: a two-field one with that name,
-# about 724 px, is not caught by the 720 px rule.
+# 500 px, a Secret card 63 px more. Not counted: the line naming the grants that ended,
+# which only the card migration 0128 shows once (for each agent that held a grant then);
+# naming two grants on two accounts it is more than twice the signed grant's line, and
+# the web journey records that card's height without bounding it. Not counted either: a
+# Secret card that replaces values already saved (never a broker card) shows one more
+# line, 48 px more for one field, 69 for two, 90 for three. Counting it would make every
+# two-field card that can show it fall back (100 + 555 + 69 = 724 px), and the clients
+# read it when the card is shown, after it was compiled. Such a card is that much taller
+# than counted: a two-field one with that name, about 724 px, is not caught by the 720 px
+# rule.
 SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 405, "secret": 365}
 SLOT_ROW_HEIGHTS = {"secret": 95}
 # What only the fixed cards and their trust frame say (the clients' own strings, both

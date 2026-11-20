@@ -1,8 +1,9 @@
 """A child agent as the removed child-creation path stored it.
 
 Nothing in production creates a child agent any more (step 5b deleted
-``child_agent_create``). Rows stored before then keep working until W-AUTH's data
-migration (14.3.18.4) makes them ordinary team agents; the checks seed such a row here.
+``child_agent_create``), and migration 0128 (14.3.18.4) made every row stored before
+then an ordinary team agent. The code that reads such a row keeps its rules until it is
+deleted, so the checks seed one here.
 """
 
 from lonora_db.schema import AgentRow, MemoryRow

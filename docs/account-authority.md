@@ -87,15 +87,21 @@ monotonic:
   `0128_authority_migration` stored Ask me for every agent whose stored or default
   level was No trading.
 - Migration 0128 (mandate 14.3.18) revoked every grant that was active or pending,
-  stopping its management Task, its waiting Run and every waiting activation review,
-  and deleted every grant card. The Task's watches stay the agent's own, in its
-  conversation without the Task (4.5.3); a paused Task's live watches stay paused under
-  the Task's hold, and a Task the owner had already ended keeps its watches as they
-  were. No mode was written: an agent in Full stays in Full and the gateway starts its
-  own continuous task. Delegated, child and supervisor-template agents became root
-  specialists with no binding; a bound account and symbol became one line of the
-  agent's OPERATING.md in the owner's language. A grant signed after it follows the
-  rules above until grants are deleted.
+  stopped its management Task, cancelled every waiting activation review and deleted
+  every grant card. What the agent set up outlived the Task as it outlives the Full-mode
+  task (`close_task`, 4.5.3): a timer the Task's Run waited on became a one-shot routine
+  in the agent's conversation, a Run woken by its watch or waiting on its card went on as
+  an ordinary Run of the agent with its card still decidable, and the Task's watches stay
+  the agent's own, in its conversation without the Task. A paused Task's live watches
+  and its timer stay paused, under the Task's hold when it had one and with no hold when
+  its own agent paused it; a Task the owner had already ended keeps its watches as they
+  were. An agent in Full whose level was No trading, so that the door refused its every
+  send, was switched to Ask, its Full-mode task closed and its Mandate card shown once;
+  any other agent in Full stays in Full, and the gateway starts its own continuous task.
+  Delegated, child and supervisor-template agents became root specialists with no
+  binding; a bound account and symbol became one line of the agent's OPERATING.md in
+  the owner's language. A grant signed after it follows the rules above until grants
+  are deleted.
 
 Activation atomically creates one existing durable Task and its work Run. Signed
 proof replay cannot create another kickoff. It inspects actual state and may

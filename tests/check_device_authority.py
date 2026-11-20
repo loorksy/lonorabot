@@ -9,8 +9,9 @@ Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
    device ends it, and replaying the old proof never restores it.
 3. Migration 0040_retire_super_bot_requests marks pending and activated requests
    retired, withdraws their open inbox items and gives grants signed before the readiness review a skipped review; the
-   downgrade restores exactly those rows and the upgrade is repeatable. A retired
-   request grants nothing.
+   downgrade restores exactly those rows and the upgrade is repeatable (both passes stop
+   below 0128, which revokes every grant; the check then ends at head). A retired request
+   grants nothing.
 """
 
 import asyncio
@@ -37,6 +38,9 @@ from sqlalchemy import select
 
 ROOT = Path(__file__).resolve().parents[1]
 BEFORE = "0040_explicit_agent_permission_rows"
+# The revision below 0128, whose schema is head's: 0128 revokes every grant, which no
+# downgrade restores, so the round trip stops below it and steps up to head once after.
+BELOW_0128 = "0127_no_supervision_grants"
 
 
 async def alembic(action: str, revision: str) -> None:
@@ -257,19 +261,17 @@ async def migration_round_trip(f: Fixture) -> None:
 
     retired = {"sb-pending": "retired", "sb-activated": "retired", "sb-paused": "paused"}
     for attempt in range(2):
-        await alembic("upgrade", "head")
+        await alembic("upgrade", BELOW_0128)
         rows, item, receipt = await observed()
         assert rows == retired, rows
-        # The first pass skips the review of the grant signed before it. On the second the
-        # grant is already revoked (0128, mandate 14.3.18.3): there is nothing to review.
-        expected = {"skipped": "granted_before_review"} if attempt == 0 else None
-        assert item == "suppressed" and receipt == expected, receipt
+        assert item == "suppressed" and receipt == {"skipped": "granted_before_review"}, receipt
         # No agent is woken for a grant signed before the review existed.
         assert await dispatch_activation_reviews(f.runtime.db) == 0
         if attempt == 0:
             await alembic("downgrade", BEFORE)
             rows, item, receipt = await observed()
             assert rows == statuses and item == "ready" and receipt is None, (rows, receipt)
+    await alembic("upgrade", "head")
     assert not await on_its_own(f, agent["id"])
     live = await f.request("GET", f"/agents/{agent['id']}/state")
     assert live["pending_authorization_count"] == 0 and "super_bot" not in live

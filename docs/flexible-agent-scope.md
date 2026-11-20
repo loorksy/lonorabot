@@ -19,8 +19,10 @@ existing account IDs, symbols, permissions, grants, messages or financial record
 The owner can explicitly convert an existing root from settings. Renaming it does
 not convert it. Delegated/child identities cannot opt into owner-wide flexible
 scope. Research children of general agents remain nonfinancial. No new child agent is created
-(`child_agent_create` is removed, mandate 3.3.3); existing ones keep these rules until
-the data migration of 14.3.18.4 turns them into ordinary team agents.
+(`child_agent_create` is removed, mandate 3.3.3). Migration `0128_authority_migration`
+(14.3.18.4) turned the existing delegated and child agents into flexible root
+specialists with no parent, a bound account and symbol written into their OPERATING.md;
+these rules still apply to such a row until their code is deleted.
 
 ## API contract
 

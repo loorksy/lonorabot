@@ -41,6 +41,8 @@ export const ownerActionLabels = {
     mandateGrantStays:
       "Its signed grant still lets it trade within the grant's terms until you revoke it.",
     mandatePreviousGrant: "Its earlier signed grant ({grant}) has ended; this card replaces it.",
+    mandatePreviousGrants:
+      "Its earlier signed grants ({grants}) have ended; this card replaces them.",
     mandatePreviousFull: "Full delegation",
     mandatePreviousAllPairs: "every pair on the account",
     mandateGone: "This agent no longer exists.",
@@ -216,6 +218,7 @@ export const ownerActionLabels = {
     mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
     mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
     mandatePreviousGrant: "انتهت صلاحيته الموقّعة السابقة ({grant})، وهذه البطاقة تحلّ محلّها.",
+    mandatePreviousGrants: "انتهت صلاحياته الموقّعة السابقة ({grants})، وهذه البطاقة تحلّ محلّها.",
     mandatePreviousFull: "تفويض كامل",
     mandatePreviousAllPairs: "كل أزواج الحساب",
     mandateGone: "لم يعد هذا الوكيل موجودًا.",
@@ -921,7 +924,13 @@ export function ownerActionCard(
             .filter(Boolean)
             .join(" · "),
         );
-        lines.push(fill(text.mandatePreviousGrant, { grant: grants.join(listSeparator(lang)) }));
+        // Several grants: the plural line, and a semicolon between grants, since a comma
+        // already separates the markets inside one.
+        lines.push(
+          grants.length > 1
+            ? fill(text.mandatePreviousGrants, { grants: grants.join(lang === "ar" ? "؛ " : "; ") })
+            : fill(text.mandatePreviousGrant, { grant: grants[0] ?? "" }),
+        );
       }
       // One button for the other mode; the tap applies the mode this button shows.
       const other: TradingMode = mode === "full" ? "ask" : "full";
