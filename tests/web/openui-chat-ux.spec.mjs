@@ -211,6 +211,15 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   await expect(page.locator("[data-message-id='ux-message-25']")).toHaveCount(1);
   expect(await transcript.evaluate((element) => element.scrollTop)).toBeLessThan(200);
   await page.locator(".jump").click();
+  // The ↓ scrolls smoothly and turns off 260px before the end: the scroll's end is the
+  // resting place to measure.
+  await expect
+    .poll(() =>
+      transcript.evaluate(
+        (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+      ),
+    )
+    .toBeLessThanOrEqual(2);
   await expect(page.locator(".jump")).not.toHaveClass(/\bon\b/);
   const newest = await page.locator("[data-message-id='ux-message-25']").boundingBox();
   const restingBar = await page.locator(".composer-card").boundingBox();
