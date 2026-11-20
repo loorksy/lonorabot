@@ -2,7 +2,7 @@
 
 On a disposable PostgreSQL already at head: step down below 0088 and seed an owner's
 ``watch_changed`` notices (a pending one, an older one it superseded, and one the owner
-undid) and a settled ``stop_tightened`` notice next to a pending ``resolve_operation``
+undid) and a settled ``stop_tightened`` notice next to a pending ``settle_operation``
 card and a pending ``secret`` card. Upgrade and check that every notice is gone and the
 other two cards are untouched. The downgrade restores nothing and the upgrade runs again
 cleanly.
@@ -20,7 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0100_execution_receipts"
+BEFORE = "0101_settle_operation_card"
 
 
 def alembic(*arguments: str) -> None:
@@ -50,7 +50,7 @@ async def main() -> None:
             "watch_superseded",
             "watch_undone",
             "stop",
-            "resolve",
+            "settle",
             "secret",
         )
     }
@@ -59,11 +59,11 @@ async def main() -> None:
         ("watch_superseded", "watch_changed", "watch:w1", "superseded", "watch_pending"),
         ("watch_undone", "watch_changed", "watch:w2", "confirmed", None),
         ("stop", "stop_tightened", "position:a1:t1", "confirmed", None),
-        ("resolve", "resolve_operation", "operation:op1", "pending", None),
+        ("settle", "settle_operation", "operation:op1", "pending", None),
         ("secret", "secret", "secret:workspace", "pending", None),
     ]
     kept = {
-        ids["resolve"]: ("resolve_operation", "operation:op1", "pending", "hash"),
+        ids["settle"]: ("settle_operation", "operation:op1", "pending", "hash"),
         ids["secret"]: ("secret", "secret:workspace", "pending", "hash"),
     }
     try:
