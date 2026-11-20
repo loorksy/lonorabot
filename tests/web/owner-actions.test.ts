@@ -21,15 +21,26 @@ import { readinessTime } from "../../packages/core/src/trading-readiness";
 const now = new Date("2026-11-08T10:00:00Z");
 const base: OwnerAction = {
   id: "card",
-  kind: "create_agent",
+  kind: "supervision_paused",
   status: "pending",
   status_reason: null,
-  source: "agent",
+  source: "system",
   agent_id: "agent",
   thread_id: "thread",
   run_id: "run",
   timeline_seq: 2,
-  facts: { several_accounts: false },
+  facts: {
+    several_accounts: false,
+    supervision: {
+      supervisor_name: "Lonora",
+      supervised_names: ["Gold agent"],
+      active: true,
+      target: "agent",
+      target_label: null,
+      from_owner_message: false,
+      owner_holds: false,
+    },
+  },
   requires_passkey: false,
   result: {},
   expires_at: "2026-11-09T10:00:00Z",
@@ -113,8 +124,8 @@ test("every pending card has its one-tap buttons in both languages", () => {
 
 test("settled cards show what happened and offer no buttons", () => {
   const settled: Array<[Partial<OwnerAction>, string]> = [
-    [{ status: "confirmed" }, "Agent created."],
-    [{ status: "cancelled" }, "Dismissed. Nothing changed."],
+    [{ status: "confirmed" }, "Resumed."],
+    [{ status: "cancelled" }, "Kept paused."],
     [{ status: "expired", status_reason: "expired" }, "This card expired. Nothing changed."],
     [{ status: "superseded", status_reason: "done_by_another_card" }, "Done from another card."],
   ];
@@ -611,12 +622,6 @@ test("no card resumes or starts trading, and no refusal names a Stop (amendment 
       assert.ok(!(key in ownerActionLabels[locale]), key);
   for (const code of ["trading_not_started", "trading_disabled", "emergency_stop"])
     assert.equal(financialBoundaryError(code, "en"), null, code);
-});
-
-test("M5: only a confirmed Undo notice reads as undone", async () => {
-  const { noticeUndone } = await import("../../packages/core/src/owner-actions");
-  assert.equal(noticeUndone({ kind: "agent_created", status: "confirmed" }), true);
-  assert.equal(noticeUndone({ kind: "agent_created", status: "pending" }), false);
 });
 
 test("the Mandate card says a signed grant still applies within its own terms", () => {

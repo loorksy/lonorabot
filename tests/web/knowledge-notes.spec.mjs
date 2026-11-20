@@ -29,10 +29,10 @@ const test = base.extend({
     // No embedding model: the default of a fresh install.
     await call("PUT", "/memory/semantic/config", { enabled: false, model: null });
     const prefix = `Notes ${randomUUID().slice(0, 8)}`;
-    const agent = await call("POST", "/agents/create", {
-      template: "general",
+    const agent = await call("POST", "/agents", {
       name: prefix,
-      responsibility: "Keeps notes",
+      description: "Keeps notes",
+      scope_mode: "flexible",
     });
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     try {

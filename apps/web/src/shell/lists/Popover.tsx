@@ -14,9 +14,10 @@ import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 import { type Morph, morphOpen } from "./morph";
 
 /* The reference's popover menu (openPop): glass, fixed beside its anchor (below unless it
-   does not fit), the first item focused; a press outside, a scroll, a resize or Escape
-   closes it, and the press that closes it does nothing else. One at a time. It takes one
-   history layer: Back and Escape return from a second page (usePopoverPage), else close.
+   does not fit), the first item focused; a press outside, a scroll that moves its anchor, a
+   resize or Escape closes it, and the press that closes it does nothing else. One at a time.
+   It takes one history layer: Back and Escape return from a second page (usePopoverPage),
+   else close.
    A `morph` menu anchored in the composer forms out of it instead (morph.ts) and folds back. */
 type Pop = {
   anchor: HTMLElement;
@@ -172,8 +173,10 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
       document.addEventListener("pointerup", settle, { capture: true, once: true });
       document.addEventListener("pointercancel", release, { capture: true, once: true });
     };
+    // A scroll that moves the anchor would leave the fixed menu behind it. Any other scroll,
+    // such as the transcript following a new reply under the header's ⋮, leaves it open.
     const scrolled = (event: Event) => {
-      if (!element.current?.contains(event.target as Node | null)) close();
+      if (event.target instanceof Node && event.target.contains(pop.anchor)) close();
     };
     const resized = () => {
       if (!element.current?.contains(document.activeElement)) close();

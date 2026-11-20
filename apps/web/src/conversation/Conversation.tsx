@@ -87,6 +87,13 @@ import "./conversation.css";
 
 const CHAT_PAGE = 60;
 
+/** The agent that cancelled a run (Lonora's cancel_run, recorded on the run); none for
+ * the owner's own Stop. */
+function cancelledBy(metadata: Record<string, unknown> | undefined) {
+  const by = metadata?.cancelled_by;
+  return typeof by === "string" ? by : undefined;
+}
+
 function dayKey(iso: string) {
   const d = new Date(iso);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -1036,6 +1043,7 @@ export function Conversation({
           previous={prev}
           live={live}
           stopped={stream.phase === "cancelled" || stopped.has(run.id)}
+          stoppedBy={stopped.has(run.id) ? undefined : cancelledBy(run.model_metadata)}
           steps={
             prefs.steps && calls.length ? (
               <Steps
@@ -1061,6 +1069,7 @@ export function Conversation({
         previous={prev}
         selected={selected === message.id}
         stopped={done?.run.status === "cancelled"}
+        stoppedBy={cancelledBy(done?.run.model_metadata)}
         card={
           peer ? (
             <PeerCard

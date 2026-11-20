@@ -10,7 +10,11 @@ from .streaming import settle_stream
 from .transactions import owned_thread
 
 
-async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow:
+async def cancel_run(
+    session: AsyncSession, owner_id: str, run_id: str, *, by: str | None = None
+) -> RunRow:
+    """Cancel a Run: the owner's Stop, or Lonora's ``cancel_run`` (``by``: Lonora's agent
+    id, recorded so no client tells the owner it stopped a reply it did not stop)."""
     row = await session.get(RunRow, run_id)
     if row is None:
         raise LonoraError("run_not_found", 404)
@@ -18,20 +22,25 @@ async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRo
     row = await session.get(RunRow, run_id, with_for_update=True, populate_existing=True)
     if row is None:
         raise LonoraError("run_not_found", 404)
-    await cancel_locked(session, thread.owner_id, row)
+    await cancel_locked(session, thread.owner_id, row, by=by)
     return row
 
 
-async def cancel_locked(session: AsyncSession, owner_id: str, row: RunRow) -> None:
+async def cancel_locked(
+    session: AsyncSession, owner_id: str, row: RunRow, *, by: str | None = None
+) -> None:
     """Cancel a Run the caller holds locked, and its unfinished children: its stream ends,
     its lease is fenced off, clients are told (``run.cancelled``) and a card send it never
-    started is marked so."""
+    started is marked so. An agent's cancel is recorded on the Run
+    (``model_metadata.cancelled_by``) and in the event; none is the owner's own Stop."""
     if row.status not in TERMINAL:
         row.status = "cancelled"
         settle_stream(row, "cancelled")
         row.lease_fence += 1
         row.lease_expires_at = None
         row.updated_at = utcnow()
+        if by is not None:
+            row.model_metadata = {**row.model_metadata, "cancelled_by": by}
         emit(
             session,
             owner_id,
@@ -39,6 +48,7 @@ async def cancel_locked(session: AsyncSession, owner_id: str, row: RunRow) -> No
             thread_id=row.thread_id,
             agent_id=row.agent_id,
             run_id=row.id,
+            payload={"cancelled_by": by} if by is not None else None,
         )
         from .genui_submit import settle_unstarted
 

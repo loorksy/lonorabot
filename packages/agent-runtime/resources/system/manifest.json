@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "33b8d11a1ac771fa213d50efc2198705250f37ae500591836f85d0b9aae13626",
+  "manual_sha256": "c2816fe93d13df8ed683d7968a2d6efb9c5c542b57be58d75463d2d19f95416c",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "09b6c5e0a1e70545e6a9a2d1133752c1f3d6c1268ecb1fc7d054db0e61152929"
@@ -58,7 +58,6 @@
     "secret_delete": "research",
     "subagent_spawn": "collaboration",
     "subagent_inspect": "collaboration",
-    "child_agent_create": "collaboration",
     "market_symbols": "market",
     "market_instrument": "market",
     "market_instruments": "market",
@@ -134,7 +133,6 @@
     "collaboration_finish": "collaboration",
     "agent_inspect": "collaboration",
     "agent_control": "collaboration",
-    "supervision_change": "collaboration",
     "owner_attention_list": "voice",
     "owner_notify": "voice",
     "owner_call_request": "voice",

@@ -97,10 +97,8 @@ export const labels = {
   uiSentTo: ["أُرسل إلى {0}", "Sent to {0}"],
   uiEdit: ["تعديل", "Edit"],
   uiEditThenSend: ["عدّل ثم أرسل من جديد", "Edit, then send again"],
-  uiCut: [
-    "أوقفتَ الرد قبل اكتمال الواجهة",
-    "You stopped the reply before the interface was complete",
-  ],
+  // The owner's Stop or Lonora's cancel of the run: neither is named here.
+  uiCut: ["توقّف الرد قبل اكتمال الواجهة", "The reply stopped before the interface was complete"],
   uiWhy: ["لماذا هذه الواجهة؟", "Why this interface?"],
   uiLastUpdated: ["آخر تحديث", "Last updated"],
   uiCopied: ["تم النسخ", "Copied"],

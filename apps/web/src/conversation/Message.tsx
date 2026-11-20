@@ -57,6 +57,8 @@ type Props = {
   live?: LiveReply;
   steps?: ReactNode;
   stopped?: boolean;
+  /** The agent that stopped the reply (Lonora's cancel_run); absent for the owner's Stop. */
+  stoppedBy?: string;
   selected?: boolean;
 };
 
@@ -359,6 +361,7 @@ export function Message({
   live,
   steps,
   stopped,
+  stoppedBy,
   selected,
 }: Props) {
   const ctx = useConversation();
@@ -493,9 +496,12 @@ export function Message({
       );
   }
   const mark = submitMark(message);
+  const stopper = stoppedBy
+    ? (ctx.agents.find((row) => row.id === stoppedBy)?.name ?? "Lonora")
+    : null;
   const note = stopped ? (
     <span className="stopped">
-      <Trans>You stopped the reply</Trans>
+      {stopper ? <Trans>{stopper} stopped the reply</Trans> : <Trans>You stopped the reply</Trans>}
     </span>
   ) : mark ? (
     <SubmitMark message={message} />

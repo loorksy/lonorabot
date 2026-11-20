@@ -3,7 +3,8 @@
 Built from the stored reconciliation snapshot of each enabled connection
 (``broker_recovery``) and the instrument currencies kept on the connection row,
 never from a broker read at build time, and attributed with the ownership rule of
-3.3.4 (the journal match of the door's ``ticket_agent``). Only the gateway step ``learn_currencies`` reads
+3.3.4 (the door's ``ticket_agent``: its journal match, and Lonora for a ticket whose opener
+was deleted, 3.1.2). Only the gateway step ``learn_currencies`` reads
 the broker, for instrument metadata. The picture is presentation for the model
 only: nothing in preflight, the stale-target check or the expected-target capture
 reads it, so a snapshot seconds old can never decide an order.
@@ -31,7 +32,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .account_authority import entry_holder
+from .account_authority import current_holder, entry_holder
 from .exposure import ENTRY_ACTIONS, direction
 
 # Instrument currencies the broker reported, per symbol, kept on the connection row.
@@ -71,9 +72,30 @@ async def ticket_owners(
     orders: list[Order],
     statuses: frozenset[str] = frozenset({"confirmed"}),
 ) -> dict[tuple[str, str], str | None]:
-    """The owner of every ticket, by the journal match the door's ``ticket_agent`` uses,
-    over the entries in ``statuses``: the door's confirmed ones unless a caller asks for
-    more."""
+    """The owner of every ticket as the door's ``ticket_agent`` decides it: the agent whose
+    order opened it (``ticket_openers``), or Lonora once that agent is deleted (its tickets
+    transferred, 3.1.2); None for the owner's own."""
+    openers = await ticket_openers(session, owner_id, account_id, positions, orders, statuses)
+    holders = {
+        opener: await current_holder(session, owner_id, opener)
+        for opener in set(openers.values())
+        if opener is not None
+    }
+    return {key: holders[opener] if opener else None for key, opener in openers.items()}
+
+
+async def ticket_openers(
+    session: AsyncSession,
+    owner_id: str,
+    account_id: str,
+    positions: list[Position],
+    orders: list[Order],
+    statuses: frozenset[str] = frozenset({"confirmed"}),
+) -> dict[tuple[str, str], str | None]:
+    """The agent whose journaled order opened or placed every ticket, by the journal match
+    the door's ``ticket_agent`` uses (``entry_holder``), over the entries in ``statuses``:
+    the door's confirmed ones unless a caller asks for more. A deleted agent stays named
+    here; ``ticket_owners`` hands its tickets to Lonora."""
     owners: dict[tuple[str, str], str | None] = {}
     tickets = [("position", item) for item in positions] + [("order", item) for item in orders]
     for symbol in sorted({item.symbol for _, item in tickets}):

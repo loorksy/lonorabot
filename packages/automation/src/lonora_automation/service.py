@@ -42,7 +42,7 @@ class RoutineService:
             )
             from lonora_db.pauses import owner_takes_over
 
-            # The owner switching the routine on or off wins over a supervisor's pause;
+            # The owner switching the routine on or off wins over Lonora's pause;
             # saving its schedule with the switch unchanged leaves the pause as it is.
             if request.enabled != row.enabled:
                 await owner_takes_over(

@@ -175,9 +175,9 @@ test("one name and initial everywhere, every time zone, a Save that waits for a 
   await page.goto("/app");
   await expect(page.locator(".welcome h2")).toHaveText("مرحبًا أبو سامي");
   // A new agent's empty chat: its avatar at 88px over the same greeting.
-  const made = await context.request.post("/api/agents/create", {
+  const made = await context.request.post("/api/agents", {
     headers: owner.headers,
-    data: { name: `Empty ${randomUUID().slice(0, 6)}`, template: "general" },
+    data: { name: `Empty ${randomUUID().slice(0, 6)}`, scope_mode: "flexible" },
   });
   expect(made.status()).toBe(201);
   await page.goto(`/app/${(await made.json()).id}`);

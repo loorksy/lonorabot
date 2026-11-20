@@ -185,7 +185,7 @@ def test_an_interrupted_change_that_is_not_a_trade_gets_its_own_line() -> None:
 
 
 @pytest.mark.parametrize(
-    "trigger", ["broker_event", "goal", "owner_card", "follow_up", "activation", "agent_created"]
+    "trigger", ["broker_event", "goal", "owner_card", "follow_up", "activation"]
 )
 def test_a_wake_run_gets_no_line_even_with_owner_steering(trigger: str) -> None:
     state, messages = request(

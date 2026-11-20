@@ -167,7 +167,6 @@ test("activity rows say what the agent does from registry metadata, never a raw 
     ["agent_create", "collaboration", "change", "Creating an agent", "ينشئ وكيلًا"],
     ["agent_inspect", "collaboration", "read", "Reviewing an agent's work", "يراجع عمل وكيل"],
     ["agent_control", "collaboration", "change", "Steering an agent's work", "يوجّه عمل وكيل"],
-    ["supervision_change", "collaboration", "change", "Setting supervision", "يضبط الإشراف"],
     ["peer_send", "collaboration", "change", "Messaging agents", "يراسل الوكلاء"],
     [
       "news_feed_subscribe",
@@ -197,6 +196,9 @@ test("the trading control appears only for an agent that can trade", () => {
   assert.equal(showsTradingControl({ ...research, level: "supervised" }), true);
   assert.equal(showsTradingControl({ ...research, grants: 1 }), true);
   assert.equal(showsTradingControl({ ...research, pendingTrade: true }), true);
+  // A flat team agent with no account trades unless its level is No trading (3.2.1).
+  assert.equal(showsTradingControl({ role: "general", trading_account_id: null }), true);
+  assert.equal(showsTradingControl({ role: "delegated", trading_account_id: null }), false);
 });
 
 test("a colleague's result is shown without its machine wrapper", () => {

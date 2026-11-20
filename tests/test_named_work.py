@@ -7,7 +7,7 @@ import pytest
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskCreate
 from lonora_db.client import Database
-from lonora_db.schema import AgentRow, RoutineRow, SupervisionGrantRow
+from lonora_db.schema import AgentRow, RoutineRow
 from lonora_db.tasks import create_task
 from lonora_tools.context import ToolContext
 from lonora_tools.resolve import NotResolved
@@ -110,19 +110,12 @@ async def test_a_task_is_read_by_its_title(task_db: Fixture) -> None:
 async def test_an_agent_is_read_by_its_name_and_only_within_reach(task_db: Fixture) -> None:
     db, owner, agent, _thread = task_db
     async with db.sessions() as session, session.begin():
+        lonora = AgentRow(owner_id=owner, name="Lonora", role="personal")
         sara = AgentRow(owner_id=owner, name="Sara")
-        omar = AgentRow(owner_id=owner, name="Omar")
-        session.add_all([sara, omar])
+        session.add_all([lonora, sara])
         await session.flush()
-        session.add(
-            SupervisionGrantRow(
-                owner_id=owner,
-                supervisor_agent_id=agent,
-                supervised_agent_id=sara.id,
-                created_via="owner_ui",
-            )
-        )
-    context = caller(owner, agent)
+    # Lonora reaches every team agent by its role (3.1.6); a team agent reaches no one.
+    context = caller(owner, lonora.id)
     async with db.sessions() as session:
         agent_id, note = await named_agent(session, context, "sara", read=True)
         assert agent_id == sara.id and note is not None and note["label"] == "Sara"
@@ -130,10 +123,11 @@ async def test_an_agent_is_read_by_its_name_and_only_within_reach(task_db: Fixtu
         with pytest.raises(NotResolved) as steering:
             await named_agent(session, context, "Sara", read=False)
         assert steering.value.details["next_actions"] == [{"repeat_with": {"agent_id": sara.id}}]
-        # An id is left to the tool's own rule (supervision_required for Omar).
-        assert await named_agent(session, context, omar.id, read=True) == (omar.id, None)
-        # An agent this one does not supervise is never offered by name.
+        team = caller(owner, agent)
+        # An id is left to the tool's own rule (supervision_required for a team agent).
+        assert await named_agent(session, team, sara.id, read=True) == (sara.id, None)
+        # An agent this one does not reach is never offered by name.
         with pytest.raises(NotResolved) as unseen:
-            await named_agent(session, context, "Omar", read=True)
+            await named_agent(session, team, "Sara", read=True)
         assert unseen.value.code == "agent_not_found"
-        assert {item["id"] for item in unseen.value.details["existing"]} == {agent, sara.id}
+        assert {item["id"] for item in unseen.value.details["existing"]} == {agent}

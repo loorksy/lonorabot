@@ -24,6 +24,8 @@ def test_only_its_own_broker_events_run_while_paused() -> None:
 
     own = {"broker_event_ids": ["e1"], "account_id": "a"}
     assert runs_while_paused("broker_event", own)
+    # Lonora's wake with a deleted agent's tickets, now hers (3.1.2).
+    assert runs_while_paused("broker_event", {"transferred_from": "agent-1", "account_id": "a"})
     # Activity on tickets it does not own is an observe-only wake: not its own.
     assert not runs_while_paused("broker_event", {**own, "authority": "observe_only"})
     # Lonora's system alerts (broker health, an uncertain operation) are not its tickets.

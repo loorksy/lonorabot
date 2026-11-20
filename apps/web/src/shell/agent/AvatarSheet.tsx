@@ -17,8 +17,7 @@ type Look = { avatar: string; color: string };
 
 /* «تعديل الأفتار» (Q42): the reference's sheet — live preview, the face grid with «إعادة
    تعيين», the swatches and a colour input, «تُعرض معاينة فقط حتى تضغط حفظ» — showing Lonora's
-   own avatar shapes and component. An existing agent saves with PATCH /api/agents/{id};
-   the new-agent form takes the pick as its draft. */
+   own avatar shapes and component. The agent saves with PATCH /api/agents/{id}. */
 function AvatarEditor({
   identity,
   name,
@@ -133,16 +132,13 @@ function AvatarEditor({
   );
 }
 
-/** Opens the editor for an agent (saved on it) or for a draft (`onPick`). */
+/** Opens the editor for an agent; the pick is saved on it. */
 export function useAvatarSheet() {
   const sheets = useSheets();
   const toast = useToast();
   const data = useShellData();
   return useCallback(
-    (
-      agent: Pick<Agent, "id" | "name" | "avatar" | "color"> | null,
-      draft?: { name: string; look: Look; onPick: (look: Look) => void },
-    ) => {
+    (agent: Pick<Agent, "id" | "name" | "avatar" | "color">) => {
       const title = t`Edit avatar`;
       sheets.open({
         id: "avatar",
@@ -150,19 +146,13 @@ export function useAvatarSheet() {
         label: title,
         body: scoped(
           <AvatarEditor
-            identity={agent?.id ?? "new"}
-            name={agent?.name ?? draft?.name ?? ""}
-            initial={
-              agent
-                ? { avatar: agent.avatar, color: agent.color }
-                : (draft?.look ?? { avatar: "orb", color: DEFAULT_AVATAR_COLOR })
-            }
+            identity={agent.id}
+            name={agent.name}
+            initial={{ avatar: agent.avatar, color: agent.color }}
             onCancel={() => sheets.close()}
             onSave={async (look) => {
-              if (agent) {
-                await api.patch(`/agents/${agent.id}`, look);
-                data.refresh();
-              } else draft?.onPick(look);
+              await api.patch(`/agents/${agent.id}`, look);
+              data.refresh();
               sheets.close();
               toast(t`Avatar saved`, { type: "success" });
             }}

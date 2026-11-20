@@ -27,7 +27,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import management_target, require_account_execution
-from .admission import AdmissionBlocked, may_reduce_risk, require_operation_scope, risk_reducing
+from .admission import (
+    AdmissionBlocked,
+    may_reduce_risk,
+    require_operation_scope,
+    risk_reducing,
+)
 from .agent_permission import acting_agent, require_operation_permission
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .idempotency import trade_fingerprint

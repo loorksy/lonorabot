@@ -72,6 +72,7 @@ CHECKS = (
     "check_restriction_removal_migration.py",
     "check_money_limits_migration.py",
     "check_notice_card_migration.py",
+    "check_flat_creation_migration.py",
     "check_pause_source_migration.py",
     "check_task_recovery.py",
     "check_attention.py",
@@ -138,6 +139,9 @@ def main() -> None:
         "test_usage_tool.py",
         "test_app_opens.py",
     ):
+        commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
+    # Lonora's lead powers, and its delete of a team agent with the ticket transfer (3.1.2).
+    for name in ("test_lead_powers.py", "test_delete_transfer.py"):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:
         name = "lonora_foundation_" + uuid4().hex + "_test"

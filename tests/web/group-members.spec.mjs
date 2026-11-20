@@ -24,8 +24,8 @@ const test = base.extend({
     const prefix = `Team ${randomUUID().slice(0, 6)}`;
     const agents = [];
     for (let index = 0; index < 13; index += 1) {
-      const response = await context.request.post("/api/agents/create", {
-        data: { template: "general", name: `${prefix} ${index}`, responsibility: "Desk" },
+      const response = await context.request.post("/api/agents", {
+        data: { name: `${prefix} ${index}`, description: "Desk", scope_mode: "flexible" },
         headers,
       });
       expect(response.ok()).toBeTruthy();

@@ -78,11 +78,14 @@ test("the ⋮ menu is a popover beside its button, in the reference's order", as
   await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
   await expect(button).toBeFocused();
 
-  // A research agent has no chart, no watches; a group has no agent files.
+  // Every agent trades (3.2.1): the research agent, with no account, offers the chart and its
+  // status too; Watches needs an account on the agent. A group has no agent files.
   await page.goto(`/app/${data.research.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   await expect(menuItems(page)).toHaveText([
     "Agent info",
+    "Chart",
+    "Status and safety",
     "New task",
     "Agent files",
     "Clear the chat",

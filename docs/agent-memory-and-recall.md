@@ -29,10 +29,9 @@ nothing of the host's private thread. A persistent child Agent has its own
 identity and therefore its own scope.
 
 Lonora reads the threads, decisions, memory and Runs of every team agent by its lead
-role, whatever its grant (`lonora_db.lead`); another supervisor reads those of the
-agents it supervises now, through the owner's visible, revocable supervision grant
-(`docs/supervision.md`). Each such result names the agent and is labelled untrusted;
-for any other agent everything below is unchanged.
+role (`lonora_db.lead`, `docs/supervision.md`); no team agent reads another's. Each
+such result names the agent and is labelled untrusted; for any other agent everything
+below is unchanged.
 
 `subagent_inspect` follows the same rule for Runs
 (`lonora_agent/collaboration/subagents.py`, `delegated_by`): it returns a Run
@@ -182,8 +181,15 @@ version, leaving `MEMORY.md` as it is. `skill_save` writes an instruction-only s
 its versions (migration 0120): `skill_restore` with `expected_version` 0 brings it back
 under its own id, except a removed package, which returns only through its own import or
 create. The owner restores a method or a skill, deleted or not, from chat by asking the
-agent; a method restore records the owner's typed message (skill versions carry no
-message). The owner's skill
+agent or Lonora; a method restore records the owner's typed message (skill versions carry
+no message). Lonora reads and restores any team agent's method and skills with
+`agent_id` (its built-in lead role); a method restore's revision names Lonora as its
+author (`author_agent_id`, which `method_history` shows the agent too), and a skill
+restore, whose version rows carry no author, is recorded as Lonora's in a
+`skill.restored` event on that agent (`by_agent_id`). Either restore that changes a team
+agent returns `owner_line: "required"`, so the conversation gate holds an empty reply until
+Lonora tells the owner in one line what she restored and why (3.1.2); reading
+another agent's text marks Lonora's run as having read third-party content. The owner's skill
 routes (`/skills/{id}/versions`, `/skills/{id}/restore`) serve existing skills only.
 
 **Legacy `# USER.md` sections.** Migration `0039_owner_profile_memory_revisions`

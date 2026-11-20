@@ -70,11 +70,11 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       "Actual persisted analysis instructions.",
     );
     await page.keyboard.press("Escape");
-    // An analyst with no pair has no chart in its menu (Desktop-37); the chart sheet is
-    // covered with a trading agent's pair in agent-pages.spec.mjs.
+    // Every agent trades (3.2.1), with no pair too: its menu offers the chart, as Lonora's
+    // does. The chart sheet is covered with a pair in agent-pages.spec.mjs.
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await expect(page.getByRole("menuitem", { name: "Agent info" })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Chart" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Chart" })).toBeVisible();
     await page.keyboard.press("Escape");
     await image.evaluate((element) => element.decode());
     await image.screenshot({ path: ".runtime/rakazo-parity/svg-isolated.png" });
@@ -95,36 +95,21 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await expect(
       literal.getByRole("link", { name: "https://example.com", exact: true }),
     ).toHaveAttribute("href", "https://example.com");
-    await page.getByRole("button", { name: "New chat", exact: true }).first().click();
-    await page
-      .locator("#dialog")
-      .getByRole("button", { name: /^New agent/ })
-      .click();
-    await expect(page).toHaveURL(/\/app\/new-agent$/);
-    const form = page.locator("main");
-    // Owner decision Q9: the template is chosen first and persisted on the agent.
-    await form.getByRole("radio", { name: /^Trading agent/ }).check();
-    await form.getByRole("button", { name: "Next", exact: true }).click();
-    await form.getByLabel("Agent name", { exact: true }).fill("Role parity fixture");
-    await form.getByLabel("Description", { exact: true }).fill("Review exposure before trading.");
-    await form.getByLabel("Broker account", { exact: true }).selectOption(data.account);
-    await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
-    await page.getByRole("option", { name: data.symbol, exact: true }).click();
-    const creation = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === "/api/agents/create" &&
-        response.request().method() === "POST",
-    );
-    await form.getByRole("button", { name: "Create the agent", exact: true }).click();
-    const response = await creation;
+    // There is no creation form (P5): the new agent comes from the agents API here.
+    const csrf = data.cookies.find((cookie) => cookie.name === "lonora_csrf").value;
+    const response = await context.request.post("/api/agents", {
+      headers: { "X-CSRF-Token": csrf },
+      data: {
+        name: "Role parity fixture",
+        description: "Review exposure before trading.",
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
     const created = await response.json();
     expect(response.status(), JSON.stringify(created)).toBe(201);
     data.extra_agents.push(created.id);
-    expect(created.template).toBe("trading");
-    expect(created.trading_symbol).toBe(data.symbol);
     expect(created.description).toBe("Review exposure before trading.");
-    // The new agent lands on its own page (phase 4a); its conversation reloads as before.
-    await expect(page).toHaveURL(new RegExp(`/app/agent/${created.id}$`));
     await page.goto(`/app/${created.id}`);
     await expect(page.locator(".chat-head .chat-name")).toContainText("Role parity fixture");
     await page.getByRole("button", { name: "Agent info", exact: true }).click();

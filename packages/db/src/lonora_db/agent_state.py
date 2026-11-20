@@ -65,8 +65,6 @@ DECISION_CARD_KINDS = frozenset(
     {
         "grant_authority",
         "settle_operation",
-        "create_agent",
-        "supervise",
         "secret",
     }
 )

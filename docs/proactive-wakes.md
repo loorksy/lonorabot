@@ -63,11 +63,12 @@ manual activity).
   approval card in its conversation.
 - Unattributed activity (the owner's own) goes to the Personal Agent, as before, with
   `authority: observe_only`.
-- Activity of a delegated or missing Agent falls back to the Personal Agent,
-  observe-only. A paused Agent is woken for its own positions and orders, with its
-  normal authority, and the door sends only its risk-reducing requests (mandate 4.7.1;
-  the wake's prompt says so). A paused Personal Agent is not woken for unattributed
-  activity.
+- Activity on a ticket a deleted Agent opened (by the door's own match,
+  `picture.ticket_openers`) goes to the Personal Agent with its normal authority: the
+  ticket transferred to it at the delete (mandate 3.1.2, below).
+- Activity of a delegated Agent, or on a ticket a deleted Agent only managed (never
+  opened), falls back to the Personal Agent, observe-only. A paused Agent is woken for
+  its own tickets and only reduces their risk (4.7.1).
 
 Run identities are stable (`external:<revision>` for the Personal Agent,
 `external:<revision>:<agent>` for an attributed one), so a repeated reconciliation
@@ -199,4 +200,4 @@ Delivery is in-app only until Wave 3. See
   (`docs/supervision.md`).
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
-  runs and memory by its lead role, whatever its grant, on demand.
+  runs and memory by its lead role, on demand; no team agent does.

@@ -185,10 +185,9 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "trade_approval_rejected",
         "agent_analysis_only",
         "shadow_execution_forbidden",
-        # Supervision never silences the owner's entry point or sheds its own oversight.
+        # No agent pauses the owner's entry point, Lonora.
         "supervision_personal_agent",
-        "supervision_revoke_own_oversight",
-        # The owner or a supervisor paused this agent.
+        # The owner or Lonora paused this agent.
         "agent_paused",
         # One Run creates so many agents and no more.
         "agent_create_run_limit",

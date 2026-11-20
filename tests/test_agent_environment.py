@@ -67,9 +67,6 @@ def test_recovery_contract_preserves_stable_categories(code: str, category: str)
         # The agent's level is a scope: never an invitation to try another route.
         ("agent_analysis_only", "permission_denied", "respect_scope"),
         ("supervision_personal_agent", "permission_denied", "respect_scope"),
-        ("supervision_revoke_own_oversight", "permission_denied", "respect_scope"),
-        # Pausing a whole trading agent has a narrower route: pause its work.
-        ("supervision_pause_trading_agent", "terminal_domain_failure", "alternate_route"),
     ],
 )
 def test_scopes_never_suggest_an_alternate_route(code: str, category: str, action: str) -> None:

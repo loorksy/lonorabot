@@ -72,7 +72,7 @@ export function useChatMenu({
     else if (group) nav.go(`/app/group/${group.id}`);
   }, [nav, agent, group]);
   // The header's avatar and name open the agent's or the group's settings sheet, as before (an
-  // agent's market, model, supervision and full permission panel; a group's name and members),
+  // agent's market, model and full permission panel; a group's name and members),
   // until phase 3 removes them. A group's is built from the agents: it waits until they load.
   const openSettings = useCallback(() => {
     if (!agent && !(group && !data.agentsLoading)) return;

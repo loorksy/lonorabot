@@ -93,10 +93,9 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     assert not tool.financial and not tool.read_only and tool.replay_safe
     assert tool.toolset == "trading" and not tool.eager
     # No tool module imports anything that settles or decides a card (owner_action_propose
-    # reads the actions for a grant card). agent_create raises
-    # a creation card or a creation's Undo card, supervision_change a supervision card, its
-    # Undo card or a Restore card; credential cards come from a proposal; none settles
-    # one. Trusting a source raises no card (VISION 10.3.2).
+    # reads the actions for a grant card). agent_create raises the
+    # new agent's Mandate card when the owner asked for full authority; credential cards
+    # come from a proposal; none settles one. Trusting a source raises no card (VISION 10.3.2).
     allowed = {
         "ALL_ACTIONS",
         "card_facts",
@@ -106,11 +105,7 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         "lock_owner_actions",
         "payload_hash",
         "pending_effect",
-        "propose_creation",
-        "raise_created_card",
-        "propose_supervision",
-        "raise_supervision_card",
-        "raise_supervision_stopped_card",
+        "raise_system_card",
         # broker_connect raises the server-built broker Secret card (9.2); it settles nothing.
         "propose_effect",
     }
@@ -247,10 +242,10 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
         assert conversation is not None
 
         async def card(card_id: str, thread: ThreadRow, kind: str, by: str) -> OwnerActionRow:
-            # A Secret card that connects a news feed, or a creation card on the account.
+            # A Secret card that connects a news feed, or a grant card on the account.
             payload: dict[str, Any] = (
-                {"spec": {"account_id": account}}
-                if kind == "create_agent"
+                {"account_id": account}
+                if kind == "grant_authority"
                 else {
                     "label": None,
                     "connect": "news_feed",
@@ -277,13 +272,15 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
                 run_id=None,
                 source="agent",
                 kind=kind,
-                subject="agent-create" if kind == "create_agent" else "secret:news_feed:desk",
+                subject=("grant:" + by + ":" + account)
+                if kind == "grant_authority"
+                else "secret:news_feed:desk",
                 payload=payload,
             )
 
         by_helper = await card("by-helper", group, "secret", helper.id)
         in_thread = await card("in-thread", conversation, "secret", agent)
-        about_account = await card("about-account", group, "create_agent", agent)
+        about_account = await card("about-account", group, "grant_authority", agent)
         elsewhere = await card("elsewhere", group, "secret", other.id)
         await prepare_delete(session, owner, agent_id=helper.id)
         await prepare_delete(session, owner, thread_id=conversation.id)
