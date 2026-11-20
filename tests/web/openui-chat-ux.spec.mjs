@@ -529,10 +529,9 @@ test("S8: Lonora's chat has the trading and safety section like any trading agen
   });
   await page.goto(`/app/${lonora.id}`);
   await expect(page.locator("[data-message-id='ux-message-24']")).toBeVisible();
-  // The menu is built when it opens: wait until the header is up. Lonora has no
-  // account, so Q9 shows no mode chip.
+  // The owner has a connected account that Lonora can use without a direct binding.
   await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeVisible();
-  await expect(page.getByTestId("permission-chip")).toHaveCount(lonora.trading_account_id ? 1 : 0);
+  await expect(page.getByTestId("permission-chip")).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   // «المراقبات» needs a linked account (reference: a trader with an account).
   await expect(page.getByRole("menuitem", { name: "Watches" })).toHaveCount(
@@ -664,8 +663,6 @@ test("R5: «Resolve» in Lonora's sheet opens the conversation that holds the ca
     });
   });
   await page.goto(`/app/${lonora.id}`);
-  // Q9: no mode chip without a connected account.
-  await expect(page.getByTestId("permission-chip")).toHaveCount(lonora.trading_account_id ? 1 : 0);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   await page.getByRole("menuitem", { name: "Status and safety" }).click();
   await page.locator(`#dialog [data-resolve-card="${card}"]`).click();
