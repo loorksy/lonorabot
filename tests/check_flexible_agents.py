@@ -31,10 +31,11 @@ async def main() -> None:
         assert general["role"] == "general" and general["trading_symbol"] is None
         assert general["scope"]["visibility"] == "owner_accounts"
         assert general["instructions"] == "Research economic news"
+        # Every agent starts at Ask me (mandate 4.1): nothing is "No trading" by default.
         assert (await f.request("GET", f"/agents/{general['id']}/permissions"))[
             "effective_level"
-        ] == "analysis"
-        print("PASS general creation without a broker or default market; analysis-only authority")
+        ] == "supervised"
+        print("PASS general creation without a broker or default market; Ask me by default")
 
         async def connection() -> str:
             value = await f.request(
@@ -378,7 +379,7 @@ async def main() -> None:
         assert general_proposal["status"] == "pending"
         assert (await f.request("GET", f"/agents/{general['id']}/permissions"))[
             "effective_level"
-        ] == "analysis"
+        ] == "supervised"
         print(
             "PASS general agent can propose account-wide scope without automatically activating it"
         )

@@ -77,12 +77,16 @@ async def readiness(db: Database, owner: str, agent: str) -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-async def test_no_grant_reads_as_no_trading(task_db: Fixture) -> None:
+async def test_no_grant_reads_as_no_trading(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
     db, owner, agent, _ = task_db
     await account(db, owner)
+    # The ladder's "No trading", set by the owner (no agent starts there, 4.1): the one
+    # line says it does not trade.
+    level(monkeypatch, "analysis")
     result = await readiness(db, owner, agent)
     assert result["presentation_only"] is True
-    # The per-agent default is analysis: the one line says it does not trade.
     assert result["level"] == "analysis" and result["state"] == "no_trading"
     assert result["trading_mode"] == "ask"
     assert result["grants"] == []
@@ -342,7 +346,8 @@ async def test_live_state_carries_readiness_only_for_the_owner_view(task_db: Fix
         owner_view = await agent_live_state(session, owner, agent, readiness=True)
     assert plain.trading_readiness is None
     assert owner_view.trading_readiness is not None
-    assert owner_view.trading_readiness["state"] == "no_trading"
+    # Every agent starts at Ask me (4.1).
+    assert owner_view.trading_readiness["state"] == "ask_me"
 
 
 @pytest.mark.asyncio

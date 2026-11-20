@@ -75,6 +75,10 @@ CARDS_WAITING: dict[str, Any] = {
 
 
 def payload_hash(kind: str, payload: dict[str, Any]) -> str:
+    if kind == "trading_mode":
+        # A Mandate card's effect is its agent's switch; the old grants a card names
+        # (migration 0128, mandate 14.3.18.2) are not part of it.
+        payload = {"agent_id": payload["agent_id"]}
     return request_hash({"kind": kind, "payload": payload})
 
 
@@ -412,6 +416,25 @@ async def card_facts(
                 )
             )
         )
+        # The grants this agent held before Full and Ask, named once (mandate 14.3.18.2).
+        previous = payload.get("previous_grants")
+        if isinstance(previous, list):
+            facts["previous_grants"] = [
+                {
+                    "full_delegation": item.get("full_delegation") is True,
+                    "symbol_scope": (
+                        "account" if item.get("symbol_scope") == "account" else "selected"
+                    ),
+                    "symbols": [
+                        str(symbol) for symbol in cast(list[Any], item.get("symbols") or [])
+                    ],
+                    "account": account_facts(
+                        await session.get(BrokerSessionRow, str(item.get("account_id"))),
+                        str(item.get("account_id")),
+                    ),
+                }
+                for item in cast(list[dict[str, Any]], previous)
+            ]
         return facts, False
     if row.kind == "settle_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])

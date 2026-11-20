@@ -76,6 +76,7 @@ CHECKS = (
     "check_notice_card_migration.py",
     "check_flat_creation_migration.py",
     "check_pause_source_migration.py",
+    "check_authority_migration.py",
     "check_task_recovery.py",
     "check_attention.py",
     "check_relationships.py",

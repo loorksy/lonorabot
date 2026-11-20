@@ -81,13 +81,21 @@ monotonic:
   (`change_permission`). The selector says so first, in one line: "This revokes
   the signed grant for <account>; going back needs a new signature", with Revoke
   and switch / Keep it.
-- Defaults: Lonora (the Personal Agent) and a root trading agent with a focus pair
-  start at Ask me; general, research and supervisor agents, bound children and
-  delegated helpers start at No trading (`default_level`). A level the owner set is
-  stored and kept; editing an agent's focus pair stores its current level first,
-  so the edit never moves it. Migration `0040_explicit_agent_permission_rows`
-  stores an explicit level for every agent that existed before: No trading, and
-  Ask me for the Personal Agent. Delegated helpers can still never trade.
+- Defaults: every agent starts at Ask me (`default_level`); nothing is No trading by
+  default (mandate 4.1). A level the owner set is stored and kept; editing an agent's
+  focus pair stores its current level first, so the edit never moves it. Migration
+  `0128_authority_migration` stored Ask me for every agent whose stored or default
+  level was No trading.
+- Migration 0128 (mandate 14.3.18) revoked every grant that was active or pending,
+  stopping its management Task, its waiting Run and every waiting activation review,
+  and deleted every grant card. The Task's watches stay the agent's own, in its
+  conversation without the Task (4.5.3); a paused Task's live watches stay paused under
+  the Task's hold, and a Task the owner had already ended keeps its watches as they
+  were. No mode was written: an agent in Full stays in Full and the gateway starts its
+  own continuous task. Delegated, child and supervisor-template agents became root
+  specialists with no binding; a bound account and symbol became one line of the
+  agent's OPERATING.md in the owner's language. A grant signed after it follows the
+  rules above until grants are deleted.
 
 Activation atomically creates one existing durable Task and its work Run. Signed
 proof replay cannot create another kickoff. It inspects actual state and may

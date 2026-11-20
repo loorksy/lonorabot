@@ -58,13 +58,17 @@ def agent(role: str, parent: str | None = None) -> AgentRow:
     return cast(AgentRow, SimpleNamespace(role=role, parent_id=parent))
 
 
-def test_ladder_defaults_follow_the_template() -> None:
-    assert default_level(agent("personal")) == "supervised"
-    assert default_level(agent("specialist")) == "supervised"
-    for role, parent in (("general", None), ("legacy", None), ("delegated", "p")):
-        assert default_level(agent(role, parent)) == "analysis"
-    # A bound child is a helper of its parent: it never starts at Ask me.
-    assert default_level(agent("specialist", "parent")) == "analysis"
+def test_every_agent_starts_at_ask_me() -> None:
+    # Nothing is "No trading" by default (mandate 4.1), whatever the role or the parent.
+    for role, parent in (
+        ("personal", None),
+        ("specialist", None),
+        ("general", None),
+        ("legacy", None),
+        ("delegated", "p"),
+        ("specialist", "parent"),
+    ):
+        assert default_level(agent(role, parent)) == "supervised"
 
 
 def test_a_grant_proposal_is_built_only_from_the_stored_draft() -> None:

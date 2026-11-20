@@ -433,8 +433,8 @@ async def test_lonora_offers_its_own_mandate_card_at_onboarding() -> None:
 async def test_every_agent_read_carries_its_mode_and_full_is_marked_on_its_own() -> None:
     """GET /agents and GET /agents/{id} carry each agent's mode (Ask until the owner taps
     Full). The avatar marker reads it: a Full agent with no grant is marked while it is not
-    paused; one the old ladder still holds at "No trading" is not, since the door refuses
-    its every send."""
+    paused; one the owner holds at the old ladder's "No trading" is not, since the door
+    refuses its every send."""
     database()
     from check_streaming import Fixture
     from lonora_db.trading_mode import set_trading_mode
@@ -442,7 +442,14 @@ async def test_every_agent_read_carries_its_mode_and_full_is_marked_on_its_own()
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Roster", supervised=True)
-        held = await fixture.agent("Held")  # The old ladder's default: "No trading".
+        held = await fixture.agent("Held")
+        # The old ladder's "No trading", set by the owner: no agent starts there (4.1).
+        state = await fixture.request("GET", f"/agents/{held['id']}/permissions")
+        await fixture.request(
+            "PUT",
+            f"/agents/{held['id']}/permissions",
+            {"level": "analysis", "expected_revision": state["revision"]},
+        )
         assert agent["trading_mode"] == "ask"
         rows = await roster(fixture)
         assert {row["trading_mode"] for row in rows.values()} <= {"ask", "full"}, rows

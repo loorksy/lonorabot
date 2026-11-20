@@ -158,8 +158,8 @@ async def main() -> None:
         async def card(thread_id: str, card_id: str) -> dict[str, Any]:
             return next(row for row in await cards(thread_id) if row["id"] == card_id)
 
-        # 1. Ladder defaults: Lonora and a trading agent start at Ask me; a general agent
-        #    and a delegated helper start at No trading, and a helper can never trade.
+        # 1. Ladder defaults: every agent starts at Ask me (mandate 4.1), and a delegated
+        #    helper can never be raised.
         async with db.sessions() as session, session.begin():
             lonora_id = (await ensure_personal_agent(session, fixture.owner)).id
         lonora = await fixture.request("GET", "/agents/" + lonora_id)
@@ -186,8 +186,8 @@ async def main() -> None:
         fixture.agents.append(helper_id)
         assert await level(lonora_id) == "supervised"
         assert await level(gold["id"]) == "supervised"
-        assert await level(general["id"]) == "analysis"
-        assert await level(helper_id) == "analysis"
+        assert await level(general["id"]) == "supervised"
+        assert await level(helper_id) == "supervised"
         helper_state = await fixture.request("GET", f"/agents/{helper_id}/permissions")
         status, refused = await raw(
             "PUT",
@@ -207,9 +207,9 @@ async def main() -> None:
                 "expected_scope_revision": before["scope_revision"],
             },
         )
-        assert await level(general["id"]) == "analysis"
+        assert await level(general["id"]) == "supervised"
         print(
-            "PASS Lonora and trading agents start at Ask me, others at No trading; a helper never trades and a focus edit keeps the level"
+            "PASS every agent starts at Ask me; a helper is never raised and a focus edit keeps the level"
         )
 
         # 2. One sentence: Lonora proposes the grant card for the gold agent; the server
@@ -578,10 +578,12 @@ async def main() -> None:
                 row = await session.get(SettingRow, permission_key(fixture.owner, agent_id))
                 if row is not None:
                     await session.delete(row)
+        # Its own revision, not head: 0128 (later) stores Ask me for every "No trading".
+        explicit = "0040_explicit_agent_permission_rows"
         await alembic("downgrade", "0039_owner_profile_memory_revisions")
-        await alembic("upgrade", "head")
+        await alembic("upgrade", explicit)
         await alembic("downgrade", "0039_owner_profile_memory_revisions")
-        await alembic("upgrade", "head")
+        await alembic("upgrade", explicit)
         async with db.sessions() as session:
             for agent_id, expected in (
                 (lonora_id, "supervised"),
@@ -594,9 +596,17 @@ async def main() -> None:
             # Rows the owner changed (revision above 0) were never touched.
             changed = await session.get(SettingRow, permission_key(fixture.owner, silver["id"]))
             assert changed is not None and changed.payload["revision"] > 0
+        # Then 0128 (mandate 14.3.18.1) stores every one of them at Ask me.
+        await alembic("upgrade", "head")
+        async with db.sessions() as session:
+            for agent_id in (general["id"], helper_id):
+                row = await session.get(SettingRow, permission_key(fixture.owner, agent_id))
+                assert row is not None and row.payload["fallback_level"] == "supervised"
+                assert row.payload["revision"] == 1, agent_id
         assert await level(lonora_id) == "supervised"
+        assert await level(general["id"]) == "supervised"
         print(
-            "PASS the migration stores Lonora at Ask me and every other existing agent at No trading; it is reversible and idempotent"
+            "PASS migration 0040 stores Lonora at Ask me and every other existing agent at No trading, reversibly and idempotently; 0128 then stores every agent at Ask me"
         )
     finally:
         await fixture.close()

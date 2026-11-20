@@ -3,7 +3,8 @@
 On a disposable PostgreSQL already at head: step down below 0053, seed Shadow-era rows
 (a Shadow agent with an active and a pending grant, its management Task, an "On its
 own"-capable stored level, virtual journal entries, a virtual position and
-a Shadow approval card) next to an ordinary live agent, then upgrade and check that
+a Shadow approval card) next to an ordinary live agent, then upgrade to 0053 itself
+(0128, later, revokes every grant) and check that
 the Shadow agent ends with no active grant and the "No trading" level, Shadow work is
 settled, and nothing of the live agent changed. The downgrade is structural (columns back
 at 'live', an empty ln_shadow_trades) and the upgrade runs again cleanly.
@@ -289,7 +290,8 @@ async def main() -> None:
         async with engine.begin() as connection:
             ids = await seed(connection)
         await engine.dispose()
-        await asyncio.to_thread(alembic, "upgrade", "heads")
+        # 0053's own effect: a later revision (0128, mandate 14.3.18.3) revokes every grant.
+        await asyncio.to_thread(alembic, "upgrade", REVISION)
         async with engine.connect() as connection:
             await verify_upgraded(connection, ids)
         await engine.dispose()

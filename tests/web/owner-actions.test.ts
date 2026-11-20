@@ -646,6 +646,52 @@ test("the Mandate card says a signed grant still applies within its own terms", 
   }
 });
 
+test("the migration's Mandate card names the agent's old grant in one line (14.3.18.2)", () => {
+  const account = { id: "acc", label: "IC Markets · 5001", provider: "metaapi" };
+  const mandate: OwnerAction = {
+    ...base,
+    kind: "trading_mode",
+    facts: {
+      several_accounts: false,
+      trading_mode: "ask",
+      agent: { exists: true, id: "agent", name: "Gold" },
+    },
+  } as OwnerAction;
+  const named = (facts: Record<string, unknown>, locale: "ar" | "en") => {
+    const text = ownerActionLabels[locale];
+    const lines = ownerActionCard(
+      { ...mandate, facts: { ...mandate.facts, ...facts } } as OwnerAction,
+      locale,
+      now,
+    ).lines;
+    const prefix = text.mandatePreviousGrant.split("{grant}")[0] ?? "";
+    const found = lines.filter((line) => line.startsWith(prefix));
+    assert.equal(found.length, 1, lines.join("|"));
+    return found[0] ?? "";
+  };
+  const without = ownerActionCard(mandate, "ar", now).lines;
+  const arPrefix = ownerActionLabels.ar.mandatePreviousGrant.split("{grant}")[0] ?? "";
+  assert.ok(!without.some((line) => line.startsWith(arPrefix)), "no line without the fact");
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const grant = { full_delegation: false, symbol_scope: "account", symbols: [], account };
+    const full = named({ previous_grants: [{ ...grant, full_delegation: true }] }, locale);
+    assert.ok(full.includes(text.mandatePreviousFull), full);
+    assert.ok(!full.includes("IC Markets"), "one account: no account label");
+    const wide = named({ previous_grants: [grant] }, locale);
+    assert.ok(wide.includes(text.mandatePreviousAllPairs) && !wide.includes("()"), wide);
+    const markets = named(
+      {
+        previous_grants: [{ ...grant, symbol_scope: "selected", symbols: ["XAUUSD", "EURUSD"] }],
+        several_accounts: true,
+      },
+      locale,
+    );
+    assert.ok(markets.includes("⁨XAUUSD⁩") && markets.includes("⁨EURUSD⁩"), markets);
+    assert.ok(markets.includes("IC Markets · 5001") && !markets.includes(text.mandatePreviousFull));
+  }
+});
+
 test("a Settle card answered Unknown stays pending with Executed and Not executed live", () => {
   for (const locale of ["en", "ar"]) {
     const card = ownerActionCard({ ...resolve, result: { outcome: "unknown" } }, locale, now);
