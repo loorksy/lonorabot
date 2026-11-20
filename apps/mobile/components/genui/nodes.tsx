@@ -48,6 +48,8 @@ export type CardCtx = {
   register: (key: string, input: TextInput | null) => void;
   /** A rendered primary Button (or null when it unmounts), by path. */
   primaryAt: (path: string, block: UiBlock | null) => void;
+  /** Stable for this card, so a disclosure survives the row being drawn again. */
+  cardKey: string;
 };
 type NodeProps = { block: UiBlock; path: string; ctx: CardCtx };
 
@@ -806,14 +808,24 @@ function Card(props: NodeProps) {
   );
 }
 
+// A list redraw mounts the card again. The owner's «more» tap has to stay open.
+const openedMore = new Set<string>();
+
 function More(props: NodeProps) {
-  const { block, ctx } = props;
-  const [open, setOpen] = useState(false);
+  const { block, ctx, path } = props;
+  const id = `${ctx.cardKey}:${path}`;
+  const [open, setOpen] = useState(() => openedMore.has(id));
   if (!open)
     return (
       <Pressable
         accessibilityRole="button"
-        onPress={() => setOpen(true)}
+        accessibilityLabel={
+          typeof block.label === "string" ? text(ctx, block.label) : ctx.t("uiShowMore")
+        }
+        onPress={() => {
+          openedMore.add(id);
+          setOpen(true);
+        }}
         style={{ alignSelf: ctx.rtl ? "flex-end" : "flex-start", paddingVertical: 4 }}
       >
         <Text
