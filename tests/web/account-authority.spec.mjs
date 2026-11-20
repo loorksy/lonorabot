@@ -64,7 +64,11 @@ async function setup(context, locale = "en") {
       await page.goto(`/app/${agent.id}?thread=${thread.id}`);
       if (!full) {
         // The conversation: the chip's «تنفيذ مفوَّض» opens the agent's pending grant for review.
-        await page.getByTestId("permission-chip").click();
+        // Until the level is read the chip is an inert status, never a guessed level; a new
+        // trading agent reads as Ask me, and a pending proposal grants nothing.
+        const chip = page.getByTestId("permission-chip");
+        await expect(chip).toHaveAttribute("data-level", "supervised");
+        await chip.click();
         await page.getByTestId("mode-option-autonomous").click();
         const review = page.getByTestId("permission-review");
         await expect(review).toBeVisible();
