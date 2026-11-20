@@ -356,6 +356,43 @@ test("a custom list is created with the emoji panel, filters the rows and delete
   ).toBeVisible();
 });
 
+// The list's chats page reads the agents and groups live: opened while /api/groups is held, it
+// shows the agents, then the group once the answer arrives, and saves both.
+test("the list's chats page opened before the groups arrive fills in, and saves the group", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture);
+  const [alpha] = fixture.agents;
+  let release;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/groups", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/app");
+  await page.locator(".desktop-list .list-filters .chip-add").click();
+  const sheet = page.locator("#dialog");
+  const listName = `Held ${Date.now() % 10000}`;
+  await sheet.locator("#list-name").fill(listName);
+  await sheet.getByRole("button", { name: "Add agents or groups" }).click();
+  const group = sheet.getByRole("checkbox", { name: new RegExp(fixture.group.payload.name) });
+  await sheet.getByRole("checkbox", { name: new RegExp(alpha.name) }).click();
+  await expect(group).toHaveCount(0);
+  release();
+  await group.click();
+  await sheet.getByRole("button", { name: "Create the list · 2" }).click();
+  await expect(page.locator("#toast")).toHaveText(`List «${listName}» created`);
+  const lists = await (await context.request.get("/api/chat-lists")).json();
+  const saved = lists.find((list) => list.name === listName);
+  expect(saved.thread_ids.sort()).toEqual(
+    [fixture.threads[0].id, fixture.group.state.thread_id].sort(),
+  );
+});
+
 test("unified search: categories with counts, the latest query only, and the jump to a hit", async ({
   page,
   context,
