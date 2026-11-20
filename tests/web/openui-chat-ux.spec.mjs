@@ -498,7 +498,23 @@ test("S8: Lonora's chat has the trading and safety section like any trading agen
     (row) => row.role === "personal",
   );
   expect(lonora).toBeTruthy();
+  // Lonora's chat is busy: a long history, and a reply arrives while the menu is open.
+  let count = 24;
+  await page.route("**/api/threads/*/messages*", (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const thread = { id: new URL(route.request().url()).pathname.split("/")[3] };
+    const rows = Array.from({ length: count }, (_, index) =>
+      message(
+        { thread, agent: lonora },
+        index + 1,
+        index % 2 ? "assistant" : "user",
+        `History ${index}: ${"Long bounded conversation text. ".repeat(8)}`,
+      ),
+    );
+    return route.fulfill({ json: rows });
+  });
   await page.goto(`/app/${lonora.id}`);
+  await expect(page.locator("[data-message-id='ux-message-24']")).toBeVisible();
   // The menu is built when it opens: wait until the agent is loaded.
   await expect(page.getByTestId("permission-chip")).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
@@ -506,6 +522,20 @@ test("S8: Lonora's chat has the trading and safety section like any trading agen
   await expect(page.getByRole("menuitem", { name: "Watches" })).toHaveCount(
     lonora.trading_account_id ? 1 : 0,
   );
+  // The transcript follows the new reply down; that scroll does not move ⋮, so its menu stays.
+  const transcript = page.getByTestId("transcript");
+  const followed = transcript.evaluate(
+    (element) =>
+      new Promise((resolve) =>
+        element.addEventListener("scroll", () => resolve(true), { once: true }),
+      ),
+  );
+  count = 25;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(page.locator("[data-message-id='ux-message-25']")).toBeVisible();
+  await followed;
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  await expect(page.getByRole("menu", { name: "Chat menu" })).toBeVisible();
   await page.getByRole("menuitem", { name: "Status and safety" }).click();
   await expect(page.getByRole("heading", { name: "Trading and safety" })).toBeVisible();
   await expect(page.getByTestId("agent-mode-line")).toBeVisible();

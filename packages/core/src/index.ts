@@ -160,7 +160,6 @@ export {
 export {
   brokerCardFailed,
   mergeOwnerAction,
-  noticeUndone,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -227,14 +226,6 @@ export {
   searchPath,
 } from "./search-feed";
 export { foldSearch, highlightRange } from "./search-fold";
-export {
-  type SupervisionRow,
-  type SupervisionText,
-  supervisionError,
-  supervisionLabels,
-  supervisionRows,
-  supervisionText,
-} from "./supervision";
 export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";

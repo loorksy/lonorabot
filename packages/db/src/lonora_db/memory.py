@@ -144,6 +144,7 @@ async def commit_memory(
     source_message_id: str | None = None,
     change: str | None = None,
     reverted_revision_id: str | None = None,
+    author_agent_id: str | None = None,
 ) -> dict[str, Any]:
     """One attributed revision: an Agent's own write when ``source_run_id`` is set,
     otherwise the owner's. The prior text is kept so the owner can revert it.
@@ -193,7 +194,8 @@ async def commit_memory(
         content=memory_view(row.content),
         author="agent" if source_run_id else "owner",
         change=kind,
-        author_agent_id=agent_id if source_run_id else None,
+        # Lonora restoring a team agent's method is the author of that revision (3.1.2).
+        author_agent_id=(author_agent_id or agent_id) if source_run_id else None,
         source_message_id=source_message_id,
         source_run_id=source_run_id,
         reverted_revision_id=reverted_revision_id,

@@ -337,6 +337,37 @@ test("personal agent explicitly chooses the account-wide scope and cannot activa
       data: { level: "analysis", expected_revision: current.revision },
     });
     expect(reset.ok()).toBeTruthy();
+    // Lonora is shared by every spec: start from its default draft (every action, no limits,
+    // until stopped), not from a draft an earlier test saved for it.
+    const drafted = await context.request.put(
+      `/api/agents/${personal.id}/permissions/customization`,
+      {
+        headers: state.headers,
+        data: {
+          expected_revision: (await reset.json()).revision,
+          customization: {
+            account_id: "",
+            symbol_scope: "account",
+            symbols: [],
+            actions: [
+              "buy",
+              "sell",
+              "buy_limit",
+              "sell_limit",
+              "buy_stop",
+              "sell_stop",
+              "close_position",
+              "modify_position",
+              "cancel_order",
+              "modify_order",
+            ],
+            duration: "until_stopped",
+            allow_manual_positions: false,
+          },
+        },
+      },
+    );
+    expect(drafted.ok()).toBeTruthy();
     const thread = await (
       await context.request.post(`/api/agents/${personal.id}/conversation`, {
         headers: state.headers,

@@ -165,29 +165,29 @@ async def test_renew_raises_a_fresh_card_only_while_the_subject_still_needs_a_de
 
 
 @pytest.mark.asyncio
-async def test_undo_cards_are_never_renewed(task_db: Fixture) -> None:
+async def test_only_uncertain_trade_cards_are_renewed(task_db: Fixture) -> None:
     db, owner, agent, thread_id = task_db
     async with db.sessions() as session, session.begin():
         thread = await session.get(ThreadRow, thread_id)
         assert thread is not None
-        undo = await create_card(
+        pause = await create_card(
             session,
             owner,
-            card_id="created-undo",
+            card_id="pause-card",
             agent_id=agent,
             thread=thread,
             run_id=None,
             source="system",
-            kind="agent_created",
-            subject="agent:" + agent,
-            payload={"agent_id": agent},
+            kind="supervision_paused",
+            subject="hold:hold-1",
+            payload={"hold_id": "hold-1"},
         )
-        undo.expires_at = utcnow() - timedelta(minutes=1)
+        pause.expires_at = utcnow() - timedelta(minutes=1)
         with pytest.raises(LonoraError) as error:
-            await renew_card(session, owner, undo.id)
+            await renew_card(session, owner, pause.id)
         assert error.value.code == "owner_action_not_renewable"
         with pytest.raises(LonoraError) as error:
-            await renew_card(session, "someone-else", undo.id)
+            await renew_card(session, "someone-else", pause.id)
         assert error.value.code == "owner_action_not_found"
 
 

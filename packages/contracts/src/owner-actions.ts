@@ -6,11 +6,6 @@ import type { TradingMode } from "./trading";
 export type OwnerActionKind =
   | "settle_operation"
   | "grant_authority"
-  | "create_agent"
-  | "agent_created"
-  | "supervise"
-  | "supervision_created"
-  | "supervision_stopped"
   | "supervision_paused"
   /** The Secret card: the owner's values go straight to the encrypted store. */
   | "secret"
@@ -52,22 +47,8 @@ export type SecretField = {
 export type SecretDestination = "workspace" | "broker";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
-/** A creation card's agent, read on the server. */
-export type OwnerActionAgent = {
-  exists: boolean;
-  id?: string;
-  name: string | null;
-  template?: AgentTemplate | null;
-  symbol?: string | null;
-  level?: "analysis" | "supervised" | "autonomous";
-  paused?: boolean;
-  report_to?: string[];
-  /** Names of the agents it supervises (reads, messages, pauses; never trades). */
-  supervises?: string[];
-  model?: string | null;
-  /** Its task exactly as stored (its standing instructions); shown isolated and labelled. */
-  responsibility?: string | null;
-};
+/** The agent a Mandate card switches, read on the server. */
+export type OwnerActionAgent = { exists: boolean; id?: string; name: string | null };
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** The broker identity the owner recognizes; label is null when it is not verified. */
@@ -156,28 +137,17 @@ export type OwnerAction = {
     replaces?: OwnerActionGrantTerms | null;
     /** The owner's first grant: the card shows the one rule. */
     first_grant?: boolean;
-    /** create_agent / agent_created: the agent the card creates or created. */
+    /** trading_mode: the agent the Mandate card switches. */
     agent?: OwnerActionAgent;
-    /** agent_created: what Undo does now (remove an untouched agent, else pause it). */
-    undo?: "delete" | "pause";
     /**
-     * supervise / supervision_created / supervision_stopped: who supervises whom;
-     * supervision_paused: which supervisor paused which work of which agent. Names are
-     * read on the server.
+     * supervision_paused: who paused which work of which agent (Lonora, or a team
+     * supervisor before grants were deleted). Names are read on the server.
      */
     supervision?: {
       supervisor_name: string | null;
       supervised_names: string[];
-      /**
-       * supervision_created: a grant of this change is still in force; supervision_stopped:
-       * one can still be restored; supervision_paused: the pause still holds.
-       */
+      /** The pause still holds. */
       active: boolean;
-      /**
-       * supervision_created: the grants are Lonora's, which leads every team agent by its
-       * role, so Undo would stop nothing (an older card).
-       */
-      lead?: boolean;
       /** supervision_paused: what is paused, and that item's own short label. */
       target?: "agent" | "task" | "routine" | "watch";
       target_label?: string | null;
@@ -220,10 +190,6 @@ export type OwnerAction = {
     agent_id?: string;
     agent_name?: string;
     undo?: "deleted" | "paused";
-    grant_ids?: string[];
-    supervisor_id?: string;
-    revoked?: number;
-    restored?: number;
     /** supervision_paused: what was resumed. */
     resumed?: boolean | "agent" | "task" | "routine" | "watch";
     target?: CredentialTarget;

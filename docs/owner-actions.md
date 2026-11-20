@@ -6,9 +6,11 @@ Wave 1.5 slices W15-2 and W15-3. Every owner-only action has a one-tap card insi
 conversation, identical on Web and Mobile. Settling
 an uncertain trade and signing a trading grant never need a
 settings page or the API. W15-3 adds the grant card (`grant_authority`, below), W15-4
-the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
-supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
-`supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
+the agent creation and Undo cards (deleted by migration `0125_flat_team_creation`: Lonora
+creates agents with no card, `docs/agents-from-chat.md`), W15-6 the
+supervision cards, of which only the pause card (`supervision_paused`,
+`docs/supervision.md`) remains: grants and their cards are deleted (migration
+`0127_no_supervision_grants`).
 W15-8 added a secure credential card; the Secret card (`secret`, below) replaced it
 (migration `0071_secret_card_kinds`). Trusting a source has no card (VISION 10.3.2): an
 agent adds a feed's domain, a GitHub repository or owner, or an MCP server only when the
@@ -96,7 +98,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `settle_operation`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `secret` or `trading_mode` |
+| `kind` | `settle_operation`, `grant_authority`, `supervision_paused`, `secret` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. |
 | `subject` | The record the card acts on: `operation:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
@@ -149,9 +151,8 @@ Clients render one shared spec (`packages/core/src/owner-actions.ts`,
 (`components/owner-action-card.tsx`), in the owner's language with tickers, numbers and
 times isolated for Arabic. Every fact comes from `facts`, which the server reads at
 request time from the records the card names: the operation's action,
-volume, symbol, time and agent. No ids, codes or JSON are shown; the account is named only when the owner has several. The one stored text a card quotes is a creation card's task: it
-becomes the new agent's standing instructions, so the card shows it word for word,
-isolated and labelled as the agent's task ("Its task: …"), never as Lonora's words.
+volume, symbol, time and agent. No ids, codes or JSON are shown; the account is named
+only when the owner has several.
 
 | Card | Buttons | Needs |
 | --- | --- | --- |

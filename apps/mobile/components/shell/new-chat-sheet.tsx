@@ -20,7 +20,7 @@ function Body() {
   const router = useRouter();
   const open = useOpenChat();
   const role = useAgentRole();
-  const go = (path: "/new" | "/new-group" | "/agents") => {
+  const go = (path: "/new-group" | "/agents") => {
     sheets.close();
     router.push(path);
   };
@@ -29,12 +29,6 @@ function Body() {
   return (
     <View>
       <GroupBox>
-        <Row
-          lead={<IconDisc name="userPlus" />}
-          title={t("sh_newAgent")}
-          sub={t("sh_newAgentSub")}
-          onPress={() => go("/new")}
-        />
         <Row
           last
           lead={<IconDisc name="users" />}

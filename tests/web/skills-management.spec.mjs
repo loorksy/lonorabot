@@ -160,7 +160,8 @@ test("Web Skill editing retains complete manifest, explicit version and optimist
     await card
       .getByLabel("Content", { exact: true })
       .fill("Read broker evidence and current spreads before discussing the market.");
-    await card.getByRole("checkbox", { name: "Enabled", exact: true }).uncheck();
+    // Boolean options render as switches (98f2e596).
+    await card.getByRole("switch", { name: "Enabled", exact: true }).uncheck();
     const edited = page.waitForResponse(
       (result) =>
         result.request().method() === "PUT" && result.url().endsWith(`/skills/${original.id}`),

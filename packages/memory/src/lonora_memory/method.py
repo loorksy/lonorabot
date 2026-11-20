@@ -69,6 +69,8 @@ def version_data(row: MemoryRevisionRow, *, current: bool, text: bool) -> dict[s
         "version": row.version,
         "created_at": row.created_at.isoformat(),
         "author": row.author,
+        # The agent that wrote it: the method's own agent, or Lonora restoring it (3.1.2).
+        "author_agent_id": row.author_agent_id,
         "from_owner_message": row.source_message_id is not None,
         "change": row.change,
         "chars": len(method),
@@ -116,6 +118,7 @@ async def restore_method(
     lease: Lease,
     effect_key: str,
     source_message_id: str | None = None,
+    author_agent_id: str | None = None,
 ) -> dict[str, Any]:
     """Save version ``version`` of the method as a new revision; MEMORY.md is untouched."""
     async with db.sessions() as session, session.begin():
@@ -149,4 +152,5 @@ async def restore_method(
             transform=transform,
             source_message_id=source_message_id,
             change="restore",
+            author_agent_id=author_agent_id,
         )

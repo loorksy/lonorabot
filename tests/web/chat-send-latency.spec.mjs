@@ -398,9 +398,13 @@ test("validated interactive preview appears before completion and preserves edit
     route.request().method() === "GET" ? route.fulfill({ json: rows }) : route.continue(),
   );
   await page.route(`**/api/runs?thread_id=${thread.id}`, (route) => route.fulfill({ json: [run] }));
-  let mutations = 0;
+  // The preview, its edits, the late run link and the reload write nothing. The one write is
+  // the shell's app-open record (VISION 11.1), sent on each load and not part of this chat.
+  const mutations = [];
   page.on("request", (request) => {
-    if (request.method() !== "GET" && request.url().includes("/api/")) mutations += 1;
+    if (request.method() === "GET" || !request.url().includes("/api/")) return;
+    const write = `${request.method()} ${new URL(request.url()).pathname}`;
+    if (write !== "POST /api/app-opens") mutations.push(write);
   });
   try {
     await page.goto(`/app/${agent.id}`);
@@ -435,7 +439,7 @@ test("validated interactive preview appears before completion and preserves edit
     await expect(canonical.getByRole("spinbutton", { name: "Quantity", exact: true })).toHaveValue(
       "4",
     );
-    expect(mutations).toBe(0);
+    expect(mutations).toEqual([]);
   } finally {
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
   }

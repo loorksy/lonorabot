@@ -10,7 +10,8 @@ from lonora_contracts.execution_quality import ExecutionSnapshot
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
-from lonora_db.schema import AccountAuthorityRow, RunRow, TradingJournalRow
+from lonora_db.lead import personal_agent_id
+from lonora_db.schema import AccountAuthorityRow, AgentRow, RunRow, TradingJournalRow
 from lonora_session.idempotency import broker_operation_tag
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,6 +108,7 @@ async def ticket_agent(
     session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
 ) -> str | None:
     """The agent whose journaled entry opened or placed this ticket; None for the owner's own.
+    A deleted agent's ticket is Lonora's (mandate 3.1.2).
 
     Attribute by the existing journal and broker identity, never ticket format, over every
     confirmed entry on the ticket's account and symbol. The entry whose operation id (or
@@ -136,7 +138,7 @@ async def ticket_agent(
             )
         )
         if opener is not None:
-            return journal_agent(opener)
+            return await current_holder(session, owner_id, journal_agent(opener))
     entries = list(
         await session.scalars(
             select(TradingJournalRow)
@@ -147,7 +149,7 @@ async def ticket_agent(
             )
         )
     )
-    return entry_holder(entries, target)
+    return await current_holder(session, owner_id, entry_holder(entries, target))
 
 
 def entry_holder(entries: list[TradingJournalRow], target: Position | Order) -> str | None:
@@ -156,7 +158,8 @@ def entry_holder(entries: list[TradingJournalRow], target: Position | Order) -> 
     this filters nothing): the entry whose operation id or tag the broker reports on the
     ticket, else the oldest entry whose order has the ticket id (never a position id in its
     result: on a netting account that is the position an order added to); None for the
-    owner's own."""
+    owner's own. It names the opener even when that agent was deleted: ``current_holder``
+    hands such a ticket to Lonora for the door and the picture alike (3.1.2)."""
     for entry in entries:
         if target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}:
             return journal_agent(entry)
@@ -166,6 +169,14 @@ def entry_holder(entries: list[TradingJournalRow], target: Position | Order) -> 
         if target.id in {details.get("order_id"), safe_id}:
             return journal_agent(entry)
     return None
+
+
+async def current_holder(session: AsyncSession, owner_id: str, opener: str | None) -> str | None:
+    """The opener, or Lonora when the opener was deleted: its tickets transferred to
+    Lonora (mandate 3.1.2, derived). None stays the owner's own."""
+    if opener is None or await session.get(AgentRow, opener) is not None:
+        return opener
+    return await personal_agent_id(session, owner_id) or opener
 
 
 async def authority_snapshot(broker: BrokerStateReader, account_id: str) -> ExecutionSnapshot:

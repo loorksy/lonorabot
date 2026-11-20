@@ -78,10 +78,41 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
     // fill itself is shown once, as its Execution Receipt (10.3), never on this card.
     const done = page.getByTestId("trade-approval-status-ok");
     await expect(done).toHaveText("نتيجة الوسيط");
-    await expect(page.getByText("65000.25", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
+    await expect(page.getByText("تذكرة الوسيط: manual-ticket-5", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("65000.25", { exact: true })).toHaveCount(0);
+    await page.route("**/api/trading/receipts?*", (route) =>
+      route.fulfill({
+        json: [
+          {
+            operation_id: "fixed-operation",
+            thread_id: thread.id,
+            timeline_seq: 1,
+            agent_id: agent.id,
+            created_at: approval.created_at,
+            kind: "fill",
+            action: "close_position",
+            symbol: "BTCUSD.demo",
+            ticket: "manual-ticket-5",
+            volume: null,
+            price: "65000.25",
+            partial: false,
+            reason: null,
+            verification: "verified",
+          },
+        ],
+      }),
+    );
     await page.reload();
     await expect(done).toBeVisible();
+    const receipt = page.getByTestId("execution-receipt");
+    await expect(receipt).toHaveCount(1);
+    await expect(receipt.getByText("manual-ticket-5", { exact: true })).toBeVisible();
+    await expect(receipt.getByText("65000.25", { exact: true })).toBeVisible();
+    await expect(
+      receipt.getByText("أكّده الوسيط · تم التحقق من حالة الحساب", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
     expect(decisions).toBe(1);
     const rejected = {
       ...approval,
@@ -107,6 +138,8 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
       await route.fulfill({ json: rejected });
     });
     await page.reload();
+    // The buy request in words with its volume (v38), never the raw action id.
+    await expect(page.getByText("شراء \u20680.01\u2069", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "رفض", exact: true }).click();
     await expect(page.getByTestId("trade-approval-status-plain")).toHaveText("مرفوض — لم يُرسل شيء");
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);

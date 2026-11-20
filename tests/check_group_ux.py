@@ -24,15 +24,34 @@ async def browser_action(data: dict[str, Any]):
                     "name": "Group UX regression " + uuid4().hex[:8],
                     "member_ids": [a["id"], b["id"]],
                     "participation": "mentions_or_lead",
+                    "lead_agent_id": a["id"],
                 },
             )
             thread = {"id": group["thread_id"]}
-            runs = [await fixture.run(agent, thread) for agent in [a, b]]
+            # The owner's message names no one, so the group's lead is asked to answer it.
+            admission = await fixture.request(
+                "POST",
+                f"/threads/{thread['id']}/messages",
+                {"content": "Explicit scripted group question", "client_nonce": uuid4().hex},
+            )
+            # A watch the observer set in this chat wakes it here: background work (11.5).
+            watch = await fixture.request(
+                "POST",
+                "/runs",
+                {
+                    "agent_id": b["id"],
+                    "thread_id": thread["id"],
+                    "trigger": "watch",
+                    "prompt": "Explicit scripted watch wake",
+                },
+            )
+            runs = [*admission["runs"], watch]
             contexts = [await fixture.lease(run) for run in runs]
             for context in contexts:
                 await progress(context, "run.model", {"provider": "scripted", "model": "fixture"})
             return {
                 "agents": [a["id"], b["id"]],
+                "admitted": [run["agent_id"] for run in admission["runs"]],
                 "names": [a["name"], b["name"]],
                 "group": group["id"],
                 "thread": thread["id"],
