@@ -8,7 +8,6 @@ import type {
   Message,
   MessageReaction,
   OwnerAction,
-  PermissionState,
   ReactionEmoji,
   Run,
   Thread,
@@ -232,11 +231,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const shell = useShellColors();
   const [atEnd, setAtEnd] = useState(around == null);
   const [loaded, setLoaded] = useState(false);
-  const [permissionRevision, setPermissionRevision] = useState(0);
   // The agent's authority as its control last read it (the / list's /chart, as on Web).
-  const [permission, setPermission] = useState<PermissionState | null>(null);
-  const permissionAgent = useRef(thread?.agent_id);
-  permissionAgent.current = thread?.agent_id;
   // One live-state read for the header's safety pill and the background-activity strip.
   const liveState = useAgentLiveState(thread?.agent_id ?? undefined);
   const [events, setEvents] = useState<Event[]>([]);
@@ -562,12 +557,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       const unsubscribe = subscribeOwnerEvents(
         server,
         (event) => {
-          if (
-            !disposed &&
-            event.agent_id === permissionAgent.current &&
-            ["agent.permission.updated", "account_authority.updated"].includes(event.kind)
-          )
-            setPermissionRevision((value) => value + 1);
           if (disposed || event.thread_id !== id) return;
           setRuns((old) => projectRunEvents(old, [event], id));
           setEvents((old) =>
@@ -674,15 +663,17 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }, [ready, owner, id, server, outboxKey]),
   );
 
-  const acceptedNonces = new Set(messages.map((message) => message.client_nonce).filter(Boolean));
-  const visibleMessages = projectConversation(
-    mergeMessages(
-      messages,
-      outgoing.filter((row) => !acceptedNonces.has(row.nonce)).map((row) => row.message),
-    ),
-    runs,
-    streams,
-  );
+  const visibleMessages = useMemo(() => {
+    const acceptedNonces = new Set(messages.map((message) => message.client_nonce).filter(Boolean));
+    return projectConversation(
+      mergeMessages(
+        messages,
+        outgoing.filter((row) => !acceptedNonces.has(row.nonce)).map((row) => row.message),
+      ),
+      runs,
+      streams,
+    );
+  }, [messages, outgoing, runs, streams]);
   // A card's submission is sent at once, never through the auto-flushed outbox (docs/genui.md §7): the
   // server writes its bubble, and a retry after a failure is the owner's tap, not ours.
   /* A fixed card, drawn the same in its own row and in a trusted slot (mandate 10.2.3):
@@ -925,19 +916,22 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   );
   // An operation is drawn only by the server's fixed cards: its receipt once the broker
   // confirms it, its Settle card while the outcome is unknown (v38, as on Web); no order line.
-  const timeline = conversationTimeline(
-    visibleMessages,
-    approvals.filter((row) => row.thread_id === id),
-    ownerActions.filter((row) => row.thread_id === id),
-    undrawn,
-    receipts.filter((row) => row.thread_id === id),
+  const timeline = useMemo(
+    () =>
+      conversationTimeline(
+        visibleMessages,
+        approvals.filter((row) => row.thread_id === id),
+        ownerActions.filter((row) => row.thread_id === id),
+        undrawn,
+        receipts.filter((row) => row.thread_id === id),
+      ),
+    [visibleMessages, approvals, ownerActions, undrawn, receipts, id],
   );
+  const drawn = useMemo(() => [...timeline].reverse(), [timeline]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `jumpAgain` repeats a jump to the same message
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
-    const index = [...timeline]
-      .reverse()
-      .findIndex((item) => item.kind === "message" && item.seq === around);
+    const index = drawn.findIndex((item) => item.kind === "message" && item.seq === around);
     if (index < 0) return;
     jumped.current = around;
     following.current = false;
@@ -947,11 +941,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     // The message the jump landed on is marked for a moment, as on Web.
     const landed = visibleMessages.find((row) => row.seq === around);
     if (landed) setFlash({ id: landed.id });
-  }, [around, loaded, timeline, visibleMessages, jumpAgain]);
+  }, [around, loaded, drawn, visibleMessages, jumpAgain]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const agent = agents.find((value) => value.id === thread?.agent_id);
+  const hasTradingAccount = liveState.state?.trading_readiness?.has_trading_account;
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
   const commands = commandRows(
@@ -959,16 +954,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     {
       group: Boolean(thread?.group_id),
       symbol: agent?.trading_symbol,
-      // As Web: a trading agent, or one that shows the trading control (Lonora, an account,
-      // a level above analysis, a grant).
       trading: agent
-        ? agent.template === "trading" ||
-          showsTradingControl({
-            role: agent.role,
-            trading_account_id: agent.trading_account_id,
-            level: permission?.effective_level,
-            grants: permission?.active_authorities.length,
-          })
+        ? agent.template === "trading" || showsTradingControl({ ...agent, hasTradingAccount })
         : false,
       name: title,
       callable: Boolean(agent && !agent.paused),
@@ -1041,8 +1028,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       )
     : undefined;
   const typingName = replying ? agents.find((row) => row.id === replying.agent_id)?.name : null;
-  // The rows as the inverted list draws them, newest first.
-  const drawn = [...timeline].reverse();
   const send = async (
     mentions?: MentionAddress,
     followUp?: string,
@@ -1584,7 +1569,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 keyboardDismissMode="on-drag"
                 scrollEventThrottle={16}
                 onScroll={(event) => {
-                  const near = event.nativeEvent.contentOffset.y <= 80;
+                  // Hysteresis keeps the jump button's band from toggling around one offset.
+                  const near = event.nativeEvent.contentOffset.y <= (following.current ? 120 : 64);
+                  if (near === following.current) return;
                   following.current = near;
                   setAtEnd(near);
                 }}
@@ -1785,9 +1772,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             agent && !thread?.group_id ? (
               <AgentPermissions
                 agent={agent}
-                threadId={id}
-                revision={permissionRevision}
-                onState={setPermission}
+                hasTradingAccount={hasTradingAccount}
                 onMode={(trading_mode) =>
                   setAgents((rows) =>
                     rows.map((row) =>
@@ -1795,10 +1780,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                     ),
                   )
                 }
-                pendingTrade={approvals.some(
-                  (row) =>
-                    row.thread_id === id && row.agent_id === agent.id && row.status === "pending",
-                )}
               />
             ) : undefined
           }

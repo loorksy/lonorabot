@@ -1,6 +1,6 @@
 import { plural, t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { MessageCommand, PermissionState } from "@lonora/contracts";
+import type { MessageCommand } from "@lonora/contracts";
 import {
   commandQuery,
   guestCandidates,
@@ -21,6 +21,7 @@ import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
+import { useAgentLiveState } from "../lib/agent-live-state";
 import type { Agent, Message, Resource } from "../lib/api";
 import { api, isRequestCancelled } from "../lib/api";
 import {
@@ -34,7 +35,6 @@ import {
   trackDraftUpload,
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
-import { useClient } from "../providers/ClientProvider";
 import { agentRole } from "../shell/lists/ThreadRow";
 import { usePermissionSheet } from "../shell/PermissionSheet";
 import { useToast } from "../shell/Toast";
@@ -150,26 +150,8 @@ export function Composer({
   const micSheet = usePermissionSheet();
   const tools = useToolsSheet();
   const options = useThreadOptions(threadId);
-  const { revision } = useClient();
-  const [permission, setPermission] = useState<PermissionState | null>(null);
-  const [permissionFailed, setPermissionFailed] = useState(false);
-
-  useEffect(() => {
-    void revision;
-    if (!agent) return;
-    let live = true;
-    void api
-      .get<PermissionState>(`/agents/${encodeURIComponent(agent.id)}/permissions`)
-      .then((row) => {
-        if (!live) return;
-        setPermission(row);
-        setPermissionFailed(false);
-      })
-      .catch(() => live && setPermissionFailed(true));
-    return () => {
-      live = false;
-    };
-  }, [agent, revision]);
+  const agentId = agent?.id;
+  const readiness = useAgentLiveState(agentId).state?.trading_readiness;
 
   /* ---- drafts */
   const current = useRef({ text, files, mentions: committed.current, reply });
@@ -255,10 +237,9 @@ export function Composer({
     };
   }, []);
 
-  // Q9: a connected account is the only reason the mode control is shown.
-  const trading = agent
-    ? showsTradingControl({ trading_account_id: agent.trading_account_id })
-    : false;
+  const trading = Boolean(
+    agent && showsTradingControl({ ...agent, hasTradingAccount: readiness?.has_trading_account }),
+  );
 
   /* ---- mentions: group members (+ القائد, متوقف), then @الكل; a direct chat: other agents
      (+ @الكل while a collaboration session is open) */
@@ -1023,9 +1004,6 @@ export function Composer({
                 isGroup,
                 groupLead,
                 trading,
-                // Another agent's level is never shown while this one's loads.
-                permission: permission?.agent_id === agent?.id ? permission : null,
-                permissionFailed,
                 webSearch: options.webSearch,
                 onWebSearch: options.setWebSearch,
                 onFiles: () => fileInput.current?.click(),

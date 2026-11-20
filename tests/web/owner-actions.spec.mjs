@@ -168,6 +168,49 @@ const copy = {
   },
 };
 
+for (const [locale, width, theme, requestLabel] of [
+  ["ar", 320, "light", "عرض بطاقة التفويض"],
+  ["en", 1280, "dark", "Show Mandate card"],
+]) {
+  test(`composer shows the Mandate with a linked account (${locale})`, async ({
+    page,
+    context,
+    cleanup,
+  }) => {
+    const f = await setup(context, locale);
+    cleanup(f.cleanup);
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme: theme });
+    const agents = await (await context.request.get("/api/agents")).json();
+    const personal = agents.find((agent) => agent.role === "personal");
+    expect(personal.trading_account_id).toBeNull();
+    await page.goto(`/app/${personal.id}`);
+    await expect(page.getByTestId("permission-chip")).toBeVisible();
+
+    await page.goto(`/app/${f.agent.id}`);
+    const chip = page.getByTestId("permission-chip");
+    await expect(chip).toHaveAttribute("data-mode", "ask");
+    await chip.click();
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (row) =>
+          row.request().method() === "POST" && row.url().includes("/api/owner-actions/mandate?"),
+      ),
+      page.getByRole("menuitem", { name: requestLabel, exact: true }).click(),
+    ]);
+    expect(response.ok()).toBeTruthy();
+    const card = await response.json();
+    expect(card.status).toBe("pending");
+    await expect(chip).toHaveAttribute("data-mode", "ask");
+    await expect(page.getByTestId("mode-option-full")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(`[data-owner-action="${card.id}"]`)).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  });
+}
+
 const mandateCopy = {
   en: {
     title: "Trading mode",

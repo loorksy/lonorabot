@@ -299,16 +299,24 @@ test("activity rows say what the agent does from registry metadata, never a raw 
 });
 
 test("the trading control appears only for an agent with a connected account", () => {
-  const research = { role: "general", trading_account_id: null, level: "analysis" as const };
-  assert.equal(showsTradingControl(research), false);
-  // No connected account: no mode, including Lonora and an agent that holds a grant.
-  assert.equal(showsTradingControl({ ...research, role: "personal" }), false);
-  assert.equal(showsTradingControl({ ...research, grants: 1 }), false);
-  assert.equal(showsTradingControl({ ...research, pendingTrade: true }), false);
-  assert.equal(showsTradingControl({ role: "general", trading_account_id: null }), false);
-  assert.equal(showsTradingControl({ role: "delegated", trading_account_id: null }), false);
-  assert.equal(showsTradingControl({ ...research, trading_account_id: "account" }), true);
-  assert.equal(showsTradingControl({ role: "personal", trading_account_id: "account" }), true);
+  assert.equal(showsTradingControl({ role: "personal", trading_account_id: null }), false);
+  assert.equal(showsTradingControl({ role: "personal", hasTradingAccount: true }), true);
+  assert.equal(showsTradingControl({ role: "general", hasTradingAccount: true }), false);
+  assert.equal(
+    showsTradingControl({
+      role: "specialist",
+      trading_account_id: "account",
+      hasTradingAccount: true,
+    }),
+    true,
+  );
+  assert.equal(showsTradingControl({ template: "research", hasTradingAccount: true }), false);
+  assert.equal(showsTradingControl({ role: "delegated", hasTradingAccount: true }), false);
+  assert.equal(showsTradingControl({ trading_account_id: "account" }), true);
+  assert.equal(
+    showsTradingControl({ trading_account_id: "removed-account", hasTradingAccount: false }),
+    false,
+  );
 });
 
 test("a colleague's result is shown without its machine wrapper", () => {

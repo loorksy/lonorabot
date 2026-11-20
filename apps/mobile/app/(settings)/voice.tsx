@@ -1,7 +1,6 @@
 import { Redirect, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Linking, ScrollView, Text } from "react-native";
-import { IncomingCallSettings } from "../../components/incoming-call-settings";
 import { SettingsGroup } from "../../components/settings-group";
 import { SheetHeader } from "../../components/sheet-header";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../../components/ui";
@@ -46,7 +45,6 @@ export default function Voice() {
           </Text>
         </SettingsGroup>
         <Text style={{ color: colors.secondary, lineHeight: 24 }}>{t("nativeCallHint")}</Text>
-        <IncomingCallSettings />
         <Button
           label={t("openWebSettings")}
           onPress={() => {

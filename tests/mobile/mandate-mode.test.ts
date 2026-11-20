@@ -40,6 +40,6 @@ test("mobile settings and the conversation keep that response on the agent the c
   assert.match(settings, /agentShowingMandate\(current, \{ trading_mode \}\)/);
   assert.match(thread, /agentShowingMandate\(row, \{ trading_mode \}\)/);
   // Q9: no connected account still shows no mode control.
-  assert.match(control, /if \(!props\.agent\.trading_account_id\) return null/);
+  assert.match(control, /showsTradingControl\(\{ \.\.\.props\.agent, hasTradingAccount:/);
   assert.doesNotMatch(control, /useState<TradingMode/);
 });

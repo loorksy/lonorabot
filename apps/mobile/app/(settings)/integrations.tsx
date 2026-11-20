@@ -15,10 +15,10 @@ import {
   sourceLine,
   toolTitle,
 } from "@lonora/core";
-import { Redirect, useFocusEffect } from "expo-router";
+import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Linking, Pressable, ScrollView, Text, View } from "react-native";
-import { SettingsGroup } from "../../components/settings-group";
+import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { SheetHeader } from "../../components/sheet-header";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../../components/ui";
 import { api } from "../../lib/api";
@@ -31,7 +31,8 @@ import { useSession } from "../../lib/session";
  * setting up a new integration opens the web settings. Nothing here carries money authority.
  */
 export default function Capabilities() {
-  const { ready, owner, locale, rtl, errorText, server: origin } = useSession();
+  const { ready, owner, locale, rtl, t, errorText, server: origin } = useSession();
+  const router = useRouter();
   const text = capabilityText(locale);
   const [report, setReport] = useState<CapabilityReport | null>(null);
   const [preview, setPreview] = useState<{ id: string; tools: McpTrustPreview } | null>(null);
@@ -166,8 +167,11 @@ export default function Capabilities() {
   const skills = report?.skills.filter((skill) => skill.provenance !== "bundled") ?? [];
   return (
     <Screen>
-      <SheetHeader title={text.title} />
+      <SheetHeader title={t("integrations")} />
       <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
+        <SettingsGroup>
+          <SettingsRow title={t("models")} icon="settings" onPress={() => router.push("/models")} />
+        </SettingsGroup>
         <Text style={[{ color: colors.secondary, lineHeight: 22 }, align]}>{text.intro}</Text>
         <ErrorNotice text={error} />
         {report === null ? (

@@ -1,6 +1,5 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { Icon } from "@lonora/ui-web";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { ChatPrefsPage } from "../conversation/ChatPrefsPage";
@@ -10,7 +9,7 @@ import type { Agent, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
 import { Artifacts } from "../pages/Artifacts";
 import { Knowledge } from "../pages/Knowledge";
-import type { SettingsTab } from "../pages/settings-sidebar";
+import { VoiceSettingsOverlay } from "../pages/VoiceSettingsOverlay";
 import { useClient } from "../providers/ClientProvider";
 import { AgentsPage } from "./AgentsPage";
 import { AgentPage } from "./agent/AgentPage";
@@ -38,7 +37,6 @@ import { ArchivedPage, ChatList } from "./lists/ChatList";
 import { type SearchTab, UnifiedSearch } from "./lists/UnifiedSearch";
 import { useNavigation } from "./navigation";
 import { DEV_ROUTES, type Page, type Root } from "./routes";
-import { useShortcutsSheet } from "./ShortcutsSheet";
 import { SkChat, SkChats } from "./Skeleton";
 import { NotFoundPage } from "./StatePage";
 import {
@@ -59,19 +57,15 @@ import { UsageDetailPage, UsagePage } from "./settings/UsagePage";
 
 const Market = lazy(() => import("../pages/Market").then((m) => ({ default: m.Market })));
 const Trading = lazy(() => import("../pages/Trading").then((m) => ({ default: m.Trading })));
-const Settings = lazy(() =>
-  import("../pages/SettingsOverlay").then((m) => ({ default: m.SettingsOverlay })),
-);
-/** Old settings tabs: the ones with a reference page go there (model routing: /app/models);
- * voice and the trading controls keep the existing screen until their phase (the trading
- * controls have no reference home yet, OQ47; voice is phase 6). */
-const settingsTabs = new Set<string>(["voice", "trading"]);
+/** Old settings links reach the page for the same feature. */
 const settingsMoved: Readonly<Record<string, string>> = {
   capabilities: "/app/integrations",
   integrations: "/app/integrations",
   mcp: "/app/integrations",
   usage: "/app/usage",
   models: "/app/models",
+  trading: "/app/integrations",
+  voice: "/app/voice-settings",
   overview: "/app/settings",
 };
 
@@ -145,6 +139,8 @@ export function pageTitle(page: Page): string {
       return t`Chat experience`;
     case "notify-settings":
       return t`Notifications and contact`;
+    case "voice-settings":
+      return t`Voice`;
     case "communication":
       return t`Proactive contact`;
     case "integrations":
@@ -208,14 +204,6 @@ function SettingsPage({ desktop: _desktop }: { desktop: boolean }) {
   const tab = params.get("tab");
   if (tab && Object.hasOwn(settingsMoved, tab) && tab !== "overview")
     return <Navigate to={settingsMoved[tab]} replace />;
-  if (tab && settingsTabs.has(tab))
-    return (
-      <Legacy>
-        <Suspense fallback={<Loading />}>
-          <Settings key={tab} initialTab={tab as Exclude<SettingsTab, "models">} />
-        </Suspense>
-      </Legacy>
-    );
   return <SettingsRoot />;
 }
 
@@ -233,7 +221,6 @@ export function DetailPages({
   onUpdateBar: () => void;
 }) {
   const data = useShellData();
-  const nav = useNavigation();
   const first = data.agents[0]?.id ?? "";
   const [params] = useSearchParams();
   const location = useLocation();
@@ -316,6 +303,7 @@ export function DetailPages({
         <Route path="/app/accessibility" element={<AccessibilityPage />} />
         <Route path="/app/chat-prefs" element={<ChatPrefsPage />} />
         <Route path="/app/notify-settings" element={<NotifyPage />} />
+        <Route path="/app/voice-settings" element={<VoiceSettingsOverlay />} />
         <Route
           path="/app/communication/:item"
           element={<ItemPage render={(item) => <CommunicationPage key={item} agentId={item} />} />}

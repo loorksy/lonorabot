@@ -15,7 +15,6 @@ import {
 } from "@lonora/core";
 import { GroupAvatar, Icon } from "@lonora/ui-web";
 import {
-  Fragment,
   type ReactNode,
   useCallback,
   useEffect,
@@ -668,7 +667,9 @@ export function Conversation({
   const previous = useRef({ first: "", last: "", height: 0, count: 0 });
   const [far, setFar] = useState(false);
   const [fresh, setFresh] = useState(0);
-  const [floatDay, setFloatDay] = useState("");
+  const floatDate = useRef<HTMLDivElement>(null);
+  const dates = useRef<HTMLElement[]>([]);
+  const scrollFrame = useRef(0);
   const userScrollAt = useRef(0);
   const floatTimer = useRef(0);
   const answers = rows.filter(
@@ -677,6 +678,7 @@ export function Conversation({
   useLayoutEffect(() => {
     const el = scroll.current;
     if (!el) return;
+    dates.current = Array.from(content.current?.querySelectorAll<HTMLElement>(".date") ?? []);
     const first = rows[0]?.id ?? "";
     const last = rows.at(-1)?.id ?? "";
     const old = previous.current;
@@ -744,23 +746,33 @@ export function Conversation({
   }, [jump, rows]);
   const syncFloat = () => {
     const el = scroll.current;
-    if (!el || Date.now() - userScrollAt.current > 900) return;
+    const badge = floatDate.current;
+    if (!el || !badge || Date.now() - userScrollAt.current > 900) return;
     const line =
       el.getBoundingClientRect().top + (Number.parseFloat(getComputedStyle(el).paddingTop) || 0);
-    let label = "";
-    let clash = false;
-    for (const d of el.querySelectorAll<HTMLElement>(".messages > .date")) {
-      const r = d.getBoundingClientRect();
-      if (r.top < line - 2) label = d.textContent ?? "";
-      else {
-        clash = r.top < line + 40;
-        break;
-      }
+    const separators = dates.current;
+    let first = 0;
+    let last = separators.length;
+    while (first < last) {
+      const middle = Math.floor((first + last) / 2);
+      if (separators[middle].getBoundingClientRect().top < line - 2) first = middle + 1;
+      else last = middle;
     }
-    setFloatDay(label && !clash ? label : "");
+    const clash = (separators[first]?.getBoundingClientRect().top ?? Infinity) < line + 40;
+    const label = clash ? "" : (separators[first - 1]?.textContent ?? "");
+    const text = badge.firstElementChild;
+    if (text && text.textContent !== label) text.textContent = label;
+    badge.classList.toggle("on", Boolean(label));
     clearTimeout(floatTimer.current);
-    floatTimer.current = window.setTimeout(() => setFloatDay(""), 1300);
+    floatTimer.current = window.setTimeout(() => badge.classList.remove("on"), 1300);
   };
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(scrollFrame.current);
+      clearTimeout(floatTimer.current);
+    },
+    [],
+  );
 
   /* ---- older pages: a sentinel of skeleton bubbles above the first message */
   const [hasOlder, setHasOlder] = useState(true);
@@ -867,7 +879,7 @@ export function Conversation({
       if (key !== day) {
         day = key;
         body.push(
-          <div className="date" key={`date:${key}`}>
+          <div className="date" key={`date:${key}:${row.id}`}>
             <span>{dayLabel(at, locale)}</span>
           </div>,
         );
@@ -1062,7 +1074,9 @@ export function Conversation({
         }}
         onTouchStart={() => {
           userScrollAt.current = Date.now();
-          following.current = false;
+        }}
+        onTouchMove={() => {
+          userScrollAt.current = Date.now();
         }}
         onKeyDown={() => {
           userScrollAt.current = Date.now();
@@ -1073,9 +1087,13 @@ export function Conversation({
           following.current = near;
           if (near) anchored.current = el.scrollTop;
           const isFar = el.scrollHeight - el.clientHeight - el.scrollTop > 260;
-          setFar(isFar);
-          if (!isFar) setFresh(0);
-          syncFloat();
+          if (isFar !== far) setFar(isFar);
+          if (!isFar && fresh) setFresh(0);
+          if (!scrollFrame.current)
+            scrollFrame.current = requestAnimationFrame(() => {
+              scrollFrame.current = 0;
+              syncFloat();
+            });
         }}
       >
         <GenuiHost value={{ threadId, messages: thread.messages, runs, agents, slot }}>
@@ -1103,10 +1121,7 @@ export function Conversation({
                   ))}
                 </div>
               )}
-              {body.map((node, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: nodes carry their own keys
-                <Fragment key={index}>{node}</Fragment>
-              ))}
+              {body}
             </div>
           )}
         </GenuiHost>
@@ -1123,8 +1138,8 @@ export function Conversation({
           </div>
         )}
       </div>
-      <div className={`float-date${floatDay ? " on" : ""}`} aria-hidden="true">
-        <span>{floatDay}</span>
+      <div ref={floatDate} className="float-date" aria-hidden="true">
+        <span />
       </div>
       <button
         type="button"

@@ -554,3 +554,27 @@ async def test_the_agents_live_mandate_card_is_read_per_agent_and_never_raised_b
         assert foreign.status_code == 404 and foreign.json()["code"] == "agent_not_found"
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_owner_can_request_one_mandate_card_without_switching_the_mode() -> None:
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Mandate from composer", supervised=True)
+        path = f"/api/owner-actions/mandate?agent_id={agent['id']}"
+        assert (await fixture.client.get(path)).json() is None
+        requested = await fixture.client.post(path, json={})
+        assert requested.status_code == 200, requested.text
+        card = requested.json()
+        assert card["status"] == "pending" and card["facts"]["trading_mode"] == "ask"
+        assert (await fixture.client.post(path, json={})).json()["id"] == card["id"]
+        agent_read = await fixture.client.get(f"/api/agents/{agent['id']}")
+        assert agent_read.json()["trading_mode"] == "ask"
+        confirmed = await tap(fixture, card["id"], "full")
+        assert confirmed.json()["result"]["trading_mode"] == "full"
+        assert (await fixture.client.post(path, json={})).json()["id"] == card["id"]
+    finally:
+        await fixture.close()

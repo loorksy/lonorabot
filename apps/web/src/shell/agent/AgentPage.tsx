@@ -1,7 +1,7 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { mandateLine, tradingSubLine } from "@lonora/core";
+import { mandateLine, showsTradingControl, tradingSubLine } from "@lonora/core";
 import { Icon, type IconName, PairIcon } from "@lonora/ui-web";
 import { type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -81,10 +81,14 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   const { refresh } = useClient();
   const openAvatar = useAvatarSheet();
   const voiceCall = useVoice();
-  const trader = isTrader(agent);
   const delegated = hasDelegation(agent);
   const personal = agent.role === "personal";
   const live = useAgentLiveState(agent.id).state;
+  const hasMode = showsTradingControl({
+    ...agent,
+    hasTradingAccount: live?.trading_readiness?.has_trading_account,
+  });
+  const trader = isTrader(agent) || hasMode;
   const connections = useRead<Resource[]>("/trading/connections");
   const voice = useRead<{ transport_configured: boolean }>("/voice/status");
   const watches = useRead<Resource[]>(
@@ -232,9 +236,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
           onClick={() => go(`/app/knowledge${q}`)}
         />
         <NavRow icon="bolt" label={<Trans>Skills</Trans>} onClick={() => go(`/app/skills${q}`)} />
-        {!trader && (
-          <NavRow icon="target" label={<Trans>Goals</Trans>} onClick={() => go(`/app/goals${q}`)} />
-        )}
         <NavRow
           icon="clock"
           label={<Trans>Scheduled tasks</Trans>}
@@ -255,7 +256,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
             <Trans>Trading</Trans>
           </h3>
           <div className="group">
-            {agent.trading_account_id ? (
+            {hasMode ? (
               <>
                 <NavRow
                   icon={agent.trading_mode === "full" ? "alert" : "shield"}
@@ -264,7 +265,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
                   // chat.agent-sheet is the composer's (phase 3): the conversation opens it.
                   onClick={() => go(`/app/${agent.id}?sheet=agent`)}
                 />
-                {accounts.length > 1 && (
+                {agent.trading_account_id && accounts.length > 1 && (
                   <NavRow
                     icon="trend"
                     lead={<PairIcon symbol={agent.trading_symbol ?? ""} />}
@@ -293,7 +294,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
                     : t`No trading account linked · link an account`
                 }
                 onClick={() =>
-                  go(accounts.length ? `/app/identity/${agent.id}` : "/app/settings?tab=trading")
+                  go(accounts.length ? `/app/identity/${agent.id}` : "/app/integrations")
                 }
               />
             )}

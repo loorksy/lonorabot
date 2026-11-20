@@ -627,6 +627,7 @@ export const labels = {
   edit: ["تعديل", "Edit"],
 
   integrations: ["التكاملات", "Integrations"],
+  notificationsAndContact: ["الإشعارات والتواصل", "Notifications and contact"],
   capabilities: ["القدرات", "Capabilities"],
   voice: ["الصوت", "Voice"],
   whatIKnow: ["ما أعرفه عنك", "What I know about you"],

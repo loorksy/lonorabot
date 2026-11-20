@@ -13,7 +13,8 @@ import { Icon } from "@lonora/ui-web";
  */
 export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
   const action = orderLineAction({ action: row.action }, i18n.locale);
-  const facts: [string, string | null | undefined][] = [[t`Broker ticket`, row.ticket]];
+  const ticketLabel = t`Broker ticket`;
+  const facts: [string, string | null | undefined][] = [[ticketLabel, row.ticket]];
   if (row.kind === "fill") {
     facts.push([t`Volume`, row.volume], [t`Fill price`, row.price]);
   } else if (row.kind === "order") {
@@ -59,7 +60,7 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
           {facts
             .filter(([, value]) => value != null && value !== "")
             .map(([label, value]) => (
-              <div key={label}>
+              <div key={label} className={label === ticketLabel ? "receipt-ticket" : undefined}>
                 <dt>{label}</dt>
                 <dd className="ltr">{value}</dd>
               </div>

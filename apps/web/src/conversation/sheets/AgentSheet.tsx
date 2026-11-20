@@ -6,6 +6,7 @@ import {
   agentStatusLine,
   mandateLine,
   orderLineAction,
+  showsTradingControl,
   tradingReadinessLine,
   uncertainLine,
 } from "@lonora/core";
@@ -184,6 +185,10 @@ function AgentSheetBody({
   const watches = useWatchesSheet();
   const [busy, setBusy] = useState(false);
   const readiness = state?.trading_readiness ?? null;
+  const hasMode = showsTradingControl({
+    ...agent,
+    hasTradingAccount: readiness?.has_trading_account,
+  });
   const accountName = useAccountName(readiness);
   const kind = statusKind(state);
   const run = async (action: () => Promise<unknown>, done: string) => {
@@ -207,9 +212,12 @@ function AgentSheetBody({
         <div>
           <strong>{agent.name}</strong>
           <small data-testid="agent-mode-line">
-            {readiness && readiness.state !== "ask_me" && readiness.state !== "on_its_own"
+            {hasMode &&
+            readiness &&
+            readiness.state !== "ask_me" &&
+            readiness.state !== "on_its_own"
               ? tradingReadinessLine(readiness, i18n.locale, new Date(), accountName)
-              : (mandateLine(agent.trading_mode, i18n.locale) ??
+              : ((hasMode ? mandateLine(agent.trading_mode, i18n.locale) : null) ??
                 (state ? agentStatusLine(state, i18n.locale) : ""))}
           </small>
         </div>

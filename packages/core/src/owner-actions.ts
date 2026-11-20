@@ -30,6 +30,7 @@ export const ownerActionLabels = {
   en: {
     mandateTitle: "Trading mode",
     mandateNow: "Now",
+    mandateRequest: "Show Mandate card",
     modeFull: "Full",
     modeAsk: "Ask",
     modeFullLine: "Trades on its own and reports afterwards.",
@@ -214,6 +215,7 @@ export const ownerActionLabels = {
   ar: {
     mandateTitle: "التفويض",
     mandateNow: "الآن",
+    mandateRequest: "عرض بطاقة التفويض",
     modeFull: "وكّله",
     modeAsk: "يستأذن",
     modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",

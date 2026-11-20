@@ -483,8 +483,8 @@ test("knowledge and recurring trading work use durable API edits", async ({
     )
     .toBe(false);
   await page.goto(`/app/${agent.id}?settings=trading`);
-  await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
-  await expect(page.locator(".settings-nav button.selected")).toHaveText("Trading");
+  await expect(page).toHaveURL(/\/app\/integrations$/);
+  await expect(page.getByRole("heading", { name: "Trading accounts" })).toBeVisible();
   // The test owns this routine; no scheduler or provider credentials are needed.
   const durable = await context.request.get(`/api/skills/${skill.id}`, { headers });
   expect((await durable.json()).payload.content).toContain("economic calendar");

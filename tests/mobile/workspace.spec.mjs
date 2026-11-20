@@ -347,9 +347,9 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
   await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
   await page.goto("/models");
   await expect(page.getByText("Providers", { exact: true })).toBeVisible();
-  // Integrations are part of Capabilities (W15-8); their setup is on Web.
+  // The integrations screen links to setup on Web.
   await page.goto("/integrations");
-  await expect(page.getByRole("heading", { name: "Capabilities", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Integrations", exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Set up integrations on the web", exact: true }),
   ).toBeVisible();

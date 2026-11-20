@@ -341,7 +341,14 @@ for (const theme of ["dark", "light"]) {
       await background("stream", { ...fixture.input, delay: 0 });
       await expect(card(page).getByText("الآن 2,368.40")).toBeVisible();
       const ref = await reference.newPage();
-      await ref.goto(`file://${ROOT}docs/ui-reference/Lonora-Desktop-37.html`);
+      const referenceUrl = new URL("/__reference__/lonora-desktop-37", page.url()).href;
+      await ref.route(referenceUrl, (route) =>
+        route.fulfill({
+          path: `${ROOT}docs/ui-reference/Lonora-Desktop-37.html`,
+          contentType: "text/html",
+        }),
+      );
+      await ref.goto(referenceUrl);
       await ref.evaluate((light) => {
         // The reference re-applies its own theme on every render (Desktop-37:3543).
         // biome-ignore lint/correctness/noUndeclaredVariables: the reference's global state

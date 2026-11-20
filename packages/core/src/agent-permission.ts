@@ -157,15 +157,16 @@ function decimalExceeds(left: string, right: string): boolean {
 }
 
 /**
- * The conversation shows the trading mode only for an agent with a connected broker
- * account (v38 Q9). An agent with no account shows no mode. Presentation only.
+ * Show trading mode for a connected agent. The personal agent can use the owner's
+ * connected account without a direct binding. Presentation only.
  */
 export function showsTradingControl(input: {
   role?: string | null;
+  template?: string | null;
   trading_account_id?: string | null;
-  level?: AgentPermissionLevel | null;
-  grants?: number;
-  pendingTrade?: boolean;
+  hasTradingAccount?: boolean | null;
 }): boolean {
-  return Boolean(input.trading_account_id);
+  if (input.role === "delegated" || input.template === "research") return false;
+  if (input.trading_account_id) return input.hasTradingAccount ?? true;
+  return input.role === "personal" && input.hasTradingAccount === true;
 }

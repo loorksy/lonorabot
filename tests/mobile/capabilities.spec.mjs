@@ -57,7 +57,7 @@ const copy = {
     url: "عنوان الموجز",
     connect: "ربط",
     connected: "تم الربط. لا يرى أي وكيل ما كتبته.",
-    title: "القدرات",
+    title: "التكاملات",
     remove: "إزالة",
     undo: "تراجع",
     undone: "تم التراجع",
@@ -68,7 +68,7 @@ const copy = {
     url: "Feed URL",
     connect: "Connect",
     connected: "Connected. No agent sees what you typed.",
-    title: "Capabilities",
+    title: "Integrations",
     remove: "Remove",
     undo: "Undo",
     undone: "undone",
@@ -77,7 +77,7 @@ const copy = {
 };
 
 for (const locale of ["ar", "en"])
-  test(`Expo ${locale}: a feed form in the chat and a site trusted from chat, then Capabilities`, async ({
+  test(`Expo ${locale}: a feed form in the chat and a site trusted from chat, then Integrations`, async ({
     page,
     context,
     cleanup,

@@ -157,8 +157,9 @@ for (const theme of ["dark", "light"]) {
     await expect(ux.getByText("تم النسخ")).toBeVisible();
     // The Slider follows the reading direction: in Arabic its start is on the right.
     const slider = ux.getByRole("slider", { name: "المخاطرة %" });
-    const box = await slider.boundingBox();
-    await page.mouse.click(box.x + box.width * 0.05, box.y + box.height / 2);
+    await slider.scrollIntoViewIfNeeded();
+    const { width, height } = await slider.boundingBox();
+    await slider.click({ position: { x: width * 0.05, y: height / 2 } });
     await expect(ux.getByText("5%", { exact: true })).toBeVisible();
     // open: the server-checked literal URL.
     await context.route("https://example.com/**", (route) =>

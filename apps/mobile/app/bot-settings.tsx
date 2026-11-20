@@ -13,6 +13,7 @@ import { PersonalAgentBadge } from "../components/personal-agent-badge";
 import { SettingsGroup, SettingsRow, SettingsSwitch } from "../components/settings-group";
 import { SheetHeader } from "../components/sheet-header";
 import { colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
+import { useAgentLiveState } from "../lib/agent-live-state";
 import { agents } from "../lib/agents";
 import { api } from "../lib/api";
 import { agentShowingMandate } from "../lib/mandate-mode";
@@ -24,6 +25,7 @@ export default function BotSettings() {
   const { ready, owner, rtl, t, errorText } = useSession();
   const router = useRouter();
   const [agent, setAgent] = useState<Agent | null>(null);
+  const readiness = useAgentLiveState(agent?.id).state?.trading_readiness;
   const [mode, setMode] = useState<AgentMarketMode>("general");
   const [allowFixed, setAllowFixed] = useState(false);
   const [pair, setPair] = useState({ trading_account_id: "", trading_symbol: "" });
@@ -175,6 +177,7 @@ export default function BotSettings() {
           <AgentPermissions
             key={agent.id}
             agent={agent}
+            hasTradingAccount={readiness?.has_trading_account}
             settings
             onMode={(trading_mode) =>
               setAgent((current) =>
