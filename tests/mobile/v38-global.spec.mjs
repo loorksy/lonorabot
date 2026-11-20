@@ -236,6 +236,12 @@ test("the tab says «Attention»; the held line and the live chip read whole; th
     const jump = page.getByRole("button", { name: "Jump to latest" });
     await expect(jump).toBeVisible();
     await expect(jump.locator("path")).toHaveAttribute("d", "M6 9l6 6 6-6");
+    // It sits in its own band under the transcript, never over a message or a card's facts.
+    const [button, transcript] = [
+      await jump.boundingBox(),
+      await page.getByTestId("conversation-transcript").boundingBox(),
+    ];
+    expect(button.y).toBeGreaterThanOrEqual(transcript.y + transcript.height - 0.5);
     await jump.click();
 
     // On a wide screen the transcript keeps Web's column instead of the window's width.

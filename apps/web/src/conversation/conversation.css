@@ -2333,6 +2333,17 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   transform: none;
   pointer-events: auto;
 }
+/* While it shows, the composer's backdrop rises over its band: the button sits on the page's
+   background, never over a message or a fixed card's facts (10.2.2). Solid from the composer
+   up to the button's top (12px gap + 42px), then a 28px fade. */
+.jump.on ~ .composer::before {
+  top: -82px;
+  background: linear-gradient(
+    to top,
+    var(--bg) calc(100% - 28px),
+    color-mix(in srgb, var(--bg) 0%, transparent)
+  );
+}
 .jump svg {
   width: 20px;
   height: 20px;

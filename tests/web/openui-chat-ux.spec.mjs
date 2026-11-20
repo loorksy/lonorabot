@@ -206,6 +206,20 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   });
   // The ↓ button turns on more than 260px from the newest message (reference syncJump).
   await expect(page.locator(".jump")).toHaveClass(/\bon\b/);
+  // While it shows, the composer's backdrop is solid up to its top: the button never sits over
+  // a message or a fixed card's facts (10.2.2).
+  await expect
+    .poll(async () => {
+      const solid = await page.locator("form.composer").evaluate((form) => {
+        const before = getComputedStyle(form, "::before");
+        const fade = /calc\(100% - (\d+)px\)/.exec(before.backgroundImage);
+        return fade
+          ? form.getBoundingClientRect().top + Number.parseFloat(before.top) + Number(fade[1])
+          : Number.POSITIVE_INFINITY;
+      });
+      return solid <= (await page.locator(".jump").boundingBox()).y + 0.5;
+    })
+    .toBe(true);
   rows.push(message(conversation, 25, "assistant", "New content while the owner reads above."));
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("[data-message-id='ux-message-25']")).toHaveCount(1);

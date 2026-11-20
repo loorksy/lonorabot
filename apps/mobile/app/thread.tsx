@@ -1752,31 +1752,32 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               />
             </CardHost>
           )}
+          {/* The way to the latest message has its own band under the transcript, never over
+              it: no card's facts are ever under the button (10.2.2). */}
           {!atEnd && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("jumpLatest")}
-              onPress={() => {
-                following.current = true;
-                setAtEnd(true);
-                list.current?.scrollToOffset({ offset: 0, animated: false });
-              }}
-              style={{
-                position: "absolute",
-                bottom: 12,
-                alignSelf: "center",
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: shell.accent,
-                borderColor: shell.border,
-                borderWidth: 1,
-              }}
-            >
-              <Icon name="down" color={shell.foreground} />
-            </Pressable>
+            <View style={{ alignItems: "center", paddingVertical: 6 }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("jumpLatest")}
+                onPress={() => {
+                  following.current = true;
+                  setAtEnd(true);
+                  list.current?.scrollToOffset({ offset: 0, animated: false });
+                }}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: shell.accent,
+                  borderColor: shell.border,
+                  borderWidth: 1,
+                }}
+              >
+                <Icon name="down" color={shell.foreground} />
+              </Pressable>
+            </View>
           )}
         </View>
         <ThreadComposer
