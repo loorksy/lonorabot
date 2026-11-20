@@ -301,7 +301,15 @@ test("activity rows say what the agent does from registry metadata, never a raw 
 test("the trading control appears only for an agent with a connected account", () => {
   assert.equal(showsTradingControl({ role: "personal", trading_account_id: null }), false);
   assert.equal(showsTradingControl({ role: "personal", hasTradingAccount: true }), true);
-  assert.equal(showsTradingControl({ role: "specialist", hasTradingAccount: true }), true);
+  assert.equal(showsTradingControl({ role: "general", hasTradingAccount: true }), false);
+  assert.equal(
+    showsTradingControl({
+      role: "specialist",
+      trading_account_id: "account",
+      hasTradingAccount: true,
+    }),
+    true,
+  );
   assert.equal(showsTradingControl({ template: "research", hasTradingAccount: true }), false);
   assert.equal(showsTradingControl({ role: "delegated", hasTradingAccount: true }), false);
   assert.equal(showsTradingControl({ trading_account_id: "account" }), true);
