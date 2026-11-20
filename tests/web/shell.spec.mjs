@@ -489,43 +489,50 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
-  test("a trading agent with no account is led to choose one", async ({ page, context }) => {
+  test("an agent with no account has its permission chip and ladder, not a no-account badge", async ({
+    page,
+    context,
+  }) => {
     const data = fixture({ action: "init", empty: true });
-    let trading;
+    const headers = {
+      "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+    };
+    let agent;
     try {
       await signIn(context, data);
-      trading = await tradingAgent(context, data);
-      const { agent } = trading;
-      // The server gives a trading agent its account when it is created; one whose account
-      // is gone is what this agent looks like on the wire.
-      await page.route("**/api/agents", async (route) => {
-        const response = await route.fetch();
-        const rows = await response.json();
-        return route.fulfill({
-          response,
-          json: rows.map((row) =>
-            row.id === agent.id
-              ? { ...row, template: "trading", trading_account_id: null, trading_symbol: null }
-              : row,
-          ),
-        });
+      // The door binds no agent to an account (VISION 3.1.2): a team agent has none, and in
+      // Ask, the level Lonora gives it, it trades with approval like any other agent.
+      const created = await context.request.post("/api/agents", {
+        headers,
+        data: { name: `Shell ${randomUUID()}`, scope_mode: "flexible" },
       });
+      expect(created.status()).toBe(201);
+      agent = await created.json();
+      expect(agent.trading_account_id).toBeNull();
+      const permissions = `/api/agents/${agent.id}/permissions`;
+      const { revision } = await (await context.request.get(permissions)).json();
+      const ask = await context.request.put(permissions, {
+        headers,
+        data: { level: "supervised", expected_revision: revision },
+      });
+      expect(ask.status()).toBe(200);
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(`/app/${agent.id}`);
-      const chip = page.locator("button.no-trade");
-      const sheet = page.locator("#dialog");
-      await expect(chip).toHaveAttribute("aria-label", "دون تنفيذ: لم يُختر حساب تداول");
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      await expect(chip).toHaveAttribute("data-level", "supervised");
+      await expect(chip).toHaveAttribute("aria-label", "الصلاحيات: تنفيذ بموافقة");
+      // Neither the removed «دون تنفيذ: لم يُختر حساب تداول» badge nor «لا يتداول».
+      await expect(page.locator(".no-trade")).toHaveCount(0);
       await chip.click();
-      await expect(sheet.locator(".state-lead")).toContainText("لا يرتبط");
-      // The chip links to the agent's trading settings (`?settings=trading`): the settings
-      // screen's «التداول» tab.
-      await sheet.getByRole("button", { name: "اختيار حساب التداول" }).click();
-      await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
+      await expect(menu.getByTestId("mode-option-supervised")).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      for (const level of ["analysis", "autonomous"])
+        await expect(menu.getByTestId(`mode-option-${level}`)).toBeEnabled();
     } finally {
-      if (trading)
-        await context.request.delete(`/api/agents/${trading.agent.id}`, {
-          headers: trading.headers,
-        });
+      if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
       fixture({ ...data, action: "cleanup" });
     }
   });
