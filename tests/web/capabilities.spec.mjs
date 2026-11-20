@@ -157,3 +157,50 @@ for (const locale of ["en", "ar"])
       await context.request.delete(`/api/agents/${seeded.agent}`, { headers });
     }
   });
+
+// A sheet keeps the list it opened with: «News domains» opens once the capabilities are read,
+// never empty before them.
+test("News domains waits for the capabilities, then lists the trusted domain", async ({
+  page,
+  context,
+}) => {
+  const data = simulation({ action: "init", empty: true });
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+  };
+  const domain = `held-${randomUUID().slice(0, 8)}.analyst.example`;
+  const added = await context.request.post("/api/trusted-sources", {
+    headers,
+    data: { kind: "feed_domain", identifier: domain },
+  });
+  expect(added.status()).toBe(201);
+  const source = await added.json();
+  let release;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/capabilities", async (route) => {
+    await held;
+    await route.continue();
+  });
+  try {
+    await page.goto("/app/integrations");
+    const row = page.getByRole("button", { name: /News domains/ });
+    await expect(row).toBeDisabled();
+    release();
+    await row.click();
+    await expect(page.locator("dialog").getByText(domain, { exact: true })).toBeVisible();
+  } finally {
+    release();
+    await context.request.post(`/api/trusted-sources/${source.id}/revoke`, { headers });
+  }
+});

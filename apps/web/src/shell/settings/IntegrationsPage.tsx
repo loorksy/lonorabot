@@ -581,8 +581,14 @@ export function IntegrationsPage() {
       <h3>
         <Trans>News and channels</Trans>
       </h3>
+      {/* Each sheet keeps the list it opened with: it opens once the capabilities are read. */}
       <div className="group">
-        <button type="button" className="row" onClick={() => domainsSheet(domains)}>
+        <button
+          type="button"
+          className="row"
+          disabled={!caps}
+          onClick={() => domainsSheet(domains)}
+        >
           <span className="row-icon">
             <Icon name="globe" />
           </span>
@@ -603,7 +609,7 @@ export function IntegrationsPage() {
             <Icon name="chev" />
           </span>
         </button>
-        <button type="button" className="row" onClick={() => rssSheet(feeds)}>
+        <button type="button" className="row" disabled={!caps} onClick={() => rssSheet(feeds)}>
           <span className="row-icon">
             <Icon name="rss" />
           </span>
@@ -618,7 +624,7 @@ export function IntegrationsPage() {
             <Icon name="chev" />
           </span>
         </button>
-        <button type="button" className="row" onClick={telegramSheet}>
+        <button type="button" className="row" disabled={!caps} onClick={telegramSheet}>
           <span className="row-icon">
             <Icon name="send" />
           </span>
