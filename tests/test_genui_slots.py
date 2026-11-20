@@ -11,13 +11,20 @@ from typing import Any, cast
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage
-from lonora_agent.genui_compile import SLOT_HEIGHTS, imitates_fixed_card, shows_frame_mark
+from lonora_agent.genui_compile import (
+    HARD_LIMIT,
+    RESTING_LIMIT,
+    imitates_fixed_card,
+    shows_frame_mark,
+    slot_height,
+)
 from lonora_agent.visual_response import VisualReplyProjector
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.genui_slots import SlotRecord, slot_records
 from lonora_db.owner_actions import create_card
-from lonora_db.schema import RunRow, ThreadRow, TradeApprovalRow
+from lonora_db.schema import AgentRow, RunRow, ThreadRow, TradeApprovalRow
 from lonora_db.trade_approvals import decide
 from lonora_tools.context import ToolContext
 from test_task_runtime import task_db as task_db
@@ -59,7 +66,16 @@ async def project(
     return ui, projector
 
 
-async def approval(db: Database, owner: str, agent: str, thread: str, status: str = "pending"):
+async def approval(
+    db: Database,
+    owner: str,
+    agent: str,
+    thread: str,
+    status: str = "pending",
+    *,
+    requests: int = 1,
+    reason: str = "",
+):
     async with db.sessions() as session, session.begin():
         run = RunRow(thread_id=thread, agent_id=agent, status="waiting_input")
         session.add(run)
@@ -70,12 +86,13 @@ async def approval(db: Database, owner: str, agent: str, thread: str, status: st
             thread_id=thread,
             agent_id=agent,
             call_id="call-1",
-            requests=[{"symbol": "XAUUSD", "action": "buy", "volume": "0.1"}],
+            requests=[{"symbol": "XAUUSD", "action": "buy", "volume": "0.1"}] * requests,
             status=status,
             results=[],
             broker_snapshot={},
             created_at=utcnow(),
             updated_at=utcnow(),
+            reason=reason,
         )
         row.id = "approval-" + run.id[:8]
         session.add(row)
@@ -146,13 +163,66 @@ async def test_a_slot_of_a_real_record_is_placed_with_only_its_card_and_record(
     assert ui is not None, projector.diagnostics
     assert {"type": "Slot", "card": "trade_approval", "record": record} in ui["blocks"]
     assert "prop_dropped" in codes(projector)
-    # A Trade Approval counts its tallest realistic card (SLOT_HEIGHTS): the agent's own
-    # words fold under More first; the slot is never folded (10.2.2).
-    assert ui["blocks"][1] == {
-        "type": "More",
-        "children": [{"type": "Text", "text": "الذهب عند المقاومة."}],
-    }
-    assert "budget_folded" in codes(projector)
+    # A waiting Trade Approval rests at its waiting height (10.1.4): the agent's line beside it
+    # stays in view, and the card decided later still fits 720 px.
+    assert ui["blocks"] == [
+        {"type": "Text", "text": "الذهب عند المقاومة."},
+        {"type": "Slot", "card": "trade_approval", "record": record},
+    ]
+    assert "budget_folded" not in codes(projector)
+
+
+@pytest.mark.asyncio
+async def test_a_slot_counts_its_record_at_compile_time_and_its_tallest_later_state(
+    task_db: Fixture,
+) -> None:
+    """LD1 (10.1.4): a slot counts toward the 560 px resting height as its record is when the
+    card is compiled, and its record's tallest later state toward 720 px for the whole card."""
+    db, owner, agent, thread = task_db
+    line = '{"type":"Text","text":"الذهب عند المقاومة."}'
+    # Decided already: it rests at its decided height, so the agent's line folds.
+    decided = await approval(db, owner, agent, thread, "completed")
+    ui, projector = await project(db, owner, agent, thread, card(line, slot(decided)))
+    assert ui is not None, projector.diagnostics
+    assert [block["type"] for block in ui["blocks"]] == ["Slot", "More"]
+    # Waiting with a two-line reason: alone it fits, decided too (702 px with the head)...
+    reason = "Breakout above 2,400 at the London open."
+    waiting = await approval(db, owner, agent, thread, reason=reason)
+    ui, projector = await project(db, owner, agent, thread, card(slot(waiting)))
+    assert ui is not None, projector.diagnostics
+    # ...but beside the agent's line its decided card would pass 720 px: it falls back now,
+    # which brings the approval's own row back.
+    ui, projector = await project(db, owner, agent, thread, card(line, slot(waiting)))
+    assert ui is None and "card_fallback_budget" in codes(projector)
+    # Two requests: decided, each shows its own result line; far past 720 px.
+    batch = await approval(db, owner, agent, thread, requests=2)
+    ui, projector = await project(db, owner, agent, thread, card(slot(batch)))
+    assert ui is None and "card_fallback_budget" in codes(projector)
+
+
+def test_slot_heights_follow_the_record() -> None:
+    """The heights a slot counts grow with what its record holds and never shrink later."""
+    short, long = "Breakout.", "Breakout above resistance at the London open. " * 6
+    rest, later = slot_height("trade_approval", SlotRecord(reason=short))
+    assert rest < later
+    assert slot_height("trade_approval", SlotRecord(waiting=False, reason=short)) == (later, later)
+    assert slot_height("trade_approval", SlotRecord(reason=long))[1] > later
+    assert slot_height("trade_approval", SlotRecord(rows=2, reason=short))[1] > later
+    # A name of wide capitals wraps further than a name of words of the same length.
+    words = "Gold and silver desk for the London and New York sessions with the Tokyo overlap"
+    capitals = "WMWM " * 15 + "WMWM"
+    for kind in ("mandate", "settle", "secret"):
+        named = slot_height(kind, SlotRecord(name=words, labels=("Key",)))
+        assert slot_height(kind, SlotRecord(name="Gold", labels=("Key",))) <= named
+        assert named < slot_height(kind, SlotRecord(name=capitals, labels=("Key",)))
+    # A Secret card's long field labels add their lines; the line naming the saved values it
+    # replaces counts at its tallest, later only (it is read when the card is shown).
+    label = "مفتاح الواجهة البرمجية لحساب التداول في منصة العملات الرقمية"
+    one = slot_height("secret", SlotRecord(labels=("Key",)))
+    assert one[0] < one[1]
+    labelled = slot_height("secret", SlotRecord(labels=(label,)))
+    assert labelled[0] > one[0] and labelled[1] - labelled[0] > one[1] - one[0]
+    assert slot_height("secret", SlotRecord(waiting=False, labels=("Key",))) == (one[0], one[0])
 
 
 @pytest.mark.asyncio
@@ -230,10 +300,10 @@ async def test_a_mandate_card_is_a_mandate_slot_and_no_other(task_db: Fixture) -
 
 
 @pytest.mark.asyncio
-async def test_a_mandate_slot_counts_its_tallest_card(task_db: Fixture) -> None:
-    """A Mandate slot counts the English card with the longest name and a grant's line
-    (405 px, tests/web/genui.spec.mjs "Slots"): a note and a line beside it would rest above
-    560 px, so they fold and the slot stays."""
+async def test_a_mandate_slot_counts_its_agents_name(task_db: Fixture) -> None:
+    """A Mandate slot counts its tallest lines (Ask and a signed grant's) and the agent's name
+    as it is (tests/web/genui.spec.mjs "Slots"): beside a short name a note and a line stay in
+    view; an 80-character name of wide capitals wraps far enough that they fold."""
     db, owner, agent, thread = task_db
     record = await resolve_card(db, owner, agent, thread, "trading_mode")
     text = card(
@@ -241,6 +311,13 @@ async def test_a_mandate_slot_counts_its_tallest_card(task_db: Fixture) -> None:
         '{"type":"Note","text":"ملاحظة"}',
         '{"type":"Text","text":"سطر"}',
     )
+    ui, projector = await project(db, owner, agent, thread, text)
+    assert ui is not None, projector.diagnostics
+    assert [block["type"] for block in ui["blocks"]] == ["Slot", "Note", "Text"]
+    async with db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, agent)
+        assert row is not None
+        row.name = ("WMWM " * 16).strip()
     ui, projector = await project(db, owner, agent, thread, text)
     assert ui is not None, projector.diagnostics
     assert ui["blocks"][0] == {"type": "Slot", "card": "mandate", "record": record}
@@ -263,24 +340,26 @@ async def test_a_secret_card_is_a_secret_slot_and_no_other(task_db: Fixture) -> 
     assert ui is None and "card_fallback_slot" in codes(projector)
 
 
-async def secret_with_fields(db: Database, owner: str, agent: str, thread: str, count: int):
+async def secret_with_fields(
+    db: Database, owner: str, agent: str, thread: str, count: int, label: str = "Key"
+):
     async with db.sessions() as session, session.begin():
         row = await session.get(ThreadRow, thread)
         assert row is not None
         made = await create_card(
             session,
             owner,
-            card_id=f"secret-{count}-fields",
+            card_id=f"secret-{count}-fields-{len(label)}",
             agent_id=agent,
             thread=row,
             run_id=None,
             source="agent",
             kind="secret",
-            subject=f"secret:fields:{count}",
+            subject=f"secret:fields:{count}:{len(label)}",
             payload={
                 **SECRET_CARD,
                 "fields": [
-                    {"key": f"KEY_{index}", "label": f"Key {index}", "secret": True}
+                    {"key": f"KEY_{index}", "label": f"{label} {index}"[:60], "secret": True}
                     for index in range(count)
                 ],
             },
@@ -289,15 +368,24 @@ async def secret_with_fields(db: Database, owner: str, agent: str, thread: str, 
 
 
 @pytest.mark.asyncio
-async def test_a_secret_slot_counts_its_fields_and_too_many_fall_back(task_db: Fixture) -> None:
-    """A Secret card grows 95 px a field (10.1.4): its slot counts what the owner will see,
-    the agent's other blocks fold first, and a card the slot alone pushes past 720 px falls
-    back, which brings the card's own row back."""
+async def test_a_secret_slot_counts_its_fields_and_labels_and_too_many_fall_back(
+    task_db: Fixture,
+) -> None:
+    """A Secret card grows with its fields and the lines its labels wrap to (LD3): its slot
+    counts what the owner will see, the agent's other blocks fold first, and a card that
+    would pass 720 px, the «replaces» line at its tallest included, falls back, which brings
+    the card's own row back."""
     db, owner, agent, thread = task_db
     note = '{"type":"Note","text":"أحتاج المفاتيح لأقرأ حسابك في المنصة."}'
+
+    async def heights(record: str) -> tuple[int, int]:
+        async with db.sessions() as session:
+            found = await slot_records(session, owner, None, thread, [record])
+        return slot_height("secret", found[("secret", record)])
+
     one = await secret_with_fields(db, owner, agent, thread, 1)
-    # 365 + 95 = 460 px, the English card with the longest name: with the head, 560 at rest.
-    # A note hidden at rest takes no height but could fold, so a higher count would fold it.
+    # With the head it rests within 560 px; a note hidden at rest takes no height.
+    assert 100 + (await heights(one))[0] <= RESTING_LIMIT
     hidden = '{"type":"Note","when":"false","text":"أحتاج المفاتيح لأقرأ حسابك في المنصة."}'
     ui, projector = await project(db, owner, agent, thread, card(hidden, slot(one, "secret")))
     assert ui is not None and "budget_folded" not in codes(projector), projector.diagnostics
@@ -305,14 +393,18 @@ async def test_a_secret_slot_counts_its_fields_and_too_many_fall_back(task_db: F
     assert ui is not None and "budget_folded" in codes(projector), projector.diagnostics
     two = await secret_with_fields(db, owner, agent, thread, 2)
     ui, projector = await project(db, owner, agent, thread, card(note, slot(two, "secret")))
-    # 365 + 2 × 95 = 555 px with the head is over 560 at rest: the note folds, never the
-    # slot, and the card (709 px) stays under 720.
+    # The note folds, never the slot, and the card stays under 720 px later too.
     assert ui is not None, projector.diagnostics
     assert "budget_folded" in codes(projector)
     assert {block["type"] for block in ui["blocks"]} == {"More", "Slot"}
-    three = await secret_with_fields(db, owner, agent, thread, 3)
-    ui, projector = await project(db, owner, agent, thread, card(slot(three, "secret")))
-    assert ui is None and "card_fallback_budget" in codes(projector)  # 750 px, alone
+    # The same two fields with labels at the contract's longest wrap their form, what it saves
+    # and what it would replace: past 720 px, so the card falls back.
+    long = "مفتاح الواجهة البرمجية لحساب التداول في منصة العملات الرقمية"
+    labelled = await secret_with_fields(db, owner, agent, thread, 2, label=long)
+    assert (await heights(labelled))[1] > (await heights(two))[1]
+    assert 100 + (await heights(labelled))[1] > HARD_LIMIT
+    ui, projector = await project(db, owner, agent, thread, card(slot(labelled, "secret")))
+    assert ui is None and "card_fallback_budget" in codes(projector)
     eight = await secret_with_fields(db, owner, agent, thread, 8)
     ui, projector = await project(db, owner, agent, thread, card(slot(eight, "secret")))
     assert ui is None and "card_fallback_budget" in codes(projector)
@@ -353,7 +445,6 @@ async def test_one_record_is_one_slot_and_it_is_never_folded(task_db: Fixture) -
     assert slots == [{"type": "Slot", "card": "trade_approval", "record": record}]
     # The slot counts its own height toward the 560 px budget, so the notes fold; the slot
     # stays at the top level, never inside the fold.
-    assert SLOT_HEIGHTS["trade_approval"] > 0
     assert any(block["type"] == "More" for block in ui["blocks"])
     assert "budget_folded" in codes(projector)
 

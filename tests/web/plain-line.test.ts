@@ -88,7 +88,7 @@ test("a line fitted to its width is cut between words, so a figure shows whole o
   // Two lines wrap word by word; a single word longer than a line is cut where it stands.
   assert.equal(
     fittedLine("one two three four five six seven", { width: 100, fontSize: 14, lines: 2 }),
-    "one two three four…",
+    "one two three four five…",
   );
   assert.equal(fittedLine("x".repeat(40), { width: 100, fontSize: 14 }), `${"x".repeat(9)}…`);
 });
