@@ -2304,45 +2304,29 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 .att.image.uploading img {
   filter: brightness(0.62) saturate(0.8);
 }
-/* ↓ to the newest message */
+/* Use the composer's top row for the latest-message button without covering the transcript. */
+.ta-wrap.has-latest {
+  --latest-size: 44px;
+  padding-inline-end: var(--latest-size);
+}
+.ta-wrap.has-latest > :is(.ta-mirror, .ta-suggest) {
+  inset-inline-end: var(--latest-size);
+}
 .jump {
   position: absolute;
-  inset-inline-end: 16px;
-  bottom: calc(var(--bottom-h, 96px) + 12px);
-  z-index: 21;
-  width: 42px;
-  height: 42px;
+  inset-inline-end: 0;
+  inset-block-start: -8px;
+  width: var(--latest-size);
+  height: var(--latest-size);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--glass-pop);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--glass-line);
-  box-shadow: var(--float-shadow);
+  background: var(--fill);
+  box-shadow: var(--raise);
   color: var(--text);
-  opacity: 0;
-  transform: translateY(10px) scale(0.9);
-  pointer-events: none;
-  transition:
-    opacity 0.2s,
-    transform 0.25s var(--spring);
 }
-.jump.on {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-}
-/* While it shows, the composer's backdrop rises over its band: the button sits on the page's
-   background, never over a message or a fixed card's facts (10.2.2). Solid from the composer
-   up to the button's top (12px gap + 42px), then a 28px fade. */
-.jump.on ~ .composer::before {
-  top: -82px;
-  background: linear-gradient(
-    to top,
-    var(--bg) calc(100% - 28px),
-    color-mix(in srgb, var(--bg) 0%, transparent)
-  );
+.jump:hover {
+  background: var(--fill-2);
 }
 .jump svg {
   width: 20px;
@@ -2350,8 +2334,8 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 }
 .jump-n {
   position: absolute;
-  top: -6px;
-  inset-inline-start: -4px;
+  inset-block-start: 0;
+  inset-inline-start: 0;
   min-width: 20px;
   height: 20px;
   padding: 0 5px;

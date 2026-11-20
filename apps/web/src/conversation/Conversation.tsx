@@ -1155,24 +1155,6 @@ export function Conversation({
       <div ref={floatDate} className="float-date" aria-hidden="true">
         <span />
       </div>
-      <button
-        type="button"
-        className={`jump${far ? " on" : ""}`}
-        aria-label={
-          fresh ? t`Go to the latest messages, ${fresh} new` : t`Go to the latest messages`
-        }
-        onClick={() => {
-          following.current = true;
-          setFresh(0);
-          scroll.current?.scrollTo({
-            top: scroll.current.scrollHeight,
-            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-          });
-        }}
-      >
-        <Icon name="down" />
-        {fresh > 0 && <span className="jump-n">{fresh}</span>}
-      </button>
       <Composer
         key={`composer:${threadId}`}
         threadId={threadId}
@@ -1186,6 +1168,30 @@ export function Conversation({
         editing={editing}
         streaming={streaming || working}
         suggestion={suggestion}
+        latestButton={
+          far && (
+            <button
+              type="button"
+              className="jump"
+              aria-label={
+                fresh ? t`Go to the latest messages, ${fresh} new` : t`Go to the latest messages`
+              }
+              onClick={() => {
+                following.current = true;
+                setFresh(0);
+                scroll.current?.scrollTo({
+                  top: scroll.current.scrollHeight,
+                  behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+                    ? "instant"
+                    : "smooth",
+                });
+              }}
+            >
+              <Icon name="down" />
+              {fresh > 0 && <span className="jump-n">{fresh}</span>}
+            </button>
+          )
+        }
         collaborationSessionId={collaboration?.id}
         onClearReply={() => setReply(null)}
         onClearEdit={() => setEditing(null)}
