@@ -207,9 +207,11 @@ async def test_a_restore_the_owner_asked_for_is_attributed_to_his_message():
             operations=[method_add("- Only trade the London break")],
         )
         current = (await call(registry, owner, "method_history"))["memory_version"]
-        await call(
+        own = await call(
             registry, owner, "method_restore", version=first["version"], memory_version=current
         )
+        # An agent restoring its own method owes no one-line report of a team change.
+        assert own["changed"] is True and "owner_line" not in own
         latest = (await call(registry, owner, "method_history"))["versions"][0]
         assert latest["change"] == "restore" and latest["from_owner_message"] is True
     finally:
@@ -260,6 +262,7 @@ async def test_an_instruction_skill_saves_in_one_call_and_restores():
             expected_version=second["resource_version"],
         )
         assert restored["status"] == "restored" and restored["version"] == "1.0.2"
+        assert "owner_line" not in restored
         history = await call(registry, context, "skill_history", skill_id=skill)
         assert len(history["versions"]) == 3 and history["versions"][0]["current"] is True
         fresh = await turn(fixture, agent)
@@ -537,7 +540,17 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
             version=first["version"],
             memory_version=history["memory_version"],
         )
-        assert restored["changed"] is True
+        # A team agent's method Lonora restored is reported to the owner in one line (3.1.2).
+        assert restored["changed"] is True and restored["owner_line"] == "required"
+        again = await call(
+            registry,
+            lead,
+            "method_restore",
+            agent_id=gold["id"],
+            version=first["version"],
+            memory_version=restored["version"],
+        )
+        assert again["changed"] is False and "owner_line" not in again
         text = (await call(registry, own, "method_history", version=first["version"]))["version"][
             "text"
         ]
@@ -577,7 +590,7 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
             version=skill["resource_version"],
             expected_version=second["resource_version"],
         )
-        assert back["status"] == "restored"
+        assert back["status"] == "restored" and back["owner_line"] == "required"
         from lonora_db.schema import EventRow
         from sqlalchemy import select
 

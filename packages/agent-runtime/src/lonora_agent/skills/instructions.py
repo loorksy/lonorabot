@@ -279,6 +279,7 @@ async def restore_skill(
         await validate_graph(session, context, registry, payload, row.id)
         row.payload, row.version, row.updated_at = payload, row.version + 1, utcnow()
         record_version(session, row)
+        result = summary(row, "restored", restored_version=arguments["version"])
         if actor != context.agent_id:
             # Lonora restored a team agent's Skill (3.1.2): the version is recorded as hers
             # in the agent's history of events, since a version row carries no author.
@@ -295,7 +296,12 @@ async def restore_skill(
                     "by_agent_id": actor,
                 },
             )
-        result = summary(row, "restored", restored_version=arguments["version"])
+            # ... and she tells the owner in one line (the conversation gate).
+            result = {
+                **result,
+                "owner_line": "required",
+                "next": "Tell the owner in one line what you did and why.",
+            }
         session.add(EffectReceiptRow(key=context.effect_key, result=result))
         return result
 

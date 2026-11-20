@@ -267,3 +267,28 @@ async def save_customization(
         current.model_copy(update={"customization": draft, "revision": current.revision + 1}),
     )
     return await permission_state(session, owner_id, agent_id)
+
+
+async def forget_account(session: AsyncSession, owner_id: str, account_id: str) -> None:
+    """A deleted connection leaves no draft naming it, so choosing Full asks which account
+    instead of proposing one that is gone. The rest of the draft stays the owner's."""
+    agents = await session.scalars(select(AgentRow.id).where(AgentRow.owner_id == owner_id))
+    for agent_id in list(agents):
+        row = await session.get(SettingRow, permission_key(owner_id, agent_id))
+        named = row.payload.get("customization") if row else None
+        if not named or named.get("account_id") != account_id:
+            continue
+        await authority_lock(session, agent_id)
+        current = await permission_record(session, owner_id, agent_id)
+        draft = current.customization
+        if draft is None or draft.account_id != account_id:
+            continue
+        await _write(
+            session,
+            current.model_copy(
+                update={
+                    "customization": draft.model_copy(update={"account_id": "", "symbols": []}),
+                    "revision": current.revision + 1,
+                }
+            ),
+        )

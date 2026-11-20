@@ -227,6 +227,32 @@ test("the call screen survives navigation with its origin, real track mute and o
             : [],
       }),
     );
+    // The server posts the Execution Receipt once the broker confirms the approved order (10.3).
+    await page.route("**/api/trading/receipts?*", (route) =>
+      route.fulfill({
+        json:
+          approval.status === "completed" &&
+          new URL(route.request().url()).searchParams.get("thread_id") === history.id
+            ? [
+                {
+                  operation_id: "voice-approved-operation",
+                  thread_id: history.id,
+                  timeline_seq: null,
+                  agent_id: first.id,
+                  created_at: new Date().toISOString(),
+                  kind: "fill",
+                  action: "buy",
+                  symbol: broker.symbol,
+                  ticket: "voice-native-ticket",
+                  volume: "0.01",
+                  price: "1.23456",
+                  reason: null,
+                  verification: "verified",
+                },
+              ]
+            : [],
+      }),
+    );
     let decisions = 0;
     await page.route(`**/api/trading/approvals/${approval.id}/decision`, async (route) => {
       expect(route.request().postDataJSON()).toEqual({ decision: "approve" });
@@ -251,8 +277,11 @@ test("the call screen survives navigation with its origin, real track mute and o
     const approvedCard = call.locator(`[data-trade-approval="${approval.id}"]`);
     await expect(approvedCard.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
     await approvedCard.getByRole("button", { name: "Approve", exact: true }).click();
-    await expect(call.getByText("voice-native-ticket", { exact: true })).toBeVisible();
+    await expect(approvedCard).toHaveAttribute("data-trade-status", "completed");
+    await expect(approvedCard.getByText("Broker result", { exact: true })).toBeVisible();
     await expect(approvedCard.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
+    // The confirmed result is shown once, as its Execution Receipt (10.3), not in the card.
+    await expect(approvedCard.locator("[data-trade-result]")).toHaveCount(0);
     const rejectedCard = call.locator(`[data-trade-approval="${rejectable.id}"]`);
     await rejectedCard.getByRole("button", { name: "Reject", exact: true }).click();
     await expect(rejectedCard.getByText("Rejected", { exact: true })).toBeVisible();
@@ -315,6 +344,12 @@ test("the call screen survives navigation with its origin, real track mute and o
     await page.getByRole("button", { name: "Fold the call", exact: true }).click();
     await expect(page).toHaveURL(`/app/${first.id}?thread=${history.id}`);
     await expect(page.locator(".chat-head").getByTestId("active-call-pill")).toBeVisible();
+    // The approved order's broker ticket is on its Execution Receipt in the call's chat.
+    await expect(
+      page
+        .locator('[data-execution-receipt="voice-approved-operation"]')
+        .getByText("voice-native-ticket", { exact: true }),
+    ).toBeVisible();
     // The call's own chat has no strip.
     await expect(page.locator(".call-strip")).toHaveCount(0);
     await page.getByTestId("active-call-pill").click();

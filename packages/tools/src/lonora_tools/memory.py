@@ -283,7 +283,7 @@ async def method_versions(context: ToolContext, args: dict[str, Any]) -> dict[st
 async def method_restore(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = MethodRestoreInput.model_validate(args)
     target = await method_target(context, params.agent_id)
-    return await restore_method(
+    result = await restore_method(
         context.db,
         context.owner_id,
         target,
@@ -294,6 +294,14 @@ async def method_restore(context: ToolContext, args: dict[str, Any]) -> dict[str
         source_message_id=(await _owner_message(context))[0],
         author_agent_id=context.agent_id,
     )
+    if target == context.agent_id or not result["changed"]:
+        return result
+    # Lonora edited a team agent's method: one line to the owner (3.1.2; the conversation gate).
+    return {
+        **result,
+        "owner_line": "required",
+        "next": "Tell the owner in one line what you did and why.",
+    }
 
 
 class OwnerPreferencesUpdate(Contract):

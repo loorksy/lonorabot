@@ -12,9 +12,9 @@ import { useToast } from "../shell/Toast";
 import { useMandateSheet } from "./sheets/MandateSheet";
 
 /* The permission chip and its menu (reference modeChip/modeMenu/modelPage/downgradePage,
-   Desktop-37 3821-3827, 3899-3906, 8418-8460). The ladder is trading-only (Q19): a trading
-   agent with an account gets the chip; one without an account the dashed «دون تنفيذ» badge
-   (→ the no-account sheet); every other agent the «لا يتداول» badge (Q20: a general agent
+   Desktop-37 3821-3827, 3899-3906, 8418-8460). The ladder is trading-only (Q19): an agent
+   that trades gets the chip, with an account or without, as none is bound to one (VISION
+   3.1.2); every other agent the «لا يتداول» badge (Q20: a general agent
    researches and answers, it never pays or sends). The level is never changed by text. */
 
 export const LEVEL_ICON: Record<AgentPermissionLevel, IconName> = {

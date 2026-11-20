@@ -163,12 +163,16 @@ const review = {
     writes: "may change something (only with non-financial writes)",
     trust: "Trust",
     trustWrite: "Trust: non-financial writes",
+    read: "read only",
+    remove: "Remove",
   },
   ar: {
     review: "مراجعة ووثوق",
     writes: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
     trust: "ثقة",
     trustWrite: "ثقة: كتابة غير مالية",
+    read: "قراءة فقط",
+    remove: "إزالة",
   },
 };
 
@@ -222,7 +226,16 @@ for (const locale of ["ar", "en"])
     );
     const trusted = [];
     await page.route("**/api/trusted-sources/mcp/scripted-server", (route) => {
-      trusted.push(JSON.parse(route.request().postData() ?? "{}"));
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      trusted.push(body);
+      // As the trust route leaves it: the passing tools pinned at the tier asked for.
+      Object.assign(server, {
+        trusted_tier: body.tier,
+        trusted_tools: ["post_note", "search_posts"],
+        write_tools: ["post_note"],
+        blocked_tools: ["send_usdc"],
+        trust_source_id: "scripted-trust",
+      });
       return route.fulfill({ json: {} });
     });
     try {
@@ -242,6 +255,10 @@ for (const locale of ["ar", "en"])
       await preview.getByRole("button", { name: text.trust, exact: true }).click();
       await expect(preview).toHaveCount(0);
       expect(trusted).toEqual([{ tier: "read", digest: "a".repeat(64) }]);
+      // The screen reads the report again: the server is now trusted to read only.
+      await expect(line).toContainText(text.read);
+      await expect(line.getByRole("button", { name: text.remove, exact: true })).toBeVisible();
+      await expect(line.getByRole("button", { name: text.review, exact: true })).toHaveCount(0);
     } finally {
       simulation({ ...data, action: "cleanup" });
     }

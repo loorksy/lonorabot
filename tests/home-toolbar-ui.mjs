@@ -83,9 +83,15 @@ export function homeToolbarUi(mobile) {
           animations: "disabled",
         });
         await create.click();
+        // «محادثة جديدة» opens the new-chat sheet: a new group, then the existing chats. There is
+        // no agent creation form (P5): a new agent is asked of Lonora in chat (mandate 3.1.2).
+        const sheet = page.getByRole("dialog");
         await expect(
-          page.getByRole("button", { name: locale === "ar" ? /^وكيل جديد/ : /^New agent/ }),
+          sheet.getByRole("button", { name: locale === "ar" ? /^مجموعة جديدة/ : /^New group/ }),
         ).toBeVisible();
+        await expect(
+          sheet.getByRole("button", { name: locale === "ar" ? /^وكيل جديد/ : /^New agent/ }),
+        ).toHaveCount(0);
       } finally {
         fixture({ ...data, action: "cleanup" });
       }

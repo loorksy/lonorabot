@@ -139,21 +139,39 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     });
     await page.getByRole("button", { name: "إرسال", exact: true }).click();
     await transportFailure;
-    await expect(page.getByRole("button", { name: "إرسال", exact: true })).toBeEnabled();
-    expect(firstReceipt.message.attachment_ids).toContain(artifact.id);
     await page.unroute(messagePath, lostResponse);
-    const retried = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith(`/threads/${threadId}/messages`),
-    );
-    await page.getByRole("button", { name: "إرسال", exact: true }).click();
-    const retryResponse = await retried;
-    nonces.push(retryResponse.request().postDataJSON().client_nonce);
-    const retryReceipt = await retryResponse.json();
+    expect(firstReceipt.deduplicated).toBe(false);
+    expect(firstReceipt.message.attachment_ids).toContain(artifact.id);
+    // A durable event acknowledges the committed message although its response was lost
+    // (as on Web): it is drawn as sent with its file, and the owner is never asked to send
+    // it again; nothing is left in the outbox for a later flush.
+    await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toHaveValue("");
+    const sent = page.getByTestId("conversation-transcript");
+    await expect(sent.getByText(content, { exact: true })).toBeVisible();
+    await expect(sent.getByRole("button", { name: filename, exact: true })).toBeVisible();
+    await expect(page.getByText("لم تُرسل الرسالة", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("بانتظار الشبكة…", { exact: true })).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (thread) =>
+            Object.keys(localStorage).filter(
+              (key) => key.startsWith("lonora.outbox.v1:") && key.includes(thread),
+            ).length,
+          threadId,
+        ),
+      )
+      .toBe(0);
+    expect(nonces).toHaveLength(1);
+    // A replay of the same nonce returns the real receipt, never a second message.
+    const retryReceipt = await (
+      await context.request.post(`/api/threads/${threadId}/messages`, {
+        headers,
+        data: { content, attachment_ids: [artifact.id], client_nonce: nonces[0] },
+      })
+    ).json();
     expect(retryReceipt.deduplicated).toBe(true);
     expect(retryReceipt.message.id).toBe(firstReceipt.message.id);
-    expect(nonces[0]).toBe(nonces[1]);
     expect(
       (await (await context.request.get(`/api/threads/${threadId}/messages`)).json()).filter(
         (row) => row.content === content,
@@ -169,6 +187,11 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
       .getByTestId("conversation-transcript")
       .getByText(content, { exact: true })
       .click({ delay: 650 });
+    // A long press opens the message's menu (as on Web); «رد» quotes it in the composer.
+    await page
+      .getByRole("dialog", { name: "خيارات الرسالة", exact: true })
+      .getByRole("button", { name: "رد", exact: true })
+      .click();
     await expect(page.getByRole("button", { name: "إلغاء الرد", exact: true })).toBeVisible();
     await page.getByLabel("اكتب رسالة…", { exact: true }).fill("A reply to the persistent message");
     const replying = page.waitForResponse(
@@ -187,7 +210,7 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     expect((await download).suggestedFilename()).toBe(filename);
     await page.goto("/new-group");
     await page.getByLabel("الاسم", { exact: true }).fill(`${prefix} team`);
-    await page.getByRole("checkbox", { name: prefix, exact: true }).click();
+    await page.getByRole("switch", { name: prefix, exact: true }).click();
     const grouped = page.waitForResponse((response) =>
       response.url().endsWith("/api/groups/create"),
     );
@@ -316,9 +339,11 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
     await page.goto("/models");
     await expect(page.getByText("Providers", { exact: true })).toBeVisible();
+    // Integrations are part of Capabilities (W15-8); their setup is on Web.
     await page.goto("/integrations");
+    await expect(page.getByRole("heading", { name: "Capabilities", exact: true })).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Open Web settings", exact: true }),
+      page.getByRole("button", { name: "Set up integrations on the web", exact: true }),
     ).toBeVisible();
     await page.goto("/voice");
     await expect(page.getByText("GPT-Live", { exact: true })).toBeVisible();

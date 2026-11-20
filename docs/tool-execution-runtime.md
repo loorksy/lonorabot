@@ -492,7 +492,7 @@ reply is empty only with neither text nor an interface (rich content):
 | `read_step_not_taken` | The last call failed with class `resolution`, listed nothing that exists, and named exactly one read-only tool to call next, which the request never called | Take that step and answer from it, or say plainly what was not done |
 | `found_tool_unused` | `tool_environment` returned exactly one available tool (an exact lookup, or a search with one match; never one row of a longer listing), and the request never called it and changed nothing | A read: call it. A change: call it only if the owner asked for the action; a question about it is answered |
 | `changes_all_failed` | Every change of the request failed, and one failure names how to repeat it (`repeat_with`) or a read to make first | Take the step, or say that the change was not made |
-| `lead_action_unreported` | A lead action changed the team (`owner_line: "required"` in its result: Lonora's `agent_control`, or `trading_mode_ask` on another agent) and the reply is empty. Checked first, whatever else the request contains: it asks for words, never a call | Tell the owner in one line what was done and why |
+| `lead_action_unreported` | A lead action changed the team (`owner_line: "required"` in its result: Lonora's `agent_control`, or `trading_mode_ask`, `method_restore` or `skill_restore` on another agent) and the reply is empty. Checked first, whatever else the request contains: it asks for words, never a call | Tell the owner in one line what was done and why |
 
 The gate reads call names, arguments and result fields, and whether the reply is empty
 (no text and no interface). It
