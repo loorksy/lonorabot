@@ -88,9 +88,8 @@ async def cards(
 async def mandate(
     request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any] | None:
-    """The agent's live Mandate card wherever it was raised, so a screen outside that
-    conversation shows the real card (10.3); null when it has none. Reading never raises
-    one."""
+    """The agent's live Mandate card wherever it was raised: the newest pending or tapped
+    one, or null when it has none. Reading never raises one."""
     async with runtime(request).db.sessions() as session:
         await owned_agent(session, owner.id, agent_id)
         row = await mandate_card(session, owner.id, agent_id)
@@ -161,8 +160,8 @@ async def decide_trading_mode(
     mode, withdrawn = await change_trading_mode(
         session, owner.id, row.payload["agent_id"], body.trading_mode, by="owner_tap"
     )
-    # How many pending Trade Approval cards this tap withdrew, counted by the server, so
-    # the owner's one line after the tap says it (0 for Ask, or when none was waiting).
+    # How many pending Trade Approval cards this tap withdrew, counted by the server (0 for
+    # Ask, or when none was waiting).
     await settle(
         session,
         row,

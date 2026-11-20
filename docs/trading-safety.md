@@ -104,12 +104,16 @@ two records of that read: the ticket the trade tool captured before sending
 (`expected_target`, from `management_snapshot`), and, for a request an approved Trade
 Approval of the same Run covers, the ticket that card captured when it was raised
 (`approved_targets`). A ticket that changed since (the owner moved a stop or closed part
-of it), one the broker no longer shows, or no record of what was read, refuses the request
-with `broker_state_changed`, and nothing is sent: an owner's intervention is never
-overwritten, not even with an approved card. The trade tool makes the same comparison for
-an approved card before the request is reserved, with the same code. A paused agent's exit
-is checked the same way and goes through on an unchanged ticket (4.7). The owner's own
-orders from the Trading page carry no read of the ticket and are not checked.
+of it), or no record of what was read, refuses the request with `broker_state_changed`,
+and nothing is sent: an owner's intervention is never overwritten, not even with an
+approved card. A ticket the broker no longer shows is refused earlier, by preflight's
+ticket check (6.5), with `position_not_found` or `order_not_found`, before anything is
+reserved; nothing is sent either. The trade tool makes the same comparison for an approved
+card before the request is reserved, with `broker_state_changed`; there a ticket that is
+gone since the card captured it counts as changed. The owner reads why on the card, from
+the shared table below. A paused agent's exit is checked the same way and goes through on
+an unchanged ticket (4.7). The owner's own orders from the Trading page carry no read of
+the ticket and are not checked.
 
 ## Owner text for boundary codes
 
@@ -128,10 +132,15 @@ boundary's codes in English and Arabic. Web `userError`, Mobile
 - `tests/check_trading_mode.py`: in Ask, new risk is sent only as the exact request of an
   approved card of this Run. The stale-target check at the door: an unread or changed
   ticket is not sent in Ask, in Full, under an approved card (against the card's own
-  capture) and on a grant's path; a paused agent's exit on an unchanged ticket is sent,
-  and so is the owner's own Trading-page change. `tests/check_trade_approvals.py`: one
-  card per exact request, reused while it waits, after approval and right after a refusal,
-  and a new one after the owner writes again.
+  capture) and on a grant's path; a ticket the broker no longer shows is refused by
+  preflight (`position_not_found`) in Ask and in Full; a paused agent's exit on an
+  unchanged ticket is sent, and so is the owner's own Trading-page change.
+  `tests/check_trade_approvals.py`: one card per exact request, reused while it waits,
+  after approval and right after a refusal, and a new one after the owner writes again;
+  an approved change to a ticket the owner closed since is refused by the trade tool
+  (`broker_state_changed`) with nothing sent.
+- `tests/web/financial-boundary.test.ts` (tsx): every boundary code's owner text in both
+  languages, `broker_state_changed` included.
 - Playwright `tests/web/safety-truth.spec.mjs`: a close retried after a simulated timeout
   and a double-clicked close each produce exactly one journal row and one operation id;
   the pill and sheet. `tests/mobile/safety-pill.spec.mjs`: the

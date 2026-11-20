@@ -1,5 +1,5 @@
 """The trading mode at the real execution door on PostgreSQL (mandate 4.1, 4.2, 3.3.4, 4.7,
-6.2-6.4, 6.6, 6.7).
+6.2-6.7).
 
 Scripted broker only; no live orders. Run on a fresh disposable *_test database.
 """
@@ -541,6 +541,27 @@ async def checks() -> None:
         owner_id, exit_own_position(), lease, expected_target=captured("mode-position")
     )
     assert paused_exit.status == "confirmed" and broker.sent == sent + 1, paused_exit
+
+    async def refused_as_gone(request: TradeRequest) -> None:
+        """A ticket the broker no longer shows (here, gone after the agent read it) is
+        refused by preflight's ticket check (6.5) before anything is reserved: its own
+        code, never broker_state_changed, and nothing is sent."""
+        position_id = str(request.position_id)
+        read = captured(position_id)
+        kept = broker.scripted_positions
+        broker.scripted_positions = [p for p in kept if p.id != position_id]
+        sent = broker.sent
+        try:
+            answer = await service.execute(owner_id, request, lease, expected_target=read)
+            raise AssertionError(f"Preflight did not refuse a ticket that is gone: {answer}")
+        except LonoraError as error:
+            assert error.code == "position_not_found", error.code
+        finally:
+            broker.scripted_positions = kept
+        assert broker.sent == sent and await journaled(request.operation_id) is None
+
+    # Ask, paused: the exit of a ticket that is gone.
+    await refused_as_gone(exit_own_position())
     async with db.sessions() as session, session.begin():
         resumed = await session.get(AgentRow, agent_id)
         assert resumed is not None
@@ -604,6 +625,8 @@ async def checks() -> None:
     broker.before = None
     assert changed.status == "failed" and changed.code == "broker_state_changed", changed
     assert changed.details.get("send_state") == "not_sent" and broker.sent == sent
+    # Full: a change to a ticket that is gone.
+    await refused_as_gone(tighten("full-position", "9.7"))
 
     # 6.6 on a signed grant's path, until grants are deleted: the door's own check refuses
     # an unread or changed ticket there too, whatever the grant's own checks say (here

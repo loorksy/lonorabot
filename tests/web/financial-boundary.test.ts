@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   financialBoundaryError,
+  financialResultReason,
   operationStatusKey,
   operationStatusText,
 } from "../../packages/core/src/financial-boundary";
@@ -48,6 +49,7 @@ test("boundary blocks explain why nothing was sent, in both languages, never a r
     "broker_reconciliation_required",
     "broker_observation_unavailable",
     "batch_halted_after_unconfirmed_result",
+    "broker_state_changed",
     "target_state_not_reached",
     "order_filled_before_cancel",
     "delete_blocked_unresolved_operation",
@@ -63,4 +65,15 @@ test("boundary blocks explain why nothing was sent, in both languages, never a r
   assert.ok(!financialBoundaryError("broker_reconciliation_required", "en")?.includes("new order"));
   assert.equal(financialBoundaryError("unknown_code", "en"), null);
   assert.equal(financialBoundaryError(undefined, "en"), null);
+});
+
+test("an approved card refused on a changed ticket says why on the card (6.6, Q8)", () => {
+  // The one stale-target code reaches the owner as a Trade Approval card's failed result.
+  for (const locale of ["en", "ar"]) {
+    const reason = financialResultReason("failed", "broker_state_changed", locale);
+    assert.ok(reason && !reason.includes("broker_state_changed"), locale);
+    assert.equal(reason, financialBoundaryError("broker_state_changed", locale));
+  }
+  assert.match(financialBoundaryError("broker_state_changed", "en") ?? "", /not sent/);
+  assert.match(financialBoundaryError("broker_state_changed", "ar") ?? "", /لم يُرسل/);
 });

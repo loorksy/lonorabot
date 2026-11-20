@@ -29,6 +29,10 @@ const messages: Readonly<Record<string, Text>> = {
     en: "Not sent: an earlier operation in this batch has no confirmed result yet.",
     ar: "لم يُرسل: عملية سابقة في هذه الدفعة لا تملك نتيجة مؤكدة بعد.",
   },
+  broker_state_changed: {
+    en: "The position or order changed after it was read (for example, its stop was moved), so this request was not sent.",
+    ar: "تغيّر المركز أو الأمر بعد قراءته (مثل تحريك وقف الخسارة)، لذلك لم يُرسل هذا الطلب.",
+  },
   target_state_not_reached: {
     en: "The broker shows the requested change was not applied.",
     ar: "يُظهر الوسيط أن التغيير المطلوب لم يُطبّق.",

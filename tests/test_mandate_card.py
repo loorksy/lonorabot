@@ -196,7 +196,7 @@ async def test_switching_to_full_withdraws_pending_approvals_and_never_executes_
             ended.status = "completed"
         full = await tap(fixture, card["id"], "full")
         assert full.status_code == 200, full.text
-        # The server counts what the tap withdrew, for the owner's one line after it.
+        # The server counts what the tap withdrew.
         assert full.json()["result"] == {"trading_mode": "full", "withdrawn": 3}, full.text
         async with fixture.runtime.db.sessions() as session:
             approval = await session.get(TradeApprovalRow, asked["approval_id"])
@@ -470,9 +470,9 @@ async def test_every_agent_read_carries_its_mode_and_full_is_marked_on_its_own()
 
 @pytest.mark.asyncio
 async def test_the_agents_live_mandate_card_is_read_per_agent_and_never_raised_by_a_read() -> None:
-    """Q7: a screen outside the card's conversation reads the agent's live Mandate card,
-    the real card. Reading answers null while there is none and never raises one; the tap
-    emits ``agent.trading_mode.updated`` and the card stays the agent's switch."""
+    """Q7: the agent's live Mandate card, the real card, is read per agent outside the
+    card's conversation. Reading answers null while there is none and never raises one; the
+    tap emits ``agent.trading_mode.updated`` and the card stays the agent's switch."""
     database()
     from check_streaming import Fixture
     from lonora_api.middleware.auth import require_owner

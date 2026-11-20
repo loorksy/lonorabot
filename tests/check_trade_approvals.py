@@ -17,7 +17,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError, ToolRefusal
-from lonora_db.schema import AgentRow, TradingAccountRow
+from lonora_db.schema import AgentRow, TradingAccountRow, TradingJournalRow
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
 from sqlalchemy import func
@@ -748,6 +748,47 @@ async def main():
             f"/trading/approvals/{asked_again['approval_id']}/decision",
             {"decision": "reject"},
         )
+        # 6.6 with an approved card: the owner closes the agent's position in the terminal
+        # after approving a wider stop on it. The trade tool compares the ticket with the
+        # card's capture before anything is reserved: gone counts as changed, so the card
+        # ends refused with broker_state_changed and nothing is sent.
+        widen = ToolCall(
+            id=uuid4().hex,
+            name="trade_execute",
+            arguments={
+                "account_id": connection_id,
+                "symbol": symbol,
+                "action": "modify_position",
+                "position_id": approved["broker_id"],
+                "stop_loss": "85",
+                "tolerance": "5",
+                "reason": "Fixture wider stop",
+            },
+        )
+        widening = await registry.execute(widen, asking_context)
+        assert widening.get("_runtime_wait") and widening.get("approval_id"), widening
+        await fixture.request(
+            "POST",
+            f"/trading/approvals/{widening['approval_id']}/decision",
+            {"decision": "approve"},
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            book = await session.get(TradingAccountRow, connection_id, with_for_update=True)
+            assert book is not None
+            book.payload = {
+                **book.payload,
+                "positions": [
+                    p for p in book.payload["positions"] if p["id"] != approved["broker_id"]
+                ],
+            }
+        before = await broker.snapshot()
+        gone = await registry.execute(widen, asking_context)
+        assert gone["status"] == "failed" and gone["code"] == "broker_state_changed", gone
+        assert gone["approval_id"] == widening["approval_id"], gone
+        assert await broker.snapshot() == before
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.get(TradingJournalRow, gone["operation_id"]) is None
+        print("PASS an approved change to a ticket the owner closed since is refused, nothing sent")
         print(
             "PASS Ask: one card per exact request, reused while it waits, after approval and right after a refusal, a new one after the owner writes again; the owner's own position is not the agent's"
         )

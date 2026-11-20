@@ -339,11 +339,10 @@ the decision carries the mode that button showed (`trading_mode`), and the serve
 exactly that mode (`change_trading_mode(by="owner_tap")`, the body of `set_trading_mode`),
 never a toggle. Only this tap sets Full. The tap emits `agent.trading_mode.updated` when
 the mode changes, and its `result` carries the mode applied and `withdrawn`, the number
-of pending Trade Approval cards the tap withdrew (0 for Ask), so the owner's line after
-the tap is counted by the server. A confirmed card stays the agent's switch: clients
-keep its button live (`ownerActionLive`). A screen outside the card's conversation reads
-the agent's live card with `GET /owner-actions/mandate?agent_id=…`: the newest pending
-or tapped one, wherever it was raised, or null. The read never raises a card; a card
+of pending Trade Approval cards the tap withdrew (0 for Ask). A confirmed card stays the
+agent's switch: clients keep its button live (`ownerActionLive`).
+`GET /owner-actions/mandate?agent_id=…` returns the agent's newest pending or tapped
+Mandate card, wherever it was raised, or null. The read never raises a card; a card
 comes only from a proposal. An agent raises its own card; Lonora may raise one for any
 agent, and Lonora's own card is raised when Lonora is created (4.3.1). While a signed
 grant of the agent is in force (`facts.active_grant`), the card says the grant still
