@@ -68,18 +68,50 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
       await route.fulfill({ json: approval });
     });
     await page.goto(`/thread?id=${thread.id}`);
+    await expect(page.getByText("close_position · BTCUSD.demo", { exact: true })).toBeVisible();
+    // A broker reference is labeled, never a bare number (10.3).
     await expect(
-      page.getByText("close_position · BTCUSD.demo · manual-ticket-5", { exact: true }),
+      page.getByText("رقم العملية لدى الوسيط: manual-ticket-5", { exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "موافقة", exact: true }).click();
-    // A broker reference is labeled, never a bare number; the shared table names the stage.
-    const ticket = page.getByText("تذكرة الوسيط: manual-ticket-5", { exact: true });
-    await expect(ticket).toBeVisible();
-    await expect(page.getByText("65000.25", { exact: true })).toBeVisible();
+    // The shared table names the stage; the confirmed result is shown once, as its
+    // Execution Receipt (10.3), never repeated in the card.
     await expect(page.getByText("نتيجة الوسيط", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
+    await expect(page.getByText("تذكرة الوسيط: manual-ticket-5", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("65000.25", { exact: true })).toHaveCount(0);
+    await page.route("**/api/trading/receipts?*", (route) =>
+      route.fulfill({
+        json: [
+          {
+            operation_id: "fixed-operation",
+            thread_id: thread.id,
+            timeline_seq: 1,
+            agent_id: agent.id,
+            created_at: approval.created_at,
+            kind: "fill",
+            action: "close_position",
+            symbol: "BTCUSD.demo",
+            ticket: "manual-ticket-5",
+            volume: null,
+            price: "65000.25",
+            partial: false,
+            reason: null,
+            verification: "verified",
+          },
+        ],
+      }),
+    );
     await page.reload();
-    await expect(ticket).toBeVisible();
+    const receipt = page.getByTestId("execution-receipt");
+    await expect(receipt).toHaveCount(1);
+    await expect(receipt.getByText("manual-ticket-5", { exact: true })).toBeVisible();
+    await expect(receipt.getByText("65000.25", { exact: true })).toBeVisible();
+    await expect(
+      receipt.getByText("أكّده الوسيط · تم التحقق من حالة الحساب", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("نتيجة الوسيط", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
     expect(decisions).toBe(1);
     const rejected = {
       ...approval,
@@ -105,7 +137,7 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
       await route.fulfill({ json: rejected });
     });
     await page.reload();
-    await expect(page.getByText("تداول ظلي — أوامر افتراضية فقط", { exact: true })).toBeVisible();
+    await expect(page.getByText("buy · BTCUSD.demo · 0.01", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "رفض", exact: true }).click();
     await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
