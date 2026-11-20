@@ -45,6 +45,13 @@ async function tradingAgent(context, data) {
   expect(response.status()).toBe(201);
   return { agent: await response.json(), headers };
 }
+/** The permission chip once it is a button: until the agent's level is read it is a «…» status
+    that a tap leaves as it is. */
+async function permissionChip(page) {
+  const chip = page.getByTestId("permission-chip");
+  await expect(chip).toHaveAttribute("data-level", /^(analysis|supervised|autonomous)$/);
+  return chip;
+}
 /** A finger: pointer events the shell's document listeners receive (pointerType touch). */
 async function swipe(page, selector, from, to, { steps = 8, hold = 0 } = {}) {
   await page.evaluate(
@@ -421,7 +428,7 @@ test.describe("phone shell (390×844, Arabic)", () => {
           return [style.columnGap, style.paddingInlineStart];
         }),
       ).toEqual(["2px", "6px"]);
-      const chip = page.getByTestId("permission-chip");
+      const chip = await permissionChip(page);
       const menu = page.locator(".pop.mode-pop");
       const pages = menu.locator(".mp-pages");
       // Back closes the menu and stays in the chat.
@@ -472,7 +479,7 @@ test.describe("phone shell (390×844, Arabic)", () => {
       const { agent } = trading;
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(`/app/${agent.id}`);
-      const chip = page.getByTestId("permission-chip");
+      const chip = await permissionChip(page);
       const menu = page.locator(".pop.mode-pop");
       await chip.click();
       await menu.locator(".mp-model-row").click();
@@ -549,7 +556,7 @@ test.describe("phone with touch (390×844, Arabic)", () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(`/app/${trading.agent.id}`);
       const chat = page.url();
-      const chip = page.getByTestId("permission-chip");
+      const chip = await permissionChip(page);
       const menu = page.locator(".pop.mode-pop");
       const back = page.locator(".chat-back");
       await chip.tap();
@@ -581,7 +588,7 @@ test.describe("phone with touch (390×844, Arabic)", () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(`/app/${trading.agent.id}`);
       const chat = page.url();
-      const chip = page.getByTestId("permission-chip");
+      const chip = await permissionChip(page);
       const menu = page.locator(".pop.mode-pop");
       const card = page.locator(".composer-card");
       const pages = menu.locator(".mp-pages");
@@ -640,7 +647,7 @@ test.describe("phone with touch (390×844, Arabic)", () => {
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(`/app/${trading.agent.id}`);
-      const chip = page.getByTestId("permission-chip");
+      const chip = await permissionChip(page);
       const menu = page.locator(".pop.mode-pop");
       await chip.tap();
       await expect(menu).toHaveClass(/\bfade\b/);
@@ -688,7 +695,7 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto(`/app/${trading.agent.id}`);
       const menu = page.locator(".pop.mode-pop");
-      await page.getByTestId("permission-chip").click();
+      await (await permissionChip(page)).click();
       await expect(menu).toHaveClass(/\bsettled\b/);
       await page.setViewportSize({ width: 700, height: 700 });
       await expect(menu).toHaveCount(0);
