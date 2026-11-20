@@ -1,4 +1,4 @@
-import { t } from "@lingui/core/macro";
+import { plural, t } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
 import type {
@@ -31,10 +31,30 @@ export type BrokerConnectionRow = Resource<{
 export const agentsCount = (count: number) =>
   count === 0 ? t`No agents` : count === 1 ? t`One agent` : t`${count} agents`;
 
+/* Its tools by level, each count with its noun in the language's own plural. */
 const levelText = (server: CapabilityServer) => {
   const writes = server.write_tools.length;
   const reads = server.trusted_tools.length - writes;
-  const parts = [reads ? t`${reads} read` : "", writes ? t`${writes} non-financial write` : ""];
+  const parts = [
+    reads
+      ? plural(reads, {
+          one: "one read tool",
+          two: "two read tools",
+          few: "# read tools",
+          many: "# read tools",
+          other: "# read tools",
+        })
+      : "",
+    writes
+      ? plural(writes, {
+          one: "one non-financial write tool",
+          two: "two non-financial write tools",
+          few: "# non-financial write tools",
+          many: "# non-financial write tools",
+          other: "# non-financial write tools",
+        })
+      : "",
+  ];
   return parts.filter(Boolean).join(" · ") || t`No tools`;
 };
 
@@ -639,8 +659,12 @@ export function IntegrationsPage() {
                     <Trans>Unnamed server</Trans>
                   </strong>
                 )}
+                {/* The counts are isolated: a number after «MCP · » would join its Latin run and
+                    read before it in Arabic («خادم 3 · MCP»). */}
                 <small>
-                  <Trans>MCP server · {levelText(server)}</Trans>
+                  <Trans>
+                    MCP server · <bdi>{levelText(server)}</bdi>
+                  </Trans>
                 </small>
               </span>
               {review ? (

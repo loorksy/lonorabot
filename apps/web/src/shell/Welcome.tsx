@@ -59,7 +59,7 @@ export function Welcome({
         <ActionRow icon="bell" label={<Trans>Needs your attention</Trans>} onClick={onUpdates} />
       </div>
       <small>
-        <Icon name="shield" /> <Trans>Each agent has its own trading mode: Ask or Full</Trans>
+        <Icon name="shield" /> <Trans>Permissions are independent for each agent</Trans>
       </small>
     </div>
   );

@@ -632,6 +632,26 @@ test("integrations name tools, skills, servers and accounts in words, never by r
     await page.setViewportSize({ width: 1280, height: 860 });
     await page.goto("/app/integrations");
     await expect(page.getByText("حساب وسيط لم يُتحقَّق من هويته")).toBeVisible();
+    // A server's line reads in order, its count in the plural Arabic uses: the count is
+    // isolated, so it never joins «MCP» and reads before it («خادم 3 · MCP قراءة», 17).
+    const sub = page.getByRole("button", { name: /خادم بلا اسم/ }).locator("small");
+    await expect(sub).toHaveText("خادم MCP · 3 أدوات قراءة");
+    const at = (needle) =>
+      sub.evaluate((el, text) => {
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+          const index = node.textContent.indexOf(text);
+          if (index < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + text.length);
+          const box = range.getBoundingClientRect();
+          return { left: box.left, right: box.right };
+        }
+        return null;
+      }, needle);
+    const [mcp, count] = [await at("MCP"), await at("3")];
+    expect(count.right).toBeLessThanOrEqual(mcp.left);
     await expect(page.getByText(provisioning)).toHaveCount(0);
     await expect(page.getByText("موجز الصباح")).toBeVisible();
     await expect(page.getByText("morning-brief")).toHaveCount(0);
