@@ -2,8 +2,8 @@
 
 One bounded projection for the owner's header safety pill, its sheet and the agent's
 status line. It is built from the same records the financial boundary reads: the
-agent's ladder level and signed grants, and each account's unresolved operations with
-their scoped block.
+agent's trading mode (Full or Ask), its ladder level and signed grants until they are
+deleted, and each account's unresolved operations with their scoped block.
 
 It is never consulted for enforcement. The single executor re-reads every one of
 these at the moment of sending (``lonora_trading.execution``), so a stale or wrong
@@ -53,6 +53,7 @@ async def trading_readiness(
     session: AsyncSession, owner_id: str, agent: AgentRow
 ) -> dict[str, Any]:
     now = utcnow()
+    mode = "full" if agent.trading_mode == "full" else "ask"
     permission = await permission_state(session, owner_id, agent.id)
     level: str = permission["effective_level"]
     grants: list[dict[str, Any]] = []
@@ -78,14 +79,15 @@ async def trading_readiness(
     if fixed_market(agent):
         accounts_query = accounts_query.where(BrokerSessionRow.id == agent.trading_account_id)
     accounts = list(await session.scalars(accounts_query.limit(ACCOUNT_LIMIT)))
-    # The accounts the line speaks for: the agent's own market, its signed grants when it
-    # trades on its own, otherwise every account it may ask to trade on. The sheet still
-    # lists operations on the other accounts, each with its account named.
+    # The accounts the line speaks for: the agent's own market; in Ask, its signed grants
+    # when it trades on its own under them; otherwise every account it trades on (Full)
+    # or may ask to trade on. The sheet still lists operations on the other accounts, each
+    # with its account named.
     granted = {str(row["account_id"]) for row in permission["active_authorities"]}
     # A signed grant's account is always read, however many other accounts the owner has:
     # otherwise its unresolved operations would be missing from the line it speaks for.
     accounts += sorted(granted - set(accounts))
-    in_scope = granted if level == "autonomous" and granted else set(accounts)
+    in_scope = granted if level == "autonomous" and granted and mode != "full" else set(accounts)
     operations: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
     if accounts:
@@ -167,6 +169,7 @@ async def trading_readiness(
         item["resolve_card"] = cards.get(item["operation_id"])
     state, params = _headline(
         level=level,
+        mode=mode,
         paused=bool(agent.paused),
         grants=grants,
         operations=[item for item in operations if item["account_id"] in in_scope],
@@ -179,6 +182,7 @@ async def trading_readiness(
         "observed_at": now.isoformat(),
         "state": state,
         "params": params,
+        "trading_mode": mode,
         "level": level,
         "grants": grants,
         "unresolved_operations": operations,
@@ -189,13 +193,17 @@ async def trading_readiness(
 def _headline(
     *,
     level: str,
+    mode: str,
     paused: bool,
     grants: list[dict[str, Any]],
     operations: list[dict[str, Any]],
     unresolved_count: int,
 ) -> tuple[str, dict[str, Any]]:
-    """The one line: the agent's ladder level, or the strongest thing stopping it."""
+    """The one line: whether the agent trades on its own or asks first, or the strongest
+    thing stopping it."""
     if level == "analysis":
+        # The ladder's "No trading" still refuses every send before the door reads the
+        # mode (``agent_analysis_only``), until the ladder is removed.
         return "no_trading", {}
     if paused:
         return "agent_paused", {}
@@ -204,6 +212,9 @@ def _headline(
             "count": unresolved_count,
             "symbol": operations[0]["symbol"] if operations else None,
         }
+    if mode == "full":
+        # Full: on its own on every account it trades on, whatever a grant covers.
+        return "on_its_own", {}
     if level == "supervised":
         return "ask_me", {}
     first_grant = grants[0] if grants else None

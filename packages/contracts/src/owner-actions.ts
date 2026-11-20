@@ -76,7 +76,8 @@ export type OwnerActionGrantTerms = {
  * Every fact is read on the server from the records the card names; nothing an agent
  * wrote appears on it, except a creation card's stored task, quoted and labelled
  * because it is the exact instruction the tap keeps. Only the owner's session can
- * confirm it.
+ * confirm it. An agent's live Mandate card, wherever it was raised:
+ * GET /owner-actions/mandate?agent_id= (null when it has none; reading never raises one).
  */
 export type OwnerAction = {
   id: string;
@@ -183,6 +184,10 @@ export type OwnerAction = {
   requires_passkey: boolean;
   result: {
     outcome?: AttestedOutcome;
+    /** The Mandate card: the mode its last tap applied, and how many pending Trade
+     * Approval cards that tap withdrew (counted by the server; 0 when none). */
+    trading_mode?: TradingMode;
+    withdrawn?: number;
     /** A grant card: the choice that was signed. */
     delegation?: GrantDelegation;
     stopped_agents?: string[];

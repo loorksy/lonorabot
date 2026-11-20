@@ -1037,6 +1037,28 @@ async def thread_cards(
     return list(reversed(list(rows)))
 
 
+async def mandate_card(
+    session: AsyncSession, owner_id: str, agent_id: str
+) -> OwnerActionRow | None:
+    """The agent's live Mandate card, in whichever conversation it was raised: the newest
+    one still pending, or already tapped (a tapped card stays the agent's switch). Only a
+    read: a card comes from a proposal (``propose``), never from reading."""
+    return await session.scalar(
+        select(OwnerActionRow)
+        .where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "trading_mode",
+            OwnerActionRow.subject == "trading_mode:" + agent_id,
+            or_(
+                (OwnerActionRow.status == "pending") & (OwnerActionRow.expires_at > utcnow()),
+                OwnerActionRow.status == "confirmed",
+            ),
+        )
+        .order_by(OwnerActionRow.created_at.desc(), OwnerActionRow.id)
+        .limit(1)
+    )
+
+
 def confirmation_code(row: OwnerActionRow) -> str:
     if row.kind == "settle_operation":
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))

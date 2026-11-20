@@ -175,9 +175,10 @@ is confirmed in Lonora's name.
 
 ## The decision
 
-`GET /owner-actions?thread_id=…`, `POST /owner-actions/{id}/challenge` and
-`POST /owner-actions/{id}/decision` (`apps/api/src/lonora_api/routes/owner_actions.py`)
-require the owner's session; no tool reaches them. A decision:
+`GET /owner-actions?thread_id=…`, `GET /owner-actions/mandate?agent_id=…`,
+`POST /owner-actions/{id}/challenge` and `POST /owner-actions/{id}/decision`
+(`apps/api/src/lonora_api/routes/owner_actions.py`) require the owner's session; no tool
+reaches them. A decision:
 
 1. Locks the card. A card that is no longer pending answers from its record: the same
    decision again is idempotent, a conflicting one is `owner_action_already_decided`.
@@ -274,9 +275,10 @@ already signed are never changed by it.
 
 Signed Full delegation reads as such everywhere: the confirmation line adds
 `owner_action_grant_full`, the settled card's first line is "Full delegation", the
-readiness line reads "Trades on its own · Full delegation · until you stop it", the safety
-sheet names the grant "Full delegation", and the permission frame marks the scope
-`full_delegation` (every pair, every action and the owner's positions until stopped). It
+readiness line of an agent in Ask reads "Trades on its own · Full delegation · until you
+stop it" (in Full it reads "Trades on its own"), the safety sheet names the grant "Full
+delegation", and the permission frame marks the scope `full_delegation` (every pair,
+every action and the owner's positions until stopped). It
 is recognized from the signed terms (`full_delegation` in
 `lonora_contracts.account_authority`), so the envelope format is unchanged. The label
 follows those terms, not the name of the choice: a grant signed from Custom with exactly
@@ -334,12 +336,18 @@ deleted is superseded with it.
 Kind `trading_mode`, subject `trading_mode:<agent>`, payload `{agent_id}`. The card reads
 the agent's mode live (`facts.trading_mode`) and shows one button for the other mode;
 the decision carries the mode that button showed (`trading_mode`), and the server applies
-exactly that mode (`set_trading_mode(by="owner_tap")`), never a toggle. Only this tap sets
-Full. A confirmed card stays the agent's switch: clients keep its button live
-(`ownerActionLive`). An agent raises its own card; Lonora may raise one for any agent,
-and Lonora's own card is raised when Lonora is created (4.3.1). While a signed grant of
-the agent is in force (`facts.active_grant`), the card says the grant still lets it trade
-within the grant's own terms until the owner revokes it.
+exactly that mode (`change_trading_mode(by="owner_tap")`, the body of `set_trading_mode`),
+never a toggle. Only this tap sets Full. The tap emits `agent.trading_mode.updated` when
+the mode changes, and its `result` carries the mode applied and `withdrawn`, the number
+of pending Trade Approval cards the tap withdrew (0 for Ask), so the owner's line after
+the tap is counted by the server. A confirmed card stays the agent's switch: clients
+keep its button live (`ownerActionLive`). A screen outside the card's conversation reads
+the agent's live card with `GET /owner-actions/mandate?agent_id=…`: the newest pending
+or tapped one, wherever it was raised, or null. The read never raises a card; a card
+comes only from a proposal. An agent raises its own card; Lonora may raise one for any
+agent, and Lonora's own card is raised when Lonora is created (4.3.1). While a signed
+grant of the agent is in force (`facts.active_grant`), the card says the grant still
+lets it trade within the grant's own terms until the owner revokes it.
 
 Switching an agent to Full withdraws its pending Trade Approval cards (status
 `withdrawn`): a withdrawn card is never approved or executed, and the agent is woken

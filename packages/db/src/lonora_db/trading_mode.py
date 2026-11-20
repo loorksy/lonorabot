@@ -37,6 +37,14 @@ async def trading_mode(session: AsyncSession, owner_id: str, agent_id: str) -> T
 async def set_trading_mode(
     session: AsyncSession, owner_id: str, agent_id: str, mode: TradingMode, *, by: ModeChanger
 ) -> TradingMode:
+    return (await change_trading_mode(session, owner_id, agent_id, mode, by=by))[0]
+
+
+async def change_trading_mode(
+    session: AsyncSession, owner_id: str, agent_id: str, mode: TradingMode, *, by: ModeChanger
+) -> tuple[TradingMode, int]:
+    """Apply ``mode``; returns the stored mode and how many pending Trade Approval cards the
+    change withdrew (only a switch to Full withdraws any)."""
     if mode == "full" and by != "owner_tap":
         raise LonoraError("trading_mode_full_owner_only", 403)
     await authority_lock(session, agent_id)
@@ -47,6 +55,7 @@ async def set_trading_mode(
         # Runs are locked first, as their own work does (the Run, then the agent).
         await end_management_task(session, owner_id, agent_id)
     agent = await _agent(session, owner_id, agent_id)
+    withdrawn = 0
     if agent.trading_mode != mode:
         agent.trading_mode = mode
         await session.flush()
@@ -55,7 +64,7 @@ async def set_trading_mode(
             from .trade_approvals import withdraw_pending
 
             # Decided again under Full; a card is never executed because of a mode change.
-            await withdraw_pending(session, owner_id, agent_id, mode)
+            withdrawn = len(await withdraw_pending(session, owner_id, agent_id, mode))
         emit(
             session,
             owner_id,
@@ -66,7 +75,7 @@ async def set_trading_mode(
     if mode == "full":
         # Full runs one continuous account-management task (4.5.1).
         await ensure_management_task(session, owner_id, agent_id)
-    return cast(TradingMode, agent.trading_mode)
+    return cast(TradingMode, agent.trading_mode), withdrawn
 
 
 async def refresh_mandate_cards(session: AsyncSession, owner_id: str, agent_id: str) -> None:

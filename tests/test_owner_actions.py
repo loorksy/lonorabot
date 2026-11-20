@@ -124,6 +124,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     routes = [route for route in router.routes if isinstance(route, APIRoute)]
     assert {route.path for route in routes} == {
         "/owner-actions",
+        # An agent's live Mandate card, read only (Q7): it raises and decides nothing.
+        "/owner-actions/mandate",
         "/owner-actions/{card_id}/challenge",
         "/owner-actions/{card_id}/decision",
         # «طلب جديد»: a fresh card for an expired one; it decides nothing.

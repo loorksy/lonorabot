@@ -9,11 +9,14 @@ from .schema import AccountAuthorityRow, AgentRow, DeviceCredentialRow
 
 
 async def agents_on_their_own(session: AsyncSession, owner_id: str) -> set[str]:
-    """Agents that are not paused and hold at least one signed grant in force right now.
+    """Agents that are not paused and either are in Full (mandate 4.1) or hold at least one
+    signed grant in force right now (until grants are deleted).
 
-    The avatar marker reads this; enforcement re-validates the grant at every send.
+    The avatar marker reads this, and so does the automatic retry of a late instruction
+    (``run_retry``); enforcement re-reads the mode and the grant at every send.
     """
     from .account_authority import require_authority
+    from .agent_permissions import permission_record
 
     result: set[str] = set()
     account_grants = await session.scalars(
@@ -39,4 +42,23 @@ async def agents_on_their_own(session: AsyncSession, owner_id: str) -> set[str]:
         except LonoraError:
             continue
         result.add(account_grant.agent_id)
+    full = await session.scalars(
+        select(AgentRow.id).where(
+            AgentRow.owner_id == owner_id,
+            AgentRow.paused.is_(False),
+            AgentRow.trading_mode == "full",
+        )
+    )
+    for agent_id in list(full):
+        if agent_id in result:
+            continue
+        # The ladder's "No trading" still refuses every send before the door reads the mode
+        # (``agent_analysis_only``), so such an agent does not trade on its own, as its
+        # status line says (``trading_readiness``).
+        try:
+            record = await permission_record(session, owner_id, agent_id)
+        except LonoraError:
+            continue
+        if record.fallback_level != "analysis":
+            result.add(agent_id)
     return result

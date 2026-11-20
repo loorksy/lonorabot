@@ -3,7 +3,8 @@
 Runs on the shared ``task_db`` fixture (a disposable PostgreSQL schema when
 ``LONORA_TASK_TEST_DATABASE_URL`` is set, otherwise in-memory SQLite). Signed grants are
 injected through ``permission_state``: the signature path itself is covered by
-``check_account_authority``. The projection must never be consulted for enforcement.
+``check_account_authority``. The mode is the agent row's own. The projection must never
+be consulted for enforcement.
 """
 
 import ast
@@ -61,6 +62,13 @@ async def account(db: Database, owner: str) -> str:
         return row.id
 
 
+async def set_mode(db: Database, agent: str, mode: str, *, paused: bool = False) -> None:
+    async with db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, agent)
+        assert row is not None
+        row.trading_mode, row.paused = mode, paused
+
+
 async def readiness(db: Database, owner: str, agent: str) -> dict[str, Any]:
     async with db.sessions() as session:
         row = await session.get(AgentRow, agent)
@@ -76,11 +84,47 @@ async def test_no_grant_reads_as_no_trading(task_db: Fixture) -> None:
     assert result["presentation_only"] is True
     # The per-agent default is analysis: the one line says it does not trade.
     assert result["level"] == "analysis" and result["state"] == "no_trading"
+    assert result["trading_mode"] == "ask"
     assert result["grants"] == []
     # Lonora has no Stop: the projection carries no global trading state.
     assert "global_trading" not in result
     assert result["unresolved_operations"] == []
     assert "restrictions" not in result and "exits_allowed" not in result
+    # The old ladder's "No trading" refuses every send before the door reads the mode, so
+    # the line says it does not trade in Full too, until the ladder is removed.
+    await set_mode(db, agent, "full")
+    held = await readiness(db, owner, agent)
+    assert held["trading_mode"] == "full" and held["state"] == "no_trading"
+
+
+@pytest.mark.asyncio
+async def test_full_reads_on_its_own_with_or_without_a_grant(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Full trades on its own on every account and market: the line says so with no grant,
+    and a grant's narrower terms do not narrow it. Ask with no grant asks first."""
+    db, owner, agent, _ = task_db
+    acct = await account(db, owner)
+    level(monkeypatch, "supervised")
+    asked = await readiness(db, owner, agent)
+    assert asked["trading_mode"] == "ask" and asked["state"] == "ask_me"
+    await set_mode(db, agent, "full")
+    full = await readiness(db, owner, agent)
+    assert full["trading_mode"] == "full"
+    assert full["state"] == "on_its_own" and full["params"] == {}, full
+    level(monkeypatch, "autonomous", grant(acct, valid_until="2026-12-01T00:00:00+00:00"))
+    granted = await readiness(db, owner, agent)
+    assert granted["state"] == "on_its_own" and granted["params"] == {}, granted
+    # The sheet still lists the grant, until grants are deleted.
+    assert granted["grants"][0]["symbols"] == ["XAUUSD"]
+    # The old ladder's "No trading" still holds a Full agent back, until it is removed.
+    level(monkeypatch, "analysis")
+    assert (await readiness(db, owner, agent))["state"] == "no_trading"
+    # A paused agent in Full sends no new risk.
+    level(monkeypatch, "supervised")
+    await set_mode(db, agent, "full", paused=True)
+    paused = await readiness(db, owner, agent)
+    assert paused["trading_mode"] == "full" and paused["state"] == "agent_paused"
 
 
 @pytest.mark.asyncio
@@ -283,6 +327,10 @@ async def test_operations_count_only_on_the_accounts_the_agent_acts_on(
     assert elsewhere["unresolved_count"] == 1
     # An agent that asks before each trade may ask on any account: the operation counts.
     level(monkeypatch, "supervised")
+    assert (await readiness(db, owner, agent))["state"] == "uncertain"
+    # In Full it trades on every account, whatever its grant covers: the operation counts.
+    level(monkeypatch, "autonomous", grant(granted))
+    await set_mode(db, agent, "full")
     assert (await readiness(db, owner, agent))["state"] == "uncertain"
 
 

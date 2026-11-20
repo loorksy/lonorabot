@@ -119,7 +119,9 @@ followed a Super Bot activation are now keyed on grants:
   sent nothing.") until a later Run of the agent completes (`review_status` then reads
   `superseded`). The failed Run stays recorded as failed; no page lists it.
 - The avatar's "trades on its own" marker (`trades_on_its_own` on the agent) is shown
-  only while the agent is not paused and holds a grant in force.
+  only while the agent is not paused and either is in Full or holds a grant in force
+  (`lonora_db.agent_on_its_own`). A Full agent the ladder still holds at "No trading" is
+  not marked: the door refuses its every send.
 
 Full management leaves stop/target choices to the Agent, including changes to
 existing stops; broker validity and fresh target comparison still apply. Losing

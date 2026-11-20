@@ -86,9 +86,10 @@ a provider failure, and it is never shown as one.
   needed its own tap, and a message whose retry had failed again stayed unanswered. A
   failure the conversation has moved past (a later message there was answered or is
   being answered) stays history, and so does an older one: an instruction from days ago
-  is not carried out because a key was saved. A reply of an agent that holds a signed
-  grant in force is never queued this way: a late instruction to it could move money
-  without a card, so it waits for the owner's own retry.
+  is not carried out because a key was saved. A reply of an agent that trades on its
+  own (in Full and not paused, or holding a signed grant in force) is never queued this
+  way: a late instruction to it could move money without a card, so it waits for the
+  owner's own retry.
 - **Installing.** `scripts/install.sh` writes no provider key; keys arrive through
   Settings or the environment (`LONORA_<PROVIDER>_API_KEY`). Whichever way they arrive,
   the first request chooses.

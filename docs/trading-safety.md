@@ -8,8 +8,8 @@ financial operation. Lonora has no Stop control (owner amendment 1 to VISION.md)
 owner's brake is the pause of an agent or of one piece of its work.
 
 Nothing here changes what the financial boundary admits. The single executor
-(`lonora_trading.execution`) still re-reads the grant and unresolved operations at the
-moment of sending.
+(`lonora_trading.execution`) still re-reads the mode, the grant and unresolved operations
+at the moment of sending.
 
 ## Trading readiness (presentation only)
 
@@ -22,23 +22,29 @@ same facts every turn. Enforcement code must never import it
 
 | Field | Source |
 | --- | --- |
+| `trading_mode` | the agent's one switch, `full` or `ask` (`AgentRow.trading_mode`) |
 | `level` | `permission_state` effective level: `analysis` (No trading), `supervised` (Ask me), `autonomous` (On its own, signed) |
 | `grants` | active, verified `AccountAuthority` rows: account, markets, actions, manual positions, until |
 | `unresolved_operations` | live `submitted`/`ambiguous` journal rows on readable accounts (a market-bound agent: its own market), with the scoped block `new_risk_on_this_symbol_or_ticket` and whether this agent sent it |
 
-`state` is the one line, chosen in this order: `no_trading` (the agent never trades),
-`agent_paused`, `uncertain` (unresolved operations), then `ask_me` or `on_its_own`.
-`params` carry the values the line needs (time, symbol, the grant's account, count).
+`state` is the one line, chosen in this order: `no_trading` (only while the old ladder
+says "No trading": the door then refuses every send, whatever the mode), `agent_paused`,
+`uncertain` (unresolved operations), then `on_its_own` when the agent is in Full, or in
+Ask with a signed grant in force (until grants are deleted), and `ask_me` otherwise.
+`params` carry the values the line needs (time, symbol, the grant's account, count); in
+Full there are none, since Full covers every account and market.
 
-The line speaks only for the accounts the agent acts on: its bound account, its signed
-grants when it trades on its own, otherwise every account it may ask to trade on. An
-uncertain operation on another account does not change the line of an agent that trades
-on its own on account A; the sheet still lists it, with its account named.
+The line speaks only for the accounts the agent acts on: its bound account; in Ask, its
+signed grants when it trades on its own under them; otherwise every account it trades on
+(Full) or may ask to trade on. An uncertain operation on another account does not change
+the line of an Ask agent that trades on its own under a grant on account A; the sheet
+still lists it, with its account named.
 
 The line and every sheet label come from one shared table in
 `packages/core/src/trading-readiness.ts` (English and Arabic, tickers and times isolated
-with U+2068/U+2069 so they keep their order in Arabic text). Example: "Trades on its own ·
-XAUUSD · until you stop it" / «يتداول باستقلال · XAUUSD · حتى توقفه».
+with U+2068/U+2069 so they keep their order in Arabic text). Examples: in Full "Trades
+on its own" / «يتداول باستقلال»; under a grant "Trades on its own · XAUUSD · until you stop
+it" / «يتداول باستقلال · XAUUSD · حتى توقفه».
 
 ## Header safety pill
 
@@ -113,9 +119,10 @@ boundary's codes in English and Arabic. Web `userError`, Mobile
 
 ## Verification
 
-- `tests/test_trading_readiness.py`: no grant, Ask me, signed grant, ambiguous and
-  submitted operations with their scoped block, a paused and a market-bound agent, the
-  owner-only live state and the presentation-only import guard.
+- `tests/test_trading_readiness.py`: no grant, Ask me, signed grant, Full with and
+  without a grant (and Full under the ladder's "No trading"), ambiguous and submitted
+  operations with their scoped block, a paused and a market-bound agent, the owner-only
+  live state and the presentation-only import guard.
 - `tests/web/trading-readiness.test.ts` (tsx): every state's line in both languages and
   label key parity.
 - `tests/check_trading_mode.py`: in Ask, new risk is sent only as the exact request of an

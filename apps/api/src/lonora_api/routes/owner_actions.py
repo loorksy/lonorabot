@@ -1,4 +1,5 @@
-"""Owner action cards: list, passkey challenge and the owner's decision.
+"""Owner action cards: list, an agent's live Mandate card, passkey challenge and the
+owner's decision.
 
 Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
@@ -47,6 +48,7 @@ from lonora_db.owner_actions import (
     keep_pending,
     live_status,
     lock_owner_actions,
+    mandate_card,
     owned_card,
     owner_action_data,
     renew_card,
@@ -58,8 +60,8 @@ from lonora_db.owner_actions import (
 from lonora_db.pauses import owner_resumes
 from lonora_db.schema import OwnerActionRow
 from lonora_db.threads import conversation_thread
-from lonora_db.trading_mode import set_trading_mode
-from lonora_db.transactions import owned_thread
+from lonora_db.trading_mode import change_trading_mode
+from lonora_db.transactions import owned_agent, owned_thread
 from lonora_trading.owner_controls import attest_operation
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -80,6 +82,19 @@ async def cards(
             await owner_action_data(session, row)
             for row in await thread_cards(session, owner.id, thread_id)
         ]
+
+
+@router.get("/mandate")
+async def mandate(
+    request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any] | None:
+    """The agent's live Mandate card wherever it was raised, so a screen outside that
+    conversation shows the real card (10.3); null when it has none. Reading never raises
+    one."""
+    async with runtime(request).db.sessions() as session:
+        await owned_agent(session, owner.id, agent_id)
+        row = await mandate_card(session, owner.id, agent_id)
+        return await owner_action_data(session, row) if row is not None else None
 
 
 @router.post("/{card_id}/challenge")
@@ -143,10 +158,19 @@ async def decide_trading_mode(
     if reason is not None:
         await settle(session, row, "expired", reason)
         return
-    mode = await set_trading_mode(
+    mode, withdrawn = await change_trading_mode(
         session, owner.id, row.payload["agent_id"], body.trading_mode, by="owner_tap"
     )
-    await settle(session, row, "confirmed", None, via="tap", result={"trading_mode": mode})
+    # How many pending Trade Approval cards this tap withdrew, counted by the server, so
+    # the owner's one line after the tap says it (0 for Ask, or when none was waiting).
+    await settle(
+        session,
+        row,
+        "confirmed",
+        None,
+        via="tap",
+        result={"trading_mode": mode, "withdrawn": withdrawn},
+    )
 
 
 async def grant_challenge(

@@ -203,7 +203,10 @@ export type TradingReadinessState =
 export type TradingReadiness = {
   presentation_only: true;
   observed_at: string;
+  /** on_its_own: in Full, or in Ask with a signed grant in force; ask_me: in Ask with no
+   * grant; no_trading: only while the old ladder says "No trading". */
   state: TradingReadinessState;
+  /** on_its_own in Full carries no params: Full covers every account and market. */
   params: {
     valid_until?: string | null;
     symbol?: string | null;
@@ -218,6 +221,8 @@ export type TradingReadiness = {
     /** on_its_own: how many accounts its grants cover. */
     account_count?: number;
   };
+  /** The agent's one trading switch, read with the rest of the projection. */
+  trading_mode: TradingMode;
   level: "analysis" | "supervised" | "autonomous";
   grants: Array<{
     account_id: string;

@@ -22,6 +22,8 @@ def agent_data(row: AgentRow, *, trades_on_its_own: bool = False) -> dict[str, A
         "color": row.color,
         "instructions": row.instructions,
         "paused": row.paused,
+        # The agent's one trading switch (mandate 4.1), as stored: Full or Ask.
+        "trading_mode": "full" if row.trading_mode == "full" else "ask",
         "trades_on_its_own": trades_on_its_own,
         "role": row.role,
         "template": row.template,

@@ -323,6 +323,29 @@ async def test_an_agent_trading_on_its_own_is_not_answered_late_by_itself(
 
 
 @pytest.mark.asyncio
+async def test_an_agent_in_full_is_not_answered_late_by_itself(
+    task_db: tuple[Database, str, str, str],
+) -> None:
+    """An agent in Full that is not paused trades on its own like one holding a signed
+    grant (``agents_on_their_own``): its failed reply waits for the owner's own retry."""
+    from lonora_db import run_retry
+    from lonora_db.agent_permissions import initial_permission
+    from lonora_db.schema import AgentRow
+
+    db, owner, agent, thread = task_db
+    late = await failed(db, thread, agent, 1)
+    async with db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, agent)
+        assert row is not None
+        row.trading_mode = "full"
+        # Not held at the old ladder's "No trading", which refuses every send.
+        await initial_permission(session, owner, agent, "supervised")
+    async with db.sessions() as session, session.begin():
+        assert await retry_unconfigured(session, owner) == []
+        assert (await run_retry.retry_run(session, owner, late)).status == "queued"
+
+
+@pytest.mark.asyncio
 async def test_custom_routes_are_never_filled_in_and_a_fruitless_search_is_not_repeated(
     router_db: Database,
 ) -> None:
