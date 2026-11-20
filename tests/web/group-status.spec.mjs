@@ -16,6 +16,8 @@ test("group distinguishes an answered lead from a silent observer and clears com
   context,
 }) => {
   const data = fixture({ action: "init" });
+  const [lead, watch] = data.runs;
+  const [leadName, observerName] = data.names;
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
@@ -27,24 +29,22 @@ test("group distinguishes an answered lead from a silent observer and clears com
     });
     expect(login.ok()).toBeTruthy();
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    // A message that names no one is the lead's to answer; the observer is not asked.
+    expect(data.admitted).toEqual([data.agents[0]]);
     await page.goto(`/app/g/${data.group}`);
-    for (const [index, run] of data.runs.entries()) {
-      await expect(page.locator(`[data-progress-run-id='${run.id}']`)).toContainText(
-        data.names[index],
-      );
-    }
+    const transcript = page.getByTestId("transcript");
+    await expect(page.locator(`[data-progress-run-id='${lead.id}']`)).toContainText(leadName);
+    // The observer's watch wake is background work: it takes no reply slot of the owner's.
+    await expect(page.locator(`[data-progress-run-id='${watch.id}']`)).toHaveCount(0);
     fixture({ ...data, action: "finish" });
-    await expect(page.locator(`[data-run-status-id='${data.runs[0].id}']`)).toHaveCount(0);
-    await expect(page.locator(`[data-run-status-id='${data.runs[1].id}']`)).toContainText(
-      "No reply needed",
-    );
     await expect(page.locator("[data-progress-run-id]")).toHaveCount(0);
-    await expect(page.getByTestId("transcript")).toContainText("GROUP LEAD durable answer");
+    await expect(transcript).toContainText("GROUP LEAD durable answer");
+    // With nothing new, the observer's run posts nothing (VISION 11.5).
+    await expect(transcript).not.toContainText(observerName);
     await page.reload();
-    await expect(page.locator(`[data-run-status-id='${data.runs[1].id}']`)).toContainText(
-      "No reply needed",
-    );
+    await expect(transcript).toContainText("GROUP LEAD durable answer");
     await expect(page.locator("[data-progress-run-id]")).toHaveCount(0);
+    await expect(transcript).not.toContainText(observerName);
     expect(errors).toEqual([]);
   } finally {
     fixture({ ...data, action: "cleanup" });
