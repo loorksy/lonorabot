@@ -1239,8 +1239,8 @@ class OwnerActionRow(Base):
     agent_id: Mapped[str] = mapped_column(String(36))
     thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
     run_id: Mapped[str | None] = mapped_column(String(36))
-    # agent: proposed by an agent's tool call; system: raised from a runtime event;
-    # owner: drafted by the owner (a grant card from the mandate sheet).
+    # agent: proposed by an agent's tool call; system: raised from a runtime event.
+    # A stored row may still say owner, from a grant card this release deletes.
     source: Mapped[str] = mapped_column(String(8))
     kind: Mapped[str] = mapped_column(String(32))
     # The record the card acts on ("trading", "operation:<id>", ...).

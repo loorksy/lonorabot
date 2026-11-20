@@ -1,11 +1,9 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
-import type { DeviceProof } from "./devices";
 import type { TradingMode } from "./trading";
 
 export type OwnerActionKind =
   | "settle_operation"
-  | "grant_authority"
   | "supervision_paused"
   /** The Secret card: the owner's values go straight to the encrypted store. */
   | "secret"
@@ -222,45 +220,14 @@ export type OwnerAction = {
   updated_at: string;
 };
 export type OwnerActionDecision = {
-  /** "choose" switches a pending grant card's choice in its stored draft; it signs nothing. */
-  decision: "confirm" | "cancel" | "choose";
+  decision: "confirm" | "cancel";
   /** The Mandate card: the mode its button showed at the moment of the tap. */
   trading_mode?: TradingMode;
-  /** Grant card, with "choose": Custom or Full delegation. */
-  delegation?: GrantDelegation;
   outcome?: AttestedOutcome;
-  proof?: DeviceProof;
-  /** Grant card: stop these other agents' grants on this market (narrowing). */
-  stop_authorities?: string[];
 };
 /**
- * The mandate sheet («تنفيذ مفوَّض»): POST /agents/{id}/account-authorities/draft. It
- * becomes a pending grant card; nothing is active until the owner signs that card with
- * the passkey (POST /owner-actions/{id}/challenge, then /decision with the proof and the
- * card's choices: stop_authorities). "full" takes no terms:
- * every pair for Lonora and flexible agents; a fixed-pair agent's own pair only, every
- * action, until stopped, its owner's positions included.
- */
-export type AccountAuthorityDraft = {
-  mode?: GrantDelegation;
-  thread_id?: string;
-  account_id?: string;
-  symbols?: string[];
-  all_pairs?: boolean;
-  actions?: AuthorityAction[];
-  duration?: AuthorityDuration;
-  allow_manual_positions?: boolean;
-};
-/** The draft's grant card, with the exact stored payload and its hash. */
-export type AccountAuthorityDraftResult = {
-  owner_action: OwnerAction;
-  payload: Record<string, unknown>;
-  payload_hash: string;
-};
-/**
- * Grant card: the owner's choice that changes what the passkey signs (his own positions,
- * under Custom only), and the choice the card showed when he tapped. The server refuses a
- * challenge whose choice differs from the card's stored draft (owner_action_card_changed).
+ * Kept for a stored grant draft the library still describes. No card takes this body:
+ * a passkey challenge is not how any remaining card is confirmed.
  */
 export type OwnerActionChallenge = {
   delegation?: GrantDelegation;

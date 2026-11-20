@@ -213,7 +213,8 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
     # Lonora has no Stop: the frame carries no global trading state and no Resume text.
     assert "global_trading" not in context_snapshot(first)
     assert "global_trading" not in resumed and "Resume card" not in resumed
-    assert "when the owner asks for one, propose the matching owner action card" in resumed
+    assert "There is no grant card." in resumed
+    assert "propose the Mandate card" in resumed
 
 
 def test_provisional_voice_context_preserves_scope_and_extra_approval_boundary():

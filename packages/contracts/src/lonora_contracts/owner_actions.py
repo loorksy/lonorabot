@@ -2,8 +2,8 @@
 
 A card names one exact effect (its payload) that only the owner's session can confirm,
 through the existing owner function for that effect. Agents and the runtime can only
-propose a card; no tool can confirm one. A grant card is confirmed with the passkey
-ceremony of the grant it builds from its stored draft.
+propose a card; no tool can confirm one. There is no grant card: proposing that kind
+is a validation error.
 """
 
 from typing import Annotated, Literal, get_args
@@ -12,7 +12,6 @@ from pydantic import Field, field_validator, model_validator
 
 from .account_authority import ALL_AUTHORITY_ACTIONS
 from .agent_secrets import WORKSPACE_SECRET_NAME
-from .devices import DeviceProof
 from .domain import Contract
 from .model_routing import PROVIDER_KEY_NAMES, ProviderId
 from .trading import AuthorityAction, TradingMode
@@ -20,7 +19,6 @@ from .trading import AuthorityAction, TradingMode
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
     "settle_operation",
-    "grant_authority",
     # The Mandate card (mandate 10.3): the agent's mode read live and one button for the
     # other mode. It stays the agent's switch after a tap.
     "trading_mode",
@@ -75,21 +73,9 @@ class OwnerActionProposal(Contract):
     kind: OwnerActionKind
     # settle_operation: the uncertain (ambiguous) operation the owner settles.
     operation_id: str | None = Field(default=None, min_length=1, max_length=80)
-    # grant_authority: the account the card grants on.
-    account_id: str | None = Field(default=None, min_length=1, max_length=36)
-    # grant_authority: a draft the server resolves and the owner signs with the passkey.
-    # Omitted fields take the defaults: the agent's own grant, the only connected account
-    # (or the agent's focus account), its focus pair (all pairs for Lonora), every action,
-    # until the owner stops it, and the owner's own positions excluded.
+    # trading_mode: the agent whose mode the Mandate card switches. Omitted, it is the
+    # proposer's own agent.
     agent_id: str | None = Field(default=None, min_length=1, max_length=36)
-    symbols: list[str] | None = Field(default=None, min_length=1, max_length=100)
-    all_pairs: bool = False
-    actions: list[AuthorityAction] | None = Field(default=None, min_length=1, max_length=10)
-    duration: GrantDuration | None = None
-    allow_manual_positions: bool | None = None
-    # "full" preselects Full delegation when the owner's own message asked for it; the
-    # other fields still shape the Custom choice the owner can switch back to.
-    delegation: GrantDelegation | None = None
     # secret: the card's label and its fields, in the owner's language. Each value is
     # saved under its field's key, the name agents use for it.
     label: str | None = Field(default=None, min_length=1, max_length=80)
@@ -118,12 +104,11 @@ class OwnerActionProposal(Contract):
             return self
         if self.kind == "secret":
             return self.secret_card_fields()
-        if any(
-            value is not None
-            for value in (self.label, self.secret_fields, self.target, self.service, self.name)
-        ):
+        if self.kind != "settle_operation" or self.operation_id is None:
             raise ValueError("owner_action_fields_invalid")
-        return self.trading_fields()
+        if self.model_dump(exclude={"kind", "operation_id"}, exclude_defaults=True):
+            raise ValueError("owner_action_fields_invalid")
+        return self
 
     def secret_card_fields(self) -> "OwnerActionProposal":
         own = {"kind", "label", "secret_fields", "target", "service", "name"}
@@ -163,44 +148,6 @@ class OwnerActionProposal(Contract):
             or (self.target == "model_provider" and self.name not in get_args(ProviderId))
         ):
             raise ValueError("owner_action_fields_invalid")
-        return self
-
-    def grant_fields(self) -> bool:
-        """Whether any grant_authority draft field is set."""
-        return any(
-            value not in (None, False)
-            for value in (
-                self.agent_id,
-                self.symbols,
-                self.all_pairs,
-                self.actions,
-                self.duration,
-                self.allow_manual_positions,
-                self.delegation,
-            )
-        )
-
-    def trading_fields(self) -> "OwnerActionProposal":
-        grant = self.grant_fields()
-        needed = {
-            "settle_operation": ("operation_id",),
-            "grant_authority": (),
-        }[self.kind]
-        for name in ("operation_id", "account_id"):
-            if self.kind == "grant_authority" and name == "account_id":
-                continue  # Optional: the server resolves the obvious account.
-            if (getattr(self, name) is not None) != (name in needed):
-                raise ValueError("owner_action_fields_invalid")
-        if grant and self.kind != "grant_authority":
-            raise ValueError("owner_action_fields_invalid")
-        if self.symbols is not None and (
-            self.all_pairs
-            or len(set(self.symbols)) != len(self.symbols)
-            or any(not item or len(item) > 80 or item.strip() != item for item in self.symbols)
-        ):
-            raise ValueError("authority_exact_symbols_required")
-        if self.actions is not None and len(set(self.actions)) != len(self.actions):
-            raise ValueError("authority_duplicate_scope")
         return self
 
 
@@ -293,69 +240,11 @@ class OwnerActionChallenge(Contract):
 
 class OwnerActionDecision(Contract):
     """The owner's tap. ``outcome`` answers a Settle Uncertain Operation card (exactly
-    executed, not executed or unknown); ``proof`` is the passkey assertion a widening card
-    requires (obtained from the card's challenge). A Secret card's values never come here:
-    the card has its own route.
-
-    ``choose`` changes a pending grant card's own choice (``delegation``: Custom or Full
-    delegation) in its stored draft and settles nothing; signing still needs the
-    confirmation with the passkey.
-
-    A grant card's own choice narrows or widens nothing that needs another signature:
-    stopping other agents' grants on that market.
+    executed, not executed or unknown). A Secret card's values never come here: the card
+    has its own route. There is no grant card and no passkey on this decision.
     """
 
-    decision: Literal["confirm", "cancel", "choose"]
+    decision: Literal["confirm", "cancel"]
     # The Mandate card: the mode its button showed at the moment of the tap.
     trading_mode: TradingMode | None = None
-    delegation: GrantDelegation | None = None
     outcome: AttestedOutcome | None = None
-    proof: DeviceProof | None = None
-    stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
-
-
-class AccountAuthorityDraft(Contract):
-    """The owner's mandate sheet («تنفيذ مفوَّض»): a grant card drafted from the UI. The
-    server resolves it like an agent's proposal (the account, the agent's pair, D1
-    defaults) and stores it on a pending grant card; nothing is active until the owner
-    signs that card with the passkey (its challenge and decision).
-
-    ``mode`` "full" (Q17): every pair on the account for Lonora and flexible agents; a
-    fixed-pair agent's full delegation is its own pair only, every action, until
-    stopped, the owner's own positions included. Full takes no markets, actions,
-    duration or own-positions switch: its terms are fixed. The conflict choice
-    (``stop_authorities``) is the card decision's own field."""
-
-    mode: GrantDelegation = "custom"
-    thread_id: str | None = Field(default=None, min_length=1, max_length=36)
-    account_id: str | None = Field(default=None, min_length=1, max_length=36)
-    symbols: list[str] | None = Field(default=None, min_length=1, max_length=100)
-    all_pairs: bool = False
-    actions: list[AuthorityAction] | None = Field(default=None, min_length=1, max_length=10)
-    duration: GrantDuration | None = None
-    allow_manual_positions: bool | None = None
-
-    @model_validator(mode="after")
-    def terms_for_mode(self) -> "AccountAuthorityDraft":
-        if self.mode == "full" and (
-            self.symbols is not None
-            or self.all_pairs
-            or self.actions is not None
-            or self.duration is not None
-            or self.allow_manual_positions is not None
-        ):
-            raise ValueError("owner_action_full_delegation_terms_fixed")
-        return self
-
-    def proposal(self, agent_id: str) -> OwnerActionProposal:
-        """The same resolution an agent's grant proposal goes through."""
-        return OwnerActionProposal(
-            kind="grant_authority",
-            agent_id=agent_id,
-            account_id=self.account_id,
-            symbols=self.symbols,
-            all_pairs=self.all_pairs,
-            actions=self.actions,
-            duration=self.duration,
-            allow_manual_positions=self.allow_manual_positions,
-        )

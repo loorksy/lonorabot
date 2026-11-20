@@ -2,10 +2,15 @@ Superseded by VISION.md
 
 # Owner action cards
 
+The `grant_authority` card, its Custom/Full choice and `delegation_words` are gone
+(migration `0129_grant_cards_gone`). Sections below that describe them are history, not
+the current contract. Account authorities are still signed on their own routes.
+
 Wave 1.5 slices W15-2 and W15-3. Every owner-only action has a one-tap card inside the
 conversation, identical on Web and Mobile. Settling
-an uncertain trade and signing a trading grant never need a
-settings page or the API. W15-3 adds the grant card (`grant_authority`, below), W15-4
+an uncertain trade never needs a
+settings page or the API. The grant card (`grant_authority`) is gone (migration
+`0129_grant_cards_gone`); W15-4
 the agent creation and Undo cards (deleted by migration `0125_flat_team_creation`: Lonora
 creates agents with no card, `docs/agents-from-chat.md`), W15-6 the
 supervision cards, of which only the pause card (`supervision_paused`,
@@ -475,23 +480,6 @@ asks for one, a grant only when no active scope covers it.
 - Playwright `tests/web/owner-actions.spec.mjs` and `tests/mobile/owner-actions.spec.mjs`:
   render and tap in Arabic and English (RTL button order) and the resolve answer in the
   journal.
-- Grant cards: `tests/check_grant_card.py` (PostgreSQL, simulation broker, scripted
-  authenticator) covers the resolved draft, the passkey and inline enrollment, the
-  composer-identical envelope, the conflict note and stopping the other agent, no card
-  for covered scope, Lonora's all-pairs default and withdrawal on dismiss;
-  `tests/test_grant_card.py` the pure rules; `tests/web/owner-actions.test.ts` the shared
-  spec and switches; Playwright signs a grant card with a virtual authenticator on Web
-  (Arabic and English, registering the device inline) and renders it on Mobile.
-- Full delegation: `tests/check_full_delegation.py` (PostgreSQL, simulation broker,
-  scripted authenticator) covers Custom with D1 defaults by default, switching back and
-  forth through the decision route, the passkey still required, the account-wide envelope
-  (every action, own positions, no expiry, no caps), withdrawal of a prepared proposal on
-  switching, a challenge for the other choice than the stored one refused both ways
-  (`owner_action_card_changed`, nothing prepared), the readiness line and permission
-  frame, the preselection only from the owner's own words (a message that asks only for
-  trading opens on Custom), the fixed-market refusal and a card stored before the choice;
-  `tests/test_grant_card.py` the draft rules and the Arabic and English words check;
-  `tests/web/owner-actions.test.ts` the shared choice, texts, the challenge naming the
-  choice, re-reading a changed card, the settled label following the signed terms and
-  Web/Mobile parity; Playwright chooses and signs Full on Web, chooses on Mobile, and on
-  both refuses a stale card's tap and shows the current choice, in Arabic and English.
+- The grant card is gone. Migration `0129_grant_cards_gone` deletes any leftover
+  `grant_authority` row. A decision on a leftover row is `owner_action_kind_unsupported`.
+  Account authorities are still signed on their own routes until the door reads only the mode.

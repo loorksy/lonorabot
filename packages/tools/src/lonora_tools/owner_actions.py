@@ -4,49 +4,23 @@ The card is validated against current state, deduplicated per agent and effect, 
 capped per agent. What the owner sees on it is derived on the server from the records it
 names; the only agent words on a card are a Secret card's label, field labels and the
 details the agent gave from chat, each shown as the agent's. No tool can confirm a card:
-the owner's tap goes to an owner-session route that runs the existing owner function,
-and a grant needs the owner's passkey there.
+the owner's tap goes to an owner-session route that runs the existing owner function.
+There is no grant card.
 """
 
 from typing import Any
 
-from lonora_adapter_kit.broker import BrokerAdapter
-from lonora_adapters.brokers.base import BrokerManager
-from lonora_contracts.owner_actions import GrantDraft, OwnerActionProposal
-from lonora_core.delegation_words import asks_full_delegation
+from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import account_wide_scope, agent_binding, require_financial_agent
-from lonora_db.client import Database
-from lonora_db.owner_actions import ALL_ACTIONS, card_facts, live_status, propose
+from lonora_db.agent_binding import agent_binding
+from lonora_db.owner_actions import card_facts, live_status, propose
 from lonora_db.runs import require_lease
-from lonora_db.schema import (
-    BrokerSessionRow,
-    MessageRow,
-    OwnerActionRow,
-    RunRow,
-    SteeringRow,
-    ThreadRow,
-)
+from lonora_db.schema import OwnerActionRow, RunRow, ThreadRow
 from lonora_db.transactions import owned_thread
-from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .provenance import owner_message_id
-from .symbols import canonical_broker_symbol
-
-
-async def grant_draft(context: ToolContext, proposal: OwnerActionProposal) -> GrantDraft:
-    """Resolve the obvious defaults on the server: whose grant, the account and its
-    markets. Nothing here grants anything; the owner signs the card."""
-    grantee = proposal.agent_id or context.agent_id
-    async with context.db.sessions() as session:
-        proposer = await agent_binding(session, context.owner_id, context.agent_id)
-        if grantee != context.agent_id and proposer.role != "personal":
-            # Lonora routes grants for any agent; every other agent asks for its own.
-            raise LonoraError("owner_action_grant_agent_forbidden", 403)
-    return await resolve_grant(context.db, context.brokers, context.owner_id, grantee, proposal)
 
 
 async def mandate_target(
@@ -60,120 +34,6 @@ async def mandate_target(
             raise LonoraError("owner_action_trading_mode_agent_forbidden", 403)
         await agent_binding(session, context.owner_id, target)
     return proposal.model_copy(update={"agent_id": target})
-
-
-async def resolve_grant(
-    db: Database,
-    brokers: BrokerManager,
-    owner_id: str,
-    grantee: str,
-    proposal: OwnerActionProposal,
-) -> GrantDraft:
-    """The draft for ``grantee``'s grant, resolved the same way for an agent's proposal
-    and the owner's mandate sheet. It grants nothing."""
-    async with db.sessions() as session:
-        agent = await require_financial_agent(session, owner_id, grantee)
-        account_id = proposal.account_id or agent.trading_account_id
-        if account_id is None:
-            accounts = list(
-                await session.scalars(
-                    select(BrokerSessionRow.id)
-                    .where(BrokerSessionRow.owner_id == owner_id)
-                    .order_by(BrokerSessionRow.created_at, BrokerSessionRow.id)
-                    .limit(2)
-                )
-            )
-            if len(accounts) != 1:
-                # Several accounts: one focused question to the owner decides which.
-                raise LonoraError("owner_action_account_required", 409)
-            account_id = accounts[0]
-    broker = await brokers.get(owner_id, account_id)
-    if proposal.symbols:
-        symbols = [
-            await canonical_broker_symbol(broker, symbol, require_exists=True)
-            for symbol in proposal.symbols
-        ]
-        scope = "selected"
-    elif proposal.all_pairs or agent.role == "personal":
-        symbols, scope = [], "account"
-    elif agent.trading_symbol and agent.trading_account_id == account_id:
-        symbols, scope = [agent.trading_symbol], "selected"
-    elif account_wide_scope(agent):
-        symbols, scope = [], "account"
-    else:
-        raise LonoraError("owner_action_grant_markets_required", 409)
-    await remember_contracts(db, owner_id, account_id, broker, symbols)
-    return GrantDraft(
-        agent_id=grantee,
-        account_id=account_id,
-        symbol_scope=scope,
-        symbols=symbols,
-        actions=list(proposal.actions or ALL_ACTIONS),
-        duration=proposal.duration or "until_stopped",
-        allow_manual_positions=bool(proposal.allow_manual_positions),
-    )
-
-
-async def remember_contracts(
-    db: Database, owner_id: str, account_id: str, broker: BrokerAdapter, symbols: list[str]
-) -> None:
-    """Keep the broker's specification of each symbol a grant names with the account, so
-    the grant card shows what the symbol is (what one lot is, the smallest order). The
-    card's facts come from records, never from the broker at display time. Best effort:
-    a specification the broker cannot give now is simply not shown."""
-    contracts: dict[str, Any] = {}
-    for symbol in symbols:
-        try:
-            contracts[symbol] = (await broker.instrument(symbol)).model_dump(mode="json")
-        except Exception:
-            continue
-    if not contracts:
-        return
-    async with db.sessions() as session, session.begin():
-        saved = await session.get(BrokerSessionRow, account_id, with_for_update=True)
-        if saved is not None and saved.owner_id == owner_id:
-            saved.state = {
-                **saved.state,
-                "contracts": {**saved.state.get("contracts", {}), **contracts},
-            }
-
-
-async def owner_asked_full(session: AsyncSession, run: RunRow, message_id: str) -> bool:
-    """Whether the owner's words this Run answers ask for full delegation: the message it
-    started on, or one the owner added while it worked (the same words W15-10 reads for a
-    model switch)."""
-    added = select(SteeringRow.message_id).where(SteeringRow.run_id == run.id)
-    said = await session.scalars(
-        select(MessageRow.content).where(
-            MessageRow.thread_id == run.thread_id,
-            MessageRow.role == "user",
-            # The owner's own words only: never a card's send or a follow-up tap.
-            MessageRow.origin == "owner",
-            or_(MessageRow.id == message_id, MessageRow.id.in_(added)),
-        )
-    )
-    return any(asks_full_delegation(text) for text in said)
-
-
-async def preselect_full(
-    session: AsyncSession, context: ToolContext, run: RunRow, grant: GrantDraft
-) -> tuple[GrantDraft, str | None]:
-    """Full delegation preselected on the card, when the owner's own message asked for
-    it: only in a Run that answers the owner's message and has read nothing anyone else
-    wrote, only when the owner's words ask for full delegation (checked here, not left to
-    the model), and only for an agent whose grant may cover every pair on the account.
-    The owner still sees both choices and signs with the passkey. Returns the draft and
-    why Full was not preselected (None when it was)."""
-    agent = await agent_binding(session, context.owner_id, grant.agent_id)
-    # Every pair on the account: the same rule the card and the signed envelope use.
-    if not account_wide_scope(agent):
-        return grant, "fixed_market_agent"
-    message_id = await owner_message_id(session, run)
-    if message_id is None:
-        return grant, "owner_message_required"
-    if not await owner_asked_full(session, run, message_id):
-        return grant, "owner_did_not_ask_full_delegation"
-    return grant.with_delegation("full"), None
 
 
 def card_summary(
@@ -211,12 +71,8 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
     proposal = OwnerActionProposal.model_validate(args)
     if proposal.kind == "trading_mode":
         proposal = await mandate_target(context, proposal)
-    grant = await grant_draft(context, proposal) if proposal.kind == "grant_authority" else None
     async with context.db.sessions() as session, session.begin():
         run, thread = await card_scope(context, session)
-        not_preselected: str | None = None
-        if grant is not None and proposal.delegation == "full":
-            grant, not_preselected = await preselect_full(session, context, run, grant)
         row, created = await propose(
             session,
             context.owner_id,
@@ -225,19 +81,11 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
             agent_id=context.agent_id,
             thread_id=thread.id,
             run_id=run.id,
-            grant=grant,
         )
         # Fenced after the conversation lock: the thread-before-run order of message admission.
         await require_lease(session, context.lease, lock=True)
         _, passkey = await card_facts(session, row, row.updated_at)
-        summary = card_summary(row, created, thread.id, passkey)
-        if row.kind == "grant_authority":
-            # Which choice the card shows selected now; the owner may switch it.
-            shown = GrantDraft.model_validate(row.payload).delegation
-            summary["delegation"] = shown
-            if not_preselected is not None:
-                summary["full_delegation_not_preselected"] = not_preselected
-        return summary
+        return card_summary(row, created, thread.id, passkey)
 
 
 def tools() -> list[Tool]:
@@ -251,14 +99,7 @@ def tools() -> list[Tool]:
             "agent_id, Lonora's for any agent), "
             "settle_operation (operation_id of an ambiguous operation; the owner "
             "answers executed / not executed / unknown; Executed or Not executed releases "
-            "its hold, Unknown keeps it held and the card pending), "
-            "grant_authority (the owner wants an agent to trade on its own and no active "
-            "grant covers it: optional agent_id, account_id, symbols or all_pairs, actions, "
-            "duration and allow_manual_positions; omit what the owner did not say and the "
-            "server fills the obvious defaults; delegation full only when the owner's own "
-            "words ask for full delegation, which the server checks: the card then "
-            "preselects it (every pair, every action, the owner's own positions, until "
-            "stopped) and the owner still chooses Custom or Full and signs) and secret, "
+            "its hold, Unknown keeps it held and the card pending) and secret, "
             "the Secret card: the owner's values go straight to the encrypted store and you "
             "learn only the names saved. Ask non-secret details in chat first. To connect "
             "something, give target: mcp_server (name, unless service x for an X MCP "
@@ -269,7 +110,7 @@ def tools() -> list[Tool]:
             "account is broker_connect. Any other "
             "credential: label and secret_fields, each a key (the name it is saved under), a "
             "label, and secret false only for a value safe to show while typed; write the "
-            "labels in the owner's language. A grant needs the owner's passkey. The card "
+            "labels in the owner's language. There is no grant card. The card "
             "shows server facts (a Secret card also your label, field labels and the details "
             "you gave); say in one line what it does. A repeated proposal returns the card "
             "already shown; at most five of yours wait at once.",

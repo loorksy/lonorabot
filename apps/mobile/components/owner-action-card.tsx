@@ -113,13 +113,6 @@ export function OwnerActionCard({
     if (button.outcome) {
       body.outcome = button.outcome;
     }
-    if (button.decision === "confirm" && spec.passkey) {
-      const challenge = await api.post<DeviceChallenge>(
-        `/owner-actions/${row.id}/challenge`,
-        choices.challenge,
-      );
-      body.proof = await deviceProof(challenge);
-    }
     const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
     waiting.current = null;
     onChange(updated);

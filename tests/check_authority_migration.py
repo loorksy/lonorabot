@@ -80,7 +80,6 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-REVISION = "0128_authority_migration"
 BEFORE = "0127_no_supervision_grants"
 SUPERVISOR_LINE = (
     "Supervisor: you review the work of the agents the owner named and message them;"
@@ -945,7 +944,8 @@ async def second_upgrade(db: Database, owner_id: str, account_id: str, ids: dict
         stored = await level(session, owner_id, ids["stored"])
         assert stored is not None and stored["revision"] == 4
     heads = alembic("heads").strip().splitlines()
-    assert heads == [REVISION + " (head)"], heads
+    # 0129 repeats the grant-card delete. The mode migration under test stays 0128.
+    assert heads == ["0129_grant_cards_gone (head)"], heads
     print(
         "PASS a second upgrade shows no second card; the method line follows the owner's language"
     )

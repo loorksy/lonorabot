@@ -205,8 +205,8 @@ the badge is presentation, never permission.
 
 ## Verification
 
-`tests/check_full_delegation.py` signs Full delegation from a grant card and shows that
-another pair and the owner's own position are managed without a card.
+The grant card is gone. A signed account authority is still created on
+`POST /agents/{id}/account-authorities` and still covers a send until the door reads only the mode.
 
 `tests/check_account_authority.py` uses disposable PostgreSQL, genuine WebAuthn
 signatures and the simulation adapter. It covers exact forex/metal/index/crypto

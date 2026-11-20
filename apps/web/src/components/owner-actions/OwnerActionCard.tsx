@@ -142,13 +142,6 @@ export function OwnerActionCard({
     if (button.outcome) {
       body.outcome = button.outcome;
     }
-    if (button.decision === "confirm" && spec.passkey) {
-      const challenge = await api.post<DeviceChallenge>(
-        `/owner-actions/${row.id}/challenge`,
-        choices.challenge,
-      );
-      body.proof = await webDeviceProof(challenge);
-    }
     const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
     waiting.current = null;
     if (button.trading_mode && updated.result.trading_mode) {
@@ -429,7 +422,6 @@ export function OwnerActionCard({
 }
 
 const KIND_ICON: Partial<Record<string, IconName>> = {
-  grant_authority: "shield",
   settle_operation: "alert",
   supervision_paused: "pause",
   secret: "key",

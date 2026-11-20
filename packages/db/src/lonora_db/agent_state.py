@@ -63,7 +63,6 @@ def attention(task: dict[str, Any]) -> bool:
 # Resume of a pause are not.
 DECISION_CARD_KINDS = frozenset(
     {
-        "grant_authority",
         "settle_operation",
         "secret",
     }

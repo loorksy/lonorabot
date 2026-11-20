@@ -35,7 +35,6 @@ from uuid import uuid4
 from zipfile import ZipFile
 
 from check_streaming import Fixture
-from device_fixture import Device
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
@@ -388,7 +387,6 @@ class Acceptance:
         self.second_account = ""
         self.lonora = ""
         self.lonora_thread = ""
-        self.device: Device | None = None
         self.created: list[str] = []
         self.set_aside: list[str] = []
         self.watch_name = ""
@@ -405,7 +403,7 @@ class Acceptance:
         return response.status_code, response.json()
 
     def tap(self, journey: str) -> None:
-        """One owner confirmation: a tap on a card or approval, or a passkey."""
+        """One owner confirmation: a tap on a card or an approval."""
         self.confirmations[journey] = self.confirmations.get(journey, 0) + 1
 
     def journey(self, name: str, expected: int, note: str = "") -> None:
@@ -436,14 +434,6 @@ class Acceptance:
         if body.get("decision") == "confirm":
             self.tap(journey)
         return cast(dict[str, Any], decided)
-
-    async def passkey(self, journey: str, card_id: str, body: dict[str, Any]) -> dict[str, Any]:
-        """Authorize on the card: the first time on this device it enrolls it inline."""
-        if self.device is None:
-            self.device = await Device.enroll(self.fixture)
-        challenge = await self.request("POST", f"/owner-actions/{card_id}/challenge", {})
-        proof = self.device.assertion(challenge, self.fixture.settings.allowed_origin)
-        return await self.decide(journey, card_id, {"decision": "confirm", "proof": proof, **body})
 
     async def say(self, thread_id: str, words: str) -> str:
         sent = await self.request(
