@@ -45,7 +45,8 @@ export function useChatMenu({
   // trading section like any trading agent's.
   const trading = Boolean(
     agent &&
-      (agent.template === "trading" ||
+      (agent.role === "personal" ||
+        agent.template === "trading" ||
         showsTradingControl({ role: agent.role, trading_account_id: agent.trading_account_id })),
   );
   // The chart sheet (chart.sheet, Q37): the agent's pair, or the chart an answer named.

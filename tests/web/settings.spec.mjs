@@ -958,7 +958,10 @@ test("auth intro, Arabic: the last slide claims nothing a signed grant makes unt
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByRole("heading", { name: "أنت صاحب القرار" })).toBeVisible();
   await expect(
-    page.getByText("لا يُنفَّذ أي إجراء حساس دون صلاحية تمنحها، ويمكنك إيقافها في أي لحظة."),
+    page.getByText(
+      "كل صفقة تزيد المخاطرة تنتظر موافقتك، ما لم يكن هذا الوكيل على «وكّله» أو يغطّها تفويض موقّع.",
+    ),
   ).toBeVisible();
   await expect(page.getByText(/كل وكيل يستأذنك/)).toHaveCount(0);
+  await expect(page.getByText(/إيقافها في أي لحظة/)).toHaveCount(0);
 });

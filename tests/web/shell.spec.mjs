@@ -785,7 +785,7 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
       await expect(page.locator(".desktop-content")).toHaveClass(/is-home/);
       await expect(page.locator(".welcome h2")).toContainText("مرحبًا");
       await expect(page.locator(".welcome")).toContainText("ماذا سنفعل اليوم مع وكلائك؟");
-      await expect(page.locator(".welcome")).toContainText("الصلاحيات مستقلة لكل وكيل");
+      await expect(page.locator(".welcome")).toContainText("لكل وكيل تفويضه: يستأذن أو وكّله");
       expect(
         await page.locator("#app").evaluate((app) => getComputedStyle(app).backgroundColor),
       ).toBe(theme === "light" ? "rgb(247, 245, 239)" : "rgb(11, 12, 16)");

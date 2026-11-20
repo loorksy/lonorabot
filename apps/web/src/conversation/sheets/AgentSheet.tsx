@@ -6,7 +6,7 @@ import {
   agentStatusLine,
   mandateLine,
   orderLineAction,
-  tradingSubLine,
+  tradingReadinessLine,
   uncertainLine,
 } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
@@ -207,12 +207,10 @@ function AgentSheetBody({
         <div>
           <strong>{agent.name}</strong>
           <small data-testid="agent-mode-line">
-            {mandateLine(agent.trading_mode, i18n.locale) ??
-              (readiness
-                ? tradingSubLine(readiness.unresolved_count, agent.trading_mode, i18n.locale)
-                : state
-                  ? agentStatusLine(state, i18n.locale)
-                  : "")}
+            {readiness && readiness.state !== "ask_me" && readiness.state !== "on_its_own"
+              ? tradingReadinessLine(readiness, i18n.locale, new Date(), accountName)
+              : (mandateLine(agent.trading_mode, i18n.locale) ??
+                (state ? agentStatusLine(state, i18n.locale) : ""))}
           </small>
         </div>
       </div>

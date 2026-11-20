@@ -664,7 +664,8 @@ test("R5: «Resolve» in Lonora's sheet opens the conversation that holds the ca
     });
   });
   await page.goto(`/app/${lonora.id}`);
-  await expect(page.getByTestId("permission-chip")).toBeVisible();
+  // Q9: no mode chip without a connected account.
+  await expect(page.getByTestId("permission-chip")).toHaveCount(lonora.trading_account_id ? 1 : 0);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   await page.getByRole("menuitem", { name: "Status and safety" }).click();
   await page.locator(`#dialog [data-resolve-card="${card}"]`).click();

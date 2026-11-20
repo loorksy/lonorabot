@@ -197,13 +197,13 @@ test("one name and initial everywhere, every time zone, a Save that waits for a 
   await page.goto("/app/notify-settings");
   await expect(page.getByRole("radio", { name: /^رسالة/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: /^مكالمة/ })).toBeVisible();
-  // The device list shows exactly when the owner has a passkey device (an earlier test may have
-  // registered one for this owner). Without one, «مكالمة» does not save and the server says why.
+  // A5 keeps the registration form on this page. Without a device, «مكالمة» does not save.
   const profile = await (await context.request.get("/api/owner/profile")).json();
   const device = page.getByRole("heading", { name: "الجهاز", exact: true });
-  if (profile.devices.length) await expect(device).toBeVisible();
-  else {
-    await expect(device).toHaveCount(0);
+  // A5: the heading and the registration form are there with or without a device.
+  await expect(device).toBeVisible();
+  if (!profile.devices.length) {
+    await expect(page.getByRole("button", { name: "سجّل هذا الجهاز" })).toBeDisabled();
     await page.getByRole("radio", { name: /^مكالمة/ }).click();
     await expect(
       page.locator(".t-msg").getByText("سجّل جهازًا بمفتاح المرور قبل اختيار الاتصال."),
