@@ -120,7 +120,6 @@ test("native bridge locally enqueues and clears before delayed ACK, then shows a
   page.on("pageerror", (error) => errors.push(error.message));
   let release,
     blocked = false,
-    socket,
     cursor = 10,
     body,
     canonical;
@@ -145,26 +144,30 @@ test("native bridge locally enqueues and clears before delayed ACK, then shows a
       json: { message: canonical, run_ids: [responseRun.id], runs: [responseRun] },
     });
   });
+  // The owner's stream reaches every subscriber (the open conversation and the heads-up each
+  // hold one), so each scripted event goes to every socket that has been made ready.
+  const sockets = new Set();
   await page.routeWebSocket("**/api/ws/events", (ws) => {
-    socket = ws;
     ws.onMessage((raw) => {
       const auth = JSON.parse(raw);
       expect(auth).toMatchObject({ cursor: 0, live: true });
+      sockets.add(ws);
       ws.send(JSON.stringify({ type: "ready", cursor }));
     });
+    ws.onClose(() => sockets.delete(ws));
   });
-  const event = (kind, payload = {}) =>
-    socket.send(
-      JSON.stringify({
-        cursor: ++cursor,
-        kind,
-        thread_id: data.thread.id,
-        agent_id: data.agent.id,
-        run_id: responseRun.id,
-        payload,
-        created_at: new Date().toISOString(),
-      }),
-    );
+  const event = (kind, payload = {}) => {
+    const frame = JSON.stringify({
+      cursor: ++cursor,
+      kind,
+      thread_id: data.thread.id,
+      agent_id: data.agent.id,
+      run_id: responseRun.id,
+      payload,
+      created_at: new Date().toISOString(),
+    });
+    for (const ws of sockets) ws.send(frame);
+  };
   try {
     await page.goto(`/thread?id=${data.thread.id}`);
     const composer = page.getByRole("textbox", { name: "Message…", exact: true });
