@@ -1,58 +1,58 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentModelSummary, AgentPermissionLevel, PermissionState } from "@lonora/contracts";
+import type { AgentModelSummary, OwnerAction, TradingMode } from "@lonora/contracts";
+import { mandateLine, modeChangeLine, ownerActionText } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
 import type { Agent } from "../lib/api";
 import { api } from "../lib/api";
 import { userError } from "../lib/user_error";
+import { useClient } from "../providers/ClientProvider";
 import { usePopover, usePopoverPage } from "../shell/lists/Popover";
 import { useNavigation } from "../shell/navigation";
 import { useToast } from "../shell/Toast";
-import { useMandateSheet } from "./sheets/MandateSheet";
 
-/* The permission chip and its menu (reference modeChip/modeMenu/modelPage/downgradePage,
-   Desktop-37 3821-3827, 3899-3906, 8418-8460). The ladder is trading-only (Q19): an agent
-   that trades gets the chip, with an account or without, as none is bound to one (VISION
-   3.1.2); every other agent the «لا يتداول» badge (Q20: a general agent
-   researches and answers, it never pays or sends). The level is never changed by text. */
+/* The trading-mode chip and its menu. The chip is the agent's Mandate: one word for the
+   mode, and the menu posts that card's decision. An agent with no connected account has
+   no control (Q9). The level is never changed by text, and there is no ladder. */
 
-export const LEVEL_ICON: Record<AgentPermissionLevel, IconName> = {
-  analysis: "eye",
-  supervised: "userCheck",
-  autonomous: "bot",
-};
-export function levelName(level: AgentPermissionLevel) {
-  return {
-    analysis: t`No execution`,
-    supervised: t`Execute with approval`,
-    autonomous: t`Delegated execution`,
-  }[level];
+/** The chip's word for the agent's mode. Null when the server sent no mode: never a guess. */
+export function modeWord(mode: string | null | undefined): string | null {
+  const words = ownerActionText(i18n.locale);
+  if (mode === "full") return words.modeFull;
+  if (mode === "ask") return words.modeAsk;
+  return null;
 }
-export function levelHint(level: AgentPermissionLevel) {
-  return {
-    analysis: t`Analyses and follows the market without sending any order.`,
-    supervised: t`Every order is shown to you for approval before it is sent.`,
-    autonomous: t`Executes within a mandate signed with your passkey.`,
-  }[level];
+
+function modeIcon(mode: string | null | undefined): IconName {
+  return mode === "full" ? "alert" : "userCheck";
+}
+
+/** The agent's live Mandate card. Reading never raises one. */
+export function readMandate(agentId: string): Promise<OwnerAction | null> {
+  return api.get<OwnerAction | null>(
+    `/owner-actions/mandate?agent_id=${encodeURIComponent(agentId)}`,
+  );
+}
+
+/** Apply the mode the button showed. Only the Mandate card can set Full. */
+export function decideMandate(cardId: string, mode: TradingMode): Promise<OwnerAction> {
+  return api.post<OwnerAction>(`/owner-actions/${encodeURIComponent(cardId)}/decision`, {
+    decision: "confirm",
+    trading_mode: mode,
+  });
 }
 
 export function PermissionChip({
   agent,
   isGroup,
   trading,
-  permission,
-  permissionFailed = false,
-  onChanged,
-  threadId,
 }: {
   threadId?: string;
   agent?: Agent;
   isGroup: boolean;
   trading: boolean;
-  permission: PermissionState | null;
-  permissionFailed?: boolean;
-  onChanged: (state: PermissionState) => void;
 }) {
   const popover = usePopover();
   const nav = useNavigation();
@@ -70,91 +70,63 @@ export function PermissionChip({
         <Icon name="down" />
       </button>
     );
-  if (!agent) return null;
-  if (!trading)
-    return (
-      <span className="no-trade" role="note" data-testid="permission-no-trading">
-        <Icon name="eye" />
-        <span>
-          <Trans>No trading</Trans>
-        </span>
-      </span>
-    );
-  // Until the level is read (or when it cannot be), the chip says so: never a guessed level.
-  if (!permission)
+  // No connected account: no mode control (Q9). Nothing here says the agent cannot trade.
+  if (!agent || !trading) return null;
+  const mode = agent.trading_mode;
+  const named = modeWord(mode);
+  if (mode !== "ask" && mode !== "full")
     return (
       <span
         className="mode-chip is-off"
         role="status"
         data-testid="permission-chip"
         data-level="unknown"
+        data-mode="unknown"
       >
-        <Icon name={permissionFailed ? "alert" : "shield"} />
-        <span>{permissionFailed ? t`Permission unknown` : "…"}</span>
+        <Icon name="alert" />
+        <span>{t`Trading mode unknown`}</span>
       </span>
     );
-  const level = permission.effective_level;
   return (
     <button
       type="button"
-      className={`mode-chip lvl-${level}`}
+      className={`mode-chip lvl-${mode === "full" ? "auto" : "ask"}`}
       aria-haspopup="menu"
       aria-expanded="false"
-      aria-label={t`Permissions: ${levelName(level)}`}
+      aria-label={mandateLine(mode, i18n.locale) ?? named ?? ""}
       data-testid="permission-chip"
-      data-level={level}
+      data-level={mode}
+      data-mode={mode}
       onClick={(event) =>
         popover.open(
           event.currentTarget,
-          <PermissionMenu
-            agent={agent}
-            permission={permission}
-            onChanged={onChanged}
-            go={nav.go}
-            threadId={threadId}
-          />,
-          t`Permission level`,
+          <PermissionMenu agent={agent} go={nav.go} />,
+          t`Trading mode`,
           { cls: "mode-pop", morph: true },
         )
       }
     >
-      <Icon name={level === "autonomous" ? "alert" : LEVEL_ICON[level]} />
-      <span>{levelName(level)}</span>
+      <Icon name={modeIcon(mode)} />
+      <span>{named}</span>
       <Icon name="down" />
     </button>
   );
 }
 
-function PermissionMenu({
-  agent,
-  permission,
-  onChanged,
-  go,
-  threadId,
-}: {
-  threadId?: string;
-  agent: Agent;
-  permission: PermissionState;
-  onChanged: (state: PermissionState) => void;
-  go: (path: string) => void;
-}) {
+function PermissionMenu({ agent, go }: { agent: Agent; go: (path: string) => void }) {
   const popover = usePopover();
   const toast = useToast();
-  const mandate = useMandateSheet();
-  const [page, setPage] = useState<
-    { kind: "ladder" } | { kind: "model" } | { kind: "down"; level: AgentPermissionLevel }
-  >({
-    kind: "ladder",
-  });
+  const { refresh } = useClient();
+  const [page, setPage] = useState<"mode" | "model">("mode");
   const [summary, setSummary] = useState<AgentModelSummary | null>(null);
+  const [card, setCard] = useState<OwnerAction | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const modelRow = useRef<HTMLButtonElement>(null);
-  const toLadder = () => {
-    setPage({ kind: "ladder" });
+  const toMode = () => {
+    setPage("mode");
     requestAnimationFrame(() => modelRow.current?.focus({ preventScroll: true }));
   };
-  usePopoverPage(page.kind !== "ladder", toLadder);
-  const level = permission.effective_level;
+  usePopoverPage(page !== "mode", toMode);
   const path = `/agents/${encodeURIComponent(agent.id)}`;
   useEffect(() => {
     let live = true;
@@ -162,66 +134,75 @@ function PermissionMenu({
       .get<AgentModelSummary>(`${path}/model/summary`)
       .then((row) => live && setSummary(row))
       .catch(() => undefined);
+    void readMandate(agent.id)
+      .then((row) => live && setCard(row))
+      .catch(() => live && setCard(null));
     return () => {
       live = false;
     };
-  }, [path]);
-  const setLevel = async (next: "analysis" | "supervised") => {
+  }, [agent.id, path]);
+  const words = ownerActionText(i18n.locale);
+  const mode: TradingMode | null =
+    agent.trading_mode === "full" || agent.trading_mode === "ask" ? agent.trading_mode : null;
+  const other: TradingMode | null = mode === "full" ? "ask" : mode === "ask" ? "full" : null;
+  const apply = async (next: TradingMode) => {
+    if (!card) return;
     setBusy(true);
     try {
-      const latest = await api.get<PermissionState>(`${path}/permissions`);
-      const row = await api.put<PermissionState>(`${path}/permissions`, {
-        level: next,
-        expected_revision: latest.revision,
-      });
-      onChanged(row);
+      const updated = await decideMandate(card.id, next);
+      const applied = updated.result.trading_mode === "full" ? "full" : "ask";
       popover.close();
-      toast(t`Permission: ${levelName(next)}`, { type: "success" });
+      toast(modeChangeLine(agent.name, applied, updated.result.withdrawn ?? 0, i18n.locale), {
+        type: "success",
+      });
+      refresh();
     } catch (error) {
       toast(userError(error), { type: "error" });
     } finally {
       setBusy(false);
     }
   };
-  const pick = (next: AgentPermissionLevel) => {
-    if (next === level) return popover.close();
-    if (next === "autonomous") {
-      popover.close();
-      mandate(agent, permission, false, threadId);
-      return;
-    }
-    if (level === "autonomous") return setPage({ kind: "down", level: next });
-    void setLevel(next);
-  };
   const auto = summary ? !summary.record.preference.primary : false;
   const modelValue = auto
     ? t({ message: "Your default model", context: "model" })
     : (summary?.current.name ?? summary?.current.model ?? "—");
-  const grant = permission?.active_authorities.length ? permission.active_authorities[0] : null;
   return (
-    <div className="mp-pages" data-page={page.kind === "ladder" ? "1" : "2"}>
-      <div className="mp-page p1" inert={page.kind !== "ladder" ? true : undefined}>
+    <div className="mp-pages" data-page={page === "mode" ? "1" : "2"}>
+      <div className="mp-page p1" inert={page !== "mode" ? true : undefined}>
         <div className="pop-title">
-          <Trans>Permission level · {agent.name}</Trans>
+          <Trans>Trading mode · {agent.name}</Trans>
         </div>
-        {(["analysis", "supervised", "autonomous"] as const).map((row) => (
+        {mode && (
+          <div className="pop-opt on" data-testid="mode-now">
+            <span className="pop-opt-body">
+              <strong>
+                {words.mandateNow}: {mode === "full" ? words.modeFull : words.modeAsk}
+              </strong>
+              <small>{mode === "full" ? words.modeFullLine : words.modeAskLine}</small>
+            </span>
+            <Icon name="check" />
+          </div>
+        )}
+        {other && card && (
           <button
-            key={row}
             type="button"
-            className={`pop-opt${level === row ? " on" : ""}`}
-            role="menuitemradio"
-            aria-checked={level === row}
-            data-testid={`mode-option-${row}`}
+            className="pop-opt"
+            role="menuitem"
+            data-testid={`mode-option-${other}`}
             disabled={busy}
-            onClick={() => pick(row)}
+            onClick={() => void apply(other)}
           >
             <span className="pop-opt-body">
-              <strong>{levelName(row)}</strong>
-              <small>{levelHint(row)}</small>
+              <strong>{other === "full" ? words.modeFull : words.modeAsk}</strong>
+              <small>{other === "full" ? words.modeFullLine : words.modeAskLine}</small>
             </span>
-            {level === row && <Icon name="check" />}
           </button>
-        ))}
+        )}
+        {card === null && (
+          <p className="pop-note">
+            <Trans>This agent has no Mandate card yet.</Trans>
+          </p>
+        )}
         <div className="pop-sep" />
         <button
           ref={modelRow}
@@ -229,7 +210,7 @@ function PermissionMenu({
           className="pop-row mp-model-row"
           role="menuitem"
           aria-haspopup="menu"
-          onClick={() => setPage({ kind: "model" })}
+          onClick={() => setPage("model")}
         >
           <span>
             <Trans>Model</Trans>
@@ -237,102 +218,80 @@ function PermissionMenu({
           <span className="pop-val">{modelValue}</span>
           <Icon name="chev" />
         </button>
-        {grant && (
-          <button
-            type="button"
-            className="pop-row"
-            role="menuitem"
-            onClick={() => {
-              popover.close();
-              mandate(agent, permission, true, threadId);
-            }}
-          >
-            <span>
-              <Trans>Mandate details</Trans>
-            </span>
-            <Icon name="chev" />
-          </button>
-        )}
-        <p className="pop-note">
-          <Trans>Closing and tightening the stop loss are always allowed.</Trans>
-        </p>
       </div>
       <div
         className="mp-page p2"
-        inert={page.kind === "ladder" ? true : undefined}
-        aria-hidden={page.kind === "ladder"}
+        inert={page === "mode" ? true : undefined}
+        aria-hidden={page === "mode"}
       >
-        {page.kind === "down" ? (
-          <>
-            <div className="mp-head">
-              <button
-                type="button"
-                className="icon mp-back"
-                aria-label={t`Back`}
-                onClick={toLadder}
-              >
-                <Icon name="back" />
-              </button>
-              <strong>
-                <Trans>Change the permission level</Trans>
-              </strong>
-            </div>
-            <div className="mp-warn" data-testid="mode-downgrade">
-              <span className="mp-warn-ic">
-                <Icon name="alert" />
-              </span>
-              <p>
-                <Trans>
-                  The signed mandate is revoked; going back to it needs a new signature.
-                </Trans>
-              </p>
-              <div className="mp-ladder">
-                <span>{levelName("autonomous")}</span>
-                <Icon name="chev" />
-                <strong>{levelName(page.level)}</strong>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="pop-opt danger-opt"
-              role="menuitem"
-              data-testid="mode-downgrade-confirm"
-              disabled={busy}
-              onClick={() => void setLevel(page.level as "analysis" | "supervised")}
-            >
-              <span className="pop-opt-body">
-                <strong>
-                  <Trans>Confirm: {levelName(page.level)}</Trans>
-                </strong>
-                <small>
-                  {page.level === "analysis"
-                    ? t`It stops executing and only analyses and follows`
-                    : t`Every order is shown to you for approval before it is sent`}
-                </small>
-              </span>
-            </button>
-            <button type="button" className="pop-opt" role="menuitem" onClick={toLadder}>
-              <span className="pop-opt-body">
-                <strong>
-                  <Trans>Keep «{levelName("autonomous")}»</Trans>
-                </strong>
-                <small>
-                  <Trans>No change</Trans>
-                </small>
-              </span>
-            </button>
-          </>
-        ) : page.kind === "model" ? (
+        {page === "model" ? (
           <ModelPage
             go={go}
             agent={agent}
             summary={summary}
             onSummary={setSummary}
-            onBack={toLadder}
+            onBack={toMode}
           />
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** The agent settings sheet: the same Mandate card the chip menu posts, or nothing (Q9). */
+export function MandateSettings({ agent }: { agent: Agent }) {
+  const toast = useToast();
+  const { refresh } = useClient();
+  const [card, setCard] = useState<OwnerAction | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!agent.trading_account_id) return;
+    let live = true;
+    void readMandate(agent.id)
+      .then((row) => live && setCard(row))
+      .catch(() => live && setCard(null));
+    return () => {
+      live = false;
+    };
+  }, [agent.id, agent.trading_account_id]);
+  if (!agent.trading_account_id) return null;
+  const words = ownerActionText(i18n.locale);
+  const mode: TradingMode | null =
+    agent.trading_mode === "full" || agent.trading_mode === "ask" ? agent.trading_mode : null;
+  const other: TradingMode | null = mode === "full" ? "ask" : mode === "ask" ? "full" : null;
+  const apply = async (next: TradingMode) => {
+    if (!card) return;
+    setBusy(true);
+    try {
+      const updated = await decideMandate(card.id, next);
+      const applied = updated.result.trading_mode === "full" ? "full" : "ask";
+      toast(modeChangeLine(agent.name, applied, updated.result.withdrawn ?? 0, i18n.locale), {
+        type: "success",
+      });
+      refresh();
+    } catch (error) {
+      toast(userError(error), { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mandate-settings">
+      <h3>
+        <Trans>Trading</Trans>
+      </h3>
+      <p>{mandateLine(mode, i18n.locale)}</p>
+      {mode && <p>{mode === "full" ? words.modeFullLine : words.modeAskLine}</p>}
+      {other && card ? (
+        <button type="button" disabled={busy} onClick={() => void apply(other)}>
+          {other === "full" ? words.modeFull : words.modeAsk}
+        </button>
+      ) : card === null ? (
+        <p>
+          <Trans>This agent has no Mandate card yet.</Trans>
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -375,7 +334,7 @@ function ModelPage({
         <button
           type="button"
           className="icon mp-back"
-          aria-label={t`Back to the permissions`}
+          aria-label={t`Back to the trading mode`}
           onClick={onBack}
         >
           <Icon name="back" />

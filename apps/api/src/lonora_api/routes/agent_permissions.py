@@ -1,9 +1,12 @@
-"""Authenticated per-Agent approval preferences; no unsigned autonomy toggle."""
+"""Read of the stored ladder. Nothing here writes a level or a grant (S1a).
+
+The ladder itself goes in a later slice. Until then a test that must store "No trading"
+calls ``change_permission`` in-process. No route does.
+"""
 
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.agent_permissions import PermissionChange, PermissionCustomizationChange
-from lonora_db.agent_permissions import change_permission, permission_state, save_customization
+from lonora_db.agent_permissions import permission_state
 
 from ..middleware.auth import require_owner, runtime
 
@@ -14,25 +17,3 @@ router = APIRouter(prefix="/agents")
 async def read(request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)):
     async with runtime(request).db.sessions() as session:
         return await permission_state(session, owner.id, agent_id)
-
-
-@router.put("/{agent_id}/permissions")
-async def update(
-    request: Request,
-    agent_id: str,
-    body: PermissionChange,
-    owner: OwnerIdentity = Depends(require_owner),
-):
-    async with runtime(request).db.sessions() as session, session.begin():
-        return await change_permission(session, owner.id, agent_id, body)
-
-
-@router.put("/{agent_id}/permissions/customization")
-async def customization(
-    request: Request,
-    agent_id: str,
-    body: PermissionCustomizationChange,
-    owner: OwnerIdentity = Depends(require_owner),
-):
-    async with runtime(request).db.sessions() as session, session.begin():
-        return await save_customization(session, owner.id, agent_id, body)

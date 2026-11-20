@@ -52,7 +52,9 @@ export function ActionMenu({
       },
     );
   }, [visible]);
-  if (Platform.OS === "ios") return null;
+  // A closed menu leaves the tree at once. The web modal otherwise waits for
+  // animationend, which headless Chrome often never sends, and its back control stays.
+  if (Platform.OS === "ios" || !visible) return null;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View

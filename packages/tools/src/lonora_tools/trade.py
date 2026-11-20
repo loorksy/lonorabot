@@ -14,6 +14,7 @@ from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.authority_lock import authority_lock
+from lonora_db.owner_words import provisional_voice
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AgentRow,
@@ -35,19 +36,14 @@ from lonora_db.trading_mode import switch_to_ask as ask_mode
 from lonora_db.trading_mode import trading_mode
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import stable_id
-from lonora_trading.account_authority import (
-    authority_snapshot,
-    available_authority,
-    grant_covers,
-    provisional_voice,
-    ticket_agent,
-)
+from lonora_trading.account_authority import available_authority, grant_covers
 from lonora_trading.admission import may_reduce_risk, risk_reducing
 from lonora_trading.agent_permission import acting_agent, require_pause_allows
 from lonora_trading.exposure import direction
 from lonora_trading.idempotency import operation_id, trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
+from lonora_trading.ownership import authority_snapshot, ticket_agent
 from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -666,7 +662,8 @@ async def approved_execution(
             observed = await management_snapshot(context, [request])
             for key, value in observed.items():
                 if key in expected_snapshot and expected_snapshot[key] != value:
-                    raise LonoraError("trade_approval_broker_state_changed", 409)
+                    # The door repeats this at send against the card's capture (6.6).
+                    raise LonoraError("broker_state_changed", 409)
 
         try:
             result = await context.trading.execute(

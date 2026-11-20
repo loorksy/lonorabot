@@ -31,10 +31,11 @@ async def main() -> None:
         assert general["role"] == "general" and general["trading_symbol"] is None
         assert general["scope"]["visibility"] == "owner_accounts"
         assert general["instructions"] == "Research economic news"
+        # Every agent starts at Ask me (mandate 4.1): nothing is "No trading" by default.
         assert (await f.request("GET", f"/agents/{general['id']}/permissions"))[
             "effective_level"
-        ] == "analysis"
-        print("PASS general creation without a broker or default market; analysis-only authority")
+        ] == "supervised"
+        print("PASS general creation without a broker or default market; Ask me by default")
 
         async def connection() -> str:
             value = await f.request(
@@ -111,15 +112,21 @@ async def main() -> None:
             "PASS exact symbol validation, incomplete binding rejection and legacy rename compatibility"
         )
 
-        # A root trading agent starts at Ask me (W15-3); this check holds it at No trading,
-        # the owner's explicit choice, to show visibility never authorizes trading.
+        # A root trading agent starts at Ask me. This check stores No trading in-process,
+        # the owner's old explicit choice, to show visibility never authorizes trading.
+        # No route writes a level.
+        from lonora_contracts.agent_permissions import PermissionChange
+        from lonora_db.agent_permissions import change_permission
+
         level = await f.request("GET", f"/agents/{flexible['id']}/permissions")
         assert level["effective_level"] == "supervised", level
-        await f.request(
-            "PUT",
-            f"/agents/{flexible['id']}/permissions",
-            {"level": "analysis", "expected_revision": level["revision"]},
-        )
+        async with f.runtime.db.sessions() as session, session.begin():
+            await change_permission(
+                session,
+                f.owner,
+                flexible["id"],
+                PermissionChange(level="analysis", expected_revision=level["revision"]),
+            )
         registry = load_tools()
         thread = await f.conversation(flexible)
         context = await f.lease(await f.run(flexible, thread))
@@ -378,7 +385,7 @@ async def main() -> None:
         assert general_proposal["status"] == "pending"
         assert (await f.request("GET", f"/agents/{general['id']}/permissions"))[
             "effective_level"
-        ] == "analysis"
+        ] == "supervised"
         print(
             "PASS general agent can propose account-wide scope without automatically activating it"
         )

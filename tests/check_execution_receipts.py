@@ -19,7 +19,6 @@ from uuid import uuid4
 
 from check_trading import CrashAfterSendBroker, ScriptedBroker, ScriptedManager, database
 from lonora_adapters.brokers.base import BrokerManager
-from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import (
@@ -30,7 +29,6 @@ from lonora_contracts.trading import (
 )
 from lonora_core.user_error import LonoraError
 from lonora_db import execution_receipts as receipts_module
-from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.execution_receipts import thread_receipts
 from lonora_db.schema import (
@@ -146,11 +144,6 @@ async def checks() -> None:
         await session.flush()
         gold_lease = Lease(run_id=gold_run.id, owner="receipt-worker", fence=1)
         euro_lease = Lease(run_id=euro_run.id, owner="receipt-worker", fence=1)
-        # The old ladder still answers first until W-AUTH removes it; the mode decides.
-        for agent in (gold_id, euro_id):
-            await change_permission(
-                session, owner_id, agent, PermissionChange(level="supervised", expected_revision=0)
-            )
 
     def buy(volume: str = "0.1") -> TradeRequest:
         return TradeRequest(

@@ -551,7 +551,7 @@ async def main() -> None:
             changed_target = await operation(
                 "modify_position", position_id=opened["broker_id"], stop_loss="92"
             )
-        assert changed_target["code"] == "account_authority_broker_state_changed", changed_target
+        assert changed_target["code"] == "broker_state_changed", changed_target
         assert (
             next(p for p in await broker.positions() if p.id == opened["broker_id"]).stop_loss == 93
         )

@@ -39,8 +39,8 @@ export const labels = {
     "The fixed market stays unchanged until you choose a new scope.",
   ],
   defaultMarketHint: [
-    "السوق الافتراضي اختياري. يمكن تحليل أسواق أخرى؛ التداول يخضع لتفويضك المنفصل.",
-    "The default market is optional. Other markets can be analyzed; trading follows your separate authorization.",
+    "السوق الافتراضي اختياري. يمكن تحليل أسواق أخرى؛ التداول يتبع تفويض هذا الوكيل: يستأذن أو وكّله.",
+    "The default market is optional. Other markets can be analyzed; trading follows this agent's mode, Ask or Full.",
   ],
   agent_scope_change_forbidden: [
     "لا يمكن تعديل نطاق هذا الوكيل.",

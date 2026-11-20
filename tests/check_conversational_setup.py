@@ -1,4 +1,4 @@
-"""Invalid tool arguments are repaired inside one existing Run; only a real pending grant card is proposed."""
+"""Invalid tool arguments are repaired inside one existing Run; only a real pending Mandate card is proposed."""
 
 import asyncio
 import json
@@ -115,11 +115,11 @@ async def main():
                 saved = json.loads(observation.content)
                 assert saved["ok"] and saved["interval_seconds"] == 900, saved
                 routine_id = saved["id"]
-                # Trading on its own is one grant card the owner signs.
+                # Trading on its own is the Mandate card. Only the owner's tap sets Full.
                 call = ToolCall(
                     id="prepare-card",
                     name="owner_action_propose",
-                    arguments={"kind": "grant_authority"},
+                    arguments={"kind": "trading_mode"},
                 )
             else:
                 observation = next(
@@ -128,7 +128,7 @@ async def main():
                     if message.role == "tool" and message.tool_call_id == "prepare-card"
                 )
                 proposal = json.loads(observation.content)
-                assert proposal["ok"] and proposal["passkey_required"] is True, proposal
+                assert proposal["ok"] and proposal["passkey_required"] is False, proposal
                 assert proposal["execution_authorized"] is False
                 return ModelReply(text=SUMMARY), ModelSelection(
                     provider="openai", model="scripted-setup-fixture"
@@ -155,7 +155,7 @@ async def main():
             card = await s.scalar(
                 select(OwnerActionRow).where(
                     OwnerActionRow.thread_id == thread["id"],
-                    OwnerActionRow.kind == "grant_authority",
+                    OwnerActionRow.kind == "trading_mode",
                 )
             )
             assert card and card.status == "pending"
@@ -176,7 +176,7 @@ async def main():
         assert live["health"][0]["reason_code"] == "broker_reconciliation_pending"
         assert not any(item.get("kind") == "market" for item in live["health"])
         print(
-            "PASS same normal AgentRuntime repairs exact field validation and proposes one real grant card without a second user message, price fabrication, authority grant or trade"
+            "PASS same normal AgentRuntime repairs exact field validation and proposes one Mandate card without a second user message, price fabrication, authority grant or trade"
         )
     finally:
         await f.close()

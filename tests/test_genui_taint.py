@@ -30,8 +30,8 @@ async def submit_lease(fixture: Any) -> tuple[Card, dict[str, Any], Any]:
 
 async def marked(fixture: Any, run_id: str) -> bool:
     """Whether the Run counts as a card's send or a provisional handoff (6.10)."""
+    from lonora_db.owner_words import provisional_voice
     from lonora_db.schema import RunRow
-    from lonora_trading.account_authority import provisional_voice
 
     async with fixture.runtime.db.sessions() as session:
         row = await session.get(RunRow, run_id)

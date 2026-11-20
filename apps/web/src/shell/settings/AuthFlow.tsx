@@ -73,7 +73,7 @@ export function AuthFlow({
     [
       "shield",
       t`You decide`,
-      t`No sensitive action runs without a permission you grant, and you can stop it any moment.`,
+      t`Every trade that adds risk waits for your approval, unless that agent is in Full or a signed grant still covers it.`,
     ],
   ];
   const leaveIntro = () => {

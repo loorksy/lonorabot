@@ -24,6 +24,9 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``tallest_mandate`` the conversation's agent with every line its Mandate card can show: an
             80-character name (the contract's longest) and an active signed grant; it is in
             Ask, whose line is the longer.
+``migration_mandate`` that Mandate card as migration 0128 leaves it: the grant revoked, a
+            second simulation account, and two ended grants on the card (XAUUSD and EURUSD
+            on the first account, full delegation on the second).
 ``tallest_approval`` the ``record`` approval at its tallest realistic shape: a pending entry
             with stop loss and take profit, the tolerance row and the agent's ``reason``; with
             ``result`` ("failed" or "uncertain"), decided, with that non-confirmed result line,
@@ -507,6 +510,70 @@ async def tallest_mandate(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+async def migration_mandate(data: dict[str, Any]) -> dict[str, Any]:
+    """The Mandate card with the ended-grants line migration 0128 writes (14.3.18.2)."""
+    from lonora_db.broker_sessions import BrokerSessionRepository
+    from lonora_db.schema import AccountAuthorityRow, BrokerSessionRow, OwnerActionRow, ThreadRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"])
+            assert thread is not None and thread.agent_id is not None
+            for grant in await session.scalars(
+                select(AccountAuthorityRow).where(AccountAuthorityRow.agent_id == thread.agent_id)
+            ):
+                grant.status = "revoked"
+            other = await BrokerSessionRepository().create(
+                session,
+                thread.owner_id,
+                {"provider": "simulation", "account_id": "mm-" + uuid4().hex[:8], "enabled": True},
+            )
+            for account_id, (broker, login, server) in (
+                (data["connection"], ("IC Markets", "51234567", "ICMarketsSC-Demo")),
+                (other.id, ("Pepperstone", "7002318", "Pepperstone-Edge01")),
+            ):
+                account = await session.get(BrokerSessionRow, account_id)
+                assert account is not None
+                account.state = {
+                    **account.state,
+                    "broker_identity": {
+                        "broker": broker,
+                        "login": login,
+                        "server": server,
+                        "connection_version": account.version,
+                    },
+                }
+            card = await session.scalar(
+                select(OwnerActionRow).where(
+                    OwnerActionRow.subject == "trading_mode:" + thread.agent_id,
+                    OwnerActionRow.status == "pending",
+                )
+            )
+            assert card is not None
+            card.payload = {
+                **card.payload,
+                "previous_grants": [
+                    {
+                        "account_id": data["connection"],
+                        "full_delegation": False,
+                        "symbol_scope": "selected",
+                        "symbols": ["XAUUSD", "EURUSD"],
+                    },
+                    {
+                        "account_id": other.id,
+                        "full_delegation": True,
+                        "symbol_scope": "account",
+                        "symbols": [],
+                    },
+                ],
+            }
+        return {"second_account": other.id}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 # A decided approval's non-confirmed result, as the trade tool records it: a broker refusal
 # with its own sentence, or an outcome the broker never confirmed, with its ticket.
 APPROVAL_RESULTS: dict[str, dict[str, Any]] = {
@@ -677,6 +744,7 @@ if __name__ == "__main__":
         "records": records,
         "slots": slots,
         "tallest_mandate": tallest_mandate,
+        "migration_mandate": migration_mandate,
         "tallest_approval": tallest_approval,
         "slot_heights": slot_heights,
         "fixed_card": fixed_card,

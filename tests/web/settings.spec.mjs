@@ -899,15 +899,16 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({
   await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toBeVisible();
   await page.getByRole("button", { name: "Next" }).click();
   await page.getByRole("button", { name: "Next" }).click();
-  // The last slide keeps main's sentence: «every agent asks you» is untrue while a signed
-  // grant lets an agent trade inside it without asking (W-AUTH S1a adds it once they go).
+  // A signed grant can still send without asking, so the one-tap sentence stays off this
+  // slide until that path is gone. There is no Stop control.
   await expect(page.getByRole("heading", { name: "You decide" })).toBeVisible();
   await expect(
     page.getByText(
-      "No sensitive action runs without a permission you grant, and you can stop it any moment.",
+      "Every trade that adds risk waits for your approval, unless that agent is in Full or a signed grant still covers it.",
     ),
   ).toBeVisible();
   await expect(page.getByText(/Every agent asks you/)).toHaveCount(0);
+  await expect(page.getByText(/stop it any moment/)).toHaveCount(0);
   await page.getByRole("button", { name: "Start now" }).click();
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   // The #auth layer is the reference's full-screen layer; ≥900px the card is a floating panel.
@@ -957,7 +958,10 @@ test("auth intro, Arabic: the last slide claims nothing a signed grant makes unt
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByRole("heading", { name: "أنت صاحب القرار" })).toBeVisible();
   await expect(
-    page.getByText("لا يُنفَّذ أي إجراء حساس دون صلاحية تمنحها، ويمكنك إيقافها في أي لحظة."),
+    page.getByText(
+      "كل صفقة تزيد المخاطرة تنتظر موافقتك، ما لم يكن هذا الوكيل على «وكّله» أو يغطّها تفويض موقّع.",
+    ),
   ).toBeVisible();
   await expect(page.getByText(/كل وكيل يستأذنك/)).toHaveCount(0);
+  await expect(page.getByText(/إيقافها في أي لحظة/)).toHaveCount(0);
 });

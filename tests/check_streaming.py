@@ -101,15 +101,8 @@ class Fixture:
                 )
             )
         self.agents.append(row["id"])
-        if supervised:
-            # Financial fixtures opt in through the same authenticated owner
-            # transition as clients. Production/new fixture defaults stay analysis.
-            state = await self.request("GET", f"/agents/{row['id']}/permissions")
-            await self.request(
-                "PUT",
-                f"/agents/{row['id']}/permissions",
-                {"level": "supervised", "expected_revision": state["revision"]},
-            )
+        # supervised=True is the default now (D): nothing writes the ladder here.
+        del supervised
         return row
 
     async def conversation(self, agent: dict[str, Any]) -> dict[str, Any]:

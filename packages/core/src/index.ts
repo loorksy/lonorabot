@@ -160,7 +160,9 @@ export {
 } from "./order-line";
 export {
   brokerCardFailed,
+  mandateLine,
   mergeOwnerAction,
+  modeChangeLine,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -178,6 +180,7 @@ export {
   type SecretForm,
   type SecretFormField,
   submitSecret,
+  tradingSubLine,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,

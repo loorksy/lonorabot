@@ -26,7 +26,6 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import TradeApprovalRow, TradingJournalRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -102,9 +101,6 @@ async def main() -> None:
                     or 0
                 )
 
-        async with db.sessions() as session, session.begin():
-            lonora_id = (await ensure_personal_agent(session, fixture.owner)).id
-        lonora = await fixture.request("GET", "/agents/" + lonora_id)
         gold = await fixture.request(
             "POST",
             "/agents",
@@ -117,34 +113,36 @@ async def main() -> None:
         )
         fixture.agents.append(gold["id"])
 
-        # 1. The owner signs the D1 grant card: gold, until stopped, own positions excluded.
-        lonora_context = await context_for(lonora)
-        proposed = await call(
-            lonora_context, "owner_action_propose", kind="grant_authority", agent_id=gold["id"]
-        )
-        card_id = proposed["owner_action"]["id"]
+        # 1. The owner signs a D1 grant: gold, until stopped, own positions excluded.
+        # The grant card is gone; this check signs through the account-authority route.
+        from lonora_db.owner_actions import ALL_ACTIONS
+
+        gold_thread = await fixture.conversation(gold)
         device = await Device.enroll(fixture)
-        challenge = await fixture.request("POST", f"/owner-actions/{card_id}/challenge", {})
-        decided = await fixture.request(
+        proposal = await fixture.request(
             "POST",
-            f"/owner-actions/{card_id}/decision",
+            f"/agents/{gold['id']}/account-authorities",
             {
-                "decision": "confirm",
-                "proof": device.assertion(challenge, fixture.settings.allowed_origin),
+                "thread_id": gold_thread["id"],
+                "account_id": account,
+                "management_mode": "full",
+                "symbol_scope": "selected",
+                "symbols": [GOLD],
+                "actions": list(ALL_ACTIONS),
+                "allow_manual_positions": False,
             },
         )
-        assert decided["status"] == "confirmed", decided
-        assert decided["result"]["allow_manual_positions"] is False, decided
-        # The settled card shows what was signed: nothing replaced (a first grant).
-        cards = cast(
-            list[dict[str, Any]],
-            await fixture.request("GET", "/owner-actions?thread_id=" + lonora_context.thread_id),
+        challenge = await fixture.request(
+            "POST", f"/account-authorities/{proposal['id']}/challenge"
         )
-        settled = next(item for item in cards if item["id"] == card_id)
-        assert settled["facts"]["replaces"] is None, settled["facts"]
-        assert settled["facts"]["grant"]["allow_manual_positions"] is False
-        assert "global_trading" not in settled["facts"], settled["facts"]
-        print("PASS a signed grant card keeps showing what was signed: nothing replaced")
+        signed = await fixture.request(
+            "POST",
+            "/account-authorities/verify",
+            device.assertion(challenge, fixture.settings.allowed_origin),
+        )
+        assert signed["status"] == "active", signed
+        assert signed["envelope"]["allow_manual_positions"] is False, signed
+        print("PASS a signed grant excludes the positions the owner opened")
 
         # 2. The owner buys gold from Lonora's own Trading page: journaled with no agent.
         owner_operation = "owner-order-" + uuid4().hex[:8]

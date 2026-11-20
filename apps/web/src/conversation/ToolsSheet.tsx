@@ -1,6 +1,6 @@
 import { plural, t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentPermissionLevel, PermissionState } from "@lonora/contracts";
+import type { PermissionState } from "@lonora/contracts";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback, useState } from "react";
 import type { Agent } from "../lib/api";
@@ -9,7 +9,7 @@ import { useLoad } from "../shell/domain/hooks";
 import { useNavigation } from "../shell/navigation";
 import { useLinkedCount } from "../shell/settings/SettingsRoot";
 import { useSheets } from "../shell/sheets/SheetHost";
-import { LEVEL_ICON, levelName } from "./PermissionMenu";
+import { modeWord } from "./PermissionMenu";
 
 /* «إضافة إلى المحادثة» (reference toolsSheet, Desktop-37 4978-5009): tiles ملفات · صور · كاميرا;
    مهمة جديدة · جدولة; الصلاحية · الشارت; البحث في الويب (switch) · التكاملات · المهارات ·
@@ -105,8 +105,9 @@ function ToolsBody({
   nav: { go: (path: string) => void };
 }) {
   const [web, setWeb] = useState(input.webSearch);
-  // Until the level is read (or when it cannot be), the row says so: never a guessed level.
-  const level: AgentPermissionLevel | null = input.permission?.effective_level ?? null;
+  // The mode is on the agent. A missing mode is said as unknown, never guessed.
+  const named = modeWord(input.agent?.trading_mode);
+  const mode = input.agent?.trading_mode;
   const go = (path: string) => {
     close();
     nav.go(path);
@@ -172,8 +173,8 @@ function ToolsBody({
         {input.isGroup ? (
           <AddRow
             icon="shield"
-            title={<Trans>Members' permissions</Trans>}
-            sub={<Trans>Each agent has its own permissions</Trans>}
+            title={<Trans>Members</Trans>}
+            sub={<Trans>Each agent has its own trading mode</Trans>}
             onClick={() => {
               close();
               window.dispatchEvent(new CustomEvent("lonora:members-permissions"));
@@ -181,9 +182,9 @@ function ToolsBody({
           />
         ) : input.trading ? (
           <AddRow
-            icon={level ? LEVEL_ICON[level] : input.permissionFailed ? "alert" : "shield"}
-            title={<Trans>Permission</Trans>}
-            sub={level ? levelName(level) : input.permissionFailed ? t`Permission unknown` : "…"}
+            icon={mode === "full" ? "alert" : named ? "userCheck" : "shield"}
+            title={<Trans>Trading mode</Trans>}
+            sub={named ?? t`Trading mode unknown`}
             onClick={() => {
               close();
               requestAnimationFrame(() =>

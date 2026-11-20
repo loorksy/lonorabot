@@ -62,6 +62,8 @@ const labels = {
     en: "Register a device with your passkey before choosing calls.",
     ar: "سجّل جهازًا بمفتاح المرور قبل اختيار الاتصال.",
   },
+  registerThisDevice: { en: "Register this device", ar: "سجّل هذا الجهاز" },
+  deviceRegistered: { en: "This device is registered.", ar: "تم تسجيل هذا الجهاز." },
   quietHours: { en: "Quiet hours", ar: "أوقات الهدوء" },
   quietStart: { en: "From (hour 0–23)", ar: "من (الساعة 0–23)" },
   quietEnd: { en: "Until (hour 0–23)", ar: "حتى (الساعة 0–23)" },
@@ -132,6 +134,10 @@ const errors: Readonly<Record<string, Text>> = {
   incoming_call_device_unavailable: {
     en: "The chosen device is no longer registered. Choose another device or another way to reach you.",
     ar: "لم يعد الجهاز المختار مسجلًا. اختر جهازًا آخر أو طريقة أخرى للتواصل معك.",
+  },
+  device_already_registered: {
+    en: "This device is already registered.",
+    ar: "هذا الجهاز مسجّل من قبل.",
   },
   incoming_call_quiet_hours_incomplete: {
     en: "Set both the start and the end of quiet hours, or clear both.",

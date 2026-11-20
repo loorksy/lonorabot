@@ -15,11 +15,10 @@ import type {
   OwnerActionAccount,
   OwnerActionChallenge,
   OwnerActionDecision,
-  OwnerActionGrantTerms,
   TradingMode,
 } from "@lonora/contracts";
-import { accountAuthorityLabels } from "./account-authority-labels";
-import { isolate, listSeparator, readinessTime, tradingSafetyLabels } from "./trading-readiness";
+import { tradeActionLabels } from "./trade-action-labels";
+import { isolate, listSeparator, readinessTime } from "./trading-readiness";
 
 type Language = "ar" | "en";
 
@@ -36,10 +35,22 @@ export const ownerActionLabels = {
     modeFullLine: "Trades on its own and reports afterwards.",
     modeAskLine:
       "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
+    modeAskClause: "Every trade that adds risk waits for your approval",
+    modeFullClause: "It trades on its own and reports afterwards",
+    unresolvedOne: "One unconfirmed operation is waiting for you",
+    unresolvedMany: "{n} unconfirmed operations are waiting for you",
+    withdrawnOne: "one approval request withdrawn",
+    withdrawnTwo: "two approval requests withdrawn",
+    withdrawnMany: "{n} approval requests withdrawn",
     mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
     mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
     mandateGrantStays:
       "Its signed grant still lets it trade within the grant's terms until you revoke it.",
+    mandatePreviousGrant: "Its earlier signed grant ({grant}) has ended; this card replaces it.",
+    mandatePreviousGrants:
+      "Its earlier signed grants ({grants}) have ended; this card replaces them.",
+    mandatePreviousFull: "Full delegation",
+    mandatePreviousAllPairs: "every pair on the account",
     mandateGone: "This agent no longer exists.",
     notNow: "Not now",
     keep: "Keep it",
@@ -76,7 +87,7 @@ export const ownerActionLabels = {
     passkeyUnsupported:
       "Passkey signing is unavailable here. Open Lonora in a supported browser or the app.",
     registerDevice: "Register this device first",
-    deviceName: accountAuthorityLabels.en.device,
+    deviceName: "My device",
     password: "Account password",
     grantTitle: "Let {agent} trade on its own",
     grantAgent: "this agent",
@@ -207,9 +218,20 @@ export const ownerActionLabels = {
     modeAsk: "يستأذن",
     modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",
     modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
+    modeAskClause: "كل صفقة تزيد المخاطرة تنتظر موافقتك",
+    modeFullClause: "يتداول بنفسه ويخبرك بعد التنفيذ",
+    unresolvedOne: "عملية غير مؤكدة بانتظارك",
+    unresolvedMany: "{n} عمليات غير مؤكدة بانتظارك",
+    withdrawnOne: "سُحب طلب موافقة واحد",
+    withdrawnTwo: "سُحب طلبا موافقة",
+    withdrawnMany: "سُحب {n} طلبات موافقة",
     mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
     mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
     mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
+    mandatePreviousGrant: "انتهت صلاحيته الموقّعة السابقة ({grant})، وهذه البطاقة تحلّ محلّها.",
+    mandatePreviousGrants: "انتهت صلاحياته الموقّعة السابقة ({grants})، وهذه البطاقة تحلّ محلّها.",
+    mandatePreviousFull: "تفويض كامل",
+    mandatePreviousAllPairs: "كل أزواج الحساب",
     mandateGone: "لم يعد هذا الوكيل موجودًا.",
     notNow: "ليس الآن",
     keep: "إبقاؤه",
@@ -241,7 +263,7 @@ export const ownerActionLabels = {
     noLongerApplies: "لم يعد هذا ساريًا. لم يتغير شيء.",
     passkeyUnsupported: "توقيع مفتاح المرور غير متاح هنا. افتح لونورا بمتصفح مدعوم أو التطبيق.",
     registerDevice: "سجّل هذا الجهاز أولًا",
-    deviceName: accountAuthorityLabels.ar.device,
+    deviceName: "جهازي",
     password: "كلمة مرور الحساب",
     grantTitle: "دع {agent} يتداول بنفسه",
     grantAgent: "هذا الوكيل",
@@ -426,7 +448,7 @@ function accountLabel(
 }
 
 function actionLabel(action: string | null, lang: Language): string {
-  const labels = accountAuthorityLabels[lang] as Record<string, string>;
+  const labels = tradeActionLabels[lang] as Record<string, string>;
   return action ? (labels[action] ?? isolate(action)) : "";
 }
 
@@ -466,7 +488,7 @@ export function ownerActionStatus(card: OwnerAction, locale: string): string {
   }[card.status];
 }
 
-function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
+function settledLine(card: OwnerAction, text: OwnerActionText, _lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
     return card.kind === "supervision_paused" ? text.keptPaused : text.cancelled;
@@ -475,12 +497,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       case "trading_mode":
         // Still the agent's switch: its lines show the mode now.
         return null;
-      case "grant_authority": {
-        const stopped = card.result.stopped_agents ?? [];
-        return stopped.length
-          ? `${text.signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
-          : text.signed;
-      }
       case "supervision_paused":
         return text.resumedWork;
       case "secret": {
@@ -543,228 +559,66 @@ function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
 }
 
-function marketsLabel(
-  scope: "selected" | "account",
-  symbols: string[],
-  text: OwnerActionText,
-  lang: Language,
-): string {
-  return scope === "account"
-    ? text.allPairsAccount
-    : symbols.map(isolate).join(listSeparator(lang));
+/** «التفويض: يستأذن» / "Trading mode: Ask". Null when the agent has no mode. */
+export function mandateLine(mode: string | null | undefined, locale: string): string | null {
+  const text = ownerActionText(locale);
+  if (mode === "full") return `${text.mandateTitle}: ${text.modeFull}`;
+  if (mode === "ask") return `${text.mandateTitle}: ${text.modeAsk}`;
+  return null;
 }
 
-function actionsLabel(actions: string[], lang: Language): string {
-  return actions.map((item) => actionLabel(item, lang)).join(listSeparator(lang));
-}
-
-/** The arrow of a change points along the reading direction: right to left in Arabic. */
-function arrow(lang: Language): string {
-  return lang === "ar" ? "←" : "→";
-}
-
-type GrantDuration = NonNullable<OwnerAction["facts"]["grant"]>["duration"];
-
-function durationShort(duration: GrantDuration, text: OwnerActionText): string {
-  return duration === "12h"
-    ? text.for12hShort
-    : duration === "24h"
-      ? text.for24hShort
-      : duration === "7d"
-        ? text.for7dShort
-        : text.untilStoppedShort;
-}
-
-function sameActions(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((item) => right.includes(item));
-}
-
-/**
- * The replaced grant and what replacing it changes, in one line: every cap, protection,
- * market, action and expiry it had, then the new grant's side of each of them. A cap
- * or protection that goes away is said plainly, so no effect of the tap is hidden.
- */
-function replacesLine(
-  old: OwnerActionGrantTerms,
-  grant: NonNullable<OwnerAction["facts"]["grant"]>,
-  text: OwnerActionText,
-  lang: Language,
+/** The line under the mode: an unconfirmed operation, otherwise the mode's first clause. */
+export function tradingSubLine(
+  unresolved: number | null | undefined,
+  mode: string | null | undefined,
   locale: string,
-  now: Date,
-): string {
-  const before = [marketsLabel(old.symbol_scope, old.symbols, text, lang)];
-  if (!old.all_actions) before.push(`${text.actionsLine}: ${actionsLabel(old.actions, lang)}`);
-  const caps: Array<[string | number | null, string]> = [
-    [old.maximum_order_volume, text.capOrderVolume],
-    [old.maximum_symbol_volume, text.capSymbolVolume],
-    [old.maximum_positions, text.capPositions],
-    [old.maximum_pending_orders, text.capPendingOrders],
-    [old.maximum_actions, text.capActions],
-    [old.minimum_equity, text.capEquity],
-  ];
-  const capped = caps.filter(([amount]) => amount != null);
-  for (const [amount, template] of capped)
-    before.push(fill(template, { value: isolate(`${amount ?? ""}`) }));
-  if (old.management_mode === "bounded") before.push(text.boundedRule);
-  const timed = old.valid_until != null || grant.duration !== "until_stopped";
-  if (timed)
-    before.push(
-      old.valid_until
-        ? `${text.until} ${readinessTime(old.valid_until, locale, now)}`
-        : text.untilStoppedShort,
-    );
-  if (old.allow_manual_positions) before.push(text.ownIncludedShort);
-  const after = [marketsLabel(grant.symbol_scope, grant.symbols, text, lang)];
-  if (!sameActions(old.actions, grant.actions))
-    after.push(
-      grant.all_actions
-        ? text.everyAction
-        : `${text.actionsLine}: ${actionsLabel(grant.actions, lang)}`,
-    );
-  if (capped.length) after.push(text.noCaps);
-  if (old.management_mode === "bounded") after.push(text.noBoundedRule);
-  if (timed) after.push(durationShort(grant.duration, text));
-  return `${text.replaces}: ${before.join(" · ")} ${arrow(lang)} ${after.join(" · ")}`;
-}
-
-function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date) {
-  const text = ownerActionLabels[lang];
-  const facts = card.facts;
-  const grant = facts.grant;
-  const agent = grant?.agent_name ? isolate(grant.agent_name) : text.grantAgent;
-  const lines: string[] = [];
-  const options: OwnerActionOption[] = [];
-  const hints: string[] = [];
-  const delegation = grantDelegation(card);
-  const pending = card.status === "pending";
-  if (grant && pending && grant.full_available === true)
-    // One choice in the card's list, Custom selected unless the card says otherwise; the
-    // selected one says plainly what it means.
-    for (const value of ["custom", "full"] as const)
-      options.push({
-        key: `delegation:${value}`,
-        label: value === "full" ? text.delegationFull : text.delegationCustom,
-        initial: delegation === value,
-        choice: { group: "delegation", value },
-        ...(delegation === value
-          ? {
-              detail: value === "full" ? text.fullMeaning : text.customMeaning,
-            }
-          : {}),
-      });
-  if (grant) {
-    // Signed: the label follows the signed terms, as the readiness line and safety sheet
-    // read them, so a Custom card that signed exactly Full's terms says so too.
-    if (!pending && (delegation === "full" || (card.status === "confirmed" && fullTerms(grant))))
-      lines.push(text.delegationFull);
-    const account = accountLabel(facts.account, text);
-    if (account) lines.push(`${text.account}: ${account}`);
-    lines.push(`${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text, lang)}`);
-    lines.push(
-      grant.all_actions
-        ? text.allActions
-        : `${text.actionsLine}: ${actionsLabel(grant.actions, lang)}`,
-    );
-    lines.push(
-      grant.duration === "12h"
-        ? text.for12h
-        : grant.duration === "24h"
-          ? text.for24h
-          : grant.duration === "7d"
-            ? text.for7d
-            : text.untilStopped,
-    );
-    if (pending && delegation === "custom")
-      // The switch states it; a fixed line beside it would contradict a ticked switch.
-      options.push({
-        key: "manual",
-        label: text.includeOwn,
-        initial: grant.allow_manual_positions,
-      });
-    // Full delegation always includes them: a line, never a switch.
-    else lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
-  }
-  for (const conflict of facts.conflicts ?? []) {
-    const name = conflict.agent_name ? isolate(conflict.agent_name) : text.anAgent;
-    lines.push(
-      fill(text.conflict, {
-        agent: name,
-        markets: marketsLabel(conflict.symbol_scope, conflict.symbols, text, lang),
-      }),
-    );
-    options.push({
-      key: `stop:${conflict.authority_id}`,
-      label: fill(text.stopOther, { agent: name }),
-      initial: false,
+): string | null {
+  const text = ownerActionText(locale);
+  const count = unresolved ?? 0;
+  if (count === 1) return text.unresolvedOne;
+  if (count > 1)
+    return fill(text.unresolvedMany, {
+      n: language(locale) === "ar" ? isolate(String(count)) : String(count),
     });
-  }
-  if (facts.replaces && grant)
-    lines.push(replacesLine(facts.replaces, grant, text, lang, locale, now));
-  hints.push(text.grantHint);
-  if (facts.first_grant) hints.push(text.oneRule);
-  return {
-    title: fill(text.grantTitle, { agent }),
-    lines,
-    options,
-    hint: hints.join(" "),
-    buttons: [
-      { key: "confirm", label: text.authorize, decision: "confirm", primary: true },
-      { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
-    ] satisfies OwnerActionButton[],
-  };
+  if (mode === "ask") return text.modeAskClause;
+  if (mode === "full") return text.modeFullClause;
+  return null;
 }
 
-/** A card's grant terms are Full delegation's (``full_delegation`` in
- * lonora_contracts.account_authority reads a card's envelope the same way: a card signs no
- * cap of its own): every pair on the account, every action, until stopped, the owner's own
- * positions too. */
-function fullTerms(grant: NonNullable<OwnerAction["facts"]["grant"]>): boolean {
-  return (
-    grant.symbol_scope === "account" &&
-    grant.all_actions &&
-    grant.duration === "until_stopped" &&
-    grant.allow_manual_positions
-  );
-}
-
-/** A grant card's stored choice: Custom unless the server's draft says Full. */
-function grantDelegation(card: OwnerAction): GrantDelegation {
-  return card.facts.grant?.delegation === "full" ? "full" : "custom";
+/** The one line after a Mandate tap. The withdrawn count is the server's, and only for Full. */
+export function modeChangeLine(
+  name: string,
+  mode: "ask" | "full",
+  withdrawn: number,
+  locale: string,
+): string {
+  const text = ownerActionText(locale);
+  const head = `${name}: ${mode === "full" ? text.modeFull : text.modeAsk}`;
+  if (mode !== "full" || !Number.isInteger(withdrawn) || withdrawn < 1) return head;
+  const tail =
+    withdrawn === 1
+      ? text.withdrawnOne
+      : withdrawn === 2
+        ? text.withdrawnTwo
+        : fill(text.withdrawnMany, {
+            n: language(locale) === "ar" ? isolate(String(withdrawn)) : String(withdrawn),
+          });
+  return `${head} · ${tail}`;
 }
 
 /** What selecting a choice option sends at once (the card's stored draft changes on the
  * server and nothing is signed); null for any other option. */
-export function ownerActionChoose(option: OwnerActionOption): OwnerActionDecision | null {
-  return option.choice ? { decision: "choose", delegation: option.choice.value } : null;
+export function ownerActionChoose(_option: OwnerActionOption): OwnerActionDecision | null {
+  // No card chooses a grant. A choice option settles nothing.
+  return null;
 }
 
-/** What a grant card's switches send: the passkey challenge carries the choice the card
- * shows (the server refuses it if the stored choice changed meanwhile) and the owner's
- * own positions switch under Custom (it is signed; Full always includes them); the
- * decision carries the rest. */
+/** No remaining card sends a passkey challenge or a grant decision. */
 export function ownerActionChoices(
-  card: OwnerAction,
-  chosen: Readonly<Record<string, boolean>>,
+  _card: OwnerAction,
+  _chosen: Readonly<Record<string, boolean>>,
 ): { challenge: OwnerActionChallenge; decision: Partial<OwnerActionDecision> } {
-  if (card.kind !== "grant_authority") return { challenge: {}, decision: {} };
-  const options = grantCard(card, "en", "en", new Date()).options;
-  // Only switches the card shows now count: one ticked under Custom says nothing after
-  // the owner chose Full delegation.
-  const value = (key: string, initial: boolean) =>
-    options.some((item) => item.key === key) && (chosen[key] ?? initial);
-  const initial = (key: string) => options.find((item) => item.key === key)?.initial ?? false;
-  const decision: Partial<OwnerActionDecision> = {
-    stop_authorities: options
-      .filter((item) => item.key.startsWith("stop:") && value(item.key, false))
-      .map((item) => item.key.slice("stop:".length)),
-  };
-  return {
-    challenge:
-      grantDelegation(card) === "full"
-        ? { delegation: "full" }
-        : { delegation: "custom", allow_manual_positions: value("manual", initial("manual")) },
-    decision,
-  };
+  return { challenge: {}, decision: {} };
 }
 
 /** Agent names, each isolated, joined with the language's list comma. */
@@ -886,7 +740,7 @@ export function ownerActionCard(
   let title = "";
   let hint: string | null = null;
   let buttons: OwnerActionButton[] = [];
-  let options: OwnerActionOption[] = [];
+  const options: OwnerActionOption[] = [];
   let form: SecretForm | null = null;
   const pair = (confirm: string, cancel: string): OwnerActionButton[] => [
     { key: "confirm", label: confirm, decision: "confirm", primary: true },
@@ -904,6 +758,28 @@ export function ownerActionCard(
       lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
       lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
       if (facts.active_grant) lines.push(text.mandateGrantStays);
+      // The grants it held before the trading mode, named once by the migration.
+      if (facts.previous_grants?.length) {
+        const grants = facts.previous_grants.map((grant) =>
+          [
+            grant.full_delegation
+              ? text.mandatePreviousFull
+              : grant.symbol_scope === "account"
+                ? text.mandatePreviousAllPairs
+                : grant.symbols.map(isolate).join(listSeparator(lang)),
+            facts.several_accounts ? accountLabel(grant.account, text) : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        );
+        // Several grants: the plural line, and a semicolon between grants, since a comma
+        // already separates the markets inside one.
+        lines.push(
+          grants.length > 1
+            ? fill(text.mandatePreviousGrants, { grants: grants.join(lang === "ar" ? "؛ " : "; ") })
+            : fill(text.mandatePreviousGrant, { grant: grants[0] ?? "" }),
+        );
+      }
       // One button for the other mode; the tap applies the mode this button shows.
       const other: TradingMode = mode === "full" ? "ask" : "full";
       hint = other === "full" ? text.mandateToFull : text.mandateToAsk;
@@ -916,15 +792,6 @@ export function ownerActionCard(
           primary: true,
         },
       ];
-      break;
-    }
-    case "grant_authority": {
-      const grant = grantCard(card, locale, lang, now);
-      title = grant.title;
-      lines.push(...grant.lines);
-      hint = grant.hint;
-      buttons = grant.buttons;
-      options = grant.options;
       break;
     }
     case "settle_operation": {

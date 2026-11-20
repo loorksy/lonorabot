@@ -19,6 +19,7 @@ const base: TradingReadiness = {
   observed_at: now.toISOString(),
   state: "no_trading",
   params: {},
+  trading_mode: "ask",
   level: "analysis",
   grants: [],
   unresolved_operations: [],
@@ -95,6 +96,11 @@ test("every readiness state has one plain line in English and Arabic, never a ra
   const two = { ...single, params: { ...single.params, account_count: 2 } };
   assert.equal(tradingReadinessLine(two, "en", now), "Trades on its own on 2 accounts");
   assert.equal(tradingReadinessLine(two, "ar", now), `يتداول باستقلال على ${isolate("2")} حسابات`);
+  // Full covers every account and market until the mode changes: no grant terms, no end.
+  const inFull = { ...base, state: "on_its_own" as const, trading_mode: "full" as const };
+  assert.equal(tradingReadinessLine(inFull, "en", now), "Trades on its own");
+  assert.equal(tradingReadinessLine(inFull, "ar", now), "يتداول باستقلال");
+  assert.equal(tradingReadinessTone(inFull), "ready");
 });
 
 test("the pill tone follows what is stopping or holding new trades", () => {

@@ -40,6 +40,18 @@ def ui_submit_provenance(run: RunRow) -> bool:
     return ui_submit_origin(run) is not None or metadata.get(RETRY_OF_SUBMIT) is not None or legacy
 
 
+async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
+    """Whether this Run answers a provisional voice handoff or a generated card's send
+    (6.10). Such input is the agent's own judgment's input. In Full, trade_execute and
+    trade_close_positions in this Run send like any other; in Ask its risk-increasing
+    trades ask, even where a signed grant would cover them: it never spends a grant
+    (until grants are deleted). The mark is this Run's alone, and its retry's (the same
+    request run again): it never spreads to the agent's later watches, routines or wakes."""
+    if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
+        return True
+    return ui_submit_provenance(run)
+
+
 def submit_provenance_of(source: RunRow) -> dict[str, str]:
     """The provenance-only mark a run asking ``source``'s request again carries: it names
     the card send's own Run, never the send's queue key. Only ``source``'s own mark counts."""

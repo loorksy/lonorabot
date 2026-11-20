@@ -34,7 +34,7 @@ from lonora_contracts.genui_intents import REGISTRY, intent_denied
 from lonora_contracts.instrument_names import known_names
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
 from lonora_core.search_fold import TASHKEEL, fold
-from lonora_db.genui_slots import SlotRecord
+from lonora_db.genui_slots import PreviousGrant, SlotRecord
 
 from .context.financial_result import FINANCIAL_CALLS
 from .genui_capabilities import UiCapabilities
@@ -108,6 +108,8 @@ APPROVAL_REQUEST = (175, 340)
 SETTLE = 434
 # The Mandate card with Ask and a signed grant's line (its tallest lines; the mode and the grant
 # change while it is shown) and a one-line name: 357 px; each further line of its name, 24 px.
+# The ended-grants line is not in that height: it is one more sub-paragraph (6 px, then 21 px a
+# line), counted from the grants on the record, the same way a Secret card's replaces line is.
 MANDATE = 357
 # The Secret card waiting with one field: 419 px, and 74 px a further field, with one-line
 # texts (its label, who asked, what it saves, each field's label); a broker card's two fixed
@@ -183,6 +185,32 @@ def wrapped_lines(text: str, line: tuple[float, float, int]) -> int:
     return lines
 
 
+def _grant_markets(grant: PreviousGrant, lang: str) -> str:
+    """One ended grant as the Mandate card writes it (owner-actions.ts), without the
+    direction isolates: they take no width."""
+    if grant.full:
+        markets = "Full delegation" if lang == "en" else "تفويض كامل"
+    elif grant.scope == "account":
+        markets = "every pair on the account" if lang == "en" else "كل أزواج الحساب"
+    else:
+        markets = (", " if lang == "en" else "، ").join(grant.symbols)
+    if grant.account:
+        markets = f"{markets} · {grant.account}"
+    return markets
+
+
+def _previous_grants_line(grants: tuple[PreviousGrant, ...], lang: str) -> str:
+    """The Mandate card's one line naming the grants that ended (14.3.18.2)."""
+    joined = ("; " if lang == "en" else "؛ ").join(_grant_markets(grant, lang) for grant in grants)
+    if len(grants) > 1:
+        if lang == "en":
+            return f"Its earlier signed grants ({joined}) have ended; this card replaces them."
+        return f"انتهت صلاحياته الموقّعة السابقة ({joined})، وهذه البطاقة تحلّ محلّها."
+    if lang == "en":
+        return f"Its earlier signed grant ({joined}) has ended; this card replaces it."
+    return f"انتهت صلاحيته الموقّعة السابقة ({joined})، وهذه البطاقة تحلّ محلّها."
+
+
 def _extra(line: tuple[float, float, int], *texts: str, base: int = 1) -> int:
     """The height the tallest of ``texts`` (one text in each language) adds beyond ``base``
     lines."""
@@ -214,6 +242,12 @@ def slot_height(card: str, record: SlotRecord) -> tuple[int, int]:
         height = MANDATE + _extra(
             TITLE_LINE, f"{record.name} · Now: Ask", f"{record.name} · الآن: يستأذن"
         )
+        if record.previous_grants:
+            # A further sub-paragraph, as the replaces line: 6 px, then 21 px a wrapped line.
+            height += 6 + SUB_LINE[2] * max(
+                wrapped_lines(_previous_grants_line(record.previous_grants, "en"), SUB_LINE),
+                wrapped_lines(_previous_grants_line(record.previous_grants, "ar"), SUB_LINE),
+            )
         return height, height
     labels = record.labels or ("",)
     asked = (

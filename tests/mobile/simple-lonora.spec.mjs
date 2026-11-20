@@ -1,7 +1,7 @@
 // Simple Lonora acceptance on the phone (W15-ACC): the same Arabic sentences through the
 // Expo composer, the scripted model behind the real runtime (tests/check_simple_lonora.py
 // --ui-turn stands in for the gateway worker), and the same server cards. One sentence
-// creates the agent and its grant card.
+// creates the agent and its Mandate card.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "../ui-test.mjs";
@@ -20,13 +20,13 @@ const words = {
 const text = {
   composer: "اكتب رسالة…",
   send: "إرسال",
-  grantTitle: "يتداول بنفسه",
-  authorize: "التفويض بمفتاح المرور",
+  mandateTitle: "التفويض",
+  full: "وكّله",
 };
 
 const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map((row) => row.id);
 
-test("Expo ar: one sentence creates the agent and its grant card", async ({
+test("Expo ar: one sentence creates the agent and its Mandate card", async ({
   page,
   context,
   cleanup,
@@ -63,18 +63,18 @@ test("Expo ar: one sentence creates the agent and its grant card", async ({
   });
   await page.goto(`/thread?id=${thread.id}`);
 
-  // «أنشئ وكيل ذهب …»: the grant card, the same server card the Web shows; no
+  // «أنشئ وكيل ذهب …»: the Mandate card, the same server card the Web shows; no
   // creation card (Lonora says it in one line).
   await said(words.createGold);
   const created = worker({ thread: thread.id, account: data.account, symbol: data.symbol, name });
   expect(created.status).toBe("completed");
   gold = created.agent;
   expect(raised(created, "agent_created")).toHaveLength(0);
-  expect(raised(created, "grant_authority")).toHaveLength(1);
+  expect(raised(created, "grant_authority")).toHaveLength(0);
+  expect(raised(created, "trading_mode")).toHaveLength(1);
   await page.reload();
-  const grant = page.getByTestId(`owner-action-${raised(created, "grant_authority")[0]}`);
-  await expect(grant.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
-  await expect(grant.getByText(data.symbol, { exact: false }).first()).toBeVisible();
-  await expect(grant.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
-  await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-native-ar.png") });
+  const mandate = page.getByTestId(`owner-action-${raised(created, "trading_mode")[0]}`);
+  await expect(mandate.getByText(text.mandateTitle, { exact: false }).first()).toBeVisible();
+  await expect(mandate.getByRole("button", { name: text.full, exact: true })).toBeVisible();
+  await mandate.screenshot({ path: test.info().outputPath("simple-lonora-mandate-native-ar.png") });
 });

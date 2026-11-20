@@ -222,6 +222,7 @@ export function NativeUiCard({
       else inputs.current.delete(key);
     },
     primaryAt,
+    cardKey: `${messageId}:${index}`,
     submitPrimary() {
       const found = primary();
       if (found && !buttonOff(found[0], ctx)) ctx.act(found[0], found[1]);

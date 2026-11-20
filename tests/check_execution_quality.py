@@ -224,13 +224,8 @@ async def main() -> None:
         from lonora_trading.performance import performance_snapshot
 
         permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
-        # A root trading agent with no stored level starts at Ask me (W15-3).
+        # A root trading agent with no stored level starts at Ask me.
         assert permission["effective_level"] == "supervised"
-        await fixture.request(
-            "PUT",
-            f"/agents/{agent['id']}/permissions",
-            {"level": "supervised", "expected_revision": permission["revision"]},
-        )
         intent = ToolCall(
             id="approved-quality-attribution",
             name="trade_execute",

@@ -22,8 +22,8 @@ grant and the pauses.
   (Shadow trading is removed, Q57.)
 - The readiness review and the confirmation line after signing are keyed on grants
   (`account-authority.md`). The avatar crown is "trades on its own"
-  (`trades_on_its_own`), shown while the agent is not paused and holds a grant in
-  force.
+  (`trades_on_its_own`), shown while the agent is not paused and either is in Full or
+  holds a grant in force.
 - The attention codes `super_bot_authorization` and `super_bot_changed` stay valid for
   stored rows and read "Request updated"; nothing raises them any more.
 

@@ -20,8 +20,8 @@ const modelKey = (item: { provider: string; model: string }) => `${item.provider
 
 /* «الهوية والنموذج» (route identity): name, role, model and — for a trading agent — its
    account and pair from that account's symbols. Saving is PATCH /api/agents/{id} (a pair or
-   account change is the server's scope change with its revision: it never signs, moves or
-   widens a grant) and PUT /api/agents/{id}/model. */
+   account change is the server's scope change with its revision: it never changes the
+   trading mode) and PUT /api/agents/{id}/model. */
 export function IdentityPage({ agentId }: { agentId: string }) {
   const data = useShellData();
   const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);
@@ -289,9 +289,8 @@ function IdentityForm({ agent }: { agent: Agent }) {
             {marketChanged && (
               <p className="note" role="status">
                 <Trans>
-                  Changing the market makes this agent's account and pair a flexible default. A
-                  signed grant stays on its own account and pair: outside it, every order is shown
-                  to you for approval before it is sent.
+                  Changing the market makes this agent's account and pair a flexible default. Its
+                  trading mode stays Ask or Full.
                 </Trans>
               </p>
             )}

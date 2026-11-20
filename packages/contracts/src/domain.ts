@@ -1,5 +1,6 @@
 import type { UiLock, UiState, UiSubmitInput, UiSubmitRecord } from "./genui";
 import type { AgentTemplate } from "./owner-actions";
+import type { TradingMode } from "./trading";
 import type { RichContent } from "./visual-response";
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
@@ -10,8 +11,10 @@ export type Agent = {
    * fallback. null for the personal agent and delegated helpers, whose role is their type.
    */
   template?: AgentTemplate | null;
-  /** A signed grant is in force and the agent is not paused (presentation only). */
+  /** Presentation only: not paused, and in Full or holding a signed grant in force. */
   trades_on_its_own?: boolean;
+  /** The agent's one trading switch (mandate 4.1): Full or Ask. Every server read sends it. */
+  trading_mode?: TradingMode;
   role?: "personal" | "general" | "specialist" | "delegated" | "legacy";
   scope_mode?: "fixed_market" | "flexible";
   scope_revision?: number;

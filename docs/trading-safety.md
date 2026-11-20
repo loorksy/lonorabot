@@ -8,8 +8,8 @@ financial operation. Lonora has no Stop control (owner amendment 1 to VISION.md)
 owner's brake is the pause of an agent or of one piece of its work.
 
 Nothing here changes what the financial boundary admits. The single executor
-(`lonora_trading.execution`) still re-reads the grant and unresolved operations at the
-moment of sending.
+(`lonora_trading.execution`) still re-reads the mode, the grant and unresolved operations
+at the moment of sending.
 
 ## Trading readiness (presentation only)
 
@@ -22,23 +22,29 @@ same facts every turn. Enforcement code must never import it
 
 | Field | Source |
 | --- | --- |
+| `trading_mode` | the agent's one switch, `full` or `ask` (`AgentRow.trading_mode`) |
 | `level` | `permission_state` effective level: `analysis` (No trading), `supervised` (Ask me), `autonomous` (On its own, signed) |
 | `grants` | active, verified `AccountAuthority` rows: account, markets, actions, manual positions, until |
 | `unresolved_operations` | live `submitted`/`ambiguous` journal rows on readable accounts (a market-bound agent: its own market), with the scoped block `new_risk_on_this_symbol_or_ticket` and whether this agent sent it |
 
-`state` is the one line, chosen in this order: `no_trading` (the agent never trades),
-`agent_paused`, `uncertain` (unresolved operations), then `ask_me` or `on_its_own`.
-`params` carry the values the line needs (time, symbol, the grant's account, count).
+`state` is the one line, chosen in this order: `no_trading` (only while the old ladder
+says "No trading": the door then refuses every send, whatever the mode), `agent_paused`,
+`uncertain` (unresolved operations), then `on_its_own` when the agent is in Full, or in
+Ask with a signed grant in force (until grants are deleted), and `ask_me` otherwise.
+`params` carry the values the line needs (time, symbol, the grant's account, count); in
+Full there are none, since Full covers every account and market.
 
-The line speaks only for the accounts the agent acts on: its bound account, its signed
-grants when it trades on its own, otherwise every account it may ask to trade on. An
-uncertain operation on another account does not change the line of an agent that trades
-on its own on account A; the sheet still lists it, with its account named.
+The line speaks only for the accounts the agent acts on: its bound account; in Ask, its
+signed grants when it trades on its own under them; otherwise every account it trades on
+(Full) or may ask to trade on. An uncertain operation on another account does not change
+the line of an Ask agent that trades on its own under a grant on account A; the sheet
+still lists it, with its account named.
 
 The line and every sheet label come from one shared table in
 `packages/core/src/trading-readiness.ts` (English and Arabic, tickers and times isolated
-with U+2068/U+2069 so they keep their order in Arabic text). Example: "Trades on its own ·
-XAUUSD · until you stop it" / «يتداول باستقلال · XAUUSD · حتى توقفه».
+with U+2068/U+2069 so they keep their order in Arabic text). Examples: in Full "Trades
+on its own" / «يتداول باستقلال»; under a grant "Trades on its own · XAUUSD · until you stop
+it" / «يتداول باستقلال · XAUUSD · حتى توقفه».
 
 ## Header safety pill
 
@@ -71,6 +77,44 @@ nothing reaches the broker twice. While the identity is held the button reads "C
 result" / "Check cancel result", and the row shows the journal state ("Outcome uncertain —
 it will not be sent again").
 
+## An approval covers one exact request
+
+Without a grant, the executor decides by the agent's trading mode, read under the
+authority lock at send (`require_operation_permission`). Full sends on its own. Ask sends
+a risk-reducing request (`admission.risk_reducing` on the fresh ticket), and a request
+that adds risk only with the owner's approval of that exact operation: an approved Trade
+Approval of the same Run whose request has the same `operation_id` and the same
+`trade_fingerprint` (`require_exact_approval`). A request that adds risk without such an
+approval is refused with `trade_approval_required`, and nothing is sent.
+
+The same exact request repeated in another call of the same Run answers from the card
+already raised for it (`reviewed_approval`, newest first): it waits on that card while it
+is pending, uses the owner's approval when it is approved or its operation reached the
+broker, and returns the owner's rejection until the owner writes again in that
+conversation. A result that never reached the broker, or a rejection the owner has spoken
+after, asks again.
+
+## A changed ticket is never overwritten
+
+One stale-target check in the executor (`final_admission`, under the account send lock)
+covers every close or modify an agent sends: in Full and in Ask, with a card, under a
+grant or with neither. At send the broker's current ticket must be exactly as the agent
+read it (`material_state`: the ticket without its P&L and operation tag), compared with
+two records of that read: the ticket the trade tool captured before sending
+(`expected_target`, from `management_snapshot`), and, for a request an approved Trade
+Approval of the same Run covers, the ticket that card captured when it was raised
+(`approved_targets`). A ticket that changed since (the owner moved a stop or closed part
+of it), or no record of what was read, refuses the request with `broker_state_changed`,
+and nothing is sent: an owner's intervention is never overwritten, not even with an
+approved card. A ticket the broker no longer shows is refused earlier, by preflight's
+ticket check (6.5), with `position_not_found` or `order_not_found`, before anything is
+reserved; nothing is sent either. The trade tool makes the same comparison for an approved
+card before the request is reserved, with `broker_state_changed`; there a ticket that is
+gone since the card captured it counts as changed. The owner reads why on the card, from
+the shared table below. A paused agent's exit is checked the same way and goes through on
+an unchanged ticket (4.7). The owner's own orders from the Trading page carry no read of
+the ticket and are not checked.
+
 ## Owner text for boundary codes
 
 The shared financial-boundary table (`packages/core/src/financial-boundary.ts`) holds the
@@ -79,11 +123,24 @@ boundary's codes in English and Arabic. Web `userError`, Mobile
 
 ## Verification
 
-- `tests/test_trading_readiness.py`: no grant, Ask me, signed grant, ambiguous and
-  submitted operations with their scoped block, a paused and a market-bound agent, the
-  owner-only live state and the presentation-only import guard.
+- `tests/test_trading_readiness.py`: no grant, Ask me, signed grant, Full with and
+  without a grant (and Full under the ladder's "No trading"), ambiguous and submitted
+  operations with their scoped block, a paused and a market-bound agent, the owner-only
+  live state and the presentation-only import guard.
 - `tests/web/trading-readiness.test.ts` (tsx): every state's line in both languages and
   label key parity.
+- `tests/check_trading_mode.py`: in Ask, new risk is sent only as the exact request of an
+  approved card of this Run. The stale-target check at the door: an unread or changed
+  ticket is not sent in Ask, in Full, under an approved card (against the card's own
+  capture) and on a grant's path; a ticket the broker no longer shows is refused by
+  preflight (`position_not_found`) in Ask and in Full; a paused agent's exit on an
+  unchanged ticket is sent, and so is the owner's own Trading-page change.
+  `tests/check_trade_approvals.py`: one card per exact request, reused while it waits,
+  after approval and right after a refusal, and a new one after the owner writes again;
+  an approved change to a ticket the owner closed since is refused by the trade tool
+  (`broker_state_changed`) with nothing sent.
+- `tests/web/financial-boundary.test.ts` (tsx): every boundary code's owner text in both
+  languages, `broker_state_changed` included.
 - Playwright `tests/web/safety-truth.spec.mjs`: a close retried after a simulated timeout
   and a double-clicked close each produce exactly one journal row and one operation id;
   the pill and sheet. `tests/mobile/safety-pill.spec.mjs`: the

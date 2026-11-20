@@ -92,12 +92,10 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     tool = registry.tools["owner_action_propose"]
     assert not tool.financial and not tool.read_only and tool.replay_safe
     assert tool.toolset == "trading" and not tool.eager
-    # No tool module imports anything that settles or decides a card (owner_action_propose
-    # reads the actions for a grant card). agent_create raises the
+    # No tool module imports anything that settles or decides a card. agent_create raises the
     # new agent's Mandate card when the owner asked for full authority; credential cards
     # come from a proposal; none settles one. Trusting a source raises no card (VISION 10.3.2).
     allowed = {
-        "ALL_ACTIONS",
         "card_facts",
         "live_status",
         "propose",
@@ -124,6 +122,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     routes = [route for route in router.routes if isinstance(route, APIRoute)]
     assert {route.path for route in routes} == {
         "/owner-actions",
+        # An agent's live Mandate card, read only (Q7): it raises and decides nothing.
+        "/owner-actions/mandate",
         "/owner-actions/{card_id}/challenge",
         "/owner-actions/{card_id}/decision",
         # «طلب جديد»: a fresh card for an expired one; it decides nothing.

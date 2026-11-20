@@ -381,13 +381,8 @@ async def test_lonora_pauses_a_trading_agent_a_team_agent_does_not_and_nobody_pa
                 RoutineCreate(prompt="Review gold before London", interval_seconds=3600),
             )
             routine_id = routine.id
-        # An unbound agent in Ask, with no operations recorded for it.
-        permission = await fixture.request("GET", f"/agents/{asker['id']}/permissions")
-        await fixture.request(
-            "PUT",
-            f"/agents/{asker['id']}/permissions",
-            {"level": "supervised", "expected_revision": permission["revision"]},
-        )
+        # An unbound agent in Ask, with no operations recorded for it. The default is
+        # already Ask me; no route writes the level.
         peer_thread = await fixture.conversation(peer)
         woke = await wake(fixture, peer, peer_thread)
         # A team agent pauses no other agent or its work (3.3.1).

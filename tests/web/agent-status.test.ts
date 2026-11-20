@@ -345,12 +345,11 @@ test("R1/R2: the executor's own rows: a never-sent order is Requested → Blocke
   assert.doesNotMatch(body, /row\.operation_id|row\.account_id|string_code/);
 });
 
-test("item 21: «Mandate details» opens the signed grant card of this chat", async () => {
+test("the mode menu posts the Mandate card and has no grant sheet", async () => {
   const { readFileSync } = await import("node:fs");
   const menu = readFileSync("apps/web/src/conversation/PermissionMenu.tsx", "utf8");
-  assert.match(menu, /mandate\(agent, permission, true, threadId\)/);
-  const sheet = readFileSync("apps/web/src/conversation/sheets/MandateSheet.tsx", "utf8");
-  assert.match(sheet, /if \(card\) return <OwnerActionCard row=\{card\}/);
+  assert.match(menu, /decideMandate/);
+  assert.doesNotMatch(menu, /Mandate details|useMandateSheet|grant_authority/);
 });
 
 test("item 24: the call log has its own Arabic words", async () => {

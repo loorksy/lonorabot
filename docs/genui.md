@@ -165,7 +165,13 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   - Settle: 434 px waiting, its tallest state (an answer or an expiry only shortens it), and 21
     px a further line of its operation (which names the agent that sent it) or of its account.
   - Mandate: 357 px with Ask and a signed grant's line (the mode and the grant change while it
-    is shown), and 24 px a further line of the agent's name.
+    is shown), and 24 px a further line of the agent's name. The ended-grants line (migration
+    0128) is one more sub-paragraph, counted like a Secret card's replaces line: 6 px and 21 px
+    a wrapped line, from `previous_grants` on the record, in both languages. Measured at 390 px
+    on that card for "Genui browser" (Arabic and English, dark): Arabic 422.375 px, English
+    443.375 px, both within the 555 px the compiler counted for that record at rest and later
+    (357, plus 24 for the name's second line, plus 6 + 21×8 for the English line, the taller
+    bound).
   - Secret: 419 px waiting with one field and 74 px a further field, a broker card's two fields
     509 px; each further line of its label, of the name it was given, of who asked, of what it
     saves or of a field's label adds its line. The line naming saved values it would replace
@@ -218,7 +224,7 @@ takes its ticks from its own Run (rule T), and is cancelled if it has not starte
 after the send (rule L). Both clients post a card send at once, never through the
 auto-flushed outbox or offline queue; a retry after a failure is the owner's tap. A card's
 send is input to the agent's own judgment (mandate 6.10): the Run it starts carries
-`ui_submit_origin`, its own mark only (`account_authority.provisional_voice`). In Full that
+`ui_submit_origin`, its own mark only (`owner_words.provisional_voice`). In Full that
 Run's trades send like any other Run's; in Ask its trades that add risk ask the owner. Its
 retry, and a «طلب جديد» renewal of an approval it raised, ask the same request again and
 carry a provenance-only mark, `ui_submit_retry_of` naming the send's Run

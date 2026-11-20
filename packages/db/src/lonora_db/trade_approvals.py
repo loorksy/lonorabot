@@ -325,16 +325,15 @@ async def withdraw_own(
     return row
 
 
-async def require_approved_target_current(
-    session: AsyncSession,
-    owner_id: str,
-    run_id: str,
-    request: TradeRequest,
-    observed: dict[str, Any] | None,
-) -> None:
+async def approved_targets(
+    session: AsyncSession, owner_id: str, run_id: str, request: TradeRequest
+) -> list[dict[str, Any] | None]:
+    """The ticket ``request`` manages as each approved Trade Approval of this run that
+    covers it captured it when the card was raised (None: the broker did not show it).
+    The executor's stale-target check compares the ticket at send with each (6.6)."""
     target_id = request.position_id or request.order_id
     if not target_id:
-        return
+        return []
     key = request.account_id + (":position:" if request.position_id else ":order:") + target_id
     approvals = await session.scalars(
         select(TradeApprovalRow).where(
@@ -343,10 +342,9 @@ async def require_approved_target_current(
             TradeApprovalRow.status == "approved",
         )
     )
-    for approval in approvals:
-        if (
-            any(item.get("operation_id") == request.operation_id for item in approval.requests)
-            and key in approval.broker_snapshot
-        ):
-            if approval.broker_snapshot[key] != observed:
-                raise LonoraError("trade_approval_broker_state_changed", 409)
+    return [
+        approval.broker_snapshot[key]
+        for approval in approvals
+        if any(item.get("operation_id") == request.operation_id for item in approval.requests)
+        and key in approval.broker_snapshot
+    ]

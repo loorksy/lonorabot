@@ -9,6 +9,7 @@ mode change. Runs on the real migrated PostgreSQL schema and the simulation brok
 
 from decimal import Decimal
 from typing import Any, cast
+from uuid import uuid4
 
 import pytest
 from lonora_contracts.account import Position
@@ -21,6 +22,11 @@ async def tap(fixture: Any, card_id: str, mode: str | None) -> Any:
     if mode is not None:
         body["trading_mode"] = mode
     return await fixture.client.post(f"/api/owner-actions/{card_id}/decision", json=body)
+
+
+async def roster(fixture: Any) -> dict[str, dict[str, Any]]:
+    rows = cast(list[dict[str, Any]], await fixture.request("GET", "/agents"))
+    return {row["id"]: row for row in rows}
 
 
 async def mode_of(fixture: Any, agent_id: str) -> str:
@@ -71,6 +77,55 @@ async def test_the_mandate_card_switches_the_mode_the_button_showed() -> None:
         assert again.status_code == 200 and await mode_of(fixture, agent["id"]) == "ask"
         # Tapped, it no longer waits for the owner, and it is still the agent's switch.
         assert again.json()["status"] == "confirmed"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_only_the_signed_in_owner_decides_the_mandate_card() -> None:
+    """Without a session 401, without the CSRF token 403, another owner's card 404; none of
+    them changes the mode."""
+    database()
+    import httpx
+    from check_streaming import Fixture
+    from lonora_api.middleware.auth import require_owner
+    from lonora_auth.identity import OwnerIdentity
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Guarded", supervised=True)
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        card = (await call(context, "owner_action_propose", kind="trading_mode"))["owner_action"]
+        path = f"/api/owner-actions/{card['id']}/decision"
+        body = {"decision": "confirm", "trading_mode": "full"}
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(fixture.app), base_url="https://streaming.test"
+        ) as anonymous:
+            assert (await anonymous.post(path, json=body)).status_code == 401
+        assert await mode_of(fixture, agent["id"]) == "ask"
+        csrf = fixture.client.headers.pop("X-CSRF-Token")
+        try:
+            denied = await fixture.client.post(path, json=body)
+            assert denied.status_code == 403, denied.text
+        finally:
+            fixture.client.headers["X-CSRF-Token"] = csrf
+        assert await mode_of(fixture, agent["id"]) == "ask"
+        # Another owner's signed-in session never finds this owner's card.
+        fixture.app.dependency_overrides[require_owner] = lambda: OwnerIdentity(
+            id=str(uuid4()), email="other-owner@example.test", token_hash="other-owner-session"
+        )
+        try:
+            foreign = await fixture.client.post(path, json=body)
+        finally:
+            fixture.app.dependency_overrides.pop(require_owner)
+        assert foreign.status_code == 404, foreign.text
+        assert foreign.json()["code"] == "owner_action_not_found", foreign.text
+        assert await mode_of(fixture, agent["id"]) == "ask"
+        missing = await fixture.client.post(f"/api/owner-actions/{uuid4()}/decision", json=body)
+        assert missing.status_code == 404
+        # The signed-in owner's own tap still applies it.
+        assert (await tap(fixture, card["id"], "full")).status_code == 200
+        assert await mode_of(fixture, agent["id"]) == "full"
     finally:
         await fixture.close()
 
@@ -141,6 +196,8 @@ async def test_switching_to_full_withdraws_pending_approvals_and_never_executes_
             ended.status = "completed"
         full = await tap(fixture, card["id"], "full")
         assert full.status_code == 200, full.text
+        # The server counts what the tap withdrew.
+        assert full.json()["result"] == {"trading_mode": "full", "withdrawn": 3}, full.text
         async with fixture.runtime.db.sessions() as session:
             approval = await session.get(TradeApprovalRow, asked["approval_id"])
             assert approval is not None and approval.status == "withdrawn"
@@ -368,5 +425,132 @@ async def test_lonora_offers_its_own_mandate_card_at_onboarding() -> None:
         tapped = await tap(fixture, cards[0].id, "full")
         assert tapped.status_code == 200, tapped.text
         assert await mode_of(fixture, lonora.id) == "full"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_every_agent_read_carries_its_mode_and_full_is_marked_on_its_own() -> None:
+    """GET /agents and GET /agents/{id} carry each agent's mode (Ask until the owner taps
+    Full). The avatar marker reads it: a Full agent with no grant is marked while it is not
+    paused; one the owner holds at the old ladder's "No trading" is not, since the door
+    refuses its every send."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.trading_mode import set_trading_mode
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Roster", supervised=True)
+        held = await fixture.agent("Held")
+        # The old ladder's "No trading", stored in-process: no agent starts there, and no
+        # route writes a level (4.1).
+        from lonora_contracts.agent_permissions import PermissionChange
+        from lonora_db.agent_permissions import change_permission
+
+        state = await fixture.request("GET", f"/agents/{held['id']}/permissions")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await change_permission(
+                session,
+                fixture.owner,
+                held["id"],
+                PermissionChange(level="analysis", expected_revision=state["revision"]),
+            )
+        assert agent["trading_mode"] == "ask"
+        rows = await roster(fixture)
+        assert {row["trading_mode"] for row in rows.values()} <= {"ask", "full"}, rows
+        assert rows[agent["id"]]["trading_mode"] == "ask"
+        assert rows[agent["id"]]["trades_on_its_own"] is False
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for target in (agent, held):
+                await set_trading_mode(session, fixture.owner, target["id"], "full", by="owner_tap")
+        rows = await roster(fixture)
+        assert rows[agent["id"]]["trading_mode"] == "full"
+        assert rows[agent["id"]]["trades_on_its_own"] is True
+        one = await fixture.request("GET", f"/agents/{agent['id']}")
+        assert one["trading_mode"] == "full" and one["trades_on_its_own"] is True
+        assert rows[held["id"]]["trading_mode"] == "full"
+        assert rows[held["id"]]["trades_on_its_own"] is False
+        # Paused, it takes no new work: still Full, no longer marked; resumed, marked again.
+        paused = await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": True})
+        assert paused["trading_mode"] == "full" and paused["trades_on_its_own"] is False
+        assert (await roster(fixture))[agent["id"]]["trades_on_its_own"] is False
+        resumed = await fixture.request("PATCH", f"/agents/{agent['id']}", {"paused": False})
+        assert resumed["trades_on_its_own"] is True
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_agents_live_mandate_card_is_read_per_agent_and_never_raised_by_a_read() -> None:
+    """Q7: the agent's live Mandate card, the real card, is read per agent outside the
+    card's conversation. Reading answers null while there is none and never raises one; the
+    tap emits ``agent.trading_mode.updated`` and the card stays the agent's switch."""
+    database()
+    from check_streaming import Fixture
+    from lonora_api.middleware.auth import require_owner
+    from lonora_auth.identity import OwnerIdentity
+    from lonora_db.schema import EventRow, OwnerActionRow
+    from sqlalchemy import func, select
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Reach", supervised=True)
+        path = f"/api/owner-actions/mandate?agent_id={agent['id']}"
+
+        async def cards() -> int:
+            async with fixture.runtime.db.sessions() as session:
+                count = await session.scalar(
+                    select(func.count())
+                    .select_from(OwnerActionRow)
+                    .where(
+                        OwnerActionRow.owner_id == fixture.owner,
+                        OwnerActionRow.subject == "trading_mode:" + agent["id"],
+                    )
+                )
+            return int(count or 0)
+
+        for _ in range(2):
+            none = await fixture.client.get(path)
+            assert none.status_code == 200 and none.json() is None, none.text
+        assert await cards() == 0
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        card = (await call(context, "owner_action_propose", kind="trading_mode"))["owner_action"]
+        live = (await fixture.client.get(path)).json()
+        assert live["id"] == card["id"] and live["kind"] == "trading_mode", live
+        assert live["status"] == "pending" and live["facts"]["trading_mode"] == "ask"
+        assert live["facts"]["agent"]["id"] == agent["id"]
+        async with fixture.runtime.db.sessions() as session:
+            before = await session.scalar(select(EventRow.cursor).order_by(EventRow.cursor.desc()))
+        full = await tap(fixture, card["id"], "full")
+        assert full.status_code == 200, full.text
+        assert full.json()["result"] == {"trading_mode": "full", "withdrawn": 0}, full.text
+        async with fixture.runtime.db.sessions() as session:
+            switched = list(
+                await session.scalars(
+                    select(EventRow).where(
+                        EventRow.cursor > (before or 0),
+                        EventRow.kind == "agent.trading_mode.updated",
+                    )
+                )
+            )
+        assert [
+            (event.agent_id, {key: event.payload.get(key) for key in ("trading_mode", "by")})
+            for event in switched
+        ] == [(agent["id"], {"trading_mode": "full", "by": "owner_tap"})], switched
+        # Tapped, it is still the agent's switch, read live; reading raised no second card.
+        tapped = (await fixture.client.get(path)).json()
+        assert tapped["id"] == card["id"] and tapped["status"] == "confirmed", tapped
+        assert tapped["facts"]["trading_mode"] == "full"
+        assert await cards() == 1
+        # Another owner's session never finds this owner's agent.
+        fixture.app.dependency_overrides[require_owner] = lambda: OwnerIdentity(
+            id=str(uuid4()), email="other-owner@example.test", token_hash="other-owner-session"
+        )
+        try:
+            foreign = await fixture.client.get(path)
+        finally:
+            fixture.app.dependency_overrides.pop(require_owner)
+        assert foreign.status_code == 404 and foreign.json()["code"] == "agent_not_found"
     finally:
         await fixture.close()

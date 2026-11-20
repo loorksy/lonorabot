@@ -59,7 +59,7 @@ test("a trusted slot is its card and record at the top level, nothing else", () 
   for (const forged of [
     { ...slot, when: "false" },
     { ...slot, label: "Approve" },
-    { ...slot, card: "grant_authority" },
+    { ...slot, card: "not_a_card" },
     { ...slot, record: "../x" },
   ])
     assert.equal(validateUiDocument({ ...card, blocks: [forged] }), null, JSON.stringify(forged));

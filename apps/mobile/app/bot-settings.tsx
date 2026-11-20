@@ -5,9 +5,9 @@ import { type AgentMarketMode, agentMarketMode, marketScopeChange } from "@lonor
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { AccountAuthoritySettings } from "../components/account-authority-settings";
 import { AgentMarketPicker } from "../components/agent-market-picker";
 import { AgentModelSettings } from "../components/agent-model-settings";
+import { AgentPermissions } from "../components/agent-permissions";
 import { AvatarPicker } from "../components/avatar-picker";
 import { PersonalAgentBadge } from "../components/personal-agent-badge";
 import { SettingsGroup, SettingsRow, SettingsSwitch } from "../components/settings-group";
@@ -15,6 +15,7 @@ import { SheetHeader } from "../components/sheet-header";
 import { colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { agents } from "../lib/agents";
 import { api } from "../lib/api";
+import { agentShowingMandate } from "../lib/mandate-mode";
 import { useSession } from "../lib/session";
 
 type Memory = { content: string; version: number };
@@ -171,7 +172,16 @@ export default function BotSettings() {
               allowFixed={allowFixed}
             />
           )}
-          <AccountAuthoritySettings key={agent.id} agent={agent} />
+          <AgentPermissions
+            key={agent.id}
+            agent={agent}
+            settings
+            onMode={(trading_mode) =>
+              setAgent((current) =>
+                current ? agentShowingMandate(current, { trading_mode }) : current,
+              )
+            }
+          />
           <AgentModelSettings key={`model-${agent.id}`} agent={agent} />
           <Field
             label={t("title")}

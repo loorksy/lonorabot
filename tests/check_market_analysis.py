@@ -361,11 +361,7 @@ async def main() -> None:
         )
         fixture.agents.append(bound["id"])
         permission = await fixture.request("GET", f"/agents/{bound['id']}/permissions")
-        await fixture.request(
-            "PUT",
-            f"/agents/{bound['id']}/permissions",
-            {"level": "supervised", "expected_revision": permission["revision"]},
-        )
+        assert permission["effective_level"] == "supervised"
         bound_thread = await fixture.conversation(bound)
         specialist = replace(
             await fixture.lease(await fixture.run(bound, bound_thread)),

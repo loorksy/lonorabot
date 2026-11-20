@@ -55,16 +55,15 @@ monotonic:
   runs the executor's own grant check read-only against the broker's current
   account, positions and orders before anything is asked or sent
   (`grant_covers`, `GRANT_TERM_REFUSALS`). Without a grant, the executor decides by the agent's
-  trading mode, read under the authority lock at send
-  (`require_operation_permission`). Full sends on its own. Ask sends a
-  risk-reducing request (`admission.risk_reducing` on the fresh ticket), and a
-  request that adds risk only with the owner's approval of that exact operation.
+  trading mode, and in Ask a request that adds risk needs the owner's approval of
+  that exact operation (`trading-safety.md`, "An approval covers one exact request").
   A ticket the agent's own journaled order did not open is refused
   (`ticket_not_owned`) unless the agent is Lonora, the run answers the owner's
   typed message asking for it, or the agent has the owner's standing instruction
-  (`manages_all_positions`). A close or modify sent without a grant is refused
-  with `broker_state_changed` when the ticket changed after the agent read it, or
-  when nothing records what it read. The executor repeats the grant check at send
+  (`manages_all_positions`). Every close or modify an agent sends, under a grant
+  or not, is refused with `broker_state_changed` when the ticket changed after the
+  agent read it, or when nothing records what it read (`trading-safety.md`, "A
+  changed ticket is never overwritten"). The executor repeats the grant check at send
   for every operation sent under one; a grant decides within its own terms in
   either mode until it is revoked. A grant's management Task is held to its own grant;
   outside it, it asks too. The Full-mode account-management Task
@@ -77,22 +76,32 @@ monotonic:
   agent). `lonora_opened` counts only an entry an agent's leased Run sent
   (`journal_agent`), the same rule broker wakes use (`attributed_agent`).
 - The same exact request repeated in another call of the same Run answers from
-  the card already raised for it (`reviewed_approval`, newest first): it waits on
-  that card while it is pending, uses the owner's approval when it is approved or
-  its operation reached the broker, and returns the owner's rejection until the
-  owner writes again in that conversation. A result that never reached the broker,
-  or a rejection the owner has spoken after, asks again.
+  the card already raised for it (`reviewed_approval`, `trading-safety.md`).
 - Moving down revokes the agent's signed and pending grants, as before
   (`change_permission`). The selector says so first, in one line: "This revokes
   the signed grant for <account>; going back needs a new signature", with Revoke
   and switch / Keep it.
-- Defaults: Lonora (the Personal Agent) and a root trading agent with a focus pair
-  start at Ask me; general, research and supervisor agents, bound children and
-  delegated helpers start at No trading (`default_level`). A level the owner set is
-  stored and kept; editing an agent's focus pair stores its current level first,
-  so the edit never moves it. Migration `0040_explicit_agent_permission_rows`
-  stores an explicit level for every agent that existed before: No trading, and
-  Ask me for the Personal Agent. Delegated helpers can still never trade.
+- Defaults: every agent starts at Ask me (`default_level`); nothing is No trading by
+  default (mandate 4.1). A level the owner set is stored and kept; editing an agent's
+  focus pair stores its current level first, so the edit never moves it. Migration
+  `0128_authority_migration` stored Ask me for every agent whose stored or default
+  level was No trading.
+- Migration 0128 (mandate 14.3.18) revoked every grant that was active or pending,
+  stopped its management Task, cancelled every waiting activation review and deleted
+  every grant card. What the agent set up outlived the Task as it outlives the Full-mode
+  task (`close_task`, 4.5.3): a timer the Task's Run waited on became a one-shot routine
+  in the agent's conversation, a Run woken by its watch or waiting on its card went on as
+  an ordinary Run of the agent with its card still decidable, and the Task's watches stay
+  the agent's own, in its conversation without the Task. A paused Task's live watches
+  and its timer stay paused, under the Task's hold when it had one and with no hold when
+  its own agent paused it; a Task the owner had already ended keeps its watches as they
+  were. An agent in Full whose level was No trading, so that the door refused its every
+  send, was switched to Ask, its Full-mode task closed and its Mandate card shown once;
+  any other agent in Full stays in Full, and the gateway starts its own continuous task.
+  Delegated, child and supervisor-template agents became root specialists with no
+  binding; a bound account and symbol became one line of the agent's OPERATING.md in
+  the owner's language. A grant signed after it follows the rules above until grants
+  are deleted.
 
 Activation atomically creates one existing durable Task and its work Run. Signed
 proof replay cannot create another kickoff. It inspects actual state and may
@@ -124,7 +133,9 @@ followed a Super Bot activation are now keyed on grants:
   sent nothing.") until a later Run of the agent completes (`review_status` then reads
   `superseded`). The failed Run stays recorded as failed; no page lists it.
 - The avatar's "trades on its own" marker (`trades_on_its_own` on the agent) is shown
-  only while the agent is not paused and holds a grant in force.
+  only while the agent is not paused and either is in Full or holds a grant in force
+  (`lonora_db.agent_on_its_own`). A Full agent the ladder still holds at "No trading" is
+  not marked: the door refuses its every send.
 
 Full management leaves stop/target choices to the Agent, including changes to
 existing stops; broker validity and fresh target comparison still apply. Losing
@@ -194,8 +205,8 @@ the badge is presentation, never permission.
 
 ## Verification
 
-`tests/check_full_delegation.py` signs Full delegation from a grant card and shows that
-another pair and the owner's own position are managed without a card.
+The grant card is gone. A signed account authority is still created on
+`POST /agents/{id}/account-authorities` and still covers a send until the door reads only the mode.
 
 `tests/check_account_authority.py` uses disposable PostgreSQL, genuine WebAuthn
 signatures and the simulation adapter. It covers exact forex/metal/index/crypto

@@ -170,9 +170,9 @@ async def retry_unconfigured(session: AsyncSession, owner_id: str) -> list[RunRo
     (``retry_run``), and a reply that cannot be retried is left as it is. A failure the
     conversation has moved past (a later message there was answered or is being
     answered) stays history, and so does an old one: an instruction from days ago is
-    not carried out today because a key was saved. An agent that trades on its own
-    under a signed grant would carry a late instruction out without asking, so its
-    unanswered messages wait for the owner's own retry.
+    not carried out today because a key was saved. An agent that trades on its own (in
+    Full and not paused, or under a signed grant) would carry a late instruction out
+    without asking, so its unanswered messages wait for the owner's own retry.
     """
     later = aliased(RunRow)
     moved_on = (

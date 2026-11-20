@@ -7,7 +7,8 @@ supervisors held (14.3.18.6) and drops ``ln_supervision_grants``.
 
 A team supervisor's pause is a live hold with ``source='agent'`` whose holder is not
 Lonora. It ends with its role: the hold is released (``released_by='owner'``: the
-owner's mandate ended it, as W-AUTH's data migration records it) and the work resumes as
+owner's mandate ended it; a later one that W-AUTH's data migration, 0128, ends is
+recorded as ``'stale'``, owner decision Q6) and the work resumes as
 its own control resumes it. A paused agent runs again (the gateway restarts a Full
 agent's continuous task and answers what the owner sent it while paused); a routine is
 switched back on; a watch resumes unless it is past its expiry, the agent cancelled it

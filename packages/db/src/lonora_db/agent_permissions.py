@@ -32,17 +32,14 @@ def permission_key(owner_id: str, agent_id: str) -> str:
 
 
 def default_level(agent: AgentRow) -> LowerPermissionLevel:
-    """The level of an agent whose level the owner never set.
+    """The level of an agent whose level the owner never set: "Ask me" for every agent.
 
-    Lonora (the Personal Agent) and a root trading agent with a focus pair start at
-    "Ask me": every trade is an approval card, so this widens what they may propose,
-    never what they may execute. General, research and supervisor agents, children
-    and delegated helpers start at "No trading". Agents that existed before these
-    defaults carry an explicit stored level (migration 0040).
+    Nothing is "No trading" by default (mandate 4.1): every trade that adds risk is an
+    approval card in Ask, so this widens what an agent may propose, never what it may
+    execute. Migration 0128 stored "Ask me" for every agent that read "No trading".
     """
-    if agent.role == "personal" or (agent.role == "specialist" and agent.parent_id is None):
-        return "supervised"
-    return "analysis"
+    del agent
+    return "supervised"
 
 
 async def permission_record(

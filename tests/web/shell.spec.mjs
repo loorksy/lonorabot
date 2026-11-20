@@ -49,7 +49,7 @@ async function tradingAgent(context, data) {
     that a tap leaves as it is. */
 async function permissionChip(page) {
   const chip = page.getByTestId("permission-chip");
-  await expect(chip).toHaveAttribute("data-level", /^(analysis|supervised|autonomous)$/);
+  await expect(chip).toHaveAttribute("data-level", /^(ask|full)$/);
   return chip;
 }
 /** A finger: pointer events the shell's document listeners receive (pointerType touch). */
@@ -502,11 +502,7 @@ test.describe("phone shell (390×844, Arabic)", () => {
     await expect(page).toHaveURL(/\/app\/models$/);
     await expect(menu).toHaveCount(0);
   });
-  test("an agent with no account has its permission chip and ladder, not a no-account badge", async ({
-    page,
-    context,
-    cleanup,
-  }) => {
+  test("an agent with no account shows no mode control", async ({ page, context, cleanup }) => {
     const data = fixture({ action: "init", empty: true });
     const headers = {
       "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -518,8 +514,7 @@ test.describe("phone shell (390×844, Arabic)", () => {
     });
 
     await signIn(context, data);
-    // The door binds no agent to an account (VISION 3.1.2): a team agent has none, and in
-    // Ask, the level Lonora gives it, it trades with approval like any other agent.
+    // Q9: no connected account, no mode control. The agent still has a mode.
     const created = await context.request.post("/api/agents", {
       headers,
       data: { name: `Shell ${randomUUID()}`, scope_mode: "flexible" },
@@ -527,28 +522,12 @@ test.describe("phone shell (390×844, Arabic)", () => {
     expect(created.status()).toBe(201);
     agent = await created.json();
     expect(agent.trading_account_id).toBeNull();
-    const permissions = `/api/agents/${agent.id}/permissions`;
-    const { revision } = await (await context.request.get(permissions)).json();
-    const ask = await context.request.put(permissions, {
-      headers,
-      data: { level: "supervised", expected_revision: revision },
-    });
-    expect(ask.status()).toBe(200);
+    expect(agent.trading_mode).toBe("ask");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/app/${agent.id}`);
-    const chip = page.getByTestId("permission-chip");
-    const menu = page.locator(".pop.mode-pop");
-    await expect(chip).toHaveAttribute("data-level", "supervised");
-    await expect(chip).toHaveAttribute("aria-label", "الصلاحيات: تنفيذ بموافقة");
-    // Neither the removed «دون تنفيذ: لم يُختر حساب تداول» badge nor «لا يتداول».
+    await expect(page.getByTestId("permission-chip")).toHaveCount(0);
+    await expect(page.locator(".pop.mode-pop")).toHaveCount(0);
     await expect(page.locator(".no-trade")).toHaveCount(0);
-    await chip.click();
-    await expect(menu.getByTestId("mode-option-supervised")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    for (const level of ["analysis", "autonomous"])
-      await expect(menu.getByTestId(`mode-option-${level}`)).toBeEnabled();
   });
 });
 
@@ -806,7 +785,7 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
       await expect(page.locator(".desktop-content")).toHaveClass(/is-home/);
       await expect(page.locator(".welcome h2")).toContainText("مرحبًا");
       await expect(page.locator(".welcome")).toContainText("ماذا سنفعل اليوم مع وكلائك؟");
-      await expect(page.locator(".welcome")).toContainText("الصلاحيات مستقلة لكل وكيل");
+      await expect(page.locator(".welcome")).toContainText("لكل وكيل تفويضه: يستأذن أو وكّله");
       expect(
         await page.locator("#app").evaluate((app) => getComputedStyle(app).backgroundColor),
       ).toBe(theme === "light" ? "rgb(247, 245, 239)" : "rgb(11, 12, 16)");

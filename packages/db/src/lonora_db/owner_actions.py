@@ -21,7 +21,6 @@ from lonora_contracts.account_authority import (
     ALL_AUTHORITY_ACTIONS,
     AccountAuthorityEnvelope,
     AccountAuthorityProposal,
-    AuthorityAction,
     full_delegation,
 )
 from lonora_contracts.domain import ThreadCreate, new_id, utcnow
@@ -30,7 +29,7 @@ from lonora_contracts.owner_actions import (
     GrantDraft,
     OwnerActionProposal,
 )
-from lonora_contracts.trading import UNRESOLVED_STATUSES
+from lonora_contracts.trading import UNRESOLVED_STATUSES, AuthorityAction
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import ColumnElement, func, or_, select, text
@@ -76,6 +75,10 @@ CARDS_WAITING: dict[str, Any] = {
 
 
 def payload_hash(kind: str, payload: dict[str, Any]) -> str:
+    if kind == "trading_mode":
+        # A Mandate card's effect is its agent's switch; the old grants a card names
+        # (migration 0128, mandate 14.3.18.2) are not part of it.
+        payload = {"agent_id": payload["agent_id"]}
     return request_hash({"kind": kind, "payload": payload})
 
 
@@ -128,22 +131,8 @@ async def stale_reason(
             raise LonoraError("operation_not_found", 404)
         return None if operation.status == "ambiguous" else "operation_already_settled"
     if kind == "grant_authority":
-        from .agent_binding import (
-            account_wide_scope,
-            assert_market_binding,
-            require_financial_agent,
-        )
-
-        draft = GrantDraft.model_validate(payload)
-        agent = await require_financial_agent(session, owner_id, draft.agent_id)
-        await owned_account(session, owner_id, draft.account_id)
-        # The same scope rules the signed envelope is held to (validate_scope).
-        if draft.symbol_scope == "account" and not account_wide_scope(agent):
-            raise LonoraError("account_authority_scope_mismatch", 403)
-        for symbol in draft.symbols:
-            assert_market_binding(agent, draft.account_id, symbol)
-        covered = await covering_grant(session, owner_id, draft)
-        return "grant_already_active" if covered is not None else None
+        # The kind is gone (S1b). A row left behind is not signable.
+        return "grant_card_removed"
     if kind == "secret":
         from .secret_cards import secret_stale_reason
 
@@ -339,14 +328,8 @@ async def _live_pause(
     return hold if await work_paused(session, hold.target_kind, hold.target_id) else None
 
 
-def proposal_payload(
-    proposal: OwnerActionProposal, grant: GrantDraft | None = None
-) -> tuple[str, dict[str, Any]]:
+def proposal_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, Any]]:
     """The card's exact stored effect and the record it acts on."""
-    if proposal.kind == "grant_authority":
-        if grant is None:
-            raise LonoraError("owner_action_fields_invalid", 422)
-        return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
     if proposal.kind == "trading_mode":
         assert proposal.agent_id is not None
         return "trading_mode:" + proposal.agent_id, {"agent_id": proposal.agent_id}
@@ -413,6 +396,25 @@ async def card_facts(
                 )
             )
         )
+        # The grants this agent held before Full and Ask, named once (mandate 14.3.18.2).
+        previous = payload.get("previous_grants")
+        if isinstance(previous, list):
+            facts["previous_grants"] = [
+                {
+                    "full_delegation": item.get("full_delegation") is True,
+                    "symbol_scope": (
+                        "account" if item.get("symbol_scope") == "account" else "selected"
+                    ),
+                    "symbols": [
+                        str(symbol) for symbol in cast(list[Any], item.get("symbols") or [])
+                    ],
+                    "account": account_facts(
+                        await session.get(BrokerSessionRow, str(item.get("account_id"))),
+                        str(item.get("account_id")),
+                    ),
+                }
+                for item in cast(list[dict[str, Any]], previous)
+            ]
         return facts, False
     if row.kind == "settle_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
@@ -786,13 +788,11 @@ async def propose(
     agent_id: str,
     thread_id: str | None,
     run_id: str | None,
-    grant: GrantDraft | None = None,
 ) -> tuple[OwnerActionRow, bool]:
     """An agent's card: validated against current state, deduplicated, capped.
 
     Returns the card and whether it is new. A repeated proposal of the same effect by
-    the same agent returns the pending card it already raised. A grant card carries the
-    draft the tool resolved (``grant``).
+    the same agent returns the pending card it already raised.
     """
     await lock_owner_actions(session, owner_id)
     existing = await session.get(OwnerActionRow, card_id)
@@ -800,7 +800,7 @@ async def propose(
         if existing.owner_id != owner_id or existing.agent_id != agent_id:
             raise LonoraError("owner_action_not_found", 404)
         return existing, False
-    subject, payload = proposal_payload(proposal, grant)
+    subject, payload = proposal_payload(proposal)
     return await propose_effect(
         session,
         owner_id,
@@ -919,54 +919,6 @@ async def owned_card(
     return row
 
 
-async def draft_grant_card(
-    session: AsyncSession, owner_id: str, draft: GrantDraft, thread_id: str | None
-) -> OwnerActionRow:
-    """The owner's own grant card from the mandate sheet: the resolved draft stored on a
-    pending grant card in the agent's conversation, exactly like an agent's proposal. It
-    grants nothing: only the card's passkey ceremony (challenge, then the decision with
-    the device proof bound to the envelope built from this draft) activates a grant.
-
-    The same draft twice returns the card already shown; a different one replaces the
-    agent's other pending grant cards for that account (``superseded_by``) and withdraws
-    a proposal their challenge prepared."""
-    from .account_authority import owned_authority, revoke
-
-    await lock_owner_actions(session, owner_id)
-    payload = draft.model_dump(mode="json")
-    reason = await stale_reason(session, owner_id, "grant_authority", payload)
-    if reason is not None:
-        raise LonoraError("owner_action_not_needed_" + reason, 409)
-    card_id = new_id()
-    current = await pending_effect(
-        session, draft.agent_id, "grant_authority", payload_hash("grant_authority", payload)
-    )
-    if current is not None and current.thread_id is not None and current.expires_at > utcnow():
-        return current
-    subject = "grant:" + draft.agent_id + ":" + draft.account_id
-    for replaced in await supersede_subject(
-        session, owner_id, "grant_authority", subject, "replaced_by_owner_draft", by=card_id
-    ):
-        prepared = replaced.result.get("authority_id")
-        if isinstance(prepared, str):
-            authority = await owned_authority(session, owner_id, prepared)
-            if authority.status == "pending":
-                await revoke(session, owner_id, prepared)
-    thread = await card_thread(session, owner_id, draft.agent_id, thread_id)
-    return await create_card(
-        session,
-        owner_id,
-        card_id=card_id,
-        agent_id=draft.agent_id,
-        thread=thread,
-        run_id=None,
-        source="owner",
-        kind="grant_authority",
-        subject=subject,
-        payload=payload,
-    )
-
-
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo cards keep their own window and never come back; an
 # agent's proposal is the agent's to make again.
@@ -1036,6 +988,28 @@ async def thread_cards(
         .limit(limit)
     )
     return list(reversed(list(rows)))
+
+
+async def mandate_card(
+    session: AsyncSession, owner_id: str, agent_id: str
+) -> OwnerActionRow | None:
+    """The agent's live Mandate card, in whichever conversation it was raised: the newest
+    one still pending, or already tapped (a tapped card stays the agent's switch). Only a
+    read: a card comes from a proposal (``propose``), never from reading."""
+    return await session.scalar(
+        select(OwnerActionRow)
+        .where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "trading_mode",
+            OwnerActionRow.subject == "trading_mode:" + agent_id,
+            or_(
+                (OwnerActionRow.status == "pending") & (OwnerActionRow.expires_at > utcnow()),
+                OwnerActionRow.status == "confirmed",
+            ),
+        )
+        .order_by(OwnerActionRow.created_at.desc(), OwnerActionRow.id)
+        .limit(1)
+    )
 
 
 def confirmation_code(row: OwnerActionRow) -> str:

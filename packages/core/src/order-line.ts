@@ -10,7 +10,7 @@
  * quantity is the broker-reported volume of the result, never an estimate.
  */
 import type { Journal } from "@lonora/contracts";
-import { accountAuthorityLabels } from "./account-authority-labels";
+import { tradeActionLabels } from "./trade-action-labels";
 
 export type OrderLineState =
   | "requested"
@@ -165,11 +165,12 @@ export function orderLineState(
 }
 
 /** What the operation does, in the reference's words: «شراء» / «بيع» for market orders (odSide),
-    the authority vocabulary for entries, closes, modifications and cancellations. */
+    the trade-action words (`tradeActionLabels`) for entries, closes, modifications and
+    cancellations. */
 export function orderLineAction(request: Record<string, unknown>, locale: string) {
   const action = String(request.action ?? "");
   const ar = locale.startsWith("ar");
-  const labels = accountAuthorityLabels[ar ? "ar" : "en"] as Record<string, string>;
+  const labels = tradeActionLabels[ar ? "ar" : "en"] as Record<string, string>;
   const label =
     action === "buy"
       ? ar

@@ -110,7 +110,10 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
   14.3.18.6), so every pause an agent holds is Lonora's. Their work resumed as its own
   control resumes it; a Task's pause not yet reached was withdrawn, and a paused Task
   that resume does not take from where it stood (paused while waiting to retry, or with
-  no Run waiting for takeover) stays paused with no hold, for its agent or the owner. The owner's own pause and the
+  no Run waiting for takeover) stays paused with no hold, for its agent or the owner.
+  Migration `0128_authority_migration` released as stale (`released_by='stale'`) any
+  such pause left since, and the agent, routine or watch it held resumed the same way; a
+  Task it held is only released, for its agent or the owner to resume. The owner's own pause and the
   agent's own pause stay with them
   (`supervision_resume_not_yours`).
 - **The owner's own pause is a hold too.** When the owner pauses or cancels work that

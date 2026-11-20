@@ -12,7 +12,7 @@ function fixture(data) {
 }
 
 for (const locale of ["en", "ar"]) {
-  test(`${locale}: an agent that cannot trade shows "No trading", one that can shows its level`, async ({
+  test(`${locale}: an agent with no account shows no mode control; one with an account shows its mode`, async ({
     page,
     context,
     cleanup,
@@ -46,10 +46,8 @@ for (const locale of ["en", "ar"]) {
     expect(general.trades_on_its_own).toBe(false);
     expect(general).not.toHaveProperty("super_bot_active");
     await page.goto(`/app/${general.id}`);
-    const badge = page.getByTestId("permission-no-trading");
-    await expect(badge).toBeVisible();
-    await expect(badge).toHaveText(locale === "ar" ? "لا يتداول" : "No trading");
     await expect(page.getByTestId("permission-chip")).toHaveCount(0);
+    await expect(page.getByTestId("permission-no-trading")).toHaveCount(0);
     await expect(page.getByText(/Super Bot|سوبر بوت/)).toHaveCount(0);
 
     // A trading agent with its focus pair keeps the one trading control.
@@ -65,7 +63,10 @@ for (const locale of ["en", "ar"]) {
     const gold = await trading.json();
     agents.push(gold.id);
     await page.goto(`/app/${gold.id}`);
-    await expect(page.getByTestId("permission-chip")).toBeVisible();
+    const chip = page.getByTestId("permission-chip");
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveAttribute("data-mode", "ask");
+    await expect(chip).toContainText(locale === "ar" ? "يستأذن" : "Ask");
     await expect(page.getByTestId("permission-no-trading")).toHaveCount(0);
   });
 }

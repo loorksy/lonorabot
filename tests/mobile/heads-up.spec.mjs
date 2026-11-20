@@ -164,7 +164,11 @@ test("ar: in a group, a Latin speaker stays on the reading side and the Arabic w
   const who = banner.getByTestId("heads-up-who");
   const words = banner.getByTestId("heads-up-words");
   await expect(who).toHaveText(`${scout.agent.name}:`);
-  await expect(words).toHaveText("الذهب ارتفع فوق المقاومة بعد بيانات الوظائف");
+  // The banner fits the line to its width, so the whole sentence is not always drawn.
+  // What stays is the start, cut with the line's own ellipsis once the width is known.
+  await expect(words).toHaveText(/^الذهب ارتفع فوق المقاومة/);
+  const shown = await words.innerText();
+  expect(shown === "الذهب ارتفع فوق المقاومة بعد بيانات الوظائف" || shown.endsWith("…")).toBe(true);
   // The speaker is read first, on the right; the words read right to left beside it.
   const [whoBox, wordsBox] = [await who.boundingBox(), await words.boundingBox()];
   expect(whoBox.x).toBeGreaterThanOrEqual(wordsBox.x + wordsBox.width - 1);

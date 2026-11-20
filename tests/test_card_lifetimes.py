@@ -13,11 +13,7 @@ from typing import Any
 import pytest
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
-from lonora_contracts.owner_actions import (
-    AccountAuthorityDraft,
-    OwnerActionDecision,
-    OwnerActionProposal,
-)
+from lonora_contracts.owner_actions import OwnerActionDecision, OwnerActionProposal
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.owner_actions import (
@@ -40,7 +36,6 @@ from lonora_db.trade_approvals import (
     decide,
     expire_if_due,
 )
-from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from test_task_runtime import task_db as task_db
@@ -284,20 +279,3 @@ async def test_an_old_approval_without_an_expiry_still_decides(task_db: Fixture)
         assert await expire_if_due(session, row) is False
         decided = await decide(session, owner, row.id, "approve")
         assert decided["status"] == "approved" and decided["expires_at"] is None
-
-
-def test_a_full_draft_takes_no_terms_of_its_own() -> None:
-    assert AccountAuthorityDraft(mode="full").proposal("gold").kind == "grant_authority"
-    for terms in (
-        {"symbols": ["XAUUSD"]},
-        {"all_pairs": True},
-        {"actions": ["buy"]},
-        {"duration": "24h"},
-        {"allow_manual_positions": False},
-    ):
-        with pytest.raises(ValidationError):
-            AccountAuthorityDraft.model_validate({"mode": "full", **terms})
-    custom = AccountAuthorityDraft.model_validate(
-        {"symbols": ["XAUUSD"], "actions": ["buy", "close_position"]}
-    ).proposal("gold")
-    assert custom.symbols == ["XAUUSD"] and custom.agent_id == "gold"

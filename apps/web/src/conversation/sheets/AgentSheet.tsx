@@ -4,6 +4,7 @@ import { Trans } from "@lingui/react/macro";
 import type { AgentLiveState, TradingReadiness } from "@lonora/contracts";
 import {
   agentStatusLine,
+  mandateLine,
   orderLineAction,
   tradingReadinessLine,
   uncertainLine,
@@ -206,11 +207,10 @@ function AgentSheetBody({
         <div>
           <strong>{agent.name}</strong>
           <small data-testid="agent-mode-line">
-            {readiness
+            {readiness && readiness.state !== "ask_me" && readiness.state !== "on_its_own"
               ? tradingReadinessLine(readiness, i18n.locale, new Date(), accountName)
-              : state
-                ? agentStatusLine(state, i18n.locale)
-                : ""}
+              : (mandateLine(agent.trading_mode, i18n.locale) ??
+                (state ? agentStatusLine(state, i18n.locale) : ""))}
           </small>
         </div>
       </div>

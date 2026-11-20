@@ -107,6 +107,7 @@ import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
 import { fill } from "../lib/i18n";
 import { listsApi } from "../lib/lists-api";
+import { agentShowingMandate } from "../lib/mandate-mode";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
@@ -1787,6 +1788,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 threadId={id}
                 revision={permissionRevision}
                 onState={setPermission}
+                onMode={(trading_mode) =>
+                  setAgents((rows) =>
+                    rows.map((row) =>
+                      row.id === agent.id ? agentShowingMandate(row, { trading_mode }) : row,
+                    ),
+                  )
+                }
                 pendingTrade={approvals.some(
                   (row) =>
                     row.thread_id === id && row.agent_id === agent.id && row.status === "pending",

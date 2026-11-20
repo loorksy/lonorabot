@@ -6,10 +6,10 @@ from typing import Any
 from lonora_contracts.account_authority import full_delegation
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
+from lonora_db.owner_words import provisional_voice
 from lonora_db.schema import RunRow
 from lonora_db.trading_mode import trading_mode
 from lonora_tools.base import run_scope
-from lonora_trading.account_authority import provisional_voice
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -140,11 +140,10 @@ def permission_guidance(
             else ""
         )
         + " Only the owner "
-        "signs a grant or attests an uncertain outcome; "
-        "when the owner asks for one, propose the matching owner action "
-        "card (owner_action_propose), a grant only when no active scope covers it, with "
-        "delegation full only when the owner asked for full delegation; the owner chooses "
-        "Custom or Full on the card and signs it."
+        "signs an account authority or attests an uncertain outcome. "
+        "When the owner asks you to trade on your own, propose the Mandate card "
+        "(owner_action_propose kind trading_mode); only the owner's tap sets Full. "
+        "There is no grant card."
         + " A pending review, customization draft, chat agreement or task delegation "
         "grants no authority. Binding, preflight, manual intervention and reconciliation "
         "remain authoritative. "

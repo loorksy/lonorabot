@@ -30,23 +30,34 @@ async def test_a_deleted_connection_leaves_the_rest_of_each_draft() -> None:
             )
 
         async def saved(agent: dict[str, Any], account_id: str) -> dict[str, Any]:
+            # No route writes a draft. The stored draft still drops a deleted account.
+            from lonora_contracts.agent_permissions import (
+                PermissionCustomization,
+                PermissionCustomizationChange,
+            )
+            from lonora_db.agent_permissions import save_customization
+
             path = f"/agents/{agent['id']}/permissions"
             current = await fixture.request("GET", path)
-            return await fixture.request(
-                "PUT",
-                path + "/customization",
-                {
-                    "expected_revision": current["revision"],
-                    "customization": {
-                        "account_id": account_id,
-                        "symbol_scope": "selected",
-                        "symbols": ["XAUUSD"],
-                        "actions": ["buy"],
-                        "limits": {"maximum_order_volume": "0.5"},
-                        "duration": "7d",
-                    },
-                },
-            )
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                return await save_customization(
+                    session,
+                    fixture.owner,
+                    agent["id"],
+                    PermissionCustomizationChange(
+                        expected_revision=current["revision"],
+                        customization=PermissionCustomization.model_validate(
+                            {
+                                "account_id": account_id,
+                                "symbol_scope": "selected",
+                                "symbols": ["XAUUSD"],
+                                "actions": ["buy"],
+                                "limits": {"maximum_order_volume": "0.5"},
+                                "duration": "7d",
+                            }
+                        ),
+                    ),
+                )
 
         gone, kept = await connection("gone-"), await connection("kept-")
         named = await saved(await fixture.agent("Draft on the deleted account"), gone["id"])

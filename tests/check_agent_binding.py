@@ -2,7 +2,7 @@
 
 import asyncio
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from check_streaming import Fixture
@@ -112,15 +112,9 @@ async def checks() -> None:
             "PASS new creation requires real broker selection; all asset suffixes exact; PATCH cannot alter binding"
         )
         agent = agents[0]
-        # This fixture tests scoped financial proposals. A new trading agent starts at
-        # Ask me (W15-3); setting it again through the owner API keeps that level.
+        # A new trading agent starts at Ask me. No route writes that level again.
         permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
         assert permission["effective_level"] == "supervised"
-        await fixture.request(
-            "PUT",
-            f"/agents/{agent['id']}/permissions",
-            {"level": "supervised", "expected_revision": permission["revision"]},
-        )
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()
@@ -192,12 +186,31 @@ async def checks() -> None:
                 if name == "list_accounts":
                     listed = {item["connection_id"] for item in read["accounts"]}
                     assert {primary, secondary} <= listed, listed
-        # In Ask, new risk on another symbol asks for its tolerance: never the binding.
-        await not_bound(
-            "trade_execute",
-            {"account_id": primary, "symbol": symbols[1], "action": "buy", "volume": "0.1"},
-            "tolerance_required",
+        # In Ask, new risk on another symbol raises a pending Trade Approval. The
+        # binding never refuses the order (3.1.2, 6.9).
+        asked = await registry.execute(
+            ToolCall(
+                id=uuid4().hex,
+                name="trade_execute",
+                arguments={
+                    "account_id": primary,
+                    "symbol": symbols[1],
+                    "action": "buy",
+                    "volume": "0.1",
+                    "reason": "Another symbol of this account",
+                    "tolerance": "1.5",
+                },
+            ),
+            context,
         )
+        assert asked.get("_runtime_wait") is True and asked.get("approval_id"), asked
+        assert asked.get("status") != "confirmed", asked
+        shown = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}"),
+        )
+        card = next(row for row in shown if row["id"] == asked["approval_id"])
+        assert card["status"] == "pending", card["status"]
         # Another account holds nothing of this agent's: nothing to close.
         await not_bound("trade_close_positions", {"account_id": secondary}, "no_positions")
         # In Full, an order on another symbol of the account is sent and confirmed.
@@ -329,25 +342,33 @@ async def checks() -> None:
             row = await session.get(RunRow, child_context.lease.run_id)
             assert row is not None
             row.parent_run_id = context.lease.run_id
-        try:
-            await registry.execute(
-                ToolCall(
-                    id=uuid4().hex,
-                    name="trade_execute",
-                    arguments={
-                        "account_id": primary,
-                        "symbol": symbols[1],
-                        "action": "buy",
-                        "volume": "0.1",
-                    },
-                ),
-                child_context,
-            )
-        except LonoraError as error:
-            # No binding refusal; the child's own trading permission decides.
-            assert error.code == "agent_analysis_only", error.code
-        else:
-            raise AssertionError("Child sent without its own trading permission")
+        # No binding refusal. The child is in Ask, so its own permission raises a
+        # pending Trade Approval and sends nothing.
+        child_asked = await registry.execute(
+            ToolCall(
+                id=uuid4().hex,
+                name="trade_execute",
+                arguments={
+                    "account_id": primary,
+                    "symbol": symbols[1],
+                    "action": "buy",
+                    "volume": "0.1",
+                    "reason": "The child asks for this order",
+                    "tolerance": "1.5",
+                },
+            ),
+            child_context,
+        )
+        assert child_asked.get("_runtime_wait") is True and child_asked.get("approval_id"), (
+            child_asked
+        )
+        assert child_asked.get("status") != "confirmed", child_asked
+        child_shown = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/trading/approvals?thread_id={child_thread['id']}"),
+        )
+        child_card = next(row for row in child_shown if row["id"] == child_asked["approval_id"])
+        assert child_card["status"] == "pending", child_card["status"]
         async with fixture.runtime.db.sessions() as session:
             selected = await session.get(AgentRow, agent["id"])
             assert selected is not None

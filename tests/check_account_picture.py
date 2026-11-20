@@ -28,7 +28,7 @@ from lonora_db.schema import ClosedTradeRow, RunRow, TradingJournalRow
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.tasks import create_task
 from lonora_tools.loader import load_tools
-from lonora_trading.account_authority import ticket_agent
+from lonora_trading.ownership import ticket_agent
 from lonora_trading.picture import account_books
 
 

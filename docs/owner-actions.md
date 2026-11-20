@@ -2,10 +2,15 @@ Superseded by VISION.md
 
 # Owner action cards
 
+The `grant_authority` card, its Custom/Full choice and `delegation_words` are gone
+(migration `0129_grant_cards_gone`). Sections below that describe them are history, not
+the current contract. Account authorities are still signed on their own routes.
+
 Wave 1.5 slices W15-2 and W15-3. Every owner-only action has a one-tap card inside the
 conversation, identical on Web and Mobile. Settling
-an uncertain trade and signing a trading grant never need a
-settings page or the API. W15-3 adds the grant card (`grant_authority`, below), W15-4
+an uncertain trade never needs a
+settings page or the API. The grant card (`grant_authority`) is gone (migration
+`0129_grant_cards_gone`); W15-4
 the agent creation and Undo cards (deleted by migration `0125_flat_team_creation`: Lonora
 creates agents with no card, `docs/agents-from-chat.md`), W15-6 the
 supervision cards, of which only the pause card (`supervision_paused`,
@@ -179,9 +184,10 @@ is confirmed in Lonora's name.
 
 ## The decision
 
-`GET /owner-actions?thread_id=…`, `POST /owner-actions/{id}/challenge` and
-`POST /owner-actions/{id}/decision` (`apps/api/src/lonora_api/routes/owner_actions.py`)
-require the owner's session; no tool reaches them. A decision:
+`GET /owner-actions?thread_id=…`, `GET /owner-actions/mandate?agent_id=…`,
+`POST /owner-actions/{id}/challenge` and `POST /owner-actions/{id}/decision`
+(`apps/api/src/lonora_api/routes/owner_actions.py`) require the owner's session; no tool
+reaches them. A decision:
 
 1. Locks the card. A card that is no longer pending answers from its record: the same
    decision again is idempotent, a conflicting one is `owner_action_already_decided`.
@@ -278,9 +284,10 @@ already signed are never changed by it.
 
 Signed Full delegation reads as such everywhere: the confirmation line adds
 `owner_action_grant_full`, the settled card's first line is "Full delegation", the
-readiness line reads "Trades on its own · Full delegation · until you stop it", the safety
-sheet names the grant "Full delegation", and the permission frame marks the scope
-`full_delegation` (every pair, every action and the owner's positions until stopped). It
+readiness line of an agent in Ask reads "Trades on its own · Full delegation · until you
+stop it" (in Full it reads "Trades on its own"), the safety sheet names the grant "Full
+delegation", and the permission frame marks the scope `full_delegation` (every pair,
+every action and the owner's positions until stopped). It
 is recognized from the signed terms (`full_delegation` in
 `lonora_contracts.account_authority`), so the envelope format is unchanged. The label
 follows those terms, not the name of the choice: a grant signed from Custom with exactly
@@ -335,15 +342,37 @@ deleted is superseded with it.
 
 ## The Mandate card (mandate 10.3, 4.2)
 
-Kind `trading_mode`, subject `trading_mode:<agent>`, payload `{agent_id}`. The card reads
+Kind `trading_mode`, subject `trading_mode:<agent>`, payload `{agent_id}`; its effect,
+and so its `payload_hash`, is the agent alone, so one agent's switch is one live card per
+proposer. The card reads
 the agent's mode live (`facts.trading_mode`) and shows one button for the other mode;
 the decision carries the mode that button showed (`trading_mode`), and the server applies
-exactly that mode (`set_trading_mode(by="owner_tap")`), never a toggle. Only this tap sets
-Full. A confirmed card stays the agent's switch: clients keep its button live
-(`ownerActionLive`). An agent raises its own card; Lonora may raise one for any agent,
-and Lonora's own card is raised when Lonora is created (4.3.1). While a signed grant of
-the agent is in force (`facts.active_grant`), the card says the grant still lets it trade
-within the grant's own terms until the owner revokes it.
+exactly that mode (`change_trading_mode(by="owner_tap")`, the body of `set_trading_mode`),
+never a toggle. Only this tap sets Full. The tap emits `agent.trading_mode.updated` when
+the mode changes, and its `result` carries the mode applied and `withdrawn`, the number
+of pending Trade Approval cards the tap withdrew (0 for Ask). A confirmed card stays the
+agent's switch: clients keep its button live (`ownerActionLive`).
+`GET /owner-actions/mandate?agent_id=…` returns the agent's newest pending or tapped
+Mandate card, wherever it was raised, or null. The read never raises a card; a card
+comes only from a proposal. An agent raises its own card; Lonora may raise one for any
+agent, and Lonora's own card is raised when Lonora is created (4.3.1). While a signed
+grant of the agent is in force (`facts.active_grant`), the card says the grant still
+lets it trade within the grant's own terms until the owner revokes it.
+
+Migration 0128 (mandate 14.3.18.2) showed, once, the Mandate card of each agent that held
+an active, unexpired grant: a system card in Lonora's conversation whose payload also
+carries `previous_grants` (`{account_id, full_delegation, symbol_scope, symbols}` per
+grant). The card reads them as `facts.previous_grants`, with the account read live, and
+names the old grant in one line: Full delegation, «كل أزواج الحساب» / "every pair on the
+account" for a Custom grant on the whole account, or its markets, with the account when
+the owner has several («انتهت صلاحيته الموقّعة السابقة (تفويض كامل)، وهذه البطاقة تحلّ
+محلّها.»); several grants make the line plural («انتهت صلاحياته الموقّعة السابقة (…)» /
+"Its earlier signed grants (…) have ended; this card replaces them."), with «؛» / ";"
+between grants, since a comma already separates one grant's markets. The line stays
+after a tap. It also showed, once, the card of each agent in Full whose level was No
+trading, which it switched to Ask (14.3.18.1): a card with no `previous_grants`. Each
+card replaced an older pending Mandate card of the same agent. The same migration
+deleted every card of the grant kind (`grant_authority`), the confirmed ones included.
 
 Switching an agent to Full withdraws its pending Trade Approval cards (status
 `withdrawn`): a withdrawn card is never approved or executed, and the agent is woken
@@ -451,23 +480,6 @@ asks for one, a grant only when no active scope covers it.
 - Playwright `tests/web/owner-actions.spec.mjs` and `tests/mobile/owner-actions.spec.mjs`:
   render and tap in Arabic and English (RTL button order) and the resolve answer in the
   journal.
-- Grant cards: `tests/check_grant_card.py` (PostgreSQL, simulation broker, scripted
-  authenticator) covers the resolved draft, the passkey and inline enrollment, the
-  composer-identical envelope, the conflict note and stopping the other agent, no card
-  for covered scope, Lonora's all-pairs default and withdrawal on dismiss;
-  `tests/test_grant_card.py` the pure rules; `tests/web/owner-actions.test.ts` the shared
-  spec and switches; Playwright signs a grant card with a virtual authenticator on Web
-  (Arabic and English, registering the device inline) and renders it on Mobile.
-- Full delegation: `tests/check_full_delegation.py` (PostgreSQL, simulation broker,
-  scripted authenticator) covers Custom with D1 defaults by default, switching back and
-  forth through the decision route, the passkey still required, the account-wide envelope
-  (every action, own positions, no expiry, no caps), withdrawal of a prepared proposal on
-  switching, a challenge for the other choice than the stored one refused both ways
-  (`owner_action_card_changed`, nothing prepared), the readiness line and permission
-  frame, the preselection only from the owner's own words (a message that asks only for
-  trading opens on Custom), the fixed-market refusal and a card stored before the choice;
-  `tests/test_grant_card.py` the draft rules and the Arabic and English words check;
-  `tests/web/owner-actions.test.ts` the shared choice, texts, the challenge naming the
-  choice, re-reading a changed card, the settled label following the signed terms and
-  Web/Mobile parity; Playwright chooses and signs Full on Web, chooses on Mobile, and on
-  both refuses a stale card's tap and shows the current choice, in Arabic and English.
+- The grant card is gone. Migration `0129_grant_cards_gone` deletes any leftover
+  `grant_authority` row. A decision on a leftover row is `owner_action_kind_unsupported`.
+  Account authorities are still signed on their own routes until the door reads only the mode.

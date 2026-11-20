@@ -5,11 +5,11 @@ stored execution policy with every cap and money limit next to tightened freshne
 bounds, a pending and a confirmed ``set_account_limits`` card, grant cards carrying a
 daily loss limit (two pending ones of one agent that differ only in it, and a confirmed
 Full delegation whose Custom terms hold one), a ``resolve_operation`` card, and passkey
-challenges of the execution-policy route and of a card. Upgrade and check that the
-policy keeps exactly its freshness bounds, the limits cards and the policy challenge are
+challenges of the execution-policy route and of a card. Upgrade to 0087 itself (0128,
+later, deletes every grant card) and check that the policy keeps exactly its freshness bounds, the limits cards and the policy challenge are
 gone, the grant drafts lose their daily loss with a recomputed hash, the older of the two
 now-identical pending grant cards is superseded, and everything else is untouched. The
-downgrade changes no data and the upgrade runs again cleanly.
+downgrade changes no data and the upgrade runs again cleanly; the check ends at head.
 """
 
 import asyncio
@@ -29,6 +29,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
 BEFORE = "0138_skill_package_files"
+# Its own revision, not head: 0128 (later) deletes every grant card.
+REVISION = "0087_end_money_limits"
 AGES = {"quote_max_age_seconds": 15, "account_max_age_seconds": 20}
 OLD_POLICY = {
     **AGES,
@@ -96,10 +98,9 @@ def check_upgraded(
     found: dict[str, dict[str, Any]],
     ids: dict[str, str],
     drafts: dict[str, dict[str, Any]],
-    settle: str = "settle_operation",
 ) -> None:
-    # At head 0101 names the settle card settle_operation; below it, resolve_operation.
-    assert {card["kind"] for card in found.values()} == {"grant_authority", settle}
+    # At 0087 the settle card is still resolve_operation (0101, later, renames it).
+    assert {card["kind"] for card in found.values()} == {"grant_authority", "resolve_operation"}
     for name, status in (
         ("grant_old", "superseded"),
         ("grant_new", "pending"),
@@ -113,10 +114,10 @@ def check_upgraded(
     assert found[ids["grant_old"]]["status_reason"] == "same_choice_on_another_card"
     assert found[ids["grant_new"]]["status_reason"] is None
     resolve = found[ids["resolve"]]
-    # Untouched by 0087; 0101 renames it and recomputes its hash for the kind it has now.
+    # Untouched by 0087.
     assert (resolve["payload"], resolve["payload_hash"], resolve["status"]) == (
         {},
-        payload_hash(settle, {}),
+        "hash",
         "pending",
     )
 
@@ -257,7 +258,7 @@ async def main() -> None:
                 )
         await engine.dispose()
 
-        await asyncio.to_thread(alembic, "upgrade", "heads")
+        await asyncio.to_thread(alembic, "upgrade", REVISION)
         async with engine.connect() as connection:
             stripped = await policy(connection, key)
             assert stripped == AGES, stripped
@@ -274,16 +275,18 @@ async def main() -> None:
         await asyncio.to_thread(alembic, "downgrade", BEFORE)
         async with engine.connect() as connection:
             assert await policy(connection, key) == AGES
-            check_upgraded(await cards(connection, ids["owner"]), ids, drafts, "resolve_operation")
+            check_upgraded(await cards(connection, ids["owner"]), ids, drafts)
             assert await challenges(connection, ids["owner"]) == {"account_activate"}
         await engine.dispose()
-        await asyncio.to_thread(alembic, "upgrade", "heads")
+        await asyncio.to_thread(alembic, "upgrade", REVISION)
         async with engine.begin() as connection:
             assert await policy(connection, key) == AGES
             check_upgraded(await cards(connection, ids["owner"]), ids, drafts)
             assert await challenges(connection, ids["owner"]) == {"account_activate"}
             await connection.execute(text("DELETE FROM ln_settings WHERE key = :key"), {"key": key})
             await connection.execute(text("DELETE FROM ln_owners WHERE id = :owner"), ids)
+        await engine.dispose()
+        await asyncio.to_thread(alembic, "upgrade", "heads")
         print("PASS the downgrade restores nothing; the upgrade repeats cleanly")
     finally:
         await engine.dispose()

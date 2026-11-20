@@ -80,6 +80,11 @@ export async function webDeviceProof(
       throw Object.assign(new Error("device_authorization_cancelled"), {
         code: "device_authorization_cancelled",
       });
+    // The server excludes the owner's credentials: this authenticator already holds one.
+    if (cause instanceof DOMException && cause.name === "InvalidStateError")
+      throw Object.assign(new Error("device_already_registered"), {
+        code: "device_already_registered",
+      });
     throw cause;
   }
 }

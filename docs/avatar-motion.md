@@ -22,7 +22,8 @@ application page. No remote images, analytics or services are required.
 Saved avatar shape values remain readable and are preserved on profile edits. The
 new visual is always the trading sphere; obsolete shape selectors were removed.
 Saved colours, names, personal-agent badge, and the verified "trades on its own" crown
-(an agent that is not paused and holds a signed grant in force) are retained.
+(an agent that is not paused and is in Full or holds a signed grant in force) are
+retained.
 
 ## Runtime truth
 

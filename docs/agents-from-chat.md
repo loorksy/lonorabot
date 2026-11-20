@@ -106,7 +106,7 @@ refused (`agent_control_lead_only`), and Lonora is never deleted. Both paths run
   broker outcome refuses the delete (`delete_blocked_unresolved_operation`, 14.3.16).
 - **Its tickets transfer to Lonora.** Ownership stays derived from the journal (3.3.4):
   a ticket whose opening agent no longer exists is Lonora's
-  (`lonora_trading.account_authority.ticket_agent`, `current_holder`), at the door and in
+  (`lonora_trading.ownership.ticket_agent`, `current_holder`), at the door and in
   the agent picture alike (`picture.ticket_owners`). Nothing in the journal is rewritten.
 - **Lonora is woken with them.** The tickets the agent opened, by the door's own match
   (`picture.ticket_openers`: confirmed entries, oldest first, the broker tag first, a

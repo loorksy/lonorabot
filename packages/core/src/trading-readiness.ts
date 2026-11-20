@@ -88,9 +88,10 @@ export function readinessTime(iso: string, locale: string, now: Date = new Date(
 }
 
 /**
- * The one line: the agent's ladder level, or the strongest thing stopping it, in the
- * owner's language. Built only from the server's projection. ``accountName`` names the
- * grant's account when the owner has several (null keeps the line without it).
+ * The one line: whether the agent trades on its own or asks first, or the strongest thing
+ * stopping it, in the owner's language. Built only from the server's projection.
+ * ``accountName`` names the grant's account when the owner has several (null keeps the
+ * line without it).
  */
 export function tradingReadinessLine(
   readiness: TradingReadiness,
@@ -127,6 +128,8 @@ export function tradingReadinessLine(
     case "ask_me":
       return ar ? "يسألك قبل كل صفقة" : "Asks you before each trade";
     case "on_its_own": {
+      // Full: every account and market, until the mode changes; no grant terms apply.
+      if (readiness.trading_mode === "full") return ar ? "يتداول باستقلال" : "Trades on its own";
       const accounts = params.account_count ?? 1;
       if (accounts > 1)
         // One grant per account: the line counts them, the sheet names each.

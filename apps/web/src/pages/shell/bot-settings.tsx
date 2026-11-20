@@ -7,8 +7,8 @@ import { useState } from "react";
 import { AvatarStudio } from "../../components/ai/AvatarStudio";
 import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
 import { AgentModelCard } from "../../components/models/AgentModelCard";
-import { AccountAuthoritySettings } from "../../components/trading/AccountAuthoritySettings";
 import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
+import { MandateSettings } from "../../conversation/PermissionMenu";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
@@ -91,7 +91,7 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
           allowFixed={agentMarketMode(agent) === "fixed"}
         />
       )}
-      <AccountAuthoritySettings key={agent.id} agent={agent} />
+      <MandateSettings key={agent.id} agent={agent} />
       <AgentModelCard key={`model-${agent.id}`} agent={agent} />
       <label>
         <Trans>Name</Trans>
