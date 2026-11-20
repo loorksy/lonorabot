@@ -60,9 +60,10 @@ monotonic:
   A ticket the agent's own journaled order did not open is refused
   (`ticket_not_owned`) unless the agent is Lonora, the run answers the owner's
   typed message asking for it, or the agent has the owner's standing instruction
-  (`manages_all_positions`). A close or modify sent without a grant is refused
-  with `broker_state_changed` when the ticket changed after the agent read it, or
-  when nothing records what it read. The executor repeats the grant check at send
+  (`manages_all_positions`). Every close or modify an agent sends, under a grant
+  or not, is refused with `broker_state_changed` when the ticket changed after the
+  agent read it, or when nothing records what it read (`trading-safety.md`, "A
+  changed ticket is never overwritten"). The executor repeats the grant check at send
   for every operation sent under one; a grant decides within its own terms in
   either mode until it is revoked. A grant's management Task is held to its own grant;
   outside it, it asks too. The Full-mode account-management Task
