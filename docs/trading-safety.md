@@ -71,6 +71,23 @@ nothing reaches the broker twice. While the identity is held the button reads "C
 result" / "Check cancel result", and the row shows the journal state ("Outcome uncertain —
 it will not be sent again").
 
+## An approval covers one exact request
+
+Without a grant, the executor decides by the agent's trading mode, read under the
+authority lock at send (`require_operation_permission`). Full sends on its own. Ask sends
+a risk-reducing request (`admission.risk_reducing` on the fresh ticket), and a request
+that adds risk only with the owner's approval of that exact operation: an approved Trade
+Approval of the same Run whose request has the same `operation_id` and the same
+`trade_fingerprint` (`require_exact_approval`). A request that adds risk without such an
+approval is refused with `trade_approval_required`, and nothing is sent.
+
+The same exact request repeated in another call of the same Run answers from the card
+already raised for it (`reviewed_approval`, newest first): it waits on that card while it
+is pending, uses the owner's approval when it is approved or its operation reached the
+broker, and returns the owner's rejection until the owner writes again in that
+conversation. A result that never reached the broker, or a rejection the owner has spoken
+after, asks again.
+
 ## Owner text for boundary codes
 
 The shared financial-boundary table (`packages/core/src/financial-boundary.ts`) holds the
@@ -84,6 +101,10 @@ boundary's codes in English and Arabic. Web `userError`, Mobile
   owner-only live state and the presentation-only import guard.
 - `tests/web/trading-readiness.test.ts` (tsx): every state's line in both languages and
   label key parity.
+- `tests/check_trading_mode.py`: in Ask, new risk is sent only as the exact request of an
+  approved card of this Run. `tests/check_trade_approvals.py`: one card per exact request,
+  reused while it waits, after approval and right after a refusal, and a new one after the
+  owner writes again.
 - Playwright `tests/web/safety-truth.spec.mjs`: a close retried after a simulated timeout
   and a double-clicked close each produce exactly one journal row and one operation id;
   the pill and sheet. `tests/mobile/safety-pill.spec.mjs`: the

@@ -10,12 +10,12 @@ from typing import Annotated, Literal, get_args
 
 from pydantic import Field, field_validator, model_validator
 
-from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
+from .account_authority import ALL_AUTHORITY_ACTIONS
 from .agent_secrets import WORKSPACE_SECRET_NAME
 from .devices import DeviceProof
 from .domain import Contract
 from .model_routing import PROVIDER_KEY_NAMES, ProviderId
-from .trading import TradingMode
+from .trading import AuthorityAction, TradingMode
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[

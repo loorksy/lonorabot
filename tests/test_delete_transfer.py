@@ -54,8 +54,8 @@ async def test_lonora_deletes_an_agent_and_takes_its_tickets() -> None:
     from lonora_contracts.trading import TradeRequest
     from lonora_db.personal_agent import ensure_personal_agent
     from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow, TradingJournalRow
-    from lonora_trading.account_authority import ticket_agent
     from lonora_trading.broker_recovery import reconcile_broker_account, wake_for_activity
+    from lonora_trading.ownership import ticket_agent
     from lonora_trading.picture import ticket_owners
     from sqlalchemy import func, select
 
@@ -331,7 +331,7 @@ async def test_the_wake_set_and_the_picture_follow_the_doors_owner() -> None:
     from lonora_db.personal_agent import ensure_personal_agent
     from lonora_db.schema import BrokerSessionRow, TradingJournalRow
     from lonora_session.idempotency import broker_operation_tag
-    from lonora_trading.account_authority import ticket_agent
+    from lonora_trading.ownership import ticket_agent
     from lonora_trading.picture import ticket_owners
     from lonora_trading.ticket_transfer import opened_tickets
 

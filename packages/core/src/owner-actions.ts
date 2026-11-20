@@ -18,7 +18,7 @@ import type {
   OwnerActionGrantTerms,
   TradingMode,
 } from "@lonora/contracts";
-import { accountAuthorityLabels } from "./account-authority-labels";
+import { tradeActionLabels } from "./trade-action-labels";
 import { isolate, listSeparator, readinessTime, tradingSafetyLabels } from "./trading-readiness";
 
 type Language = "ar" | "en";
@@ -73,7 +73,7 @@ export const ownerActionLabels = {
     passkeyUnsupported:
       "Passkey signing is unavailable here. Open Lonora in a supported browser or the app.",
     registerDevice: "Register this device first",
-    deviceName: accountAuthorityLabels.en.device,
+    deviceName: "My device",
     password: "Account password",
     grantTitle: "Let {agent} trade on its own",
     grantAgent: "this agent",
@@ -244,7 +244,7 @@ export const ownerActionLabels = {
     noLongerApplies: "لم يعد هذا ساريًا. لم يتغير شيء.",
     passkeyUnsupported: "توقيع مفتاح المرور غير متاح هنا. افتح لونورا بمتصفح مدعوم أو التطبيق.",
     registerDevice: "سجّل هذا الجهاز أولًا",
-    deviceName: accountAuthorityLabels.ar.device,
+    deviceName: "جهازي",
     password: "كلمة مرور الحساب",
     grantTitle: "دع {agent} يتداول بنفسه",
     grantAgent: "هذا الوكيل",
@@ -434,7 +434,7 @@ function accountLabel(
 }
 
 function actionLabel(action: string | null, lang: Language): string {
-  const labels = accountAuthorityLabels[lang] as Record<string, string>;
+  const labels = tradeActionLabels[lang] as Record<string, string>;
   return action ? (labels[action] ?? isolate(action)) : "";
 }
 

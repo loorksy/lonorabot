@@ -135,8 +135,8 @@ async def open_fixture() -> Any:
 
 @pytest.mark.asyncio
 async def test_submit_stores_the_server_bubble_and_its_own_marked_queued_run() -> None:
+    from lonora_db.owner_words import provisional_voice
     from lonora_db.schema import MessageRow, RunRow, SteeringRow
-    from lonora_trading.account_authority import provisional_voice
     from sqlalchemy import func, select
 
     fixture = await open_fixture()
@@ -808,9 +808,9 @@ async def test_a_retried_card_send_stays_marked_and_an_ordinary_retry_does_not()
     provenance-only mark, so in Ask it can never spend the signed grant either (6.10), as a
     spoken request's retry stays provisional. A retry of the owner's own message is not
     marked."""
+    from lonora_db.owner_words import provisional_voice
     from lonora_db.runs import fail_run
     from lonora_db.schema import RunRow
-    from lonora_trading.account_authority import provisional_voice
 
     fixture = await open_fixture()
     try:
@@ -884,10 +884,9 @@ async def test_a_card_sends_retry_carries_a_provenance_only_mark() -> None:
     owner's message folded into the send while it waited."""
     from lonora_contracts.runs import RunRequest
     from lonora_db.genui_submit import SUBMIT
-    from lonora_db.owner_words import RETRY_OF_SUBMIT, owner_typed_message
+    from lonora_db.owner_words import RETRY_OF_SUBMIT, owner_typed_message, provisional_voice
     from lonora_db.runs import create_run
     from lonora_db.schema import RunRow
-    from lonora_trading.account_authority import provisional_voice
 
     fixture = await open_fixture()
     try:

@@ -21,14 +21,14 @@ from lonora_contracts.account import Order, Position
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import effective_permission
-from lonora_db.owner_words import owner_typed_message
+from lonora_db.owner_words import owner_typed_message, provisional_voice
 from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .account_authority import provisional_voice, ticket_agent
 from .admission import may_reduce_risk
 from .idempotency import trade_fingerprint
+from .ownership import ticket_agent
 
 
 async def acting_agent(session: AsyncSession, owner_id: str, agent_id: str) -> AgentRow:

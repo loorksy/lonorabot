@@ -202,7 +202,7 @@ takes its ticks from its own Run (rule T), and is cancelled if it has not starte
 after the send (rule L). Both clients post a card send at once, never through the
 auto-flushed outbox or offline queue; a retry after a failure is the owner's tap. A card's
 send is input to the agent's own judgment (mandate 6.10): the Run it starts carries
-`ui_submit_origin`, its own mark only (`account_authority.provisional_voice`). In Full that
+`ui_submit_origin`, its own mark only (`owner_words.provisional_voice`). In Full that
 Run's trades send like any other Run's; in Ask its trades that add risk ask the owner. Its
 retry, and a «طلب جديد» renewal of an approval it raised, ask the same request again and
 carry a provenance-only mark, `ui_submit_retry_of` naming the send's Run

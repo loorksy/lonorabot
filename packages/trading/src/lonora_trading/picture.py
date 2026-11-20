@@ -32,8 +32,8 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .account_authority import current_holder, entry_holder
 from .exposure import ENTRY_ACTIONS, direction
+from .ownership import current_holder, entry_holder
 
 # Instrument currencies the broker reported, per symbol, kept on the connection row.
 CURRENCIES_KEY = "instrument_currencies"

@@ -26,7 +26,7 @@ from lonora_db.trading_journal import anchor_operation, persist_result, reserve_
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .account_authority import management_target, require_account_execution
+from .account_authority import require_account_execution
 from .admission import (
     AdmissionBlocked,
     may_reduce_risk,
@@ -39,6 +39,7 @@ from .idempotency import trade_fingerprint
 from .journal import execution_evidence
 from .manual_activity import material_state
 from .operation_events import operation_event
+from .ownership import management_target
 from .preflight import preflight
 from .reconciliation import send_lock_key
 from .verification import verify_effect

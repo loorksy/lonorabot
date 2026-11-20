@@ -21,7 +21,6 @@ from lonora_contracts.account_authority import (
     ALL_AUTHORITY_ACTIONS,
     AccountAuthorityEnvelope,
     AccountAuthorityProposal,
-    AuthorityAction,
     full_delegation,
 )
 from lonora_contracts.domain import ThreadCreate, new_id, utcnow
@@ -30,7 +29,7 @@ from lonora_contracts.owner_actions import (
     GrantDraft,
     OwnerActionProposal,
 )
-from lonora_contracts.trading import UNRESOLVED_STATUSES
+from lonora_contracts.trading import UNRESOLVED_STATUSES, AuthorityAction
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import ColumnElement, func, or_, select, text

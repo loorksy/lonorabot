@@ -4,7 +4,7 @@ A spoken request is provisional (``model_metadata.voice_handoff.finalized is Fal
 the run that answers it, and on no other: it never spreads to the agent's later watches,
 routines, wakes, peers or follow-ups. In Full its trade_execute and trade_close_positions
 send; in Ask its risk-increasing trades ask, even where a signed grant would cover them
-(``lonora_trading.account_authority.provisional_voice``). A run that re-asks that same
+(``lonora_db.owner_words.provisional_voice``). A run that re-asks that same
 request (the error card's retry, «طلب جديد» on an expired approval) carries its
 ``voice_handoff``, so it stays provisional, and a later spoken correction withdraws its
 approvals too: the correction path also selects every run carrying the delegation's id

@@ -16,7 +16,7 @@ from lonora_db.client import Database
 from lonora_db.schema import AgentRow, MessageRow, RunRow, TradeApprovalRow, TradingJournalRow
 from lonora_session.idempotency import broker_operation_tag
 from lonora_trading import agent_permission
-from lonora_trading.account_authority import ticket_agent
+from lonora_trading.ownership import ticket_agent
 from sqlalchemy.ext.asyncio import AsyncSession
 from test_task_runtime import task_db as task_db
 

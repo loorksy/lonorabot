@@ -196,9 +196,9 @@ async def test_a_retry_of_a_spoken_request_stays_provisional_and_is_withdrawn_by
     without its own approval card, and the correction path selects it."""
     database()
     from check_streaming import Fixture
+    from lonora_db.owner_words import provisional_voice
     from lonora_db.schema import RunRow
     from lonora_db.voice_provenance import delegation_runs
-    from lonora_trading.account_authority import provisional_voice
 
     fixture = await Fixture().open()
     try:
@@ -368,9 +368,9 @@ async def test_a_renewed_approval_keeps_the_spoken_requests_provenance():
     run whose approvals a later correction withdraws."""
     database()
     from check_streaming import Fixture
+    from lonora_db.owner_words import provisional_voice
     from lonora_db.schema import RunRow, TradeApprovalRow
     from lonora_db.trade_approvals import renew_approval
-    from lonora_trading.account_authority import provisional_voice
 
     fixture = await Fixture().open()
     try:
@@ -415,10 +415,9 @@ async def test_a_renewed_approval_keeps_a_card_sends_provenance():
     database()
     from check_streaming import Fixture
     from lonora_db.genui_submit import SUBMIT
-    from lonora_db.owner_words import RETRY_OF_SUBMIT
+    from lonora_db.owner_words import RETRY_OF_SUBMIT, provisional_voice
     from lonora_db.schema import RunRow, TradeApprovalRow
     from lonora_db.trade_approvals import renew_approval
-    from lonora_trading.account_authority import provisional_voice
 
     fixture = await Fixture().open()
     try:

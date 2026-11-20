@@ -1,7 +1,7 @@
 """A deleted agent's open positions and pending orders transfer to Lonora (mandate 3.1.2).
 
 Ownership stays derived (3.3.4): a ticket belongs to the agent whose journaled order
-opened it, and once that agent no longer exists it is Lonora's (``account_authority.
+opened it, and once that agent no longer exists it is Lonora's (``ownership.
 ticket_agent``, and the agent picture with it). Nothing is rewritten in the journal. At
 the delete, the tickets the deleted agent opened, by that same match, are read from each
 account's last broker observation, and Lonora

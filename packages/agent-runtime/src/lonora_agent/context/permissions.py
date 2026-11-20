@@ -6,10 +6,10 @@ from typing import Any
 from lonora_contracts.account_authority import full_delegation
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
+from lonora_db.owner_words import provisional_voice
 from lonora_db.schema import RunRow
 from lonora_db.trading_mode import trading_mode
 from lonora_tools.base import run_scope
-from lonora_trading.account_authority import provisional_voice
 from sqlalchemy.ext.asyncio import AsyncSession
 
 

@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic import Field
 
-from .account_authority import AuthorityAction
 from .domain import Contract
+from .trading import AuthorityAction
 
 PermissionLevel = Literal["analysis", "supervised", "autonomous"]
 LowerPermissionLevel = Literal["analysis", "supervised"]

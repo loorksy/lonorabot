@@ -55,10 +55,8 @@ monotonic:
   runs the executor's own grant check read-only against the broker's current
   account, positions and orders before anything is asked or sent
   (`grant_covers`, `GRANT_TERM_REFUSALS`). Without a grant, the executor decides by the agent's
-  trading mode, read under the authority lock at send
-  (`require_operation_permission`). Full sends on its own. Ask sends a
-  risk-reducing request (`admission.risk_reducing` on the fresh ticket), and a
-  request that adds risk only with the owner's approval of that exact operation.
+  trading mode, and in Ask a request that adds risk needs the owner's approval of
+  that exact operation (`trading-safety.md`, "An approval covers one exact request").
   A ticket the agent's own journaled order did not open is refused
   (`ticket_not_owned`) unless the agent is Lonora, the run answers the owner's
   typed message asking for it, or the agent has the owner's standing instruction
@@ -77,11 +75,7 @@ monotonic:
   agent). `lonora_opened` counts only an entry an agent's leased Run sent
   (`journal_agent`), the same rule broker wakes use (`attributed_agent`).
 - The same exact request repeated in another call of the same Run answers from
-  the card already raised for it (`reviewed_approval`, newest first): it waits on
-  that card while it is pending, uses the owner's approval when it is approved or
-  its operation reached the broker, and returns the owner's rejection until the
-  owner writes again in that conversation. A result that never reached the broker,
-  or a rejection the owner has spoken after, asks again.
+  the card already raised for it (`reviewed_approval`, `trading-safety.md`).
 - Moving down revokes the agent's signed and pending grants, as before
   (`change_permission`). The selector says so first, in one line: "This revokes
   the signed grant for <account>; going back needs a new signature", with Revoke
