@@ -13,7 +13,7 @@ export function FactRows({
   rows,
   testID,
 }: {
-  rows: { label: string; value: string; ltr?: boolean }[];
+  rows: { label: string; value: string; ltr?: boolean; wrapValue?: boolean }[];
   testID?: string;
 }) {
   const { c } = useTheme();
@@ -35,9 +35,11 @@ export function FactRows({
           key={index}
           style={{
             flexDirection: rtl ? "row-reverse" : "row",
+            flexWrap: row.wrapValue ? "wrap" : "nowrap",
             alignItems: "baseline",
             justifyContent: "space-between",
             gap: 12,
+            rowGap: row.wrapValue ? 2 : undefined,
             paddingVertical: 6,
             borderBottomWidth: index < rows.length - 1 ? 1 : 0,
             borderBottomColor: c.line,
@@ -56,6 +58,7 @@ export function FactRows({
           <Text
             style={{
               flexShrink: 0,
+              maxWidth: row.wrapValue ? "100%" : undefined,
               color: c.text,
               fontSize: 14,
               ...(row.ltr ? { writingDirection: "ltr" as const } : null),

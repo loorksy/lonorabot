@@ -99,7 +99,7 @@ for (const locale of ["ar", "en"])
       timeline_seq: 3,
       agent_id: null,
       action: "sell",
-      ticket: "50072",
+      ticket: "a7a20cc5-3521-4051-ab6f-8d4645b82545",
       reason: null,
       verification: "verified",
     };
@@ -126,6 +126,7 @@ for (const locale of ["ar", "en"])
     });
 
     await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    await page.setViewportSize({ width: 320, height: 844 });
     await page.goto(`/app/${agent.id}`);
     const card = page.locator(`[data-execution-receipt="${fill.operation_id}"]`);
     await expect(card.getByText(text.kicker)).toBeVisible();
@@ -152,6 +153,14 @@ for (const locale of ["ar", "en"])
     await expect(changed.locator("[data-receipt-reason]")).toHaveCount(0);
     const own = page.locator(`[data-execution-receipt="${mine.operation_id}"]`);
     await expect(own.locator(".mcard-request strong")).toHaveText(text.mine);
+    const longTicket = own.getByText(mine.ticket, { exact: true });
+    await expect(longTicket).toBeVisible();
+    const cardBox = await own.boundingBox();
+    const ticketBox = await longTicket.boundingBox();
+    expect(ticketBox.x).toBeGreaterThanOrEqual(cardBox.x);
+    expect(ticketBox.x + ticketBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
+    expect(cardBox.x).toBeGreaterThanOrEqual(0);
+    expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(320);
     await expect(own.locator("[data-receipt-reason]")).toHaveCount(0);
     // No order line in the chat, for a confirmed operation or any other (v38).
     await expect(page.locator(".od-chat, [data-operation-id]")).toHaveCount(0);

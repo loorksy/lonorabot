@@ -61,7 +61,12 @@ export function ExecutionReceiptCard({ row }: { row: ExecutionReceipt }) {
         rows={[
           ...facts
             .filter(([, value]) => value != null && value !== "")
-            .map(([label, value]) => ({ label: t(label), value: String(value), ltr: true })),
+            .map(([label, value]) => ({
+              label: t(label),
+              value: String(value),
+              ltr: true,
+              wrapValue: label === "receiptTicket",
+            })),
           ...(row.stop_loss_removed ? [{ label: t("stopLoss"), value: t("removedValue") }] : []),
           ...(row.take_profit_removed
             ? [{ label: t("takeProfit"), value: t("removedValue") }]

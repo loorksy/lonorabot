@@ -3217,6 +3217,15 @@ p.pad {
   white-space: nowrap;
   flex: none;
 }
+.oa-dl > .receipt-ticket {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.oa-dl > .receipt-ticket dd.ltr {
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .oa-fields {
   display: grid;
   gap: 10px;

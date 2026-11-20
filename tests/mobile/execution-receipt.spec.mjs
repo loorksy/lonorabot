@@ -100,7 +100,7 @@ for (const locale of ["ar", "en"])
       timeline_seq: 3,
       agent_id: null,
       action: "sell",
-      ticket: "50072",
+      ticket: "a7a20cc5-3521-4051-ab6f-8d4645b82545",
       reason: null,
       verification: "verified",
     };
@@ -143,6 +143,7 @@ for (const locale of ["ar", "en"])
     });
 
     await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    await page.setViewportSize({ width: 320, height: 844 });
     await page.goto(`/thread?id=${thread.id}`);
     const cards = page.getByTestId("execution-receipt");
     await expect(cards).toHaveCount(3);
@@ -151,8 +152,14 @@ for (const locale of ["ar", "en"])
     expect(journalReads).toEqual([]);
     // The list is inverted: pick each card by what it holds, not by its place.
     const card = cards.filter({ hasText: fill.reason });
-    const changed = cards.filter({ hasNotText: fill.reason }).filter({ hasNotText: "50072" });
-    const own = cards.filter({ hasText: "50072" });
+    const changed = cards.filter({ hasNotText: fill.reason }).filter({ hasNotText: mine.ticket });
+    const own = cards.filter({ hasText: mine.ticket });
+    const longTicket = own.getByText(mine.ticket, { exact: true });
+    await expect(longTicket).toBeVisible();
+    const cardBox = await own.boundingBox();
+    const ticketBox = await longTicket.boundingBox();
+    expect(ticketBox.x).toBeGreaterThanOrEqual(cardBox.x);
+    expect(ticketBox.x + ticketBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
     await expect(card.getByText(text.kicker)).toBeVisible();
     // The kicker carries its check, and a receipt still verifying waits with the hourglass
     // (never the calendar), as the web card's (v38).
