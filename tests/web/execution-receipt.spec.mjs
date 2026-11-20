@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 // The Execution Receipt (mandate 10.3, 11.2): one card per broker-confirmed operation, with
 // the broker's facts and the agent's reason labelled as the agent's words. A confirmed
@@ -26,6 +26,7 @@ for (const locale of ["ar", "en"])
   test(`${locale}: a confirmed operation is one Execution Receipt with the broker's facts`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const text = copy[locale];
     const fixture = JSON.parse(
@@ -103,32 +104,29 @@ for (const locale of ["ar", "en"])
       route.fulfill({ json: [fill, modify] }),
     );
     await page.route("**/api/trading/journal?*", (route) => route.fulfill({ json: [journal] }));
-    try {
-      await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
-      const journalRead = page.waitForResponse((r) => r.url().includes("/api/trading/journal?"));
-      await page.goto(`/app/${agent.id}`);
-      const card = page.locator(`[data-execution-receipt="${fill.operation_id}"]`);
-      await expect(card.getByText(text.kicker)).toBeVisible();
-      await expect(card.getByText("50071", { exact: true })).toBeVisible();
-      await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
-      await expect(card.getByText(text.price, { exact: true })).toBeVisible();
-      await expect(card.locator("[data-receipt-status]")).toHaveText(text.confirmed);
-      await expect(card.getByText(text.words, { exact: true })).toBeVisible();
-      await expect(card.locator("[data-receipt-reason] p")).toHaveText(fill.reason);
-      const changed = page.locator(`[data-execution-receipt="${modify.operation_id}"]`);
-      await expect(changed).toHaveAttribute("data-receipt-kind", "modify");
-      await expect(changed.locator("[data-receipt-status]")).toHaveText(text.verified);
-      await expect(changed.locator("[data-receipt-reason]")).toHaveCount(0);
-      // One representation: no order line for the confirmed operation, once the journal is in.
-      await journalRead;
-      await expect(page.locator(`[data-operation-id="${fill.operation_id}"]`)).toHaveCount(0);
-      // No raw operation id in the normal view.
-      await expect(page.getByText(fill.operation_id)).toHaveCount(0);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("execution-receipt-ar.png") });
-      }
-    } finally {
-      await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+    await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    const journalRead = page.waitForResponse((r) => r.url().includes("/api/trading/journal?"));
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-execution-receipt="${fill.operation_id}"]`);
+    await expect(card.getByText(text.kicker)).toBeVisible();
+    await expect(card.getByText("50071", { exact: true })).toBeVisible();
+    await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
+    await expect(card.getByText(text.price, { exact: true })).toBeVisible();
+    await expect(card.locator("[data-receipt-status]")).toHaveText(text.confirmed);
+    await expect(card.getByText(text.words, { exact: true })).toBeVisible();
+    await expect(card.locator("[data-receipt-reason] p")).toHaveText(fill.reason);
+    const changed = page.locator(`[data-execution-receipt="${modify.operation_id}"]`);
+    await expect(changed).toHaveAttribute("data-receipt-kind", "modify");
+    await expect(changed.locator("[data-receipt-status]")).toHaveText(text.verified);
+    await expect(changed.locator("[data-receipt-reason]")).toHaveCount(0);
+    // One representation: no order line for the confirmed operation, once the journal is in.
+    await journalRead;
+    await expect(page.locator(`[data-operation-id="${fill.operation_id}"]`)).toHaveCount(0);
+    // No raw operation id in the normal view.
+    await expect(page.getByText(fill.operation_id)).toHaveCount(0);
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("execution-receipt-ar.png") });
     }
   });

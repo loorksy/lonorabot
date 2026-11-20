@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 /* The mobile chat list on Expo web (phase 2 port): rows from seeded conversations with their
    ticks, counts and the tab badge, the pin limit, the selection toolbar, archive with undo and the
@@ -110,6 +110,7 @@ for (const theme of ["dark", "light"])
 test("pinning a fourth chat is refused locally and when the server answers 409; pins lead in pin order", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = seed({ action: "init" });
   const headers = await signIn(context, fixture);
@@ -121,38 +122,37 @@ test("pinning a fourth chat is refused locally and when the server answers 409; 
   if (earlier.length) await pin(earlier, false);
   const mine = [fixture.threads[0].id, fixture.threads[1].id, fixture.threads[2].id];
   expect((await pin(mine, true)).ok()).toBe(true);
-  try {
-    await page.goto("/");
-    await expect(row(page, key(alpha))).toBeVisible();
-    const keys = await page
-      .locator("[data-key]")
-      .evaluateAll((rows) => rows.slice(0, 3).map((r) => r.dataset.key));
-    expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
-    await expect(row(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
-    // Refused locally: three are pinned already.
-    await hold(page, row(page, key(delta)));
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
-    await toolbar(page).getByRole("button", { name: "Cancel the selection" }).click();
-    // A stale view (another device pinned meanwhile) reaches the server, which refuses (409).
-    await page.route("**/api/threads/inbox", async (route) => {
-      const rows = await (await route.fetch()).json();
-      await route.fulfill({ json: rows.map((entry) => ({ ...entry, pinned_order: null })) });
-    });
-    await page.reload();
-    await expect(row(page, key(delta))).toBeVisible();
-    const refused = page.waitForResponse(
-      (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
-    );
-    await hold(page, row(page, key(delta)));
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await refused;
-    await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
-  } finally {
+  cleanup(async () => {
     await page.unroute("**/api/threads/inbox");
     await pin(mine, false);
     if (earlier.length) await pin(earlier, true);
-  }
+  });
+  await page.goto("/");
+  await expect(row(page, key(alpha))).toBeVisible();
+  const keys = await page
+    .locator("[data-key]")
+    .evaluateAll((rows) => rows.slice(0, 3).map((r) => r.dataset.key));
+  expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
+  await expect(row(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
+  // Refused locally: three are pinned already.
+  await hold(page, row(page, key(delta)));
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
+  await toolbar(page).getByRole("button", { name: "Cancel the selection" }).click();
+  // A stale view (another device pinned meanwhile) reaches the server, which refuses (409).
+  await page.route("**/api/threads/inbox", async (route) => {
+    const rows = await (await route.fetch()).json();
+    await route.fulfill({ json: rows.map((entry) => ({ ...entry, pinned_order: null })) });
+  });
+  await page.reload();
+  await expect(row(page, key(delta))).toBeVisible();
+  const refused = page.waitForResponse(
+    (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
+  );
+  await hold(page, row(page, key(delta)));
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await refused;
+  await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
 });
 
 test("selection: long press, toolbar, favourites and select all; archive with undo; the archived page", async ({

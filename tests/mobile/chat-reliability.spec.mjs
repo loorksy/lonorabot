@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function conversation(context) {
   const fixture = JSON.parse(
@@ -43,6 +43,7 @@ async function conversation(context) {
 test("inbox distinguishes pending hydration from empty and shows canonical message preview", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await conversation(context);
   let release;
@@ -69,22 +70,22 @@ test("inbox distinguishes pending hydration from empty and shows canonical messa
       ],
     });
   });
-  try {
-    await page.goto("/");
-    await expect(page.getByText(data.agent.name, { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "وكيل جديد", exact: true })).toHaveCount(0);
-    release();
-    await expect(page.getByText("آخر تحديث حقيقي XAUUSDm", { exact: true })).toBeVisible();
-    await expect(page.getByText(data.agent.name, { exact: true })).toBeVisible();
-  } finally {
+  cleanup(async () => {
     release();
     await data.remove();
-  }
+  });
+  await page.goto("/");
+  await expect(page.getByText(data.agent.name, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "وكيل جديد", exact: true })).toHaveCount(0);
+  release();
+  await expect(page.getByText("آخر تحديث حقيقي XAUUSDm", { exact: true })).toBeVisible();
+  await expect(page.getByText(data.agent.name, { exact: true })).toBeVisible();
 });
 
 test("native timeline opens latest, preserves history reading and keeps approvals before subsequent output", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await conversation(context);
   const messages = Array.from({ length: 100 }, (_, i) => ({
@@ -127,68 +128,66 @@ test("native timeline opens latest, preserves history reading and keeps approval
     });
     socket.onClose(() => sockets.delete(socket));
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const transcript = page.getByTestId("conversation-transcript");
-    const newest = page.getByText(messages[99].content, { exact: true });
-    await expect(newest).toBeInViewport();
-    await page.getByRole("button", { name: "رفض", exact: true }).click();
-    await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
-    const approvalY = await page.getByText("buy · EURUSDm", { exact: false }).boundingBox();
-    const newestY = await newest.boundingBox();
-    expect(newestY.y).toBeGreaterThan(approvalY.y);
-    await transcript.evaluate((element) => {
-      element.scrollTop = 700;
-    });
-    await expect(
-      page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
-    ).toBeVisible();
-    const reply = {
-      ...messages[99],
-      id: "message-101",
-      seq: 101,
-      content: "رد جديد بعد قرار المالك",
-      created_at: "2026-10-15T12:02:00Z",
-    };
-    messages.push(reply);
-    await expect.poll(() => sockets.size).toBeGreaterThan(0);
-    cursor += 1;
-    for (const socket of sockets)
-      socket.send(
-        JSON.stringify({
-          cursor,
-          kind: "message.created",
-          thread_id: data.thread.id,
-          agent_id: data.agent.id,
-          run_id: null,
-          payload: reply,
-          created_at: reply.created_at,
-        }),
-      );
-    // The reply joins the transcript while the owner keeps reading history.
-    const latest = page.getByText(reply.content, { exact: true });
-    await expect(latest).toBeAttached();
-    // Two frames: the list has laid the new row out, so a jump to it would have happened.
-    await page.evaluate(
-      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const transcript = page.getByTestId("conversation-transcript");
+  const newest = page.getByText(messages[99].content, { exact: true });
+  await expect(newest).toBeInViewport();
+  await page.getByRole("button", { name: "رفض", exact: true }).click();
+  await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
+  const approvalY = await page.getByText("buy · EURUSDm", { exact: false }).boundingBox();
+  const newestY = await newest.boundingBox();
+  expect(newestY.y).toBeGreaterThan(approvalY.y);
+  await transcript.evaluate((element) => {
+    element.scrollTop = 700;
+  });
+  await expect(
+    page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
+  ).toBeVisible();
+  const reply = {
+    ...messages[99],
+    id: "message-101",
+    seq: 101,
+    content: "رد جديد بعد قرار المالك",
+    created_at: "2026-10-15T12:02:00Z",
+  };
+  messages.push(reply);
+  await expect.poll(() => sockets.size).toBeGreaterThan(0);
+  cursor += 1;
+  for (const socket of sockets)
+    socket.send(
+      JSON.stringify({
+        cursor,
+        kind: "message.created",
+        thread_id: data.thread.id,
+        agent_id: data.agent.id,
+        run_id: null,
+        payload: reply,
+        created_at: reply.created_at,
+      }),
     );
-    await expect(latest).not.toBeInViewport();
-    await expect(
-      page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }).click();
-    await expect(latest).toBeInViewport();
-    await expect(
-      page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
-    ).toHaveCount(0);
-  } finally {
-    await data.remove();
-  }
+  // The reply joins the transcript while the owner keeps reading history.
+  const latest = page.getByText(reply.content, { exact: true });
+  await expect(latest).toBeAttached();
+  // Two frames: the list has laid the new row out, so a jump to it would have happened.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(latest).not.toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }).click();
+  await expect(latest).toBeInViewport();
+  await expect(page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true })).toHaveCount(
+    0,
+  );
 });
 
 test("return navigation retains confirmed messages while revalidation is delayed", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await conversation(context);
   let blocked = false;
@@ -221,27 +220,26 @@ test("return navigation retains confirmed messages while revalidation is delayed
     if (blocked) await waiting;
     await route.fulfill({ json: messages });
   });
-  try {
-    await page.goto("/");
-    await page.getByText(data.agent.name, { exact: true }).click();
-    await expect(page.getByText(messages[0].content, { exact: true })).toBeVisible();
-    releaseArtifacts();
-    await page.getByRole("button", { name: "إعدادات الوكيل", exact: true }).click();
-    await expect(page).toHaveURL(/bot-settings/);
-    blocked = true;
-    await page.getByRole("button", { name: "رجوع", exact: true }).click();
-    await expect(page.getByText(messages[0].content, { exact: true })).toBeVisible();
-    messages.push({
-      ...messages[0],
-      id: "after-return",
-      seq: 2,
-      content: "تحديث حقيقي بعد العودة",
-    });
-    release();
-    await expect(page.getByText(messages[1].content, { exact: true })).toBeVisible();
-  } finally {
+  cleanup(async () => {
     releaseArtifacts();
     release();
     await data.remove();
-  }
+  });
+  await page.goto("/");
+  await page.getByText(data.agent.name, { exact: true }).click();
+  await expect(page.getByText(messages[0].content, { exact: true })).toBeVisible();
+  releaseArtifacts();
+  await page.getByRole("button", { name: "إعدادات الوكيل", exact: true }).click();
+  await expect(page).toHaveURL(/bot-settings/);
+  blocked = true;
+  await page.getByRole("button", { name: "رجوع", exact: true }).click();
+  await expect(page.getByText(messages[0].content, { exact: true })).toBeVisible();
+  messages.push({
+    ...messages[0],
+    id: "after-return",
+    seq: 2,
+    content: "تحديث حقيقي بعد العودة",
+  });
+  release();
+  await expect(page.getByText(messages[1].content, { exact: true })).toBeVisible();
 });

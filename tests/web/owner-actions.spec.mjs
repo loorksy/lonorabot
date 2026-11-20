@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function simulation(data) {
   return JSON.parse(
@@ -171,6 +171,7 @@ for (const locale of ["en", "ar"])
   test(`${locale}: a grant card signs with one passkey tap, registering the device inline`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = copy[locale];
@@ -194,62 +195,59 @@ for (const locale of ["en", "ar"])
         automaticPresenceSimulation: true,
       },
     });
-    try {
-      const seeded = seedCard({
-        kind: "grant_authority",
-        account: state.account,
-        symbol: state.data.symbol,
-        agent: state.agent.id,
-        thread: state.thread.id,
-      });
-      const bodies = [];
-      page.on("request", (request) => {
-        if (request.method() === "POST" && request.url().includes(`/owner-actions/${seeded.id}/`))
-          bodies.push([new URL(request.url()).pathname.split("/").pop(), request.postDataJSON()]);
-      });
-      await page.goto(`/app/${state.agent.id}`);
-      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      await expect(card).toHaveAttribute("data-owner-action-status", "pending");
-      await expect(card.locator(".oa-kind")).toContainText(text.grantTitle);
-      await expect(card.locator(".oa-kind")).toContainText(state.agent.name);
-      await expect(card.getByText(state.data.symbol)).toBeVisible();
-      // The switch states the owner's own positions; no fixed line contradicts it.
-      await expect(card.getByText(text.ownExcluded, { exact: true })).toHaveCount(0);
-      // D1: the owner's own positions are excluded unless switched on.
-      const own = card.getByRole("switch", { name: text.includeOwn });
-      await expect(own).not.toBeChecked();
-      // Amendment 1: the card offers no Resume trading switch.
-      await expect(card.getByRole("switch", { name: /Resume trading|استأنف التداول/ })).toHaveCount(
-        0,
-      );
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("owner-action-grant-ar.png") });
-      }
-      const authorize = card.getByRole("button", { name: text.authorize, exact: true });
-      await authorize.click();
-      // First time on this device: the same card asks for the password and registers it.
-      await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
-      // Registering continues straight into the passkey prompt for this decision.
-      await card.getByRole("button", { name: text.register, exact: true }).click();
-      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.getByRole("status")).toHaveText(text.signed);
-      await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
-      const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
-      // The challenge names the choice the card showed: Custom, with its own switch.
-      expect(challenges.at(-1)).toEqual({ delegation: "custom", allow_manual_positions: false });
-      const decision = bodies.find(([kind]) => kind === "decision")?.[1];
-      expect(decision.decision).toBe("confirm");
-      expect(decision).not.toHaveProperty("resume_trading");
-      expect(decision.proof?.challenge_id).toBeTruthy();
-      const permission = await (
-        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
-      ).json();
-      expect(permission.effective_level).toBe("autonomous");
-      expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-    } finally {
-      await state.cleanup();
+    cleanup(() => state.cleanup());
+    const seeded = seedCard({
+      kind: "grant_authority",
+      account: state.account,
+      symbol: state.data.symbol,
+      agent: state.agent.id,
+      thread: state.thread.id,
+    });
+    const bodies = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes(`/owner-actions/${seeded.id}/`))
+        bodies.push([new URL(request.url()).pathname.split("/").pop(), request.postDataJSON()]);
+    });
+    await page.goto(`/app/${state.agent.id}`);
+    const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+    await expect(card).toHaveAttribute("data-owner-action-status", "pending");
+    await expect(card.locator(".oa-kind")).toContainText(text.grantTitle);
+    await expect(card.locator(".oa-kind")).toContainText(state.agent.name);
+    await expect(card.getByText(state.data.symbol)).toBeVisible();
+    // The switch states the owner's own positions; no fixed line contradicts it.
+    await expect(card.getByText(text.ownExcluded, { exact: true })).toHaveCount(0);
+    // D1: the owner's own positions are excluded unless switched on.
+    const own = card.getByRole("switch", { name: text.includeOwn });
+    await expect(own).not.toBeChecked();
+    // Amendment 1: the card offers no Resume trading switch.
+    await expect(card.getByRole("switch", { name: /Resume trading|استأنف التداول/ })).toHaveCount(
+      0,
+    );
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("owner-action-grant-ar.png") });
     }
+    const authorize = card.getByRole("button", { name: text.authorize, exact: true });
+    await authorize.click();
+    // First time on this device: the same card asks for the password and registers it.
+    await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
+    // Registering continues straight into the passkey prompt for this decision.
+    await card.getByRole("button", { name: text.register, exact: true }).click();
+    await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+    await expect(card.getByRole("status")).toHaveText(text.signed);
+    await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
+    const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
+    // The challenge names the choice the card showed: Custom, with its own switch.
+    expect(challenges.at(-1)).toEqual({ delegation: "custom", allow_manual_positions: false });
+    const decision = bodies.find(([kind]) => kind === "decision")?.[1];
+    expect(decision.decision).toBe("confirm");
+    expect(decision).not.toHaveProperty("resume_trading");
+    expect(decision.proof?.challenge_id).toBeTruthy();
+    const permission = await (
+      await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+    ).json();
+    expect(permission.effective_level).toBe("autonomous");
+    expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
   });
 
 const delegationCopy = {
@@ -280,6 +278,7 @@ for (const locale of ["en", "ar"])
   test(`${locale}: Custom or Full delegation is one choice in the grant card's list, signed with the passkey`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = { ...copy[locale], ...delegationCopy[locale] };
@@ -320,96 +319,96 @@ for (const locale of ["en", "ar"])
         data: {},
       })
     ).json();
-    try {
-      const seeded = seedCard({
-        kind: "grant_authority",
-        account: state.account,
-        symbol: state.data.symbol,
-        agent: agent.id,
-        thread: thread.id,
-      });
-      const bodies = [];
-      page.on("request", (request) => {
-        if (request.method() === "POST" && request.url().includes(`/owner-actions/${seeded.id}/`))
-          bodies.push([new URL(request.url()).pathname.split("/").pop(), request.postDataJSON()]);
-      });
-      await page.goto(`/app/${agent.id}`);
-      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      await expect(card).toHaveAttribute("data-owner-action-status", "pending");
-      const custom = card.getByRole("radio", { name: text.custom, exact: true });
-      const full = card.getByRole("radio", { name: text.full, exact: true });
-      // One choice inside the card's own list, Custom selected; no separate button.
-      await expect(custom).toBeChecked();
-      await expect(full).not.toBeChecked();
-      await expect(card.getByRole("button")).toHaveText([text.authorize, text.notNow]);
-      await expect(card.locator("[data-owner-action-choice-detail]")).toContainText(
-        text.customMeaning,
-      );
-      await expect(card.getByRole("switch", { name: text.includeOwn })).not.toBeChecked();
-      // Choosing Full updates the card's stored draft; the card then reads as Full.
-      await full.check();
-      await expect(full).toBeChecked();
-      const detail = card.locator("[data-owner-action-choice-detail]");
-      await expect(detail).toContainText(text.fullMeaning);
-      await expect(card.getByRole("switch", { name: text.includeOwn })).toHaveCount(0);
-      await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
-      await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
-      // Back to Custom restores it exactly, then Full again.
-      await custom.check();
-      await expect(custom).toBeChecked();
-      await expect(card.getByRole("switch", { name: text.includeOwn })).toBeVisible();
-      await full.check();
-      await expect(full).toBeChecked();
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("owner-action-full-ar.png") });
-      }
-      await card.getByRole("button", { name: text.authorize, exact: true }).click();
-      await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
-      await card.getByRole("button", { name: text.register, exact: true }).click();
-      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.getByRole("status")).toHaveText(text.signed);
-      await expect(card.getByText(text.full, { exact: true })).toBeVisible();
-      const chosen = bodies
-        .filter(([kind, body]) => kind === "decision" && body.decision === "choose")
-        .map(([, body]) => body.delegation);
-      expect(chosen).toEqual(["full", "custom", "full"]);
-      // Full names its choice and sends no own-positions switch: the draft includes them.
-      const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
-      expect(challenges.at(-1)).toEqual({ delegation: "full" });
-      const confirm = bodies.find(
-        ([kind, body]) => kind === "decision" && body.decision === "confirm",
-      );
-      expect(confirm?.[1].proof?.challenge_id).toBeTruthy();
-      const permission = await (
-        await context.request.get(`/api/agents/${agent.id}/permissions`)
-      ).json();
-      expect(permission.effective_level).toBe("autonomous");
-      const envelope = permission.active_authorities[0].envelope;
-      expect(envelope.symbol_scope).toBe("account");
-      expect(envelope.symbols).toEqual([]);
-      expect(envelope.actions).toHaveLength(10);
-      expect(envelope.allow_manual_positions).toBe(true);
-      expect(envelope.valid_until).toBeNull();
-      await page.reload();
-      // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
-      await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
-      await page
-        .getByRole("menuitem", {
-          name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
-        })
-        .click();
-      await expect(page.getByTestId("agent-mode-line")).toContainText(text.full);
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
       await state.cleanup();
+    });
+    const seeded = seedCard({
+      kind: "grant_authority",
+      account: state.account,
+      symbol: state.data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+    });
+    const bodies = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes(`/owner-actions/${seeded.id}/`))
+        bodies.push([new URL(request.url()).pathname.split("/").pop(), request.postDataJSON()]);
+    });
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+    await expect(card).toHaveAttribute("data-owner-action-status", "pending");
+    const custom = card.getByRole("radio", { name: text.custom, exact: true });
+    const full = card.getByRole("radio", { name: text.full, exact: true });
+    // One choice inside the card's own list, Custom selected; no separate button.
+    await expect(custom).toBeChecked();
+    await expect(full).not.toBeChecked();
+    await expect(card.getByRole("button")).toHaveText([text.authorize, text.notNow]);
+    await expect(card.locator("[data-owner-action-choice-detail]")).toContainText(
+      text.customMeaning,
+    );
+    await expect(card.getByRole("switch", { name: text.includeOwn })).not.toBeChecked();
+    // Choosing Full updates the card's stored draft; the card then reads as Full.
+    await full.check();
+    await expect(full).toBeChecked();
+    const detail = card.locator("[data-owner-action-choice-detail]");
+    await expect(detail).toContainText(text.fullMeaning);
+    await expect(card.getByRole("switch", { name: text.includeOwn })).toHaveCount(0);
+    await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
+    await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
+    // Back to Custom restores it exactly, then Full again.
+    await custom.check();
+    await expect(custom).toBeChecked();
+    await expect(card.getByRole("switch", { name: text.includeOwn })).toBeVisible();
+    await full.check();
+    await expect(full).toBeChecked();
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("owner-action-full-ar.png") });
     }
+    await card.getByRole("button", { name: text.authorize, exact: true }).click();
+    await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
+    await card.getByRole("button", { name: text.register, exact: true }).click();
+    await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+    await expect(card.getByRole("status")).toHaveText(text.signed);
+    await expect(card.getByText(text.full, { exact: true })).toBeVisible();
+    const chosen = bodies
+      .filter(([kind, body]) => kind === "decision" && body.decision === "choose")
+      .map(([, body]) => body.delegation);
+    expect(chosen).toEqual(["full", "custom", "full"]);
+    // Full names its choice and sends no own-positions switch: the draft includes them.
+    const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
+    expect(challenges.at(-1)).toEqual({ delegation: "full" });
+    const confirm = bodies.find(
+      ([kind, body]) => kind === "decision" && body.decision === "confirm",
+    );
+    expect(confirm?.[1].proof?.challenge_id).toBeTruthy();
+    const permission = await (
+      await context.request.get(`/api/agents/${agent.id}/permissions`)
+    ).json();
+    expect(permission.effective_level).toBe("autonomous");
+    const envelope = permission.active_authorities[0].envelope;
+    expect(envelope.symbol_scope).toBe("account");
+    expect(envelope.symbols).toEqual([]);
+    expect(envelope.actions).toHaveLength(10);
+    expect(envelope.allow_manual_positions).toBe(true);
+    expect(envelope.valid_until).toBeNull();
+    await page.reload();
+    // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
+    await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
+    await page
+      .getByRole("menuitem", {
+        name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
+      })
+      .click();
+    await expect(page.getByTestId("agent-mode-line")).toContainText(text.full);
   });
 
 for (const locale of ["en", "ar"])
   test(`${locale}: a grant card changed on another screen is read again and never signs the other choice`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = { ...copy[locale], ...delegationCopy[locale] };
@@ -433,77 +432,74 @@ for (const locale of ["en", "ar"])
     ).json();
     const cards = async () =>
       (await context.request.get(`/api/owner-actions?thread_id=${thread.id}`)).json();
-    try {
-      const seeded = seedCard({
-        kind: "grant_authority",
-        account: state.account,
-        symbol: state.data.symbol,
-        agent: agent.id,
-        thread: thread.id,
-      });
-      // This screen keeps what it last read until its tap reaches the server: another
-      // screen's choice (or a lost answer to one) has not reached it yet.
-      let frozen = null;
-      await page.route(
-        (url) => url.pathname.endsWith("/owner-actions"),
-        async (route) => {
-          if (frozen && route.request().method() === "GET") await route.fulfill({ json: frozen });
-          else await route.continue();
-        },
-      );
-      const challenges = [];
-      await page.route(
-        (url) => url.pathname.endsWith(`/owner-actions/${seeded.id}/challenge`),
-        async (route) => {
-          challenges.push(route.request().postDataJSON());
-          frozen = null;
-          await route.continue();
-        },
-      );
-      await page.goto(`/app/${agent.id}`);
-      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      const custom = card.getByRole("radio", { name: text.custom, exact: true });
-      const full = card.getByRole("radio", { name: text.full, exact: true });
-      await expect(custom).toBeChecked();
-      await expect(card.getByRole("switch", { name: text.includeOwn })).toBeVisible();
-      frozen = await cards();
-      // The owner picks Full on another screen; this one still shows Custom.
-      const other = await context.request.post(`/api/owner-actions/${seeded.id}/decision`, {
-        headers: state.headers,
-        data: { decision: "choose", delegation: "full" },
-      });
-      expect(other.ok()).toBeTruthy();
-      await card.getByRole("switch", { name: text.includeOwn }).click();
-      await expect(custom).toBeChecked();
-      await card.getByRole("button", { name: text.authorize, exact: true }).click();
-      // Refused before any passkey prompt: the card is read again and shows Full now.
-      await expect(card.getByRole("alert")).toHaveText(text.changed);
-      await expect(full).toBeChecked();
-      await expect(card.locator("[data-owner-action-choice-detail]")).toContainText(
-        text.fullMeaning,
-      );
-      await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
-      await expect(card.getByRole("switch", { name: text.includeOwn })).toHaveCount(0);
-      expect(challenges).toEqual([{ delegation: "custom", allow_manual_positions: true }]);
-      // Nothing was prepared or signed.
-      const stored = (await cards()).find((row) => row.id === seeded.id);
-      expect(stored.status).toBe("pending");
-      expect(stored.result).toEqual({});
-      const permission = await (
-        await context.request.get(`/api/agents/${agent.id}/permissions`)
-      ).json();
-      expect(permission.effective_level).toBe("supervised");
-      expect(permission.active_authorities).toEqual([]);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("owner-action-changed-ar.png") });
-      }
-      await card.getByRole("button", { name: text.notNow, exact: true }).click();
-      await expect(card).toHaveAttribute("data-owner-action-status", "cancelled");
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
       await state.cleanup();
+    });
+    const seeded = seedCard({
+      kind: "grant_authority",
+      account: state.account,
+      symbol: state.data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+    });
+    // This screen keeps what it last read until its tap reaches the server: another
+    // screen's choice (or a lost answer to one) has not reached it yet.
+    let frozen = null;
+    await page.route(
+      (url) => url.pathname.endsWith("/owner-actions"),
+      async (route) => {
+        if (frozen && route.request().method() === "GET") await route.fulfill({ json: frozen });
+        else await route.continue();
+      },
+    );
+    const challenges = [];
+    await page.route(
+      (url) => url.pathname.endsWith(`/owner-actions/${seeded.id}/challenge`),
+      async (route) => {
+        challenges.push(route.request().postDataJSON());
+        frozen = null;
+        await route.continue();
+      },
+    );
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+    const custom = card.getByRole("radio", { name: text.custom, exact: true });
+    const full = card.getByRole("radio", { name: text.full, exact: true });
+    await expect(custom).toBeChecked();
+    await expect(card.getByRole("switch", { name: text.includeOwn })).toBeVisible();
+    frozen = await cards();
+    // The owner picks Full on another screen; this one still shows Custom.
+    const other = await context.request.post(`/api/owner-actions/${seeded.id}/decision`, {
+      headers: state.headers,
+      data: { decision: "choose", delegation: "full" },
+    });
+    expect(other.ok()).toBeTruthy();
+    await card.getByRole("switch", { name: text.includeOwn }).click();
+    await expect(custom).toBeChecked();
+    await card.getByRole("button", { name: text.authorize, exact: true }).click();
+    // Refused before any passkey prompt: the card is read again and shows Full now.
+    await expect(card.getByRole("alert")).toHaveText(text.changed);
+    await expect(full).toBeChecked();
+    await expect(card.locator("[data-owner-action-choice-detail]")).toContainText(text.fullMeaning);
+    await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
+    await expect(card.getByRole("switch", { name: text.includeOwn })).toHaveCount(0);
+    expect(challenges).toEqual([{ delegation: "custom", allow_manual_positions: true }]);
+    // Nothing was prepared or signed.
+    const stored = (await cards()).find((row) => row.id === seeded.id);
+    expect(stored.status).toBe("pending");
+    expect(stored.result).toEqual({});
+    const permission = await (
+      await context.request.get(`/api/agents/${agent.id}/permissions`)
+    ).json();
+    expect(permission.effective_level).toBe("supervised");
+    expect(permission.active_authorities).toEqual([]);
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("owner-action-changed-ar.png") });
     }
+    await card.getByRole("button", { name: text.notNow, exact: true }).click();
+    await expect(card).toHaveAttribute("data-owner-action-status", "cancelled");
   });
 
 const mandateCopy = {
@@ -527,98 +523,94 @@ for (const locale of ["en", "ar"])
   test(`${locale}: the Mandate card shows the mode now and one button for the other mode`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(60000);
     const text = mandateCopy[locale];
     const state = await setup(context, locale);
-    try {
-      const seeded = seedCard({
-        kind: "trading_mode",
-        agent: state.agent.id,
-        thread: state.thread.id,
-      });
-      const decisions = [];
-      page.on("request", (request) => {
-        if (request.method() === "POST" && request.url().includes("/api/owner-actions/"))
-          decisions.push(request.postDataJSON());
-      });
-      await page.goto(`/app/${state.agent.id}`);
-      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      await expect(card).toHaveAttribute("data-owner-action-status", "pending");
-      await expect(card.locator(".oa-kind")).toHaveText(text.title);
-      await expect(card).toContainText(text.askNow);
-      // One button, for the other mode.
-      await expect(card.locator("[data-owner-action-button]")).toHaveCount(1);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("owner-action-mandate-ar.png") });
-      }
-      await card.getByRole("button", { name: text.full, exact: true }).click();
-      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card).toContainText(text.fullNow);
-      // Still the agent's switch: the button now shows Ask, and applies exactly Ask.
-      await card.getByRole("button", { name: text.ask, exact: true }).click();
-      await expect(card).toContainText(text.askNow);
-      await expect(card.getByRole("button", { name: text.full, exact: true })).toBeVisible();
-      expect(decisions).toEqual([
-        { decision: "confirm", trading_mode: "full" },
-        { decision: "confirm", trading_mode: "ask" },
-      ]);
-    } finally {
-      await state.cleanup();
+    cleanup(() => state.cleanup());
+    const seeded = seedCard({
+      kind: "trading_mode",
+      agent: state.agent.id,
+      thread: state.thread.id,
+    });
+    const decisions = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/api/owner-actions/"))
+        decisions.push(request.postDataJSON());
+    });
+    await page.goto(`/app/${state.agent.id}`);
+    const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+    await expect(card).toHaveAttribute("data-owner-action-status", "pending");
+    await expect(card.locator(".oa-kind")).toHaveText(text.title);
+    await expect(card).toContainText(text.askNow);
+    // One button, for the other mode.
+    await expect(card.locator("[data-owner-action-button]")).toHaveCount(1);
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("owner-action-mandate-ar.png") });
     }
+    await card.getByRole("button", { name: text.full, exact: true }).click();
+    await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+    await expect(card).toContainText(text.fullNow);
+    // Still the agent's switch: the button now shows Ask, and applies exactly Ask.
+    await card.getByRole("button", { name: text.ask, exact: true }).click();
+    await expect(card).toContainText(text.askNow);
+    await expect(card.getByRole("button", { name: text.full, exact: true })).toBeVisible();
+    expect(decisions).toEqual([
+      { decision: "confirm", trading_mode: "full" },
+      { decision: "confirm", trading_mode: "ask" },
+    ]);
   });
 
 for (const locale of ["en", "ar"])
   test(`${locale}: an uncertain trade card settles with one answer and never resends`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(60000);
     const text = copy[locale];
     const state = await setup(context, locale);
-    try {
-      const seeded = seedCard({
-        kind: "settle_operation",
-        account: state.account,
-        symbol: state.data.symbol,
-        agent: state.agent.id,
-        thread: state.thread.id,
-      });
-      const sent = [];
-      await page.route("**/api/trading/execute", async (route) => {
-        sent.push(route.request().postDataJSON());
-        await route.continue();
-      });
-      await page.goto(`/app/${state.agent.id}`);
-      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      await expect(card.locator(".oa-kind")).toHaveText(text.resolveTitle);
-      await expect(card.locator("[data-owner-action-button]")).toHaveCount(3);
-      // "Unknown" says that it releases the hold; it never reads as "wait".
-      await expect(card.locator('[data-owner-action-button="unknown"]')).toHaveText(text.unknown);
-      await expect(card.getByText(state.data.symbol)).toBeVisible();
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        // The first answer starts the row on the reading side: right in Arabic.
-        const [first, next] = await Promise.all([
-          card.locator('[data-owner-action-button="executed"]').boundingBox(),
-          card.locator('[data-owner-action-button="not_executed"]').boundingBox(),
-        ]);
-        expect(first && next && first.x > next.x).toBeTruthy();
-        await card.screenshot({ path: test.info().outputPath("owner-action-resolve-ar.png") });
-      }
-      await card.getByRole("button", { name: text.notExecuted, exact: true }).click();
-      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.getByRole("status")).toHaveText(text.recorded);
-      const journal = await (
-        await context.request.get(`/api/trading/journal?account_id=${state.account}`)
-      ).json();
-      const row = journal.find((item) => item.operation_id === seeded.operation_id);
-      expect(row.status).toBe("resolved");
-      expect(row.result.details.resolution.outcome).toBe("not_executed");
-      expect(row.result.details.resolution.broker_confirmed).toBe(false);
-      expect(sent).toEqual([]);
-    } finally {
-      await state.cleanup();
+    cleanup(() => state.cleanup());
+    const seeded = seedCard({
+      kind: "settle_operation",
+      account: state.account,
+      symbol: state.data.symbol,
+      agent: state.agent.id,
+      thread: state.thread.id,
+    });
+    const sent = [];
+    await page.route("**/api/trading/execute", async (route) => {
+      sent.push(route.request().postDataJSON());
+      await route.continue();
+    });
+    await page.goto(`/app/${state.agent.id}`);
+    const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+    await expect(card.locator(".oa-kind")).toHaveText(text.resolveTitle);
+    await expect(card.locator("[data-owner-action-button]")).toHaveCount(3);
+    // "Unknown" says that it releases the hold; it never reads as "wait".
+    await expect(card.locator('[data-owner-action-button="unknown"]')).toHaveText(text.unknown);
+    await expect(card.getByText(state.data.symbol)).toBeVisible();
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      // The first answer starts the row on the reading side: right in Arabic.
+      const [first, next] = await Promise.all([
+        card.locator('[data-owner-action-button="executed"]').boundingBox(),
+        card.locator('[data-owner-action-button="not_executed"]').boundingBox(),
+      ]);
+      expect(first && next && first.x > next.x).toBeTruthy();
+      await card.screenshot({ path: test.info().outputPath("owner-action-resolve-ar.png") });
     }
+    await card.getByRole("button", { name: text.notExecuted, exact: true }).click();
+    await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+    await expect(card.getByRole("status")).toHaveText(text.recorded);
+    const journal = await (
+      await context.request.get(`/api/trading/journal?account_id=${state.account}`)
+    ).json();
+    const row = journal.find((item) => item.operation_id === seeded.operation_id);
+    expect(row.status).toBe("resolved");
+    expect(row.result.details.resolution.outcome).toBe("not_executed");
+    expect(row.result.details.resolution.broker_confirmed).toBe(false);
+    expect(sent).toEqual([]);
   });

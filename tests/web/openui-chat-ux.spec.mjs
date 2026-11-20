@@ -2,7 +2,7 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright environment is not cached by Turbo.
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect } from "../ui-test.mjs";
 import { brokerFixture } from "./broker-fixture.mjs";
 
 let session;
@@ -292,6 +292,7 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   page,
   context,
   conversation,
+  cleanup,
 }) => {
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   const id = conversation.agent.id;
@@ -323,16 +324,15 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   });
   expect(created.ok()).toBeTruthy();
   const group = await created.json();
-  try {
-    await page.goto(`/app/g/${group.id}`);
-    await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
-    await expect(sheet.getByRole("button", { name: /^Skills/ })).toHaveCount(0);
-    await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toHaveCount(0);
-    await sheet.getByRole("button", { name: /^Schedule/ }).click();
-    await expect(page).toHaveURL(/\/app\/new-schedule$/);
-  } finally {
-    await context.request.delete(`/api/groups/${group.id}`, { headers: conversation.headers });
-  }
+  cleanup(() =>
+    context.request.delete(`/api/groups/${group.id}`, { headers: conversation.headers }),
+  );
+  await page.goto(`/app/g/${group.id}`);
+  await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
+  await expect(sheet.getByRole("button", { name: /^Skills/ })).toHaveCount(0);
+  await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toHaveCount(0);
+  await sheet.getByRole("button", { name: /^Schedule/ }).click();
+  await expect(page).toHaveURL(/\/app\/new-schedule$/);
 });
 
 test("the @ list: the role in words, full-width rows, and a picked name drawn as a chip", async ({

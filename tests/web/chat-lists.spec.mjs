@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 /* The chat list, its owner state on the server and the unified search
    (docs/ui-reference/Lonora-Desktop-37.html, phase 2): rows from seeded conversations, the
@@ -88,6 +88,7 @@ test("rows show the server's state: previews, ticks, unread counts and the badge
 test("pinning a fourth chat is refused locally and when the server answers 409", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = seed({ action: "init" });
   const headers = await signIn(context, fixture);
@@ -103,41 +104,41 @@ test("pinning a fourth chat is refused locally and when the server answers 409",
   ).toBe(true);
   await page.goto("/app");
   await expect(desktopRow(page, key(alpha))).toBeVisible();
-  try {
-    // Pinned rows lead, newest pin on top, each with its pin mark.
-    const keys = await page
-      .locator(".desktop-list .thread[data-key]")
-      .evaluateAll((rows) => rows.slice(0, 3).map((row) => row.dataset.key));
-    expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
-    await expect(desktopRow(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
-    await desktopRow(page, key(delta)).click({ button: "right" });
-    await expect(toolbar(page)).toBeVisible();
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
-    // A stale view (another device pinned meanwhile) reaches the server, which refuses.
-    await page.route("**/api/threads/inbox", async (route) => {
-      const rows = await (await route.fetch()).json();
-      await route.fulfill({ json: rows.map((row) => ({ ...row, pinned_order: null })) });
-    });
-    await page.reload();
-    await expect(desktopRow(page, key(delta))).toBeVisible();
-    const refused = page.waitForResponse(
-      (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
-    );
-    await desktopRow(page, key(delta)).click({ button: "right" });
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await refused;
-    await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
-  } finally {
-    // Later refetches (afterEach deletes the seeded agents) must not reach a closing page.
+  cleanup(async () => {
+    // Refetches (the afterEach deletes the seeded agents) must not reach a closing page.
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await pin([fixture.threads[0].id, fixture.threads[1].id, fixture.threads[2].id], false);
-  }
+  });
+  // Pinned rows lead, newest pin on top, each with its pin mark.
+  const keys = await page
+    .locator(".desktop-list .thread[data-key]")
+    .evaluateAll((rows) => rows.slice(0, 3).map((row) => row.dataset.key));
+  expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
+  await expect(desktopRow(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
+  await desktopRow(page, key(delta)).click({ button: "right" });
+  await expect(toolbar(page)).toBeVisible();
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
+  // A stale view (another device pinned meanwhile) reaches the server, which refuses.
+  await page.route("**/api/threads/inbox", async (route) => {
+    const rows = await (await route.fetch()).json();
+    await route.fulfill({ json: rows.map((row) => ({ ...row, pinned_order: null })) });
+  });
+  await page.reload();
+  await expect(desktopRow(page, key(delta))).toBeVisible();
+  const refused = page.waitForResponse(
+    (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
+  );
+  await desktopRow(page, key(delta)).click({ button: "right" });
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await refused;
+  await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
 });
 
 test("mute silences a chat's heads-up and badge; critical attention always shows", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = seed({ action: "init" });
   const headers = await signIn(context, fixture);
@@ -172,17 +173,16 @@ test("mute silences a chat's heads-up and badge; critical attention always shows
   await desktopRow(page, key(personal)).click({ button: "right" });
   await toolbar(page).getByRole("button", { name: "Mute notifications" }).click();
   await expect(desktopRow(page, key(personal)).getByRole("img", { name: "Muted" })).toBeVisible();
-  try {
-    const alert = seed({ action: "attention" });
-    expect(alert.importance).toBe("critical");
-    await expect(page.locator("#headsup")).toContainText(personal.name, { timeout: 15_000 });
-  } finally {
+  cleanup(async () => {
     const inbox = await (await context.request.get("/api/threads/inbox")).json();
     await context.request.post("/api/threads/prefs", {
       headers,
       data: { thread_ids: inbox.filter((e) => e.muted).map((e) => e.thread_id), muted: false },
     });
-  }
+  });
+  const alert = seed({ action: "attention" });
+  expect(alert.importance).toBe("critical");
+  await expect(page.locator("#headsup")).toContainText(personal.name, { timeout: 15_000 });
 });
 
 test("archive leaves the list with an undo; the archived page keeps its setting", async ({
@@ -689,7 +689,11 @@ test("offline: a gateway's empty 502 during the flush keeps the message waiting 
   ]);
 });
 
-test("offline: an owner's answer is never sent later by itself", async ({ page, context }) => {
+test("offline: an owner's answer is never sent later by itself", async ({
+  page,
+  context,
+  cleanup,
+}) => {
   const fixture = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_question_browser.py"], {
       input: JSON.stringify({ locale: "en" }),
@@ -705,23 +709,20 @@ test("offline: an owner's answer is never sent later by itself", async ({ page, 
     if (offline) return route.abort("internetdisconnected");
     return route.continue();
   });
-  try {
-    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
-    const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
-    await card.getByRole("button", { name: fixture.question.choices[0].label }).click();
-    const failed = page.locator(".msg[data-delivery='failed']");
-    await expect(failed).toBeVisible();
-    offline = false;
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await page.waitForTimeout(800);
-    // Nothing went out by itself: still failed, one attempt.
-    await expect(failed).toBeVisible();
-    expect(nonces).toHaveLength(1);
-    await failed.getByRole("button", { name: "Retry" }).click();
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    expect(nonces).toHaveLength(2);
-    expect(nonces[1]).toBe(nonces[0]);
-  } finally {
-    await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
-  }
+  cleanup(() => context.request.delete(`/api/agents/${fixture.agent.id}`, { headers }));
+  await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+  const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
+  await card.getByRole("button", { name: fixture.question.choices[0].label }).click();
+  const failed = page.locator(".msg[data-delivery='failed']");
+  await expect(failed).toBeVisible();
+  offline = false;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.waitForTimeout(800);
+  // Nothing went out by itself: still failed, one attempt.
+  await expect(failed).toBeVisible();
+  expect(nonces).toHaveLength(1);
+  await failed.getByRole("button", { name: "Retry" }).click();
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  expect(nonces).toHaveLength(2);
+  expect(nonces[1]).toBe(nonces[0]);
 });

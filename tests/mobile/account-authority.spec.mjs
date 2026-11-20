@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function fixture(data) {
   return JSON.parse(
@@ -69,93 +69,87 @@ for (const locale of ["en", "ar"])
   test(`Expo ${locale} independent permission is reviewed and revoked without activating trading`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const state = await setup(context, locale);
-    try {
-      await page.goto(`/bot-settings?botId=${state.agent.id}`);
-      await page
-        .getByRole("button", {
-          name: locale === "ar" ? "صلاحيات الوكيل" : "Agent Permissions",
-          exact: true,
-        })
-        .click();
-      await page.getByTestId("permission-choice-autonomous").click();
-      const review = page.getByTestId("permission-review-native");
-      await expect(review).toBeVisible();
-      await expect(review).toContainText(state.data.symbol);
-      await expect(review).toContainText("0.10");
-      await expect(review).toContainText(
-        locale === "ar" ? "أهداف الربح غير مضمونة" : "Profit targets are not guaranteed",
-      );
-      const pending = await (
-        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
-      ).json();
-      // A new trading agent starts at Ask me; a pending proposal grants nothing.
-      expect(pending.effective_level).toBe("supervised");
-      expect(pending.pending_authority.id).toBe(state.row.id);
-      await review.getByTestId("permission-cancel-native").click();
-      await expect(page.getByTestId("permission-sheet-native")).toBeVisible();
-      const saved = await (
-        await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
-      ).json();
-      expect(saved.find((row) => row.id === state.row.id).status).toBe("revoked");
-    } finally {
-      await state.cleanup();
-    }
+    cleanup(() => state.cleanup());
+    await page.goto(`/bot-settings?botId=${state.agent.id}`);
+    await page
+      .getByRole("button", {
+        name: locale === "ar" ? "صلاحيات الوكيل" : "Agent Permissions",
+        exact: true,
+      })
+      .click();
+    await page.getByTestId("permission-choice-autonomous").click();
+    const review = page.getByTestId("permission-review-native");
+    await expect(review).toBeVisible();
+    await expect(review).toContainText(state.data.symbol);
+    await expect(review).toContainText("0.10");
+    await expect(review).toContainText(
+      locale === "ar" ? "أهداف الربح غير مضمونة" : "Profit targets are not guaranteed",
+    );
+    const pending = await (
+      await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+    ).json();
+    // A new trading agent starts at Ask me; a pending proposal grants nothing.
+    expect(pending.effective_level).toBe("supervised");
+    expect(pending.pending_authority.id).toBe(state.row.id);
+    await review.getByTestId("permission-cancel-native").click();
+    await expect(page.getByTestId("permission-sheet-native")).toBeVisible();
+    const saved = await (
+      await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
+    ).json();
+    expect(saved.find((row) => row.id === state.row.id).status).toBe("revoked");
   });
 
 for (const locale of ["en", "ar"])
   test(`Expo ${locale} prepares full management without numeric forms or granting authority`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const state = await setup(context, locale);
-    try {
-      const before = await (
-        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
-      ).json();
-      expect(
-        (
-          await context.request.put(`/api/agents/${state.agent.id}/permissions`, {
-            headers: state.headers,
-            data: { level: "analysis", expected_revision: before.revision },
-          })
-        ).ok(),
-      ).toBeTruthy();
-      await page.goto(`/bot-settings?botId=${state.agent.id}`);
-      await page
-        .getByRole("button", {
-          name: locale === "ar" ? "صلاحيات الوكيل" : "Agent Permissions",
-          exact: true,
+    cleanup(() => state.cleanup());
+    const before = await (
+      await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+    ).json();
+    expect(
+      (
+        await context.request.put(`/api/agents/${state.agent.id}/permissions`, {
+          headers: state.headers,
+          data: { level: "analysis", expected_revision: before.revision },
         })
-        .click();
-      const response = page.waitForResponse(
-        (r) =>
-          r.url().includes(`/agents/${state.agent.id}/account-authorities?permission_revision=`) &&
-          r.request().method() === "POST",
-      );
-      await page.getByTestId("permission-choice-autonomous").click();
-      const proposed = await response;
-      expect(proposed.status()).toBe(201);
-      const row = await proposed.json();
-      expect(row.envelope.management_mode).toBe("full");
-      expect(row.envelope.schema_version).toBe(2);
-      expect(row.envelope.symbols).toEqual([state.data.symbol]);
-      expect(row.envelope.maximum_actions).toBeNull();
-      expect(row.valid_until).toBeNull();
-      expect(row.status).toBe("pending");
-      const review = page.getByTestId("permission-review-native");
-      await expect(review).toBeVisible();
-      await expect(review).toContainText(
-        locale === "ar" ? "دون حدود رقمية" : "No numerical limits",
-      );
-      await expect(review.getByRole("textbox")).toHaveCount(0);
-      const pending = await (
-        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
-      ).json();
-      expect(pending.effective_level).toBe("analysis");
-      expect(pending.pending_authority.id).toBe(row.id);
-    } finally {
-      await state.cleanup();
-    }
+      ).ok(),
+    ).toBeTruthy();
+    await page.goto(`/bot-settings?botId=${state.agent.id}`);
+    await page
+      .getByRole("button", {
+        name: locale === "ar" ? "صلاحيات الوكيل" : "Agent Permissions",
+        exact: true,
+      })
+      .click();
+    const response = page.waitForResponse(
+      (r) =>
+        r.url().includes(`/agents/${state.agent.id}/account-authorities?permission_revision=`) &&
+        r.request().method() === "POST",
+    );
+    await page.getByTestId("permission-choice-autonomous").click();
+    const proposed = await response;
+    expect(proposed.status()).toBe(201);
+    const row = await proposed.json();
+    expect(row.envelope.management_mode).toBe("full");
+    expect(row.envelope.schema_version).toBe(2);
+    expect(row.envelope.symbols).toEqual([state.data.symbol]);
+    expect(row.envelope.maximum_actions).toBeNull();
+    expect(row.valid_until).toBeNull();
+    expect(row.status).toBe("pending");
+    const review = page.getByTestId("permission-review-native");
+    await expect(review).toBeVisible();
+    await expect(review).toContainText(locale === "ar" ? "دون حدود رقمية" : "No numerical limits");
+    await expect(review.getByRole("textbox")).toHaveCount(0);
+    const pending = await (
+      await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+    ).json();
+    expect(pending.effective_level).toBe("analysis");
+    expect(pending.pending_authority.id).toBe(row.id);
   });

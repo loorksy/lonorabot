@@ -1,12 +1,13 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: isolated UI-test credentials.
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 import { brokerFixture } from "./broker-fixture.mjs";
 
 test("idle avatars use smooth signal capsules for every saved shape profile", async ({
   page,
   context,
+  cleanup,
 }) => {
   const credentials = {
     email: process.env.LONORA_UI_TEST_EMAIL ?? "ci@example.com",
@@ -33,78 +34,77 @@ test("idle avatars use smooth signal capsules for every saved shape profile", as
   const sharedName = `Motion Bot ${randomUUID()}`;
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  try {
-    await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-    for (const avatar of ["orb", "organic", "diamond"]) {
-      const response = await context.request.post("/api/agents", {
-        headers,
-        data: {
-          name: sharedName,
-          avatar,
-          color: "#818cf8",
-          ...broker.binding,
-        },
-      });
-      expect(response.status()).toBe(201);
-      const agent = await response.json();
-      ids.push(agent.id);
-      await page.goto(`/app/${agent.id}`);
-      const glyph = page.locator(".chat-head .head-avatar .mta-avatar");
-      await expect(glyph).toBeVisible();
-      await expect(glyph.locator("[data-mta-bar]")).toHaveCount(8);
-      await expect(glyph).toHaveAttribute("data-state", "waiting");
-      await expect
-        .poll(() =>
-          glyph
-            .locator("[data-mta-bar]")
-            .evaluateAll(
-              (paths) =>
-                paths.filter(
-                  (path) =>
-                    Number(getComputedStyle(path).opacity) > 0.5 &&
-                    Number(path.getAttribute("stroke-width")) > 1,
-                ).length,
-            ),
-        )
-        .toBe(4);
-      await expect(glyph.locator("[data-mta-turn]")).toHaveCount(1);
-      const svg = glyph.locator("svg");
-      await expect(svg).toHaveAttribute("viewBox", "22 22 356 356");
-      const box = await svg.boundingBox();
-      expect(box.width).toBeGreaterThan(20);
-      expect(Math.abs(box.width - box.height)).toBeLessThan(1);
-    }
-    // Same-name bots mounted together retain different deterministic motion profiles.
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/app");
-    const signatures = [];
-    for (const id of ids) {
-      const avatar = page.locator(`[data-inbox-agent-id="${id}"] .mta-avatar`);
-      await expect(avatar).toBeVisible();
-      await expect(avatar).toHaveAttribute("data-avatar-identity", id);
-      signatures.push(
-        await avatar
-          .locator("[data-mta-bar]")
-          .evaluateAll((paths) => paths.map((path) => path.getAttribute("d")).join("|")),
-      );
-    }
-    expect(new Set(signatures).size).toBe(ids.length);
-    await page.screenshot({ path: ".runtime/individual-avatar-inbox.png", fullPage: true });
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.goto(`/app/${ids.at(-1)}`);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect(page.locator(".chat-head .head-avatar .mta-avatar")).toBeVisible();
-    await page.screenshot({ path: ".runtime/liquid-lonora-web.png", fullPage: true });
-    const svgIds = await page
-      .locator(".mta-avatar clipPath")
-      .evaluateAll((nodes) => nodes.map((node) => node.id));
-    expect(new Set(svgIds).size).toBe(svgIds.length);
-    expect(errors).toEqual([]);
-  } finally {
+  cleanup(async () => {
     for (const id of ids) await context.request.delete(`/api/agents/${id}`, { headers });
     await broker.close();
+  });
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  for (const avatar of ["orb", "organic", "diamond"]) {
+    const response = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: sharedName,
+        avatar,
+        color: "#818cf8",
+        ...broker.binding,
+      },
+    });
+    expect(response.status()).toBe(201);
+    const agent = await response.json();
+    ids.push(agent.id);
+    await page.goto(`/app/${agent.id}`);
+    const glyph = page.locator(".chat-head .head-avatar .mta-avatar");
+    await expect(glyph).toBeVisible();
+    await expect(glyph.locator("[data-mta-bar]")).toHaveCount(8);
+    await expect(glyph).toHaveAttribute("data-state", "waiting");
+    await expect
+      .poll(() =>
+        glyph
+          .locator("[data-mta-bar]")
+          .evaluateAll(
+            (paths) =>
+              paths.filter(
+                (path) =>
+                  Number(getComputedStyle(path).opacity) > 0.5 &&
+                  Number(path.getAttribute("stroke-width")) > 1,
+              ).length,
+          ),
+      )
+      .toBe(4);
+    await expect(glyph.locator("[data-mta-turn]")).toHaveCount(1);
+    const svg = glyph.locator("svg");
+    await expect(svg).toHaveAttribute("viewBox", "22 22 356 356");
+    const box = await svg.boundingBox();
+    expect(box.width).toBeGreaterThan(20);
+    expect(Math.abs(box.width - box.height)).toBeLessThan(1);
   }
+  // Same-name bots mounted together retain different deterministic motion profiles.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/app");
+  const signatures = [];
+  for (const id of ids) {
+    const avatar = page.locator(`[data-inbox-agent-id="${id}"] .mta-avatar`);
+    await expect(avatar).toBeVisible();
+    await expect(avatar).toHaveAttribute("data-avatar-identity", id);
+    signatures.push(
+      await avatar
+        .locator("[data-mta-bar]")
+        .evaluateAll((paths) => paths.map((path) => path.getAttribute("d")).join("|")),
+    );
+  }
+  expect(new Set(signatures).size).toBe(ids.length);
+  await page.screenshot({ path: ".runtime/individual-avatar-inbox.png", fullPage: true });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto(`/app/${ids.at(-1)}`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator(".chat-head .head-avatar .mta-avatar")).toBeVisible();
+  await page.screenshot({ path: ".runtime/liquid-lonora-web.png", fullPage: true });
+  const svgIds = await page
+    .locator(".mta-avatar clipPath")
+    .evaluateAll((nodes) => nodes.map((node) => node.id));
+  expect(new Set(svgIds).size).toBe(svgIds.length);
+  expect(errors).toEqual([]);
 });
 
 test("liquid engine renders all states and releases shared animation/listeners", async ({

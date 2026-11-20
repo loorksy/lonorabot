@@ -5,7 +5,7 @@
 // header pill, the cards and the stored records say the same thing.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function python(args, data) {
   return JSON.parse(
@@ -47,6 +47,7 @@ async function modeLine(page) {
 test("ar: one sentence creates a gold agent; one tap approves a trade, one passkey signs the grant", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(180000);
   const data = simulation({ action: "init", empty: true });
@@ -103,84 +104,83 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     )
       decisions.push(new URL(url).pathname);
   });
-  try {
-    // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
-    await page.goto(`/app/${lonora.id}`);
-    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-    await said(words.createGold);
-    const created = worker({
-      thread: lonoraThread.id,
-      account: data.account,
-      symbol: data.symbol,
-      name,
-    });
-    expect(created.status, `creation run ${created.error_code}`).toBe("completed");
-    gold = created.agent;
-    expect(gold).toBeTruthy();
-    // One grant card and no creation card (Lonora says it in one line); nothing else.
-    expect(raised(created, "agent_created")).toHaveLength(0);
-    const [grantId] = raised(created, "grant_authority");
-    expect(raised(created, "grant_authority")).toHaveLength(1);
-    const grantRow = (
-      await (await context.request.get(`/api/owner-actions?thread_id=${lonoraThread.id}`)).json()
-    ).find((row) => row.id === grantId);
-    expect(grantRow.facts.grant.agent_name).toBe(name);
-    const grant = page.locator(`[data-owner-action="${grantRow.id}"]`);
-    await expect(grant).toHaveAttribute("data-owner-action-status", "pending");
-    await expect(grant.getByText(data.symbol).first()).toBeVisible();
-    await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-ar.png") });
-
-    // 2. Before any grant the agent asks: one approval card, one tap.
-    const goldThread = await (
-      await context.request.post(`/api/agents/${gold}/conversation`, { headers, data: {} })
-    ).json();
-    await page.goto(`/app/${gold}`);
-    // Ask me until the grant: the pill says it asks before each trade.
-    await expect(await modeLine(page)).toContainText(text.asks);
-    await page.keyboard.press("Escape");
-    // The sheet slides away before the conversation behind it takes input again.
-    await expect(page.locator("#app")).not.toHaveAttribute("inert", "");
-    await said(words.buyOnce);
-    const asked = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
-    expect(asked.status).toBe("waiting_input");
-    const approval = page.locator("[data-trade-approval]").last();
-    await expect(approval).toContainText(data.symbol);
-    await approval.getByRole("button", { name: text.approve, exact: true }).click();
-    taps.approve += 1;
-    await expect(approval.getByRole("button", { name: text.approve, exact: true })).toHaveCount(0);
-    const traded = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
-    expect(traded.status).toBe("completed");
-    await page.reload();
-    // The confirmed order is shown once, as its Execution Receipt (10.3).
-    await expect(page.locator("[data-execution-receipt]").last()).toBeVisible();
-
-    // 3. One passkey tap signs the grant. On a device with no passkey yet the
-    //    same card first asks for the password and registers the device; registering
-    //    continues straight into the passkey prompt for this decision (no second tap).
-    await page.goto(`/app/${lonora.id}`);
-    const card = page.locator(`[data-owner-action="${grantRow.id}"]`);
-    const authorize = card.getByRole("button", { name: text.authorize, exact: true });
-    await authorize.click();
-    taps.create += 1;
-    await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
-    await card.getByRole("button", { name: text.register, exact: true }).click();
-    taps.enroll += 1;
-    await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-    await expect(card.getByRole("status")).toHaveText(text.signed);
-    const permission = await (await context.request.get(`/api/agents/${gold}/permissions`)).json();
-    expect(permission.effective_level).toBe("autonomous");
-    expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-    // The gold agent's pill says what the card signed: its pair.
-    await page.goto(`/app/${gold}`);
-    const pill = await modeLine(page);
-    await expect(pill).toContainText(text.onItsOwn);
-    await expect(pill).toContainText(data.symbol);
-
-    // The vision's counts: one confirmation each; nothing else was sent.
-    expect(taps).toEqual({ create: 1, enroll: 1, approve: 1 });
-    expect(decisions.filter((path) => path.includes("/trading/execute"))).toEqual([]);
-  } finally {
+  cleanup(async () => {
     if (gold) await context.request.delete(`/api/agents/${gold}`, { headers });
     simulation({ ...data, action: "cleanup" });
-  }
+  });
+  // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
+  await page.goto(`/app/${lonora.id}`);
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await said(words.createGold);
+  const created = worker({
+    thread: lonoraThread.id,
+    account: data.account,
+    symbol: data.symbol,
+    name,
+  });
+  expect(created.status, `creation run ${created.error_code}`).toBe("completed");
+  gold = created.agent;
+  expect(gold).toBeTruthy();
+  // One grant card and no creation card (Lonora says it in one line); nothing else.
+  expect(raised(created, "agent_created")).toHaveLength(0);
+  const [grantId] = raised(created, "grant_authority");
+  expect(raised(created, "grant_authority")).toHaveLength(1);
+  const grantRow = (
+    await (await context.request.get(`/api/owner-actions?thread_id=${lonoraThread.id}`)).json()
+  ).find((row) => row.id === grantId);
+  expect(grantRow.facts.grant.agent_name).toBe(name);
+  const grant = page.locator(`[data-owner-action="${grantRow.id}"]`);
+  await expect(grant).toHaveAttribute("data-owner-action-status", "pending");
+  await expect(grant.getByText(data.symbol).first()).toBeVisible();
+  await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-ar.png") });
+
+  // 2. Before any grant the agent asks: one approval card, one tap.
+  const goldThread = await (
+    await context.request.post(`/api/agents/${gold}/conversation`, { headers, data: {} })
+  ).json();
+  await page.goto(`/app/${gold}`);
+  // Ask me until the grant: the pill says it asks before each trade.
+  await expect(await modeLine(page)).toContainText(text.asks);
+  await page.keyboard.press("Escape");
+  // The sheet slides away before the conversation behind it takes input again.
+  await expect(page.locator("#app")).not.toHaveAttribute("inert", "");
+  await said(words.buyOnce);
+  const asked = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
+  expect(asked.status).toBe("waiting_input");
+  const approval = page.locator("[data-trade-approval]").last();
+  await expect(approval).toContainText(data.symbol);
+  await approval.getByRole("button", { name: text.approve, exact: true }).click();
+  taps.approve += 1;
+  await expect(approval.getByRole("button", { name: text.approve, exact: true })).toHaveCount(0);
+  const traded = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
+  expect(traded.status).toBe("completed");
+  await page.reload();
+  // The confirmed order is shown once, as its Execution Receipt (10.3).
+  await expect(page.locator("[data-execution-receipt]").last()).toBeVisible();
+
+  // 3. One passkey tap signs the grant. On a device with no passkey yet the
+  //    same card first asks for the password and registers the device; registering
+  //    continues straight into the passkey prompt for this decision (no second tap).
+  await page.goto(`/app/${lonora.id}`);
+  const card = page.locator(`[data-owner-action="${grantRow.id}"]`);
+  const authorize = card.getByRole("button", { name: text.authorize, exact: true });
+  await authorize.click();
+  taps.create += 1;
+  await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
+  await card.getByRole("button", { name: text.register, exact: true }).click();
+  taps.enroll += 1;
+  await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+  await expect(card.getByRole("status")).toHaveText(text.signed);
+  const permission = await (await context.request.get(`/api/agents/${gold}/permissions`)).json();
+  expect(permission.effective_level).toBe("autonomous");
+  expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
+  // The gold agent's pill says what the card signed: its pair.
+  await page.goto(`/app/${gold}`);
+  const pill = await modeLine(page);
+  await expect(pill).toContainText(text.onItsOwn);
+  await expect(pill).toContainText(data.symbol);
+
+  // The vision's counts: one confirmation each; nothing else was sent.
+  expect(taps).toEqual({ create: 1, enroll: 1, approve: 1 });
+  expect(decisions.filter((path) => path.includes("/trading/execute"))).toEqual([]);
 });

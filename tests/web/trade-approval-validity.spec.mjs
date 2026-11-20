@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 // A Trade Approval card shows the agent's reason labelled as the agent's words and the
 // band it stays valid within (mandate 10.3, 10.3.1); a drifted card says nothing was sent.
@@ -21,6 +21,7 @@ for (const locale of ["ar", "en"])
   test(`${locale}: a Trade Approval card shows the agent's reason and its tolerance band`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const text = copy[locale];
     const fixture = JSON.parse(
@@ -75,23 +76,20 @@ for (const locale of ["ar", "en"])
     await page.route("**/api/trading/approvals?*", (route) =>
       route.fulfill({ json: [pending, drifted] }),
     );
-    try {
-      await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
-      await page.goto(`/app/${agent.id}`);
-      const card = page.locator(`[data-trade-approval="${pending.id}"]`);
-      await expect(card.getByText(text.words, { exact: true })).toBeVisible();
-      await expect(card.locator("[data-trade-reason] p")).toHaveText(pending.reason);
-      await expect(card.getByText(text.band, { exact: true })).toBeVisible();
-      await expect(card.getByText("101 ± 1.5", { exact: true })).toBeVisible();
-      const ended = page.locator(`[data-trade-approval="${drifted.id}"]`);
-      await expect(ended).toHaveAttribute("data-trade-status", "drifted");
-      await expect(ended.getByText(text.drifted, { exact: true })).toBeVisible();
-      await expect(ended.getByRole("button", { name: /Approve|موافقة/ })).toHaveCount(0);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("trade-approval-validity-ar.png") });
-      }
-    } finally {
-      await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+    await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-trade-approval="${pending.id}"]`);
+    await expect(card.getByText(text.words, { exact: true })).toBeVisible();
+    await expect(card.locator("[data-trade-reason] p")).toHaveText(pending.reason);
+    await expect(card.getByText(text.band, { exact: true })).toBeVisible();
+    await expect(card.getByText("101 ± 1.5", { exact: true })).toBeVisible();
+    const ended = page.locator(`[data-trade-approval="${drifted.id}"]`);
+    await expect(ended).toHaveAttribute("data-trade-status", "drifted");
+    await expect(ended.getByText(text.drifted, { exact: true })).toBeVisible();
+    await expect(ended.getByRole("button", { name: /Approve|موافقة/ })).toHaveCount(0);
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("trade-approval-validity-ar.png") });
     }
   });

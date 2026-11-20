@@ -4,7 +4,7 @@
 // operation or account id.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 const genui = (command, input = {}) =>
   JSON.parse(
@@ -91,6 +91,7 @@ async function fixture(context) {
 test("each operation of the chat is a line at its anchor, a confirmed one only its receipt; the sheet shows the evidence", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const now = new Date().toISOString();
@@ -194,42 +195,40 @@ test("each operation of the chat is a line at its anchor, a confirmed one only i
       ],
     }),
   );
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const lines = page.getByTestId("order-line");
-    const receipts = page.getByTestId("execution-receipt");
-    await expect(receipts).toHaveCount(1);
-    await expect(receipts).toContainText("XAGUSD");
-    await expect(lines).toHaveCount(2);
-    await expect(lines.filter({ hasText: "XAGUSD" })).toHaveCount(0);
-    await expect(page.getByText("EURUSD")).toHaveCount(0);
-    const filled = page.getByRole("button", { name: /^Order Buy 0\.1 XAUUSD: Filled/ });
-    await expect(filled).toBeVisible();
-    const uncertain = page.getByRole("button", { name: /XAUUSD: Unconfirmed/ });
-    await expect(uncertain).toBeVisible();
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const lines = page.getByTestId("order-line");
+  const receipts = page.getByTestId("execution-receipt");
+  await expect(receipts).toHaveCount(1);
+  await expect(receipts).toContainText("XAGUSD");
+  await expect(lines).toHaveCount(2);
+  await expect(lines.filter({ hasText: "XAGUSD" })).toHaveCount(0);
+  await expect(page.getByText("EURUSD")).toHaveCount(0);
+  const filled = page.getByRole("button", { name: /^Order Buy 0\.1 XAUUSD: Filled/ });
+  await expect(filled).toBeVisible();
+  const uncertain = page.getByRole("button", { name: /XAUUSD: Unconfirmed/ });
+  await expect(uncertain).toBeVisible();
 
-    await filled.click();
-    await expect(page.getByText("Trade order", { exact: true })).toBeVisible();
-    await expect(page.getByTestId("order-evidence")).toHaveText(
-      "Recorded from your statement, not broker confirmation",
-    );
-    await expect(page.getByTestId("order-sheet")).not.toContainText(filledId);
-    await expect(page.getByTestId("order-sheet")).not.toContainText("account-raw-id");
-    await page.reload();
+  await filled.click();
+  await expect(page.getByText("Trade order", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("order-evidence")).toHaveText(
+    "Recorded from your statement, not broker confirmation",
+  );
+  await expect(page.getByTestId("order-sheet")).not.toContainText(filledId);
+  await expect(page.getByTestId("order-sheet")).not.toContainText("account-raw-id");
+  await page.reload();
 
-    await uncertain.click();
-    await expect(page.getByTestId("order-evidence")).toContainText(
-      "«Filled» is never shown before the evidence",
-    );
-    await expect(page.getByTestId("order-sheet")).toContainText("No answer from the broker");
-  } finally {
-    await data.remove();
-  }
+  await uncertain.click();
+  await expect(page.getByTestId("order-evidence")).toContainText(
+    "«Filled» is never shown before the evidence",
+  );
+  await expect(page.getByTestId("order-sheet")).toContainText("No answer from the broker");
 });
 
 test("the open sheet follows its operation's current state, and closes once it is confirmed", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(90000);
   const data = await fixture(context);
@@ -265,35 +264,33 @@ test("the open sheet follows its operation's current state, and closes once it i
     }),
   );
   await page.route("**/api/trading/journal?thread_id=*", (route) => route.fulfill({ json: [row] }));
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await page.getByRole("button", { name: /XAUUSD: Unconfirmed/ }).click();
-    const evidence = page.getByTestId("order-evidence");
-    await expect(evidence).toContainText("«Filled» is never shown before the evidence");
-    // The owner settles it as executed: the next read redraws the open sheet from it.
-    row = {
-      ...ambiguous,
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await page.getByRole("button", { name: /XAUUSD: Unconfirmed/ }).click();
+  const evidence = page.getByTestId("order-evidence");
+  await expect(evidence).toContainText("«Filled» is never shown before the evidence");
+  // The owner settles it as executed: the next read redraws the open sheet from it.
+  row = {
+    ...ambiguous,
+    status: "resolved",
+    result: {
       status: "resolved",
-      result: {
-        status: "resolved",
-        details: { resolution: { source: "owner", outcome: "executed" } },
-      },
-    };
-    await expect(evidence).toHaveText("Recorded from your statement, not broker confirmation", {
-      timeout: 30000,
-    });
-    // Confirmed, it is its Execution Receipt: no line, and the sheet closes.
-    row = { ...ambiguous, status: "confirmed", result: { status: "confirmed" } };
-    await expect(page.getByTestId("order-sheet")).toHaveCount(0, { timeout: 30000 });
-    await expect(page.getByTestId("order-line")).toHaveCount(0);
-  } finally {
-    await data.remove();
-  }
+      details: { resolution: { source: "owner", outcome: "executed" } },
+    },
+  };
+  await expect(evidence).toHaveText("Recorded from your statement, not broker confirmation", {
+    timeout: 30000,
+  });
+  // Confirmed, it is its Execution Receipt: no line, and the sheet closes.
+  row = { ...ambiguous, status: "confirmed", result: { status: "confirmed" } };
+  await expect(page.getByTestId("order-sheet")).toHaveCount(0, { timeout: 30000 });
+  await expect(page.getByTestId("order-line")).toHaveCount(0);
 });
 
 test("«Resolve the operation» rests the list on the operation's own settle card", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const fixtureData = await fixture(context);
@@ -337,28 +334,24 @@ test("«Resolve the operation» rests the list on the operation's own settle car
       ],
     }),
   );
-  try {
-    const actions = page.waitForResponse((r) => r.url().includes("/api/owner-actions?thread_id="));
-    await page.goto(`/thread?id=${fixtureData.thread.id}`);
-    // The sheet is drawn from the cards the chat has read: open it once they are in.
-    await actions;
-    const settle = page.getByTestId(`owner-action-${card.id}`);
-    // The order line is at the bottom; the settle card was raised when the chat began.
-    await page.getByTestId("order-line").click();
-    await expect(page.getByTestId("order-evidence")).toContainText(
-      "never shown before the evidence",
-    );
-    await page.getByRole("button", { name: "Resolve the operation", exact: true }).click();
-    await expect(page.getByTestId("order-sheet")).toHaveCount(0);
-    await expect(settle).toBeInViewport();
-  } finally {
-    await fixtureData.remove();
-  }
+  cleanup(() => fixtureData.remove());
+  const actions = page.waitForResponse((r) => r.url().includes("/api/owner-actions?thread_id="));
+  await page.goto(`/thread?id=${fixtureData.thread.id}`);
+  // The sheet is drawn from the cards the chat has read: open it once they are in.
+  await actions;
+  const settle = page.getByTestId(`owner-action-${card.id}`);
+  // The order line is at the bottom; the settle card was raised when the chat began.
+  await page.getByTestId("order-line").click();
+  await expect(page.getByTestId("order-evidence")).toContainText("never shown before the evidence");
+  await page.getByRole("button", { name: "Resolve the operation", exact: true }).click();
+  await expect(page.getByTestId("order-sheet")).toHaveCount(0);
+  await expect(settle).toBeInViewport();
 });
 
 test("«Resolve the operation» reaches the settle card drawn in the agent's message (a slot)", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(90000);
   const fixture = genui("setup");
@@ -418,20 +411,17 @@ test("«Resolve the operation» reaches the settle card drawn in the agent's mes
     }),
   );
   const actions = page.waitForResponse((r) => r.url().includes("/api/owner-actions?thread_id="));
-  try {
-    await page.goto(`/thread?id=${fixture.thread.id}`);
-    await actions;
-    const slot = page.getByTestId("ui-slot-settle");
-    await page.getByTestId("order-line").click();
-    const resolve = page.getByRole("button", { name: "Resolve the operation", exact: true });
-    await expect(resolve).toBeVisible();
-    await resolve.click();
-    await expect(page.getByTestId("order-sheet")).toHaveCount(0);
-    await expect(slot).toBeInViewport();
-    // The card has no row of its own: the one settle card on the page is the slot's.
-    await expect(page.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(1);
-    await expect(slot.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(1);
-  } finally {
-    await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
-  }
+  cleanup(() => context.request.delete(`/api/agents/${fixture.agent.id}`, { headers }));
+  await page.goto(`/thread?id=${fixture.thread.id}`);
+  await actions;
+  const slot = page.getByTestId("ui-slot-settle");
+  await page.getByTestId("order-line").click();
+  const resolve = page.getByRole("button", { name: "Resolve the operation", exact: true });
+  await expect(resolve).toBeVisible();
+  await resolve.click();
+  await expect(page.getByTestId("order-sheet")).toHaveCount(0);
+  await expect(slot).toBeInViewport();
+  // The card has no row of its own: the one settle card on the page is the slot's.
+  await expect(page.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(1);
+  await expect(slot.getByTestId(`owner-action-${ids.settle}`)).toHaveCount(1);
 });

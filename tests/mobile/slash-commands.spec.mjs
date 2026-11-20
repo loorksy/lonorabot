@@ -4,7 +4,7 @@
 // words after it, and only on the owner's own messages.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -46,6 +46,7 @@ async function fixture(context) {
 test("«/» lists the commands; a task is sent with its command; summary goes at once; clear asks first", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const data = await fixture(context);
@@ -129,89 +130,86 @@ test("«/» lists the commands; a task is sent with its command; summary goes at
       json: [{ id: "skill-1", payload: { name: "gold review", enabled: true } }],
     }),
   );
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    // A sent command shows its chip, then only the words after it (as Web); a summary of
-    // nothing more names the conversation. An agent's message never carries a chip.
-    await expect(page.getByText("Here is the summary.", { exact: true })).toBeVisible();
-    // Newest first: the transcript is an inverted list.
-    await expect(page.getByTestId("command-chip")).toHaveText(["/summary", "/search"]);
-    await expect(page.getByText("gold news", { exact: true })).toBeVisible();
-    await expect(page.getByText("/search gold news", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("the conversation", { exact: true })).toBeVisible();
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await composer.fill("/");
-    const list = page.getByRole("list", { name: "Commands" });
-    for (const name of ["task", "search", "summary", "chart", "call", "clear", "gold review"])
-      await expect(list.getByRole("button", { name: `/${name}`, exact: true })).toBeVisible();
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  // A sent command shows its chip, then only the words after it (as Web); a summary of
+  // nothing more names the conversation. An agent's message never carries a chip.
+  await expect(page.getByText("Here is the summary.", { exact: true })).toBeVisible();
+  // Newest first: the transcript is an inverted list.
+  await expect(page.getByTestId("command-chip")).toHaveText(["/summary", "/search"]);
+  await expect(page.getByText("gold news", { exact: true })).toBeVisible();
+  await expect(page.getByText("/search gold news", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("the conversation", { exact: true })).toBeVisible();
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await composer.fill("/");
+  const list = page.getByRole("list", { name: "Commands" });
+  for (const name of ["task", "search", "summary", "chart", "call", "clear", "gold review"])
+    await expect(list.getByRole("button", { name: `/${name}`, exact: true })).toBeVisible();
 
-    // A task without its title is not sent.
-    await composer.fill("/task");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(page.getByText(/Write the task title after/)).toBeVisible();
-    expect(posted).toHaveLength(0);
+  // A task without its title is not sent.
+  await composer.fill("/task");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText(/Write the task title after/)).toBeVisible();
+  expect(posted).toHaveLength(0);
 
-    // Picked from the list, then sent with its title.
-    await composer.fill("/ta");
-    // The row says what to write after the command, as Web.
-    await expect(list.getByRole("button", { name: "/task", exact: true })).toContainText(
-      "Task title",
-    );
-    await list.getByRole("button", { name: "/task", exact: true }).click();
-    await expect(composer).toHaveValue("/task ");
-    await expect(page.getByTestId("command-hint")).toHaveText("Task title");
-    await composer.fill("/task watch 2,425 tonight");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect.poll(() => posted.length).toBe(1);
-    expect(posted[0].content).toBe("/task watch 2,425 tonight");
-    expect(posted[0].command).toEqual({ name: "task", argument: "watch 2,425 tonight" });
+  // Picked from the list, then sent with its title.
+  await composer.fill("/ta");
+  // The row says what to write after the command, as Web.
+  await expect(list.getByRole("button", { name: "/task", exact: true })).toContainText(
+    "Task title",
+  );
+  await list.getByRole("button", { name: "/task", exact: true }).click();
+  await expect(composer).toHaveValue("/task ");
+  await expect(page.getByTestId("command-hint")).toHaveText("Task title");
+  await composer.fill("/task watch 2,425 tonight");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0].content).toBe("/task watch 2,425 tonight");
+  expect(posted[0].command).toEqual({ name: "task", argument: "watch 2,425 tonight" });
 
-    // A skill carries its id.
-    await composer.fill("/gold review today");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect.poll(() => posted.length).toBe(2);
-    expect(posted[1].command).toEqual({ name: "skill", argument: "today", skill_id: "skill-1" });
+  // A skill carries its id.
+  await composer.fill("/gold review today");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => posted.length).toBe(2);
+  expect(posted[1].command).toEqual({ name: "skill", argument: "today", skill_id: "skill-1" });
 
-    // «summary» goes at once, with the reply it answers. Queued, the reply leaves the
-    // composer, even though this send then fails.
-    await page.getByText("gold news", { exact: true }).click({ delay: 900 });
-    await page.getByRole("button", { name: "Reply", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Cancel reply" })).toBeVisible();
-    await composer.fill("/sum");
-    await list.getByRole("button", { name: "/summary", exact: true }).click();
-    await expect.poll(() => posted.length).toBe(3);
-    expect(posted[2].command).toEqual({ name: "summary", argument: "" });
-    expect(posted[2].reply_to).toBe(saved[0].id);
-    await expect(composer).toHaveValue("");
-    await expect(page.getByRole("button", { name: "Cancel reply" })).toHaveCount(0);
+  // «summary» goes at once, with the reply it answers. Queued, the reply leaves the
+  // composer, even though this send then fails.
+  await page.getByText("gold news", { exact: true }).click({ delay: 900 });
+  await page.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Cancel reply" })).toBeVisible();
+  await composer.fill("/sum");
+  await list.getByRole("button", { name: "/summary", exact: true }).click();
+  await expect.poll(() => posted.length).toBe(3);
+  expect(posted[2].command).toEqual({ name: "summary", argument: "" });
+  expect(posted[2].reply_to).toBe(saved[0].id);
+  await expect(composer).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Cancel reply" })).toHaveCount(0);
 
-    // «clear» asks first, says what it does, and can be cancelled.
-    await composer.fill("/cl");
-    await list.getByRole("button", { name: "/clear", exact: true }).click();
-    await expect(page.getByText("Clear the messages?", { exact: true })).toBeVisible();
-    await expect(
-      page.getByText("This chat's messages are hidden for you. The agent and its record stay.", {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    expect(cleared).toBe(0);
-    await composer.fill("/clear");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
-    await expect.poll(() => cleared).toBe(1);
-    // The cleared history does not come back (the unsent commands of this test stay on the
-    // device, failed, as any unsent message does).
-    await expect(page.getByText("gold news", { exact: true })).toHaveCount(0);
+  // «clear» asks first, says what it does, and can be cancelled.
+  await composer.fill("/cl");
+  await list.getByRole("button", { name: "/clear", exact: true }).click();
+  await expect(page.getByText("Clear the messages?", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("This chat's messages are hidden for you. The agent and its record stay.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(cleared).toBe(0);
+  await composer.fill("/clear");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect.poll(() => cleared).toBe(1);
+  // The cleared history does not come back (the unsent commands of this test stay on the
+  // device, failed, as any unsent message does).
+  await expect(page.getByText("gold news", { exact: true })).toHaveCount(0);
 
-    // «اقتراحات @» off (chat preference): no command list either, as on Web.
-    await page.evaluate(() =>
-      localStorage.setItem("lonora.chatPrefs", JSON.stringify({ assist: false })),
-    );
-    await page.reload();
-    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("/");
-    await expect(page.getByRole("list", { name: "Commands" })).toHaveCount(0);
-  } finally {
-    await data.remove();
-  }
+  // «اقتراحات @» off (chat preference): no command list either, as on Web.
+  await page.evaluate(() =>
+    localStorage.setItem("lonora.chatPrefs", JSON.stringify({ assist: false })),
+  );
+  await page.reload();
+  await page.getByRole("textbox", { name: "Message…", exact: true }).fill("/");
+  await expect(page.getByRole("list", { name: "Commands" })).toHaveCount(0);
 });

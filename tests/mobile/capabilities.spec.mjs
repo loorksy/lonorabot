@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function simulation(data) {
   return JSON.parse(
@@ -80,6 +80,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: a feed form in the chat and a site trusted from chat, then Capabilities`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = copy[locale];
@@ -106,55 +107,54 @@ for (const locale of ["ar", "en"])
       skill,
       feed: `Desk ${suffix}`,
     });
-    try {
-      await page.goto(`/thread?id=${seeded.thread}`);
-      const card = page.getByTestId(`owner-action-${seeded.credential}`);
-      await expect(card.getByText(text.connectTitle, { exact: true })).toBeVisible();
-      // The feed's name came from chat; the owner types only its address.
-      await expect(card).toContainText(`⁨Desk ${suffix}⁩`);
-      await card.getByLabel(text.url, { exact: true }).fill(feed);
-      if (locale === "ar")
-        await card.screenshot({ path: test.info().outputPath("credential-native-ar.png") });
-      await card.getByRole("button", { name: text.connect, exact: true }).click();
-      await expect(card.getByText(text.connected, { exact: true })).toBeVisible();
-
-      // Trusting the site raised no card: the credential card is the conversation's only one.
-      const cards = await (
-        await context.request.get(`/api/owner-actions?thread_id=${seeded.thread}`)
-      ).json();
-      expect(cards.map((item) => item.kind)).toEqual(["secret"]);
-
-      await page.goto("/integrations");
-      await expect(page.getByText(text.title, { exact: true }).first()).toBeVisible();
-      const report = await (await context.request.get("/api/capabilities")).json();
-      const added = report.integrations.find((item) => item.name === `Desk ${suffix}`);
-      expect(added.type).toBe("news_feed");
-      expect(added.domain).toBe(`desk-${suffix}.news.example`);
-      const trusted = report.trusted_sources.find((item) => item.identifier === site);
-      expect(trusted.added_via).toBe("owner_message");
-      const row = page.getByTestId(`integration-${added.id}`);
-      await expect(row).toContainText(`⁨Desk ${suffix}⁩`);
-      if (locale === "ar")
-        await page.screenshot({ path: test.info().outputPath("capabilities-native-ar.png") });
-      await row.getByRole("button", { name: text.remove, exact: true }).click();
-      await expect(row).toHaveCount(0);
-      // The last feed of its site is gone: the site leaves the trusted list too.
-      const after = await (await context.request.get("/api/capabilities")).json();
-      expect(
-        after.trusted_sources.some(
-          (item) => item.identifier === `desk-${suffix}.news.example` && item.active,
-        ),
-      ).toBe(false);
-      const written = after.skills.find((item) => item.skill_id === skill);
-      const line = page.getByTestId(`capability-skill-${written.resource_id}`);
-      await line.getByRole("button", { name: text.undo, exact: true }).click();
-      await expect(line).toContainText(text.undone);
-      await expect(line.getByRole("button", { name: text.undo, exact: true })).toHaveCount(0);
-      await expect(page.getByRole("button", { name: text.setUp, exact: true })).toBeVisible();
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${seeded.agent}`, { headers });
       simulation({ ...data, action: "cleanup" });
-    }
+    });
+    await page.goto(`/thread?id=${seeded.thread}`);
+    const card = page.getByTestId(`owner-action-${seeded.credential}`);
+    await expect(card.getByText(text.connectTitle, { exact: true })).toBeVisible();
+    // The feed's name came from chat; the owner types only its address.
+    await expect(card).toContainText(`⁨Desk ${suffix}⁩`);
+    await card.getByLabel(text.url, { exact: true }).fill(feed);
+    if (locale === "ar")
+      await card.screenshot({ path: test.info().outputPath("credential-native-ar.png") });
+    await card.getByRole("button", { name: text.connect, exact: true }).click();
+    await expect(card.getByText(text.connected, { exact: true })).toBeVisible();
+
+    // Trusting the site raised no card: the credential card is the conversation's only one.
+    const cards = await (
+      await context.request.get(`/api/owner-actions?thread_id=${seeded.thread}`)
+    ).json();
+    expect(cards.map((item) => item.kind)).toEqual(["secret"]);
+
+    await page.goto("/integrations");
+    await expect(page.getByText(text.title, { exact: true }).first()).toBeVisible();
+    const report = await (await context.request.get("/api/capabilities")).json();
+    const added = report.integrations.find((item) => item.name === `Desk ${suffix}`);
+    expect(added.type).toBe("news_feed");
+    expect(added.domain).toBe(`desk-${suffix}.news.example`);
+    const trusted = report.trusted_sources.find((item) => item.identifier === site);
+    expect(trusted.added_via).toBe("owner_message");
+    const row = page.getByTestId(`integration-${added.id}`);
+    await expect(row).toContainText(`⁨Desk ${suffix}⁩`);
+    if (locale === "ar")
+      await page.screenshot({ path: test.info().outputPath("capabilities-native-ar.png") });
+    await row.getByRole("button", { name: text.remove, exact: true }).click();
+    await expect(row).toHaveCount(0);
+    // The last feed of its site is gone: the site leaves the trusted list too.
+    const after = await (await context.request.get("/api/capabilities")).json();
+    expect(
+      after.trusted_sources.some(
+        (item) => item.identifier === `desk-${suffix}.news.example` && item.active,
+      ),
+    ).toBe(false);
+    const written = after.skills.find((item) => item.skill_id === skill);
+    const line = page.getByTestId(`capability-skill-${written.resource_id}`);
+    await line.getByRole("button", { name: text.undo, exact: true }).click();
+    await expect(line).toContainText(text.undone);
+    await expect(line.getByRole("button", { name: text.undo, exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: text.setUp, exact: true })).toBeVisible();
   });
 
 const review = {
@@ -180,6 +180,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: a server whose tools are not trusted yet is reviewed and trusted here`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const text = review[locale];
     const data = simulation({ action: "init", empty: true });
@@ -238,28 +239,25 @@ for (const locale of ["ar", "en"])
       });
       return route.fulfill({ json: {} });
     });
-    try {
-      await page.goto("/integrations");
-      const line = page.getByTestId("mcp-server-scripted-server");
-      await line.getByRole("button", { name: text.review, exact: true }).click();
-      const preview = page.getByTestId("mcp-preview");
-      await expect(preview).toContainText("⁨search_posts⁩");
-      await expect(preview).toContainText(`${text.writes}: ⁨post_note⁩`);
-      await expect(preview).toContainText("⁨send_usdc⁩");
-      // A server that offers a blocked money tool is trusted to read only: no write tier.
-      await expect(preview.getByRole("button", { name: text.trustWrite, exact: true })).toHaveCount(
-        0,
-      );
-      if (locale === "ar")
-        await page.screenshot({ path: test.info().outputPath("mcp-review-native-ar.png") });
-      await preview.getByRole("button", { name: text.trust, exact: true }).click();
-      await expect(preview).toHaveCount(0);
-      expect(trusted).toEqual([{ tier: "read", digest: "a".repeat(64) }]);
-      // The screen reads the report again: the server is now trusted to read only.
-      await expect(line).toContainText(text.read);
-      await expect(line.getByRole("button", { name: text.remove, exact: true })).toBeVisible();
-      await expect(line.getByRole("button", { name: text.review, exact: true })).toHaveCount(0);
-    } finally {
-      simulation({ ...data, action: "cleanup" });
-    }
+    cleanup(() => simulation({ ...data, action: "cleanup" }));
+    await page.goto("/integrations");
+    const line = page.getByTestId("mcp-server-scripted-server");
+    await line.getByRole("button", { name: text.review, exact: true }).click();
+    const preview = page.getByTestId("mcp-preview");
+    await expect(preview).toContainText("⁨search_posts⁩");
+    await expect(preview).toContainText(`${text.writes}: ⁨post_note⁩`);
+    await expect(preview).toContainText("⁨send_usdc⁩");
+    // A server that offers a blocked money tool is trusted to read only: no write tier.
+    await expect(preview.getByRole("button", { name: text.trustWrite, exact: true })).toHaveCount(
+      0,
+    );
+    if (locale === "ar")
+      await page.screenshot({ path: test.info().outputPath("mcp-review-native-ar.png") });
+    await preview.getByRole("button", { name: text.trust, exact: true }).click();
+    await expect(preview).toHaveCount(0);
+    expect(trusted).toEqual([{ tier: "read", digest: "a".repeat(64) }]);
+    // The screen reads the report again: the server is now trusted to read only.
+    await expect(line).toContainText(text.read);
+    await expect(line.getByRole("button", { name: text.remove, exact: true })).toBeVisible();
+    await expect(line.getByRole("button", { name: text.review, exact: true })).toHaveCount(0);
   });

@@ -2,7 +2,7 @@
 // with «Reply»; a tap opens that chat; a muted chat stays silent.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -90,6 +90,7 @@ async function scriptedStream(page) {
 test("an answer in another chat shows at the top; Reply opens it; a muted chat stays silent", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const data = await fixture(context);
@@ -100,28 +101,27 @@ test("an answer in another chat shows at the top; Reply opens it; a muted chat s
     data: { thread_ids: [euro.thread.id], muted: true },
   });
   const stream = await scriptedStream(page);
-  try {
-    await page.goto("/");
-    await expect(page.getByText(gold.agent.name, { exact: true })).toBeVisible();
-    await expect.poll(stream.ready).toBeGreaterThan(0);
-    // A muted chat stays silent.
-    stream.push(euro.thread.id, euro.agent.id, "EURUSD at 1.0850, no trade.");
-    const banner = page.getByTestId("heads-up");
-    await page.waitForTimeout(1200);
-    await expect(banner).toHaveCount(0);
-    stream.push(gold.thread.id, gold.agent.id, "Gold broke 2,425; I added 0.05.");
-    await expect(banner).toContainText("Gold broke 2,425; I added 0.05.");
-    await expect(banner).toContainText(gold.agent.name);
-    await banner.getByRole("button", { name: "Reply", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`id=${gold.thread.id}`));
-    await expect(banner).toHaveCount(0);
-    // In the open chat its own answers do not show at the top.
-    await page.waitForTimeout(1500);
-    stream.push(gold.thread.id, gold.agent.id, "Stop moved to break-even.");
-    await page.waitForTimeout(800);
-    await expect(page.getByTestId("heads-up")).toHaveCount(0);
-  } finally {
+  cleanup(async () => {
     await data.remove(gold.agent.id);
     await data.remove(euro.agent.id);
-  }
+  });
+  await page.goto("/");
+  await expect(page.getByText(gold.agent.name, { exact: true })).toBeVisible();
+  await expect.poll(stream.ready).toBeGreaterThan(0);
+  // A muted chat stays silent.
+  stream.push(euro.thread.id, euro.agent.id, "EURUSD at 1.0850, no trade.");
+  const banner = page.getByTestId("heads-up");
+  await page.waitForTimeout(1200);
+  await expect(banner).toHaveCount(0);
+  stream.push(gold.thread.id, gold.agent.id, "Gold broke 2,425; I added 0.05.");
+  await expect(banner).toContainText("Gold broke 2,425; I added 0.05.");
+  await expect(banner).toContainText(gold.agent.name);
+  await banner.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`id=${gold.thread.id}`));
+  await expect(banner).toHaveCount(0);
+  // In the open chat its own answers do not show at the top.
+  await page.waitForTimeout(1500);
+  stream.push(gold.thread.id, gold.agent.id, "Stop moved to break-even.");
+  await page.waitForTimeout(800);
+  await expect(page.getByTestId("heads-up")).toHaveCount(0);
 });

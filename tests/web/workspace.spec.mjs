@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 
 import { randomUUID } from "node:crypto";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect } from "../ui-test.mjs";
 
 import { brokerFixture } from "./broker-fixture.mjs";
 
@@ -84,6 +84,7 @@ test("refresh waits for the real session without flashing sign-in or workspace s
   page,
   context,
   workspace,
+  cleanup,
 }) => {
   const { agent } = workspace;
   await context.addInitScript(() => {
@@ -104,26 +105,21 @@ test("refresh waits for the real session without flashing sign-in or workspace s
     await gated;
     await route.fulfill({ response });
   });
-  try {
-    await page.goto(`/app/${agent.id}`, { waitUntil: "domcontentloaded" });
-    await requested;
-    await expect(page.getByTestId("workspace-loading")).toBeVisible();
-    // The brand mark, inside the shell so that tokens and reduced motion apply.
-    await expect(
-      page.locator(".app-shell [data-testid=workspace-loading] .logo-mark"),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
-    await expect(page.getByTestId("transcript")).toHaveCount(0);
-    await expect(page.locator("#app")).toHaveCount(0);
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-    release();
-    await expect(page.getByTestId("transcript")).toHaveCount(1);
-    await expect(page.getByTestId("workspace-loading")).toHaveCount(0);
-    await page.reload();
-    await expect(page.getByTestId("transcript")).toHaveCount(1);
-  } finally {
-    release();
-  }
+  cleanup(() => release());
+  await page.goto(`/app/${agent.id}`, { waitUntil: "domcontentloaded" });
+  await requested;
+  await expect(page.getByTestId("workspace-loading")).toBeVisible();
+  // The brand mark, inside the shell so that tokens and reduced motion apply.
+  await expect(page.locator(".app-shell [data-testid=workspace-loading] .logo-mark")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("transcript")).toHaveCount(0);
+  await expect(page.locator("#app")).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  release();
+  await expect(page.getByTestId("transcript")).toHaveCount(1);
+  await expect(page.getByTestId("workspace-loading")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("transcript")).toHaveCount(1);
 });
 
 test("recoverable task failure shows authoritative review and resumes the same Run", async ({
@@ -332,6 +328,7 @@ test("retry after a committed message response is lost reuses its real receipt",
   page,
   context,
   workspace,
+  cleanup,
 }) => {
   const { agent, prefix, post } = workspace;
   const message = `${prefix} accepted before connection loss`;
@@ -357,52 +354,49 @@ test("retry after a committed message response is lost reuses its real receipt",
         /\/api\/threads\/[^/]+\/messages$/.test(new URL(response.url()).pathname) &&
         response.request().method() === "POST",
     );
-  try {
-    await page.goto(`/app/${agent.id}`);
-    const composer = page.locator(".composer textarea");
-    await composer.fill(message);
-    await page.locator(".composer .send").click();
-    // A durable event acknowledges the canonical message even when HTTP delivery
-    // loses its response. Replay the same nonce explicitly to verify the receipt;
-    // the UI must not ask the owner to resend an already committed message.
-    await expect(composer).toHaveValue("");
-    await expect.poll(() => lostReceipt?.message.id).toBeTruthy();
-    await expect(page.locator(`[data-message-id="${lostReceipt.message.id}"]`)).toBeVisible();
-    expect(lostReceipt.run_ids).toHaveLength(1);
-    const replay = await post(`/threads/${lostReceipt.message.thread_id}/messages`, {
-      content: message,
-      client_nonce: nonces[0],
-    });
-    const recovered = replay;
-    for (const id of recovered.run_ids) ownedRuns.add(id);
-    expect(recovered.message.id).toBe(lostReceipt.message.id);
-    expect(recovered.run_ids).toEqual(lostReceipt.run_ids);
-    const threadId = recovered.message.thread_id;
-    const committedMessages = await (
-      await context.request.get(`/api/threads/${threadId}/messages`)
-    ).json();
-    expect(committedMessages.filter((row) => row.content === message)).toHaveLength(1);
-    const committedRuns = await (
-      await context.request.get(`/api/runs?thread_id=${threadId}`)
-    ).json();
-    expect(committedRuns).toHaveLength(1);
-
-    // Sending identical content again after confirmation is a new deliberate intent.
-    await composer.fill(message);
-    const repeatedResponse = messageResponse();
-    await page.locator(".composer .send").click();
-    const repeated = await (await repeatedResponse).json();
-    for (const id of repeated.run_ids) ownedRuns.add(id);
-    expect(nonces).toHaveLength(2);
-    expect(nonces[1]).not.toBe(nonces[0]);
-    expect(repeated.message.id).not.toBe(recovered.message.id);
-    const deliberateMessages = await (
-      await context.request.get(`/api/threads/${threadId}/messages`)
-    ).json();
-    expect(deliberateMessages.filter((row) => row.content === message)).toHaveLength(2);
-  } finally {
+  cleanup(async () => {
     for (const id of ownedRuns) await post(`/runs/${id}/cancel`, {});
-  }
+  });
+  await page.goto(`/app/${agent.id}`);
+  const composer = page.locator(".composer textarea");
+  await composer.fill(message);
+  await page.locator(".composer .send").click();
+  // A durable event acknowledges the canonical message even when HTTP delivery
+  // loses its response. Replay the same nonce explicitly to verify the receipt;
+  // the UI must not ask the owner to resend an already committed message.
+  await expect(composer).toHaveValue("");
+  await expect.poll(() => lostReceipt?.message.id).toBeTruthy();
+  await expect(page.locator(`[data-message-id="${lostReceipt.message.id}"]`)).toBeVisible();
+  expect(lostReceipt.run_ids).toHaveLength(1);
+  const replay = await post(`/threads/${lostReceipt.message.thread_id}/messages`, {
+    content: message,
+    client_nonce: nonces[0],
+  });
+  const recovered = replay;
+  for (const id of recovered.run_ids) ownedRuns.add(id);
+  expect(recovered.message.id).toBe(lostReceipt.message.id);
+  expect(recovered.run_ids).toEqual(lostReceipt.run_ids);
+  const threadId = recovered.message.thread_id;
+  const committedMessages = await (
+    await context.request.get(`/api/threads/${threadId}/messages`)
+  ).json();
+  expect(committedMessages.filter((row) => row.content === message)).toHaveLength(1);
+  const committedRuns = await (await context.request.get(`/api/runs?thread_id=${threadId}`)).json();
+  expect(committedRuns).toHaveLength(1);
+
+  // Sending identical content again after confirmation is a new deliberate intent.
+  await composer.fill(message);
+  const repeatedResponse = messageResponse();
+  await page.locator(".composer .send").click();
+  const repeated = await (await repeatedResponse).json();
+  for (const id of repeated.run_ids) ownedRuns.add(id);
+  expect(nonces).toHaveLength(2);
+  expect(nonces[1]).not.toBe(nonces[0]);
+  expect(repeated.message.id).not.toBe(recovered.message.id);
+  const deliberateMessages = await (
+    await context.request.get(`/api/threads/${threadId}/messages`)
+  ).json();
+  expect(deliberateMessages.filter((row) => row.content === message)).toHaveLength(2);
 });
 
 test("knowledge and recurring trading work use durable API edits", async ({
@@ -496,6 +490,7 @@ test("knowledge and recurring trading work use durable API edits", async ({
 test("financial approval buttons persist decisions and display broker receipts after refresh", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = (data) =>
     JSON.parse(
@@ -527,96 +522,95 @@ test("financial approval buttons persist decisions and display broker receipts a
     trading_account_id: data.account,
     trading_symbol: data.symbol,
   });
-  try {
-    const thread = await post(`/agents/${agent.id}/conversation`, {});
-    const approval = {
-      id: randomUUID(),
-      thread_id: thread.id,
-      status: "pending",
-      requests: [
-        {
-          operation_id: "fixed-operation",
-          action: "buy_limit",
-          symbol: "EURUSD.demo",
-          volume: "0.1",
-          price: "99",
-          stop_loss: "98",
-          take_profit: "102",
-        },
-      ],
-      results: [],
-    };
-    let decisions = 0;
-    await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [approval] }));
-    await page.route(`**/api/trading/approvals/${approval.id}/decision`, async (route) => {
-      decisions++;
-      expect(route.request().postDataJSON()).toEqual({ decision: "approve" });
-      approval.status = "completed";
-      approval.results = [
-        {
-          operation_id: "fixed-operation",
-          status: "confirmed",
-          broker_id: "native-ticket-42",
-          details: { price: "99.02" },
-        },
-      ];
-      await route.fulfill({ json: approval });
-    });
-    await page.goto(`/app/${agent.id}`);
-    const card = page.locator(`[data-trade-approval='${approval.id}']`);
-    await expect(card.getByText("EURUSD.demo", { exact: true })).toBeVisible();
-    await expect(card.locator("[data-trade-result]")).toHaveCount(0);
-    await card.getByRole("button", { name: "Approve", exact: true }).click();
-    await expect(card.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
-    // The confirmed fill is shown once, as its Execution Receipt (10.3), not in the card.
-    await expect(card.locator("[data-trade-result='confirmed']")).toHaveCount(0);
-    await page.route("**/api/trading/receipts?*", (route) =>
-      route.fulfill({
-        json: [
-          {
-            operation_id: "fixed-operation",
-            thread_id: thread.id,
-            timeline_seq: null,
-            agent_id: agent.id,
-            created_at: new Date().toISOString(),
-            kind: "order",
-            action: "buy_limit",
-            symbol: "EURUSD.demo",
-            ticket: "native-ticket-42",
-            volume: "0.1",
-            price: "99",
-            reason: null,
-            verification: "verified",
-          },
-        ],
-      }),
-    );
-    await page.reload();
-    const receipt = page.locator("[data-execution-receipt='fixed-operation']");
-    await expect(receipt.getByText("native-ticket-42", { exact: true })).toBeVisible();
-    await expect(receipt.getByText("99", { exact: true })).toBeVisible();
-    expect(decisions).toBe(1);
-    // A rejection is never rendered as broker success, including after reconnection.
+  cleanup(async () => {
+    await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    fixture({ ...data, action: "cleanup" });
+  });
+  const thread = await post(`/agents/${agent.id}/conversation`, {});
+  const approval = {
+    id: randomUUID(),
+    thread_id: thread.id,
+    status: "pending",
+    requests: [
+      {
+        operation_id: "fixed-operation",
+        action: "buy_limit",
+        symbol: "EURUSD.demo",
+        volume: "0.1",
+        price: "99",
+        stop_loss: "98",
+        take_profit: "102",
+      },
+    ],
+    results: [],
+  };
+  let decisions = 0;
+  await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [approval] }));
+  await page.route(`**/api/trading/approvals/${approval.id}/decision`, async (route) => {
+    decisions++;
+    expect(route.request().postDataJSON()).toEqual({ decision: "approve" });
+    approval.status = "completed";
     approval.results = [
       {
         operation_id: "fixed-operation",
-        status: "failed",
-        code: "TRADE_RETCODE_INVALID_VOLUME",
-        details: { description: "Invalid volume" },
+        status: "confirmed",
+        broker_id: "native-ticket-42",
+        details: { price: "99.02" },
       },
     ];
-    await page.reload();
-    await expect(card.locator("[data-trade-result='failed']")).toBeVisible();
-    // A broker code reads as a sentence, never raw; the broker's own description stays.
-    await expect(
-      card.getByText("The request could not be completed. Try again.", { exact: true }),
-    ).toBeVisible();
-    await expect(card.getByText("TRADE_RETCODE_INVALID_VOLUME")).toHaveCount(0);
-    await expect(card.getByText("Invalid volume", { exact: true })).toBeVisible();
-  } finally {
-    await context.request.delete(`/api/agents/${agent.id}`, { headers });
-    fixture({ ...data, action: "cleanup" });
-  }
+    await route.fulfill({ json: approval });
+  });
+  await page.goto(`/app/${agent.id}`);
+  const card = page.locator(`[data-trade-approval='${approval.id}']`);
+  await expect(card.getByText("EURUSD.demo", { exact: true })).toBeVisible();
+  await expect(card.locator("[data-trade-result]")).toHaveCount(0);
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(card.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
+  // The confirmed fill is shown once, as its Execution Receipt (10.3), not in the card.
+  await expect(card.locator("[data-trade-result='confirmed']")).toHaveCount(0);
+  await page.route("**/api/trading/receipts?*", (route) =>
+    route.fulfill({
+      json: [
+        {
+          operation_id: "fixed-operation",
+          thread_id: thread.id,
+          timeline_seq: null,
+          agent_id: agent.id,
+          created_at: new Date().toISOString(),
+          kind: "order",
+          action: "buy_limit",
+          symbol: "EURUSD.demo",
+          ticket: "native-ticket-42",
+          volume: "0.1",
+          price: "99",
+          reason: null,
+          verification: "verified",
+        },
+      ],
+    }),
+  );
+  await page.reload();
+  const receipt = page.locator("[data-execution-receipt='fixed-operation']");
+  await expect(receipt.getByText("native-ticket-42", { exact: true })).toBeVisible();
+  await expect(receipt.getByText("99", { exact: true })).toBeVisible();
+  expect(decisions).toBe(1);
+  // A rejection is never rendered as broker success, including after reconnection.
+  approval.results = [
+    {
+      operation_id: "fixed-operation",
+      status: "failed",
+      code: "TRADE_RETCODE_INVALID_VOLUME",
+      details: { description: "Invalid volume" },
+    },
+  ];
+  await page.reload();
+  await expect(card.locator("[data-trade-result='failed']")).toBeVisible();
+  // A broker code reads as a sentence, never raw; the broker's own description stays.
+  await expect(
+    card.getByText("The request could not be completed. Try again.", { exact: true }),
+  ).toBeVisible();
+  await expect(card.getByText("TRADE_RETCODE_INVALID_VOLUME")).toHaveCount(0);
+  await expect(card.getByText("Invalid volume", { exact: true })).toBeVisible();
 });
 
 test("cancelled durable task stays cancelled after reload and offers no completion or edit bypass", async ({
