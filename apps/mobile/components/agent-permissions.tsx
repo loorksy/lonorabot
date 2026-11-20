@@ -3,6 +3,7 @@ import { mandateLine, modeChangeLine, ownerActionText, tradingSubLine } from "@l
 import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
+import { agentShowingMandate, otherTradingMode } from "../lib/mandate-mode";
 import { useSession } from "../lib/session";
 import { SettingsGroup, SettingsRow } from "./settings-group";
 import { useToast } from "./shell/toast";
@@ -15,6 +16,8 @@ type Props = {
   settings?: boolean;
   pendingTrade?: boolean;
   onState?: (state: PermissionState | null) => void;
+  /** The parent stores this mode on the agent. The control reads that field. */
+  onMode?: (mode: TradingMode) => void;
 };
 
 /** The Mandate control. No connected account: nothing (Q9). Drafts grant nothing. */
@@ -25,7 +28,7 @@ export function AgentPermissions(props: Props) {
   return <ModeControl key={`${owner.id}:${props.agent.id}:${props.revision ?? 0}`} {...props} />;
 }
 
-function ModeControl({ agent, settings = false, onState }: Props) {
+function ModeControl({ agent, settings = false, onState, onMode }: Props) {
   const { rtl, errorText } = useSession();
   const toast = useToast();
   const locale = rtl ? "ar" : "en";
@@ -35,7 +38,7 @@ function ModeControl({ agent, settings = false, onState }: Props) {
   const [busy, setBusy] = useState(false);
   const mode: TradingMode | null =
     agent.trading_mode === "full" || agent.trading_mode === "ask" ? agent.trading_mode : null;
-  const other: TradingMode | null = mode === "full" ? "ask" : mode === "ask" ? "full" : null;
+  const other = otherTradingMode(mode);
   useEffect(() => {
     let live = true;
     void api
@@ -58,10 +61,11 @@ function ModeControl({ agent, settings = false, onState }: Props) {
         `/owner-actions/${encodeURIComponent(card.id)}/decision`,
         { decision: "confirm", trading_mode: next },
       );
-      const applied = updated.result.trading_mode === "full" ? "full" : "ask";
-      toast(modeChangeLine(agent.name, applied, updated.result.withdrawn ?? 0, locale), {
+      const shown = agentShowingMandate(agent, updated.result);
+      toast(modeChangeLine(agent.name, shown.trading_mode, updated.result.withdrawn ?? 0, locale), {
         type: "success",
       });
+      onMode?.(shown.trading_mode);
       setOpen(false);
     } catch (reason) {
       toast(errorText(reason), { type: "error" });
