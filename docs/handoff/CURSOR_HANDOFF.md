@@ -159,6 +159,7 @@ Use PostgreSQL 16 with a fresh database per run. Take the env values from `.gith
   - LD2: modify_order is counted that way.
   - LD3: the Secret card is counted with its actual labels, and the "replaces" line counts against HARD_LIMIT.
   - "Approved, awaiting the broker" uses the wait tone, never ok.
+- **Gate Fernet key:** the local gate uses the 44-character fixture named in `docs/acceptance-scenario.md`. The longer value in `.github/workflows/ci.yml` is not a valid Fernet key, so it is not used.
 
 ## 5. Useful facts
 
