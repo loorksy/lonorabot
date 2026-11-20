@@ -1,16 +1,14 @@
 """Delegated research identities never inherit owner-wide financial authority."""
 
 import asyncio
-from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
 from legacy_agents import legacy_child
 from lonora_adapter_kit.types import ToolCall
-from lonora_contracts.domain import AgentCreate
+from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_contracts.runs import RunRequest
-from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import require_financial_agent
 from lonora_db.agents import agent_data, create_agent
@@ -18,11 +16,10 @@ from lonora_db.runs import create_run, run_data
 from lonora_db.schema import AgentRow
 from lonora_tools.loader import load_tools
 
-# The door no longer refuses a role or an ancestry (6.9): an order of a delegated
-# identity is refused by its own trading permission: "No trading" where it is stored,
-# else "Ask me" in Ask, every agent's default since W-AUTH's data step (default_level;
-# migration 0128 made every stored delegated agent an ordinary team agent).
-ORDER_REFUSALS = ("agent_analysis_only", "trade_approval_required")
+# The door no longer refuses a role or an ancestry (6.9). A delegated identity is in
+# Ask by default since the data step (default_level; migration 0128 made every stored
+# delegated agent an ordinary team agent). A new order with a tolerance and a reason
+# raises one pending Trade Approval and is not sent.
 
 
 async def denied(
@@ -50,10 +47,20 @@ async def main() -> None:
                 {"provider": "simulation", "account_id": uuid4().hex, "enabled": True},
             )
         )["id"]
+        quotes = {
+            symbol: {
+                "symbol": symbol,
+                "bid": "100",
+                "ask": "101",
+                "observed_at": utcnow().isoformat(),
+                "source": "delegated-scope-fixture",
+            }
+            for symbol in ("BTCUSD.pro", "EURUSDm")
+        }
         await f.request(
             "POST",
             f"/trading/connections/{connection}/simulation",
-            {"snapshot": {"balance": "10000", "currency": "USD"}},
+            {"snapshot": {"balance": "10000", "currency": "USD", "quotes": quotes}},
         )
         async with f.runtime.db.sessions() as session, session.begin():
             personal_row = await session.get(AgentRow, personal["id"])
@@ -85,41 +92,37 @@ async def main() -> None:
             context,
         )
         assert account["account"]["balance"] == "10000"
-        await denied(
-            registry.execute(
+
+        async def pending_approval(ctx: Any, call_id: str, symbol: str) -> None:
+            """Ask sends nothing: a tolerance and a reason raise one pending Trade Approval."""
+            result = await registry.execute(
                 ToolCall(
-                    id="forbidden-trade",
+                    id=call_id,
                     name="trade_execute",
                     arguments={
                         "account_id": connection,
-                        "symbol": "BTCUSD.pro",
+                        "symbol": symbol,
                         "action": "buy",
                         "volume": "0.1",
+                        "reason": "The owner decides this order",
+                        "tolerance": "1.5",
                     },
                 ),
-                context,
-            ),
-            ORDER_REFUSALS,
-        )
+                ctx,
+            )
+            assert result.get("_runtime_wait") is True and result.get("approval_id"), result
+            assert result.get("status") != "confirmed", result
+            shown = await f.request("GET", f"/trading/approvals?thread_id={ctx.thread_id}")
+            card = next(row for row in shown if row["id"] == result["approval_id"])
+            assert card["status"] == "pending", card["status"]
+
+        await pending_approval(context, "ask-trade", "BTCUSD.pro")
         print(
-            "PASS Personal children and descendants are explicit research identities: account reads work, arbitrary trades fail before proposal"
+            "PASS Personal children and descendants are explicit research identities: account reads work, and a new order raises a pending Trade Approval"
         )
         descendant_thread = await f.conversation(grandchild_data)
         descendant_context = await f.lease(await f.run(grandchild_data, descendant_thread))
-        await denied(
-            descendant_context.trading.execute(
-                f.owner,
-                TradeRequest(
-                    operation_id=uuid4().hex,
-                    account_id=connection,
-                    symbol="EURUSDm",
-                    action="buy",
-                    volume=Decimal("0.1"),
-                ),
-                descendant_context.lease,
-            ),
-            ORDER_REFUSALS,
-        )
+        await pending_approval(descendant_context, "descendant-trade", "EURUSDm")
         # A specialist peer's order under a delegated run's ancestry is decided by the
         # specialist's own trading permission, never by the ancestry's role.
         specialist_thread = await f.conversation(specialist_data)
@@ -136,22 +139,9 @@ async def main() -> None:
             )
             peer_data = run_data(peer)
         peer_context = await f.lease(peer_data)
-        await denied(
-            peer_context.trading.execute(
-                f.owner,
-                TradeRequest(
-                    operation_id=uuid4().hex,
-                    account_id=connection,
-                    symbol="EURUSDm",
-                    action="buy",
-                    volume=Decimal("0.1"),
-                ),
-                peer_context.lease,
-            ),
-            ORDER_REFUSALS,
-        )
+        await pending_approval(peer_context, "peer-trade", "EURUSDm")
         print(
-            "PASS direct descendant execution and scoped peer collaboration cannot bypass persisted delegated authority"
+            "PASS a descendant's order and a specialist peer's order each raise a pending Trade Approval and neither is sent"
         )
         # Delete the intermediate parent: SET NULL must not turn the survivor into legacy.
         await f.request("DELETE", "/agents/" + child.id)
