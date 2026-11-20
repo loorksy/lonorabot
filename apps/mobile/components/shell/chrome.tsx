@@ -108,7 +108,8 @@ export function ChatsHeader({
           flexDirection: dir,
           alignItems: "center",
           maxWidth: expanded ? undefined : 520,
-          marginStart: expanded ? 0 : 6,
+          // The app mirrors itself by `rtl` (start/end would resolve to the left in Arabic).
+          [rtl ? "marginRight" : "marginLeft"]: expanded ? 0 : 6,
         }}
       >
         <View style={{ paddingHorizontal: 13 }}>
@@ -362,7 +363,7 @@ export function FloatingTabBar({
                   fontWeight: active ? "600" : "400",
                 }}
               >
-                {labels[root]}
+                {root === "updates" ? t("sh_updatesTab") : labels[root]}
               </Text>
             </Pressable>
           );

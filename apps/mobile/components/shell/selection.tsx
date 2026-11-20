@@ -279,7 +279,13 @@ export function SelBar({ visibleKeys }: { visibleKeys: readonly string[] }) {
       <Text
         accessibilityLiveRegion="polite"
         accessibilityLabel={`${n} ${t("sh_selected")}`}
-        style={{ minWidth: 30, paddingStart: 6, color: c.text, fontSize: 22, fontWeight: "700" }}
+        style={{
+          minWidth: 30,
+          [rtl ? "paddingRight" : "paddingLeft"]: 6,
+          color: c.text,
+          fontSize: 22,
+          fontWeight: "700",
+        }}
       >
         {n}
       </Text>

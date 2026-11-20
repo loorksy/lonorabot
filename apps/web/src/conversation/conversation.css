@@ -97,6 +97,17 @@
   display: inline;
   white-space: pre-wrap;
 }
+/* A text that reads the other way from the interface (dir on the inline .text) lines its
+   wrapped lines up on its own start; the name, quote and steps beside it keep the interface's. */
+.bubble:has(> .text[dir="ltr"]) {
+  text-align: left;
+}
+.bubble:has(> .text[dir="rtl"]) {
+  text-align: right;
+}
+:where(.bubble) > :where(:not(.text)) {
+  text-align: start;
+}
 .meta {
   float: left;
   display: inline-flex;
@@ -107,6 +118,19 @@
   font-size: var(--fs-xs);
   line-height: 1;
   direction: ltr;
+}
+/* The time ends the words' last line, where a line of them ends: the left of an Arabic text
+   (v38), the right of one that reads left to right, in either interface. */
+:where(html[dir="ltr"]) .bubble > .meta,
+.bubble:has(> .text[dir="ltr"], > .md[dir="ltr"]) > .meta {
+  float: right;
+  margin-left: 12px;
+  margin-right: 0;
+}
+:where(html[dir="ltr"]) .bubble:has(> .text[dir="rtl"], > .md[dir="rtl"]) > .meta {
+  float: left;
+  margin-left: 0;
+  margin-right: 12px;
 }
 .ticks {
   display: inline-grid;

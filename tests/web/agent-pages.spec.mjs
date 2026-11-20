@@ -257,7 +257,17 @@ test("the chart sheet draws the broker's candles for the agent's pair (Q37)", as
   await sheet.getByRole("tab", { name: "15m" }).click();
   await expect(sheet.locator("svg.chart > g > rect").first()).toBeVisible();
   expect(await sheet.locator("svg.chart > g > rect").count()).toBeGreaterThan(8);
-  await sheet.getByRole("button", { name: "Full screen", exact: true }).click();
+  // On the desktop the two bar icons sit side by side; each keeps its own tap area, so the
+  // centre of «Full screen» is that button, not Close.
+  const expand = sheet.getByRole("button", { name: "Full screen", exact: true });
+  expect(
+    await expand.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return hit === button || button.contains(hit);
+    }),
+  ).toBe(true);
+  await expand.click();
   await expect(sheet).toHaveClass(/expanded/);
 });
 

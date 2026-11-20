@@ -81,7 +81,11 @@ for (const theme of ["dark", "light"])
     await expect(row(page, key(alpha)).getByLabel("1 unread")).toBeVisible();
     await expect(row(page, key(beta)).getByLabel("2 unread")).toBeVisible();
     await expect(row(page, key(beta))).toContainText("Second update");
-    await expect(row(page, key(gamma))).toContainText("You: Accepted only");
+    // «You:» keeps the interface's side; the words after it keep their own direction.
+    const you = row(page, key(gamma)).getByText("You:", { exact: true });
+    const accepted = row(page, key(gamma)).getByText("Accepted only", { exact: true });
+    await expect(accepted).toBeVisible();
+    expect((await you.boundingBox()).x).toBeLessThan((await accepted.boundingBox()).x);
     await expect(row(page, key(delta))).toContainText(/\d\d:\d\d/);
     // Q2: one grey tick when the server accepted it; two accent ticks once the run started.
     await expect(
@@ -106,6 +110,59 @@ for (const theme of ["dark", "light"])
     await expect(page.getByTestId("tab-chats")).toContainText(String(total));
     await page.screenshot({ path: `.runtime/mobile-chats-${theme}.png`, animations: "disabled" });
   });
+
+test("Arabic: a preview keeps its words' direction and first words; the speaker reads first", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture, "ar");
+  const [alpha, , gamma] = fixture.agents;
+  const long =
+    "Watch EURUSD into the London open and tell me when the spread widens past two pips today";
+  await page.route("**/api/threads/inbox**", async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    for (const entry of rows)
+      if (entry.thread_id === fixture.threads[2].id && entry.last_message)
+        entry.last_message = { ...entry.last_message, preview: long, content: long };
+    await route.fulfill({ response, json: rows });
+  });
+  seed({
+    action: "message",
+    thread: fixture.group.state.thread_id,
+    agent: alpha.id,
+    content: "**الربح** اليوم (+$239) و −1.5%",
+  });
+  await page.goto("/");
+  // After «أنت:» the Latin words read left-to-right and are cut at their own end.
+  const words = row(page, key(gamma)).getByText(long, { exact: true });
+  await expect(words).toBeVisible();
+  const seen = await words.evaluate((el) => {
+    const node = el.firstChild;
+    const range = document.createRange();
+    range.setStart(node, 0);
+    range.setEnd(node, 5);
+    const first = range.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return {
+      direction: getComputedStyle(el).direction,
+      cut: el.scrollWidth > el.clientWidth,
+      first: first.left >= box.left - 0.5 && first.right <= box.right + 0.5,
+    };
+  });
+  expect(seen).toEqual({ direction: "ltr", cut: true, first: true });
+  const you = row(page, key(gamma)).getByText("أنت:", { exact: true });
+  expect((await you.boundingBox()).x).toBeGreaterThan((await words.boundingBox()).x);
+  // A group's line: the speaker on the reading side, the signed numbers in order.
+  const group = row(page, `group:${fixture.group.id}`);
+  const said = group.getByText("الربح اليوم (\u2066+$239\u2069) و \u2066−1.5%\u2069", {
+    exact: true,
+  });
+  await expect(said).toBeVisible();
+  const speaker = group.getByText(`${alpha.name}:`, { exact: true });
+  expect((await speaker.boundingBox()).x).toBeGreaterThan((await said.boundingBox()).x);
+});
 
 test("pinning a fourth chat is refused locally and when the server answers 409; pins lead in pin order", async ({
   page,
@@ -229,6 +286,18 @@ test("a custom list is created with the emoji panel, filters the rows and delete
   await name.fill("Work");
   await sheet.getByRole("button", { name: "Add an emoji" }).click();
   await expect(sheet.getByLabel("Emojis")).toBeVisible();
+  // The delete key's arrow, drawn for Arabic, points left in English.
+  expect(
+    await sheet
+      .getByRole("button", { name: "Delete", exact: true })
+      .locator("svg")
+      .evaluate((node) => {
+        let element = node;
+        while (element && getComputedStyle(element).transform === "none")
+          element = element.parentElement;
+        return element ? getComputedStyle(element).transform : "none";
+      }),
+  ).toBe("matrix(-1, 0, 0, 1, 0, 0)");
   await sheet.getByLabel("Emojis").getByRole("button").nth(3).click();
   await expect(name).not.toHaveValue("Work");
   const listName = `Work ${Date.now() % 10000}`;

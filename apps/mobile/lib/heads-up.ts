@@ -16,7 +16,8 @@ import {
   rowKey,
 } from "@lonora/core";
 
-export type Banner = { row: ChatRow; text: string };
+/** `who`: the speaker in a group, shown apart from the words (as Web's Banner.who). */
+export type Banner = { row: ChatRow; text: string; who?: string };
 const MAX = 120;
 const cut = (text: string) => (text.length > MAX ? `${text.slice(0, MAX)}…` : text);
 
@@ -46,16 +47,15 @@ export function messageBanner(
   const row = context.rows.find((candidate) => candidate.threadId === event.thread_id);
   if (!row || !headsUpAllowed(row.entry)) return null;
   if (typeof payload.agent_id === "string" && context.off.has(payload.agent_id)) return null;
-  // One plain line (no Markdown marks or table pipes), as Web.
-  const content = typeof payload.content === "string" ? plainLine(payload.content) : "";
+  // One plain line (no Markdown marks or table pipes), cut before its numbers are isolated,
+  // as Web.
+  const content = typeof payload.content === "string" ? plainLine(payload.content, MAX) : "";
   const speaker =
     row.kind === "group"
       ? context.agents.find((agent) => agent.id === payload.agent_id)?.name
       : undefined;
-  return {
-    row,
-    text: content ? cut(speaker ? `${speaker}: ${content}` : content) : context.newMessage,
-  };
+  if (!content) return { row, text: context.newMessage };
+  return speaker ? { row, text: content, who: `${speaker}:` } : { row, text: content };
 }
 
 /**

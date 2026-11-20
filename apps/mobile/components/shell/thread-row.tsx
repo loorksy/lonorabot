@@ -16,6 +16,7 @@ import { Pressable, Text, View } from "react-native";
 import { fill } from "../../lib/i18n";
 import type { OutgoingIntent } from "../../lib/outgoing-messages";
 import { useSession } from "../../lib/session";
+import { textDirection } from "../../lib/text-direction";
 import { radius, useTheme } from "../../lib/theme";
 import { Icon, type IconName } from "./icon";
 import { RowAvatar, useAgentRole } from "./kit";
@@ -51,6 +52,30 @@ function Preview({
     flexShrink: 1,
     textAlign: (rtl ? "right" : "left") as "right" | "left",
   };
+  // Who said it keeps the interface's side; the words read in their own direction and are cut
+  // at their own end, so the first words always show (as Web).
+  const said = (who: string | undefined, text: string) => {
+    const direction = textDirection(text, rtl ? "rtl" : "ltr");
+    return (
+      <>
+        {who ? (
+          <Text numberOfLines={1} style={{ ...style, flexShrink: 0, maxWidth: "50%" }}>
+            {who}
+          </Text>
+        ) : null}
+        <Text
+          numberOfLines={1}
+          style={{
+            ...style,
+            writingDirection: direction,
+            textAlign: direction === "rtl" ? "right" : "left",
+          }}
+        >
+          {text}
+        </Text>
+      </>
+    );
+  };
   if (outgoing) {
     const failed = outgoing.message.delivery === "failed";
     return (
@@ -61,9 +86,7 @@ function Preview({
         >
           <Icon name={failed ? "alert" : "clock"} size={16} color={failed ? c.red : c.muted} />
         </View>
-        <Text numberOfLines={1} style={style}>
-          {fill(t("sh_youPrefix"), outgoing.message.content)}
-        </Text>
+        {said(t("sh_youSaid"), plainLine(outgoing.message.content))}
       </>
     );
   }
@@ -81,8 +104,6 @@ function Preview({
     !mine && row.kind === "group" && last.agent_id
       ? agents.find((agent) => agent.id === last.agent_id)?.name
       : undefined;
-  // One plain line (no Markdown marks), as Web.
-  const text = plainLine(last.preview || last.content);
   const icon = kindIcon[last.kind];
   return (
     <>
@@ -98,9 +119,11 @@ function Preview({
         )
       ) : null}
       {icon ? <Icon name={icon} size={16} color={color} /> : null}
-      <Text numberOfLines={1} style={style}>
-        {mine ? fill(t("sh_youPrefix"), text) : speaker ? `${speaker}: ${text}` : text}
-      </Text>
+      {/* One plain line (no Markdown marks), as Web. */}
+      {said(
+        mine ? t("sh_youSaid") : speaker ? `${speaker}:` : undefined,
+        plainLine(last.preview || last.content),
+      )}
     </>
   );
 }

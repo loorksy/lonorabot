@@ -2,7 +2,6 @@ import { t } from "@lingui/core/macro";
 import {
   type ChatRow,
   isMuted,
-  isolateText,
   isPinned,
   plainLine,
   rowCount,
@@ -69,6 +68,17 @@ export function RowAvatar({
   );
 }
 
+/** Who said it, in the interface's direction, then the words in their own direction, cut at
+ * their own end so the first words always show. */
+export function SaidLine({ who, text }: { who?: string; text: string }) {
+  return (
+    <>
+      {who && <span className="who">{who}</span>}
+      <span dir={textDirection(text)}>{text}</span>
+    </>
+  );
+}
+
 /* Line 2: what was said last, who said it, its kind and the owner's ticks (Q2: one grey
    tick = accepted by the server; two accent ticks = the agent's run started on it). A
    message still in this device's outbox is the latest the owner wrote: a clock while it
@@ -93,9 +103,7 @@ function Preview({
         >
           <Icon name={failed ? "alert" : "clock"} />
         </span>
-        <span>
-          <bdi>{t`You: ${outgoing.message.content}`}</bdi>
-        </span>
+        <SaidLine who={t`You:`} text={plainLine(outgoing.message.content)} />
       </>
     );
   }
@@ -111,10 +119,6 @@ function Preview({
     !mine && row.kind === "group" && last.agent_id
       ? agents.find((agent) => agent.id === last.agent_id)?.name
       : undefined;
-  // One plain line; after «أنت: » or a speaker the text keeps its own direction, and the line
-  // reads left-to-right when its letters are all Latin.
-  const text = isolateText(plainLine(last.preview || last.content));
-  const line = mine ? t`You: ${text}` : speaker ? `${speaker}: ${text}` : text;
   const icon = kindIcon[last.kind];
   return (
     <>
@@ -129,7 +133,10 @@ function Preview({
           </span>
         ))}
       {icon && <Icon name={icon} />}
-      <span dir={textDirection(line)}>{line}</span>
+      <SaidLine
+        who={mine ? t`You:` : speaker ? `${speaker}:` : undefined}
+        text={plainLine(last.preview || last.content)}
+      />
     </>
   );
 }

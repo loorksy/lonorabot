@@ -97,6 +97,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, []);
 
+  // In a browser the page says its language, for screen readers and the browser's own text
+  // handling. Its direction stays left-to-right: every row here mirrors itself by `rtl` (as
+  // on native, where the app does not switch the layout), so a page dir would flip it twice.
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof document !== "undefined")
+      document.documentElement.lang = locale;
+  }, [locale]);
+
   const login = async (value: string, email: string, password: string) => {
     let normalized: string;
     try {

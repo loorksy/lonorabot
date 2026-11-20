@@ -6,9 +6,12 @@
  */
 
 // Right-to-left letters (Hebrew, Arabic, Syriac, Thaana, N'Ko and their presentation
-// forms) without the Arabic-Indic digits, which take the surrounding direction.
-const RTL = /[\u0590-\u05ff\u0600-\u065f\u066a-\u06ef\u06fa-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/;
-const LTR = /[A-Za-z\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff]/;
+// forms) without the Arabic-Indic digits and the Arabic number signs and punctuation
+// (، ؛ ؟ ٪ ۔ and the like), which take the surrounding direction.
+const RTL =
+  /[\u0590-\u05ff\u0610-\u061a\u0620-\u065f\u066e-\u06d3\u06d5-\u06ef\u06fa-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/;
+// Latin, Greek and Cyrillic letters; × and ÷ are signs, not letters.
+const LTR = /[A-Za-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f\u0370-\u03ff\u0400-\u04ff]/;
 // Embedded direction controls would end an isolate early and reorder the rest of the line.
 const CONTROLS = /[\u202a-\u202e\u2066-\u2069]/g;
 
@@ -29,20 +32,15 @@ export function textDirection(text: string): "rtl" | "ltr" | undefined {
   return LTR.test(text) ? "ltr" : undefined;
 }
 
-/** The text isolated in its own direction, so it keeps its order after a prefix such as «أنت: ». */
-export function isolateText(text: string): string {
-  const direction = textDirection(text);
-  if (!direction) return text;
-  return `${direction === "ltr" ? "\u2066" : "\u2067"}${text.replace(CONTROLS, "")}\u2069`;
-}
-
 /**
  * Markdown as one plain line: no «**», «`», «###», quote or list marks, no link targets;
  * a table's pipes become « · » and its separator row goes; a signed number is isolated
- * left-to-right (LRI … PDI).
+ * left-to-right (LRI … PDI). Longer than `max`, the line is cut with «…» before the numbers
+ * are isolated, so a cut never leaves an isolate open; the cut falls between words, so a
+ * figure is never shown in part (a single word longer than `max` is cut where it stands).
  */
-export function plainLine(text: string): string {
-  return String(text ?? "")
+export function plainLine(text: string, max = Number.POSITIVE_INFINITY): string {
+  const line = String(text ?? "")
     .replace(CONTROLS, "")
     .replace(/```[\s\S]*?(```|$)/g, " ")
     .replace(/`([^`\n]+)`/g, "$1")
@@ -54,6 +52,11 @@ export function plainLine(text: string): string {
     .replace(/[ \t]*\|[ \t]*/g, " · ")
     .replace(/^[ \t]*(#{1,3}[ \t]+|>[ \t]?|[-*•][ \t]+)/gm, "")
     .replace(/\s+/g, " ")
-    .replace(SIGNED_NUMBER, "$1\u2066$2\u2069")
     .trim();
+  let cut = line;
+  if (line.length > max) {
+    const space = line.lastIndexOf(" ", max);
+    cut = `${line.slice(0, space > 0 ? space : max).trimEnd()}…`;
+  }
+  return cut.replace(SIGNED_NUMBER, "$1\u2066$2\u2069");
 }

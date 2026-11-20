@@ -106,6 +106,13 @@
   direction: ltr;
   unicode-bidi: isolate;
   display: inline-block;
+  /* a long id or login wraps inside its line instead of running out of the row */
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+/* «back» and the row chevron are drawn for Arabic; in English they point the other way. */
+html[dir="ltr"] svg[data-mirror] {
+  transform: scaleX(-1);
 }
 .app-shell .sr-only {
   position: absolute;
@@ -514,7 +521,8 @@ nav.tabbar.compact .nav-label {
   .sg-take,
   .safety-cap,
   .tabs > button,
-  .search-clear
+  .search-clear,
+  .pencil
 )::before,
 .switch::after {
   content: "";
@@ -2164,6 +2172,9 @@ html[dir="ltr"] .sheet-page.go-back {
   #app.list-collapsed .rail-collapse svg {
     transform: scaleX(-1);
   }
+  html[dir="ltr"] #app.list-collapsed .rail-collapse svg {
+    transform: none;
+  }
   /* The reference's later dialog rule (bottom: --kb, max-height min(88dvh, 780px, …)) still
      holds on desktop: the modal sits above an on-screen keyboard and grows to 88dvh. */
   #dialog {
@@ -2202,8 +2213,12 @@ html[dir="ltr"] .sheet-page.go-back {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
-  .sheet-top > .icon {
-    position: static;
+  /* Laid out in the bar's flow, yet each still holds its own 44px area: a static icon would
+     size its ::before by the whole bar, and Close, drawn last, would take Full screen's taps. */
+  .sheet-top > .icon,
+  .sheet-top > .icon.sheet-expand {
+    position: relative;
+    inset: auto;
   }
   .sheet-top:has(.sheet-expand) {
     display: flex;

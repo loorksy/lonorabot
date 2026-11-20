@@ -77,7 +77,10 @@ test("Expo Arabic attention view lists what needs the owner and opens its conver
   await expect(
     row.getByText("الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت", { exact: true }),
   ).toBeVisible();
-  await expect(row.getByText("XAUUSD", { exact: true })).toBeVisible();
+  // The agent and the market, each isolated, in the Arabic order: the agent on the right.
+  const who = row.getByTestId("attention-who");
+  await expect(who).toHaveText(`\u2068${fixture.agent.name}\u2069 · \u2068XAUUSD\u2069`);
+  expect(await who.evaluate((node) => getComputedStyle(node).direction)).toBe("rtl");
   await expect(row).not.toContainText(fixture.uncertain.parameters.operation_id);
   // Opening it shows the conversation, where the Settle card stands; it settles nothing.
   fixtureOnly = true;

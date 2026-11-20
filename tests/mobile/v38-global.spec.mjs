@@ -125,3 +125,128 @@ test("a switch row is never cut; a Latin-only message reads left-to-right", asyn
     });
   }
 });
+
+test("Arabic: the page says its language", async ({ page, context }) => {
+  const data = fixture();
+  try {
+    await signIn(context, data);
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ar");
+  } finally {
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ ...data, action: "cleanup" }),
+      encoding: "utf8",
+    });
+  }
+});
+
+test("the tab says «Attention»; the held line and the live chip read whole; the transcript keeps a column", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000);
+  const data = fixture();
+  try {
+    const headers = await signIn(context, data);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    // The tab says «Attention»; the button keeps the full words.
+    const tab = page.getByTestId("tab-updates");
+    await expect(tab).toHaveAttribute("aria-label", /^Needs your attention/);
+    await expect(tab.getByText("Attention", { exact: true })).toBeVisible();
+    // The Agents list's chevron, drawn for Arabic, points the English way.
+    await page.goto("/agents");
+    const chevron = page.locator('path[d="M14 6l-6 6 6 6"]').first();
+    await expect(chevron).toHaveCount(1);
+    expect(
+      await chevron.evaluate((node) => {
+        let element = node;
+        while (element && getComputedStyle(element).transform === "none")
+          element = element.parentElement;
+        return element ? getComputedStyle(element).transform : "none";
+      }),
+    ).toBe("matrix(-1, 0, 0, 1, 0, 0)");
+
+    const agent = await (
+      await context.request.post("/api/agents", {
+        headers,
+        data: {
+          name: `V38 ${randomUUID().slice(0, 6)}`,
+          trading_account_id: data.account,
+          trading_symbol: data.symbol,
+        },
+      })
+    ).json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    const rows = Array.from({ length: 40 }, (_, index) => ({
+      id: `v38-${index + 1}`,
+      thread_id: thread.id,
+      agent_id: agent.id,
+      seq: index + 1,
+      role: "assistant",
+      content: `Row ${index + 1}`,
+      reply_to: null,
+      attachment_ids: [],
+      created_at: "2026-11-19T10:00:00Z",
+    }));
+    await page.route(`**/api/threads/${thread.id}/messages*`, (route) =>
+      route.fulfill({ json: rows }),
+    );
+    // A trade the broker has not confirmed: the held line and a problem in the live chip.
+    await page.route(`**/api/agents/${agent.id}/state*`, async (route) => {
+      const response = await route.fetch();
+      const state = await response.json();
+      const readiness = state.trading_readiness ?? {};
+      await route.fulfill({
+        response,
+        json: {
+          ...state,
+          state: "degraded",
+          trading_readiness: {
+            ...readiness,
+            state: "uncertain",
+            params: { ...(readiness.params ?? {}), count: 1, symbol: "XAUUSD" },
+          },
+        },
+      });
+    });
+    await page.goto(`/thread?id=${thread.id}`);
+    const held = page.getByTestId("safety-pill").getByText(/held$/);
+    await expect(held).toBeVisible();
+    expect(
+      await held.evaluate(
+        (el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1,
+      ),
+    ).toBe(true);
+    // The chip's words take the text color; its amber stays on the dot and the arrow.
+    const words = page.getByTestId("agent-live-state").getByText(/^Background activity/);
+    await expect(words).toBeVisible();
+    const color = (locator) => locator.evaluate((el) => getComputedStyle(el).color);
+    expect(await color(words)).toBe(await color(held));
+
+    // Scrolled back, the way to the latest message is a down chevron.
+    await expect(page.getByText("Row 40", { exact: true })).toBeVisible();
+    await page.getByTestId("conversation-transcript").evaluate((el) => {
+      el.scrollTop = 600;
+      el.dispatchEvent(new Event("scroll"));
+    });
+    const jump = page.getByRole("button", { name: "Jump to latest" });
+    await expect(jump).toBeVisible();
+    await expect(jump.locator("path")).toHaveAttribute("d", "M6 9l6 6 6-6");
+    await jump.click();
+
+    // On a wide screen the transcript keeps Web's column instead of the window's width.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const latest = page.getByText("Row 40", { exact: true });
+    await expect(latest).toBeVisible();
+    expect((await latest.boundingBox()).x).toBeGreaterThanOrEqual((1280 - 792) / 2);
+  } finally {
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ ...data, action: "cleanup" }),
+      encoding: "utf8",
+    });
+  }
+});

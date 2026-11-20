@@ -61,6 +61,13 @@ test("the banner reads one plain line: no Markdown marks, a signed number kept w
   assert.equal(banner?.text, "الذهب ارتفع XAUUSD · \u2066+1.5%\u2069");
 });
 
+test("a cut answer never leaves a number's isolate open", () => {
+  const banner = messageBanner(event("t-a", { content: `${"x".repeat(118)} +3.1% more` }), base);
+  const text = banner?.text ?? "";
+  assert.equal(text.at(-1), "…");
+  assert.equal(text.split("\u2066").length, text.split("\u2069").length);
+});
+
 test("the open chat, a muted chat, the owner's own messages and old news do not show", () => {
   assert.equal(messageBanner(event("t-a"), { ...base, current: "t-a" }), null);
   assert.equal(messageBanner(event("t-b"), base), null);
@@ -76,7 +83,7 @@ test("quiet hours and an agent's in-app rule off silence it", () => {
   assert.equal(messageBanner(event("t-a"), { ...base, off: new Set(["a"]) }), null);
 });
 
-test("a long answer is cut; an empty one says «New message»; a group names the speaker", () => {
+test("a long answer is cut; an empty one says «New message»; a group names the speaker apart", () => {
   const long = messageBanner(event("t-a", { content: "x".repeat(300) }), base);
   assert.equal(long?.text.length, 121);
   assert.equal(messageBanner(event("t-a", { content: "  " }), base)?.text, "New message");
@@ -91,7 +98,10 @@ test("a long answer is cut; an empty one says «New message»; a group names the
     rows: [group],
     agents: [{ id: "a", name: "Gold" }] as never,
   });
-  assert.equal(said?.text, "Gold: Gold broke 2,425; I added 0.05.");
+  // The speaker stays apart from the words, so each keeps its own direction (as Web).
+  assert.equal(said?.who, "Gold:");
+  assert.equal(said?.text, "Gold broke 2,425; I added 0.05.");
+  assert.equal(messageBanner(event("t-a"), base)?.who, undefined);
 });
 
 test("an urgent attention item always shows on its agent's row; an informational one does not", () => {

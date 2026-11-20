@@ -59,8 +59,9 @@ test("rows show the server's state: previews, ticks, unread counts and the badge
   await expect(desktopRow(page, key(beta)).locator(".count")).toContainText("2");
   await expect(desktopRow(page, key(beta))).toContainText("Second update");
   // Q2: one grey tick when the server accepted it; two accent ticks once the run started.
-  // v38: after «You: » the Latin text keeps its own direction; a Latin-only line reads LTR.
-  await expect(desktopRow(page, key(gamma))).toContainText("You: \u2066Accepted only\u2069");
+  // v38: «You:» keeps the interface's side; the words after it keep their own direction.
+  await expect(desktopRow(page, key(gamma)).locator(".pv > .who")).toHaveText("You:");
+  await expect(desktopRow(page, key(gamma)).locator(".pv > span[dir]")).toHaveText("Accepted only");
   await expect(desktopRow(page, key(gamma)).locator(".pv > span[dir]")).toHaveAttribute(
     "dir",
     "ltr",
@@ -88,6 +89,70 @@ test("rows show the server's state: previews, ticks, unread counts and the badge
       return rows.find((entry) => entry.thread_id === fixture.threads[1].id).unread_count;
     })
     .toBe(0);
+  // A group's line in English: the speaker stays on the left, the Arabic words keep their own
+  // direction and their signed numbers stay in order; the banner says it the same way.
+  seed({
+    action: "message",
+    thread: fixture.group.state.thread_id,
+    agent: alpha.id,
+    content: "**الربح** اليوم (+$239) و −1.5%",
+  });
+  const said = "الربح اليوم (\u2066+$239\u2069) و \u2066−1.5%\u2069";
+  const x = async (locator) => (await locator.boundingBox()).x;
+  const group = desktopRow(page, `group:${fixture.group.id}`);
+  await expect(group.locator(".pv > span[dir]")).toHaveText(said);
+  await expect(group.locator(".pv > span[dir]")).toHaveAttribute("dir", "rtl");
+  await expect(group.locator(".pv > .who")).toHaveText(`${alpha.name}:`);
+  expect(await x(group.locator(".pv > .who"))).toBeLessThan(
+    await x(group.locator(".pv > span[dir]")),
+  );
+  const banner = page.locator("#headsup small");
+  await expect(banner.locator("span[dir]")).toHaveText(said);
+  await expect(banner.locator(".who")).toHaveText(`${alpha.name}:`);
+  expect(await x(banner.locator(".who"))).toBeLessThan(await x(banner.locator("span[dir]")));
+});
+
+test("Arabic: a preview after «أنت:» shows its first words; the cut falls at their own end", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture, "ar");
+  const gamma = fixture.agents[2];
+  const long =
+    "Watch EURUSD into the London open and tell me when the spread widens past two pips today";
+  await page.route("**/api/threads/inbox**", async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    for (const row of rows)
+      if (row.thread_id === fixture.threads[2].id && row.last_message)
+        row.last_message = { ...row.last_message, preview: long, content: long };
+    await route.fulfill({ response, json: rows });
+  });
+  await page.goto("/app");
+  const row = desktopRow(page, key(gamma));
+  const words = row.locator(".pv > span[dir]");
+  await expect(words).toHaveText(long);
+  await expect(words).toHaveAttribute("dir", "ltr");
+  // Longer than the row: the cut is at the end; «Watch» shows whole inside the box.
+  const seen = await words.evaluate((el) => {
+    const node = el.firstChild;
+    const at = node.textContent.indexOf("Watch");
+    const range = document.createRange();
+    range.setStart(node, at);
+    range.setEnd(node, at + 5);
+    const first = range.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return {
+      cut: el.scrollWidth > el.clientWidth,
+      first: first.left >= box.left - 0.5 && first.right <= box.right + 0.5,
+    };
+  });
+  expect(seen).toEqual({ cut: true, first: true });
+  // «أنت:» stays on the reading side, the right.
+  const who = await row.locator(".pv > .who").boundingBox();
+  expect(who.x).toBeGreaterThan((await words.boundingBox()).x);
+  await expect(row.locator(".pv > .who")).toHaveText("أنت:");
 });
 
 test("pinning a fourth chat is refused locally and when the server answers 409", async ({

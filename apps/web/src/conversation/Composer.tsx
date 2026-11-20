@@ -1145,16 +1145,12 @@ export function Composer({
 
 const MIC_TIP = "lonora.tips.mic";
 
-/** Above the mic, its arrow on the mic; gone on any press or after 5.2s, and never shown again. */
+/** Above the mic, its arrow on the mic; gone on any press or after 5.2s, and never shown again.
+ * It never covers a fixed card: with one under it, it waits for another visit. */
 function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
   const tip = useRef<HTMLDivElement>(null);
   const [show, setShow] = useState(false);
   useLayoutEffect(() => {
-    try {
-      localStorage.setItem(MIC_TIP, "1");
-    } catch {
-      // shown for this page only
-    }
     const el = tip.current;
     const card = mic.closest(".composer-card");
     if (!el || !card) return;
@@ -1164,6 +1160,20 @@ function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
     el.style.left = `${left}px`;
     el.style.bottom = `${innerHeight - card.getBoundingClientRect().top + 12}px`;
     el.style.setProperty("--ax", `${cx - left}px`);
+    const box = el.getBoundingClientRect();
+    const covers = [...document.querySelectorAll(".mcard, .oa")].some((fixed) => {
+      const r = fixed.getBoundingClientRect();
+      return r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top;
+    });
+    if (covers) {
+      onDone();
+      return;
+    }
+    try {
+      localStorage.setItem(MIC_TIP, "1");
+    } catch {
+      // shown for this page only
+    }
     const frame = requestAnimationFrame(() => setShow(true));
     let gone = 0;
     const off = () => {

@@ -190,7 +190,7 @@ export {
   replyLanguages,
 } from "./owner-profile";
 export { peerOutcome } from "./peer-outcome";
-export { isolateText, plainLine, SIGNED_NUMBER, textDirection } from "./plain-line";
+export { plainLine, SIGNED_NUMBER, textDirection } from "./plain-line";
 export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,

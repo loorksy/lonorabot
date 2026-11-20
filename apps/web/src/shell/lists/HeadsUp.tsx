@@ -6,7 +6,6 @@ import {
   type ChatRow,
   headsUpAllowed,
   inQuietHours,
-  isolateText,
   plainLine,
   type QuietHours,
   rowKey,
@@ -24,14 +23,15 @@ import { NOTIFY_DEFAULTS, type NotifyPrefs, readDevicePref } from "../settings/d
 import { suppressClicks } from "../sheets/SheetHost";
 import { chatPath } from "./ChatList";
 import { useLists } from "./state";
-import { RowAvatar } from "./ThreadRow";
+import { RowAvatar, SaidLine } from "./ThreadRow";
 
 /* HeadsUp: an answer that arrives in another chat shows at the top for 5.2s with «رد»; while
    the pointer or focus is on it, it waits, then stays 2.4s more; a swipe up hides it. Mute,
    archive and the owner's quiet hours suppress it and its tone (owner decision Q4, the
    reach-me policy); a critical or action_required attention item always shows. */
-/** `path`: where a tap goes when it is not the row's chat (a broker outage → recovery). */
-type Banner = { row: ChatRow; text: string; serial: number; path?: string };
+/** `path`: where a tap goes when it is not the row's chat (a broker outage → recovery);
+ * `who`: the speaker in a group. */
+type Banner = { row: ChatRow; text: string; serial: number; path?: string; who?: string };
 
 let audio: AudioContext | null = null;
 function tone() {
@@ -138,7 +138,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     quiet,
     off: offAgents,
   };
-  const show = useCallback((row: ChatRow, text: string, path?: string) => {
+  const show = useCallback((row: ChatRow, text: string, path?: string, who?: string) => {
     const prefs = readDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
     serial.current += 1;
     setHeld(null);
@@ -147,6 +147,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       text: prefs.preview ? text : t`New message`,
       serial: serial.current,
       path,
+      who: prefs.preview ? who : undefined,
     });
     setPhase("in");
     if (prefs.sound) tone();
@@ -173,17 +174,13 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       if (!row || !headsUpAllowed(row.entry)) continue;
       // The agent's own rule «رسائل داخل التطبيق» (Q47).
       if (typeof payload.agent_id === "string" && off.has(payload.agent_id)) continue;
-      const content = typeof payload.content === "string" ? plainLine(payload.content) : "";
+      const content = typeof payload.content === "string" ? plainLine(payload.content, 120) : "";
       const speaker =
         row.kind === "group"
           ? agents.find((agent) => agent.id === payload.agent_id)?.name
           : undefined;
-      const text = content
-        ? speaker
-          ? `${speaker}: ${isolateText(content)}`
-          : content
-        : t`New message`;
-      show(row, text.length > 120 ? `${text.slice(0, 120)}…` : text);
+      if (content) show(row, content, undefined, speaker && `${speaker}:`);
+      else show(row, t`New message`);
     }
   }, [events, show]);
   useEffect(() => {
@@ -259,7 +256,9 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
           <strong>
             <bdi>{banner.row.name}</bdi>
           </strong>
-          <small dir={textDirection(banner.text)}>{banner.text}</small>
+          <small dir={banner.who ? undefined : textDirection(banner.text)}>
+            <SaidLine who={banner.who} text={banner.text} />
+          </small>
         </span>
       </button>
       <button type="button" className="btn small outline hu-reply" onClick={open}>

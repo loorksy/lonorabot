@@ -2,6 +2,7 @@
 export const ICON_PATHS = {
   back: "M9 5l7 7-7 7M4 12h12",
   chev: "M14 6l-6 6 6 6",
+  down: "M6 9l6 6 6-6",
   plus: "M12 5v14M5 12h14",
   chat: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12zM8.5 12h.01M12 12h.01M15.5 12h.01",
   layers: "M12 2l10 5-10 5L2 7l10-5zM2 12l10 5 10-5M2 17l10 5 10-5",

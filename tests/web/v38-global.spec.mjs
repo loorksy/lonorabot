@@ -58,6 +58,14 @@ test("small controls answer over 44px; the fold is remembered and its arrow flip
     expect((await pseudo(chip, "::before")).height).toBe(44);
     const bar = page.locator(".list-filters");
     expect(await bar.evaluate((el) => el.scrollHeight - el.clientHeight)).toBe(0);
+    // The desktop bar keeps the area's top too: a tap 1px above the chip's edge is the chip's.
+    expect(
+      await chip.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top - 1);
+        return el === hit || el.contains(hit);
+      }),
+    ).toBe(true);
 
     const rail = page.locator(".desktop-rail");
     const fold = rail.locator(".rail-collapse");
@@ -78,6 +86,62 @@ test("small controls answer over 44px; the fold is remembered and its arrow flip
     await expect(page.locator("#app")).not.toHaveClass(/list-collapsed/);
     await page.reload();
     await expect(page.locator("#app")).not.toHaveClass(/list-collapsed/);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("English: back and chevrons point its way, the tab says «Attention», a long id wraps", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    const transform = (locator) => locator.evaluate((el) => getComputedStyle(el).transform);
+    const flipped = "matrix(-1, 0, 0, 1, 0, 0)";
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/integrations");
+    // «back» and the row chevron are drawn for Arabic; English mirrors them.
+    const back = page.locator(".topbar").getByRole("button", { name: "Back" }).locator("svg");
+    await expect(back).toBeVisible();
+    expect(await transform(back)).toBe(flipped);
+    expect(await transform(page.locator(".row .chevron svg").first())).toBe(flipped);
+    // A long account id wraps inside its row instead of running out of it.
+    // Any of the suite's simulation accounts: each has such an id.
+    const id = page.locator(".row span.ltr", { hasText: "chart-browser-" }).first();
+    await expect(id).toBeVisible();
+    const [box, row] = await id.evaluate((el) => [
+      el.getBoundingClientRect().toJSON(),
+      el.closest(".row").getBoundingClientRect().toJSON(),
+    ]);
+    expect(box.left).toBeGreaterThanOrEqual(row.left);
+    expect(box.right).toBeLessThanOrEqual(row.right);
+    // The tab says «Attention» and fits it; the button and the page keep the full words.
+    await page.goto("/app");
+    const tab = page.locator("nav.tabbar").getByRole("button", { name: "Needs your attention" });
+    await expect(tab.locator(".nav-label")).toHaveText("Attention");
+    const label = await tab.locator(".nav-label").evaluate((el) => el.scrollWidth);
+    expect(label).toBeLessThanOrEqual((await tab.boundingBox()).width);
+    await tab.click();
+    await expect(page.locator("main > .large-title")).toHaveText(/Needs your attention/);
+    // The rail's arrow mirrors too, and still flips when the list folds.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const fold = page.locator(".desktop-rail .rail-collapse");
+    await expect(fold).toBeVisible();
+    expect(await transform(fold.locator("svg"))).toBe(flipped);
+    await fold.click();
+    await expect(page.locator("#app")).toHaveClass(/list-collapsed/);
+    await expect.poll(() => transform(fold.locator("svg"))).toBe("none");
+    await fold.click();
+    // The new agent's 34px avatar pencil answers over 44px too.
+    await page.goto("/app/new-agent");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    const pencil = page.locator(".pencil");
+    await expect(pencil).toBeVisible();
+    expect((await pencil.boundingBox()).width).toBeLessThan(44);
+    expect(await pseudo(pencil, "::before")).toEqual({ width: 44, height: 44 });
   } finally {
     fixture({ ...data, action: "cleanup" });
   }
@@ -167,6 +231,11 @@ test("message text: signed numbers keep their sign, Latin-only reads LTR, a quot
         "### الملخص\n**الذهب** ارتفع\n\n| الزوج | التغير |\n|---|---|\n| XAUUSD | +1.5% |",
       ),
       message(5, "user", "شكرًا", "v38-4"),
+      message(
+        6,
+        "assistant",
+        "Gold is holding above the weekly pivot and momentum is fading into the close, so I wait for a retest past two pips.",
+      ),
     ];
     await page.route(`**/api/threads/${thread.id}/messages*`, (route) =>
       route.fulfill({ json: rows }),
@@ -178,11 +247,101 @@ test("message text: signed numbers keep their sign, Latin-only reads LTR, a quot
     await expect(bubble(1).locator('bdi[dir="ltr"]')).toHaveText(["+$239", "−1.5%"]);
     await expect(bubble(2).locator(".text")).toHaveAttribute("dir", "ltr");
     await expect(bubble(3).locator(".text")).toHaveAttribute("dir", "rtl");
+    // Its wrapped lines start on its own side too: the Latin bubble lines up on the left.
+    const align = (seq) =>
+      bubble(seq)
+        .locator(".bubble")
+        .evaluate((el) => getComputedStyle(el).textAlign);
+    expect(await align(2)).toBe("left");
+    expect(await align(3)).toBe("right");
     await expect(bubble(4).locator('td bdi[dir="ltr"]')).toHaveText("+1.5%");
     // The quote reads one plain line: no «###», «**» or table pipes.
     await expect(bubble(5).locator(".quote-text")).toHaveText(
       "الملخص الذهب ارتفع الزوج · التغير XAUUSD · \u2066+1.5%\u2069",
     );
+    // The time ends the words' last line: on the left of Arabic words, on the right of Latin
+    // ones, never before the words, in either interface.
+    const timeSide = (seq) =>
+      bubble(seq)
+        .locator(".bubble")
+        .evaluate((el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el.querySelector(":scope > .text"));
+          const lines = [...range.getClientRects()];
+          const last = lines[lines.length - 1];
+          const meta = el.querySelector(":scope > .meta").getBoundingClientRect();
+          const box = el.getBoundingClientRect();
+          const side = meta.left + meta.width / 2 > box.left + box.width / 2 ? "right" : "left";
+          // On the last line itself it sits past the words' end.
+          const sameLine = meta.top < last.bottom && meta.bottom > last.top;
+          const past = side === "right" ? meta.left >= last.right - 1 : meta.right <= last.left + 1;
+          return sameLine && !past ? "overlap" : side;
+        });
+    expect(await timeSide(6)).toBe("right");
+    expect(await timeSide(3)).toBe("left");
+    await page.evaluate(() => localStorage.setItem("lonora.locale", "en"));
+    await page.reload();
+    await expect(bubble(6)).toBeVisible();
+    expect(await timeSide(6)).toBe("right");
+    expect(await timeSide(3)).toBe("left");
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("the one-time mic tip never covers a fixed card; with one under it, it waits", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    const headers = {
+      "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+    };
+    const agent = await (
+      await context.request.post("/api/agents", {
+        headers,
+        data: {
+          name: `V38 tip ${randomUUID()}`,
+          trading_account_id: data.account,
+          trading_symbol: data.symbol,
+        },
+      })
+    ).json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    const pending = {
+      id: randomUUID(),
+      thread_id: thread.id,
+      agent_id: agent.id,
+      run_id: "run",
+      created_at: "2026-11-19T10:00:00Z",
+      timeline_seq: 1,
+      status: "pending",
+      reason: "Breakout above 100 on the London open",
+      requests: [{ action: "buy", symbol: "XAUUSD", volume: "0.1", stop_loss: "95" }],
+      results: [],
+      expires_at: null,
+      tolerance: "1.5",
+      reference_price: "101",
+    };
+    let approvals = [pending];
+    await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: approvals }));
+    await page.route(`**/api/threads/${thread.id}/messages*`, (route) =>
+      route.fulfill({ json: [] }),
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/app/${agent.id}`);
+    await expect(page.locator(`[data-trade-approval="${pending.id}"]`)).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(page.locator(".mic-tip")).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("lonora.tips.mic"))).toBeNull();
+    // With nothing fixed under it, it shows on a later visit.
+    approvals = [];
+    await page.reload();
+    await expect(page.locator(".mic-tip")).toHaveClass(/show/);
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

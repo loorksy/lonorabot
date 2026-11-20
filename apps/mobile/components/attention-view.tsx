@@ -3,6 +3,7 @@
 // conversation, where the fixed card or the question stands; opening it decides nothing.
 
 import type { Agent, AttentionViewRow } from "@lonora/contracts";
+import { isolate } from "@lonora/core";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Text, View } from "react-native";
@@ -75,14 +76,19 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
               {row.summary}
             </Text>
           ) : null}
-          <Text style={{ color: colors.secondary, textAlign: align }}>
-            {agents.find((agent) => agent.id === row.agent_id)?.name}
-            {row.symbol ? (
-              <>
-                {" · "}
-                <Text style={{ writingDirection: "ltr" }}>{row.symbol}</Text>
-              </>
-            ) : null}
+          {/* The agent and the market, each isolated, in the interface's order (as Web's bdi). */}
+          <Text
+            testID="attention-who"
+            style={{
+              color: colors.secondary,
+              textAlign: align,
+              writingDirection: rtl ? "rtl" : "ltr",
+            }}
+          >
+            {[agents.find((agent) => agent.id === row.agent_id)?.name, row.symbol]
+              .filter((part): part is string => Boolean(part))
+              .map(isolate)
+              .join(" · ")}
           </Text>
           <Button
             secondary

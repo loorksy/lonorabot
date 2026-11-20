@@ -101,14 +101,13 @@ export function snippet(message?: ApiMessage | null): string {
   if (!message) return "";
   const call = callPart(message);
   const voice = voicePart(message);
-  const text = call
+  return call
     ? call.missed
       ? t({ message: "Missed voice call", context: "call log" })
       : t({ message: "Voice call", context: "call log" })
     : voice
       ? t`Voice message (${voiceFmt(voice.duration)})`
-      : plainLine(message.content);
-  return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+      : plainLine(message.content, 120);
 }
 
 function Quote({ id }: { id: string }) {

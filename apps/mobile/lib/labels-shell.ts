@@ -3,7 +3,7 @@ export const shellLabels = {
   sh_personalRole: ["مساعدك الشخصي", "Your personal assistant"],
   sh_notSent: ["لم يُرسل", "Not sent"],
   sh_waitingNetwork: ["بانتظار الشبكة…", "Waiting for the network…"],
-  sh_youPrefix: ["أنت: {0}", "You: {0}"],
+  sh_youSaid: ["أنت:", "You:"],
   sh_startChat: ["ابدأ محادثة", "Start a chat"],
   sh_paused: ["متوقف", "Paused"],
   sh_active: ["نشط", "Active"],
@@ -178,6 +178,8 @@ export const shellLabels = {
     "It starts at «No trading». The level is changed from its chat.",
   ],
   sh_updates: ["يحتاج انتباهك", "Needs your attention"],
+  // The word on the tab itself; the full words name the page and the button.
+  sh_updatesTab: ["يحتاج انتباهك", "Attention"],
   sh_tasks: ["المهام", "Tasks"],
   sh_settings: ["الإعدادات", "Settings"],
   sh_chats: ["المحادثات", "Chats"],

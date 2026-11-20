@@ -90,7 +90,7 @@
 }
 .desktop-threads .list-filters {
   margin-inline: -8px;
-  padding: 0 14px 10px;
+  padding: 2px 14px 10px;
   scroll-padding-inline: 14px;
 }
 .desktop-threads .list-filters .chip.active::after {
@@ -160,6 +160,11 @@
 .thread .pv > span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* «أنت:» or the speaker keeps its place; the words after it are cut at their own end */
+.thread .pv > .who {
+  flex: none;
+  max-width: 50%;
 }
 .thread .pv svg {
   width: 16px;
@@ -1142,11 +1147,21 @@
   font-size: var(--fs-sm);
 }
 .hu-t small {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
   font-size: var(--fs-sm);
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
+}
+.hu-t small > span {
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+.hu-t small > .who {
+  flex: none;
+  max-width: 50%;
 }
 
 /* A queued message waits with a clock; the bubble's own states stay phase 3's */

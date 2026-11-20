@@ -1662,6 +1662,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   });
                 }}
                 contentContainerStyle={{
+                  // On a wide screen the transcript keeps Web's 760px column (plus this padding).
+                  width: "100%",
+                  maxWidth: 792,
+                  alignSelf: "center",
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                   flexGrow: 1,
@@ -1836,7 +1840,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 borderWidth: 1,
               }}
             >
-              <NativeSymbol name="download" />
+              <Icon name="down" color={shell.foreground} />
             </Pressable>
           )}
         </View>

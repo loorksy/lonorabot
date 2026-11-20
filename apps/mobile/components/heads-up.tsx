@@ -15,6 +15,7 @@ import { attentionBanner, type Banner, messageBanner } from "../lib/heads-up";
 import { useLists } from "../lib/lists-state";
 import { useSession } from "../lib/session";
 import { useShellData } from "../lib/shell-data";
+import { textDirection } from "../lib/text-direction";
 import { useTheme } from "../lib/theme";
 import { useOpenChat } from "./shell/chat-list";
 import { RowAvatar } from "./shell/kit";
@@ -183,6 +184,8 @@ export function HeadsUp() {
     hide();
     void openChat(banner.row);
   };
+  const line = { color: c.muted, fontSize: 13, lineHeight: 18 };
+  const words = textDirection(banner.text, rtl ? "rtl" : "ltr");
   return (
     <Animated.View
       key={banner.serial}
@@ -218,7 +221,7 @@ export function HeadsUp() {
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${banner.row.name}: ${banner.text}`}
+          accessibilityLabel={`${banner.row.name}: ${banner.who ? `${banner.who} ` : ""}${banner.text}`}
           onPressIn={() => setHeld(true)}
           onPressOut={() => setHeld(false)}
           onPress={open}
@@ -243,18 +246,31 @@ export function HeadsUp() {
             >
               {banner.row.name}
             </Text>
-            <Text
-              numberOfLines={2}
-              style={{
-                color: c.muted,
-                fontSize: 13,
-                lineHeight: 18,
-                writingDirection: "auto",
-                textAlign: rtl ? "right" : "left",
-              }}
-            >
-              {banner.text}
-            </Text>
+            {/* Who said it keeps the interface's side; the words read in their own direction
+                and are cut at their own end (as Web's SaidLine and the chat row). */}
+            <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 4 }}>
+              {banner.who ? (
+                <Text
+                  numberOfLines={1}
+                  style={{ ...line, flexShrink: 0, maxWidth: "50%" }}
+                  testID="heads-up-who"
+                >
+                  {banner.who}
+                </Text>
+              ) : null}
+              <Text
+                numberOfLines={2}
+                style={{
+                  ...line,
+                  flexShrink: 1,
+                  writingDirection: words,
+                  textAlign: words === "rtl" ? "right" : "left",
+                }}
+                testID="heads-up-words"
+              >
+                {banner.text}
+              </Text>
+            </View>
           </View>
         </Pressable>
         <Pressable

@@ -125,3 +125,47 @@ test("an answer in another chat shows at the top; Reply opens it; a muted chat s
     await data.remove(euro.agent.id);
   }
 });
+
+test("ar: in a group, a Latin speaker stays on the reading side and the Arabic words keep their start", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000);
+  const data = await fixture(context);
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  const scout = await data.create(`FX scout ${randomUUID().slice(0, 6)}`);
+  const desk = `مكتب الذهب ${randomUUID().slice(0, 6)}`;
+  const group = await (
+    await context.request.post("/api/groups/create", {
+      headers: data.headers,
+      data: {
+        name: desk,
+        member_ids: [scout.agent.id],
+        participation: "mentions_or_lead",
+      },
+    })
+  ).json();
+  await context.request.post(`/api/threads/${group.thread_id}/messages`, {
+    headers: data.headers,
+    data: { content: "مرحبا", client_nonce: randomUUID() },
+  });
+  const stream = await scriptedStream(page);
+  try {
+    await page.goto("/");
+    await expect(page.getByText(desk, { exact: true })).toBeVisible();
+    await expect.poll(stream.ready).toBeGreaterThan(0);
+    stream.push(group.thread_id, scout.agent.id, "الذهب ارتفع فوق المقاومة بعد بيانات الوظائف");
+    const banner = page.getByTestId("heads-up");
+    const who = banner.getByTestId("heads-up-who");
+    const words = banner.getByTestId("heads-up-words");
+    await expect(who).toHaveText(`${scout.agent.name}:`);
+    await expect(words).toHaveText("الذهب ارتفع فوق المقاومة بعد بيانات الوظائف");
+    // The speaker is read first, on the right; the words read right to left beside it.
+    const [whoBox, wordsBox] = [await who.boundingBox(), await words.boundingBox()];
+    expect(whoBox.x).toBeGreaterThanOrEqual(wordsBox.x + wordsBox.width - 1);
+    expect(await words.evaluate((el) => getComputedStyle(el).direction)).toBe("rtl");
+  } finally {
+    await context.request.delete(`/api/groups/${group.id}`, { headers: data.headers });
+    await data.remove(scout.agent.id);
+  }
+});
