@@ -166,3 +166,51 @@ Use PostgreSQL 16 with a fresh database per run. Take the env values from `.gith
 - The migration chain is one line. A new migration's `down_revision` is the head at merge time (0127 on main, 0128 on `wauth/r2`). Re-chain on merge.
 - `tests/check_*_migration.py` seed an older revision, then upgrade. Pin the ones that seed rows a later migration removes.
 - Playwright database names come from your label, so do not put a hyphen in the label.
+
+## 6. Final status when the Claude session stopped (2026-11-20, about 13:10 UTC)
+
+The owner stopped the Claude session so that you can take over. Every running job was stopped, and every finished commit is pushed.
+
+### `ui/v38-port` is at **91a16e83**
+
+Round 2 has done these:
+- main 3e8bcfb1 is merged in (a16da753);
+- a signed number in a list preview shows whole or not at all (2856eda5);
+- main's Welcome footer is back, and the MCP server line reads in order with Arabic plurals (0de3f4ff);
+- MCP titles are no longer re-read when a server titles none of its tools (30905429);
+- the mobile hourglass and receipt kicker (9c307edc);
+- jump-to-latest no longer covers a card (88b18c96);
+- the mic tip shows over no message or card (91a16e83).
+
+NOT finished:
+- **LD1-LD3** (slot heights counted by the record's state at compile time) are half done. They are uncommitted in 11 files, saved on **`wip/ui-v38-port` (aee49401)**: `genui_compile.py`, `genui_slots.py`, `visual_response.py`, `docs/genui.md`, `plain-line.ts`, and the GenUI tests and specs. Read that diff, finish it and test it.
+- From the re-review partial list (`docs/handoff/v38-open-findings.json`), several items may still be open:
+  - the mobile heads-up prefix;
+  - the Latin bubble's `.meta` float;
+  - the emoji back icon in English;
+  - «عرض الأحدث» after a Settle renewal;
+  - a rendered test of the failed Secret card;
+  - `keep_tool_titles`;
+  - the English list separator;
+  - the settings.spec strict-mode pin;
+  - one Arabic word for «unverified broker account».
+
+  Check each one against the code.
+- Then run the FULL gate and new screenshots.
+
+### `fix/flakes-20` is at **2eb31916**
+
+Round 2 has done these:
+- every spec's cleanup now runs in a fixture teardown, so it can no longer replace the body's error (8992f4dd);
+- the list's chats page reads agents and groups live (6d329605);
+- the memory privacy planner test is deterministic (02df8303);
+- the genui spec's stale tap (2eb31916).
+
+NOT done: the verification. Run two full web runs, one of them under load, and one full mobile run. Fix what still fails, by root cause.
+
+### `wauth/r2` is at 923cf302
+
+Unchanged since section 2. Start from item (a) there.
+
+### Next
+Batch 21 = `ui/v38-port` + `fix/flakes-20`. Merge `fix/flakes-20` into the batch branch, re-run the full gate, open a PR, merge it, and deploy.
