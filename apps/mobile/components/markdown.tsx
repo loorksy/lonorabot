@@ -1,7 +1,9 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: Stateless text tokens have positional identity within a server message.
 // Native, selectable message typography. Links open only on explicit user action.
+import { SIGNED_NUMBER } from "@lonora/core";
 import { Linking, Platform, Text, View } from "react-native";
 import { useSession } from "../lib/session";
+import { textDirection } from "../lib/text-direction";
 import { useShellColors } from "../lib/theme";
 import type { NativeVisualPalette } from "./native-rich-theme";
 
@@ -54,7 +56,8 @@ function Inline({
                 {part.slice(1, -1)}
               </Text>
             );
-          return <Text key={index}>{part}</Text>;
+          // A signed number keeps its sign on its left in Arabic (isolated left-to-right).
+          return <Text key={index}>{part.replace(SIGNED_NUMBER, "$1\u2066$2\u2069")}</Text>;
         })}
     </>
   );
@@ -79,6 +82,9 @@ export function Markdown({
       }
     : shell;
   const blocks = content.split(/(```[^\n]*\n[\s\S]*?```)/g).filter(Boolean);
+  // One Arabic letter keeps the message right-to-left; Latin-only text reads left-to-right
+  // (writingDirection "auto" is iOS-only and textAlign follows the interface).
+  const direction = textDirection(content, rtl ? "rtl" : "ltr");
   return (
     <View style={{ gap: 8 }}>
       {blocks.map((block, index) => {
@@ -124,8 +130,8 @@ export function Markdown({
                       fontSize: heading ? 19 : 16,
                       lineHeight: heading ? 28 : 25,
                       fontWeight: heading ? "600" : "400",
-                      writingDirection: "auto",
-                      textAlign: rtl ? "right" : "left",
+                      writingDirection: direction,
+                      textAlign: direction === "rtl" ? "right" : "left",
                     }}
                   >
                     <Inline value={value} onChartLink={onChartLink} palette={palette} />

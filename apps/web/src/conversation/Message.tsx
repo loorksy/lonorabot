@@ -1,6 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { submitMark } from "@lonora/core";
+import { plainLine, submitMark, textDirection } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { type ReactNode, useRef, useSyncExternalStore } from "react";
 import { SubmitMark } from "../components/genui";
@@ -50,10 +50,10 @@ export type LiveReply = {
 type Props = {
   message: ConversationMessage;
   previous?: ConversationMessage;
-  /** A card in the agent's frame (owner decision, approval, question, order line). */
+  /** A card in the agent's frame (owner decision, approval, receipt, question). */
   card?: ReactNode;
-  /** k-* class for cards, as the reference: k-card, k-line, k-oa, k-odl. */
-  cardKind?: "card" | "line" | "oa" | "odl";
+  /** k-* class for cards, as the reference: k-card, k-oa, k-line (an old kind's settled card). */
+  cardKind?: "card" | "oa" | "line";
   live?: LiveReply;
   steps?: ReactNode;
   stopped?: boolean;
@@ -103,14 +103,13 @@ export function snippet(message?: ApiMessage | null): string {
   if (!message) return "";
   const call = callPart(message);
   const voice = voicePart(message);
-  const text = call
+  return call
     ? call.missed
       ? t({ message: "Missed voice call", context: "call log" })
       : t({ message: "Voice call", context: "call log" })
     : voice
       ? t`Voice message (${voiceFmt(voice.duration)})`
-      : message.content;
-  return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+      : plainLine(message.content, 120);
 }
 
 function Quote({ id }: { id: string }) {
@@ -119,6 +118,7 @@ function Quote({ id }: { id: string }) {
   const agent = ctx.agents.find((row) => row.id === original?.agent_id);
   const mine = original?.role === "user";
   const color = mine ? "var(--mint)" : speakerColor(agent, ctx.light);
+  const text = original ? snippet(original) : t`The original message is no longer available.`;
   return (
     <button
       type="button"
@@ -133,10 +133,10 @@ function Quote({ id }: { id: string }) {
       <span className="quote-name">
         {original ? (mine ? t`You` : (agent?.name ?? "Lonora")) : t`Message`}
       </span>
-      <span className="quote-text">
+      <span className="quote-text" dir={textDirection(text)}>
         {original && voicePart(original) && <Icon name="mic" />}
         {original && hasGenUi(original) && <Icon name="sparkle" />}
-        {original ? snippet(original) : t`The original message is no longer available.`}
+        {text}
       </span>
     </button>
   );

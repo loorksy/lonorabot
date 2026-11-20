@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function simulation(data) {
   return JSON.parse(
@@ -72,6 +72,7 @@ for (const locale of ["en", "ar"])
   test(`${locale}: a Secret card and a site trusted from chat, then Capabilities shows them`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = copy[locale];
@@ -100,60 +101,106 @@ for (const locale of ["en", "ar"])
     });
     const created = [];
     const names = [];
-    try {
-      await page.goto(`/app/${seeded.agent}`);
-      const card = page.locator(`[data-owner-action="${seeded.credential}"]`);
-      await expect(card).toHaveAttribute("data-owner-action-kind", "secret");
-      await expect(card.locator(".oa-kind")).toHaveText(text.connectTitle);
-      const key = card.locator('input[name="API_KEY"]');
-      await expect(key).toHaveAttribute("type", "password");
-      await expect(key).toHaveAttribute("dir", "ltr");
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("credential-card-ar.png") });
-      }
-      await key.fill(secret);
-      const answer = page.waitForResponse((response) => response.url().endsWith("/secret"));
-      await card.getByRole("button", { name: text.connect, exact: true }).click();
-      const saved = await (await answer).json();
-      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.getByRole("status")).toHaveText(text.connected);
-      // The value went only to the card's own route, never to a decision or the chat.
-      const carrying = posted.filter((item) => item.body.includes(secret)).map((item) => item.url);
-      expect(carrying).toEqual([`/api/owner-actions/${seeded.credential}/secret`]);
-      created.push(saved.result.integration_id);
-      names.push(...saved.result.saved);
-
-      // Trusting the site raised no card: the credential card is the conversation's only one.
-      const cards = await (
-        await context.request.get(`/api/owner-actions?thread_id=${seeded.thread}`)
-      ).json();
-      expect(cards.map((item) => item.kind)).toEqual(["secret"]);
-
-      // «التكاملات» (phase 5): the trusted news domain is in its sheet, and the skill its
-      // agent wrote can be undone once from its row.
-      await page.goto("/app/integrations");
-      await page.getByRole("button", { name: new RegExp(text.domains) }).click();
-      await expect(page.locator("dialog").getByText(domain, { exact: true })).toBeVisible();
-      if (locale === "ar")
-        await page.locator("dialog").screenshot({ path: test.info().outputPath("domains-ar.png") });
-      await page.keyboard.press("Escape");
-      const written = page.locator(".cap-skill").filter({ hasText: skill });
-      await expect(written).toBeVisible();
-      await written.getByRole("button", { name: text.undoVersion }).click();
-      await expect(written).toHaveClass(/off/);
-      await expect(written.getByRole("button", { name: text.undoVersion })).toHaveCount(0);
-      const catalog = await (
-        await context.request.get(`/api/agents/${seeded.agent}/skills/catalog/${skill}`)
-      ).json();
-      expect(catalog.code).toBe("skill_version_revoked");
-      await expect(page.getByText(secret)).toHaveCount(0);
-    } finally {
+    cleanup(async () => {
       for (const id of created)
         await context.request.delete(`/api/integrations/${id}`, { headers });
       const secrets = await (await context.request.get("/api/secrets")).json();
       for (const item of secrets.filter((row) => names.includes(row.name)))
         await context.request.delete(`/api/secrets/${item.id}`, { headers });
       await context.request.delete(`/api/agents/${seeded.agent}`, { headers });
+    });
+    await page.goto(`/app/${seeded.agent}`);
+    const card = page.locator(`[data-owner-action="${seeded.credential}"]`);
+    await expect(card).toHaveAttribute("data-owner-action-kind", "secret");
+    await expect(card.locator(".oa-kind")).toHaveText(text.connectTitle);
+    const key = card.locator('input[name="API_KEY"]');
+    await expect(key).toHaveAttribute("type", "password");
+    await expect(key).toHaveAttribute("dir", "ltr");
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("credential-card-ar.png") });
     }
+    await key.fill(secret);
+    const answer = page.waitForResponse((response) => response.url().endsWith("/secret"));
+    await card.getByRole("button", { name: text.connect, exact: true }).click();
+    const saved = await (await answer).json();
+    await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+    await expect(card.getByRole("status")).toHaveText(text.connected);
+    // The value went only to the card's own route, never to a decision or the chat.
+    const carrying = posted.filter((item) => item.body.includes(secret)).map((item) => item.url);
+    expect(carrying).toEqual([`/api/owner-actions/${seeded.credential}/secret`]);
+    created.push(saved.result.integration_id);
+    names.push(...saved.result.saved);
+
+    // Trusting the site raised no card: the credential card is the conversation's only one.
+    const cards = await (
+      await context.request.get(`/api/owner-actions?thread_id=${seeded.thread}`)
+    ).json();
+    expect(cards.map((item) => item.kind)).toEqual(["secret"]);
+
+    // «التكاملات» (phase 5): the trusted news domain is in its sheet, and the skill its
+    // agent wrote can be undone once from its row.
+    await page.goto("/app/integrations");
+    await page.getByRole("button", { name: new RegExp(text.domains) }).click();
+    await expect(page.locator("dialog").getByText(domain, { exact: true })).toBeVisible();
+    if (locale === "ar")
+      await page.locator("dialog").screenshot({ path: test.info().outputPath("domains-ar.png") });
+    await page.keyboard.press("Escape");
+    const written = page.locator(".cap-skill").filter({ hasText: skill });
+    await expect(written).toBeVisible();
+    await written.getByRole("button", { name: text.undoVersion }).click();
+    await expect(written).toHaveClass(/off/);
+    await expect(written.getByRole("button", { name: text.undoVersion })).toHaveCount(0);
+    const catalog = await (
+      await context.request.get(`/api/agents/${seeded.agent}/skills/catalog/${skill}`)
+    ).json();
+    expect(catalog.code).toBe("skill_version_revoked");
+    await expect(page.getByText(secret)).toHaveCount(0);
   });
+
+// A sheet keeps the list it opened with: «News domains» opens once the capabilities are read,
+// never empty before them.
+test("News domains waits for the capabilities, then lists the trusted domain", async ({
+  page,
+  context,
+  cleanup,
+}) => {
+  const data = simulation({ action: "init", empty: true });
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+  };
+  const domain = `held-${randomUUID().slice(0, 8)}.analyst.example`;
+  const added = await context.request.post("/api/trusted-sources", {
+    headers,
+    data: { kind: "feed_domain", identifier: domain },
+  });
+  expect(added.status()).toBe(201);
+  const source = await added.json();
+  let release;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/capabilities", async (route) => {
+    await held;
+    await route.continue();
+  });
+  cleanup(async () => {
+    release();
+    await context.request.post(`/api/trusted-sources/${source.id}/revoke`, { headers });
+  });
+  await page.goto("/app/integrations");
+  const row = page.getByRole("button", { name: /News domains/ });
+  await expect(row).toBeDisabled();
+  release();
+  await row.click();
+  await expect(page.locator("dialog").getByText(domain, { exact: true })).toBeVisible();
+});

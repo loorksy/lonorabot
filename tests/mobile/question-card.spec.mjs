@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 for (const locale of ["en", "ar"]) {
   test(`Expo ${locale} informational choices resolve the original durable message`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const fixture = JSON.parse(
       execFileSync(".venv/bin/python", ["tests/check_question_browser.py"], {
@@ -33,58 +34,55 @@ for (const locale of ["en", "ar"]) {
       )
         submissions.push(request.postDataJSON());
     });
-    try {
-      await page.goto(`/thread?id=${fixture.thread.id}`);
-      const card = page.getByTestId(`question-${fixture.question.id}`);
-      await expect(card).toBeVisible();
-      await expect(card.getByText(fixture.question.question, { exact: true })).toBeVisible();
-      const option = card.getByRole("button", {
-        name: fixture.question.choices[0].label,
-        exact: true,
-      });
-      await expect(option).toBeEnabled();
-      const response = page.waitForResponse(
-        (result) =>
-          result.request().method() === "POST" &&
-          new URL(result.url()).pathname === `/api/threads/${fixture.thread.id}/messages`,
-      );
-      await option.click();
-      expect((await response).ok()).toBeTruthy();
-      await expect(option).toHaveAttribute("aria-selected", "true");
-      await expect(option).toBeDisabled();
-      expect(submissions).toHaveLength(1);
-      expect(submissions[0].input_answer).toEqual({
-        run_id: fixture.run.id,
-        question_id: fixture.question.id,
-        choice_id: "analysis",
-      });
-      const current = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
-      expect(current.input_request.status).toBe("answered");
-      expect(current.input_request.selected_choice_id).toBe("analysis");
-      const messages = await (
-        await context.request.get(`/api/threads/${fixture.thread.id}/messages`)
-      ).json();
-      expect(
-        messages.filter(
-          (row) => row.role === "user" && row.content === fixture.question.choices[0].label,
-        ),
-      ).toHaveLength(1);
-      const grants = await (
-        await context.request.get(`/api/agents/${fixture.agent.id}/account-authorities`)
-      ).json();
-      expect(grants).toHaveLength(0);
-      const journal = await (await context.request.get("/api/trading/journal")).json();
-      expect(
-        journal.filter((row) => row.agent_id === fixture.agent.id || row.run_id === fixture.run.id),
-      ).toHaveLength(0);
-      await page.reload();
-      await expect(
-        card.getByRole("button", { name: fixture.question.choices[0].label, exact: true }),
-      ).toHaveAttribute("aria-selected", "true");
-      await expect(card.getByRole("button").first()).toBeDisabled();
-      await expect(page.getByRole("alert")).toHaveCount(0);
-    } finally {
-      await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
-    }
+    cleanup(() => context.request.delete(`/api/agents/${fixture.agent.id}`, { headers }));
+    await page.goto(`/thread?id=${fixture.thread.id}`);
+    const card = page.getByTestId(`question-${fixture.question.id}`);
+    await expect(card).toBeVisible();
+    await expect(card.getByText(fixture.question.question, { exact: true })).toBeVisible();
+    const option = card.getByRole("button", {
+      name: fixture.question.choices[0].label,
+      exact: true,
+    });
+    await expect(option).toBeEnabled();
+    const response = page.waitForResponse(
+      (result) =>
+        result.request().method() === "POST" &&
+        new URL(result.url()).pathname === `/api/threads/${fixture.thread.id}/messages`,
+    );
+    await option.click();
+    expect((await response).ok()).toBeTruthy();
+    await expect(option).toHaveAttribute("aria-selected", "true");
+    await expect(option).toBeDisabled();
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0].input_answer).toEqual({
+      run_id: fixture.run.id,
+      question_id: fixture.question.id,
+      choice_id: "analysis",
+    });
+    const current = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
+    expect(current.input_request.status).toBe("answered");
+    expect(current.input_request.selected_choice_id).toBe("analysis");
+    const messages = await (
+      await context.request.get(`/api/threads/${fixture.thread.id}/messages`)
+    ).json();
+    expect(
+      messages.filter(
+        (row) => row.role === "user" && row.content === fixture.question.choices[0].label,
+      ),
+    ).toHaveLength(1);
+    const grants = await (
+      await context.request.get(`/api/agents/${fixture.agent.id}/account-authorities`)
+    ).json();
+    expect(grants).toHaveLength(0);
+    const journal = await (await context.request.get("/api/trading/journal")).json();
+    expect(
+      journal.filter((row) => row.agent_id === fixture.agent.id || row.run_id === fixture.run.id),
+    ).toHaveLength(0);
+    await page.reload();
+    await expect(
+      card.getByRole("button", { name: fixture.question.choices[0].label, exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(card.getByRole("button").first()).toBeDisabled();
+    await expect(page.getByRole("alert")).toHaveCount(0);
   });
 }

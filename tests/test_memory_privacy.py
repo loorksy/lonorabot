@@ -646,9 +646,17 @@ async def test_discovery_arms_stay_bounded_and_index_compatible(monkeypatch: pyt
                     dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
                 )
             )
+            # The probe index goes on an empty copy of ln_messages that shadows the
+            # table in this transaction (pg_temp is searched first). Built over the
+            # shared table, the index is hidden from the transaction that built it
+            # (pg_index.indcheckxmin) whenever an old version of a HOT-updated row
+            # may still be visible to an open transaction, as under load.
+            await session.execute(
+                text("CREATE TEMP TABLE ln_messages (LIKE ln_messages INCLUDING ALL)")
+            )
             await session.execute(
                 text(
-                    "CREATE INDEX ln_messages_content_simple_fts_probe ON ln_messages "
+                    "CREATE INDEX ln_messages_content_simple_fts_probe ON pg_temp.ln_messages "
                     "USING gin (to_tsvector('simple'::regconfig, content))"
                 )
             )

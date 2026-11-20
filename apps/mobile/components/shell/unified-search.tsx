@@ -7,6 +7,7 @@ import {
   firstSearchPage,
   highlightRange,
   moreSearchItems,
+  plainLine,
   rowKey,
   SEARCH_TABS,
   type SearchFetch,
@@ -82,6 +83,8 @@ function Hit({
   let lead: ReactNode;
   let title: ReactNode;
   let sub: ReactNode;
+  // The snippet as one plain line, as Web (no Markdown marks).
+  const snippet = plainLine(item.snippet ?? "");
   let meta: string | null = null;
   let open: () => void;
   switch (item.category) {
@@ -98,7 +101,7 @@ function Hit({
       title = <Highlight text={item.title} query={query} color={c.text} />;
       sub = (
         <Highlight
-          text={item.snippet || (row ? (row.agent ? role(row.agent) : row.subtitle) : "")}
+          text={snippet || (row ? (row.agent ? role(row.agent) : row.subtitle) : "")}
           query={query}
           color={c.muted}
         />
@@ -122,7 +125,7 @@ function Hit({
         item.role === "user" ? t("sh_you") : agentName(item.agent_id) || row?.name || "";
       lead = disc("chat");
       title = <Text style={{ color: c.text }}>{`${row?.name ?? ""} · ${speaker}`}</Text>;
-      sub = <Highlight text={item.snippet} query={query} color={c.muted} />;
+      sub = <Highlight text={snippet} query={query} color={c.muted} />;
       meta = item.created_at ? clockTime(item.created_at) : null;
       open = () => {
         if (!row || item.seq == null || !item.thread_id) return gone();
@@ -143,7 +146,7 @@ function Hit({
     case "tasks":
       lead = disc("task");
       title = <Highlight text={item.title} query={query} color={c.text} />;
-      sub = <Highlight text={item.snippet} query={query} color={c.muted} />;
+      sub = <Highlight text={snippet} query={query} color={c.muted} />;
       meta = agentName(item.agent_id);
       open = () => router.push("/tasks");
       break;
@@ -152,7 +155,7 @@ function Hit({
       title = <Highlight text={item.title} query={query} color={c.text} />;
       sub =
         item.snippet && item.snippet !== item.title ? (
-          <Highlight text={item.snippet} query={query} color={c.muted} />
+          <Highlight text={snippet} query={query} color={c.muted} />
         ) : (
           <Text style={{ color: c.muted }}>{t("sh_savedFile")}</Text>
         );
@@ -170,7 +173,7 @@ function Hit({
           >{` · ${skill ? t("sh_skill") : t("sh_knowledge")}`}</Text>
         </Text>
       );
-      sub = <Highlight text={item.snippet} query={query} color={c.muted} />;
+      sub = <Highlight text={snippet} query={query} color={c.muted} />;
       const owner = agentName(item.agent_id);
       meta = owner && owner !== item.title ? owner : null;
       open = () =>
@@ -473,7 +476,7 @@ export function UnifiedSearch({
           }}
         >
           <Icon name="search" size={18} color={c.faint} />
-          <Text style={{ flex: 1, color: c.faint, fontSize: 12 }}>{t("sh_typeToSearch")}</Text>
+          <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>{t("sh_typeToSearch")}</Text>
         </View>
       ) : null}
     </ScrollView>

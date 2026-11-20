@@ -13,6 +13,7 @@ import {
   serverLine,
   skillLine,
   sourceLine,
+  toolTitle,
 } from "@lonora/core";
 import { Redirect, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -65,7 +66,12 @@ export default function Capabilities() {
       setBusy(false);
     }
   };
-  const align = { textAlign: rtl ? ("right" as const) : ("left" as const) };
+  // Each line reads in the interface's direction, whatever script its first name is in (the
+  // names inside it are isolated by the core lines).
+  const align = {
+    textAlign: rtl ? ("right" as const) : ("left" as const),
+    writingDirection: rtl ? ("rtl" as const) : ("ltr" as const),
+  };
   const line = (value: string, key: string, action?: { label: string; run: () => void }) => (
     <View
       key={key}
@@ -103,8 +109,11 @@ export default function Capabilities() {
       await api.post(`/trusted-sources/mcp/${preview.id}`, { tier, digest: preview.tools.digest });
       setPreview(null);
     });
+  // The server's own title of each tool; its name only when the server gives no title.
   const names = (values: string[]) =>
-    values.map((name) => `\u2068${name}\u2069`).join(rtl ? "، " : ", ");
+    values
+      .map((name) => `\u2068${toolTitle(preview?.tools.titles ?? {}, name) ?? name}\u2069`)
+      .join(rtl ? "، " : ", ");
   const previewBlock = (connectionId: string) =>
     preview?.id === connectionId ? (
       <View key={`mcp-preview-${connectionId}`} testID="mcp-preview" style={{ gap: 6 }}>

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 /* A conversation header's settings sheet opens only once the agents are loaded: the sheet
    keeps the body it opened with, so it never opens without its agent's rows. */
@@ -62,7 +62,11 @@ async function expectHeaderInert(page) {
   await expect(page.locator("#dialog[open]")).toHaveCount(0);
 }
 
-test("an agent's settings wait for the agent list before they open", async ({ page, context }) => {
+test("an agent's settings wait for the agent list before they open", async ({
+  page,
+  context,
+  cleanup,
+}) => {
   const data = fixture({ action: "init" });
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -71,34 +75,34 @@ test("an agent's settings wait for the agent list before they open", async ({ pa
   page.on("pageerror", (error) => errors.push(error.message));
   let agent;
   let held;
-  try {
-    await signIn(context, data);
-    agent = await createAgent(context, data, headers, `Menu ${randomUUID()}`);
-    await page.goto(`/app/${agent.id}`);
-    const title = page.locator(".chat-head .chat-name");
-    await expect(title).toHaveText(agent.name);
-    held = await holdAgents(page);
-    await page.reload();
-    await expect(page.locator(".chat-head .head-avatar")).toBeAttached();
-    await expectHeaderInert(page);
-    held.release();
-    await expect(title).toHaveText(agent.name);
-    await held.unroute();
-    await page.locator(".chat-head .head-avatar").click();
-    const sheet = page.locator("#dialog");
-    await expect(sheet).toHaveAttribute("open", "");
-    await expect(sheet).toHaveAttribute("aria-label", "Agent info");
-    expect(errors).toEqual([]);
-  } finally {
+  cleanup(async () => {
     held?.release();
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+  await signIn(context, data);
+  agent = await createAgent(context, data, headers, `Menu ${randomUUID()}`);
+  await page.goto(`/app/${agent.id}`);
+  const title = page.locator(".chat-head .chat-name");
+  await expect(title).toHaveText(agent.name);
+  held = await holdAgents(page);
+  await page.reload();
+  await expect(page.locator(".chat-head .head-avatar")).toBeAttached();
+  await expectHeaderInert(page);
+  held.release();
+  await expect(title).toHaveText(agent.name);
+  await held.unroute();
+  await page.locator(".chat-head .head-avatar").click();
+  const sheet = page.locator("#dialog");
+  await expect(sheet).toHaveAttribute("open", "");
+  await expect(sheet).toHaveAttribute("aria-label", "Agent info");
+  expect(errors).toEqual([]);
 });
 
 test("a group's settings wait for its member agents before they open", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init" });
   const headers = {
@@ -107,37 +111,36 @@ test("a group's settings wait for its member agents before they open", async ({
   let agent;
   let group;
   let held;
-  try {
-    await signIn(context, data);
-    const name = `Member ${randomUUID()}`;
-    agent = await createAgent(context, data, headers, name);
-    const response = await context.request.post("/api/groups/create", {
-      headers,
-      data: {
-        name: `Group ${randomUUID()}`,
-        member_ids: [agent.id],
-        participation: "mentions_or_lead",
-      },
-    });
-    expect(response.ok()).toBeTruthy();
-    group = await response.json();
-    // The group arrives at once, its member agents late: its pages are built from both.
-    held = await holdAgents(page);
-    await page.goto(`/app/g/${group.id}`);
-    await expect(page.locator(".chat-name")).toHaveText(group.payload.name);
-    await expectHeaderInert(page);
-    held.release();
-    await expect(page.locator(".chat-head")).toContainText(name);
-    await held.unroute();
-    await page.locator(".chat-head .head-avatar").click();
-    const sheet = page.locator("#dialog");
-    await expect(sheet).toHaveAttribute("open", "");
-    await expect(sheet).toHaveAttribute("aria-label", "Group info");
-    await expect(sheet.getByRole("switch", { name })).toBeChecked();
-  } finally {
+  cleanup(async () => {
     held?.release();
     if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+  await signIn(context, data);
+  const name = `Member ${randomUUID()}`;
+  agent = await createAgent(context, data, headers, name);
+  const response = await context.request.post("/api/groups/create", {
+    headers,
+    data: {
+      name: `Group ${randomUUID()}`,
+      member_ids: [agent.id],
+      participation: "mentions_or_lead",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  group = await response.json();
+  // The group arrives at once, its member agents late: its pages are built from both.
+  held = await holdAgents(page);
+  await page.goto(`/app/g/${group.id}`);
+  await expect(page.locator(".chat-name")).toHaveText(group.payload.name);
+  await expectHeaderInert(page);
+  held.release();
+  await expect(page.locator(".chat-head")).toContainText(name);
+  await held.unroute();
+  await page.locator(".chat-head .head-avatar").click();
+  const sheet = page.locator("#dialog");
+  await expect(sheet).toHaveAttribute("open", "");
+  await expect(sheet).toHaveAttribute("aria-label", "Group info");
+  await expect(sheet.getByRole("switch", { name })).toBeChecked();
 });

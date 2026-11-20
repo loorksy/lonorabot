@@ -19,6 +19,7 @@ const copy = {
     save: "Save",
     saved: "Saved encrypted. No agent sees the values.",
     notNow: "Not now",
+    savesAs: "Saves: ⁨مفتاح API⁩, ⁨اسم المستخدم⁩",
   },
   ar: {
     title: "بيانات سرّية",
@@ -26,6 +27,7 @@ const copy = {
     save: "حفظ",
     saved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
     notNow: "ليس الآن",
+    savesAs: "تُحفظ: ⁨مفتاح API⁩، ⁨اسم المستخدم⁩",
   },
 };
 
@@ -70,6 +72,9 @@ for (const locale of ["ar", "en"])
     await expect(card.locator(".oa-kind")).toHaveText(text.title);
     await expect(card).toContainText("⁨مفاتيح المنصّة⁩");
     await expect(card).toContainText(`${text.asked} ⁨${agent}⁩`);
+    // What each value is saved as, by its field's label, never its env-style name (17).
+    await expect(card.getByText(text.savesAs, { exact: true })).toBeVisible();
+    for (const name of [key, user]) await expect(card).not.toContainText(name);
     const keyInput = card.locator(`input[name="${key}"]`);
     await expect(keyInput).toHaveAttribute("type", "password");
     await expect(keyInput).toHaveAttribute("dir", "ltr");
@@ -85,6 +90,9 @@ for (const locale of ["ar", "en"])
     await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
     await expect(card.getByRole("status")).toHaveText(text.saved);
     await expect(card.locator("input")).toHaveCount(0);
+    // Saved, the card keeps its frame and still names no storage name.
+    await expect(card.getByText(text.savesAs, { exact: true })).toBeVisible();
+    for (const name of [key, user]) await expect(card).not.toContainText(name);
     // The value went only to the card's own route, never to a chat or decision route.
     const carrying = posted.filter((item) => item.body.includes(secret)).map((item) => item.url);
     expect(carrying).toEqual([`/api/owner-actions/${seeded.card}/secret`]);

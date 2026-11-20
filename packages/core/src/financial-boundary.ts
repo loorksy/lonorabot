@@ -203,7 +203,7 @@ export function operationStatusText(status: string, details: unknown, locale: st
 const approvalTexts: Readonly<Record<string, Text>> = {
   pending: { en: "Waiting for your approval", ar: "بانتظار موافقتك" },
   approved: { en: "Approved — awaiting broker result", ar: "تمت الموافقة — بانتظار نتيجة الوسيط" },
-  rejected: { en: "Rejected", ar: "مرفوض" },
+  rejected: { en: "Rejected — nothing was sent", ar: "مرفوض — لم يُرسل شيء" },
   cancelled: { en: "Cancelled", ar: "أُلغي" },
   expired: { en: "Expired", ar: "انتهت صلاحيته" },
   withdrawn: { en: "Withdrawn — nothing was sent", ar: "سُحب — لم يُرسل شيء" },
@@ -219,9 +219,52 @@ export function approvalStatusText(status: string, locale: string): string {
   return (approvalTexts[status] ?? approvalTexts.completed)[language(locale)];
 }
 
+/** A result the broker has not settled yet: it may still have executed. */
+const UNSETTLED = new Set(["reserved", "submitted", "ambiguous"]);
+
+/**
+ * The tone of a decided approval's end state, identical on Web and Mobile: "ok" (with a check)
+ * only once completed with every result confirmed by the broker; "wait" (neutral, with a
+ * clock) while approved and awaiting the broker's result; "warn" when the price drifted or a
+ * result is still uncertain; "plain" otherwise (nothing was sent, or the broker refused it).
+ * A failed or unconfirmed operation never reads as a success (0.4).
+ */
+export function approvalEndTone(row: {
+  status: string;
+  results: readonly { status: string }[];
+}): "ok" | "wait" | "warn" | "plain" {
+  if (row.status === "approved") return "wait";
+  if (row.status === "drifted") return "warn";
+  if (row.status !== "completed") return "plain";
+  if (row.results.length && row.results.every((result) => result.status === "confirmed"))
+    return "ok";
+  return row.results.some((result) => UNSETTLED.has(result.status)) ? "warn" : "plain";
+}
+
 /** "Broker ticket" before a broker reference, so a bare number never stands alone. */
 export function brokerTicketLabel(locale: string): string {
   return language(locale) === "ar" ? "تذكرة الوسيط" : "Broker ticket";
+}
+
+/** The label before a price the broker returned with a result, so it never stands alone. */
+export function brokerPriceLabel(key: "price" | "execution_price", locale: string): string {
+  const ar = language(locale) === "ar";
+  if (key === "execution_price") return ar ? "سعر التنفيذ" : "Execution price";
+  return ar ? "سعر الوسيط" : "Broker price";
+}
+
+/**
+ * The reason under a failed result whose code neither the shared table nor the client's own
+ * catalog explains, identical on Web and Mobile. A failed result is known not to have been
+ * carried out; a decided card offers no retry, so it never says «try again».
+ */
+export function failedResultFallback(locale: string): string {
+  return language(locale) === "ar" ? "لم يُنفَّذ هذا الطلب." : "This request was not carried out.";
+}
+
+/** The label before the broker's own sentence («Not enough money»), shown as it returned it. */
+export function brokerWordsLabel(locale: string): string {
+  return language(locale) === "ar" ? "بكلمات الوسيط" : "In the broker's words";
 }
 
 const runTexts: Readonly<Record<string, Text>> = {

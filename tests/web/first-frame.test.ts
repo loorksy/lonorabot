@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
-function firstFrame(stored: Record<string, string>) {
+function firstFrame(stored: Record<string, string>, deviceLight = false) {
   const meta = { content: "#0b0c10" };
   const root = {
     dataset: {} as Record<string, string>,
@@ -25,6 +25,9 @@ function firstFrame(stored: Record<string, string>) {
           : null,
     },
     localStorage: { getItem: (key: string) => stored[key] ?? null },
+    matchMedia: (query: string) => ({
+      matches: query === "(prefers-color-scheme: light)" && deviceLight,
+    }),
   });
   return { theme: root.dataset.theme, bar: meta.content };
 }
@@ -35,9 +38,19 @@ test("the browser bar takes the page colour before the app loads", () => {
   assert.deepEqual(firstFrame({}), { theme: "dark", bar: "#0b0c10" });
 });
 
+test("a first visit follows the device; a saved choice still wins", () => {
+  assert.deepEqual(firstFrame({}, true), { theme: "light", bar: "#f7f5ef" });
+  assert.deepEqual(firstFrame({ "lonora.theme": '"dark"' }, true), {
+    theme: "dark",
+    bar: "#0b0c10",
+  });
+});
+
 test("the page and the installed app start on the charcoal, with the mint mark", () => {
   const html = read("apps/web/index.html");
   assert.match(html, /<meta name="theme-color" content="#0b0c10" \/>/);
+  // The page covers the whole screen; the CSS keeps it clear of the notch (safe-area insets).
+  assert.match(html, /<meta name="viewport" content="[^"]*viewport-fit=cover" \/>/);
   assert.match(html, /rel="mask-icon"[^>]*color="#22e3a8"/);
   const manifest = JSON.parse(read("apps/web/public/site.webmanifest"));
   assert.equal(manifest.background_color, "#0b0c10");

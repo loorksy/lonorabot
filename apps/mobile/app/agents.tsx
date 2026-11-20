@@ -25,7 +25,7 @@ import { useShellData } from "../lib/shell-data";
 import { useTheme } from "../lib/theme";
 
 export default function Agents() {
-  const { ready, owner, t, locale } = useSession();
+  const { ready, owner, t, locale, rtl } = useSession();
   const { c } = useTheme();
   const router = useRouter();
   const data = useShellData();
@@ -70,7 +70,9 @@ export default function Agents() {
                       >
                         {agent.paused ? t("sh_paused") : t("sh_active")}
                       </Text>
-                      <Icon name="chev" size={18} color={c.faint} />
+                      <View style={{ transform: [{ scaleX: rtl ? 1 : -1 }] }}>
+                        <Icon name="chev" size={18} color={c.faint} />
+                      </View>
                     </View>
                   }
                   onPress={() => row && void open(row)}
@@ -96,7 +98,9 @@ export default function Agents() {
                         <Text style={{ color: c.muted, fontSize: 14 }}>
                           {agentsWord(locale, group.payload.member_ids.length)}
                         </Text>
-                        <Icon name="chev" size={18} color={c.faint} />
+                        <View style={{ transform: [{ scaleX: rtl ? 1 : -1 }] }}>
+                          <Icon name="chev" size={18} color={c.faint} />
+                        </View>
                       </View>
                     }
                     onPress={() => row && void open(row)}

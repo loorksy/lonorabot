@@ -14,7 +14,7 @@ from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.genui import SLOT, CardError, parse_lines
 from lonora_contracts.visual_response import RichContent
 from lonora_core.public_reply import redact_private_reply
-from lonora_db.genui_slots import slot_records
+from lonora_db.genui_slots import SlotRecord, slot_records
 from lonora_db.genui_submit import account_label, enabled_accounts
 from lonora_db.schema import AgentRow
 from lonora_tools.context import ToolContext
@@ -242,7 +242,7 @@ class VisualReplyProjector:
         )
         self.scope: AgentScope | None = None
         self.cards: dict[str, dict[str, Any] | None] = {}
-        self.slots: dict[str, dict[tuple[str, str], int]] = {}
+        self.slots: dict[str, dict[tuple[str, str], SlotRecord]] = {}
 
     async def slot_scope(self, scope: AgentScope, blocks: list[dict[str, Any]]) -> AgentScope:
         """The scope with the records this card's slots name, read once per record set."""

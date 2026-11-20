@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function simulation(data) {
   return JSON.parse(
@@ -68,6 +68,7 @@ for (const locale of ["en", "ar"])
   test(`${locale}: an earlier supervisor's pause card names who paused what, with one-tap Resume`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = copy[locale];
@@ -89,26 +90,25 @@ for (const locale of ["en", "ar"])
       gold: `Gold ${suffix}`,
       routine: `Review gold ${suffix}`,
     });
-    try {
-      // Gold's conversation names who paused its routine, with one-tap Resume.
-      await page.goto(`/app/${seeded.gold}`);
-      const pause = page.locator(`[data-owner-action="${seeded.pause}"]`);
-      await expect(pause).toHaveAttribute("data-owner-action-kind", "supervision_paused");
-      await expect(pause.locator(".oa-kind")).toHaveText(text.pauseTitle);
-      await expect(pause).toContainText(`⁨${seeded.lonora_name}⁩`);
-      await expect(pause).toContainText(`⁨Review gold ${suffix}⁩`);
-      if (locale === "ar")
-        await pause.screenshot({ path: test.info().outputPath("supervision-pause-ar.png") });
-      await pause.getByRole("button", { name: text.resume, exact: true }).click();
-      await expect(pause).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(pause.getByRole("status")).toHaveText(text.resumed);
-      const routines = await (await context.request.get(`/api/routines`)).json();
-      expect(
-        routines.filter((row) => row.agent_id === seeded.gold).map((row) => row.enabled),
-      ).toEqual([true]);
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${seeded.gold}`, { headers });
       await context.request.delete(`/api/agents/${seeded.desk}`, { headers });
       simulation({ ...data, action: "cleanup" });
-    }
+    });
+    // Gold's conversation names who paused its routine, with one-tap Resume.
+    await page.goto(`/app/${seeded.gold}`);
+    const pause = page.locator(`[data-owner-action="${seeded.pause}"]`);
+    await expect(pause).toHaveAttribute("data-owner-action-kind", "supervision_paused");
+    await expect(pause.locator(".oa-kind")).toHaveText(text.pauseTitle);
+    await expect(pause).toContainText(`⁨${seeded.lonora_name}⁩`);
+    await expect(pause).toContainText(`⁨Review gold ${suffix}⁩`);
+    if (locale === "ar")
+      await pause.screenshot({ path: test.info().outputPath("supervision-pause-ar.png") });
+    await pause.getByRole("button", { name: text.resume, exact: true }).click();
+    await expect(pause).toHaveAttribute("data-owner-action-status", "confirmed");
+    await expect(pause.getByRole("status")).toHaveText(text.resumed);
+    const routines = await (await context.request.get(`/api/routines`)).json();
+    expect(
+      routines.filter((row) => row.agent_id === seeded.gold).map((row) => row.enabled),
+    ).toEqual([true]);
   });

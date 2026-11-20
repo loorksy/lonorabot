@@ -58,10 +58,12 @@ export function DesktopRail({
       {button("updates")}
       {button("tasks")}
       <div className="rail-spacer" />
+      {/* The arrow points where the list will go: inward when open, outward when folded. */}
       <button
         type="button"
+        className="rail-collapse"
         title={t`Collapse or expand the chat list`}
-        aria-label={t`Collapse the chat list`}
+        aria-label={collapsed ? t`Expand the chat list` : t`Collapse the chat list`}
         aria-expanded={!collapsed}
         onClick={onToggleCollapsed}
       >

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import type {
   CapabilityServer,
@@ -12,12 +13,14 @@ import {
   serverLine,
   skillLine,
   sourceLine,
+  toolTitle,
 } from "../../packages/core/src/capabilities";
 import {
   ownerActionCard,
   ownerActionError,
   ownerActionLabels,
 } from "../../packages/core/src/owner-actions";
+import { listSeparator } from "../../packages/core/src/trading-readiness";
 
 const isolated = (value: string) => `⁨${value}⁩`;
 const base: OwnerAction = {
@@ -68,9 +71,18 @@ test("a connecting Secret card shows the agent's details and asks for the addres
     assert.ok(spec.hint?.includes(text.connectXHint));
     // The address may carry a key: the owner types it into the card, never into chat.
     assert.ok(!spec.lines.some((line) => line.includes("https://")));
+    // What each value is saved as, by its field's label, never its workspace name (17).
+    const separator = locale === "ar" ? "، " : ", ";
     assert.ok(
-      spec.lines.some((line) => line.includes("MCP_X_URL") && line.includes("MCP_X_TOKEN")),
+      spec.lines.includes(
+        text.secretSavesAs.replace(
+          "{fields}",
+          [isolated(text.fieldServerUrl), isolated(text.fieldToken)].join(separator),
+        ),
+      ),
+      spec.lines.join(" | "),
     );
+    assert.ok(!spec.lines.some((line) => line.includes("MCP_X_")));
     assert.deepEqual(spec.secret, {
       fields: [
         { key: "URL", label: text.fieldServerUrl, type: "url", required: true },
@@ -163,6 +175,7 @@ test("capability lines name source, tier and state in both languages", () => {
     credentials_configured: true,
     trusted_tier: "read",
     trusted_tools: ["post_reply", "search_posts"],
+    tool_titles: {},
     write_tools: ["post_reply"],
     blocked_tools: ["place_order"],
     operator_declared: 0,
@@ -174,6 +187,7 @@ test("capability lines name source, tier and state in both languages", () => {
     agent_id: "a",
     agent_name: "News",
     skill_id: "briefing",
+    title: "موجز الصباح",
     version: "1.0.0",
     provenance: "external",
     repository: "example/briefings",
@@ -219,6 +233,10 @@ test("capability lines name source, tier and state in both languages", () => {
     const declared = sourceLine(operator, locale);
     assert.ok(declared.includes(text.needsReview) && !declared.includes(text.read), declared);
     assert.ok(skillLine(skill, locale).includes(isolated("example/briefings")));
+    // A Skill is listed by its title; its id only when it was saved without one.
+    assert.ok(skillLine(skill, locale).startsWith(isolated("موجز الصباح")));
+    assert.ok(!skillLine(skill, locale).includes(isolated("briefing")));
+    assert.ok(skillLine({ ...skill, title: null }, locale).startsWith(isolated("briefing")));
     assert.ok(skillLine({ ...skill, undone: true, can_undo: false }, locale).endsWith(text.undone));
     assert.equal(
       builtInLine({ capability: "web_browse", state: "ready", via: null }, locale),
@@ -228,4 +246,29 @@ test("capability lines name source, tier and state in both languages", () => {
   assert.equal(ownerActionError("owner_action_tier_required", "ar"), null);
   assert.ok(ownerActionError("trusted_source_write_blocked", "ar"));
   assert.ok(ownerActionError("mcp_tools_changed", "en"));
+});
+
+test("a tool's title is read from the server's own keys, never an Object member", () => {
+  // As the API sends it: parsed JSON, a plain object.
+  const titles = JSON.parse('{"search_posts":"البحث في المنشورات","__proto__":"Proto"}');
+  assert.equal(toolTitle(titles, "search_posts"), "البحث في المنشورات");
+  assert.equal(toolTitle(titles, "__proto__"), "Proto");
+  // SAFE_TOOL_NAME allows these names; a bare lookup returns Object.prototype's functions.
+  for (const name of ["toString", "constructor", "valueOf", "hasOwnProperty", "list_tags"])
+    assert.equal(toolTitle(titles, name), undefined, name);
+  // Every title lookup in both apps goes through it.
+  for (const file of [
+    "apps/web/src/shell/settings/IntegrationsPage.tsx",
+    "apps/mobile/app/(settings)/integrations.tsx",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /toolTitle\(/, file);
+    assert.doesNotMatch(source, /titles\[(tool\.)?name\]/, file);
+  }
+  // The refused tools are listed with the interface's separator, as on Mobile.
+  const web = readFileSync("apps/web/src/shell/settings/IntegrationsPage.tsx", "utf8");
+  assert.match(web, /\.join\(listSeparator\(i18n\.locale\)\)/);
+  assert.doesNotMatch(web, /\.join\("، "\)/);
+  assert.equal(listSeparator("en"), ", ");
+  assert.equal(listSeparator("ar"), "، ");
 });

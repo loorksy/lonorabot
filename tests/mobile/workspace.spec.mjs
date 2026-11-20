@@ -1,12 +1,13 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright runs directly without Turborepo caching.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 import { brokerFixture } from "../web/broker-fixture.mjs";
 
 test("Expo profile, routines, groups and authenticated artifacts use the persistent server", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(90_000);
   const prefix = `Expo regression ${randomUUID()}`;
@@ -36,339 +37,7 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
   let headers;
   let chartFixture;
   let broker;
-  try {
-    await page.goto("/");
-    await page
-      .getByRole("textbox", { name: "البريد الإلكتروني", exact: true })
-      .fill(credentials.email);
-    await page.getByLabel("كلمة المرور", { exact: true }).fill(credentials.password);
-    const loggedIn = page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/api/auth/login") && response.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "تسجيل الدخول", exact: true }).click();
-    headers = { "X-CSRF-Token": (await (await loggedIn).json()).csrf };
-    broker = await brokerFixture(context, headers);
-    await expect(page.getByRole("button", { name: "محادثة جديدة", exact: true })).toBeVisible();
-    await expect(page.getByRole("searchbox", { name: "بحث في Lonora", exact: true })).toBeVisible();
-    expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toMatch(
-      /Bearer|"token"|"session"/,
-    );
-    // A new agent is asked of Lonora in chat (P5, mandate 3.1.2); the fixture makes one.
-    const made = await context.request.post("/api/agents", {
-      headers,
-      data: {
-        name: prefix,
-        description: "Monitor positions and summarize market data.",
-        trading_account_id: broker.account,
-        trading_symbol: broker.symbol,
-      },
-    });
-    expect(made.status()).toBe(201);
-    const agent = await made.json();
-    owned.agents.add(agent.id);
-    const conversation = await (
-      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
-    ).json();
-    await page.goto(`/thread?id=${conversation.id}`);
-    await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "اتصل بالوكيل", exact: true })).toBeVisible();
-    const threadUrl = page.url();
-    await page.getByRole("button", { name: "إعدادات الوكيل", exact: true }).click();
-    await page
-      .getByLabel("التعليمات", { exact: true })
-      .fill("Review spreads and current positions before proposing trades.");
-    await page
-      .getByLabel("الذاكرة الدائمة", { exact: true })
-      .fill("Prefer daily portfolio reviews.");
-    await page.getByRole("button", { name: "حفظ", exact: true }).click();
-    await expect(page.getByText("تم الحفظ", { exact: true })).toBeVisible();
-    expect(
-      (await (await context.request.get(`/api/agents/${agent.id}/memory`)).json()).content,
-    ).toContain("daily portfolio");
-    await page.getByRole("button", { name: "رجوع", exact: true }).click();
-    await page.getByRole("button", { name: "إجراءات الوكيل", exact: true }).click();
-    await page.getByRole("button", { name: "المهام المجدولة", exact: true }).click();
-    await page.getByRole("button", { name: "إنشاء", exact: true }).click();
-    await page.getByLabel("المهمة", { exact: true }).fill(`${prefix} market review`);
-    await page.getByLabel("كل · دقائق", { exact: true }).fill("17");
-    const scheduled = page.waitForResponse(
-      (response) =>
-        response.url().endsWith(`/api/routines/${agent.id}`) &&
-        response.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "حفظ", exact: true }).click();
-    const routine = await (await scheduled).json();
-    owned.routines.add(routine.id);
-    expect(routine.interval_seconds).toBe(1020);
-    await page.getByRole("button", { name: "سجل التنفيذ", exact: true }).click();
-    await expect(page.getByText("لا يوجد تنفيذ بعد", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "رجوع", exact: true }).click();
-    await expect(page).toHaveURL(threadUrl);
-    // «+» offers Files and Photos (as on Web); Files opens the system picker.
-    await page.getByRole("button", { name: "إرفاق ملف", exact: true }).click();
-    const chooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "ملفات", exact: true }).click();
-    const filename = `report-${agent.id}.txt`;
-    const uploaded = page.waitForResponse((response) =>
-      response.url().endsWith("/api/artifacts/upload"),
-    );
-    await (await chooser).setFiles({
-      name: filename,
-      mimeType: "text/plain",
-      buffer: Buffer.from("Persistent trading review"),
-    });
-    const artifact = await (await uploaded).json();
-    owned.artifacts.add(artifact.id);
-    const content = `${prefix} durable attachment message`;
-    await page.getByLabel("اكتب رسالة…", { exact: true }).fill(content);
-    const threadId = new URL(threadUrl).searchParams.get("id");
-    let firstReceipt;
-    const nonces = [];
-    const lostResponse = async (route) => {
-      if (route.request().method() !== "POST") return route.continue();
-      nonces.push(route.request().postDataJSON().client_nonce);
-      firstReceipt = await (await route.fetch()).json();
-      await route.abort("failed");
-    };
-    const messagePath = `**/api/threads/${threadId}/messages`;
-    await page.route(messagePath, lostResponse);
-    const transportFailure = page.waitForEvent("requestfailed", {
-      predicate: (request) =>
-        request.method() === "POST" && request.url().endsWith(`/threads/${threadId}/messages`),
-    });
-    await page.getByRole("button", { name: "إرسال", exact: true }).click();
-    await transportFailure;
-    await page.unroute(messagePath, lostResponse);
-    expect(firstReceipt.deduplicated).toBe(false);
-    expect(firstReceipt.message.attachment_ids).toContain(artifact.id);
-    // A durable event acknowledges the committed message although its response was lost
-    // (as on Web): it is drawn as sent with its file, and the owner is never asked to send
-    // it again; nothing is left in the outbox for a later flush.
-    await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toHaveValue("");
-    const sent = page.getByTestId("conversation-transcript");
-    await expect(sent.getByText(content, { exact: true })).toBeVisible();
-    await expect(sent.getByRole("button", { name: filename, exact: true })).toBeVisible();
-    await expect(page.getByText("لم تُرسل الرسالة", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("بانتظار الشبكة…", { exact: true })).toHaveCount(0);
-    await expect
-      .poll(() =>
-        page.evaluate(
-          (thread) =>
-            Object.keys(localStorage).filter(
-              (key) => key.startsWith("lonora.outbox.v1:") && key.includes(thread),
-            ).length,
-          threadId,
-        ),
-      )
-      .toBe(0);
-    expect(nonces).toHaveLength(1);
-    // A replay of the same nonce returns the real receipt, never a second message.
-    const retryReceipt = await (
-      await context.request.post(`/api/threads/${threadId}/messages`, {
-        headers,
-        data: { content, attachment_ids: [artifact.id], client_nonce: nonces[0] },
-      })
-    ).json();
-    expect(retryReceipt.deduplicated).toBe(true);
-    expect(retryReceipt.message.id).toBe(firstReceipt.message.id);
-    expect(
-      (await (await context.request.get(`/api/threads/${threadId}/messages`)).json()).filter(
-        (row) => row.content === content,
-      ),
-    ).toHaveLength(1);
-    await page.goto("/");
-    await page.getByRole("button", { name: prefix, exact: true }).click();
-    await expect(page).toHaveURL(threadUrl);
-    await expect(
-      page.getByTestId("conversation-transcript").getByText(content, { exact: true }),
-    ).toBeVisible();
-    await page
-      .getByTestId("conversation-transcript")
-      .getByText(content, { exact: true })
-      .click({ delay: 650 });
-    // A long press opens the message's menu (as on Web); «رد» quotes it in the composer.
-    await page
-      .getByRole("dialog", { name: "خيارات الرسالة", exact: true })
-      .getByRole("button", { name: "رد", exact: true })
-      .click();
-    await expect(page.getByRole("button", { name: "إلغاء الرد", exact: true })).toBeVisible();
-    await page.getByLabel("اكتب رسالة…", { exact: true }).fill("A reply to the persistent message");
-    const replying = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith(`/threads/${threadId}/messages`),
-    );
-    await page.getByRole("button", { name: "إرسال", exact: true }).click();
-    expect((await (await replying).json()).message.reply_to).toBe(firstReceipt.message.id);
-    await page.getByRole("button", { name: "إجراءات الوكيل", exact: true }).click();
-    await page.getByRole("button", { name: "الملفات", exact: true }).click();
-    await page.getByRole("button", { name: filename, exact: true }).click();
-    await expect(page.getByText("Persistent trading review", { exact: true })).toBeVisible();
-    const download = page.waitForEvent("download");
-    await page.getByRole("button", { name: "تنزيل", exact: true }).click();
-    expect((await download).suggestedFilename()).toBe(filename);
-    await page.goto("/new-group");
-    await page.getByLabel("الاسم", { exact: true }).fill(`${prefix} team`);
-    await page.getByRole("switch", { name: prefix, exact: true }).click();
-    const grouped = page.waitForResponse((response) =>
-      response.url().endsWith("/api/groups/create"),
-    );
-    await page.getByRole("button", { name: "إنشاء", exact: true }).click();
-    const group = await (await grouped).json();
-    owned.groups.add(group.id);
-    await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "إعدادات المجموعة", exact: true }).click();
-    await page.getByLabel("الاسم", { exact: true }).fill(`${prefix} revised team`);
-    await page.getByRole("button", { name: "حفظ", exact: true }).click();
-    await expect(page.getByText("تم الحفظ", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "رجوع", exact: true }).click();
-    await page.getByLabel("اكتب رسالة…", { exact: true }).fill("@");
-    await page.getByRole("button", { name: `@${prefix}`, exact: true }).click();
-    await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toHaveValue(`@${prefix} `);
-    const mentioned = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith(`/threads/${group.thread_id}/messages`),
-    );
-    await page.getByRole("button", { name: "إرسال", exact: true }).click();
-    const mentionReceipt = await (await mentioned).json();
-    expect(mentionReceipt.run_ids).toHaveLength(1);
-    expect(
-      (await (await context.request.get(`/api/runs/${mentionReceipt.run_ids[0]}`)).json()).agent_id,
-    ).toBe(agent.id);
-    expect(
-      (await (await context.request.get(`/api/groups/${group.id}`)).json()).payload.name,
-    ).toContain("revised team");
-    chartFixture = JSON.parse(
-      execFileSync(".venv/bin/python", ["tests/seed_chart_reply.py"], {
-        input: JSON.stringify({ action: "init" }),
-        encoding: "utf8",
-        env: process.env,
-      }),
-    );
-    await page.goto(`/thread?id=${chartFixture.thread_id}`);
-    await expect(
-      page.getByText("Here is the saved XAUUSD chart image.", { exact: true }),
-    ).toBeVisible();
-    const image = page.getByRole("img", { name: "XAUUSD.png", exact: true }).last();
-    await expect(image).toBeVisible();
-    await expect
-      .poll(() =>
-        image.evaluate((element) => {
-          const image = element.querySelector("img") ?? element;
-          return image.complete && image.naturalWidth > 0;
-        }),
-      )
-      .toBeTruthy();
-    const transcript = await (
-      await context.request.get(`/api/threads/${chartFixture.thread_id}/messages`)
-    ).json();
-    expect(transcript.find((row) => row.id === chartFixture.message_id).attachment_ids).toContain(
-      chartFixture.artifact_id,
-    );
-    const fileResponse = await context.request.get(
-      `/api/artifacts/${chartFixture.artifact_id}/file`,
-    );
-    expect(fileResponse.status()).toBe(200);
-    expect(fileResponse.headers()["content-type"]).toMatch(/^image\/png/);
-    const png = await fileResponse.body();
-    expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
-    await page.screenshot({ path: ".runtime/rakazo-parity/mobile-chat-image.png" });
-    await page.getByRole("button", { name: "إجراءات الوكيل", exact: true }).click();
-    await page.getByRole("button", { name: "الرسوم البيانية", exact: true }).click();
-    const chartFrame = page.frameLocator('iframe[title="XAUUSD · 1h"]');
-    const renderer = chartFrame.locator('[data-renderer="tradingview"]');
-    await expect(renderer).toBeVisible();
-    await expect(page.getByRole("menu")).not.toBeVisible();
-    await expect(
-      chartFrame.frameLocator("iframe").getByText("Lonora rsi 14 (1)", { exact: true }),
-    ).toBeVisible();
-    const scene = await (
-      await context.request.get(`/api/charts/${chartFixture.chart_id}/scene`)
-    ).json();
-    expect(scene.candles).toHaveLength(20);
-    expect(scene.annotations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: "price", price: 110, label: "Fixture support" }),
-      ]),
-    );
-    // The renderer acknowledges this exact scene only after study creation and
-    // all saved drawing promises complete; labels themselves live on a canvas.
-    await expect(renderer).toHaveAttribute(
-      "data-applied-scene-version",
-      String(scene.scene_version),
-    );
-    await page.screenshot({ path: ".runtime/rakazo-parity/mobile-chart.png" });
-    const refreshed = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith(`/charts/${chartFixture.chart_id}/refresh`),
-    );
-    await page.getByRole("button", { name: "تحديث", exact: true }).click();
-    expect((await (await refreshed).json()).requested).toBe(true);
-    await page.getByRole("button", { name: "إنشاء رسم بياني", exact: true }).click();
-    const saveChart = page.getByRole("button", { name: "حفظ", exact: true });
-    // This migrated fixture has no immutable market binding. Creation requires
-    // an explicit owner choice even when a chart already exists in the thread.
-    await expect(saveChart).toBeDisabled();
-    const chartConnections = await (await context.request.get("/api/trading/connections")).json();
-    const chartAccountIndex = chartConnections
-      .filter((connection) => connection.payload.enabled)
-      .findIndex((connection) => connection.id === chartFixture.connection_id);
-    expect(chartAccountIndex).toBeGreaterThanOrEqual(0);
-    await page.getByRole("button", { name: "حساب الوسيط", exact: true }).click();
-    await page.getByRole("menu").getByRole("button").nth(chartAccountIndex).click();
-    await expect(saveChart).toBeDisabled();
-    await page.getByRole("button", { name: "الرمز", exact: true }).click();
-    await page.getByRole("menu").getByRole("button", { name: "XAUUSD", exact: true }).click();
-    await expect(saveChart).toBeEnabled();
-    const chartCreated = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" && response.url().endsWith("/api/charts"),
-    );
-    await page.getByRole("button", { name: "حفظ", exact: true }).click();
-    const nativeChart = await (await chartCreated).json();
-    owned.charts.add(nativeChart.id);
-    expect(nativeChart.payload.account_id).toBe(chartFixture.connection_id);
-    expect(nativeChart.payload.symbol).toBe("XAUUSD");
-    expect(nativeChart.thread_id).toBe(chartFixture.thread_id);
-    await page.goto("/settings");
-    await page.getByRole("button", { name: "الحساب", exact: true }).click();
-    await page.getByRole("button", { name: "English", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
-    await page.goto("/models");
-    await expect(page.getByText("Providers", { exact: true })).toBeVisible();
-    // Integrations are part of Capabilities (W15-8); their setup is on Web.
-    await page.goto("/integrations");
-    await expect(page.getByRole("heading", { name: "Capabilities", exact: true })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Set up integrations on the web", exact: true }),
-    ).toBeVisible();
-    await page.goto("/voice");
-    await expect(page.getByText("GPT-Live", { exact: true })).toBeVisible();
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
-    ).toBeTruthy();
-    const personal = (await (await context.request.get("/api/agents")).json()).find(
-      (row) => row.role === "personal",
-    );
-    expect(personal).toBeTruthy();
-    await page.goto(`/bot-settings?botId=${personal.id}`);
-    await expect(page.getByRole("img", { name: "Personal Agent", exact: true })).toBeVisible();
-    // Agents are never deleted from the UI (owner decision Q1): only their history is hidden.
-    await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
-    await page.goto(`/bot-settings?botId=${agent.id}`);
-    await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
-    expect(
-      (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
-    ).toBe(true);
-    await page.goto("/account");
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
-    await expect(page.getByRole("textbox", { name: "Email", exact: true })).toBeVisible();
-    expect(errors).toEqual([]);
-  } finally {
+  cleanup(async () => {
     await broker?.close();
     if (chartFixture)
       execFileSync(".venv/bin/python", ["tests/seed_chart_reply.py"], {
@@ -385,5 +54,326 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
             (await context.request.delete(`/api/${kind}/${id}`, { headers })).status(),
           );
     }
-  }
+  });
+  await page.goto("/");
+  await page
+    .getByRole("textbox", { name: "البريد الإلكتروني", exact: true })
+    .fill(credentials.email);
+  await page.getByLabel("كلمة المرور", { exact: true }).fill(credentials.password);
+  const loggedIn = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/auth/login") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "تسجيل الدخول", exact: true }).click();
+  headers = { "X-CSRF-Token": (await (await loggedIn).json()).csrf };
+  broker = await brokerFixture(context, headers);
+  await expect(page.getByRole("button", { name: "محادثة جديدة", exact: true })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "بحث في Lonora", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toMatch(
+    /Bearer|"token"|"session"/,
+  );
+  // A new agent is asked of Lonora in chat (P5, mandate 3.1.2); the fixture makes one.
+  const made = await context.request.post("/api/agents", {
+    headers,
+    data: {
+      name: prefix,
+      description: "Monitor positions and summarize market data.",
+      trading_account_id: broker.account,
+      trading_symbol: broker.symbol,
+    },
+  });
+  expect(made.status()).toBe(201);
+  const agent = await made.json();
+  owned.agents.add(agent.id);
+  const conversation = await (
+    await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+  ).json();
+  await page.goto(`/thread?id=${conversation.id}`);
+  await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "اتصل بالوكيل", exact: true })).toBeVisible();
+  const threadUrl = page.url();
+  await page.getByRole("button", { name: "إعدادات الوكيل", exact: true }).click();
+  await page
+    .getByLabel("التعليمات", { exact: true })
+    .fill("Review spreads and current positions before proposing trades.");
+  await page.getByLabel("الذاكرة الدائمة", { exact: true }).fill("Prefer daily portfolio reviews.");
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect(page.getByText("تم الحفظ", { exact: true })).toBeVisible();
+  expect(
+    (await (await context.request.get(`/api/agents/${agent.id}/memory`)).json()).content,
+  ).toContain("daily portfolio");
+  await page.getByRole("button", { name: "رجوع", exact: true }).click();
+  await page.getByRole("button", { name: "إجراءات الوكيل", exact: true }).click();
+  await page.getByRole("button", { name: "المهام المجدولة", exact: true }).click();
+  await page.getByRole("button", { name: "إنشاء", exact: true }).click();
+  await page.getByLabel("المهمة", { exact: true }).fill(`${prefix} market review`);
+  await page.getByLabel("كل · دقائق", { exact: true }).fill("17");
+  const scheduled = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/routines/${agent.id}`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  const routine = await (await scheduled).json();
+  owned.routines.add(routine.id);
+  expect(routine.interval_seconds).toBe(1020);
+  await page.getByRole("button", { name: "سجل التنفيذ", exact: true }).click();
+  await expect(page.getByText("لا يوجد تنفيذ بعد", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "رجوع", exact: true }).click();
+  await expect(page).toHaveURL(threadUrl);
+  // «+» offers Files and Photos (as on Web); Files opens the system picker.
+  await page.getByRole("button", { name: "إرفاق ملف", exact: true }).click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "ملفات", exact: true }).click();
+  const filename = `report-${agent.id}.txt`;
+  const uploaded = page.waitForResponse((response) =>
+    response.url().endsWith("/api/artifacts/upload"),
+  );
+  await (await chooser).setFiles({
+    name: filename,
+    mimeType: "text/plain",
+    buffer: Buffer.from("Persistent trading review"),
+  });
+  const artifact = await (await uploaded).json();
+  owned.artifacts.add(artifact.id);
+  const content = `${prefix} durable attachment message`;
+  await page.getByLabel("اكتب رسالة…", { exact: true }).fill(content);
+  const threadId = new URL(threadUrl).searchParams.get("id");
+  let firstReceipt;
+  const nonces = [];
+  const lostResponse = async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    nonces.push(route.request().postDataJSON().client_nonce);
+    firstReceipt = await (await route.fetch()).json();
+    await route.abort("failed");
+  };
+  const messagePath = `**/api/threads/${threadId}/messages`;
+  await page.route(messagePath, lostResponse);
+  const transportFailure = page.waitForEvent("requestfailed", {
+    predicate: (request) =>
+      request.method() === "POST" && request.url().endsWith(`/threads/${threadId}/messages`),
+  });
+  await page.getByRole("button", { name: "إرسال", exact: true }).click();
+  await transportFailure;
+  await page.unroute(messagePath, lostResponse);
+  expect(firstReceipt.deduplicated).toBe(false);
+  expect(firstReceipt.message.attachment_ids).toContain(artifact.id);
+  // A durable event acknowledges the committed message although its response was lost
+  // (as on Web): it is drawn as sent with its file, and the owner is never asked to send
+  // it again; nothing is left in the outbox for a later flush.
+  await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toHaveValue("");
+  const sent = page.getByTestId("conversation-transcript");
+  await expect(sent.getByText(content, { exact: true })).toBeVisible();
+  await expect(sent.getByRole("button", { name: filename, exact: true })).toBeVisible();
+  await expect(page.getByText("لم تُرسل الرسالة", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("بانتظار الشبكة…", { exact: true })).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (thread) =>
+          Object.keys(localStorage).filter(
+            (key) => key.startsWith("lonora.outbox.v1:") && key.includes(thread),
+          ).length,
+        threadId,
+      ),
+    )
+    .toBe(0);
+  expect(nonces).toHaveLength(1);
+  // A replay of the same nonce returns the real receipt, never a second message.
+  const retryReceipt = await (
+    await context.request.post(`/api/threads/${threadId}/messages`, {
+      headers,
+      data: { content, attachment_ids: [artifact.id], client_nonce: nonces[0] },
+    })
+  ).json();
+  expect(retryReceipt.deduplicated).toBe(true);
+  expect(retryReceipt.message.id).toBe(firstReceipt.message.id);
+  expect(
+    (await (await context.request.get(`/api/threads/${threadId}/messages`)).json()).filter(
+      (row) => row.content === content,
+    ),
+  ).toHaveLength(1);
+  await page.goto("/");
+  await page.getByRole("button", { name: prefix, exact: true }).click();
+  await expect(page).toHaveURL(threadUrl);
+  await expect(
+    page.getByTestId("conversation-transcript").getByText(content, { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByTestId("conversation-transcript")
+    .getByText(content, { exact: true })
+    .click({ delay: 650 });
+  // A long press opens the message's menu (as on Web); «رد» quotes it in the composer.
+  await page
+    .getByRole("dialog", { name: "خيارات الرسالة", exact: true })
+    .getByRole("button", { name: "رد", exact: true })
+    .click();
+  await expect(page.getByRole("button", { name: "إلغاء الرد", exact: true })).toBeVisible();
+  await page.getByLabel("اكتب رسالة…", { exact: true }).fill("A reply to the persistent message");
+  const replying = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/threads/${threadId}/messages`),
+  );
+  await page.getByRole("button", { name: "إرسال", exact: true }).click();
+  expect((await (await replying).json()).message.reply_to).toBe(firstReceipt.message.id);
+  await page.getByRole("button", { name: "إجراءات الوكيل", exact: true }).click();
+  await page.getByRole("button", { name: "الملفات", exact: true }).click();
+  await page.getByRole("button", { name: filename, exact: true }).click();
+  await expect(page.getByText("Persistent trading review", { exact: true })).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "تنزيل", exact: true }).click();
+  expect((await download).suggestedFilename()).toBe(filename);
+  await page.goto("/new-group");
+  await page.getByLabel("الاسم", { exact: true }).fill(`${prefix} team`);
+  await page.getByRole("switch", { name: prefix, exact: true }).click();
+  const grouped = page.waitForResponse((response) => response.url().endsWith("/api/groups/create"));
+  await page.getByRole("button", { name: "إنشاء", exact: true }).click();
+  const group = await (await grouped).json();
+  owned.groups.add(group.id);
+  await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "إعدادات المجموعة", exact: true }).click();
+  await page.getByLabel("الاسم", { exact: true }).fill(`${prefix} revised team`);
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect(page.getByText("تم الحفظ", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "رجوع", exact: true }).click();
+  await page.getByLabel("اكتب رسالة…", { exact: true }).fill("@");
+  await page.getByRole("button", { name: `@${prefix}`, exact: true }).click();
+  await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toHaveValue(`@${prefix} `);
+  const mentioned = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/threads/${group.thread_id}/messages`),
+  );
+  await page.getByRole("button", { name: "إرسال", exact: true }).click();
+  const mentionReceipt = await (await mentioned).json();
+  expect(mentionReceipt.run_ids).toHaveLength(1);
+  expect(
+    (await (await context.request.get(`/api/runs/${mentionReceipt.run_ids[0]}`)).json()).agent_id,
+  ).toBe(agent.id);
+  expect(
+    (await (await context.request.get(`/api/groups/${group.id}`)).json()).payload.name,
+  ).toContain("revised team");
+  chartFixture = JSON.parse(
+    execFileSync(".venv/bin/python", ["tests/seed_chart_reply.py"], {
+      input: JSON.stringify({ action: "init" }),
+      encoding: "utf8",
+      env: process.env,
+    }),
+  );
+  await page.goto(`/thread?id=${chartFixture.thread_id}`);
+  await expect(
+    page.getByText("Here is the saved XAUUSD chart image.", { exact: true }),
+  ).toBeVisible();
+  const image = page.getByRole("img", { name: "XAUUSD.png", exact: true }).last();
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element) => {
+        const image = element.querySelector("img") ?? element;
+        return image.complete && image.naturalWidth > 0;
+      }),
+    )
+    .toBeTruthy();
+  const transcript = await (
+    await context.request.get(`/api/threads/${chartFixture.thread_id}/messages`)
+  ).json();
+  expect(transcript.find((row) => row.id === chartFixture.message_id).attachment_ids).toContain(
+    chartFixture.artifact_id,
+  );
+  const fileResponse = await context.request.get(`/api/artifacts/${chartFixture.artifact_id}/file`);
+  expect(fileResponse.status()).toBe(200);
+  expect(fileResponse.headers()["content-type"]).toMatch(/^image\/png/);
+  const png = await fileResponse.body();
+  expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  await page.screenshot({ path: ".runtime/rakazo-parity/mobile-chat-image.png" });
+  await page.getByRole("button", { name: "إجراءات الوكيل", exact: true }).click();
+  await page.getByRole("button", { name: "الرسوم البيانية", exact: true }).click();
+  const chartFrame = page.frameLocator('iframe[title="XAUUSD · 1h"]');
+  const renderer = chartFrame.locator('[data-renderer="tradingview"]');
+  await expect(renderer).toBeVisible();
+  await expect(page.getByRole("menu")).not.toBeVisible();
+  await expect(
+    chartFrame.frameLocator("iframe").getByText("Lonora rsi 14 (1)", { exact: true }),
+  ).toBeVisible();
+  const scene = await (
+    await context.request.get(`/api/charts/${chartFixture.chart_id}/scene`)
+  ).json();
+  expect(scene.candles).toHaveLength(20);
+  expect(scene.annotations).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ type: "price", price: 110, label: "Fixture support" }),
+    ]),
+  );
+  // The renderer acknowledges this exact scene only after study creation and
+  // all saved drawing promises complete; labels themselves live on a canvas.
+  await expect(renderer).toHaveAttribute("data-applied-scene-version", String(scene.scene_version));
+  await page.screenshot({ path: ".runtime/rakazo-parity/mobile-chart.png" });
+  const refreshed = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/charts/${chartFixture.chart_id}/refresh`),
+  );
+  await page.getByRole("button", { name: "تحديث", exact: true }).click();
+  expect((await (await refreshed).json()).requested).toBe(true);
+  await page.getByRole("button", { name: "إنشاء رسم بياني", exact: true }).click();
+  const saveChart = page.getByRole("button", { name: "حفظ", exact: true });
+  // This migrated fixture has no immutable market binding. Creation requires
+  // an explicit owner choice even when a chart already exists in the thread.
+  await expect(saveChart).toBeDisabled();
+  const chartConnections = await (await context.request.get("/api/trading/connections")).json();
+  const chartAccountIndex = chartConnections
+    .filter((connection) => connection.payload.enabled)
+    .findIndex((connection) => connection.id === chartFixture.connection_id);
+  expect(chartAccountIndex).toBeGreaterThanOrEqual(0);
+  await page.getByRole("button", { name: "حساب الوسيط", exact: true }).click();
+  await page.getByRole("menu").getByRole("button").nth(chartAccountIndex).click();
+  await expect(saveChart).toBeDisabled();
+  await page.getByRole("button", { name: "الرمز", exact: true }).click();
+  await page.getByRole("menu").getByRole("button", { name: "XAUUSD", exact: true }).click();
+  await expect(saveChart).toBeEnabled();
+  const chartCreated = page.waitForResponse(
+    (response) => response.request().method() === "POST" && response.url().endsWith("/api/charts"),
+  );
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  const nativeChart = await (await chartCreated).json();
+  owned.charts.add(nativeChart.id);
+  expect(nativeChart.payload.account_id).toBe(chartFixture.connection_id);
+  expect(nativeChart.payload.symbol).toBe("XAUUSD");
+  expect(nativeChart.thread_id).toBe(chartFixture.thread_id);
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "الحساب", exact: true }).click();
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+  await page.goto("/models");
+  await expect(page.getByText("Providers", { exact: true })).toBeVisible();
+  // Integrations are part of Capabilities (W15-8); their setup is on Web.
+  await page.goto("/integrations");
+  await expect(page.getByRole("heading", { name: "Capabilities", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Set up integrations on the web", exact: true }),
+  ).toBeVisible();
+  await page.goto("/voice");
+  await expect(page.getByText("GPT-Live", { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+  ).toBeTruthy();
+  const personal = (await (await context.request.get("/api/agents")).json()).find(
+    (row) => row.role === "personal",
+  );
+  expect(personal).toBeTruthy();
+  await page.goto(`/bot-settings?botId=${personal.id}`);
+  await expect(page.getByRole("img", { name: "Personal Agent", exact: true })).toBeVisible();
+  // Agents are never deleted from the UI (owner decision Q1): only their history is hidden.
+  await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
+  await page.goto(`/bot-settings?botId=${agent.id}`);
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
+  expect(
+    (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
+  ).toBe(true);
+  await page.goto("/account");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Email", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
 });

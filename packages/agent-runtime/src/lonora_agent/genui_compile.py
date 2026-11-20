@@ -34,6 +34,7 @@ from lonora_contracts.genui_intents import REGISTRY, intent_denied
 from lonora_contracts.instrument_names import known_names
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
 from lonora_core.search_fold import TASHKEEL, fold
+from lonora_db.genui_slots import SlotRecord
 
 from .context.financial_result import FINANCIAL_CALLS
 from .genui_capabilities import UiCapabilities
@@ -85,29 +86,168 @@ HEIGHTS = {
     "Badge": 24,
     "More": 40,
 }
-# A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
-# journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
-# counts toward the 560 px budget like any block, and is never folded). The Secret and
-# Mandate cards are counted at their tallest for an 80-character name of words (the
-# contract's longest), which is the English card, whose lines are longer; a Secret card
-# without the line below. A Secret card grows with the fields the agent asked for: 365 px
-# and 95 px a field (measured 460 px for one field, 555 for two, 650 for three with an
-# Arabic or a Latin name, a broker card's two fields 550; the Arabic card 440, 535 and 630,
-# and 398, 493 and 588 with a short name). A Mandate card is counted with Ask and a signed
-# grant's line (measured 404 px with an Arabic or a Latin name; the Arabic card 362 px, 386
-# with a Latin name). A name of wide capitals (W, M) wraps further: a Mandate card up to
-# 500 px, a Secret card 63 px more. Not counted: the line naming the grants that ended,
-# which only the card migration 0128 shows once (for each agent that held a grant then);
-# naming two grants on two accounts it is more than twice the signed grant's line, and
-# the web journey records that card's height without bounding it. Not counted either: a
-# Secret card that replaces values already saved (never a broker card) shows one more
-# line, 48 px more for one field, 69 for two, 90 for three. Counting it would make every
-# two-field card that can show it fall back (100 + 555 + 69 = 724 px), and the clients
-# read it when the card is shown, after it was compiled. Such a card is that much taller
-# than counted: a two-field one with that name, about 724 px, is not caught by the 720 px
-# rule.
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 405, "secret": 365}
-SLOT_ROW_HEIGHTS = {"secret": 95}
+# A trusted slot's height at 390 px, its trust frame included (mandate 10.1.4): each fixed
+# card's height as the web "Slots" journeys measure it (tests/web/genui.spec.mjs; rounded up to
+# the next pixel), with its texts at their shortest, plus the lines its record's texts wrap to (`wrapped_lines`). A slot counts
+# at the state its record has when the card is compiled toward the 560 px resting height, like
+# any block; the record's tallest later state counts toward the 720 px hard limit for the whole
+# card (`slot_height`). Nothing is left out: names, labels and the agent's reason are counted as
+# the record holds them when the card is compiled, each later state of the record at its tallest
+# (an agent renamed afterwards is drawn with its new name, which is not a state of the record).
+# The Trade Approval: one request with its ticket row (a modify_order, the tallest) and a
+# one-line reason, waiting 407 px; decided, its tallest end state, the English card whose
+# outcome the broker never confirmed under broker_result_mismatch (or
+# execution_interrupted_after_send), 561 px. Each further request adds its rows, and decided its
+# result line too; each further line of the reason, with its label, 21 px.
+APPROVAL_WAITING = 407
+APPROVAL_DECIDED = 561
+APPROVAL_REQUEST = (175, 340)
+# The Settle card waiting, its tallest state (an answer or an expiry only shortens it), with its
+# operation on one line («… by an agent») and its account on two: 434 px. Its operation line
+# names the agent that sent it; each further line of either, 21 px.
+SETTLE = 434
+# The Mandate card with Ask and a signed grant's line (its tallest lines; the mode and the grant
+# change while it is shown) and a one-line name: 357 px; each further line of its name, 24 px.
+MANDATE = 357
+# The Secret card waiting with one field: 419 px, and 74 px a further field, with one-line
+# texts (its label, who asked, what it saves, each field's label); a broker card's two fixed
+# fields and its account line, 509 px. Each further line of any of them adds its line. The line
+# naming saved values it would replace is known only when the card is shown: it counts toward
+# the hard limit at its tallest, every field's label (6 px and 21 px a line). A saved,
+# cancelled or expired card is shorter than its waiting form.
+SECRET = 419
+SECRET_FIELD = 74
+SECRET_BROKER = 509
+# The width (px) a line of each card's text has at 390 px, its font size (px; a bold title's
+# is taken 5% larger) and its line height.
+REASON_LINE = (203.0, 12.0, 21)
+TITLE_LINE = (244.0, 16.8, 24)
+SUB_LINE = (244.0, 14.0, 21)
+# An upper bound of each character's advance in em, in the apps' system fonts (measured at 12 to
+# 16 px in the test browser), as core `fittedLine`: wide Latin letters and signs, the other
+# capitals, the narrow marks, lower case, the rest of ASCII, the widest Arabic letters (seen,
+# sheen, sad, dad) and the other Arabic letters; Arabic vowel marks take no room; anything else
+# counts as wide.
+_WIDE = re.compile(r"[WMmw%@]")
+_NARROW = re.compile(r"[ijlI.,:;!'|()\[\]frt]")
+_MARK = re.compile("[\u064b-\u065f\u0670\u06d6-\u06ed]")
+_SEEN = re.compile("[\u0633-\u0636]")
+_ARABIC = re.compile("[\u0600-\u06ff\ufb50-\ufdff\ufe70-\ufeff]")
+_CONTROLS = re.compile("[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def _advance(char: str) -> float:
+    if char == " ":
+        return 0.3
+    if _WIDE.match(char):
+        return 1.0
+    if "A" <= char <= "Z":
+        return 0.78
+    if _NARROW.match(char):
+        return 0.4
+    if "a" <= char <= "z":
+        return 0.62
+    if "!" <= char <= "~":
+        return 0.66
+    if _MARK.match(char):
+        return 0.0
+    if _SEEN.match(char):
+        return 0.96
+    if _ARABIC.match(char):
+        return 0.5
+    return 1.0
+
+
+def wrapped_lines(text: str, line: tuple[float, float, int]) -> int:
+    """The lines ``text`` wraps to in ``line`` (width, font size), word by word as a browser
+    breaks it; a word longer than the line breaks where the line ends. Never fewer than drawn
+    while the bound above holds."""
+    width, size, _height = line
+    space = _advance(" ") * size
+    lines, used = 1, 0.0
+    for word in _CONTROLS.sub("", text).split():
+        word_width = sum(_advance(char) for char in word) * size
+        if used and used + space + word_width <= width:
+            used += space + word_width
+            continue
+        if used:
+            lines, used = lines + 1, 0.0
+        if word_width <= width:
+            used = word_width
+            continue
+        for char in word:
+            advance = _advance(char) * size
+            if used + advance > width:
+                lines, used = lines + 1, 0.0
+            used += advance
+    return lines
+
+
+def _extra(line: tuple[float, float, int], *texts: str, base: int = 1) -> int:
+    """The height the tallest of ``texts`` (one text in each language) adds beyond ``base``
+    lines."""
+    return max(max(wrapped_lines(text, line) for text in texts) - base, 0) * line[2]
+
+
+def slot_height(card: str, record: SlotRecord) -> tuple[int, int]:
+    """A slot's height at rest, as its record is now, and at its tallest later state."""
+    if card == "trade_approval":
+        reason = _extra(REASON_LINE, f"In the agent's words: {record.reason}")
+        further = max(record.rows - 1, 0)
+        later = APPROVAL_DECIDED + APPROVAL_REQUEST[1] * further + reason
+        if not record.waiting:
+            return later, later
+        return APPROVAL_WAITING + APPROVAL_REQUEST[0] * further + reason, later
+    if card == "settle":
+        operation = record.operation
+        height = (
+            SETTLE
+            + _extra(
+                SUB_LINE,
+                f"{operation} · at 20 Nov, 12:05 · by {record.name or 'an agent'}",
+                f"{operation} · في 20 نوفمبر، 12:05 · من {record.name or 'وكيل'}",
+            )
+            + _extra(SUB_LINE, f"Account: {record.account}", f"الحساب: {record.account}", base=2)
+        )
+        return height, height
+    if card == "mandate":
+        height = MANDATE + _extra(
+            TITLE_LINE, f"{record.name} · Now: Ask", f"{record.name} · الآن: يستأذن"
+        )
+        return height, height
+    labels = record.labels or ("",)
+    asked = (
+        _extra(SUB_LINE, f"Asked by {record.name}", f"يطلبها {record.name}") if record.name else 0
+    )
+    if record.broker:
+        height = (
+            SECRET_BROKER
+            + asked
+            + _extra(
+                SUB_LINE,
+                f"Account on server ( ) {record.account}",
+                f"الحساب على الخادم ( ) {record.account}",
+            )
+        )
+        return height, height
+    names = ", ".join(labels)
+    height = (
+        SECRET
+        + SECRET_FIELD * max(len(labels) - 1, 0)
+        + _extra(TITLE_LINE, record.label)
+        + _extra(SUB_LINE, f"Name: {record.detail}", f"الاسم: {record.detail}", base=0)
+        * bool(record.detail)
+        + asked
+        + _extra(SUB_LINE, f"Saves: {names}", f"تُحفظ: {names}")
+        + sum(_extra(SUB_LINE, label) for label in labels)
+    )
+    replaces = 6 + SUB_LINE[2] * max(
+        wrapped_lines(f"Replaces what was saved before: {names}", SUB_LINE),
+        wrapped_lines(f"تحلّ محل ما حُفظ سابقًا: {names}", SUB_LINE),
+    )
+    return height, height + (replaces if record.waiting else 0)
+
+
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
 FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
@@ -120,6 +260,8 @@ FIXED_LABELS = (
     "موافقة",
     "Reject",
     "رفض",
+    "Unconfirmed operation",
+    "عملية غير مؤكَّدة",
     "The broker did not confirm this trade",
     "الوسيط لم يؤكد هذه الصفقة",
     "It executed",
@@ -473,10 +615,10 @@ class AgentScope:
     # directly, never from a bounded list).
     named_accounts: frozenset[str] = frozenset()
     # ``(card, record id)`` of the records this card's slots name that exist, belong to
-    # this owner and sit in this conversation (``lonora_db.genui_slots``).
-    # Each with its number of rows (a Secret card's fields; 0 for the other cards).
-    slot_records: dict[tuple[str, str], int] = field(
-        default_factory=lambda: dict[tuple[str, str], int]()
+    # this owner and sit in this conversation (``lonora_db.genui_slots``), each with what its
+    # card draws that sets its height (``slot_height``).
+    slot_records: dict[tuple[str, str], SlotRecord] = field(
+        default_factory=lambda: dict[tuple[str, str], SlotRecord]()
     )
 
 
@@ -686,28 +828,25 @@ def _owner_urls(messages: list[ModelMessage], evidence: dict[str, Evidence]) -> 
 def estimate_height(
     blocks: list[dict[str, Any]],
     visible: list[bool],
-    slot_rows: dict[tuple[str, str], int] | None = None,
+    slots: dict[tuple[str, str], int] | None = None,
 ) -> int:
-    """The card's height at rest; ``slot_rows`` gives each slot's record its rows (a Secret
-    card's fields)."""
+    """The card's height; ``slots`` gives each slot its height (``slot_height``: at rest, or
+    at its record's tallest later state)."""
     height = 48 + 30 + 22  # header, footer, body padding
     shown = [block for block, on in zip(blocks, visible, strict=True) if on]
     for block in shown:
-        height += _node_height(block, slot_rows or {})
+        height += _node_height(block, slots or {})
     return height + 14 * max(len(shown) - 1, 0)
 
 
-def _node_height(node: dict[str, Any], slot_rows: dict[tuple[str, str], int] | None = None) -> int:
+def _node_height(node: dict[str, Any], slots: dict[tuple[str, str], int] | None = None) -> int:
     kind = node["type"]
     if kind == "KeyValue":
         return 37 * len(node["rows"])
     if kind == "Text":
         return 20 * max(1, min(3, math.ceil(len(str(node.get("text", ""))) / 48)))
     if kind == SLOT:
-        card = node["card"]
-        return SLOT_HEIGHTS[card] + SLOT_ROW_HEIGHTS.get(card, 0) * (slot_rows or {}).get(
-            (card, node["record"]), 0
-        )
+        return (slots or {})[(node["card"], node["record"])]
     if kind == "Row":
         return max((_node_height(child) for child in node["children"]), default=0)
     if kind in {"Col", "Card", "Grid"}:
@@ -1107,10 +1246,13 @@ def compile_card(
             for _p, n in walk([block])
         )
 
-    slot_rows = scope.slot_records
+    # Each slot at rest as its record is now, and at its record's tallest later state (10.1.4).
+    heights = {key: slot_height(key[0], record) for key, record in scope.slot_records.items()}
+    resting = {key: rest for key, (rest, _later) in heights.items()}
+    tallest = {key: later for key, (_rest, later) in heights.items()}
     if final:
         shown = visible_now(blocks)
-        if sum(shown) > 6 or estimate_height(blocks, shown, slot_rows) > RESTING_LIMIT:
+        if sum(shown) > 6 or estimate_height(blocks, shown, resting) > RESTING_LIMIT:
             folded: list[dict[str, Any]] = []
             kept_blocks = list(blocks)
             while kept_blocks:
@@ -1119,7 +1261,7 @@ def compile_card(
                 more = [{"type": "More", "children": folded}] if folded else []
                 if (
                     sum(shown) + len(more) <= 6
-                    and estimate_height(kept_blocks + more, shown + [True] * len(more), slot_rows)
+                    and estimate_height(kept_blocks + more, shown + [True] * len(more), resting)
                     <= RESTING_LIMIT
                 ):
                     break
@@ -1137,7 +1279,9 @@ def compile_card(
                 kept_blocks.insert(tail, {"type": "More", "children": folded})
                 diagnostics.add("budget_folded")
             blocks = kept_blocks
-        if estimate_height(blocks, visible_now(blocks), slot_rows) > HARD_LIMIT:
+        # Its slots' later states included: a card that would outgrow 720 px when a record is
+        # decided falls back now, which brings the record's own row back.
+        if estimate_height(blocks, visible_now(blocks), tallest) > HARD_LIMIT:
             raise CardError("card_fallback_budget")
 
     why = card.why

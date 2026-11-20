@@ -335,7 +335,7 @@ function NumberField({ block, ctx }: NodeProps) {
         ctx={ctx}
         aside={
           block.hint !== undefined ? (
-            <Text style={{ color: ctx.p.faint, fontSize: 12 }}>{text(ctx, block.hint)}</Text>
+            <Text style={{ color: ctx.p.muted, fontSize: 12 }}>{text(ctx, block.hint)}</Text>
           ) : null
         }
       />
@@ -653,7 +653,8 @@ function Stat({ block, ctx }: NodeProps) {
     >
       <View style={{ flexDirection: row(ctx.rtl), alignItems: "center", gap: 4 }}>
         <CardIcon name={block.icon} size={14} color={ctx.p.muted} />
-        <Text numberOfLines={1} style={{ color: ctx.p.muted, fontSize: 12, flexShrink: 1 }}>
+        {/* v38: the label wraps instead of being cut */}
+        <Text style={{ color: ctx.p.muted, fontSize: 12, flexShrink: 1 }}>
           {text(ctx, block.label)}
         </Text>
       </View>
@@ -715,6 +716,8 @@ function Button({ block, path, ctx }: NodeProps) {
       accessibilityState={{ disabled: off }}
       disabled={off}
       onPress={() => ctx.act(block, path)}
+      // 40 + 2 above and below: a 44px tap area, the button unchanged (v38).
+      hitSlop={2}
       style={({ pressed }) => ({
         flexGrow: 1,
         alignSelf: block.full ? "stretch" : undefined,
@@ -756,12 +759,17 @@ function Col(props: NodeProps) {
 }
 
 function Grid({ block, path, ctx }: NodeProps) {
-  const cols = block.cols === 1 || block.cols === 3 ? block.cols : 2;
+  const [width, setWidth] = useState(0);
+  // v38: the columns follow the card's own width: `cols` while each cell keeps at least 96px
+  // (104 with its 4px gutters), fewer on a narrow card.
+  const max = block.cols === 1 || block.cols === 3 ? block.cols : 2;
+  const cols = width ? Math.min(max, Math.max(1, Math.floor(width / 104))) : max;
   // One wrapping row keyed by each child's own index: a cell keeps its identity (a focused
   // field keeps its keyboard and draft) when a sibling's `when` changes, and a hidden cell
   // leaves the flow, as `display: none` does on web.
   return (
     <View
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={{ flexDirection: row(ctx.rtl), flexWrap: "wrap", rowGap: 8, marginHorizontal: -4 }}
     >
       {((block.children as UiBlock[]) ?? []).map((child, at) => (

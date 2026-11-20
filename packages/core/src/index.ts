@@ -42,6 +42,7 @@ export {
   serverLine,
   skillLine,
   sourceLine,
+  toolTitle,
 } from "./capabilities";
 export {
   archivedRowSummary,
@@ -104,8 +105,12 @@ export {
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export {
+  approvalEndTone,
   approvalStatusText,
+  brokerPriceLabel,
   brokerTicketLabel,
+  brokerWordsLabel,
+  failedResultFallback,
   financialBoundaryError,
   financialResultReason,
   type OperationStatusKey,
@@ -189,6 +194,7 @@ export {
   replyLanguages,
 } from "./owner-profile";
 export { peerOutcome } from "./peer-outcome";
+export { fittedLine, plainLine, SIGNED_NUMBER, textDirection } from "./plain-line";
 export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,

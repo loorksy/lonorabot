@@ -25,6 +25,11 @@ export function tabLabel(root: Root) {
       return t`Settings`;
   }
 }
+/** The word on the tab itself: English «Attention» fits the tab; the full words name the page
+ * and the button. */
+function tabWord(root: Root) {
+  return root === "updates" ? t({ message: "Attention", context: "tab" }) : tabLabel(root);
+}
 
 /* Telegram-style floating tab bar: glass pill, a lens that slides under the active tab (or is
    dragged across the tabs and released), badges, and a fold to icons while scrolling down. */
@@ -140,6 +145,8 @@ export function FloatingTabBar({
       {ROOTS.map((root) => {
         const badge = root === "chats" ? chatsBadge : 0;
         const dot = root === "updates" && updatesDot;
+        const label = tabLabel(root);
+        const word = tabWord(root);
         return (
           <button
             type="button"
@@ -157,7 +164,16 @@ export function FloatingTabBar({
                 <span className="nav-badge">{badge}</span>
               ) : null}
             </span>
-            <span className="nav-label">{tabLabel(root)}</span>
+            {word === label ? (
+              <span className="nav-label">{label}</span>
+            ) : (
+              <>
+                <span className="nav-label" aria-hidden="true">
+                  {word}
+                </span>
+                <span className="sr-only">{label}</span>
+              </>
+            )}
             {dot ? (
               <span className="sr-only">
                 {" · "}

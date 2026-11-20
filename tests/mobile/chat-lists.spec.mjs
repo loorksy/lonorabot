@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 /* The mobile chat list on Expo web (phase 2 port): rows from seeded conversations with their
    ticks, counts and the tab badge, the pin limit, the selection toolbar, archive with undo and the
@@ -81,7 +81,11 @@ for (const theme of ["dark", "light"])
     await expect(row(page, key(alpha)).getByLabel("1 unread")).toBeVisible();
     await expect(row(page, key(beta)).getByLabel("2 unread")).toBeVisible();
     await expect(row(page, key(beta))).toContainText("Second update");
-    await expect(row(page, key(gamma))).toContainText("You: Accepted only");
+    // «You:» keeps the interface's side; the words after it keep their own direction.
+    const you = row(page, key(gamma)).getByText("You:", { exact: true });
+    const accepted = row(page, key(gamma)).getByText("Accepted only", { exact: true });
+    await expect(accepted).toBeVisible();
+    expect((await you.boundingBox()).x).toBeLessThan((await accepted.boundingBox()).x);
     await expect(row(page, key(delta))).toContainText(/\d\d:\d\d/);
     // Q2: one grey tick when the server accepted it; two accent ticks once the run started.
     await expect(
@@ -107,9 +111,87 @@ for (const theme of ["dark", "light"])
     await page.screenshot({ path: `.runtime/mobile-chats-${theme}.png`, animations: "disabled" });
   });
 
+test("Arabic: a preview keeps its words' direction and first words; the speaker reads first", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture, "ar");
+  const [alpha, , gamma] = fixture.agents;
+  const long =
+    "Watch EURUSD into the London open and tell me when the spread widens past two pips today";
+  await page.route("**/api/threads/inbox**", async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    for (const entry of rows)
+      if (entry.thread_id === fixture.threads[2].id && entry.last_message)
+        entry.last_message = { ...entry.last_message, preview: long, content: long };
+    await route.fulfill({ response, json: rows });
+  });
+  seed({
+    action: "message",
+    thread: fixture.group.state.thread_id,
+    agent: alpha.id,
+    content: "**الربح** اليوم (+$239) و −1.5%",
+  });
+  await page.goto("/");
+  // After «أنت:» the Latin words read left-to-right and are cut at their own end, between words,
+  // by the core before they are drawn: the line fits, so React Native's own cut never comes.
+  const words = row(page, key(gamma)).getByText(/^Watch EURUSD .*…$/);
+  await expect(words).toBeVisible();
+  const seen = await words.evaluate((el) => {
+    const node = el.firstChild;
+    const range = document.createRange();
+    range.setStart(node, 0);
+    range.setEnd(node, 5);
+    const first = range.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return {
+      direction: getComputedStyle(el).direction,
+      cut: el.scrollWidth > el.clientWidth,
+      first: first.left >= box.left - 0.5 && first.right <= box.right + 0.5,
+    };
+  });
+  expect(seen).toEqual({ direction: "ltr", cut: false, first: true });
+  expect(long.startsWith((await words.textContent()).slice(0, -1))).toBe(true);
+  const you = row(page, key(gamma)).getByText("أنت:", { exact: true });
+  expect((await you.boundingBox()).x).toBeGreaterThan((await words.boundingBox()).x);
+  // A group's line: the speaker on the reading side, the signed numbers in order.
+  const group = row(page, `group:${fixture.group.id}`);
+  // The speaker's name takes part of the row, so the sentence may already be cut. The cut
+  // falls between words and a signed number is whole or absent (17, 0.4).
+  const plain = "الربح اليوم (+$239) و −1.5%";
+  const said = group.getByText(/^الربح/);
+  await expect(said).toBeVisible();
+  const shown = ((await said.textContent()) ?? "").replace(/[\u2066\u2069]/g, "");
+  const body = shown.replace(/…$/, "").trim();
+  expect(plain.startsWith(body), shown).toBe(true);
+  for (const word of body.split(" ")) expect(plain.split(" "), shown).toContain(word);
+  expect(shown.includes("239") ? shown.includes("+$239") : true, shown).toBe(true);
+  const speaker = group.getByText(`${alpha.name}:`, { exact: true });
+  expect((await speaker.boundingBox()).x).toBeGreaterThan((await said.boundingBox()).x);
+  // Narrower, the line is cut between words: a signed number shows whole or not at all, never
+  // «….5%» for «−1.5%», and the box never cuts it again (17, 0.4).
+  const full = ["الربح", "اليوم", "(+$239)", "و", "−1.5%"];
+  for (const width of [300, 320, 340, 360]) {
+    await page.setViewportSize({ width, height: 844 });
+    const line = group.getByText(/^الربح/);
+    await expect(line).toBeVisible();
+    await expect
+      .poll(() => line.evaluate((el) => el.scrollWidth <= el.clientWidth), { message: `${width}` })
+      .toBe(true);
+    const shown = (await line.textContent()).replace(/[\u2066\u2069]/g, "").replace(/…$/, "");
+    for (const word of shown.split(" ")) expect(full, `${width}: ${shown}`).toContain(word);
+  }
+  // The list keeps reading the inbox. A fetch still in flight when the page closes is not
+  // a failure of the preview.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
 test("pinning a fourth chat is refused locally and when the server answers 409; pins lead in pin order", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = seed({ action: "init" });
   const headers = await signIn(context, fixture);
@@ -121,38 +203,37 @@ test("pinning a fourth chat is refused locally and when the server answers 409; 
   if (earlier.length) await pin(earlier, false);
   const mine = [fixture.threads[0].id, fixture.threads[1].id, fixture.threads[2].id];
   expect((await pin(mine, true)).ok()).toBe(true);
-  try {
-    await page.goto("/");
-    await expect(row(page, key(alpha))).toBeVisible();
-    const keys = await page
-      .locator("[data-key]")
-      .evaluateAll((rows) => rows.slice(0, 3).map((r) => r.dataset.key));
-    expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
-    await expect(row(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
-    // Refused locally: three are pinned already.
-    await hold(page, row(page, key(delta)));
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
-    await toolbar(page).getByRole("button", { name: "Cancel the selection" }).click();
-    // A stale view (another device pinned meanwhile) reaches the server, which refuses (409).
-    await page.route("**/api/threads/inbox", async (route) => {
-      const rows = await (await route.fetch()).json();
-      await route.fulfill({ json: rows.map((entry) => ({ ...entry, pinned_order: null })) });
-    });
-    await page.reload();
-    await expect(row(page, key(delta))).toBeVisible();
-    const refused = page.waitForResponse(
-      (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
-    );
-    await hold(page, row(page, key(delta)));
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await refused;
-    await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
-  } finally {
+  cleanup(async () => {
     await page.unroute("**/api/threads/inbox");
     await pin(mine, false);
     if (earlier.length) await pin(earlier, true);
-  }
+  });
+  await page.goto("/");
+  await expect(row(page, key(alpha))).toBeVisible();
+  const keys = await page
+    .locator("[data-key]")
+    .evaluateAll((rows) => rows.slice(0, 3).map((r) => r.dataset.key));
+  expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
+  await expect(row(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
+  // Refused locally: three are pinned already.
+  await hold(page, row(page, key(delta)));
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
+  await toolbar(page).getByRole("button", { name: "Cancel the selection" }).click();
+  // A stale view (another device pinned meanwhile) reaches the server, which refuses (409).
+  await page.route("**/api/threads/inbox", async (route) => {
+    const rows = await (await route.fetch()).json();
+    await route.fulfill({ json: rows.map((entry) => ({ ...entry, pinned_order: null })) });
+  });
+  await page.reload();
+  await expect(row(page, key(delta))).toBeVisible();
+  const refused = page.waitForResponse(
+    (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
+  );
+  await hold(page, row(page, key(delta)));
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await refused;
+  await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
 });
 
 test("selection: long press, toolbar, favourites and select all; archive with undo; the archived page", async ({
@@ -229,6 +310,18 @@ test("a custom list is created with the emoji panel, filters the rows and delete
   await name.fill("Work");
   await sheet.getByRole("button", { name: "Add an emoji" }).click();
   await expect(sheet.getByLabel("Emojis")).toBeVisible();
+  // The delete key's arrow, drawn for Arabic, points left in English.
+  expect(
+    await sheet
+      .getByRole("button", { name: "Delete", exact: true })
+      .locator("svg")
+      .evaluate((node) => {
+        let element = node;
+        while (element && getComputedStyle(element).transform === "none")
+          element = element.parentElement;
+        return element ? getComputedStyle(element).transform : "none";
+      }),
+  ).toBe("matrix(-1, 0, 0, 1, 0, 0)");
   await sheet.getByLabel("Emojis").getByRole("button").nth(3).click();
   await expect(name).not.toHaveValue("Work");
   const listName = `Work ${Date.now() % 10000}`;

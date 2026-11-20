@@ -2,7 +2,7 @@
 // and the conversation honours them (here: @ suggestions and the agent's activity line).
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -39,39 +39,37 @@ async function fixture(context) {
 test("the chat experience switches persist and the conversation follows them", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const one = await data.create(`Prefs ${randomUUID().slice(0, 6)}`),
     two = await data.create(`Peer ${randomUUID().slice(0, 6)}`);
-  try {
-    await page.goto(`/thread?id=${one.thread.id}`);
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await composer.fill("@Pe");
-    await expect(
-      page.getByRole("button", { name: `@${two.agent.name}`, exact: true }),
-    ).toBeVisible();
-    await composer.fill("");
-
-    await page.getByRole("button", { name: "Agent actions", exact: true }).click();
-    await page.getByText("Chat experience", { exact: true }).click();
-    await expect(page.getByText("The agent's work steps", { exact: true })).toBeVisible();
-    await page.getByRole("switch", { name: "@ suggestions" }).click();
-    // Off by default (as Web): an idle agent with nothing running has no activity line; on,
-    // the line is there.
-    await expect(page.getByTestId("agent-live-state")).toHaveCount(0);
-    await page.getByRole("switch", { name: "Detailed agent status" }).click();
-    await page.reload();
-    await expect(page.getByTestId("agent-live-state")).toHaveCount(1);
-
-    await composer.fill("@Pe");
-    await expect(page.getByRole("button", { name: `@${two.agent.name}`, exact: true })).toHaveCount(
-      0,
-    );
-    expect(
-      await page.evaluate(() => JSON.parse(localStorage.getItem("lonora.chatPrefs")).assist),
-    ).toBe(false);
-  } finally {
+  cleanup(async () => {
     await data.remove(one.agent.id);
     await data.remove(two.agent.id);
-  }
+  });
+  await page.goto(`/thread?id=${one.thread.id}`);
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await composer.fill("@Pe");
+  await expect(page.getByRole("button", { name: `@${two.agent.name}`, exact: true })).toBeVisible();
+  await composer.fill("");
+
+  await page.getByRole("button", { name: "Agent actions", exact: true }).click();
+  await page.getByText("Chat experience", { exact: true }).click();
+  await expect(page.getByText("The agent's work steps", { exact: true })).toBeVisible();
+  await page.getByRole("switch", { name: "@ suggestions" }).click();
+  // Off by default (as Web): an idle agent with nothing running has no activity line; on,
+  // the line is there.
+  await expect(page.getByTestId("agent-live-state")).toHaveCount(0);
+  await page.getByRole("switch", { name: "Detailed agent status" }).click();
+  await page.reload();
+  await expect(page.getByTestId("agent-live-state")).toHaveCount(1);
+
+  await composer.fill("@Pe");
+  await expect(page.getByRole("button", { name: `@${two.agent.name}`, exact: true })).toHaveCount(
+    0,
+  );
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem("lonora.chatPrefs")).assist),
+  ).toBe(false);
 });

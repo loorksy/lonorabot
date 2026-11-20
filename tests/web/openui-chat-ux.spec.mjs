@@ -2,7 +2,7 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright environment is not cached by Turbo.
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect } from "../ui-test.mjs";
 import { brokerFixture } from "./broker-fixture.mjs";
 
 let session;
@@ -172,7 +172,13 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   page,
   conversation,
 }) => {
-  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    // Every error event reaches the owner as «An unexpected error occurred», including a
+    // ResizeObserver loop, which is no page error.
+    window.__errors = [];
+    window.addEventListener("error", (event) => window.__errors.push(event.message));
+  });
   const rows = Array.from({ length: 24 }, (_, index) =>
     message(
       conversation,
@@ -206,15 +212,40 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   });
   // The ↓ button turns on more than 260px from the newest message (reference syncJump).
   await expect(page.locator(".jump")).toHaveClass(/\bon\b/);
+  // While it shows, the composer's backdrop is solid up to its top: the button never sits over
+  // a message or a fixed card's facts (10.2.2).
+  await expect
+    .poll(async () => {
+      const solid = await page.locator("form.composer").evaluate((form) => {
+        const before = getComputedStyle(form, "::before");
+        const fade = /calc\(100% - (\d+)px\)/.exec(before.backgroundImage);
+        return fade
+          ? form.getBoundingClientRect().top + Number.parseFloat(before.top) + Number(fade[1])
+          : Number.POSITIVE_INFINITY;
+      });
+      return solid <= (await page.locator(".jump").boundingBox()).y + 0.5;
+    })
+    .toBe(true);
   rows.push(message(conversation, 25, "assistant", "New content while the owner reads above."));
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("[data-message-id='ux-message-25']")).toHaveCount(1);
   expect(await transcript.evaluate((element) => element.scrollTop)).toBeLessThan(200);
   await page.locator(".jump").click();
+  // The ↓ scrolls smoothly and turns off 260px before the end: the scroll's end is the
+  // resting place to measure.
+  await expect
+    .poll(() =>
+      transcript.evaluate(
+        (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+      ),
+    )
+    .toBeLessThanOrEqual(2);
   await expect(page.locator(".jump")).not.toHaveClass(/\bon\b/);
   const newest = await page.locator("[data-message-id='ux-message-25']").boundingBox();
   const restingBar = await page.locator(".composer-card").boundingBox();
   expect(newest.y + newest.height).toBeLessThan(restingBar.y);
+  // The composer grew and shrank above the transcript without an error.
+  expect(await page.evaluate(() => window.__errors)).toEqual([]);
 });
 
 test("M6: leaving the chat while recording releases the microphone and sends nothing", async ({
@@ -275,6 +306,7 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   page,
   context,
   conversation,
+  cleanup,
 }) => {
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   const id = conversation.agent.id;
@@ -306,16 +338,15 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   });
   expect(created.ok()).toBeTruthy();
   const group = await created.json();
-  try {
-    await page.goto(`/app/g/${group.id}`);
-    await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
-    await expect(sheet.getByRole("button", { name: /^Skills/ })).toHaveCount(0);
-    await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toHaveCount(0);
-    await sheet.getByRole("button", { name: /^Schedule/ }).click();
-    await expect(page).toHaveURL(/\/app\/new-schedule$/);
-  } finally {
-    await context.request.delete(`/api/groups/${group.id}`, { headers: conversation.headers });
-  }
+  cleanup(() =>
+    context.request.delete(`/api/groups/${group.id}`, { headers: conversation.headers }),
+  );
+  await page.goto(`/app/g/${group.id}`);
+  await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
+  await expect(sheet.getByRole("button", { name: /^Skills/ })).toHaveCount(0);
+  await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toHaveCount(0);
+  await sheet.getByRole("button", { name: /^Schedule/ }).click();
+  await expect(page).toHaveURL(/\/app\/new-schedule$/);
 });
 
 test("the @ list: the role in words, full-width rows, and a picked name drawn as a chip", async ({
@@ -616,7 +647,7 @@ test("S15: on a phone the history picker sits under the header, not beneath it",
   expect(await picker.evaluate((element) => getComputedStyle(element).marginTop)).toBe("0px");
 });
 
-test("R1/R2: the order sheet draws the executor's own rows: blocked before sending, the broker's reason", async ({
+test("R1/R2 (v38): the chat draws no order line; an operation shows only as its fixed cards", async ({
   page,
   conversation,
 }) => {
@@ -631,21 +662,11 @@ test("R1/R2: the order sheet draws the executor's own rows: blocked before sendi
     route.fulfill({ json: anchored }),
   );
   await page.goto(`/app/${conversation.agent.id}`);
-  const sheet = page.locator("#dialog");
-  await page.locator("[data-operation-id='op-not-sent']").click();
-  await expect(sheet.locator(".od-line")).toHaveAttribute("data-steps", "requested blocked");
-  await expect(sheet.locator(".od-line li")).toHaveText([/Requested/, /Blocked before sending/]);
-  await expect(sheet.locator(".od-line")).not.toContainText("Sent");
-  await expect(sheet.locator(".od-line")).not.toContainText("Accepted by the broker");
-  await expect(sheet.locator("[data-order-reason='blocked']")).toContainText(
-    "Not sent to the broker",
-  );
-  await page.keyboard.press("Escape");
-  await page.locator("[data-operation-id='op-rejected']").click();
-  const reason = sheet.locator("[data-order-reason='rejected']");
-  await expect(reason).toContainText("The broker rejected the order");
-  await expect(reason).toContainText("Not enough money to complete the request");
-  await expect(sheet).not.toContainText(/try again/i);
+  await expect(page.locator(".composer")).toBeVisible();
+  // Not sent, rejected or uncertain: no line of its own in the chat, and none of its ids.
+  await expect(page.locator(".od-chat, [data-operation-id]")).toHaveCount(0);
+  for (const row of anchored) await expect(page.getByText(row.operation_id)).toHaveCount(0);
+  await expect(page.getByText("Blocked before sending")).toHaveCount(0);
 });
 
 test("R5: «Resolve» in Lonora's sheet opens the conversation that holds the card", async ({

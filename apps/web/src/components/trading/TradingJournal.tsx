@@ -38,16 +38,6 @@ export function TradingJournal({ entries }: { entries: Journal[] }) {
               <Trans>Settle this operation on its card in the conversation.</Trans>
             </p>
           )}
-          {/* Identifiers and raw records are for support, never the normal view. */}
-          <details className="technical-details">
-            <summary>
-              <Trans>Technical details</Trans>
-            </summary>
-            <code dir="ltr">{e.operation_id}</code>
-            <pre className="wrap" dir="ltr">
-              {JSON.stringify(e.result, null, 2)}
-            </pre>
-          </details>
         </details>
       ))}
     </section>

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -112,6 +112,7 @@ const rich = {
 test("native bridge locally enqueues and clears before delayed ACK, then shows actual stream phases and rich UI", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const data = await fixture(context),
@@ -168,99 +169,99 @@ test("native bridge locally enqueues and clears before delayed ACK, then shows a
     });
     for (const ws of sockets) ws.send(frame);
   };
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await expect(composer).toBeVisible();
-    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
-    await composer.fill("Hello native local outbox");
-    blocked = true;
-    const started = Date.now();
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(page.getByText("Hello native local outbox", { exact: true })).toBeVisible();
-    await expect(composer).toHaveValue("");
-    const localMs = Date.now() - started;
-    expect(localMs).toBeLessThan(1500);
-    await composer.fill("Keep this newer unsent draft");
-    await page.waitForTimeout(1500);
-    await expect(composer).toHaveValue("Keep this newer unsent draft");
-    expect(serverRuns).toHaveLength(0);
-    release();
-    const activity = page.getByTestId(`turn-activity-${responseRun.id}`);
-    await expect(activity).toContainText("Queued");
-    await expect(page.getByText("Hello native local outbox", { exact: true })).toHaveCount(1);
-    await expect(composer).toHaveValue("Keep this newer unsent draft");
-    responseRun.status = "running";
-    event("run.running");
-    const identity = { turn_id: "actual-turn", fence: 1, generation: 1, input_seq: 1 };
-    event("run.reply_started", { ...identity, sequence: 0 });
-    await expect(activity).toContainText("Thinking");
-    event("tool.started", {
-      call_id: "call-one",
-      name: "web_search",
-      toolset: "research",
-      effect: "read",
-    });
-    await expect(activity).toContainText("Searching");
-    await activity.getByRole("button").click();
-    // The step reads as what the agent does; the registry id is not shown.
-    await expect(activity).toContainText("Searching sources");
-    await expect(activity).not.toContainText("web_search");
-    event("tool.completed", { call_id: "call-one", name: "web_search", ok: true });
-    event("run.delta", { ...identity, sequence: 1, text: "This arrives before completion. " });
-    await expect(page.getByText("This arrives before completion.", { exact: true })).toBeVisible();
-    await expect(activity).toContainText("Writing a response");
-    event("run.rich_partial", { ...identity, sequence: 2, rich_content: rich });
-    const visual = page.getByTestId("native-visual-live-calculator");
-    await expect(visual).toBeVisible();
-    const amount = visual.getByRole("textbox", { name: "Example amount", exact: true });
-    await amount.fill("250");
-    await expect(amount).toHaveValue("250");
-    await expect(visual.getByText("500", { exact: true })).toBeVisible();
-    // Final canonical message follows the accepted stream; edited local input survives that ID change.
-    const answer = {
-      ...outgoing(data, { content: "Canonical fallback" }, 2),
-      agent_id: data.agent.id,
-      role: "assistant",
-      rich_content: rich,
-      client_nonce: undefined,
-    };
-    responseRun.stream = {
-      ...identity,
-      sequence: 2,
-      text: "This arrives before completion. ",
-      truncated: false,
-      phase: "committed",
-      message_id: answer.id,
-      rich_content: rich,
-    };
-    serverMessages = [canonical, answer];
-    event("run.reply_committed", { ...responseRun.stream });
-    event("message.created", answer);
-    responseRun.status = "completed";
-    event("run.completed");
-    await expect(visual).toHaveCount(1);
-    await expect(visual.getByText("500", { exact: true })).toBeVisible();
-    await expect(page.getByText("Canonical fallback", { exact: true })).toHaveCount(0);
-    await expect(composer).toHaveValue("Keep this newer unsent draft");
-    expect(errors).toEqual([]);
-    console.log(
-      JSON.stringify({
-        native_bridge_local_ms: localMs,
-        progressive_text: true,
-        validated_rich: true,
-        final_local_state_preserved: true,
-      }),
-    );
-  } finally {
+  cleanup(async () => {
     release();
     await data.remove();
-  }
+  });
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await expect(composer).toBeVisible();
+  await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+  await composer.fill("Hello native local outbox");
+  blocked = true;
+  const started = Date.now();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Hello native local outbox", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("");
+  const localMs = Date.now() - started;
+  expect(localMs).toBeLessThan(1500);
+  await composer.fill("Keep this newer unsent draft");
+  await page.waitForTimeout(1500);
+  await expect(composer).toHaveValue("Keep this newer unsent draft");
+  expect(serverRuns).toHaveLength(0);
+  release();
+  const activity = page.getByTestId(`turn-activity-${responseRun.id}`);
+  await expect(activity).toContainText("Queued");
+  await expect(page.getByText("Hello native local outbox", { exact: true })).toHaveCount(1);
+  await expect(composer).toHaveValue("Keep this newer unsent draft");
+  responseRun.status = "running";
+  event("run.running");
+  const identity = { turn_id: "actual-turn", fence: 1, generation: 1, input_seq: 1 };
+  event("run.reply_started", { ...identity, sequence: 0 });
+  await expect(activity).toContainText("Thinking");
+  event("tool.started", {
+    call_id: "call-one",
+    name: "web_search",
+    toolset: "research",
+    effect: "read",
+  });
+  await expect(activity).toContainText("Searching");
+  await activity.getByRole("button").click();
+  // The step reads as what the agent does; the registry id is not shown.
+  await expect(activity).toContainText("Searching sources");
+  await expect(activity).not.toContainText("web_search");
+  event("tool.completed", { call_id: "call-one", name: "web_search", ok: true });
+  event("run.delta", { ...identity, sequence: 1, text: "This arrives before completion. " });
+  await expect(page.getByText("This arrives before completion.", { exact: true })).toBeVisible();
+  await expect(activity).toContainText("Writing a response");
+  event("run.rich_partial", { ...identity, sequence: 2, rich_content: rich });
+  const visual = page.getByTestId("native-visual-live-calculator");
+  await expect(visual).toBeVisible();
+  const amount = visual.getByRole("textbox", { name: "Example amount", exact: true });
+  await amount.fill("250");
+  await expect(amount).toHaveValue("250");
+  await expect(visual.getByText("500", { exact: true })).toBeVisible();
+  // Final canonical message follows the accepted stream; edited local input survives that ID change.
+  const answer = {
+    ...outgoing(data, { content: "Canonical fallback" }, 2),
+    agent_id: data.agent.id,
+    role: "assistant",
+    rich_content: rich,
+    client_nonce: undefined,
+  };
+  responseRun.stream = {
+    ...identity,
+    sequence: 2,
+    text: "This arrives before completion. ",
+    truncated: false,
+    phase: "committed",
+    message_id: answer.id,
+    rich_content: rich,
+  };
+  serverMessages = [canonical, answer];
+  event("run.reply_committed", { ...responseRun.stream });
+  event("message.created", answer);
+  responseRun.status = "completed";
+  event("run.completed");
+  await expect(visual).toHaveCount(1);
+  await expect(visual.getByText("500", { exact: true })).toBeVisible();
+  await expect(page.getByText("Canonical fallback", { exact: true })).toHaveCount(0);
+  await expect(composer).toHaveValue("Keep this newer unsent draft");
+  expect(errors).toEqual([]);
+  console.log(
+    JSON.stringify({
+      native_bridge_local_ms: localMs,
+      progressive_text: true,
+      validated_rich: true,
+      final_local_state_preserved: true,
+    }),
+  );
 });
 
 test("native failed outgoing message retries same nonce after reload and navigation retains unsent drafts", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const data = await fixture(context),
@@ -277,49 +278,49 @@ test("native failed outgoing message retries same nonce after reload and navigat
     saved.push(message);
     return route.fulfill({ status: 202, json: { message, run_ids: [], runs: [] } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
-    await composer.fill("Recover me once");
-    await composer.press("Shift+Enter");
-    await expect(composer).toHaveValue("Recover me once\n");
-    expect(posted).toHaveLength(0);
-    await composer.dispatchEvent("keydown", {
-      key: "Enter",
-      keyCode: 229,
-      isComposing: true,
-      bubbles: true,
-    });
-    expect(posted).toHaveLength(0);
-    await composer.fill("Recover me once");
-    await composer.press("Enter");
-    await expect(page.getByText("Message not sent", { exact: true })).toBeVisible();
-    await expect(composer).toHaveValue("");
-    await page.reload();
-    await expect(page.getByText("Recover me once", { exact: true })).toHaveCount(1);
-    fail = false;
-    await page.getByRole("button", { name: "Retry", exact: true }).click();
-    await expect(page.getByText("Message not sent", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Recover me once", { exact: true })).toHaveCount(1);
-    expect(posted).toHaveLength(2);
-    expect(posted[1].client_nonce).toBe(posted[0].client_nonce);
-    await composer.fill("Retained draft on native A");
-    await page.getByRole("button", { name: "Back", exact: true }).click();
-    await page.getByText(other.agent.name, { exact: true }).click();
-    await composer.fill("Independent native B");
-    await page.getByRole("button", { name: "Back", exact: true }).click();
-    await page.getByText(data.agent.name, { exact: true }).click();
-    await expect(composer).toHaveValue("Retained draft on native A");
-  } finally {
+  cleanup(async () => {
     await data.remove();
     await data.remove(other.agent.id);
-  }
+  });
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+  await composer.fill("Recover me once");
+  await composer.press("Shift+Enter");
+  await expect(composer).toHaveValue("Recover me once\n");
+  expect(posted).toHaveLength(0);
+  await composer.dispatchEvent("keydown", {
+    key: "Enter",
+    keyCode: 229,
+    isComposing: true,
+    bubbles: true,
+  });
+  expect(posted).toHaveLength(0);
+  await composer.fill("Recover me once");
+  await composer.press("Enter");
+  await expect(page.getByText("Message not sent", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("");
+  await page.reload();
+  await expect(page.getByText("Recover me once", { exact: true })).toHaveCount(1);
+  fail = false;
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByText("Message not sent", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Recover me once", { exact: true })).toHaveCount(1);
+  expect(posted).toHaveLength(2);
+  expect(posted[1].client_nonce).toBe(posted[0].client_nonce);
+  await composer.fill("Retained draft on native A");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByText(other.agent.name, { exact: true }).click();
+  await composer.fill("Independent native B");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByText(data.agent.name, { exact: true }).click();
+  await expect(composer).toHaveValue("Retained draft on native A");
 });
 
 test("native offline message waits for the network, survives a reload and goes out by itself", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const data = await fixture(context);
@@ -340,43 +341,41 @@ test("native offline message waits for the network, survives a reload and goes o
     saved.push(message);
     return route.fulfill({ status: 202, json: { message, run_ids: [], runs: [] } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
-    await composer.fill("Send me when you can");
-    await composer.press("Enter");
-    const waiting = page.getByText("Waiting for the network…", { exact: true });
-    await expect(waiting).toBeVisible();
-    await expect(page.getByText("Message not sent", { exact: true })).toHaveCount(0);
-    await page.reload();
-    await expect(waiting).toBeVisible();
-    // On the chat list the strip says the device is offline and one message waits.
-    await page.getByRole("button", { name: "Back", exact: true }).click();
-    await expect(page.getByTestId("network-strip")).toContainText("one message waiting", {
-      timeout: 15000,
-    });
-    network = true;
-    await expect(page.getByText("One waiting message was sent", { exact: true })).toBeVisible({
-      timeout: 15000,
-    });
-    await page.getByText(data.agent.name, { exact: true }).click();
-    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
-    await expect(waiting).toHaveCount(0);
-    await expect(page.getByText("Send me when you can", { exact: true })).toHaveCount(1);
-    // An answer to an agent's question never waits: it fails at once with a manual retry.
-    expect(posted.every((body) => body.input_answer == null)).toBe(true);
-    const nonces = new Set(posted.map((body) => body.client_nonce));
-    expect(nonces.size).toBe(1);
-    expect(saved).toHaveLength(1);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+  await composer.fill("Send me when you can");
+  await composer.press("Enter");
+  const waiting = page.getByText("Waiting for the network…", { exact: true });
+  await expect(waiting).toBeVisible();
+  await expect(page.getByText("Message not sent", { exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(waiting).toBeVisible();
+  // On the chat list the strip says the device is offline and one message waits.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByTestId("network-strip")).toContainText("one message waiting", {
+    timeout: 15000,
+  });
+  network = true;
+  await expect(page.getByText("One waiting message was sent", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  await page.getByText(data.agent.name, { exact: true }).click();
+  await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+  await expect(waiting).toHaveCount(0);
+  await expect(page.getByText("Send me when you can", { exact: true })).toHaveCount(1);
+  // An answer to an agent's question never waits: it fails at once with a manual retry.
+  expect(posted.every((body) => body.input_answer == null)).toBe(true);
+  const nonces = new Set(posted.map((body) => body.client_nonce));
+  expect(nonces.size).toBe(1);
+  expect(saved).toHaveLength(1);
 });
 
 test("native reconnect ready drains a fresh snapshot after an older recovery read finishes", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const data = await fixture(context);
@@ -403,27 +402,26 @@ test("native reconnect ready drains a fresh snapshot after an older recovery rea
     }
     await route.fulfill({ json: [] });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
-    block = true;
-    // The normal15s fallback begins before the reconnect boundary and captures old history.
-    await expect.poll(() => blockedOnce, { timeout: 20000 }).toBeTruthy();
-    newest = {
-      ...outgoing(data, { content: "Recovered across readiness boundary" }),
-      role: "assistant",
-      agent_id: data.agent.id,
-    };
-    recovered = true;
-    sockets[0].close({ code: 1001, reason: "controlled reconnect" });
-    await expect.poll(() => sockets.length).toBe(2);
-    await page.waitForTimeout(300);
-    release();
-    // A queued post-ready read must run now; waiting for the next15s fallback is incorrect.
-    await expect(page.getByText(newest.content, { exact: true })).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText(newest.content, { exact: true })).toHaveCount(1);
-  } finally {
+  cleanup(async () => {
     release();
     await data.remove();
-  }
+  });
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+  block = true;
+  // The normal15s fallback begins before the reconnect boundary and captures old history.
+  await expect.poll(() => blockedOnce, { timeout: 20000 }).toBeTruthy();
+  newest = {
+    ...outgoing(data, { content: "Recovered across readiness boundary" }),
+    role: "assistant",
+    agent_id: data.agent.id,
+  };
+  recovered = true;
+  sockets[0].close({ code: 1001, reason: "controlled reconnect" });
+  await expect.poll(() => sockets.length).toBe(2);
+  await page.waitForTimeout(300);
+  release();
+  // A queued post-ready read must run now; waiting for the next15s fallback is incorrect.
+  await expect(page.getByText(newest.content, { exact: true })).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(newest.content, { exact: true })).toHaveCount(1);
 });

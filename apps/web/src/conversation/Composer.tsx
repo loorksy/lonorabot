@@ -238,10 +238,19 @@ export function Composer({
     if (!slot || !main) return;
     const measure = () => main.style.setProperty("--bottom-h", `${slot.offsetHeight + 10}px`);
     measure();
-    const observer = new ResizeObserver(measure);
+    // The inset resizes the transcript beside this form, whose own observer keeps the newest
+    // message in view. Written inside this callback, that resize cannot be delivered in the
+    // same frame: the browser raises a «ResizeObserver loop» error, which the app shows as a
+    // crash. The next frame writes it before its layout, so both arrive together.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     observer.observe(slot);
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frame);
       main.style.removeProperty("--bottom-h");
     };
   }, []);
@@ -1145,16 +1154,12 @@ export function Composer({
 
 const MIC_TIP = "lonora.tips.mic";
 
-/** Above the mic, its arrow on the mic; gone on any press or after 5.2s, and never shown again. */
+/** Above the mic, its arrow on the mic; gone on any press or after 5.2s, and never shown again.
+ * It never covers a fixed card: with one under it, it waits for another visit. */
 function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
   const tip = useRef<HTMLDivElement>(null);
   const [show, setShow] = useState(false);
   useLayoutEffect(() => {
-    try {
-      localStorage.setItem(MIC_TIP, "1");
-    } catch {
-      // shown for this page only
-    }
     const el = tip.current;
     const card = mic.closest(".composer-card");
     if (!el || !card) return;
@@ -1164,20 +1169,39 @@ function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
     el.style.left = `${left}px`;
     el.style.bottom = `${innerHeight - card.getBoundingClientRect().top + 12}px`;
     el.style.setProperty("--ax", `${cx - left}px`);
+    // It never covers a message or a card: with one under it, it waits for a later visit.
+    const box = el.getBoundingClientRect();
+    const covers = [...document.querySelectorAll(".msg .bubble, .mcard, .oa")].some((item) => {
+      const r = item.getBoundingClientRect();
+      return r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top;
+    });
+    if (covers) {
+      onDone();
+      return;
+    }
+    try {
+      localStorage.setItem(MIC_TIP, "1");
+    } catch {
+      // shown for this page only
+    }
     const frame = requestAnimationFrame(() => setShow(true));
     let gone = 0;
+    // The first press or scroll ends it: nothing scrolled under it is ever covered.
     const off = () => {
       document.removeEventListener("pointerdown", off, true);
+      document.removeEventListener("scroll", off, true);
       setShow(false);
       gone = window.setTimeout(onDone, 260);
     };
     document.addEventListener("pointerdown", off, true);
+    document.addEventListener("scroll", off, true);
     const timer = setTimeout(off, 5200);
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(timer);
       clearTimeout(gone);
       document.removeEventListener("pointerdown", off, true);
+      document.removeEventListener("scroll", off, true);
     };
   }, [mic, onDone]);
   return createPortal(

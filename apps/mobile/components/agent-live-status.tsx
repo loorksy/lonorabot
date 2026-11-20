@@ -67,8 +67,15 @@ export function AgentLiveStatus({
           accessible={false}
           style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: tint }}
         />
+        {/* A problem's amber stays on the dot, the border and the arrow; the words take the
+            text color so they keep their contrast (v38). */}
         <Text
-          style={{ color: tint, fontSize: 12, flexShrink: 1, textAlign: rtl ? "right" : "left" }}
+          style={{
+            color: attention ? colors.foreground : tint,
+            fontSize: 12,
+            flexShrink: 1,
+            textAlign: rtl ? "right" : "left",
+          }}
         >
           {t("backgroundActivity")} · {agentStatusLine(state, locale)}
         </Text>

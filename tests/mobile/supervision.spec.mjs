@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function simulation(data) {
   return JSON.parse(
@@ -68,6 +68,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: an earlier supervisor's pause card names who paused what, with one-tap Resume`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = copy[locale];
@@ -89,18 +90,17 @@ for (const locale of ["ar", "en"])
       gold: `Gold ${suffix}`,
       routine: `Review gold ${suffix}`,
     });
-    try {
-      // Gold's conversation names who paused its routine, with one-tap Resume.
-      await page.goto(`/thread?id=${seeded.gold_thread}`);
-      const pause = page.getByTestId(`owner-action-${seeded.pause}`);
-      await expect(pause.getByText(text.pauseTitle, { exact: true })).toBeVisible();
-      await expect(pause).toContainText(`⁨${seeded.lonora_name}⁩`);
-      await expect(pause).toContainText(`⁨Review gold ${suffix}⁩`);
-      await pause.getByRole("button", { name: text.resume, exact: true }).click();
-      await expect(pause.getByText(text.resumed, { exact: true })).toBeVisible();
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${seeded.gold}`, { headers });
       await context.request.delete(`/api/agents/${seeded.desk}`, { headers });
       simulation({ ...data, action: "cleanup" });
-    }
+    });
+    // Gold's conversation names who paused its routine, with one-tap Resume.
+    await page.goto(`/thread?id=${seeded.gold_thread}`);
+    const pause = page.getByTestId(`owner-action-${seeded.pause}`);
+    await expect(pause.getByText(text.pauseTitle, { exact: true })).toBeVisible();
+    await expect(pause).toContainText(`⁨${seeded.lonora_name}⁩`);
+    await expect(pause).toContainText(`⁨Review gold ${suffix}⁩`);
+    await pause.getByRole("button", { name: text.resume, exact: true }).click();
+    await expect(pause.getByText(text.resumed, { exact: true })).toBeVisible();
   });

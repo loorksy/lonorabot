@@ -38,6 +38,8 @@ export type CapabilitySkill = {
   agent_id: string | null;
   agent_name: string | null;
   skill_id: string;
+  /** The Skill's title from its manifest; null for a Skill saved without one. */
+  title: string | null;
   version: string | null;
   provenance: "bundled" | "owner" | "agent_authored" | "external" | "unverified";
   repository: string | null;
@@ -57,6 +59,14 @@ export type CapabilityServer = {
   credentials_configured: boolean;
   trusted_tier: EffectTier | null;
   trusted_tools: string[];
+  /** The server's own title of each trusted tool, as last read for the owner (his review or
+   * a preview of the tools); a tool the server gave no title or description has none, and a
+   * server trusted before titles were kept has none until its tools are read again.
+   * Presentation only. */
+  tool_titles: Record<string, string>;
+  /** Its tools were read for the owner at least once (his review or a preview): an empty
+   * `tool_titles` then means the server titles none of them. */
+  tool_titles_kept: boolean;
   write_tools: string[];
   blocked_tools: string[];
   operator_declared: number;
@@ -105,6 +115,8 @@ export type McpTrustPreview = {
   /** Tools that may change something: they run only when trusted for non-financial writes. */
   writes: string[];
   blocked: string[];
+  /** The server's own title of each listed tool, when it gives one (or a description). */
+  titles: Record<string, string>;
   unsupported: number;
   digest: string;
   trusted_tier: EffectTier | null;

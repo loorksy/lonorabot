@@ -1,4 +1,5 @@
-import { t } from "@lingui/core/macro";
+import { plural, t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
 import type {
   CapabilityReport,
@@ -8,8 +9,9 @@ import type {
   Resource,
   TrustedSource,
 } from "@lonora/contracts";
+import { listSeparator, toolTitle } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { brokerIdentity } from "../../lib/broker-identity";
 import { userError } from "../../lib/user_error";
@@ -29,12 +31,95 @@ export type BrokerConnectionRow = Resource<{
 export const agentsCount = (count: number) =>
   count === 0 ? t`No agents` : count === 1 ? t`One agent` : t`${count} agents`;
 
+/* Its tools by level, each count with its noun in the language's own plural. */
 const levelText = (server: CapabilityServer) => {
   const writes = server.write_tools.length;
   const reads = server.trusted_tools.length - writes;
-  const parts = [reads ? t`${reads} read` : "", writes ? t`${writes} non-financial write` : ""];
+  const parts = [
+    reads
+      ? plural(reads, {
+          one: "one read tool",
+          two: "two read tools",
+          few: "# read tools",
+          many: "# read tools",
+          other: "# read tools",
+        })
+      : "",
+    writes
+      ? plural(writes, {
+          one: "one non-financial write tool",
+          two: "two non-financial write tools",
+          few: "# non-financial write tools",
+          many: "# non-financial write tools",
+          other: "# non-financial write tools",
+        })
+      : "",
+  ];
   return parts.filter(Boolean).join(" · ") || t`No tools`;
 };
+
+/* A server's tools and their levels, each by the server's own title. A server trusted before its
+   titles were kept was never read for them (`kept` false): on its saved list (`saved`) of a
+   server that is on, they are read once from the server itself, whose preview keeps them, so a
+   tool shows its name only when the server gives it no title (or cannot be reached). A server
+   read once is never contacted when its sheet opens, even if it titles none of its tools;
+   «مراجعة الأدوات» reads it again. */
+function McpToolRows({
+  connectionId,
+  tools,
+  titles,
+  kept,
+  saved,
+  enabled,
+}: {
+  connectionId: string;
+  tools: { name: string; write: boolean }[];
+  titles: Record<string, string>;
+  kept: boolean;
+  saved: boolean;
+  enabled: boolean;
+}) {
+  const noneKept = saved && enabled && !kept;
+  const [read, setRead] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    if (!noneKept) return;
+    let live = true;
+    api
+      .post<McpTrustPreview>(`/trusted-sources/mcp/${encodeURIComponent(connectionId)}/preview`, {})
+      .then(
+        (next) => {
+          if (live) setRead(next.titles);
+        },
+        () => undefined,
+      );
+    return () => {
+      live = false;
+    };
+  }, [connectionId, noneKept]);
+  const shown = saved && read ? { ...titles, ...read } : titles;
+  return tools.map((tool) => {
+    const title = toolTitle(shown, tool.name);
+    return (
+      <div className="row" key={tool.name}>
+        <span className="row-icon">
+          <Icon name={tool.write ? "edit" : "eye"} />
+        </span>
+        <span className="body">
+          {title ? (
+            <strong>
+              <bdi>{title}</bdi>
+            </strong>
+          ) : (
+            <strong className="ltr">{tool.name}</strong>
+          )}
+        </span>
+        <span className={`oa-lv lv-${tool.write ? "write" : "read"}`}>
+          {tool.write ? t`Non-financial write` : t`Read`}
+        </span>
+      </div>
+    );
+  });
+}
 
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
@@ -42,6 +127,7 @@ const levelText = (server: CapabilityServer) => {
    (VISION 11.4); what the owner writes there reaches the chosen agent as an owner message and
    never decides a card. */
 export function IntegrationsPage() {
+  const { i18n } = useLingui();
   const data = useShellData();
   const sheets = useSheets();
   const toast = useToast();
@@ -84,11 +170,13 @@ export function IntegrationsPage() {
     const tools = preview
       ? preview.tools.map((name) => ({ name, write: preview.writes.includes(name) }))
       : server.trusted_tools.map((name) => ({ name, write: server.write_tools.includes(name) }));
+    // The server's own title of each tool; its name only when the server gives no title.
+    const titles = preview ? preview.titles : server.tool_titles;
     const writes = tools.some((tool) => tool.write);
     sheets.open({
       id: "mcp",
-      title: <span className="ltr">{server.name ?? server.connection_id}</span>,
-      label: server.name ?? server.connection_id,
+      title: server.name ? <span className="ltr">{server.name}</span> : t`Unnamed server`,
+      label: server.name ?? t`Unnamed server`,
       body: (
         <>
           {review && (
@@ -104,19 +192,15 @@ export function IntegrationsPage() {
           </h3>
           <div className="group">
             {tools.length ? (
-              tools.map((tool) => (
-                <div className="row" key={tool.name}>
-                  <span className="row-icon">
-                    <Icon name={tool.write ? "edit" : "eye"} />
-                  </span>
-                  <span className="body">
-                    <strong className="ltr">{tool.name}</strong>
-                  </span>
-                  <span className={`oa-lv lv-${tool.write ? "write" : "read"}`}>
-                    {tool.write ? t`Non-financial write` : t`Read`}
-                  </span>
-                </div>
-              ))
+              <McpToolRows
+                key={server.connection_id}
+                connectionId={server.connection_id}
+                tools={tools}
+                titles={titles}
+                kept={server.tool_titles_kept}
+                saved={!preview}
+                enabled={server.enabled}
+              />
             ) : (
               <p className="pad muted small">
                 {preview || server.trusted_tier ? (
@@ -129,7 +213,12 @@ export function IntegrationsPage() {
           </div>
           {preview?.blocked.length ? (
             <Note>
-              <Trans>Tools that could move money are refused: {preview.blocked.join("، ")}</Trans>
+              <Trans>
+                Tools that could move money are refused:{" "}
+                {preview.blocked
+                  .map((name) => `\u2068${toolTitle(preview.titles, name) ?? name}\u2069`)
+                  .join(listSeparator(i18n.locale))}
+              </Trans>
             </Note>
           ) : null}
           {!preview && (!server.trusted_tier || review) ? (
@@ -183,8 +272,8 @@ export function IntegrationsPage() {
           )}
           <Note>
             <Trans>
-              MCP servers are never given a financial tool; write tools are non-financial (notes and
-              alerts).
+              MCP servers are never given a financial tool; their write tools run only if you
+              approve non-financial writes.
             </Trans>
           </Note>
         </>
@@ -426,7 +515,12 @@ export function IntegrationsPage() {
             <span>
               <Trans>Messages reach</Trans>
             </span>
-            <select name="agent" defaultValue={data.agents[0]?.id ?? ""}>
+            <select
+              name="agent"
+              defaultValue={
+                (data.agents.find((agent) => agent.role === "personal") ?? data.agents[0])?.id ?? ""
+              }
+            >
               {data.agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}
@@ -456,6 +550,13 @@ export function IntegrationsPage() {
     (item) => item.kind.startsWith("github") && item.active,
   );
   const configured = (providers.value ?? []).filter((item) => item.configured).length;
+  // In the owner's language, with Latin digits in Arabic (as the conversation's day labels).
+  const addedOn = (iso: string) =>
+    new Date(iso).toLocaleDateString(i18n.locale.startsWith("ar") ? "ar-u-nu-latn" : i18n.locale, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
   const telegramAgent = telegram?.deliver_to_agent_name;
   return (
     <>
@@ -488,7 +589,12 @@ export function IntegrationsPage() {
                       {identity?.broker ??
                         (demo ? t`Simulation with an imported snapshot` : "MetaApi")}
                     </bdi>{" "}
-                    · <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
+                    ·{" "}
+                    {identity?.login || demo ? (
+                      <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
+                    ) : (
+                      t`Unverified broker account`
+                    )}
                   </>
                 }
                 sub={
@@ -528,7 +634,7 @@ export function IntegrationsPage() {
             <span className="body">
               <strong className="ltr">{source.label ?? source.identifier}</strong>
               <small>
-                GitHub · <Trans>added {new Date(source.created_at).toLocaleDateString()}</Trans>
+                GitHub · <Trans>added {addedOn(source.created_at)}</Trans>
               </small>
             </span>
             <span className="badge">
@@ -550,9 +656,19 @@ export function IntegrationsPage() {
                 <Icon name="server" />
               </span>
               <span className="body">
-                <strong className="ltr">{server.name ?? server.connection_id}</strong>
+                {server.name ? (
+                  <strong className="ltr">{server.name}</strong>
+                ) : (
+                  <strong>
+                    <Trans>Unnamed server</Trans>
+                  </strong>
+                )}
+                {/* The counts are isolated: a number after «MCP · » would join its Latin run and
+                    read before it in Arabic («خادم 3 · MCP»). */}
                 <small>
-                  <Trans>MCP server · {levelText(server)}</Trans>
+                  <Trans>
+                    MCP server · <bdi>{levelText(server)}</bdi>
+                  </Trans>
                 </small>
               </span>
               {review ? (
@@ -581,8 +697,14 @@ export function IntegrationsPage() {
       <h3>
         <Trans>News and channels</Trans>
       </h3>
+      {/* Each sheet keeps the list it opened with: it opens once the capabilities are read. */}
       <div className="group">
-        <button type="button" className="row" onClick={() => domainsSheet(domains)}>
+        <button
+          type="button"
+          className="row"
+          disabled={!caps}
+          onClick={() => domainsSheet(domains)}
+        >
           <span className="row-icon">
             <Icon name="globe" />
           </span>
@@ -603,7 +725,7 @@ export function IntegrationsPage() {
             <Icon name="chev" />
           </span>
         </button>
-        <button type="button" className="row" onClick={() => rssSheet(feeds)}>
+        <button type="button" className="row" disabled={!caps} onClick={() => rssSheet(feeds)}>
           <span className="row-icon">
             <Icon name="rss" />
           </span>
@@ -618,7 +740,7 @@ export function IntegrationsPage() {
             <Icon name="chev" />
           </span>
         </button>
-        <button type="button" className="row" onClick={telegramSheet}>
+        <button type="button" className="row" disabled={!caps} onClick={telegramSheet}>
           <span className="row-icon">
             <Icon name="send" />
           </span>
@@ -661,7 +783,13 @@ export function IntegrationsPage() {
                 <Icon name="bolt" />
               </span>
               <span className="body">
-                <strong className="ltr">{skill.skill_id}</strong>
+                {skill.title ? (
+                  <strong>
+                    <bdi>{skill.title}</bdi>
+                  </strong>
+                ) : (
+                  <strong className="ltr">{skill.skill_id}</strong>
+                )}
                 <small>
                   {skill.provenance === "bundled" ? t`Built-in` : (skill.repository ?? t`Owner`)}
                   {skill.version ? ` · ${t`version ${skill.version}`}` : ""}

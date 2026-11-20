@@ -1,6 +1,7 @@
 // Arabic first (17): every owner-visible label of the mobile app is an [Arabic, English] pair,
 // and the Arabic one is written in Arabic. A label added without its Arabic fails here.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { labels } from "../../apps/mobile/lib/i18n";
 import incoming from "../../apps/mobile/lib/incoming-call-labels.json";
@@ -31,4 +32,13 @@ test("the incoming-call labels have Arabic for every English entry", () => {
     Object.keys(en).filter((key) => !ar[key]?.trim() || !arabic.test(ar[key])),
     [],
   );
+});
+
+test("one state, one name: the unverified broker account reads as on Web", () => {
+  const po = readFileSync(
+    new URL("../../apps/web/src/i18n/locales/ar/messages.po", import.meta.url),
+    "utf8",
+  );
+  const web = /msgid "Unverified broker account"\nmsgstr "([^"]+)"/.exec(po)?.[1];
+  assert.equal(labels.unverifiedBrokerAccount[0], web);
 });

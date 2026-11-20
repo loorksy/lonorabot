@@ -1,8 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
-test("Expo approval buttons show durable real broker receipts", async ({ page, context }) => {
+test("Expo approval buttons show durable real broker receipts", async ({
+  page,
+  context,
+  cleanup,
+}) => {
   const fixture = (data) =>
     JSON.parse(
       execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -32,143 +36,146 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
   });
   expect(created.status()).toBe(201);
   const agent = await created.json();
-  try {
-    const conversation = await context.request.post(`/api/agents/${agent.id}/conversation`, {
-      headers,
-      data: {},
-    });
-    const thread = await conversation.json();
-    const approval = {
-      id: randomUUID(),
-      thread_id: thread.id,
-      run_id: "approval-run",
-      agent_id: agent.id,
-      created_at: new Date().toISOString(),
-      timeline_seq: 1,
-      status: "pending",
-      requests: [
-        { action: "close_position", symbol: "BTCUSD.demo", position_id: "manual-ticket-5" },
-      ],
-      results: [],
-    };
-    let decisions = 0;
-    await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [approval] }));
-    await page.route(`**/api/trading/approvals/${approval.id}/decision`, async (route) => {
-      expect(route.request().postDataJSON()).toEqual({ decision: "approve" });
-      decisions++;
-      approval.status = "completed";
-      approval.results = [
-        {
-          operation_id: "fixed-operation",
-          status: "confirmed",
-          broker_id: "manual-ticket-5",
-          details: { price: "65000.25" },
-        },
-      ];
-      await route.fulfill({ json: approval });
-    });
-    await page.goto(`/thread?id=${thread.id}`);
-    await expect(page.getByText("close_position · BTCUSD.demo", { exact: true })).toBeVisible();
-    // A broker reference is labeled, never a bare number (10.3).
-    await expect(
-      page.getByText("رقم العملية لدى الوسيط: manual-ticket-5", { exact: true }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "موافقة", exact: true }).click();
-    // The shared table names the stage; the confirmed result is shown once, as its
-    // Execution Receipt (10.3), never repeated in the card.
-    await expect(page.getByText("نتيجة الوسيط", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
-    await expect(page.getByText("تذكرة الوسيط: manual-ticket-5", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("65000.25", { exact: true })).toHaveCount(0);
-    await page.route("**/api/trading/receipts?*", (route) =>
-      route.fulfill({
-        json: [
-          {
-            operation_id: "fixed-operation",
-            thread_id: thread.id,
-            timeline_seq: 1,
-            agent_id: agent.id,
-            created_at: approval.created_at,
-            kind: "fill",
-            action: "close_position",
-            symbol: "BTCUSD.demo",
-            ticket: "manual-ticket-5",
-            volume: null,
-            price: "65000.25",
-            partial: false,
-            reason: null,
-            verification: "verified",
-          },
-        ],
-      }),
-    );
-    await page.reload();
-    const receipt = page.getByTestId("execution-receipt");
-    await expect(receipt).toHaveCount(1);
-    await expect(receipt.getByText("manual-ticket-5", { exact: true })).toBeVisible();
-    await expect(receipt.getByText("65000.25", { exact: true })).toBeVisible();
-    await expect(
-      receipt.getByText("أكّده الوسيط · تم التحقق من حالة الحساب", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText("نتيجة الوسيط", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
-    expect(decisions).toBe(1);
-    const rejected = {
-      ...approval,
-      id: randomUUID(),
-      status: "pending",
-      results: [],
-      requests: [
-        {
-          action: "buy",
-          symbol: "BTCUSD.demo",
-          volume: "0.01",
-          operation_id: "declined-operation",
-        },
-      ],
-    };
-    await page.unroute("**/api/trading/approvals?*");
-    await page.route("**/api/trading/approvals?*", (route) =>
-      route.fulfill({ json: [approval, rejected] }),
-    );
-    await page.route(`**/api/trading/approvals/${rejected.id}/decision`, async (route) => {
-      expect(route.request().postDataJSON()).toEqual({ decision: "reject" });
-      rejected.status = "rejected";
-      await route.fulfill({ json: rejected });
-    });
-    await page.reload();
-    await expect(page.getByText("buy · BTCUSD.demo · 0.01", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "رفض", exact: true }).click();
-    await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
-    // An uncertain result reads the same shared reason as Web and never says "try again".
-    const uncertain = {
-      ...approval,
-      id: randomUUID(),
-      status: "completed",
-      requests: [{ action: "buy", symbol: "BTCUSD.demo", volume: "0.01" }],
-      results: [
-        {
-          operation_id: "uncertain-operation",
-          status: "ambiguous",
-          code: "broker_result_ambiguous",
-          details: {},
-        },
-      ],
-    };
-    await page.unroute("**/api/trading/approvals?*");
-    await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [uncertain] }));
-    await page.reload();
-    await expect(page.getByText("نتيجة غير مؤكدة — لن تُرسل مجددًا", { exact: true })).toBeVisible();
-    await expect(
-      page.getByText(
-        "لم يتأكد رد الوسيط، لذلك لن يُرسل هذا الطلب مجددًا. تحقّق من مراكزك وأوامرك قبل أي إجراء.",
-        { exact: true },
-      ),
-    ).toBeVisible();
-    await expect(page.getByText(/أعد المحاولة|broker_result_ambiguous/)).toHaveCount(0);
-  } finally {
+  cleanup(async () => {
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  const conversation = await context.request.post(`/api/agents/${agent.id}/conversation`, {
+    headers,
+    data: {},
+  });
+  const thread = await conversation.json();
+  const approval = {
+    id: randomUUID(),
+    thread_id: thread.id,
+    run_id: "approval-run",
+    agent_id: agent.id,
+    created_at: new Date().toISOString(),
+    timeline_seq: 1,
+    status: "pending",
+    requests: [{ action: "close_position", symbol: "BTCUSD.demo", position_id: "manual-ticket-5" }],
+    results: [],
+  };
+  let decisions = 0;
+  await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [approval] }));
+  await page.route(`**/api/trading/approvals/${approval.id}/decision`, async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ decision: "approve" });
+    decisions++;
+    approval.status = "completed";
+    approval.results = [
+      {
+        operation_id: "fixed-operation",
+        status: "confirmed",
+        broker_id: "manual-ticket-5",
+        details: { price: "65000.25" },
+      },
+    ];
+    await route.fulfill({ json: approval });
+  });
+  await page.goto(`/thread?id=${thread.id}`);
+  // The request in words with its ticket as a labelled row (v38), never the raw action id.
+  await expect(page.getByText("إغلاق صفقة", { exact: true })).toBeVisible();
+  await expect(page.getByText("تذكرة الوسيط", { exact: true })).toBeVisible();
+  await expect(page.getByText("manual-ticket-5", { exact: true })).toBeVisible();
+  await expect(page.getByText(/close_position/)).toHaveCount(0);
+  await page.getByRole("button", { name: "موافقة", exact: true }).click();
+  // Every result the broker confirmed: the end state reads as a success, and the confirmed
+  // fill itself is shown once, as its Execution Receipt (10.3), never on this card.
+  const done = page.getByTestId("trade-approval-status-ok");
+  await expect(done).toHaveText("نتيجة الوسيط");
+  await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
+  await expect(page.getByText("تذكرة الوسيط: manual-ticket-5", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("65000.25", { exact: true })).toHaveCount(0);
+  await page.route("**/api/trading/receipts?*", (route) =>
+    route.fulfill({
+      json: [
+        {
+          operation_id: "fixed-operation",
+          thread_id: thread.id,
+          timeline_seq: 1,
+          agent_id: agent.id,
+          created_at: approval.created_at,
+          kind: "fill",
+          action: "close_position",
+          symbol: "BTCUSD.demo",
+          ticket: "manual-ticket-5",
+          volume: null,
+          price: "65000.25",
+          partial: false,
+          reason: null,
+          verification: "verified",
+        },
+      ],
+    }),
+  );
+  await page.reload();
+  await expect(done).toBeVisible();
+  const receipt = page.getByTestId("execution-receipt");
+  await expect(receipt).toHaveCount(1);
+  await expect(receipt.getByText("manual-ticket-5", { exact: true })).toBeVisible();
+  await expect(receipt.getByText("65000.25", { exact: true })).toBeVisible();
+  await expect(
+    receipt.getByText("أكّده الوسيط · تم التحقق من حالة الحساب", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
+  expect(decisions).toBe(1);
+  const rejected = {
+    ...approval,
+    id: randomUUID(),
+    status: "pending",
+    results: [],
+    requests: [
+      {
+        action: "buy",
+        symbol: "BTCUSD.demo",
+        volume: "0.01",
+        operation_id: "declined-operation",
+      },
+    ],
+  };
+  await page.unroute("**/api/trading/approvals?*");
+  await page.route("**/api/trading/approvals?*", (route) =>
+    route.fulfill({ json: [approval, rejected] }),
+  );
+  await page.route(`**/api/trading/approvals/${rejected.id}/decision`, async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ decision: "reject" });
+    rejected.status = "rejected";
+    await route.fulfill({ json: rejected });
+  });
+  await page.reload();
+  // The buy request in words with its volume (v38), never the raw action id.
+  await expect(page.getByText("شراء \u20680.01\u2069", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "رفض", exact: true }).click();
+  await expect(page.getByTestId("trade-approval-status-plain")).toHaveText("مرفوض — لم يُرسل شيء");
+  await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
+  // An uncertain result reads the same shared reason as Web and never says "try again".
+  const uncertain = {
+    ...approval,
+    id: randomUUID(),
+    status: "completed",
+    requests: [{ action: "buy", symbol: "BTCUSD.demo", volume: "0.01" }],
+    results: [
+      {
+        operation_id: "uncertain-operation",
+        status: "ambiguous",
+        code: "broker_result_ambiguous",
+        details: {},
+      },
+    ],
+  };
+  await page.unroute("**/api/trading/approvals?*");
+  await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [uncertain] }));
+  await page.reload();
+  // Completed, but the broker never confirmed it: a warning, never a success (D2).
+  await expect(page.getByTestId("trade-approval-status-warn")).toHaveText("نتيجة الوسيط");
+  await expect(page.getByTestId("trade-approval-status-ok")).toHaveCount(0);
+  await expect(page.getByText("نتيجة غير مؤكدة — لن تُرسل مجددًا", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      "لم يتأكد رد الوسيط، لذلك لن يُرسل هذا الطلب مجددًا. تحقّق من مراكزك وأوامرك قبل أي إجراء.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.getByText(/أعد المحاولة|broker_result_ambiguous/)).toHaveCount(0);
 });

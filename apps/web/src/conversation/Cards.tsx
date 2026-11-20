@@ -319,7 +319,8 @@ export function OrderLine({ row, onOpen }: { row: Journal; onOpen: (row: Journal
   );
 }
 
-/** The order sheet: the timeline, the evidence and the technical details (reference odSheet). */
+/** The order sheet: the timeline, the evidence and the broker ticket (reference odSheet,
+ * Desktop-38). Never a raw operation id, provisioning id or broker return code. */
 export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: () => void }) {
   const line = orderLineState(row);
   const state = line.state;
@@ -448,42 +449,16 @@ export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: (
           </button>
         </div>
       )}
-      <details className="od-tech">
-        <summary>
-          <Icon name="down" />
-          <span>
-            <Trans>Technical details</Trans>
-          </span>
-        </summary>
-        <dl>
-          <div>
-            <dt>
-              <Trans>Operation id</Trans>
-            </dt>
-            <dd className="ltr">{row.operation_id}</dd>
-          </div>
+      {line.ticket && (
+        <dl className="oa-dl">
           <div>
             <dt>
               <Trans>Broker ticket</Trans>
             </dt>
-            <dd className="ltr">{ticket}</dd>
+            <dd className="ltr">{line.ticket}</dd>
           </div>
-          <div>
-            <dt>
-              <Trans>Account</Trans>
-            </dt>
-            <dd className="ltr">{row.account_id}</dd>
-          </div>
-          {row.result?.string_code != null && (
-            <div>
-              <dt>
-                <Trans>Broker return code</Trans>
-              </dt>
-              <dd className="ltr">{String(row.result.string_code)}</dd>
-            </div>
-          )}
         </dl>
-      </details>
+      )}
     </div>
   );
 }

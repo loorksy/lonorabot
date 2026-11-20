@@ -5,7 +5,6 @@ import type {
   ExecutionReceipt,
   Group,
   InputAnswer,
-  Journal,
   Message,
   MessageReaction,
   OwnerAction,
@@ -19,9 +18,9 @@ import type {
 import {
   accumulateStream,
   activeStatuses,
+  type ConversationItem,
   commandQuery,
   conversationTimeline,
-  embeddedSlots,
   type LiveReplyStream,
   liveAvatarState,
   type MentionAddress,
@@ -66,8 +65,6 @@ import { CardHost, type CardHostValue } from "../components/genui/host";
 import { GroupAvatar } from "../components/group-avatar";
 import { MessageBubble } from "../components/message-bubble";
 import { type MessageMenuActions, useMessageMenu } from "../components/message-menu";
-import { NativeSymbol } from "../components/native-symbol";
-import { OrderLine, OrderSheet } from "../components/order-line";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
 import { Icon } from "../components/shell/icon";
@@ -110,7 +107,6 @@ import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
 import { fill } from "../lib/i18n";
 import { listsApi } from "../lib/lists-api";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
-import { type TimelineItem, withOrderLines } from "../lib/order-lines";
 import {
   acknowledgeOutgoing,
   cancelOutgoingUploads,
@@ -162,9 +158,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [collaborationActive, setCollaborationActive] = useState(false);
   const [collaborationSessionId, setCollaborationSessionId] = useState<string>();
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
-  // The chat's financial operations, one order line each (Q30), except a confirmed one, which
-  // is its Execution Receipt (10.3).
-  const [journal, setJournal] = useState<Journal[]>([]);
   const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
   const [receipts, setReceipts] = useState<ExecutionReceipt[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -230,8 +223,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [uploading, setUploading] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
   const [actionsVisible, setActionsVisible] = useState(false);
-  const list = useRef<FlatList<TimelineItem>>(null);
-  const timelineRef = useRef<TimelineItem[]>([]);
+  const list = useRef<FlatList<ConversationItem>>(null);
   const following = useRef(around == null);
   const jumped = useRef<number | null>(null);
   const [jumpAgain, setJumpAgain] = useState(0);
@@ -371,17 +363,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           setLoaded(true);
           setError(null);
         });
-        // Order lines are a separate read: the chat stands without them.
-        void api
-          .get<Journal[]>(`/trading/journal?thread_id=${encodeURIComponent(id)}`)
-          .then((rows) => {
-            if (stillLive() && selected.current.id === id && selected.current.scope === scope)
-              setJournal(
-                // A confirmed operation is shown once: as its Execution Receipt (10.3).
-                rows.filter((row) => row.thread_id === id && row.status !== "confirmed"),
-              );
-          })
-          .catch(() => undefined);
         const auxiliary = Promise.all([
           api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
           api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
@@ -471,7 +452,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setRuns(cached?.runs ?? []);
     setAsking([]);
     setApprovals(cached?.approvals ?? []);
-    setJournal([]);
     setOwnerActions([]);
     setReceipts([]);
     setCollaborationActive(cached?.collaborationActive ?? false);
@@ -716,6 +696,20 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         // Resume, a signed grant): read it now, not at the next poll.
         void liveState.refresh();
       }}
+      // «طلب جديد»: the fresh card, and the old one naming it, come with the next read.
+      onRenew={(row) =>
+        api
+          .post<OwnerAction>(`/owner-actions/${row.id}/renew`, {})
+          .then(() => snapshotRef.current())
+      }
+      onLatest={(cardId) => {
+        const index = [...timeline]
+          .reverse()
+          .findIndex((item) => item.kind === "owner_action" && item.action.id === cardId);
+        if (index < 0) return;
+        following.current = false;
+        list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
+      }}
     />
   );
   const approvalCard = (approval: TradeApproval) => (
@@ -929,16 +923,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       ),
     [runs],
   );
-  const timeline = withOrderLines(
-    conversationTimeline(
-      visibleMessages,
-      approvals.filter((row) => row.thread_id === id),
-      ownerActions.filter((row) => row.thread_id === id),
-      undrawn,
-      receipts.filter((row) => row.thread_id === id),
-    ),
-    journal,
-    id,
+  // An operation is drawn only by the server's fixed cards: its receipt once the broker
+  // confirms it, its Settle card while the outcome is unknown (v38, as on Web); no order line.
+  const timeline = conversationTimeline(
+    visibleMessages,
+    approvals.filter((row) => row.thread_id === id),
+    ownerActions.filter((row) => row.thread_id === id),
+    undrawn,
+    receipts.filter((row) => row.thread_id === id),
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: `jumpAgain` repeats a jump to the same message
   useEffect(() => {
@@ -957,19 +949,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     if (landed) setFlash({ id: landed.id });
   }, [around, loaded, timeline, visibleMessages, jumpAgain]);
 
-  // The order the sheet shows: drawn again from the chat's current row when the operation or
-  // the chat's cards change, so its state and «حسم العملية» follow them even when the sheet
-  // opened before the cards were read; an operation no longer drawn as a line closes it.
-  const orderShown = useRef<Journal | null>(null);
-  const reopenOrder = useRef<((row: Journal) => void) | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the cards are the change signal
-  useEffect(() => {
-    if (sheets.current !== "order" || !orderShown.current) return;
-    const shown = orderShown.current.operation_id;
-    const row = journal.find((item) => item.operation_id === shown);
-    if (row) reopenOrder.current?.(row);
-    else sheets.close();
-  }, [ownerActions, journal]);
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const agent = agents.find((value) => value.id === thread?.agent_id);
@@ -1064,48 +1043,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const typingName = replying ? agents.find((row) => row.id === replying.agent_id)?.name : null;
   // The rows as the inverted list draws them, newest first.
   const drawn = [...timeline].reverse();
-  timelineRef.current = drawn;
-  /** The order sheet; «حسم العملية» rests the list on the operation's own settle card. */
-  const openOrder = (row: Journal) => {
-    orderShown.current = row;
-    const settle = ownerActions.find(
-      (card) =>
-        card.kind === "settle_operation" &&
-        card.status === "pending" &&
-        card.facts.operation?.operation_id === row.operation_id,
-    );
-    sheets.open({
-      id: "order",
-      title: t("odTradeOrder"),
-      body: (
-        <OrderSheet
-          row={row}
-          onResolve={
-            settle
-              ? () => {
-                  // The list as it is now: answers may have arrived while the sheet was open.
-                  const rows = timelineRef.current;
-                  let index = rows.findIndex((item) => item.id === `owner_action:${settle.id}`);
-                  // A card drawn inside a message (a trusted slot) has no row of its own: the
-                  // list goes to the message that carries it, as on Web.
-                  if (index < 0)
-                    index = rows.findIndex(
-                      (item) =>
-                        item.kind === "message" &&
-                        embeddedSlots([item.message]).has(`settle:${settle.id}`),
-                    );
-                  if (index < 0) return;
-                  sheets.close();
-                  following.current = false;
-                  list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
-                }
-              : undefined
-          }
-        />
-      ),
-    });
-  };
-  reopenOrder.current = openOrder;
   const send = async (
     mentions?: MentionAddress,
     followUp?: string,
@@ -1662,6 +1599,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   });
                 }}
                 contentContainerStyle={{
+                  // On a wide screen the transcript keeps Web's 760px column (plus this padding).
+                  width: "100%",
+                  maxWidth: 792,
+                  alignSelf: "center",
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                   flexGrow: 1,
@@ -1683,8 +1624,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   </Text>
                 }
                 renderItem={({ item }) => {
-                  if (item.kind === "order")
-                    return <OrderLine row={item.journal} onOpen={openOrder} />;
                   if (item.kind === "receipt") return <ExecutionReceiptCard row={item.receipt} />;
                   if (item.kind === "owner_action") return ownerActionCard(item.action);
                   if (item.kind === "approval") return approvalCard(item.approval);
@@ -1813,31 +1752,32 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               />
             </CardHost>
           )}
+          {/* The way to the latest message has its own band under the transcript, never over
+              it: no card's facts are ever under the button (10.2.2). */}
           {!atEnd && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("jumpLatest")}
-              onPress={() => {
-                following.current = true;
-                setAtEnd(true);
-                list.current?.scrollToOffset({ offset: 0, animated: false });
-              }}
-              style={{
-                position: "absolute",
-                bottom: 12,
-                alignSelf: "center",
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: shell.accent,
-                borderColor: shell.border,
-                borderWidth: 1,
-              }}
-            >
-              <NativeSymbol name="download" />
-            </Pressable>
+            <View style={{ alignItems: "center", paddingVertical: 6 }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("jumpLatest")}
+                onPress={() => {
+                  following.current = true;
+                  setAtEnd(true);
+                  list.current?.scrollToOffset({ offset: 0, animated: false });
+                }}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: shell.accent,
+                  borderColor: shell.border,
+                  borderWidth: 1,
+                }}
+              >
+                <Icon name="down" color={shell.foreground} />
+              </Pressable>
+            </View>
           )}
         </View>
         <ThreadComposer

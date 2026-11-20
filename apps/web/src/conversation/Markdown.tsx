@@ -1,4 +1,5 @@
 import { t } from "@lingui/core/macro";
+import { SIGNED_NUMBER, textDirection } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { Fragment, type ReactNode } from "react";
 
@@ -49,7 +50,8 @@ export function richText(text: string, mentions: RegExp | null): ReactNode[] {
 
 type Token = { at: number; end: number; node: (key: string) => ReactNode };
 
-/** Inline Markdown: `code`, **bold**, _em_, [text](https://…), bare links, @mentions. */
+/** Inline Markdown: `code`, **bold**, _em_, [text](https://…), bare links, signed numbers
+    (isolated left-to-right, so «(+$239)» keeps its sign on its left in Arabic), @mentions. */
 export function mdInline(text: string, mentions: RegExp | null): ReactNode[] {
   const tokens: Token[] = [];
   const claim = (re: RegExp, node: (m: RegExpMatchArray, key: string) => ReactNode, lead = 0) => {
@@ -78,6 +80,15 @@ export function mdInline(text: string, mentions: RegExp | null): ReactNode[] {
       <a key={key} href={m[2]} target="_blank" rel="noopener noreferrer" dir="ltr">
         {m[2]}
       </a>
+    ),
+    1,
+  );
+  claim(
+    SIGNED_NUMBER,
+    (m, key) => (
+      <bdi key={key} dir="ltr">
+        {m[2]}
+      </bdi>
     ),
     1,
   );
@@ -267,15 +278,17 @@ export function TextBody({
   caret?: boolean;
 }) {
   const end = caret ? <span className="caret" aria-hidden="true" /> : null;
+  // A text in Latin letters only reads left-to-right; one Arabic letter keeps it right-to-left.
+  const dir = textDirection(text);
   if (agent && markdown && MD_BLOCK.test(text))
     return (
-      <div className="md">
+      <div className="md" dir={dir}>
         {md(text, mentions)}
         {end}
       </div>
     );
   return (
-    <span className="text">
+    <span className="text" dir={dir}>
       {agent && markdown ? mdInline(text, mentions) : richText(text, mentions)}
       {end}
     </span>

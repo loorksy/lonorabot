@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 test("approval remains causal in chat, resolves in place and reconnect clears recovered fetch failure", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -68,35 +69,35 @@ test("approval remains causal in chat, resolves in place and reconnect clears re
     approval.status = "rejected";
     return route.fulfill({ json: approval });
   });
-  try {
-    await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-    await page.goto(`/app/${agent.id}`);
-    const failure = page.locator("[data-chat-error] .err-card");
-    await expect(failure).toHaveCount(1);
-    // Offline, the header strip explains the failed reads: no error in the transcript.
-    await context.setOffline(true);
-    await expect(page.locator(".net-strip.off")).toBeVisible();
-    await expect(failure).toHaveCount(0);
-    failing = false;
-    await context.setOffline(false);
-    await expect(page.getByText("after broker result", { exact: true })).toBeVisible();
-    await expect(failure).toHaveCount(0);
-    const card = page.locator(`[data-trade-approval="${approval.id}"]`);
-    await expect(card).toHaveCount(1);
-    const before = await page.getByText("before approval", { exact: true }).boundingBox();
-    const after = await page.getByText("after broker result", { exact: true }).boundingBox();
-    const anchor = await card.boundingBox();
-    expect(before.y).toBeLessThan(anchor.y);
-    expect(after.y).toBeGreaterThan(anchor.y);
-    await card.getByRole("button", { name: "Reject", exact: true }).click();
-    await expect(card.getByText("Rejected", { exact: true })).toBeVisible();
-    await page.reload();
-    await expect(card.getByText("Rejected", { exact: true })).toBeVisible();
-    await expect(card).toHaveCount(1);
-    expect((await card.boundingBox()).y).toBeLessThan(
-      (await page.getByText("after broker result", { exact: true }).boundingBox()).y,
-    );
-  } finally {
+  cleanup(async () => {
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  });
+
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.goto(`/app/${agent.id}`);
+  const failure = page.locator("[data-chat-error] .err-card");
+  await expect(failure).toHaveCount(1);
+  // Offline, the header strip explains the failed reads: no error in the transcript.
+  await context.setOffline(true);
+  await expect(page.locator(".net-strip.off")).toBeVisible();
+  await expect(failure).toHaveCount(0);
+  failing = false;
+  await context.setOffline(false);
+  await expect(page.getByText("after broker result", { exact: true })).toBeVisible();
+  await expect(failure).toHaveCount(0);
+  const card = page.locator(`[data-trade-approval="${approval.id}"]`);
+  await expect(card).toHaveCount(1);
+  const before = await page.getByText("before approval", { exact: true }).boundingBox();
+  const after = await page.getByText("after broker result", { exact: true }).boundingBox();
+  const anchor = await card.boundingBox();
+  expect(before.y).toBeLessThan(anchor.y);
+  expect(after.y).toBeGreaterThan(anchor.y);
+  await card.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(card.getByText("Rejected — nothing was sent", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(card.getByText("Rejected — nothing was sent", { exact: true })).toBeVisible();
+  await expect(card).toHaveCount(1);
+  expect((await card.boundingBox()).y).toBeLessThan(
+    (await page.getByText("after broker result", { exact: true }).boundingBox()).y,
+  );
 });
