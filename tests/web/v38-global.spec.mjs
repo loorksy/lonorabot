@@ -138,10 +138,22 @@ test("English: back and chevrons point its way, the tab says «Attention», a lo
   await expect(page.locator("#app")).toHaveClass(/list-collapsed/);
   await expect.poll(() => transform(fold.locator("svg"))).toBe("none");
   await fold.click();
-  // The new agent's 34px avatar pencil answers over 44px too.
-  await page.goto("/app/new-agent");
-  await page.getByRole("button", { name: "Next", exact: true }).click();
-  const pencil = page.locator(".pencil");
+  // Creation has no form. The 34px avatar pencil lives on the agent page and answers over 44px.
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  const created = await context.request.post("/api/agents", {
+    headers,
+    data: {
+      name: `Pencil ${randomUUID().slice(0, 6)}`,
+      trading_account_id: data.account,
+      trading_symbol: data.symbol,
+    },
+  });
+  expect(created.status()).toBe(201);
+  const agent = await created.json();
+  await page.goto(`/app/agent/${agent.id}`);
+  const pencil = page.locator("main .pencil");
   await expect(pencil).toBeVisible();
   expect((await pencil.boundingBox()).width).toBeLessThan(44);
   expect(await pseudo(pencil, "::before")).toEqual({ width: 44, height: 44 });

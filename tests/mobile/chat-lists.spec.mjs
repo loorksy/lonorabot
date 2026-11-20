@@ -177,6 +177,9 @@ test("Arabic: a preview keeps its words' direction and first words; the speaker 
     const shown = (await line.textContent()).replace(/[\u2066\u2069]/g, "").replace(/…$/, "");
     for (const word of shown.split(" ")) expect(full, `${width}: ${shown}`).toContain(word);
   }
+  // The list keeps reading the inbox. A fetch still in flight when the page closes is not
+  // a failure of the preview.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("pinning a fourth chat is refused locally and when the server answers 409; pins lead in pin order", async ({

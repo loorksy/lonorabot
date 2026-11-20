@@ -162,6 +162,9 @@ test("Arabic: a preview after «أنت:» shows its first words; the cut falls a
   const who = await row.locator(".pv > .who").boundingBox();
   expect(who.x).toBeGreaterThan((await words.boundingBox()).x);
   await expect(row.locator(".pv > .who")).toHaveText("أنت:");
+  // The list keeps reading the inbox. A fetch still in flight when the page closes is not
+  // a failure of the preview.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("pinning a fourth chat is refused locally and when the server answers 409", async ({

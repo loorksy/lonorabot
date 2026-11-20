@@ -366,8 +366,12 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
   await expect(page.getByText(/allowed agents/i)).toHaveCount(0);
   await page.goto("/app/usage");
   await expect(page.getByText("No spending cap: usage never stops a request.")).toBeVisible();
-  // Nothing used yet: each ranking says so, not an empty box.
-  await expect(page.getByText("No usage in this period.").first()).toBeVisible();
+  // The suite shares one owner, so earlier tests may already have usage. An empty period
+  // says so in each ranking; a period with rows shows those rows. Neither is a cap.
+  const rank = await (await context.request.get("/api/usage/rank?period=month")).json();
+  if (rank.agents.length === 0 && rank.models.length === 0)
+    await expect(page.getByText("No usage in this period.").first()).toBeVisible();
+  else await expect(page.locator(".u-rank-row").first()).toBeVisible();
   await expect(page.getByText(/Edit (the )?limit/)).toHaveCount(0);
   const csv = page.getByRole("link", { name: "Export CSV" });
   await expect(csv).toHaveAttribute("href", /period=month/);
