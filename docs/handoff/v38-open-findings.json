@@ -1,0 +1,201 @@
+{
+ "screenshot_findings_after_round1": [
+  {
+   "severity": "high",
+   "file": "apps/web/src/shell/lists/ThreadRow.tsx",
+   "issue": "The web chat-list preview cuts a signed number in half. The CSS ellipsis keeps the end of the figure and drops its sign and leading digits. The row «محلل الذهب» stores «… وتراجع −1.5% أمس». At 390 it shows «….5%» and at 1280 «…%», in ar and en, light and dark. A reader sees a different, unsigned number (VISION 17 and 0.4). The earlier reversal (finding 0) is fixed, but this truncation replaces it.\n\nSelector: `.thread[data-key=\"agent:…\"] .pv > span[dir]` (SaidLine), styled by `.thread .pv > span { overflow:hidden; text-overflow:ellipsis }` in apps/web/src/shell/lists/lists.css. The group heads-up (HeadsUp.tsx, `.hu-t small > span`) uses the same pattern.\n\nCause: plainLine wraps each number in LRI…PDI characters. text-overflow clips characters at the end edge of the line, so the LTR run at the left end of an RTL line loses its left part, which is the sign.\n\nMobile (apps/mobile/components/shell/thread-row.tsx) uses the same isolates with numberOfLines={1}. At 390 its cut happened to fall after the number, so mobile has the same latent defect.",
+   "evidence": "- Screenshots: shots-v38b/web-chats-390x844-{ar,en}-{light,dark}.png and web-chats-1280x800-*.png. The same list appears in every 1280 web shot.\n- Zooms: shots-v38b/zoom/web-chats-390-ar-goldrow.png («….5%») and zoom/web-chats-1280-ar-goldrow.png («…%»).\n- DOM text: «ربح الحساب (⁦+$239⁩) اليوم وتراجع ⁦−1.5%⁩ أمس» (audit `cut:ellipsis` on `.pv > span`).\n- Chrome repro: shots-v38b/zoom/cut-test.png. The top row uses isolates and shows «…%». The bottom row uses an inline-block <bdi> and the whole number is hidden behind the ellipsis.",
+   "fix": "Render each signed number in the preview as an atomic inline, for example <bdi dir=\"ltr\" style=\"display:inline-block\"> in SaidLine and HeadsUp. text-overflow then hides the figure whole rather than in part (checked in Chrome).\n\nOn mobile, a nested RN Text cannot be atomic. Make the core line drop a figure that does not fit whole, or test thread-row at narrower widths and apply an equivalent.\n\nAdd a chat-lists assertion that a cut preview never shows a partial number."
+  },
+  {
+   "severity": "medium",
+   "file": "apps/web/src/shell/Welcome.tsx",
+   "issue": "New text from the port that is only true after W-AUTH (the D5 class). The desktop welcome footer changed from main's «الصلاحيات مستقلة لكل وكيل» / \"Permissions are independent for each agent\" to «لكل وكيل تفويضه: يستأذن أو وكّله» / \"Each agent has its own trading mode: Ask or Full\".\n\nThis build still has three levels: No execution, Execute with approval, and Delegated execution within a mandate signed with your passkey (PermissionMenu.tsx levelName/levelHint). The composer chip in the same shots reads «تنفيذ بموافقة» / \"Execute with approval\", so the footer contradicts the app (VISION 0.4).\n\nPORT_MAP row UI_CHANGES:67 judged the sentence true per VISION 4.1, but that section describes the target, not this build. Selector: `.welcome small` (Welcome.tsx:62).",
+   "evidence": "- Screenshots: shots-v38b/web-chats-1280x800-{ar,en}-{light,dark}.png (welcome pane, bottom line).\n- `git show de1e2827:apps/web/src/shell/Welcome.tsx` has <Trans>Permissions are independent for each agent</Trans>; HEAD has <Trans>Each agent has its own trading mode: Ask or Full</Trans>.\n- Composer chip: web-conversation-*-ar-*.png shows «تنفيذ بموافقة».",
+   "fix": "Restore main's msgid \"Permissions are independent for each agent\" («الصلاحيات مستقلة لكل وكيل») and keep the shield. Leave the Ask/Full sentence for W-AUTH S1a, as D5 does for the AuthFlow slide. Re-run the i18n extract."
+  },
+  {
+   "severity": "medium",
+   "file": "apps/web/src/shell/settings/IntegrationsPage.tsx",
+   "issue": "Pre-existing (the same msgstr is on main). In Arabic, an MCP server row's sub-line reads in the wrong order.\n\n«خادم MCP · 3 قراءة» is drawn so that it reads «خادم 3 · MCP قراءة». The Notion row reads «خادم 1 · MCP قراءة · 1 كتابة غير مالية».\n\nCause: the count after «MCP · » joins the Latin run «MCP · 1» (a European number after L is L), so the number and separator move to the other side of «MCP» (VISION 17). Separately, «3 قراءة» is not correct Arabic plural.\n\nSelector: `main#view-scroll .group > button.row > span.body > small`. Code: line 643 `<Trans>MCP server · {levelText(server)}</Trans>`, with levelText at lines 32-37.",
+   "evidence": "- Screenshots: shots-v38b/web-integrations-{390x844,1280x800}-ar-{light,dark}.png and web-integrations-mcp-*-ar-*.png.\n- Zoom: shots-v38b/zoom/web-int-ar-mcp-rows3.png.\n- Chrome order check (scratchpad shots-v38b-spec/bidi.mjs): \"خادم MCP · 3 قراءة\" gives visual L->R \"ةءارق MCP · 3 مداخ\".",
+   "fix": "Isolate the brand or the counts, for example «خادم ⁨MCP⁩ · …», or an FSI around each levelText part. Word the counts with a proper Arabic plural. Add an ar assertion on the row's sub-line."
+  },
+  {
+   "severity": "low",
+   "file": "apps/mobile/components/trade-approval.tsx",
+   "issue": "Mobile draws a calendar where web draws an hourglass.\n\n- An approved card waiting for the broker («تمت الموافقة — بانتظار نتيجة الوسيط», trade-approval.tsx:144 `icon=\"clock\"`) shows the calendar.\n- A receipt still verifying («أكّده الوسيط · جارٍ التحقق من حالة الحساب…», execution-receipt.tsx:78) shows it too.\n\nThe icon named `clock` in apps/mobile/components/shell/icon-paths.ts:33 (and packages/ui-tokens/src/icons.ts:31) is the path \"M7 3v3M17 3v3M4 6h16v14H4zM4 10h16M8 14h3\", which is a calendar. Mobile has no `hourglass` path. The wait tone therefore differs between web and mobile.",
+   "evidence": "- Screenshots: shots-v38b/mobile-card-approval6-wait-*.png and mobile-card-receipt2-*.png.\n- Zoom: shots-v38b/zoom/mobile-wait-icon.png.\n- Web counterpart: web-card-approval-approved-*.png (hourglass).",
+   "fix": "Add the hourglass path from packages/ui-tokens/src/icons.ts:129 to the mobile icon paths. Use it for the approval wait tone and the pending receipt, matching web, and pin it in tests/mobile/approvals.spec.mjs and tests/mobile/execution-receipt.spec.mjs."
+  },
+  {
+   "severity": "low",
+   "file": "apps/web/src/conversation/Composer.tsx",
+   "issue": "Left over from earlier finding 12. The mic tip no longer opens over a fixed card, but at 390 it still covers the last message bubble («حُفظ مشفّرًا، ولا يرى وكلاؤك قيمته أبدًا.» and its time) in all four combos.\n\nThe check runs once at mount and looks only for `.mcard, .oa`. A fixed card scrolled under the tip during its 5.2 s is not checked. The v38 prototype shows the same tip over the transcript, so the bubble overlap may be accepted.\n\nSelector: `div[role=status].mic-tip.show`.",
+   "evidence": "- Screenshots: shots-v38b/web-conversation-390x844-{ar,en}-{light,dark}.png.\n- DOM audit overlap: `.mic-tip.show > strong «اضغط للإملاء»` × `.msg .bubble > span.text «حُفظ مشفّرًا…»`; `.mic-tip span` × `.meta > time`.",
+   "fix": "Either record that the prototype's overlap is accepted, or place the tip where it covers no bubble, or dismiss it on scroll so a card scrolled under it is never covered."
+  },
+  {
+   "severity": "low",
+   "file": "apps/mobile/app/thread.tsx",
+   "issue": "Left over from earlier finding 19 (the column cap and the chevron icon are fixed). The floating jump-to-latest button still sits over fixed-card content on both platforms:\n\n- mobile 390 ar: it hides part of the approved card's end state «تمت الموافقة — بانتظار نتيجة الوسيط»;\n- mobile 1280 en: it hides part of the failed broker card's server name;\n- web 390: it covers the tolerance row of a Trade Approval.\n\nVISION 10.2.2 says a slot is never hidden. The overlap is transient, but it lands on the card's facts. Web: apps/web/src/conversation/conversation.css:2308 `.jump`. Mobile: thread.tsx:1758 (testID jump button).",
+   "evidence": "- Mobile: shots-v38b/mobile-conversation-top-390x844-ar-dark.png and mobile-conversation-mid-1280x800-en-dark.png.\n- Web: shots-v38b/web-conversation-mid-390x844-ar-dark.png.",
+   "fix": "Keep the button clear of `.mcard`/`.oa` and of the mobile card frames (offset it into the composer's gutter, or add bottom padding so the last card is never under it), or record that the transient overlap is accepted."
+  }
+ ],
+ "rereview_findings_round1": [
+  {
+   "area": "global",
+   "severity": "high",
+   "file": "apps/web/src/shell/shell.css",
+   "issue": "On desktop (900px and wider), clicking «Full screen» on any expandable sheet hits «Close» and shuts the sheet. This is a global-area defect from port part 1 (be050c4f, the 44px hit-area rule). It is still present after these fixes, and the fix report says the area is clean. At line 2216, `.sheet-top > .icon { position: static }` (specificity 0,2,0) overrides the zero-specificity `:where(.icon) { position: relative }`. Each icon's absolute `::before` therefore resolves against `.sheet-top`. With `width: max(100%, 44px)` it spans the whole 72px bar, and Close is later in the DOM, so it sits on top of «Full screen». Main de1e2827 has no `max(100%, 44px)` rule, so this regression comes from the port.",
+   "evidence": "tests/web/agent-pages.spec.mjs:251 («the chart sheet draws the broker's candles…») fails in both of my runs, rvglobw1 and rvglobw2: `<button class=\"icon\" aria-label=\"Close\"> intercepts pointer events` when clicking «Full screen». A headless-Chrome repro of the same rules (scratchpad/rvglob/meta/sheet.html) also shows elementFromPoint at the expand button's centre returning #close. The fixer's runs never included agent-pages.spec.",
+   "fix": "Keep the sheet icons positioned in the ≥900px rule: use `position: relative` instead of `static`. They are already flex items there, so the layout does not change. Pin it in v38-global at 1280: on an expandable sheet, elementFromPoint at the centre of «Full screen» must return that button, and clicking it gives #dialog the class `expanded`."
+  },
+  {
+   "area": "global",
+   "severity": "low",
+   "file": "apps/mobile/lib/heads-up.ts",
+   "issue": "The prefix-direction and first-words fix was applied to web ThreadRow, web HeadsUp and mobile thread-row, but not to the mobile heads-up banner. messageBanner still returns `${speaker}: ${content}` as one string. heads-up.tsx renders it in one Text with `writingDirection: \"auto\"`, which is not a CSS direction, so react-native-web 0.21 falls back to the root Text's dir=\"auto\". As a result, in the Arabic UI a Latin agent name in a group («FX scout: الذهب ارتفع…») makes the whole line left-to-right: the speaker lands on the left and is read last. The numberOfLines={2} cut then falls on the LTR end, which is the start of the Arabic words. The English UI has the mirror-image case.",
+   "evidence": "apps/mobile/lib/heads-up.ts:58 joins speaker and content. apps/mobile/components/heads-up.tsx:247-256 has writingDirection \"auto\" and textAlign by UI. In node_modules/react-native-web/dist/exports/Text/index.js:108 the root Text gets dir='auto'. Web HeadsUp now uses SaidLine for exactly this case, so web and mobile banners differ.",
+   "fix": "Return { who, text } from messageBanner, as web's Banner.who does. Render who in the interface's direction and the words in their own writingDirection/textAlign (textDirection), as thread-row's `said` does. Pin it in tests/mobile/heads-up.test.ts and in an Arabic group-banner case in the heads-up spec."
+  },
+  {
+   "area": "global",
+   "severity": "low",
+   "file": "packages/core/src/plain-line.ts",
+   "issue": "The new cut can fall inside a signed number and then isolate the fragment as if it were a whole number. The new tsx pin expects this: `${\"ر\".repeat(117)} +3.1% ثم` cut at 120 gives «… ⁦+3⁩…». In the 120-character snippet (quote and reply bar) and in web and mobile heads-up banners, a trader sees «+3» where the figure is +3.1%. Only the ellipsis signals the cut. This touches VISION 17 (signed numbers read right) and 0.4 (every text true). The old code also cut mid-number, so this is not new, but this change is where the cut became deliberate and pinned.",
+   "evidence": "tests/web/plain-line.test.ts: `assert.equal(cut, `${\"ر\".repeat(117)} ${LRI}+3${PDI}…`)`. plainLine slices at `max` code units with no check for a SIGNED_NUMBER match spanning the boundary.",
+   "fix": "When the cut falls inside a SIGNED_NUMBER match (or inside a word), back it off to the start of that token before appending «…». Change the pin to expect the number either dropped whole or kept whole."
+  },
+  {
+   "area": "global",
+   "severity": "low",
+   "file": "apps/web/src/conversation/conversation.css",
+   "issue": "The Latin-bubble alignment fix aligns wrapped lines left, but `.meta` (time and ticks) still has `float: left`. In the Arabic UI, when the last line of a Latin bubble has room, the timestamp sits at the left edge and pushes that line's words to its right («10:21  past two pips.»). The last line is now indented, and the time reads before the words. The same happens today for every LTR bubble in the English UI; v38 has the same `.meta` rule.",
+   "evidence": "Headless-Chrome repro of the shipped rules: scratchpad/rvglob/meta/page.html → shot.png. Before the fix, the time is at the far left with the words right-aligned. After it, «10:21 past two pips.» on the last line of a 3-line Latin bubble.",
+   "fix": "Float the meta to the end of an LTR text block. For example, `.bubble:has(> .text[dir=\"ltr\"]) > .meta { float: right; margin: 7px 0 -3px 12px }`, plus the same for html[dir=ltr] bubbles. Alternatively, leave it and record that the English-side layout is accepted. Pin the meta's x position against the last line."
+  },
+  {
+   "area": "global",
+   "severity": "low",
+   "file": "apps/mobile/components/shell/emoji-panel.tsx",
+   "issue": "The back-icon mirroring in English (D12) is still missing in one mobile place. The emoji panel's delete key draws the shell «back» arrow (M9 5l7 7-7 7M4 12h12, pointing right) and does not mirror it in English. A backspace key in an LTR interface should point left. Web uses a dedicated «backspace» icon there.",
+   "evidence": "emoji-panel.tsx:131 renders `<Icon name=\"back\" …/>` with no `scaleX` by rtl. agents.tsx and thread-header.tsx wrap theirs in `transform: [{ scaleX: … }]`. apps/web/src/shell/lists/EmojiPanel.tsx:406 uses `backspace`.",
+   "fix": "Wrap the icon in `<View style={{ transform: [{ scaleX: rtl ? 1 : -1 }] }}>` as in agents.tsx. Alternatively, add the web `backspace` path to icon-paths and mirror it by rtl."
+  },
+  {
+   "area": "cards",
+   "severity": "high",
+   "file": "/home/user/wt-agent/fxui/packages/agent-runtime/src/lonora_agent/genui_compile.py",
+   "issue": "D1 is only partly true. SLOT_HEIGHTS[\"trade_approval\"] = 530 is not the tallest realistic Trade Approval slot. The fix measured just one uncertain code, broker_result_ambiguous. The other uncertain reasons the executor records, broker_result_mismatch and execution_interrupted_after_send, are about 40 characters longer in English and wrap to one more line. docs/genui.md says \"up to 526 px\", which is therefore untrue. The spec bound (APPROVAL_SLOT = 530) passes only because the journey tests that one code.",
+   "evidence": "I copied the tallest_approval fixture into a scratch spec outside the repo (/tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/rvmeasure/, run under pwlock as gate-rvcmeas2). It reproduces the fixer's own numbers exactly: pending 393/393, failed 464/485, ambiguous 505/526 (ar/en).\n\nWith the lead's exact shape (pending buy_limit with SL/TP, tolerance row, two-line reason), English broker_result_mismatch and execution_interrupted_after_send measure 546 px. Arabic stays at 505.\n\nA modify_order with its ticket row (also realistic) measures 427 pending and 560/580 decided. Its rendered card is 740 px with nothing else in it. That is over HARD_LIMIT 720, but the compiler accepts it because it estimates 684.",
+   "fix": "Measure every uncertain reason code in core uncertainMessages (financial-boundary.ts), and decide with the lead whether modify_order with a ticket counts as realistic. Raise SLOT_HEIGHTS, the docs/genui.md line and APPROVAL_SLOT together to the true maximum, rounded up to a multiple of 5 (at least 550 for buy_limit). Make the tallest-approval journey iterate over those codes, not only broker_result_ambiguous."
+  },
+  {
+   "area": "cards",
+   "severity": "medium",
+   "file": "/home/user/wt-agent/fxui/packages/agent-runtime/src/lonora_agent/genui_compile.py",
+   "issue": "Confirmed open conflict with VISION. VISION.md:451 says \"Size budgets stay as they are, including the 560 px resting height\". With the approval slot at 530, any card holding a Trade Approval is estimated at 630 px at rest by itself, and about 684 px with its More row. The compiler folds every other block and then accepts the card silently: only the 720 hard limit refuses. One side effect: the agent's one-line lead-in («الذهب عند المقاومة…») always folds under More, even for a pending card that really measures 393 px and would fit with it (553 px rendered). D1 asked to check that 560 still holds. It does not, and only the lead can decide this.",
+   "evidence": "estimate_height = 48+30+22 (100) + 530 = 630 > RESTING_LIMIT 560 (genui_compile.py:64, :696, :1116-1141).\n\ntest_genui_slots now asserts the Text is folded (budget_folded). The rendered cards in my measurement: pending 553, decided 625-706 px for buy_limit.\n\nThe fixer already reported this under not_fixed, so it is a lead decision, not something hidden.",
+   "fix": "The lead chooses. Options: make the decided approval shorter (status and result on one evidence line), so that slot plus head fits 560. Or record an explicit VISION exception for fixed-card slots. Or count the slot by the record's state at compile time and re-check when it is decided. Do not leave 560 silently exceeded."
+  },
+  {
+   "area": "cards",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/packages/core/src/financial-boundary.ts",
+   "issue": "approvalEndTone returns \"ok\" (green tint and check) for status \"approved\". Its text is «تمت الموافقة — بانتظار نتيجة الوسيط» / \"Approved — awaiting broker result\", which means nothing is confirmed yet. This contradicts the function's own docstring (\"a failed or unconfirmed operation never reads as a success\"). It is also inconsistent: a completed card whose result is still reserved or submitted gets \"warn\". The specs pin approved→ok on web and mobile.",
+   "evidence": "financial-boundary.ts:231: `if (row.status === \"approved\") return \"ok\";`. approvalTexts.approved = \"Approved — awaiting broker result\". one-vocabulary.test.ts and trade-approval-validity.spec.mjs assert approved → ok.",
+   "fix": "Give \"approved\" the neutral or waiting tone (plain with a clock icon, as the receipt's pending verification uses). Keep ok only for completed with every result confirmed, as D2 states. Update both pins."
+  },
+  {
+   "area": "cards",
+   "severity": "low",
+   "file": "/home/user/wt-agent/apps/mobile/components/trade-approval.tsx",
+   "issue": "D10 is only partly applied on mobile. Mobile now shows a localized reason line and the labelled broker words, but not the line web shows. For a failed result with no shared reason, mobile prints its own catalog's request_failed and web prints its userError default. D10 says \"Mobile also shows the localized line web shows\". The order also differs: web shows status · ticket · reason · price · broker words, mobile shows status, reason, ticket, price, broker words.",
+   "evidence": "Web, measured in gate-rvcmeas2: «فشل · تعذر إكمال الطلب. أعد المحاولة. · 2360.00 · بكلمات الوسيط: Not enough money».\n\nMobile, pinned in tests/mobile/trade-approval-validity.spec.mjs: failedReason «تعذر تنفيذ الطلب. حاول مرة أخرى.».\n\nThe fixer lists this under not_fixed as \"two per-client catalogs\".",
+   "fix": "Root cause: the fallback lives in two client catalogs. Add one core fallback for a failed result known not to have executed (for example a core failedResultFallback, keeping financialResultReason's null contract), use it from web resultReason and mobile, and pin the same string on both. Align the line order."
+  },
+  {
+   "area": "cards",
+   "severity": "low",
+   "file": "/home/user/wt-agent/apps/web/src/components/owner-actions/OwnerActionCard.tsx",
+   "issue": "A Settle card that was already renewed still offers «طلب جديد», and that button is always refused. It never offers «عرض الأحدث». The cause: renew_card leaves the old card with status \"expired\" and only sets superseded_by, while the frame shows renew for any expired settle card and shows latest only when status is \"superseded\". Mobile's owner card has neither button, so an expired Settle card offers nothing there (parity). This is pre-existing (main had the same conditions in DecisionLine). The fixer saw it and left it.",
+   "evidence": "packages/db/src/lonora_db/owner_actions.py:1473-1501: after a renew, settle(row, \"expired\", by=fresh_id) keeps the card expired with superseded_by set, and a second renew raises owner_action_not_renewable (409).\n\nOwnerActionCard.tsx:400-413 shows renew on `status === \"expired\"` and latest on `status === \"superseded\"`.\n\napps/mobile/components/owner-action-card.tsx has no renew or latest handling at all.",
+   "fix": "In the frame, check superseded_by first: when it is set, show «عرض الأحدث», whatever the status. Show «طلب جديد» only for an expired card that has no superseded_by. Bring the same two buttons to mobile."
+  },
+  {
+   "area": "cards",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/tests/web/owner-actions.test.ts",
+   "issue": "The restored failure signal for a broker Secret card (D3) is pinned only by source regexes. No rendered web or mobile test shows a provisioning-failed card with its neutral .oa-done.bad end state. Also, ownerActionStatus has a caller again, but only DecisionLine calls it, and a secret card never folds. So its whole broker branch (statusFailed «تعذّر», statusSaved, statusConnecting, statusChanging) is drawn by no client. The unit test \"a saved broker card's chip says how connecting stands\" pins a chip that does not exist in the UI.",
+   "evidence": "ownerActionFolds excludes \"secret\" (FIXED_KINDS from SLOT_OWNER_ACTION_KINDS), so DecisionLine never receives a broker card.\n\n`grep -rn owner-action-failed tests/web tests/mobile` finds nothing. owner-actions.test.ts:815 only matches the source `const failed = brokerCardFailed(row)`.",
+   "fix": "Add a rendered pin: seed a confirmed broker Secret card with provisioning \"failed\", then assert data-owner-action-failed, the .bad class and the brokerFailed text inside the frame, on web, and mobile's outcome line. Either draw the status in the frame, or drop the broker branch and its four strings from ownerActionStatus and its test, as D3 allows for orphans."
+  },
+  {
+   "area": "cards",
+   "severity": "low",
+   "file": "/home/user/wt-agent/apps/mobile/components/trade-approval.tsx",
+   "issue": "The screenshot finding on mobile parity with the v38 frame is only partly fixed. The label/value rows and the strong title are done. The kicker still has no icon: web draws a shield before «طلب موافقة», and mobile draws plain text.",
+   "evidence": "Web TradeApprovals.tsx: `<div className=\"mcard-kicker\"><Icon name=\"shield\" />…`.\n\nMobile trade-approval.tsx: the kicker is a single `<Text>{t(\"tradeApproval\")}…</Text>` with no Icon. The screenshot finding listed both \"no row boxes and no kicker icon\".",
+   "fix": "Draw the shield Icon in the mobile kicker on the reading side, as the receipt and EvidenceLine already draw theirs."
+  },
+  {
+   "area": "cards",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/docs/genui.md",
+   "issue": "The Secret slot numbers in docs/genui.md and the genui_compile.py comment (460/555/650 px, replaces line +48/69/90) are now annotated \"measured when its saving line named the workspace names\" instead of being re-measured. The docs therefore state measurements of a card that no longer exists. Separately, and pre-existing: a failed result line on both clients shows the broker's price as a bare number (\"· 2360.00 ·\") with no label.",
+   "evidence": "docs/genui.md budget paragraph and genui_compile.py:93-109, both annotated. The measured web result line in gate-rvcmeas2: «فشل · تعذر إكمال الطلب. أعد المحاولة. · 2360.00 · بكلمات الوسيط: …». On mobile, the prices line has no label either.",
+   "fix": "Re-measure the Secret slot with field labels in the Slots journey and replace the numbers. Label the price in the result line (for example the Entry or Fill price label), the way brokerTicketLabel labels the ticket."
+  },
+  {
+   "area": "settings",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/packages/db/src/lonora_db/trusted_sources.py",
+   "issue": "keep_tool_titles throws away titles it already had. Each preview replaces the whole saved set with whatever the server lists right now. So a pinned tool the server stops listing, or now lists with no title, loses its known title. From then on the saved list shows its raw name. Before this change, the reviewed title stayed. D6 says never fall back to a raw name where a title can be known.",
+   "evidence": "Line 246: `connection.state = {**(connection.state or {}), \"tool_titles\": dict(titles)}`, called from the preview route on every preview. That includes the manual «مراجعة الأدوات» on a server whose schema changed (IntegrationsPage shows that button when `!server.trusted_tier || review`), and the sheet's automatic read. Scenario: a server is trusted with titles {A: \"Alpha\", B: \"Beta\"}, then drops A. The owner opens Review, and the state becomes {B: \"Beta\"}. GET /capabilities then gives A no title, and the sheet shows raw `A`, even with a fresh read. trust_source can replace the set because it re-pins the tools at the same time; a preview pins nothing.",
+   "fix": "In keep_tool_titles, merge rather than replace: `{**saved_titles, **titles}`, keeping the earlier title for any name this read does not list. Add a pytest pin: save titles, then preview with one tool missing, and /capabilities still returns its title."
+  },
+  {
+   "area": "settings",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/apps/web/src/shell/settings/IntegrationsPage.tsx",
+   "issue": "The sheet's automatic read (McpToolRows) runs whenever any trusted tool has no saved title. That includes a tool the server never titles, which stays untitled for good. So every opening of that server's sheet makes a live tools/list call to the remote MCP server with the stored credentials, plus a row-locked write. It also does this for a server the owner switched off: review() never checks `enabled`, and McpToolRows does not look at server.enabled. Before this change, opening a sheet never contacted the server.",
+   "evidence": "Line 56: `const missing = saved && tools.some((tool) => toolTitle(titles, tool.name) === undefined);` drives a useEffect that POSTs `/trusted-sources/mcp/{id}/preview`. The settings.spec fixture itself has such a tool (toString, never titled), so its sheet would re-read on every open. apps/api/src/lonora_api/routes/trusted_sources.py review() reads the server without an enabled check.",
+   "fix": "Limit the automatic read to the case D6 is about, a server trusted before titles were kept, i.e. `saved && Object.keys(titles).length === 0`. Skip it when `!server.enabled`. The manual «مراجعة الأدوات» stays for everything else."
+  },
+  {
+   "area": "settings",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/apps/web/src/shell/settings/IntegrationsPage.tsx",
+   "issue": "Pre-existing, on a line this fix edited: the refused-tools note always joins tool names with the Arabic comma «، », in English too. Mobile's names() uses `rtl ? \"، \" : \", \"`, so the two apps differ.",
+   "evidence": "Line 191: `.map((name) => `⁨${toolTitle(preview.titles, name) ?? name}⁩`).join(\"، \")`. main had the same `.join(\"، \")` at line 132.",
+   "fix": "Join by the interface language (\", \" in English), as mobile does."
+  },
+  {
+   "area": "settings",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/tests/web/settings.spec.mjs",
+   "issue": "Pre-existing flaky pin in this area's spec, not caused by the fix. `page.getByText(\"Simulation with an imported snapshot\")` hits a strict-mode violation when the brief «Fetching the symbols from <bdi>…</bdi>» paragraph is on screen at the same time. Strict-mode violations fail at once, without retry. So the report's settings.spec 11/11 depends on timing.",
+   "evidence": "My first run gave 10 passed, 1 failed: settings.spec.mjs:477, with 'resolved to 2 elements: strong > bdi and paragraph \"Fetching the symbols from\" > bdi'. In the failure snapshot the loading paragraph was already gone. The targeted re-run passed. main has the same assertion at line 465.",
+   "fix": "Scope the locator to the hero, e.g. `page.locator('.acct-hero').getByText(...)`, or use getByRole('strong')."
+  },
+  {
+   "area": "settings",
+   "severity": "low",
+   "file": "/home/user/wt-agent/fxui/apps/mobile/lib/i18n.ts",
+   "issue": "After the grammar fix, web and mobile use different Arabic words for the same label: web «حساب وسيط لم يُتحقَّق من هويته», mobile `unverifiedBrokerAccount` «حساب وسيط غير متحقق منه». Both are correct Arabic, but the owner sees two names for one state.",
+   "evidence": "apps/mobile/lib/i18n.ts:576: `unverifiedBrokerAccount: [\"حساب وسيط غير متحقق منه\", \"Unverified broker account\"]`. The web ar msgstr for 'Unverified broker account' is «حساب وسيط لم يُتحقَّق من هويته».",
+   "fix": "Use one wording in both apps (e.g. set the mobile string to «حساب وسيط لم يُتحقَّق من هويته»)."
+  }
+ ],
+ "repair_failures_and_lead_decisions": [
+  "LEAD DECISION 1, the 560px budget is exceeded (VISION 10.1.4): with the 550px approval slot, a card holding it is 650px at rest with its head, so its other blocks always fold. A second slot makes the card fall back. A decided entry card renders up to 706px. Options: shorten the decided approval, record an explicit VISION exception for fixed-card slots, or count the slot by the record's state at compile time.",
+  "LEAD DECISION 2 (modify_order not counted): a modify_order approval with its ticket row is taller than the counted entry card. It reaches 580px decided in English, so its card renders at 740px while the compiler estimates it under 720 and never falls it back. Counting 580 would make every approval card about 680px at rest. Recorded in docs/genui.md and genui_compile.py as not counted.",
+  "LEAD DECISION 3 (long Secret labels not counted): Secret field labels at the contract's 60-character maximum wrap the form and its saving lines. A 2-field card then reaches 756px (about 916px with its head), which the 720px rule does not catch. Recorded as not counted, like the existing replaces-line limit. Options: cap the labels or count them.",
+  "Full web suite failures that are not caused by this branch (they also fail in the team branch's run, gate-pgw): account-authority.spec:131 (ar here, en there), agent-permissions.spec:323, chat-send-latency.spec:318, group-status.spec:14, skills-management.spec:122. Several of these are W-AUTH areas, which are out of scope.",
+  "Flaky on the full web run, passed on rerun: capabilities.spec:72 en and shell.spec:562/621 (the mode menu, out of scope). Root cause of capabilities en: a race that main has too. The test clicks 'News domains' before /capabilities has loaded, and the domains sheet body is fixed at the moment it opens. IntegrationsPage and the test are the same on main de1e2827; not changed.",
+  "Full mobile suite failures that also fail in the team branch's run (gate-pgm): chat-reliability.spec:85, chat-runtime.spec:112, workspace.spec:7. Not caused by this branch.",
+  "Pre-existing, left as is: the mobile attention-banner cut (attentionBanner `cut`) still slices a summary at 120 characters and can split a figure; it is not plainLine and was not in the findings. The mobile Execution Receipt kicker still has no icon (web draws a check); only the approval kicker finding was raised. A server whose tools are all untitled will re-read its titles each time its sheet opens, as long as it is on, because '{}' cannot tell 'never kept' from 'none given'."
+ ]
+}
