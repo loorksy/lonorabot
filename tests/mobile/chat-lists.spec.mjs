@@ -158,10 +158,16 @@ test("Arabic: a preview keeps its words' direction and first words; the speaker 
   expect((await you.boundingBox()).x).toBeGreaterThan((await words.boundingBox()).x);
   // A group's line: the speaker on the reading side, the signed numbers in order.
   const group = row(page, `group:${fixture.group.id}`);
-  const said = group.getByText("الربح اليوم (\u2066+$239\u2069) و \u2066−1.5%\u2069", {
-    exact: true,
-  });
+  // The speaker's name takes part of the row, so the sentence may already be cut. The cut
+  // falls between words and a signed number is whole or absent (17, 0.4).
+  const plain = "الربح اليوم (+$239) و −1.5%";
+  const said = group.getByText(/^الربح/);
   await expect(said).toBeVisible();
+  const shown = ((await said.textContent()) ?? "").replace(/[\u2066\u2069]/g, "");
+  const body = shown.replace(/…$/, "").trim();
+  expect(plain.startsWith(body), shown).toBe(true);
+  for (const word of body.split(" ")) expect(plain.split(" "), shown).toContain(word);
+  expect(shown.includes("239") ? shown.includes("+$239") : true, shown).toBe(true);
   const speaker = group.getByText(`${alpha.name}:`, { exact: true });
   expect((await speaker.boundingBox()).x).toBeGreaterThan((await said.boundingBox()).x);
   // Narrower, the line is cut between words: a signed number shows whole or not at all, never
