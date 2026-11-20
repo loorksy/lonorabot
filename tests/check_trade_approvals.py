@@ -16,10 +16,11 @@ from lonora_agent.executor import execute_run
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.trading import TradeRequest, TradeResult
-from lonora_core.user_error import ToolRefusal
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.schema import AgentRow, TradingAccountRow
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
+from sqlalchemy import func
 
 
 async def main():
@@ -609,6 +610,146 @@ async def main():
         )
         print(
             "PASS crash during independent verification preserves acknowledgment, sends once and cannot claim verified completion"
+        )
+
+        # Ask: one card per exact request (mandate 10.3, 14.3.13). An agent in Ask, with no
+        # standing instruction, asks once for a request that adds risk and reuses the card.
+        asking = await fixture.agent("Ask one card", supervised=True)
+        asking_context = await fixture.lease(
+            await fixture.run(asking, await fixture.conversation(asking))
+        )
+        # The owner's own position, opened in the terminal: no journaled order of an agent.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            book = await session.get(TradingAccountRow, connection_id, with_for_update=True)
+            assert book is not None
+            book.payload = {
+                **book.payload,
+                "positions": [
+                    *book.payload["positions"],
+                    {
+                        "id": "owner-ask-ticket",
+                        "symbol": symbol,
+                        "side": "buy",
+                        "volume": "0.2",
+                        "open_price": "95",
+                        "stop_loss": "90",
+                    },
+                ],
+            }
+
+        async def ask(**arguments: Any) -> dict[str, Any]:
+            return await registry.execute(
+                ToolCall(id=uuid4().hex, name="trade_execute", arguments=arguments),
+                asking_context,
+            )
+
+        entry_args = {
+            "account_id": connection_id,
+            "symbol": symbol,
+            "action": "buy",
+            "volume": "0.1",
+            "stop_loss": "90",
+            "tolerance": "5",
+            "reason": "Fixture entry",
+        }
+        before = await broker.snapshot()
+        asked = await ask(**entry_args)
+        assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
+        assert await broker.snapshot() == before
+        # Asked again while the card waits: the same card, never a second one.
+        waiting = await ask(**entry_args)
+        assert waiting.get("_runtime_wait"), waiting
+        assert waiting["approval_id"] == asked["approval_id"], waiting
+        await fixture.request(
+            "POST", f"/trading/approvals/{asked['approval_id']}/decision", {"decision": "approve"}
+        )
+        approved = await ask(**entry_args)
+        assert approved.get("status") == "confirmed", approved
+        assert approved["approval_id"] == asked["approval_id"]
+        # The same exact request again in this Run reuses that approval: no second card.
+        repeat = await ask(**entry_args)
+        assert repeat["approval_id"] == asked["approval_id"], repeat
+        async with fixture.runtime.db.sessions() as session:
+            count = await session.scalar(
+                select(func.count())
+                .select_from(TradeApprovalRow)
+                .where(TradeApprovalRow.run_id == asking_context.lease.run_id)
+            )
+            assert count == 1, count
+        # The owner's own position is not this agent's (3.3.4): refused, nothing sent.
+        before = await broker.snapshot()
+        try:
+            await ask(
+                action="close_position",
+                account_id=connection_id,
+                symbol=symbol,
+                position_id="owner-ask-ticket",
+            )
+            raise AssertionError("An agent closed the owner's own position")
+        except LonoraError as error:
+            assert error.code == "ticket_not_owned", error.code
+        assert await broker.snapshot() == before
+        # A request that adds risk on it never becomes a card the door would refuse.
+        try:
+            await ask(
+                action="modify_position",
+                account_id=connection_id,
+                symbol=symbol,
+                position_id="owner-ask-ticket",
+                clear_stop_loss=True,
+                tolerance="5",
+                reason="Fixture stop removal",
+            )
+            raise AssertionError("An agent asked to remove the owner's stop")
+        except LonoraError as error:
+            assert error.code == "ticket_not_owned", error.code
+        assert await broker.snapshot() == before
+        async with fixture.runtime.db.sessions() as session:
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(TradeApprovalRow)
+                    .where(TradeApprovalRow.run_id == asking_context.lease.run_id)
+                )
+                == 1
+            )
+        # Another entry: the owner refuses it.
+        refused_args = {**entry_args, "volume": "0.2"}
+        refused = await ask(**refused_args)
+        assert refused.get("_runtime_wait") and refused.get("approval_id"), refused
+        await fixture.request(
+            "POST", f"/trading/approvals/{refused['approval_id']}/decision", {"decision": "reject"}
+        )
+        # The same request right after the owner refused it returns that refusal.
+        refused_again = await ask(**refused_args)
+        assert refused_again.get("status") == "rejected", refused_again
+        assert refused_again["approval_id"] == refused["approval_id"], refused_again
+        # Once the owner writes again in the conversation, it may ask once more.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            decided = await session.get(TradeApprovalRow, refused["approval_id"])
+            assert decided is not None and decided.thread_id is not None
+            conversation = await session.get(ThreadRow, decided.thread_id, with_for_update=True)
+            assert conversation is not None
+            session.add(
+                MessageRow(
+                    thread_id=conversation.id,
+                    seq=conversation.next_seq,
+                    role="user",
+                    content="Buy the euro after all.",
+                )
+            )
+            conversation.next_seq += 1
+        asked_again = await ask(**refused_args)
+        assert asked_again.get("_runtime_wait"), asked_again
+        assert asked_again["approval_id"] != refused["approval_id"], asked_again
+        assert await broker.snapshot() == before
+        await fixture.request(
+            "POST",
+            f"/trading/approvals/{asked_again['approval_id']}/decision",
+            {"decision": "reject"},
+        )
+        print(
+            "PASS Ask: one card per exact request, reused while it waits, after approval and right after a refusal, a new one after the owner writes again; the owner's own position is not the agent's"
         )
 
     finally:

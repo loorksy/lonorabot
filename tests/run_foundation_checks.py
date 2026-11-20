@@ -58,6 +58,8 @@ CHECKS = (
     "check_full_account_management.py",
     "check_management_task.py",
     "check_unified_permissions.py",
+    "check_trading_mode.py",
+    "check_trade_approvals.py",
     "check_account_recovery.py",
     "check_execution_recovery.py",
     "check_send_boundary.py",
@@ -142,6 +144,9 @@ def main() -> None:
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     # Lonora's lead powers, and its delete of a team agent with the ticket transfer (3.1.2).
     for name in ("test_lead_powers.py", "test_delete_transfer.py"):
+        commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
+    # The trading mode's ports of the grant and ladder checks (14.1.3).
+    for name in ("test_mandate_card.py", "test_trading_mode_tools.py"):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:
         name = "lonora_foundation_" + uuid4().hex + "_test"
