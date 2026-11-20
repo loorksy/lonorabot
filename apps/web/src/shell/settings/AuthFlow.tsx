@@ -73,7 +73,7 @@ export function AuthFlow({
     [
       "shield",
       t`You decide`,
-      t`Every agent asks you before any trade that adds risk, until you switch it to Full with one tap.`,
+      t`No sensitive action runs without a permission you grant, and you can stop it any moment.`,
     ],
   ];
   const leaveIntro = () => {

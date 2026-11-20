@@ -213,7 +213,8 @@ def server_entry(
 
 
 def tool_titles(row: McpConnectionRow, trust: TrustedSourceRow | None) -> dict[str, str]:
-    """The server's titles of the trusted tools, as read at the owner's last review."""
+    """The server's titles of the trusted tools, as last read for the owner (his review, or
+    a preview: a server trusted before titles were kept gets them there)."""
     saved = (row.state or {}).get("tool_titles")
     if trust is None or not isinstance(saved, dict):
         return {}

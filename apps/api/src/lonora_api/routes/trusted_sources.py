@@ -20,6 +20,7 @@ from lonora_db.schema import McpConnectionRow
 from lonora_db.trusted_sources import (
     declared_connections,
     ensure_defaults,
+    keep_tool_titles,
     list_sources,
     mcp_trust,
     restore_source,
@@ -113,8 +114,11 @@ async def preview(
 ) -> dict[str, Any]:
     rt = runtime(request)
     config, reviewed, digest, _ = await review(rt, owner.id, connection_id)
-    async with rt.db.sessions() as session:
+    async with rt.db.sessions() as session, session.begin():
         trusted = await mcp_trust(session, owner.id, connection_id)
+        # The titles read now are kept for the owner's views, so a server trusted before
+        # titles were kept shows them from this read on (never part of the pinned review).
+        await keep_tool_titles(session, owner.id, connection_id, config, reviewed.titles)
     owned = trusted is not None and trusted.added_via != "operator"
     return {
         "name": config.name,

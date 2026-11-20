@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import type {
   CapabilityServer,
@@ -12,12 +13,14 @@ import {
   serverLine,
   skillLine,
   sourceLine,
+  toolTitle,
 } from "../../packages/core/src/capabilities";
 import {
   ownerActionCard,
   ownerActionError,
   ownerActionLabels,
 } from "../../packages/core/src/owner-actions";
+import { listSeparator } from "../../packages/core/src/trading-readiness";
 
 const isolated = (value: string) => `⁨${value}⁩`;
 const base: OwnerAction = {
@@ -234,4 +237,29 @@ test("capability lines name source, tier and state in both languages", () => {
   assert.equal(ownerActionError("owner_action_tier_required", "ar"), null);
   assert.ok(ownerActionError("trusted_source_write_blocked", "ar"));
   assert.ok(ownerActionError("mcp_tools_changed", "en"));
+});
+
+test("a tool's title is read from the server's own keys, never an Object member", () => {
+  // As the API sends it: parsed JSON, a plain object.
+  const titles = JSON.parse('{"search_posts":"البحث في المنشورات","__proto__":"Proto"}');
+  assert.equal(toolTitle(titles, "search_posts"), "البحث في المنشورات");
+  assert.equal(toolTitle(titles, "__proto__"), "Proto");
+  // SAFE_TOOL_NAME allows these names; a bare lookup returns Object.prototype's functions.
+  for (const name of ["toString", "constructor", "valueOf", "hasOwnProperty", "list_tags"])
+    assert.equal(toolTitle(titles, name), undefined, name);
+  // Every title lookup in both apps goes through it.
+  for (const file of [
+    "apps/web/src/shell/settings/IntegrationsPage.tsx",
+    "apps/mobile/app/(settings)/integrations.tsx",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /toolTitle\(/, file);
+    assert.doesNotMatch(source, /titles\[(tool\.)?name\]/, file);
+  }
+  // The refused tools are listed with the interface's separator, as on Mobile.
+  const web = readFileSync("apps/web/src/shell/settings/IntegrationsPage.tsx", "utf8");
+  assert.match(web, /\.join\(listSeparator\(i18n\.locale\)\)/);
+  assert.doesNotMatch(web, /\.join\("، "\)/);
+  assert.equal(listSeparator("en"), ", ");
+  assert.equal(listSeparator("ar"), "، ");
 });

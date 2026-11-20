@@ -134,6 +134,15 @@ Tool names must follow the MCP naming rule (`[A-Za-z0-9_./-]`, at most 128); oth
 and unsupported schemas are left out of a review, so the owner never sees remote text
 beyond a plain tool name. Descriptions and annotations never grant anything.
 
+The owner's views name each tool by the server's own title (its `title`, else the
+annotation title, else the first sentence of its description), and by its plain name only
+when the server gives none. The titles are kept on the connection for display, never as
+part of the pinned review: trusting the server saves the ones reviewed, and each later
+read of its tools (the preview) adds what it reads without dropping a title already kept,
+so a tool the server stops titling keeps its known title. A server trusted before titles
+were kept has none: its sheet on Web reads them once from the server when it opens, if the
+server is on; a server with titles kept is never contacted by opening its sheet.
+
 A server is trusted in one of two ways:
 
 - `mcp_trust(server=…)` in a run whose owner message names the server (its saved name or

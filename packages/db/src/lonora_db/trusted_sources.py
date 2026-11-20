@@ -19,7 +19,7 @@ from collections.abc import Iterable
 from typing import Any, Literal
 
 from lonora_contracts.domain import utcnow
-from lonora_contracts.mcp import McpToolDeclaration
+from lonora_contracts.mcp import McpConnection, McpToolDeclaration
 from lonora_contracts.trusted_sources import normalize_identifier
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select, text
@@ -132,7 +132,8 @@ async def trust_source(
     first, ``owner_message``); nothing else reaches this. The owner's
     review of an operator entry makes it the owner's own, even when nothing else changed.
     ``tool_titles`` (the server's titles read at this review) is kept on the connection for
-    the owner's views only; it is never part of the pinned review.
+    the owner's views only, as each later preview keeps its own (``keep_tool_titles``); it
+    is never part of the pinned review.
     """
     try:
         identifier = normalize_identifier(kind, identifier)
@@ -223,6 +224,29 @@ async def revoke_source(
         await session.flush()
         _changed(session, row)
     return row
+
+
+async def keep_tool_titles(
+    session: AsyncSession,
+    owner_id: str,
+    connection_id: str,
+    config: McpConnection,
+    titles: dict[str, str],
+) -> None:
+    """Keep the titles a server gave when the owner read its tools again (the preview), for
+    the owner's views only: a server trusted before titles were kept had none saved. Added to
+    the titles already kept, never replacing them: a pinned tool this read no longer lists,
+    or lists untitled, keeps its known title. Nothing when the connection changed since that
+    read; never part of the pinned review."""
+    connection = await session.get(McpConnectionRow, connection_id, with_for_update=True)
+    if (
+        connection is None
+        or connection.owner_id != owner_id
+        or McpConnection.model_validate(connection.payload) != config
+    ):
+        return
+    state = connection.state or {}
+    connection.state = {**state, "tool_titles": {**state.get("tool_titles", {}), **titles}}
 
 
 async def restore_source(session: AsyncSession, owner_id: str, source_id: str) -> TrustedSourceRow:

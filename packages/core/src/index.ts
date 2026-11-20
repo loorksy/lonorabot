@@ -42,6 +42,7 @@ export {
   serverLine,
   skillLine,
   sourceLine,
+  toolTitle,
 } from "./capabilities";
 export {
   archivedRowSummary,

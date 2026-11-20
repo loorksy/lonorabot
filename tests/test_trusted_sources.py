@@ -38,6 +38,7 @@ from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
     IntegrationRow,
+    McpConnectionRow,
     MessageRow,
     OwnerActionRow,
     RunRow,
@@ -817,6 +818,42 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
                 item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
             )
             assert entry["tool_titles"] == titles
+            # A server trusted before titles were kept has none saved. The owner's next read of
+            # its tools (his server sheet reads the preview) keeps them, and his views show them.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                saved = await session.get(McpConnectionRow, connection_id)
+                assert saved is not None
+                saved.state = {
+                    key: value for key, value in saved.state.items() if key != "tool_titles"
+                }
+            listed = await fixture.request("GET", "/capabilities")
+            entry = next(
+                item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
+            )
+            assert entry["tool_titles"] == {} and entry["trusted_tier"] == "write_nonfinancial"
+            await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            listed = await fixture.request("GET", "/capabilities")
+            entry = next(
+                item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
+            )
+            assert entry["tool_titles"] == titles
+            # A later read that no longer titles a pinned tool (or no longer lists it) never
+            # drops the title already known: its views keep it rather than the raw name.
+            listed_tools = server.tools
+            server.tools = [{**listed_tools[0], "title": None}, listed_tools[1]]
+            await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            server.tools = [listed_tools[1]]
+            await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            listed = await fixture.request("GET", "/capabilities")
+            entry = next(
+                item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
+            )
+            assert entry["tool_titles"] == titles
+            server.tools = listed_tools
+            # Kept for display only: the pinned review is the one the owner approved.
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.get(TrustedSourceRow, trusted["id"])
+                assert row is not None and row.effect_tier == "write_nonfinancial"
             same = ToolCall(
                 id="write-once",
                 name="mcp_execute",
@@ -1292,6 +1329,15 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
                 action="activate",
             )
             assert activated["enabled"] is True
+        # A manifest whose title is not its id (an imported package's title is its id): the
+        # owner reads the title, never the id.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            rows = await session.scalars(select(SkillRow).where(SkillRow.agent_id == agent["id"]))
+            saved = next(row for row in rows if row.payload.get("name") == "briefing")
+            saved.payload = {
+                **saved.payload,
+                "manifest": {**saved.payload["manifest"], "title": "موجز الأدلة"},
+            }
         report = await fixture.request("GET", "/capabilities")
         skill = next(
             item
@@ -1299,8 +1345,8 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
             if item["skill_id"] == "briefing" and item["agent_id"] == agent["id"]
         )
         assert skill["provenance"] == "external"
-        # Listed by its manifest's title, not only its id.
-        assert skill["title"] == "briefing"
+        # Listed by its manifest's title, not by its id.
+        assert skill["title"] == "موجز الأدلة"
         assert skill["repository"] == "Example/" + repository
         assert skill["agent_name"] == agent["name"] and skill["enabled"]
         assert skill["can_undo"] and not skill["undone"]

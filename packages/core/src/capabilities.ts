@@ -215,6 +215,12 @@ export function skillLine(skill: CapabilitySkill, locale: string): string {
   ]);
 }
 
+/** The server's own title of a tool, from the server's own keys only: a tool named like an
+ * Object member (toString, constructor) has no title unless the server gave it one. */
+export function toolTitle(titles: Record<string, string>, name: string): string | undefined {
+  return Object.hasOwn(titles, name) ? titles[name] : undefined;
+}
+
 export function serverLine(server: CapabilityServer, locale: string): string {
   const text = capabilityText(locale);
   const used = day(server.last_used_at, locale);

@@ -59,8 +59,10 @@ export type CapabilityServer = {
   credentials_configured: boolean;
   trusted_tier: EffectTier | null;
   trusted_tools: string[];
-  /** The server's own title of each trusted tool, read at the owner's review; a tool the
-   * server gave no title or description has none. Presentation only. */
+  /** The server's own title of each trusted tool, as last read for the owner (his review or
+   * a preview of the tools); a tool the server gave no title or description has none, and a
+   * server trusted before titles were kept has none until its tools are read again.
+   * Presentation only. */
   tool_titles: Record<string, string>;
   write_tools: string[];
   blocked_tools: string[];

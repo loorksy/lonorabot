@@ -191,7 +191,8 @@ for (const locale of ["ar", "en"])
     // The saved server and its tools are scripted; the routes and their bodies are real.
     const server = {
       connection_id: "scripted-server",
-      name: "X posts",
+      // A name in the other script: its line still reads in the interface's direction.
+      name: locale === "ar" ? "X posts" : "منشورات X",
       enabled: true,
       credentials_configured: true,
       trusted_tier: null,
@@ -230,6 +231,11 @@ for (const locale of ["ar", "en"])
     try {
       await page.goto("/integrations");
       const line = page.getByTestId("mcp-server-scripted-server");
+      const words = line.locator(":scope > div").first();
+      await expect(words).toContainText(server.name);
+      expect(await words.evaluate((node) => getComputedStyle(node).direction)).toBe(
+        locale === "ar" ? "rtl" : "ltr",
+      );
       await line.getByRole("button", { name: text.review, exact: true }).click();
       const preview = page.getByTestId("mcp-preview");
       // Each tool by the server's own title; a tool it gave no title keeps its name.

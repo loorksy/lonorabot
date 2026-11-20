@@ -474,7 +474,10 @@ test("a simulation connection is named a simulation in the list and on its page,
     await expect(listed).toContainText("Simulation · ");
     await expect(listed).not.toContainText("Demo");
     await page.goto(`/app/broker-account/${id}`);
-    await expect(page.getByText("Simulation with an imported snapshot")).toBeVisible();
+    // In the hero only: the symbols' loading line names the account too for a moment.
+    await expect(
+      page.locator(".acct-hero").getByText("Simulation with an imported snapshot"),
+    ).toBeVisible();
     await expect(page.getByText("Import the simulation data")).toBeVisible();
     await expect(page.getByText(/demo/i)).toHaveCount(0);
   } finally {
@@ -503,7 +506,43 @@ test("integrations name tools, skills, servers and accounts in words, never by r
       payload: { provider: "metaapi", account_id: provisioning, region: null, enabled: true },
     };
     await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [account] }));
+    // The broker has not answered for it yet: no account snapshot either.
+    await page.route(`**/api/trading/accounts/${account.id}`, (route) =>
+      route.fulfill({ status: 409, json: { code: "broker_account_undeployed" } }),
+    );
+    await page.route("**/api/market/symbols?*", (route) => route.fulfill({ json: [] }));
+    const unlinked = [];
+    await page.route(`**/api/trading/connections/${account.id}`, (route) => {
+      unlinked.push(route.request().method());
+      return route.fulfill({ json: { deleted: true } });
+    });
     const connection = randomUUID();
+    // Two more servers whose sheets never contact them: one with titles kept (one tool the
+    // server never titles), one switched off with none kept.
+    const kept = randomUUID();
+    const off = randomUUID();
+    const previews = [];
+    page.on("request", (request) => {
+      const match = /\/api\/trusted-sources\/mcp\/([^/]+)\/preview$/.exec(request.url());
+      if (match && request.method() === "POST") previews.push(match[1]);
+    });
+    // A server trusted before titles were kept: none saved, so its sheet reads the titles
+    // from the server itself. toString is a name SAFE_TOOL_NAME allows and the server gives
+    // no title: an Object member is never taken for one.
+    await page.route(`**/api/trusted-sources/mcp/${connection}/preview`, (route) =>
+      route.fulfill({
+        json: {
+          name: null,
+          tools: ["list_tags", "search_posts", "toString"],
+          writes: [],
+          blocked: [],
+          titles: { list_tags: "قائمة الوسوم", search_posts: "البحث في المنشورات" },
+          unsupported: 0,
+          digest: "a".repeat(64),
+          trusted_tier: "read",
+        },
+      }),
+    );
     await page.route("**/api/capabilities", async (route) => {
       const response = await route.fetch();
       const report = await response.json();
@@ -519,8 +558,36 @@ test("integrations name tools, skills, servers and accounts in words, never by r
               enabled: true,
               credentials_configured: false,
               trusted_tier: "read",
-              trusted_tools: ["list_tags", "search_posts"],
-              tool_titles: { search_posts: "البحث في المنشورات" },
+              trusted_tools: ["list_tags", "search_posts", "toString"],
+              tool_titles: {},
+              write_tools: [],
+              blocked_tools: [],
+              operator_declared: 0,
+              trust_source_id: null,
+              last_used_at: null,
+            },
+            {
+              connection_id: kept,
+              name: "Docs",
+              enabled: true,
+              credentials_configured: false,
+              trusted_tier: "read",
+              trusted_tools: ["search_docs", "toString"],
+              tool_titles: { search_docs: "البحث في المستندات" },
+              write_tools: [],
+              blocked_tools: [],
+              operator_declared: 0,
+              trust_source_id: null,
+              last_used_at: null,
+            },
+            {
+              connection_id: off,
+              name: "Archive",
+              enabled: false,
+              credentials_configured: false,
+              trusted_tier: "read",
+              trusted_tools: ["list_files"],
+              tool_titles: {},
               write_tools: [],
               blocked_tools: [],
               operator_declared: 0,
@@ -564,17 +631,23 @@ test("integrations name tools, skills, servers and accounts in words, never by r
     });
     await page.setViewportSize({ width: 1280, height: 860 });
     await page.goto("/app/integrations");
-    await expect(page.getByText("حساب وسيط لم تُتحقق هويته")).toBeVisible();
+    await expect(page.getByText("حساب وسيط لم يُتحقَّق من هويته")).toBeVisible();
     await expect(page.getByText(provisioning)).toHaveCount(0);
     await expect(page.getByText("موجز الصباح")).toBeVisible();
     await expect(page.getByText("morning-brief")).toHaveCount(0);
     await expect(page.getByText(connection)).toHaveCount(0);
+    // A date in the owner's language, never the browser's month/day/year.
+    await expect(page.getByText(/^GitHub · أُضيف \d{1,2} [\u0621-\u064a]+ \d{4}$/)).toBeVisible();
+    await expect(page.getByText(/\d{1,2}\/\d{1,2}\/\d{4}/)).toHaveCount(0);
     await page.getByRole("button", { name: /خادم بلا اسم/ }).click();
     const sheet = page.locator("#dialog[open]");
     await expect(sheet.getByText("البحث في المنشورات")).toBeVisible();
     await expect(sheet.getByText("search_posts")).toHaveCount(0);
-    // A tool the server gave no title keeps its name, the only true label left.
-    await expect(sheet.getByText("list_tags")).toBeVisible();
+    await expect(sheet.getByText("قائمة الوسوم")).toBeVisible();
+    await expect(sheet.getByText("list_tags")).toHaveCount(0);
+    // A tool the server gives no title keeps its name, the only true label left.
+    await expect(sheet.getByText("toString", { exact: true })).toBeVisible();
+    await expect(sheet.getByText(/native code/)).toHaveCount(0);
     await expect(
       sheet.getByText(
         "لا تُمنح خوادم MCP أي أداة مالية؛ ولا تعمل أدوات الكتابة فيها إلا إذا اعتمدت الكتابة غير المالية.",
@@ -583,9 +656,39 @@ test("integrations name tools, skills, servers and accounts in words, never by r
     await expect(sheet.getByText(/ملاحظات وتنبيهات/)).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0);
+    // (The test build replays effects as StrictMode does: count the servers, not the calls.)
+    expect([...new Set(previews)]).toEqual([connection]);
+    // With titles kept, or switched off, opening its sheet never calls the server: the kept
+    // titles show, and a tool it never titled keeps its name.
+    for (const name of ["Docs", "Archive"]) {
+      await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+      await expect(sheet).toHaveCount(1);
+      if (name === "Docs") {
+        await expect(sheet.getByText("البحث في المستندات")).toBeVisible();
+        await expect(sheet.getByText("toString", { exact: true })).toBeVisible();
+      } else await expect(sheet.getByText("list_files", { exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(sheet).toHaveCount(0);
+    }
+    expect([...new Set(previews)]).toEqual([connection]);
     await page.getByRole("button", { name: /^Telegram/ }).click();
     await expect(page.getByLabel("تصل الرسائل إلى")).toHaveValue(lonora.id);
+    await page.keyboard.press("Escape");
+    // Its page, its unlink sheet and the toast name it in words, never by the UUID.
+    await page.goto(`/app/broker-account/${account.id}`);
+    const hero = page.locator(".acct-hero");
+    await expect(hero).toContainText("حساب وسيط لم يُتحقَّق من هويته");
+    await expect(page.getByText(provisioning)).toHaveCount(0);
+    await page.getByRole("button", { name: "فصل الحساب" }).click();
+    await expect(sheet.getByText("يُفصل هذا الحساب لدى MetaApi.")).toBeVisible();
+    await sheet.getByRole("button", { name: "فصل الحساب" }).click();
+    await expect(page.getByText("فُصل الحساب", { exact: true })).toBeVisible();
+    expect(unlinked).toEqual(["DELETE"]);
+    await expect(page.getByText(provisioning)).toHaveCount(0);
   } finally {
+    // Unlinking reloads the shell's lists; a handler still reading one when the page closes is
+    // not a failure of this test.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
     fixture({ ...data, action: "cleanup" });
   }
 });
@@ -742,14 +845,15 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ pa
     await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toBeVisible();
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Next" }).click();
-    // The last slide names the two trading modes the owner has (Ask, Full), not permissions.
+    // The last slide keeps main's sentence: «every agent asks you» is untrue while a signed
+    // grant lets an agent trade inside it without asking (W-AUTH S1a adds it once they go).
     await expect(page.getByRole("heading", { name: "You decide" })).toBeVisible();
     await expect(
       page.getByText(
-        "Every agent asks you before any trade that adds risk, until you switch it to Full with one tap.",
+        "No sensitive action runs without a permission you grant, and you can stop it any moment.",
       ),
     ).toBeVisible();
-    await expect(page.getByText(/permission you grant/)).toHaveCount(0);
+    await expect(page.getByText(/Every agent asks you/)).toHaveCount(0);
     await page.getByRole("button", { name: "Start now" }).click();
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
     // The #auth layer is the reference's full-screen layer; ≥900px the card is a floating panel.
@@ -790,7 +894,7 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ pa
   }
 });
 
-test("auth intro, Arabic: the last slide names the two trading modes", async ({
+test("auth intro, Arabic: the last slide claims nothing a signed grant makes untrue", async ({
   page,
   context,
 }) => {
@@ -802,7 +906,7 @@ test("auth intro, Arabic: the last slide names the two trading modes", async ({
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByRole("heading", { name: "أنت صاحب القرار" })).toBeVisible();
   await expect(
-    page.getByText("كل وكيل يستأذنك قبل أي صفقة تزيد المخاطرة، حتى توكّله بلمسة."),
+    page.getByText("لا يُنفَّذ أي إجراء حساس دون صلاحية تمنحها، ويمكنك إيقافها في أي لحظة."),
   ).toBeVisible();
-  await expect(page.getByText(/صلاحية تمنحها/)).toHaveCount(0);
+  await expect(page.getByText(/كل وكيل يستأذنك/)).toHaveCount(0);
 });

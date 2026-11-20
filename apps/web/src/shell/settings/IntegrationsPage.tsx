@@ -1,4 +1,5 @@
 import { t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
 import type {
   CapabilityReport,
@@ -8,8 +9,9 @@ import type {
   Resource,
   TrustedSource,
 } from "@lonora/contracts";
+import { listSeparator, toolTitle } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { brokerIdentity } from "../../lib/broker-identity";
 import { userError } from "../../lib/user_error";
@@ -36,12 +38,73 @@ const levelText = (server: CapabilityServer) => {
   return parts.filter(Boolean).join(" · ") || t`No tools`;
 };
 
+/* A server's tools and their levels, each by the server's own title. A server trusted before its
+   titles were kept has none saved: on its saved list (`saved`) of a server that is on, they are
+   read once from the server itself, whose preview keeps them, so a tool shows its name only when
+   the server gives it no title (or cannot be reached). A server with titles kept is never
+   contacted when its sheet opens; «مراجعة الأدوات» reads it again. */
+function McpToolRows({
+  connectionId,
+  tools,
+  titles,
+  saved,
+  enabled,
+}: {
+  connectionId: string;
+  tools: { name: string; write: boolean }[];
+  titles: Record<string, string>;
+  saved: boolean;
+  enabled: boolean;
+}) {
+  const noneKept = saved && enabled && Object.keys(titles).length === 0;
+  const [read, setRead] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    if (!noneKept) return;
+    let live = true;
+    api
+      .post<McpTrustPreview>(`/trusted-sources/mcp/${encodeURIComponent(connectionId)}/preview`, {})
+      .then(
+        (next) => {
+          if (live) setRead(next.titles);
+        },
+        () => undefined,
+      );
+    return () => {
+      live = false;
+    };
+  }, [connectionId, noneKept]);
+  const shown = saved && read ? { ...titles, ...read } : titles;
+  return tools.map((tool) => {
+    const title = toolTitle(shown, tool.name);
+    return (
+      <div className="row" key={tool.name}>
+        <span className="row-icon">
+          <Icon name={tool.write ? "edit" : "eye"} />
+        </span>
+        <span className="body">
+          {title ? (
+            <strong>
+              <bdi>{title}</bdi>
+            </strong>
+          ) : (
+            <strong className="ltr">{tool.name}</strong>
+          )}
+        </span>
+        <span className={`oa-lv lv-${tool.write ? "write" : "read"}`}>
+          {tool.write ? t`Non-financial write` : t`Read`}
+        </span>
+      </div>
+    );
+  });
+}
+
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
    allow list (Q55). Telegram delivers to the owner's paired chat the same alerts a push carries
    (VISION 11.4); what the owner writes there reaches the chosen agent as an owner message and
    never decides a card. */
 export function IntegrationsPage() {
+  const { i18n } = useLingui();
   const data = useShellData();
   const sheets = useSheets();
   const toast = useToast();
@@ -106,25 +169,14 @@ export function IntegrationsPage() {
           </h3>
           <div className="group">
             {tools.length ? (
-              tools.map((tool) => (
-                <div className="row" key={tool.name}>
-                  <span className="row-icon">
-                    <Icon name={tool.write ? "edit" : "eye"} />
-                  </span>
-                  <span className="body">
-                    {titles[tool.name] ? (
-                      <strong>
-                        <bdi>{titles[tool.name]}</bdi>
-                      </strong>
-                    ) : (
-                      <strong className="ltr">{tool.name}</strong>
-                    )}
-                  </span>
-                  <span className={`oa-lv lv-${tool.write ? "write" : "read"}`}>
-                    {tool.write ? t`Non-financial write` : t`Read`}
-                  </span>
-                </div>
-              ))
+              <McpToolRows
+                key={server.connection_id}
+                connectionId={server.connection_id}
+                tools={tools}
+                titles={titles}
+                saved={!preview}
+                enabled={server.enabled}
+              />
             ) : (
               <p className="pad muted small">
                 {preview || server.trusted_tier ? (
@@ -140,8 +192,8 @@ export function IntegrationsPage() {
               <Trans>
                 Tools that could move money are refused:{" "}
                 {preview.blocked
-                  .map((name) => `\u2068${preview.titles[name] ?? name}\u2069`)
-                  .join("، ")}
+                  .map((name) => `\u2068${toolTitle(preview.titles, name) ?? name}\u2069`)
+                  .join(listSeparator(i18n.locale))}
               </Trans>
             </Note>
           ) : null}
@@ -474,6 +526,13 @@ export function IntegrationsPage() {
     (item) => item.kind.startsWith("github") && item.active,
   );
   const configured = (providers.value ?? []).filter((item) => item.configured).length;
+  // In the owner's language, with Latin digits in Arabic (as the conversation's day labels).
+  const addedOn = (iso: string) =>
+    new Date(iso).toLocaleDateString(i18n.locale.startsWith("ar") ? "ar-u-nu-latn" : i18n.locale, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
   const telegramAgent = telegram?.deliver_to_agent_name;
   return (
     <>
@@ -551,7 +610,7 @@ export function IntegrationsPage() {
             <span className="body">
               <strong className="ltr">{source.label ?? source.identifier}</strong>
               <small>
-                GitHub · <Trans>added {new Date(source.created_at).toLocaleDateString()}</Trans>
+                GitHub · <Trans>added {addedOn(source.created_at)}</Trans>
               </small>
             </span>
             <span className="badge">

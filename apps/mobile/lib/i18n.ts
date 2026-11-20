@@ -592,7 +592,7 @@ export const labels = {
   symbol: ["الرمز", "Symbol"],
   timeframe: ["الفاصل الزمني", "Timeframe"],
   brokerAccount: ["حساب الوسيط", "Broker account"],
-  unverifiedBrokerAccount: ["حساب وسيط غير متحقق منه", "Unverified broker account"],
+  unverifiedBrokerAccount: ["حساب وسيط لم يُتحقَّق من هويته", "Unverified broker account"],
   simulation: ["المحاكاة", "Simulation"],
   unsupported_timeframe: ["هذا الفاصل الزمني غير مدعوم.", "This timeframe is unsupported."],
   broker_candles_request_rejected: [
