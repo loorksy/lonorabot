@@ -69,12 +69,24 @@ export function RowAvatar({
 }
 
 /** Who said it, in the interface's direction, then the words in their own direction, cut at
- * their own end so the first words always show. */
+ * their own end so the first words always show. Each signed number `plainLine` isolated is one
+ * atomic box (`.num`): the cut hides a figure whole, never its sign or its first digits. */
 export function SaidLine({ who, text }: { who?: string; text: string }) {
   return (
     <>
       {who && <span className="who">{who}</span>}
-      <span dir={textDirection(text)}>{text}</span>
+      <span dir={textDirection(text)}>
+        {text.split(/\u2066([^\u2069]*)\u2069/).map((part, index) =>
+          index % 2 ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the parts of one fixed text
+            <bdi key={index} dir="ltr" className="num">
+              {part}
+            </bdi>
+          ) : (
+            part
+          ),
+        )}
+      </span>
     </>
   );
 }

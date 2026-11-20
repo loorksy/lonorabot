@@ -135,8 +135,9 @@ test("Arabic: a preview keeps its words' direction and first words; the speaker 
     content: "**الربح** اليوم (+$239) و −1.5%",
   });
   await page.goto("/");
-  // After «أنت:» the Latin words read left-to-right and are cut at their own end.
-  const words = row(page, key(gamma)).getByText(long, { exact: true });
+  // After «أنت:» the Latin words read left-to-right and are cut at their own end, between words,
+  // by the core before they are drawn: the line fits, so React Native's own cut never comes.
+  const words = row(page, key(gamma)).getByText(/^Watch EURUSD .*…$/);
   await expect(words).toBeVisible();
   const seen = await words.evaluate((el) => {
     const node = el.firstChild;
@@ -151,7 +152,8 @@ test("Arabic: a preview keeps its words' direction and first words; the speaker 
       first: first.left >= box.left - 0.5 && first.right <= box.right + 0.5,
     };
   });
-  expect(seen).toEqual({ direction: "ltr", cut: true, first: true });
+  expect(seen).toEqual({ direction: "ltr", cut: false, first: true });
+  expect(long.startsWith((await words.textContent()).slice(0, -1))).toBe(true);
   const you = row(page, key(gamma)).getByText("أنت:", { exact: true });
   expect((await you.boundingBox()).x).toBeGreaterThan((await words.boundingBox()).x);
   // A group's line: the speaker on the reading side, the signed numbers in order.
@@ -162,6 +164,19 @@ test("Arabic: a preview keeps its words' direction and first words; the speaker 
   await expect(said).toBeVisible();
   const speaker = group.getByText(`${alpha.name}:`, { exact: true });
   expect((await speaker.boundingBox()).x).toBeGreaterThan((await said.boundingBox()).x);
+  // Narrower, the line is cut between words: a signed number shows whole or not at all, never
+  // «….5%» for «−1.5%», and the box never cuts it again (17, 0.4).
+  const full = ["الربح", "اليوم", "(+$239)", "و", "−1.5%"];
+  for (const width of [300, 320, 340, 360]) {
+    await page.setViewportSize({ width, height: 844 });
+    const line = group.getByText(/^الربح/);
+    await expect(line).toBeVisible();
+    await expect
+      .poll(() => line.evaluate((el) => el.scrollWidth <= el.clientWidth), { message: `${width}` })
+      .toBe(true);
+    const shown = (await line.textContent()).replace(/[\u2066\u2069]/g, "").replace(/…$/, "");
+    for (const word of shown.split(" ")) expect(full, `${width}: ${shown}`).toContain(word);
+  }
 });
 
 test("pinning a fourth chat is refused locally and when the server answers 409; pins lead in pin order", async ({

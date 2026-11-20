@@ -120,6 +120,14 @@ test("an urgent attention item always shows on its agent's row; an informational
   const shown = attentionBanner(item({}), { rows: [row("a"), lonora], openedAt: opened, labels });
   assert.equal(shown?.row.id, "a");
   assert.equal(shown?.text, "Approve buy 0.10 XAUUSD");
+  // A long summary is cut between words before its numbers are isolated: «+3.1%» goes whole,
+  // never «+3…».
+  const long = attentionBanner(item({ parameters: { summary: `${"x".repeat(117)} +3.1% more` } }), {
+    rows: [row("a")],
+    openedAt: opened,
+    labels,
+  });
+  assert.equal(long?.text, `${"x".repeat(117)}…`);
   assert.equal(
     attentionBanner(item({ importance: "info" }), { rows: [row("a")], openedAt: opened, labels }),
     null,

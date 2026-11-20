@@ -194,7 +194,7 @@ export {
   replyLanguages,
 } from "./owner-profile";
 export { peerOutcome } from "./peer-outcome";
-export { plainLine, SIGNED_NUMBER, textDirection } from "./plain-line";
+export { fittedLine, plainLine, SIGNED_NUMBER, textDirection } from "./plain-line";
 export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,

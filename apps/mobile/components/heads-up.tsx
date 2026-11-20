@@ -17,6 +17,7 @@ import { useSession } from "../lib/session";
 import { useShellData } from "../lib/shell-data";
 import { textDirection } from "../lib/text-direction";
 import { useTheme } from "../lib/theme";
+import { FittedText } from "./fitted-text";
 import { useOpenChat } from "./shell/chat-list";
 import { RowAvatar } from "./shell/kit";
 
@@ -258,18 +259,16 @@ export function HeadsUp() {
                   {banner.who}
                 </Text>
               ) : null}
-              <Text
+              <FittedText
+                text={banner.text}
                 numberOfLines={2}
                 style={{
                   ...line,
-                  flexShrink: 1,
                   writingDirection: words,
                   textAlign: words === "rtl" ? "right" : "left",
                 }}
                 testID="heads-up-words"
-              >
-                {banner.text}
-              </Text>
+              />
             </View>
           </View>
         </Pressable>

@@ -19,7 +19,6 @@ import {
 /** `who`: the speaker in a group, shown apart from the words (as Web's Banner.who). */
 export type Banner = { row: ChatRow; text: string; who?: string };
 const MAX = 120;
-const cut = (text: string) => (text.length > MAX ? `${text.slice(0, MAX)}…` : text);
 
 /**
  * An agent's answer in another chat: none for the open chat, a muted or archived chat, the
@@ -78,6 +77,7 @@ export function attentionBanner(
     (isBrokerHealth(item.code)
       ? context.rows.find((candidate) => candidate.agent?.role === "personal")
       : undefined);
-  const text = parameters.summary || context.labels[item.code];
-  return row && text ? { row, text: cut(text) } : null;
+  // One plain line cut between words, before its numbers are isolated, as an answer's.
+  const text = plainLine(parameters.summary || context.labels[item.code] || "", MAX);
+  return row && text ? { row, text } : null;
 }

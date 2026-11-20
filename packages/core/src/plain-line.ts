@@ -40,7 +40,88 @@ export function textDirection(text: string): "rtl" | "ltr" | undefined {
  * figure is never shown in part (a single word longer than `max` is cut where it stands).
  */
 export function plainLine(text: string, max = Number.POSITIVE_INFINITY): string {
-  const line = String(text ?? "")
+  const line = plainWords(text);
+  let cut = line;
+  if (line.length > max) {
+    const space = line.lastIndexOf(" ", max);
+    cut = `${line.slice(0, space > 0 ? space : max).trimEnd()}…`;
+  }
+  return isolateNumbers(cut);
+}
+
+const isolateNumbers = (line: string) => line.replace(SIGNED_NUMBER, "$1\u2066$2\u2069");
+
+// An upper bound of each character's advance, in em, in the apps' system fonts (measured at
+// 12 to 15 px in the test browser, where wide glyphs are widest): the wide Latin letters and
+// signs, the other capitals, the narrow marks, the widest Arabic letters (seen, sheen, sad, dad)
+// and the other Arabic letters; Arabic vowel marks take no room. Anything else counts as wide.
+const WIDE = /[WMmw%@]/;
+const CAPITAL = /[A-Z]/;
+const NARROW = /[ijlI.,:;!'|()[\]frt]/;
+const LATIN = /[\x21-\x7e]/;
+const SEEN = /[\u0633-\u0636]/;
+const ARABIC = /[\u0600-\u06ff\ufb50-\ufdff\ufe70-\ufeff]/;
+const MARK = /[\u064b-\u065f\u0670\u06d6-\u06ed]/;
+
+function advance(char: string): number {
+  if (char === " ") return 0.3;
+  if (WIDE.test(char)) return 1;
+  if (CAPITAL.test(char)) return 0.78;
+  if (NARROW.test(char)) return 0.4;
+  if (LATIN.test(char)) return 0.66;
+  if (MARK.test(char)) return 0;
+  if (SEEN.test(char)) return 0.96;
+  if (ARABIC.test(char)) return 0.55;
+  return 1;
+}
+
+/** A text's width in px at `fontSize` by the bound above: never narrower than it is drawn. */
+export function textWidth(text: string, fontSize: number): number {
+  let em = 0;
+  for (const char of String(text ?? "").replace(CONTROLS, "")) em += advance(char);
+  return em * fontSize;
+}
+
+/**
+ * `plainLine` cut to what `lines` lines of `width` px hold at `fontSize` px, wrapped word by
+ * word as a line is drawn, with «…» when words are left out. For a client whose own line
+ * limit cuts where the box ends (React Native's numberOfLines), which could fall inside a
+ * signed number: this line always fits, so that cut never comes, and a figure is shown whole
+ * or not at all. A single word longer than a line is cut where it stands.
+ */
+export function fittedLine(
+  text: string,
+  { width, fontSize, lines = 1 }: { width: number; fontSize: number; lines?: number },
+): string {
+  const words = plainWords(text).split(" ").filter(Boolean);
+  const fits = (line: string) => textWidth(line, fontSize) <= width;
+  const rows = [""];
+  for (const word of words) {
+    const last = rows.length - 1;
+    if (fits(rows[last] ? `${rows[last]} ${word}` : word)) {
+      rows[last] = rows[last] ? `${rows[last]} ${word}` : word;
+    } else if (rows[last] && rows.length < lines && fits(word)) {
+      rows.push(word);
+    } else {
+      // Words are left out: the last line keeps the words that fit beside «…».
+      const kept = rows[last].split(" ").filter(Boolean);
+      while (kept.length && !fits(`${kept.join(" ")}…`)) kept.pop();
+      let line = kept.join(" ");
+      if (!line && last === 0)
+        for (const char of word) {
+          if (!fits(`${line}${char}…`)) break;
+          line += char;
+        }
+      rows[last] = line;
+      return isolateNumbers(`${rows.filter(Boolean).join(" ")}…`);
+    }
+  }
+  return isolateNumbers(rows.join(" "));
+}
+
+/** Markdown as plain words on one line: no marks, a table's pipes as « · ». */
+function plainWords(text: string): string {
+  return String(text ?? "")
     .replace(CONTROLS, "")
     .replace(/```[\s\S]*?(```|$)/g, " ")
     .replace(/`([^`\n]+)`/g, "$1")
@@ -53,10 +134,4 @@ export function plainLine(text: string, max = Number.POSITIVE_INFINITY): string 
     .replace(/^[ \t]*(#{1,3}[ \t]+|>[ \t]?|[-*•][ \t]+)/gm, "")
     .replace(/\s+/g, " ")
     .trim();
-  let cut = line;
-  if (line.length > max) {
-    const space = line.lastIndexOf(" ", max);
-    cut = `${line.slice(0, space > 0 ? space : max).trimEnd()}…`;
-  }
-  return cut.replace(SIGNED_NUMBER, "$1\u2066$2\u2069");
 }

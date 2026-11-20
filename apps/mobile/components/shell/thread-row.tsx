@@ -18,6 +18,7 @@ import type { OutgoingIntent } from "../../lib/outgoing-messages";
 import { useSession } from "../../lib/session";
 import { textDirection } from "../../lib/text-direction";
 import { radius, useTheme } from "../../lib/theme";
+import { FittedText } from "../fitted-text";
 import { Icon, type IconName } from "./icon";
 import { RowAvatar, useAgentRole } from "./kit";
 
@@ -53,7 +54,8 @@ function Preview({
     textAlign: (rtl ? "right" : "left") as "right" | "left",
   };
   // Who said it keeps the interface's side; the words read in their own direction and are cut
-  // at their own end, so the first words always show (as Web).
+  // at their own end, so the first words always show (as Web), and between words, so a signed
+  // number shows whole or not at all.
   const said = (who: string | undefined, text: string) => {
     const direction = textDirection(text, rtl ? "rtl" : "ltr");
     return (
@@ -63,16 +65,14 @@ function Preview({
             {who}
           </Text>
         ) : null}
-        <Text
-          numberOfLines={1}
+        <FittedText
+          text={text}
           style={{
             ...style,
             writingDirection: direction,
             textAlign: direction === "rtl" ? "right" : "left",
           }}
-        >
-          {text}
-        </Text>
+        />
       </>
     );
   };

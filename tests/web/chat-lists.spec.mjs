@@ -97,17 +97,26 @@ test("rows show the server's state: previews, ticks, unread counts and the badge
     agent: alpha.id,
     content: "**الربح** اليوم (+$239) و −1.5%",
   });
-  const said = "الربح اليوم (\u2066+$239\u2069) و \u2066−1.5%\u2069";
+  const said = "الربح اليوم (+$239) و −1.5%";
   const x = async (locator) => (await locator.boundingBox()).x;
+  // Each signed number is one box (inline-block): where the line is cut, the ellipsis hides a
+  // figure whole and never shows «….5%» for «−1.5%» (17, 0.4).
+  const whole = async (line) => {
+    await expect(line.locator('bdi.num[dir="ltr"]')).toHaveText(["+$239", "−1.5%"]);
+    for (const number of await line.locator("bdi.num").all())
+      expect(await number.evaluate((node) => getComputedStyle(node).display)).toBe("inline-block");
+  };
   const group = desktopRow(page, `group:${fixture.group.id}`);
   await expect(group.locator(".pv > span[dir]")).toHaveText(said);
   await expect(group.locator(".pv > span[dir]")).toHaveAttribute("dir", "rtl");
+  await whole(group.locator(".pv > span[dir]"));
   await expect(group.locator(".pv > .who")).toHaveText(`${alpha.name}:`);
   expect(await x(group.locator(".pv > .who"))).toBeLessThan(
     await x(group.locator(".pv > span[dir]")),
   );
   const banner = page.locator("#headsup small");
   await expect(banner.locator("span[dir]")).toHaveText(said);
+  await whole(banner.locator("span[dir]"));
   await expect(banner.locator(".who")).toHaveText(`${alpha.name}:`);
   expect(await x(banner.locator(".who"))).toBeLessThan(await x(banner.locator("span[dir]")));
 });
