@@ -88,6 +88,23 @@ broker, and returns the owner's rejection until the owner writes again in that
 conversation. A result that never reached the broker, or a rejection the owner has spoken
 after, asks again.
 
+## A changed ticket is never overwritten
+
+One stale-target check in the executor (`final_admission`, under the account send lock)
+covers every close or modify an agent sends: in Full and in Ask, with a card, under a
+grant or with neither. At send the broker's current ticket must be exactly as the agent
+read it (`material_state`: the ticket without its P&L and operation tag), compared with
+two records of that read: the ticket the trade tool captured before sending
+(`expected_target`, from `management_snapshot`), and, for a request an approved Trade
+Approval of the same Run covers, the ticket that card captured when it was raised
+(`approved_targets`). A ticket that changed since (the owner moved a stop or closed part
+of it), one the broker no longer shows, or no record of what was read, refuses the request
+with `broker_state_changed`, and nothing is sent: an owner's intervention is never
+overwritten, not even with an approved card. The trade tool makes the same comparison for
+an approved card before the request is reserved, with the same code. A paused agent's exit
+is checked the same way and goes through on an unchanged ticket (4.7). The owner's own
+orders from the Trading page carry no read of the ticket and are not checked.
+
 ## Owner text for boundary codes
 
 The shared financial-boundary table (`packages/core/src/financial-boundary.ts`) holds the
@@ -102,9 +119,12 @@ boundary's codes in English and Arabic. Web `userError`, Mobile
 - `tests/web/trading-readiness.test.ts` (tsx): every state's line in both languages and
   label key parity.
 - `tests/check_trading_mode.py`: in Ask, new risk is sent only as the exact request of an
-  approved card of this Run. `tests/check_trade_approvals.py`: one card per exact request,
-  reused while it waits, after approval and right after a refusal, and a new one after the
-  owner writes again.
+  approved card of this Run. The stale-target check at the door: an unread or changed
+  ticket is not sent in Ask, in Full, under an approved card (against the card's own
+  capture) and on a grant's path; a paused agent's exit on an unchanged ticket is sent,
+  and so is the owner's own Trading-page change. `tests/check_trade_approvals.py`: one
+  card per exact request, reused while it waits, after approval and right after a refusal,
+  and a new one after the owner writes again.
 - Playwright `tests/web/safety-truth.spec.mjs`: a close retried after a simulated timeout
   and a double-clicked close each produce exactly one journal row and one operation id;
   the pill and sheet. `tests/mobile/safety-pill.spec.mjs`: the

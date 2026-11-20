@@ -21,7 +21,7 @@ from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.runs import require_lease
 from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
-from lonora_db.trade_approvals import require_approved_target_current
+from lonora_db.trade_approvals import approved_targets
 from lonora_db.trading_journal import anchor_operation, persist_result, reserve_operation
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -372,41 +372,20 @@ class ExecutionService:
                 if lease:
                     await require_lease(session, lease, lock=True)
                     await require_goal_lineage(session, lease, owner_id, reducing=reducing)
-                    target = (
-                        next(
-                            (
-                                position
-                                for position in snapshot.positions
-                                if position.id == request.position_id
-                            ),
-                            None,
-                        )
-                        if request.position_id
-                        else next(
-                            (order for order in snapshot.orders if order.id == request.order_id),
-                            None,
-                        )
-                    )
-                    await require_approved_target_current(
-                        session,
-                        owner_id,
-                        lease.run_id,
-                        request,
-                        material_state(target) if target else None,
-                    )
-                    if (
-                        not account_authority_id
-                        and (request.position_id or request.order_id)
-                        and (
-                            expected_target is None
-                            or target is None
-                            or material_state(target) != expected_target
-                        )
-                    ):
-                        # The ticket the agent read changed before the send (an owner's
-                        # intervention), or nothing records what it read: never overwrite
-                        # it, with or without a card (6.6, fail closed).
-                        raise LonoraError("broker_state_changed", 409)
+                    if request.position_id or request.order_id:
+                        # The one stale-target check (6.6), for every close or modify an
+                        # agent sends, in either mode, with a card, a grant or neither: the
+                        # ticket is exactly as the agent read it, and as each approved card
+                        # of this run that covers the request captured it. A ticket that
+                        # changed since (an owner's intervention), or no record of what was
+                        # read, is never overwritten: nothing is sent (fail closed).
+                        target = management_target(snapshot, request)
+                        reads = [
+                            expected_target,
+                            *await approved_targets(session, owner_id, lease.run_id, request),
+                        ]
+                        if target is None or any(read != material_state(target) for read in reads):
+                            raise LonoraError("broker_state_changed", 409)
                     if account_authority_id:
                         leased_run = await require_lease(session, lease)
                         await require_account_execution(

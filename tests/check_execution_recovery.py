@@ -735,7 +735,7 @@ async def main() -> None:
         assert len(results) == len(gold)
         assert results[0]["operation_id"] == close_operation(call, gold[0]), results[0]
         assert results[0]["status"] == "failed" and results[0]["code"] in {
-            "trade_approval_broker_state_changed",
+            "broker_state_changed",
             "position_not_found",
         }, results[0]
         assert all(item["status"] == "confirmed" for item in results[1:]), results

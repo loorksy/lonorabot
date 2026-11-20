@@ -662,7 +662,8 @@ async def approved_execution(
             observed = await management_snapshot(context, [request])
             for key, value in observed.items():
                 if key in expected_snapshot and expected_snapshot[key] != value:
-                    raise LonoraError("trade_approval_broker_state_changed", 409)
+                    # The door repeats this at send against the card's capture (6.6).
+                    raise LonoraError("broker_state_changed", 409)
 
         try:
             result = await context.trading.execute(

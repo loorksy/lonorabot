@@ -194,7 +194,7 @@ async def main() -> None:
         )
         result = await registry.execute(proposal, manager)
         assert result["results"][0]["status"] == "failed"
-        assert result["results"][0]["code"] == "trade_approval_broker_state_changed"
+        assert result["results"][0]["code"] == "broker_state_changed"
         broker = await service.brokers.get(f.owner, connection_id)
         assert (await broker.positions())[0].stop_loss == Decimal(97)
         fourth = await reconcile_broker_account(

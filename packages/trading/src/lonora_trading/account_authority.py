@@ -201,7 +201,8 @@ async def require_account_execution(
     target = management_target(snapshot, request)
     if request.position_id or request.order_id:
         if target is None or expected_target is None or material_state(target) != expected_target:
-            raise LonoraError("account_authority_broker_state_changed", 409)
+            # The door's own check says the same at send (6.6); one code for both.
+            raise LonoraError("broker_state_changed", 409)
         if not envelope.allow_manual_positions and not await lonora_opened(
             session, owner_id, request, target
         ):

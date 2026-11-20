@@ -1,5 +1,5 @@
-"""The trading mode at the real execution door on PostgreSQL (mandate 4.1, 4.2, 3.3.4, 6.2-6.4,
-6.6, 6.7).
+"""The trading mode at the real execution door on PostgreSQL (mandate 4.1, 4.2, 3.3.4, 4.7,
+6.2-6.4, 6.6, 6.7).
 
 Scripted broker only; no live orders. Run on a fresh disposable *_test database.
 """
@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from check_trading import ScriptedBroker, ScriptedManager, database
@@ -32,6 +32,7 @@ from lonora_db.schema import (
 )
 from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.trading_mode import set_trading_mode, trading_mode
+from lonora_trading import agent_permission
 from lonora_trading.execution import ExecutionService
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.manual_activity import material_state
@@ -171,6 +172,17 @@ async def checks() -> None:
 
     def captured(position_id: str) -> dict[str, Any]:
         return material_state(next(p for p in broker.scripted_positions if p.id == position_id))
+
+    def owner_moves_stop(position_id: str, stop_loss: str) -> Callable[[], Awaitable[None]]:
+        """The owner moves a ticket's stop in the broker terminal."""
+
+        async def move() -> None:
+            index = next(i for i, p in enumerate(broker.scripted_positions) if p.id == position_id)
+            broker.scripted_positions[index] = broker.scripted_positions[index].model_copy(
+                update={"stop_loss": Decimal(stop_loss)}
+            )
+
+        return move
 
     # Without the ticket the agent read, a close is not sent: nothing proves it is still
     # the ticket the agent decided on (6.6, fail closed).
@@ -339,6 +351,13 @@ async def checks() -> None:
             **fields,
         )
 
+    # The owner's own change from the Trading page carries no read of the ticket and is no
+    # agent's: the stale-target check (6.6) never stands in its way.
+    moved = await service.execute(
+        owner_id, on_owner_order(action="modify_position", stop_loss=Decimal("8.5"))
+    )
+    assert moved.status == "confirmed" and broker.sent == sent + 2, moved
+
     async def refused_on_owner_order(mode: str, requests: list[TradeRequest]) -> None:
         sent = broker.sent
         for request in requests:
@@ -449,6 +468,84 @@ async def checks() -> None:
     result = await service.execute(owner_id, asked, lease)
     assert result.status == "confirmed" and broker.sent == sent + 1, result
 
+    # 6.6 with a card: an approved change to a ticket is sent only while the ticket is as
+    # the card captured it when it was raised, whatever read the caller brings to the send.
+    def approved_card(request: TradeRequest) -> TradeApprovalRow:
+        return TradeApprovalRow(
+            id=str(uuid4()),
+            owner_id=owner_id,
+            run_id=lease.run_id,
+            thread_id=run_thread,
+            agent_id=agent_id,
+            call_id="target-" + uuid4().hex,
+            broker_snapshot={
+                f"{account_id}:position:{request.position_id}": captured(str(request.position_id))
+            },
+            requests=[request.model_dump(mode="json")],
+            status="approved",
+            results=[],
+        )
+
+    # A stop moved away from the market adds risk: in Ask it is sent only with a card.
+    widen = tighten("mode-position", "8")
+    async with db.sessions() as session, session.begin():
+        session.add(approved_card(widen))
+    # The owner moves the stop after approving the card.
+    await owner_moves_stop("mode-position", "8.8")()
+    sent = broker.sent
+    stale_card = await service.execute(
+        owner_id, widen, lease, expected_target=captured("mode-position")
+    )
+    assert stale_card.status == "failed" and stale_card.code == "broker_state_changed", stale_card
+    assert stale_card.details.get("send_state") == "not_sent" and broker.sent == sent
+    # A card raised on the ticket as it is now is sent.
+    rewiden = tighten("mode-position", "8")
+    async with db.sessions() as session, session.begin():
+        session.add(approved_card(rewiden))
+    result = await service.execute(
+        owner_id, rewiden, lease, expected_target=captured("mode-position")
+    )
+    assert result.status == "confirmed" and broker.sent == sent + 1, result
+
+    # 4.7: a paused agent still sends a risk-reducing close. The stale-target check holds
+    # while it is paused, and lets the exit through on the ticket as the agent read it.
+    async with db.sessions() as session, session.begin():
+        pausing = await session.get(AgentRow, agent_id)
+        assert pausing is not None
+        pausing.paused = True
+
+    def exit_own_position() -> TradeRequest:
+        return TradeRequest(
+            account_id=account_id,
+            operation_id="mode-" + uuid4().hex,
+            action="close_position",
+            symbol="FIXTURE",
+            position_id="mode-position",
+            volume=Decimal("0.1"),
+        )
+
+    sent = broker.sent
+    # The pause is in force: new risk is refused (4.7.1).
+    try:
+        await service.execute(owner_id, buy(), lease)
+        raise AssertionError("A paused agent sent new risk")
+    except LonoraError as error:
+        assert error.code == "agent_paused", error.code
+    assert broker.sent == sent
+    read = captured("mode-position")
+    await owner_moves_stop("mode-position", "8.6")()
+    stale_exit = await service.execute(owner_id, exit_own_position(), lease, expected_target=read)
+    assert stale_exit.status == "failed" and stale_exit.code == "broker_state_changed", stale_exit
+    assert stale_exit.details.get("send_state") == "not_sent" and broker.sent == sent
+    paused_exit = await service.execute(
+        owner_id, exit_own_position(), lease, expected_target=captured("mode-position")
+    )
+    assert paused_exit.status == "confirmed" and broker.sent == sent + 1, paused_exit
+    async with db.sessions() as session, session.begin():
+        resumed = await session.get(AgentRow, agent_id)
+        assert resumed is not None
+        resumed.paused = False
+
     async with db.sessions() as session, session.begin():
         assert await set_trading_mode(session, owner_id, agent_id, "full", by="owner_tap") == (
             "full"
@@ -507,6 +604,42 @@ async def checks() -> None:
     broker.before = None
     assert changed.status == "failed" and changed.code == "broker_state_changed", changed
     assert changed.details.get("send_state") == "not_sent" and broker.sent == sent
+
+    # 6.6 on a signed grant's path, until grants are deleted: the door's own check refuses
+    # an unread or changed ticket there too, whatever the grant's own checks say (here
+    # stood in for, with the ladder's level, so that only the door's check decides).
+    with (
+        patch.object(
+            agent_permission, "effective_permission", AsyncMock(return_value="autonomous")
+        ),
+        patch("lonora_trading.execution.require_account_execution", AsyncMock()),
+    ):
+        blind = await service.execute(
+            owner_id, tighten("full-position", "9.6"), lease, account_authority_id="grant-fixture"
+        )
+        assert blind.status == "failed" and blind.code == "broker_state_changed", blind
+        read = captured("full-position")
+        broker.before = owner_moves_stop("full-position", "9.2")
+        changed = await service.execute(
+            owner_id,
+            tighten("full-position", "9.7"),
+            lease,
+            account_authority_id="grant-fixture",
+            expected_target=read,
+        )
+        broker.before = None
+        assert changed.status == "failed" and changed.code == "broker_state_changed", changed
+        assert changed.details.get("send_state") == "not_sent" and broker.sent == sent
+        # Unchanged since the agent read it, the grant's request is sent.
+        result = await service.execute(
+            owner_id,
+            tighten("full-position", "9.7"),
+            lease,
+            account_authority_id="grant-fixture",
+            expected_target=captured("full-position"),
+        )
+        assert result.status == "confirmed" and broker.sent == sent + 1, result
+    sent = broker.sent
 
     # 6.2 in Full: a broker rejection keeps the server's send attribution in the journal.
     async def broker_reject(
