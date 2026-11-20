@@ -117,6 +117,16 @@ test("native timeline opens latest, preserves history reading and keeps approval
     approval.status = "rejected";
     return route.fulfill({ json: approval });
   });
+  // The owner's live stream, scripted: a new reply reaches the open chat as its event.
+  const sockets = new Set();
+  let cursor = 0;
+  await page.routeWebSocket("**/api/ws/events", (socket) => {
+    socket.onMessage(() => {
+      sockets.add(socket);
+      socket.send(JSON.stringify({ type: "ready", cursor }));
+    });
+    socket.onClose(() => sockets.delete(socket));
+  });
   try {
     await page.goto(`/thread?id=${data.thread.id}`);
     const transcript = page.getByTestId("conversation-transcript");
@@ -133,19 +143,37 @@ test("native timeline opens latest, preserves history reading and keeps approval
     await expect(
       page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
     ).toBeVisible();
-    messages.push({
+    const reply = {
       ...messages[99],
       id: "message-101",
       seq: 101,
       content: "رد جديد بعد قرار المالك",
       created_at: "2026-10-15T12:02:00Z",
-    });
-    await page.waitForTimeout(2800);
+    };
+    messages.push(reply);
+    await expect.poll(() => sockets.size).toBeGreaterThan(0);
+    cursor += 1;
+    for (const socket of sockets)
+      socket.send(
+        JSON.stringify({
+          cursor,
+          kind: "message.created",
+          thread_id: data.thread.id,
+          agent_id: data.agent.id,
+          run_id: null,
+          payload: reply,
+          created_at: reply.created_at,
+        }),
+      );
+    // The reply joins the transcript while the owner keeps reading history.
+    const latest = page.getByText(reply.content, { exact: true });
+    await expect(latest).toBeAttached();
+    await expect(latest).not.toBeInViewport();
     await expect(
       page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }).click();
-    await expect(page.getByText("رد جديد بعد قرار المالك", { exact: true })).toBeInViewport();
+    await expect(latest).toBeInViewport();
     await expect(
       page.getByRole("button", { name: "انتقل إلى أحدث رسالة", exact: true }),
     ).toHaveCount(0);
