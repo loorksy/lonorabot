@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 /* The settings root with
    the version line, notifications with quiet hours to the minute and per-agent rules, the app
@@ -34,907 +34,911 @@ const csrf = (data) => ({
 test("settings root, quiet hours to the minute and one agent's delivery rules", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init", empty: true });
   const headers = csrf(data);
   await signIn(context, data);
   const before = await (await context.request.get("/api/voice/incoming/policy")).json();
-  try {
-    await page.setViewportSize({ width: 1280, height: 860 });
-    const errors = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto("/app/settings");
-    await expect(page.getByText(/^Lonora · version \d/)).toBeVisible();
-    await expect(page.getByText("About Lonora")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^Sign out/ })).toBeVisible();
-    // The owner's row says what it holds: what Lonora knows about the owner.
-    await expect(page.getByText("Profile · What I know about you")).toBeVisible();
-    // The preferences row keeps the group's 14px inline padding (the reference's `.group > .row`).
-    expect(
-      await page
-        .locator(".group > .prefs-row")
-        .first()
-        .evaluate((node) => getComputedStyle(node).paddingInlineStart),
-    ).toBe("14px");
-    // The language menu opens at its pill's width, aligned with it (the reference's openPop match).
-    const pill = page.locator(".lang-select");
-    await pill.click();
-    const langMenu = page.locator(".pop.lang-pop");
-    await expect(langMenu).toBeVisible();
-    const pillBox = await pill.boundingBox();
-    // Polled: the menu's pop-in scales it for a moment.
-    await expect
-      .poll(async () => {
-        const box = await langMenu.boundingBox();
-        return Math.abs(box.width - pillBox.width) < 1 && Math.abs(box.x - pillBox.x) < 1;
-      })
-      .toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(langMenu).toHaveCount(0);
-    await page.getByRole("button", { name: /^Notifications and contact/ }).click();
-    await expect(page.getByRole("radio", { name: /An alert on your device/ })).toBeVisible();
-    // «سجل النشاط فقط» is gone with the activity log (P5).
-    await expect(page.getByRole("radio", { name: /Activity log only/ })).toHaveCount(0);
-    // No browser notification permission until a push channel exists (Q10).
-    await expect(page.getByText(/Browser notifications/)).toHaveCount(0);
-    // «إشعاري بالفرص المؤكدة» (the attention policy) lives here.
-    const opportunities = page.getByRole("switch", {
-      name: "Notify me about confirmed opportunities",
-    });
-    const wasOn = (await opportunities.getAttribute("aria-checked")) === "true";
-    await opportunities.click();
-    await expect
-      .poll(
-        async () =>
-          (await (await context.request.get("/api/attention/policy")).json()).opportunities,
-      )
-      .toBe(!wasOn);
-    await opportunities.click();
-    await expect
-      .poll(
-        async () =>
-          (await (await context.request.get("/api/attention/policy")).json()).opportunities,
-      )
-      .toBe(wasOn);
-    const mute = page.getByRole("switch", { name: "Mute notifications at night" });
-    if ((await mute.getAttribute("aria-checked")) !== "true") await mute.click();
-    await expect(page.getByText("Urgent always arrives")).toBeVisible();
-    // Quiet hours hold neither an approval request nor an unconfirmed operation (push.py).
-    await expect(page.getByText("An approval request or an unconfirmed operation")).toBeVisible();
-    await page.getByLabel("From").fill("22:30");
-    await expect
-      .poll(
-        async () =>
-          (await (await context.request.get("/api/voice/incoming/policy")).json())
-            .quiet_start_minute,
-      )
-      .toBe(22 * 60 + 30);
-    const agent = (await (await context.request.get("/api/agents")).json())[0];
-    if (agent) {
-      await page.goto(`/app/communication/${agent.id}`);
-      await page.getByRole("switch", { name: "Agent calls" }).click();
-      await page.getByLabel("Daily notification limit").fill("5");
-      await page.getByRole("button", { name: "Save", exact: true }).click();
-      await expect
-        .poll(async () =>
-          (await context.request.get(`/api/agents/${agent.id}/notifications`)).json(),
-        )
-        .toMatchObject({ calls: false, daily_limit: 5 });
-      await context.request.put(`/api/agents/${agent.id}/notifications`, {
-        headers,
-        data: { calls: true, daily_limit: null },
-      });
-    }
-    expect(errors).toEqual([]);
-  } finally {
+  cleanup(async () => {
     const { enabled: _enabled, ...policy } = before;
     await context.request.put("/api/owner/preferences", { headers, data: { reach_me: policy } });
     fixture({ ...data, action: "cleanup" });
+  });
+
+  await page.setViewportSize({ width: 1280, height: 860 });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/app/settings");
+  await expect(page.getByText(/^Lonora · version \d/)).toBeVisible();
+  await expect(page.getByText("About Lonora")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Sign out/ })).toBeVisible();
+  // The owner's row says what it holds: what Lonora knows about the owner.
+  await expect(page.getByText("Profile · What I know about you")).toBeVisible();
+  // The preferences row keeps the group's 14px inline padding (the reference's `.group > .row`).
+  expect(
+    await page
+      .locator(".group > .prefs-row")
+      .first()
+      .evaluate((node) => getComputedStyle(node).paddingInlineStart),
+  ).toBe("14px");
+  // The language menu opens at its pill's width, aligned with it (the reference's openPop match).
+  const pill = page.locator(".lang-select");
+  await pill.click();
+  const langMenu = page.locator(".pop.lang-pop");
+  await expect(langMenu).toBeVisible();
+  const pillBox = await pill.boundingBox();
+  // Polled: the menu's pop-in scales it for a moment.
+  await expect
+    .poll(async () => {
+      const box = await langMenu.boundingBox();
+      return Math.abs(box.width - pillBox.width) < 1 && Math.abs(box.x - pillBox.x) < 1;
+    })
+    .toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(langMenu).toHaveCount(0);
+  await page.getByRole("button", { name: /^Notifications and contact/ }).click();
+  await expect(page.getByRole("radio", { name: /An alert on your device/ })).toBeVisible();
+  // «سجل النشاط فقط» is gone with the activity log (P5).
+  await expect(page.getByRole("radio", { name: /Activity log only/ })).toHaveCount(0);
+  // No browser notification permission until a push channel exists (Q10).
+  await expect(page.getByText(/Browser notifications/)).toHaveCount(0);
+  // «إشعاري بالفرص المؤكدة» (the attention policy) lives here.
+  const opportunities = page.getByRole("switch", {
+    name: "Notify me about confirmed opportunities",
+  });
+  const wasOn = (await opportunities.getAttribute("aria-checked")) === "true";
+  await opportunities.click();
+  await expect
+    .poll(
+      async () => (await (await context.request.get("/api/attention/policy")).json()).opportunities,
+    )
+    .toBe(!wasOn);
+  await opportunities.click();
+  await expect
+    .poll(
+      async () => (await (await context.request.get("/api/attention/policy")).json()).opportunities,
+    )
+    .toBe(wasOn);
+  const mute = page.getByRole("switch", { name: "Mute notifications at night" });
+  if ((await mute.getAttribute("aria-checked")) !== "true") await mute.click();
+  await expect(page.getByText("Urgent always arrives")).toBeVisible();
+  // Quiet hours hold neither an approval request nor an unconfirmed operation (push.py).
+  await expect(page.getByText("An approval request or an unconfirmed operation")).toBeVisible();
+  await page.getByLabel("From").fill("22:30");
+  await expect
+    .poll(
+      async () =>
+        (await (await context.request.get("/api/voice/incoming/policy")).json()).quiet_start_minute,
+    )
+    .toBe(22 * 60 + 30);
+  const agent = (await (await context.request.get("/api/agents")).json())[0];
+  if (agent) {
+    await page.goto(`/app/communication/${agent.id}`);
+    await page.getByRole("switch", { name: "Agent calls" }).click();
+    await page.getByLabel("Daily notification limit").fill("5");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect
+      .poll(async () => (await context.request.get(`/api/agents/${agent.id}/notifications`)).json())
+      .toMatchObject({ calls: false, daily_limit: 5 });
+    await context.request.put(`/api/agents/${agent.id}/notifications`, {
+      headers,
+      data: { calls: true, daily_limit: null },
+    });
   }
+  expect(errors).toEqual([]);
 });
 
 test("the new theme grows from its switch; without view transitions the thumb leads it", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await signIn(context, data);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/app/settings");
-    const toggle = page.getByRole("switch", { name: "Dark mode" });
-    const html = page.locator("html");
-    await expect(toggle).toHaveAttribute("aria-checked", "true");
-    // The new theme is on the page when the circle starts, and the circle takes 720 ms.
-    const reveal = await page.evaluate(async () => {
-      document.querySelector(".theme-switch").click();
-      const started = performance.now();
-      let circle;
-      while (!circle && performance.now() - started < 2000) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        circle = document
-          .getAnimations()
-          .find(
-            (animation) =>
-              animation.effect?.pseudoElement === "::view-transition-new(root)" &&
-              animation.effect.getKeyframes().some((frame) => "clipPath" in frame),
-          );
-      }
-      const timing = circle?.effect.getTiming();
-      return {
-        theme: document.documentElement.dataset.theme,
-        marked: document.documentElement.classList.contains("theme-vt"),
-        duration: timing?.duration,
-        easing: timing?.easing,
-      };
-    });
-    expect(reveal).toEqual({
-      theme: "light",
-      marked: true,
-      duration: 720,
-      easing: "cubic-bezier(0.4, 0, 0.2, 1)",
-    });
-    await expect(html).not.toHaveClass(/theme-vt/);
-    await expect(toggle).toHaveAttribute("aria-checked", "false");
-    // A browser without view transitions: the thumb slides first, the theme follows after
-    // 280 ms, and a second tap meanwhile is ignored.
-    await page.addInitScript(() => {
-      Document.prototype.startViewTransition = undefined;
-    });
-    await page.reload();
-    await expect(toggle).toHaveAttribute("aria-checked", "false");
-    const lead = await page.evaluate(async () => {
-      const button = document.querySelector(".theme-switch");
-      button.click();
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const seen = {
-        thumb: button.classList.contains("is-dark"),
-        theme: document.documentElement.dataset.theme,
-        stored: localStorage.getItem("lonora.theme"),
-      };
-      button.click();
-      return seen;
-    });
-    expect(lead).toEqual({ thumb: true, theme: "light", stored: '"light"' });
-    await expect(html).toHaveAttribute("data-theme", "dark");
-    await page.waitForTimeout(400);
-    await expect(html).toHaveAttribute("data-theme", "dark");
-    await expect(toggle).toHaveAttribute("aria-checked", "true");
-    // Reduced motion: the theme changes at once, with no reveal.
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await toggle.click();
-    await expect(html).toHaveAttribute("data-theme", "light");
-    await expect(html).not.toHaveClass(/theme-vt/);
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  await signIn(context, data);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/settings");
+  const toggle = page.getByRole("switch", { name: "Dark mode" });
+  const html = page.locator("html");
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  // The new theme is on the page when the circle starts, and the circle takes 720 ms.
+  const reveal = await page.evaluate(async () => {
+    document.querySelector(".theme-switch").click();
+    const started = performance.now();
+    let circle;
+    while (!circle && performance.now() - started < 2000) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      circle = document
+        .getAnimations()
+        .find(
+          (animation) =>
+            animation.effect?.pseudoElement === "::view-transition-new(root)" &&
+            animation.effect.getKeyframes().some((frame) => "clipPath" in frame),
+        );
+    }
+    const timing = circle?.effect.getTiming();
+    return {
+      theme: document.documentElement.dataset.theme,
+      marked: document.documentElement.classList.contains("theme-vt"),
+      duration: timing?.duration,
+      easing: timing?.easing,
+    };
+  });
+  expect(reveal).toEqual({
+    theme: "light",
+    marked: true,
+    duration: 720,
+    easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+  });
+  await expect(html).not.toHaveClass(/theme-vt/);
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  // A browser without view transitions: the thumb slides first, the theme follows after
+  // 280 ms, and a second tap meanwhile is ignored.
+  await page.addInitScript(() => {
+    Document.prototype.startViewTransition = undefined;
+  });
+  await page.reload();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  const lead = await page.evaluate(async () => {
+    const button = document.querySelector(".theme-switch");
+    button.click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const seen = {
+      thumb: button.classList.contains("is-dark"),
+      theme: document.documentElement.dataset.theme,
+      stored: localStorage.getItem("lonora.theme"),
+    };
+    button.click();
+    return seen;
+  });
+  expect(lead).toEqual({ thumb: true, theme: "light", stored: '"light"' });
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await page.waitForTimeout(400);
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  // Reduced motion: the theme changes at once, with no reveal.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await toggle.click();
+  await expect(html).toHaveAttribute("data-theme", "light");
+  await expect(html).not.toHaveClass(/theme-vt/);
 });
 
-test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({ page, context }) => {
+test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({
+  page,
+  context,
+  cleanup,
+}) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await signIn(context, data);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/app/privacy");
-    // Headless Chromium has no platform authenticator: the biometric row stays hidden (Q51).
-    await page.getByRole("switch", { name: "Lock the app with a code" }).click();
-    const lock = page.locator("#lock");
-    await expect(lock).toBeVisible();
-    await page.keyboard.type("1234");
-    await expect(lock.getByText("Enter the code again")).toBeVisible();
-    await page.keyboard.type("1234");
-    await expect(lock).toHaveCount(0);
-    // Focus goes back to the switch that opened the set-code layer.
-    await expect(page.getByRole("switch", { name: "Lock the app with a code" })).toBeFocused();
-    await expect(page.getByRole("switch", { name: "Unlock with fingerprint or face" })).toHaveCount(
-      0,
-    );
-    const stored = await page.evaluate(() => localStorage.getItem("lonora.lock"));
-    expect(stored).not.toContain("1234");
-    // Locked over a conversation: nothing behind the lock takes a key or a click.
-    const agent = (await (await context.request.get("/api/agents")).json())[0];
-    const sent = [];
-    page.on("request", (request) => {
-      // A send is POST /api/threads (a new conversation) or POST /api/threads/{id}/messages.
-      if (
-        request.method() === "POST" &&
-        /\/api\/threads(\/[^/]+\/messages)?(\?|$)/.test(request.url())
-      )
-        sent.push(request.url());
-    });
-    await page.goto(agent ? `/app/${agent.id}` : "/app");
-    await expect(lock).toBeVisible();
-    await expect(page.locator("#root")).toHaveAttribute("inert", "");
-    const locked = page.url();
-    await page.keyboard.type("hello");
-    await page.keyboard.press("Enter");
-    // The shell's search shortcut must not run behind the lock.
-    await page.keyboard.press("Control+K");
-    await page.keyboard.press("Control+Shift+O");
-    await page.waitForTimeout(300);
-    expect(page.url()).toBe(locked);
-    await expect(page.locator("#dialog[open]")).toHaveCount(0);
-    for (let index = 0; index < 4; index += 1) {
-      await page.keyboard.press("Tab");
-      expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#lock")))).toBe(
-        true,
-      );
-    }
-    expect(sent).toEqual([]);
-    // Zoom, reload and find stay the browser's while locked; a plain digit is the lock's.
-    const dots = lock.locator(".lk-dots i.on");
-    const filled = await dots.count();
-    const prevented = await page.evaluate(() =>
-      [
-        ["0", true],
-        ["=", true],
-        ["-", true],
-        ["r", true],
-        ["f", true],
-        ["F5", false],
-        ["5", false],
-      ].map(([key, ctrlKey]) => {
-        const event = new KeyboardEvent("keydown", {
-          key,
-          ctrlKey,
-          bubbles: true,
-          cancelable: true,
-        });
-        (document.activeElement ?? document.body).dispatchEvent(event);
-        return [key, event.defaultPrevented];
-      }),
-    );
-    expect(prevented).toEqual([
-      ["0", false],
-      ["=", false],
-      ["-", false],
-      ["r", false],
-      ["f", false],
-      ["F5", false],
-      ["5", true],
-    ]);
-    // Ctrl+0 is zoom reset, not a digit of the code; the synthetic "5" above was one.
-    await expect(dots).toHaveCount(filled + 1);
-    await page.keyboard.press("Backspace");
-    await page.keyboard.press("Control+0");
-    await page.waitForTimeout(100);
-    await expect(dots).toHaveCount(filled);
-    const composer = page.locator("textarea").first();
-    if (await composer.count()) await expect(composer).toHaveValue("");
-    // "hello" has no digits; the first wrong code is counted and survives a reload.
-    await page.keyboard.type("1111");
-    await expect(lock.getByText("Wrong code. 4 tries left")).toBeVisible();
-    await page.reload();
-    await expect(lock).toBeVisible();
-    await page.keyboard.type("2222");
-    await expect(lock.getByText("Wrong code. 3 tries left")).toBeVisible();
-    await page.keyboard.type("1234");
-    await expect(lock).toHaveCount(0);
-    await expect(page.locator("#root")).not.toHaveAttribute("inert", "");
-    await page.goto("/app/privacy");
-    await expect(lock).toBeVisible();
-    await page.keyboard.type("1234");
-    await expect(lock).toHaveCount(0);
-    await page.getByRole("switch", { name: "Lock the app with a code" }).click();
-    await page.reload();
-    await expect(lock).toHaveCount(0);
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
+  });
+
+  await signIn(context, data);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/privacy");
+  // Headless Chromium has no platform authenticator: the biometric row stays hidden (Q51).
+  await page.getByRole("switch", { name: "Lock the app with a code" }).click();
+  const lock = page.locator("#lock");
+  await expect(lock).toBeVisible();
+  await page.keyboard.type("1234");
+  await expect(lock.getByText("Enter the code again")).toBeVisible();
+  await page.keyboard.type("1234");
+  await expect(lock).toHaveCount(0);
+  // Focus goes back to the switch that opened the set-code layer.
+  await expect(page.getByRole("switch", { name: "Lock the app with a code" })).toBeFocused();
+  await expect(page.getByRole("switch", { name: "Unlock with fingerprint or face" })).toHaveCount(
+    0,
+  );
+  const stored = await page.evaluate(() => localStorage.getItem("lonora.lock"));
+  expect(stored).not.toContain("1234");
+  // Locked over a conversation: nothing behind the lock takes a key or a click.
+  const agent = (await (await context.request.get("/api/agents")).json())[0];
+  const sent = [];
+  page.on("request", (request) => {
+    // A send is POST /api/threads (a new conversation) or POST /api/threads/{id}/messages.
+    if (
+      request.method() === "POST" &&
+      /\/api\/threads(\/[^/]+\/messages)?(\?|$)/.test(request.url())
+    )
+      sent.push(request.url());
+  });
+  await page.goto(agent ? `/app/${agent.id}` : "/app");
+  await expect(lock).toBeVisible();
+  await expect(page.locator("#root")).toHaveAttribute("inert", "");
+  const locked = page.url();
+  await page.keyboard.type("hello");
+  await page.keyboard.press("Enter");
+  // The shell's search shortcut must not run behind the lock.
+  await page.keyboard.press("Control+K");
+  await page.keyboard.press("Control+Shift+O");
+  await page.waitForTimeout(300);
+  expect(page.url()).toBe(locked);
+  await expect(page.locator("#dialog[open]")).toHaveCount(0);
+  for (let index = 0; index < 4; index += 1) {
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#lock")))).toBe(true);
   }
+  expect(sent).toEqual([]);
+  // Zoom, reload and find stay the browser's while locked; a plain digit is the lock's.
+  const dots = lock.locator(".lk-dots i.on");
+  const filled = await dots.count();
+  const prevented = await page.evaluate(() =>
+    [
+      ["0", true],
+      ["=", true],
+      ["-", true],
+      ["r", true],
+      ["f", true],
+      ["F5", false],
+      ["5", false],
+    ].map(([key, ctrlKey]) => {
+      const event = new KeyboardEvent("keydown", {
+        key,
+        ctrlKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      (document.activeElement ?? document.body).dispatchEvent(event);
+      return [key, event.defaultPrevented];
+    }),
+  );
+  expect(prevented).toEqual([
+    ["0", false],
+    ["=", false],
+    ["-", false],
+    ["r", false],
+    ["f", false],
+    ["F5", false],
+    ["5", true],
+  ]);
+  // Ctrl+0 is zoom reset, not a digit of the code; the synthetic "5" above was one.
+  await expect(dots).toHaveCount(filled + 1);
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Control+0");
+  await page.waitForTimeout(100);
+  await expect(dots).toHaveCount(filled);
+  const composer = page.locator("textarea").first();
+  if (await composer.count()) await expect(composer).toHaveValue("");
+  // "hello" has no digits; the first wrong code is counted and survives a reload.
+  await page.keyboard.type("1111");
+  await expect(lock.getByText("Wrong code. 4 tries left")).toBeVisible();
+  await page.reload();
+  await expect(lock).toBeVisible();
+  await page.keyboard.type("2222");
+  await expect(lock.getByText("Wrong code. 3 tries left")).toBeVisible();
+  await page.keyboard.type("1234");
+  await expect(lock).toHaveCount(0);
+  await expect(page.locator("#root")).not.toHaveAttribute("inert", "");
+  await page.goto("/app/privacy");
+  await expect(lock).toBeVisible();
+  await page.keyboard.type("1234");
+  await expect(lock).toHaveCount(0);
+  await page.getByRole("switch", { name: "Lock the app with a code" }).click();
+  await page.reload();
+  await expect(lock).toHaveCount(0);
 });
 
 test("integrations: the demo account tests for real, MCP is remote only, usage has no cap", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await signIn(context, data);
-    await page.setViewportSize({ width: 1280, height: 860 });
-    await page.goto("/app/integrations");
-    await expect(page.getByText("Trading accounts")).toBeVisible();
-    await page.goto("/app/broker");
-    // MetaApi is the default broker (Q52): preselected with its token and region fields.
-    await expect(page.getByLabel("Broker")).toHaveValue("metaapi");
-    await expect(page.getByLabel("Region")).toBeVisible();
-    // MetaApi's test is a real round trip to the broker.
-    await expect(page.getByRole("button", { name: "Test the connection" })).toBeVisible();
-    await page.getByLabel("Broker").selectOption("simulation");
-    // Named as a simulation, never "Demo": a broker's demo account connects through MetaApi.
-    await expect(page.getByLabel("Broker").locator("option:checked")).toHaveText(
-      "Simulation with an imported snapshot",
-    );
-    await expect(page.getByText("Simulation", { exact: true })).toBeVisible();
-    await expect(page.getByLabel(/Password/)).toHaveCount(0);
-    await page.getByLabel("Account number").fill(`demo-${randomUUID().slice(0, 8)}`);
-    // A simulation has no connection: its button says it checks the fields, and the result
-    // says what the server checked, never «The connection works».
-    await expect(page.getByRole("button", { name: "Test the connection" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Check the fields" }).click();
-    await expect(
-      page
-        .getByRole("status")
-        .filter({ hasText: "The fields are valid, and this account is not linked yet." }),
-    ).toBeVisible();
-    await expect(page.getByText("The connection works")).toHaveCount(0);
-    await page.goto("/app/mcp");
-    await expect(page.getByText("Streamable HTTP")).toBeVisible();
-    await expect(page.locator("option", { hasText: /stdio/ })).toHaveCount(0);
-    await expect(page.getByText(/allowed agents/i)).toHaveCount(0);
-    await page.goto("/app/usage");
-    await expect(page.getByText("No spending cap: usage never stops a request.")).toBeVisible();
-    // Nothing used yet: each ranking says so, not an empty box.
-    await expect(page.getByText("No usage in this period.").first()).toBeVisible();
-    await expect(page.getByText(/Edit (the )?limit/)).toHaveCount(0);
-    const csv = page.getByRole("link", { name: "Export CSV" });
-    await expect(csv).toHaveAttribute("href", /period=month/);
-    await page.getByRole("tab", { name: "7 days" }).click();
-    await expect(csv).toHaveAttribute("href", /period=week/);
-    const exported = await context.request.get("/api/usage/export.csv?period=week");
-    expect((await exported.text()).replace(/^﻿/, "").split(/\r?\n/)[0]).toBe(
-      "date,cost_usd,tokens,requests",
-    );
-    // A browser quota in gigabytes reads in gigabytes.
-    await page.addInitScript(() => {
-      navigator.storage.estimate = async () => ({ usage: 2048, quota: 3 * 1024 ** 3 });
-    });
-    await page.goto("/app/storage");
-    await expect(page.getByText("3.00 GB")).toBeVisible();
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  await signIn(context, data);
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/app/integrations");
+  await expect(page.getByText("Trading accounts")).toBeVisible();
+  await page.goto("/app/broker");
+  // MetaApi is the default broker (Q52): preselected with its token and region fields.
+  await expect(page.getByLabel("Broker")).toHaveValue("metaapi");
+  await expect(page.getByLabel("Region")).toBeVisible();
+  // MetaApi's test is a real round trip to the broker.
+  await expect(page.getByRole("button", { name: "Test the connection" })).toBeVisible();
+  await page.getByLabel("Broker").selectOption("simulation");
+  // Named as a simulation, never "Demo": a broker's demo account connects through MetaApi.
+  await expect(page.getByLabel("Broker").locator("option:checked")).toHaveText(
+    "Simulation with an imported snapshot",
+  );
+  await expect(page.getByText("Simulation", { exact: true })).toBeVisible();
+  await expect(page.getByLabel(/Password/)).toHaveCount(0);
+  await page.getByLabel("Account number").fill(`demo-${randomUUID().slice(0, 8)}`);
+  // A simulation has no connection: its button says it checks the fields, and the result
+  // says what the server checked, never «The connection works».
+  await expect(page.getByRole("button", { name: "Test the connection" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Check the fields" }).click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "The fields are valid, and this account is not linked yet." }),
+  ).toBeVisible();
+  await expect(page.getByText("The connection works")).toHaveCount(0);
+  await page.goto("/app/mcp");
+  await expect(page.getByText("Streamable HTTP")).toBeVisible();
+  await expect(page.locator("option", { hasText: /stdio/ })).toHaveCount(0);
+  await expect(page.getByText(/allowed agents/i)).toHaveCount(0);
+  await page.goto("/app/usage");
+  await expect(page.getByText("No spending cap: usage never stops a request.")).toBeVisible();
+  // Nothing used yet: each ranking says so, not an empty box.
+  await expect(page.getByText("No usage in this period.").first()).toBeVisible();
+  await expect(page.getByText(/Edit (the )?limit/)).toHaveCount(0);
+  const csv = page.getByRole("link", { name: "Export CSV" });
+  await expect(csv).toHaveAttribute("href", /period=month/);
+  await page.getByRole("tab", { name: "7 days" }).click();
+  await expect(csv).toHaveAttribute("href", /period=week/);
+  const exported = await context.request.get("/api/usage/export.csv?period=week");
+  expect((await exported.text()).replace(/^﻿/, "").split(/\r?\n/)[0]).toBe(
+    "date,cost_usd,tokens,requests",
+  );
+  // A browser quota in gigabytes reads in gigabytes.
+  await page.addInitScript(() => {
+    navigator.storage.estimate = async () => ({ usage: 2048, quota: 3 * 1024 ** 3 });
+  });
+  await page.goto("/app/storage");
+  await expect(page.getByText("3.00 GB")).toBeVisible();
 });
 
 test("a trading account page shows the broker's own balance, name, server and pair icons", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await signIn(context, data);
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    const row = {
-      id,
-      agent_id: null,
-      thread_id: null,
-      version: 1,
-      created_at: now,
-      updated_at: now,
-      state: {},
-      payload: { provider: "metaapi", account_id: "meta-1", region: "london", enabled: true },
-    };
-    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
-    // The server's own shape: the account under `account`, beside its positions and orders.
-    await page.route(`**/api/trading/accounts/${id}`, (route) =>
-      route.fulfill({
-        json: {
-          account: {
-            id,
-            broker: "Northwind Markets",
-            login: "50012345",
-            server: "Northwind-Demo4",
-            currency: "USD",
-            balance: "10000.00",
-            equity: "10000.00",
-            margin: "0",
-            free_margin: "10000.00",
-            observed_at: now,
-          },
-          positions: [],
-          orders: [],
-        },
-      }),
-    );
-    await page.route("**/api/market/symbols?*", (route) =>
-      route.fulfill({ json: ["XAUUSDm", "EURUSDm"] }),
-    );
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/app/broker-account/${id}`);
-    await expect(page.getByText("10000.00 USD")).toBeVisible();
-    await expect(page.getByText("Northwind Markets")).toBeVisible();
-    await expect(page.getByText("50012345")).toBeVisible();
-    await expect(page.getByText("Northwind-Demo4")).toBeVisible();
-    await expect(page.locator(".sym-cell")).toHaveCount(2);
-    await expect(page.locator(".sym-cell .pair-ic img").first()).toBeVisible();
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  await signIn(context, data);
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  const row = {
+    id,
+    agent_id: null,
+    thread_id: null,
+    version: 1,
+    created_at: now,
+    updated_at: now,
+    state: {},
+    payload: { provider: "metaapi", account_id: "meta-1", region: "london", enabled: true },
+  };
+  await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
+  // The server's own shape: the account under `account`, beside its positions and orders.
+  await page.route(`**/api/trading/accounts/${id}`, (route) =>
+    route.fulfill({
+      json: {
+        account: {
+          id,
+          broker: "Northwind Markets",
+          login: "50012345",
+          server: "Northwind-Demo4",
+          currency: "USD",
+          balance: "10000.00",
+          equity: "10000.00",
+          margin: "0",
+          free_margin: "10000.00",
+          observed_at: now,
+        },
+        positions: [],
+        orders: [],
+      },
+    }),
+  );
+  await page.route("**/api/market/symbols?*", (route) =>
+    route.fulfill({ json: ["XAUUSDm", "EURUSDm"] }),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/app/broker-account/${id}`);
+  await expect(page.getByText("10000.00 USD")).toBeVisible();
+  await expect(page.getByText("Northwind Markets")).toBeVisible();
+  await expect(page.getByText("50012345")).toBeVisible();
+  await expect(page.getByText("Northwind-Demo4")).toBeVisible();
+  await expect(page.locator(".sym-cell")).toHaveCount(2);
+  await expect(page.locator(".sym-cell .pair-ic img").first()).toBeVisible();
 });
 
 test("a simulation connection is named a simulation in the list and on its page, never Demo", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await signIn(context, data);
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    // A stray simulation row carrying an MT5 login, as one made from the old form.
-    const row = {
-      id,
-      agent_id: null,
-      thread_id: null,
-      version: 1,
-      created_at: now,
-      updated_at: now,
-      state: {},
-      payload: { provider: "simulation", account_id: "70000001", enabled: true },
-    };
-    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
-    await page.route(`**/api/trading/accounts/${id}`, (route) =>
-      route.fulfill({ status: 409, json: { code: "simulation_snapshot_required" } }),
-    );
-    await page.route("**/api/market/symbols?*", (route) => route.fulfill({ json: [] }));
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/app/integrations");
-    const listed = page.getByRole("button", { name: /70000001/ });
-    await expect(listed).toContainText("Simulation with an imported snapshot");
-    await expect(listed).toContainText("Simulation · ");
-    await expect(listed).not.toContainText("Demo");
-    await page.goto(`/app/broker-account/${id}`);
-    // In the hero only: the symbols' loading line names the account too for a moment.
-    await expect(
-      page.locator(".acct-hero").getByText("Simulation with an imported snapshot"),
-    ).toBeVisible();
-    await expect(page.getByText("Import the simulation data")).toBeVisible();
-    await expect(page.getByText(/demo/i)).toHaveCount(0);
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  await signIn(context, data);
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  // A stray simulation row carrying an MT5 login, as one made from the old form.
+  const row = {
+    id,
+    agent_id: null,
+    thread_id: null,
+    version: 1,
+    created_at: now,
+    updated_at: now,
+    state: {},
+    payload: { provider: "simulation", account_id: "70000001", enabled: true },
+  };
+  await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
+  await page.route(`**/api/trading/accounts/${id}`, (route) =>
+    route.fulfill({ status: 409, json: { code: "simulation_snapshot_required" } }),
+  );
+  await page.route("**/api/market/symbols?*", (route) => route.fulfill({ json: [] }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/integrations");
+  const listed = page.getByRole("button", { name: /70000001/ });
+  await expect(listed).toContainText("Simulation with an imported snapshot");
+  await expect(listed).toContainText("Simulation · ");
+  await expect(listed).not.toContainText("Demo");
+  await page.goto(`/app/broker-account/${id}`);
+  // In the hero only: the symbols' loading line names the account too for a moment.
+  await expect(
+    page.locator(".acct-hero").getByText("Simulation with an imported snapshot"),
+  ).toBeVisible();
+  await expect(page.getByText("Import the simulation data")).toBeVisible();
+  await expect(page.getByText(/demo/i)).toHaveCount(0);
 });
 
 test("integrations name tools, skills, servers and accounts in words, never by raw ids", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await signIn(context, data, "ar");
-    const now = new Date().toISOString();
-    // A MetaApi account the broker has not identified yet: its id is MetaApi's provisioning UUID.
-    const provisioning = randomUUID();
-    const account = {
-      id: randomUUID(),
-      agent_id: null,
-      thread_id: null,
-      version: 1,
-      created_at: now,
-      updated_at: now,
-      state: {},
-      payload: { provider: "metaapi", account_id: provisioning, region: null, enabled: true },
-    };
-    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [account] }));
-    // The broker has not answered for it yet: no account snapshot either.
-    await page.route(`**/api/trading/accounts/${account.id}`, (route) =>
-      route.fulfill({ status: 409, json: { code: "broker_account_undeployed" } }),
-    );
-    await page.route("**/api/market/symbols?*", (route) => route.fulfill({ json: [] }));
-    const unlinked = [];
-    await page.route(`**/api/trading/connections/${account.id}`, (route) => {
-      unlinked.push(route.request().method());
-      return route.fulfill({ json: { deleted: true } });
-    });
-    const connection = randomUUID();
-    // Three more servers whose sheets never contact them: one with titles kept (one tool the
-    // server never titles), one already read whose server titles none of its tools, and one
-    // switched off with none kept.
-    const kept = randomUUID();
-    const untitled = randomUUID();
-    const off = randomUUID();
-    const previews = [];
-    page.on("request", (request) => {
-      const match = /\/api\/trusted-sources\/mcp\/([^/]+)\/preview$/.exec(request.url());
-      if (match && request.method() === "POST") previews.push(match[1]);
-    });
-    // A server trusted before titles were kept: none saved, so its sheet reads the titles
-    // from the server itself. toString is a name SAFE_TOOL_NAME allows and the server gives
-    // no title: an Object member is never taken for one.
-    await page.route(`**/api/trusted-sources/mcp/${connection}/preview`, (route) =>
-      route.fulfill({
-        json: {
-          name: null,
-          tools: ["list_tags", "search_posts", "toString"],
-          writes: [],
-          blocked: [],
-          titles: { list_tags: "قائمة الوسوم", search_posts: "البحث في المنشورات" },
-          unsupported: 0,
-          digest: "a".repeat(64),
-          trusted_tier: "read",
-        },
-      }),
-    );
-    await page.route("**/api/capabilities", async (route) => {
-      const response = await route.fetch();
-      const report = await response.json();
-      await route.fulfill({
-        response,
-        json: {
-          ...report,
-          integrations: report.integrations.filter((item) => item.type !== "telegram"),
-          mcp_servers: [
-            {
-              connection_id: connection,
-              name: null,
-              enabled: true,
-              credentials_configured: false,
-              trusted_tier: "read",
-              trusted_tools: ["list_tags", "search_posts", "toString"],
-              tool_titles: {},
-              tool_titles_kept: false,
-              write_tools: [],
-              blocked_tools: [],
-              operator_declared: 0,
-              trust_source_id: null,
-              last_used_at: null,
-            },
-            {
-              connection_id: kept,
-              name: "Docs",
-              enabled: true,
-              credentials_configured: false,
-              trusted_tier: "read",
-              trusted_tools: ["search_docs", "toString"],
-              tool_titles: { search_docs: "البحث في المستندات" },
-              tool_titles_kept: true,
-              write_tools: [],
-              blocked_tools: [],
-              operator_declared: 0,
-              trust_source_id: null,
-              last_used_at: null,
-            },
-            {
-              connection_id: untitled,
-              name: "Feeds",
-              enabled: true,
-              credentials_configured: false,
-              trusted_tier: "read",
-              trusted_tools: ["list_feeds"],
-              tool_titles: {},
-              tool_titles_kept: true,
-              write_tools: [],
-              blocked_tools: [],
-              operator_declared: 0,
-              trust_source_id: null,
-              last_used_at: null,
-            },
-            {
-              connection_id: off,
-              name: "Archive",
-              enabled: false,
-              credentials_configured: false,
-              trusted_tier: "read",
-              trusted_tools: ["list_files"],
-              tool_titles: {},
-              tool_titles_kept: false,
-              write_tools: [],
-              blocked_tools: [],
-              operator_declared: 0,
-              trust_source_id: null,
-              last_used_at: null,
-            },
-          ],
-          skills: [
-            {
-              resource_id: randomUUID(),
-              agent_id: null,
-              agent_name: null,
-              skill_id: "morning-brief",
-              title: "موجز الصباح",
-              version: null,
-              provenance: "owner",
-              repository: null,
-              commit: null,
-              enabled: true,
-              undone: false,
-              can_undo: false,
-              installed_at: now,
-              updated_at: now,
-            },
-          ],
-        },
-      });
-    });
-    // Another agent listed before Lonora: Telegram still delivers to Lonora by default.
-    let lonora = null;
-    await page.route("**/api/agents", async (route) => {
-      const response = await route.fetch();
-      const agents = await response.json();
-      lonora = agents.find((agent) => agent.role === "personal");
-      const others = agents.filter((agent) => agent.role !== "personal");
-      const first = others[0] ?? { ...lonora, id: randomUUID(), name: "محلل", role: "specialist" };
-      await route.fulfill({
-        response,
-        json: [first, ...agents.filter((agent) => agent.id !== first.id)],
-      });
-    });
-    await page.setViewportSize({ width: 1280, height: 860 });
-    await page.goto("/app/integrations");
-    await expect(page.getByText("حساب وسيط لم يُتحقَّق من هويته")).toBeVisible();
-    // A server's line reads in order, its count in the plural Arabic uses: the count is
-    // isolated, so it never joins «MCP» and reads before it («خادم 3 · MCP قراءة», 17).
-    const sub = page.getByRole("button", { name: /خادم بلا اسم/ }).locator("small");
-    await expect(sub).toHaveText("خادم MCP · 3 أدوات قراءة");
-    const at = (needle) =>
-      sub.evaluate((el, text) => {
-        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        for (let node = walk.nextNode(); node; node = walk.nextNode()) {
-          const index = node.textContent.indexOf(text);
-          if (index < 0) continue;
-          const range = document.createRange();
-          range.setStart(node, index);
-          range.setEnd(node, index + text.length);
-          const box = range.getBoundingClientRect();
-          return { left: box.left, right: box.right };
-        }
-        return null;
-      }, needle);
-    const [mcp, count] = [await at("MCP"), await at("3")];
-    expect(count.right).toBeLessThanOrEqual(mcp.left);
-    await expect(page.getByText(provisioning)).toHaveCount(0);
-    await expect(page.getByText("موجز الصباح")).toBeVisible();
-    await expect(page.getByText("morning-brief")).toHaveCount(0);
-    await expect(page.getByText(connection)).toHaveCount(0);
-    // A date in the owner's language, never the browser's month/day/year.
-    await expect(page.getByText(/^GitHub · أُضيف \d{1,2} [\u0621-\u064a]+ \d{4}$/)).toBeVisible();
-    await expect(page.getByText(/\d{1,2}\/\d{1,2}\/\d{4}/)).toHaveCount(0);
-    await page.getByRole("button", { name: /خادم بلا اسم/ }).click();
-    const sheet = page.locator("#dialog[open]");
-    await expect(sheet.getByText("البحث في المنشورات")).toBeVisible();
-    await expect(sheet.getByText("search_posts")).toHaveCount(0);
-    await expect(sheet.getByText("قائمة الوسوم")).toBeVisible();
-    await expect(sheet.getByText("list_tags")).toHaveCount(0);
-    // A tool the server gives no title keeps its name, the only true label left.
-    await expect(sheet.getByText("toString", { exact: true })).toBeVisible();
-    await expect(sheet.getByText(/native code/)).toHaveCount(0);
-    await expect(
-      sheet.getByText(
-        "لا تُمنح خوادم MCP أي أداة مالية؛ ولا تعمل أدوات الكتابة فيها إلا إذا اعتمدت الكتابة غير المالية.",
-      ),
-    ).toBeVisible();
-    await expect(sheet.getByText(/ملاحظات وتنبيهات/)).toHaveCount(0);
-    await page.keyboard.press("Escape");
-    await expect(sheet).toHaveCount(0);
-    // (The test build replays effects as StrictMode does: count the servers, not the calls.)
-    expect([...new Set(previews)]).toEqual([connection]);
-    // With titles kept, read once though the server titles none, or switched off, opening its
-    // sheet never calls the server: the kept titles show, and a tool it never titled keeps its
-    // name.
-    for (const name of ["Docs", "Feeds", "Archive"]) {
-      await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
-      await expect(sheet).toHaveCount(1);
-      if (name === "Docs") {
-        await expect(sheet.getByText("البحث في المستندات")).toBeVisible();
-        await expect(sheet.getByText("toString", { exact: true })).toBeVisible();
-      } else if (name === "Feeds")
-        await expect(sheet.getByText("list_feeds", { exact: true })).toBeVisible();
-      else await expect(sheet.getByText("list_files", { exact: true })).toBeVisible();
-      await page.keyboard.press("Escape");
-      await expect(sheet).toHaveCount(0);
-    }
-    expect([...new Set(previews)]).toEqual([connection]);
-    await page.getByRole("button", { name: /^Telegram/ }).click();
-    await expect(page.getByLabel("تصل الرسائل إلى")).toHaveValue(lonora.id);
-    await page.keyboard.press("Escape");
-    // Its page, its unlink sheet and the toast name it in words, never by the UUID.
-    await page.goto(`/app/broker-account/${account.id}`);
-    const hero = page.locator(".acct-hero");
-    await expect(hero).toContainText("حساب وسيط لم يُتحقَّق من هويته");
-    await expect(page.getByText(provisioning)).toHaveCount(0);
-    await page.getByRole("button", { name: "فصل الحساب" }).click();
-    await expect(sheet.getByText("يُفصل هذا الحساب لدى MetaApi.")).toBeVisible();
-    await sheet.getByRole("button", { name: "فصل الحساب" }).click();
-    await expect(page.getByText("فُصل الحساب", { exact: true })).toBeVisible();
-    expect(unlinked).toEqual(["DELETE"]);
-    await expect(page.getByText(provisioning)).toHaveCount(0);
-  } finally {
+  cleanup(async () => {
     // Unlinking reloads the shell's lists; a handler still reading one when the page closes is
     // not a failure of this test.
     await page.unrouteAll({ behavior: "ignoreErrors" });
     fixture({ ...data, action: "cleanup" });
+  });
+
+  await signIn(context, data, "ar");
+  const now = new Date().toISOString();
+  // A MetaApi account the broker has not identified yet: its id is MetaApi's provisioning UUID.
+  const provisioning = randomUUID();
+  const account = {
+    id: randomUUID(),
+    agent_id: null,
+    thread_id: null,
+    version: 1,
+    created_at: now,
+    updated_at: now,
+    state: {},
+    payload: { provider: "metaapi", account_id: provisioning, region: null, enabled: true },
+  };
+  await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [account] }));
+  // The broker has not answered for it yet: no account snapshot either.
+  await page.route(`**/api/trading/accounts/${account.id}`, (route) =>
+    route.fulfill({ status: 409, json: { code: "broker_account_undeployed" } }),
+  );
+  await page.route("**/api/market/symbols?*", (route) => route.fulfill({ json: [] }));
+  const unlinked = [];
+  await page.route(`**/api/trading/connections/${account.id}`, (route) => {
+    unlinked.push(route.request().method());
+    return route.fulfill({ json: { deleted: true } });
+  });
+  const connection = randomUUID();
+  // Three more servers whose sheets never contact them: one with titles kept (one tool the
+  // server never titles), one already read whose server titles none of its tools, and one
+  // switched off with none kept.
+  const kept = randomUUID();
+  const untitled = randomUUID();
+  const off = randomUUID();
+  const previews = [];
+  page.on("request", (request) => {
+    const match = /\/api\/trusted-sources\/mcp\/([^/]+)\/preview$/.exec(request.url());
+    if (match && request.method() === "POST") previews.push(match[1]);
+  });
+  // A server trusted before titles were kept: none saved, so its sheet reads the titles
+  // from the server itself. toString is a name SAFE_TOOL_NAME allows and the server gives
+  // no title: an Object member is never taken for one.
+  await page.route(`**/api/trusted-sources/mcp/${connection}/preview`, (route) =>
+    route.fulfill({
+      json: {
+        name: null,
+        tools: ["list_tags", "search_posts", "toString"],
+        writes: [],
+        blocked: [],
+        titles: { list_tags: "قائمة الوسوم", search_posts: "البحث في المنشورات" },
+        unsupported: 0,
+        digest: "a".repeat(64),
+        trusted_tier: "read",
+      },
+    }),
+  );
+  await page.route("**/api/capabilities", async (route) => {
+    const response = await route.fetch();
+    const report = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...report,
+        integrations: report.integrations.filter((item) => item.type !== "telegram"),
+        mcp_servers: [
+          {
+            connection_id: connection,
+            name: null,
+            enabled: true,
+            credentials_configured: false,
+            trusted_tier: "read",
+            trusted_tools: ["list_tags", "search_posts", "toString"],
+            tool_titles: {},
+            tool_titles_kept: false,
+            write_tools: [],
+            blocked_tools: [],
+            operator_declared: 0,
+            trust_source_id: null,
+            last_used_at: null,
+          },
+          {
+            connection_id: kept,
+            name: "Docs",
+            enabled: true,
+            credentials_configured: false,
+            trusted_tier: "read",
+            trusted_tools: ["search_docs", "toString"],
+            tool_titles: { search_docs: "البحث في المستندات" },
+            tool_titles_kept: true,
+            write_tools: [],
+            blocked_tools: [],
+            operator_declared: 0,
+            trust_source_id: null,
+            last_used_at: null,
+          },
+          {
+            connection_id: untitled,
+            name: "Feeds",
+            enabled: true,
+            credentials_configured: false,
+            trusted_tier: "read",
+            trusted_tools: ["list_feeds"],
+            tool_titles: {},
+            tool_titles_kept: true,
+            write_tools: [],
+            blocked_tools: [],
+            operator_declared: 0,
+            trust_source_id: null,
+            last_used_at: null,
+          },
+          {
+            connection_id: off,
+            name: "Archive",
+            enabled: false,
+            credentials_configured: false,
+            trusted_tier: "read",
+            trusted_tools: ["list_files"],
+            tool_titles: {},
+            tool_titles_kept: false,
+            write_tools: [],
+            blocked_tools: [],
+            operator_declared: 0,
+            trust_source_id: null,
+            last_used_at: null,
+          },
+        ],
+        skills: [
+          {
+            resource_id: randomUUID(),
+            agent_id: null,
+            agent_name: null,
+            skill_id: "morning-brief",
+            title: "موجز الصباح",
+            version: null,
+            provenance: "owner",
+            repository: null,
+            commit: null,
+            enabled: true,
+            undone: false,
+            can_undo: false,
+            installed_at: now,
+            updated_at: now,
+          },
+        ],
+      },
+    });
+  });
+  // Another agent listed before Lonora: Telegram still delivers to Lonora by default.
+  let lonora = null;
+  await page.route("**/api/agents", async (route) => {
+    const response = await route.fetch();
+    const agents = await response.json();
+    lonora = agents.find((agent) => agent.role === "personal");
+    const others = agents.filter((agent) => agent.role !== "personal");
+    const first = others[0] ?? { ...lonora, id: randomUUID(), name: "محلل", role: "specialist" };
+    await route.fulfill({
+      response,
+      json: [first, ...agents.filter((agent) => agent.id !== first.id)],
+    });
+  });
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/app/integrations");
+  await expect(page.getByText("حساب وسيط لم يُتحقَّق من هويته")).toBeVisible();
+  // A server's line reads in order, its count in the plural Arabic uses: the count is
+  // isolated, so it never joins «MCP» and reads before it («خادم 3 · MCP قراءة», 17).
+  const sub = page.getByRole("button", { name: /خادم بلا اسم/ }).locator("small");
+  await expect(sub).toHaveText("خادم MCP · 3 أدوات قراءة");
+  const at = (needle) =>
+    sub.evaluate((el, text) => {
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+        const index = node.textContent.indexOf(text);
+        if (index < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, index + text.length);
+        const box = range.getBoundingClientRect();
+        return { left: box.left, right: box.right };
+      }
+      return null;
+    }, needle);
+  const [mcp, count] = [await at("MCP"), await at("3")];
+  expect(count.right).toBeLessThanOrEqual(mcp.left);
+  await expect(page.getByText(provisioning)).toHaveCount(0);
+  await expect(page.getByText("موجز الصباح")).toBeVisible();
+  await expect(page.getByText("morning-brief")).toHaveCount(0);
+  await expect(page.getByText(connection)).toHaveCount(0);
+  // A date in the owner's language, never the browser's month/day/year.
+  await expect(page.getByText(/^GitHub · أُضيف \d{1,2} [\u0621-\u064a]+ \d{4}$/)).toBeVisible();
+  await expect(page.getByText(/\d{1,2}\/\d{1,2}\/\d{4}/)).toHaveCount(0);
+  await page.getByRole("button", { name: /خادم بلا اسم/ }).click();
+  const sheet = page.locator("#dialog[open]");
+  await expect(sheet.getByText("البحث في المنشورات")).toBeVisible();
+  await expect(sheet.getByText("search_posts")).toHaveCount(0);
+  await expect(sheet.getByText("قائمة الوسوم")).toBeVisible();
+  await expect(sheet.getByText("list_tags")).toHaveCount(0);
+  // A tool the server gives no title keeps its name, the only true label left.
+  await expect(sheet.getByText("toString", { exact: true })).toBeVisible();
+  await expect(sheet.getByText(/native code/)).toHaveCount(0);
+  await expect(
+    sheet.getByText(
+      "لا تُمنح خوادم MCP أي أداة مالية؛ ولا تعمل أدوات الكتابة فيها إلا إذا اعتمدت الكتابة غير المالية.",
+    ),
+  ).toBeVisible();
+  await expect(sheet.getByText(/ملاحظات وتنبيهات/)).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  // (The test build replays effects as StrictMode does: count the servers, not the calls.)
+  expect([...new Set(previews)]).toEqual([connection]);
+  // With titles kept, read once though the server titles none, or switched off, opening its
+  // sheet never calls the server: the kept titles show, and a tool it never titled keeps its
+  // name.
+  for (const name of ["Docs", "Feeds", "Archive"]) {
+    await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+    await expect(sheet).toHaveCount(1);
+    if (name === "Docs") {
+      await expect(sheet.getByText("البحث في المستندات")).toBeVisible();
+      await expect(sheet.getByText("toString", { exact: true })).toBeVisible();
+    } else if (name === "Feeds")
+      await expect(sheet.getByText("list_feeds", { exact: true })).toBeVisible();
+    else await expect(sheet.getByText("list_files", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
   }
+  expect([...new Set(previews)]).toEqual([connection]);
+  await page.getByRole("button", { name: /^Telegram/ }).click();
+  await expect(page.getByLabel("تصل الرسائل إلى")).toHaveValue(lonora.id);
+  await page.keyboard.press("Escape");
+  // Its page, its unlink sheet and the toast name it in words, never by the UUID.
+  await page.goto(`/app/broker-account/${account.id}`);
+  const hero = page.locator(".acct-hero");
+  await expect(hero).toContainText("حساب وسيط لم يُتحقَّق من هويته");
+  await expect(page.getByText(provisioning)).toHaveCount(0);
+  await page.getByRole("button", { name: "فصل الحساب" }).click();
+  await expect(sheet.getByText("يُفصل هذا الحساب لدى MetaApi.")).toBeVisible();
+  await sheet.getByRole("button", { name: "فصل الحساب" }).click();
+  await expect(page.getByText("فُصل الحساب", { exact: true })).toBeVisible();
+  expect(unlinked).toEqual(["DELETE"]);
+  await expect(page.getByText(provisioning)).toHaveCount(0);
 });
 
-test("the call device row says only that a call rings it", async ({ page, context }) => {
+test("the call device row says only that a call rings it", async ({ page, context, cleanup }) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await signIn(context, data, "ar");
-    await page.route("**/api/owner/profile", async (route) => {
-      if (route.request().method() !== "GET") return route.continue();
-      const response = await route.fetch();
-      const profile = await response.json();
-      await route.fulfill({
-        response,
-        json: { ...profile, devices: [{ id: randomUUID(), name: "هاتف المالك" }] },
-      });
-    });
-    await page.setViewportSize({ width: 1280, height: 860 });
-    await page.goto("/app/settings");
-    await expect(page.getByText("الملف الشخصي · ما أعرفه عنك")).toBeVisible();
-    await page.getByRole("button", { name: /^الإشعارات والتواصل/ }).click();
-    const device = page.getByRole("radio", { name: /هاتف المالك/ });
-    await expect(device).toContainText("تصل المكالمة إلى هذا الجهاز");
-    await expect(device).not.toContainText("مفتاح المرور");
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  await signIn(context, data, "ar");
+  await page.route("**/api/owner/profile", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    const profile = await response.json();
+    await route.fulfill({
+      response,
+      json: { ...profile, devices: [{ id: randomUUID(), name: "هاتف المالك" }] },
+    });
+  });
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/app/settings");
+  await expect(page.getByText("الملف الشخصي · ما أعرفه عنك")).toBeVisible();
+  await page.getByRole("button", { name: /^الإشعارات والتواصل/ }).click();
+  const device = page.getByRole("radio", { name: /هاتف المالك/ });
+  await expect(device).toContainText("تصل المكالمة إلى هذا الجهاز");
+  await expect(device).not.toContainText("مفتاح المرور");
 });
 
 test("Global models opens the models page; voice and trading keep their settings screens", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = fixture({ action: "init", empty: true });
   await signIn(context, data);
-  try {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/app/settings");
-    await page.getByRole("button", { name: /^Voice/ }).click();
-    await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
-    await expect(page.locator(".settings-nav button.selected")).toHaveText("Voice");
-    await expect(page.getByRole("heading", { name: "Realtime conversation" })).toBeVisible();
-    const tabs = page.locator(".settings-nav");
-    await tabs.getByRole("button", { name: "Trading", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Global trading settings" })).toBeVisible();
-    // The screen's «Global models» tab, the settings row and the old tab open the models page.
-    await tabs.getByRole("button", { name: "Global models", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/models$/);
-    await page.goto("/app/settings");
-    await page.getByRole("button", { name: /^Global models/ }).click();
-    await expect(page).toHaveURL(/\/app\/models$/);
-    // The server's provider state is this test's: no key until this page stores one.
-    const server = { configured: false, discovered: false, failDiscovery: false };
-    const calls = [];
-    const model = (id, name, verified) => ({
-      id,
-      provider: "openai",
-      name,
-      capabilities: ["conversation"],
-      verified,
-      source: "discovered",
-      context_window: null,
-    });
-    await page.route("**/api/providers", (route) =>
-      route.fulfill({ json: [{ id: "openai", configured: server.configured }] }),
-    );
-    await page.goto("/app/settings?tab=models");
-    await expect(page).toHaveURL(/\/app\/models$/);
-    await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
-    // No model yet: the page says where models come from and has no routing form. Main's
-    // catalog form is there, as in main's overlay, to add the first key.
-    await expect(
-      page.getByText("Models appear here after you add a model provider."),
-    ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Global routing" })).toHaveCount(0);
-    const discover = page.getByRole("button", { name: "Save and discover models" });
-    await expect(
-      page.getByRole("heading", { name: "Providers and official catalog" }),
-    ).toBeVisible();
-    await expect(page.getByText("Add a provider credential")).toBeVisible();
-    await expect(discover).toBeDisabled();
-    await page.getByRole("button", { name: /^Model providers/ }).click();
-    await expect(page).toHaveURL(/\/app\/providers$/);
-    await page.route("**/api/providers/openai/models", (route) =>
-      route.fulfill({
-        json: [
-          model("gpt-test", "GPT Test", true),
-          ...(server.discovered ? [model("gpt-new", "GPT New", false)] : []),
-        ],
-      }),
-    );
-    await page.route("**/api/providers/openai/credential", (route) => {
-      calls.push(`credential ${route.request().postDataJSON().api_key}`);
-      server.configured = true;
-      return route.fulfill({ json: { ok: true } });
-    });
-    await page.route("**/api/providers/openai/discover", (route) => {
-      calls.push("discover");
-      if (server.failDiscovery)
-        return route.fulfill({ status: 400, json: { code: "provider_discovery_failed" } });
-      server.discovered = true;
-      return route.fulfill({ json: [] });
-    });
-    await page.goto("/app/models");
-    await expect(page.getByRole("heading", { name: "Global routing" })).toBeVisible();
-    // Only the owner assigns an agent's model (main, Q20 a): no allowed-models list.
-    await expect(page.locator("[data-allowed-models]")).toHaveCount(0);
-    const saved = page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/api/settings/models") && response.request().method() === "PUT",
-    );
-    await page.getByRole("button", { name: "Save global routing" }).click();
-    expect((await saved).ok()).toBe(true);
-    // Main's overlay, carried over: the discovered catalog with its metadata badge …
-    await expect(page.getByRole("heading", { name: "Discovered models (1)" })).toBeVisible();
-    await expect(
-      page.locator(".row").filter({ hasText: "GPT Test" }).getByText("Verified metadata"),
-    ).toBeVisible();
-    // … and «Save and discover models»: a key is needed until one is stored. A key stored
-    // before a failed discovery counts, so the owner can try again without typing it.
-    await expect(page.getByText("Add a provider credential")).toBeVisible();
-    await expect(discover).toBeDisabled();
-    server.failDiscovery = true;
-    await page.getByLabel("API key").fill("sk-test-key-1234");
-    await discover.click();
-    await expect.poll(() => calls).toEqual(["credential sk-test-key-1234", "discover"]);
-    await expect(page.getByLabel("API key")).toHaveValue("");
-    await expect(page.getByText("Credential configured")).toBeVisible();
-    await expect(discover).toBeEnabled();
-    // Discovering again needs no key, and the page reads the catalog again in place.
-    server.failDiscovery = false;
-    calls.length = 0;
-    await discover.click();
-    await expect.poll(() => calls).toEqual(["discover"]);
-    await expect(page.getByRole("heading", { name: "Discovered models (2)" })).toBeVisible();
-    await expect(
-      page.locator(".row").filter({ hasText: "GPT New" }).getByText("Capabilities unverified"),
-    ).toBeVisible();
-    // Another provider without a key: the form asks for one.
-    await page.getByRole("combobox", { name: /^Provider/ }).selectOption("anthropic");
-    await expect(page.getByText("Add a provider credential")).toBeVisible();
-    await expect(discover).toBeDisabled();
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/settings");
+  await page.getByRole("button", { name: /^Voice/ }).click();
+  await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
+  await expect(page.locator(".settings-nav button.selected")).toHaveText("Voice");
+  await expect(page.getByRole("heading", { name: "Realtime conversation" })).toBeVisible();
+  const tabs = page.locator(".settings-nav");
+  await tabs.getByRole("button", { name: "Trading", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Global trading settings" })).toBeVisible();
+  // The screen's «Global models» tab, the settings row and the old tab open the models page.
+  await tabs.getByRole("button", { name: "Global models", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/models$/);
+  await page.goto("/app/settings");
+  await page.getByRole("button", { name: /^Global models/ }).click();
+  await expect(page).toHaveURL(/\/app\/models$/);
+  // The server's provider state is this test's: no key until this page stores one.
+  const server = { configured: false, discovered: false, failDiscovery: false };
+  const calls = [];
+  const model = (id, name, verified) => ({
+    id,
+    provider: "openai",
+    name,
+    capabilities: ["conversation"],
+    verified,
+    source: "discovered",
+    context_window: null,
+  });
+  await page.route("**/api/providers", (route) =>
+    route.fulfill({ json: [{ id: "openai", configured: server.configured }] }),
+  );
+  await page.goto("/app/settings?tab=models");
+  await expect(page).toHaveURL(/\/app\/models$/);
+  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+  // No model yet: the page says where models come from and has no routing form. Main's
+  // catalog form is there, as in main's overlay, to add the first key.
+  await expect(page.getByText("Models appear here after you add a model provider.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Global routing" })).toHaveCount(0);
+  const discover = page.getByRole("button", { name: "Save and discover models" });
+  await expect(page.getByRole("heading", { name: "Providers and official catalog" })).toBeVisible();
+  await expect(page.getByText("Add a provider credential")).toBeVisible();
+  await expect(discover).toBeDisabled();
+  await page.getByRole("button", { name: /^Model providers/ }).click();
+  await expect(page).toHaveURL(/\/app\/providers$/);
+  await page.route("**/api/providers/openai/models", (route) =>
+    route.fulfill({
+      json: [
+        model("gpt-test", "GPT Test", true),
+        ...(server.discovered ? [model("gpt-new", "GPT New", false)] : []),
+      ],
+    }),
+  );
+  await page.route("**/api/providers/openai/credential", (route) => {
+    calls.push(`credential ${route.request().postDataJSON().api_key}`);
+    server.configured = true;
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/providers/openai/discover", (route) => {
+    calls.push("discover");
+    if (server.failDiscovery)
+      return route.fulfill({ status: 400, json: { code: "provider_discovery_failed" } });
+    server.discovered = true;
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/models");
+  await expect(page.getByRole("heading", { name: "Global routing" })).toBeVisible();
+  // Only the owner assigns an agent's model (main, Q20 a): no allowed-models list.
+  await expect(page.locator("[data-allowed-models]")).toHaveCount(0);
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings/models") && response.request().method() === "PUT",
+  );
+  await page.getByRole("button", { name: "Save global routing" }).click();
+  expect((await saved).ok()).toBe(true);
+  // Main's overlay, carried over: the discovered catalog with its metadata badge …
+  await expect(page.getByRole("heading", { name: "Discovered models (1)" })).toBeVisible();
+  await expect(
+    page.locator(".row").filter({ hasText: "GPT Test" }).getByText("Verified metadata"),
+  ).toBeVisible();
+  // … and «Save and discover models»: a key is needed until one is stored. A key stored
+  // before a failed discovery counts, so the owner can try again without typing it.
+  await expect(page.getByText("Add a provider credential")).toBeVisible();
+  await expect(discover).toBeDisabled();
+  server.failDiscovery = true;
+  await page.getByLabel("API key").fill("sk-test-key-1234");
+  await discover.click();
+  await expect.poll(() => calls).toEqual(["credential sk-test-key-1234", "discover"]);
+  await expect(page.getByLabel("API key")).toHaveValue("");
+  await expect(page.getByText("Credential configured")).toBeVisible();
+  await expect(discover).toBeEnabled();
+  // Discovering again needs no key, and the page reads the catalog again in place.
+  server.failDiscovery = false;
+  calls.length = 0;
+  await discover.click();
+  await expect.poll(() => calls).toEqual(["discover"]);
+  await expect(page.getByRole("heading", { name: "Discovered models (2)" })).toBeVisible();
+  await expect(
+    page.locator(".row").filter({ hasText: "GPT New" }).getByText("Capabilities unverified"),
+  ).toBeVisible();
+  // Another provider without a key: the form asks for one.
+  await page.getByRole("combobox", { name: /^Provider/ }).selectOption("anthropic");
+  await expect(page.getByText("Add a provider credential")).toBeVisible();
+  await expect(discover).toBeDisabled();
 });
 
-test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ page, context }) => {
+test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({
+  page,
+  context,
+  cleanup,
+}) => {
   const data = fixture({ action: "init", empty: true });
-  try {
-    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/app");
-    await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toBeVisible();
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByRole("button", { name: "Next" }).click();
-    // The last slide keeps main's sentence: «every agent asks you» is untrue while a signed
-    // grant lets an agent trade inside it without asking (W-AUTH S1a adds it once they go).
-    await expect(page.getByRole("heading", { name: "You decide" })).toBeVisible();
-    await expect(
-      page.getByText(
-        "No sensitive action runs without a permission you grant, and you can stop it any moment.",
-      ),
-    ).toBeVisible();
-    await expect(page.getByText(/Every agent asks you/)).toHaveCount(0);
-    await page.getByRole("button", { name: "Start now" }).click();
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-    // The #auth layer is the reference's full-screen layer; ≥900px the card is a floating panel.
-    const layer = page.locator("#auth");
-    expect(await layer.evaluate((node) => getComputedStyle(node).position)).toBe("fixed");
-    expect(await layer.evaluate((node) => getComputedStyle(node).zIndex)).toBe("300");
-    await page.screenshot({ path: ".runtime/auth/auth-signin-390.png" });
-    await page.setViewportSize({ width: 1440, height: 900 });
-    const card = page.locator("#auth .auth-card");
-    expect(await card.evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe("28px");
-    // The desktop rule must beat the base `#auth .auth-card` (its own `#auth` scope).
-    const desk = await card.evaluate((node) => {
-      const style = getComputedStyle(node);
-      return [style.minHeight, style.paddingInlineStart];
-    });
-    expect(desk).toEqual(["auto", "32px"]);
-    const box = await card.boundingBox();
-    expect(box && box.x > 300 && box.width <= 420).toBe(true);
-    await page.screenshot({ path: ".runtime/auth/auth-signin-1440.png" });
-    await page.setViewportSize({ width: 390, height: 844 });
-    // Only e-mail + password (Q46): no phone, sign-up or forgot-password.
-    await expect(page.getByText(/phone|Forgot|Create an account/i)).toHaveCount(0);
-    await page.getByLabel("Email").fill(process.env.LONORA_UI_TEST_EMAIL ?? "ci@example.com");
-    await page
-      .getByLabel("Password")
-      .fill(process.env.LONORA_UI_TEST_PASSWORD ?? "ci-only-owner-password");
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page.locator("#auth")).toHaveCount(0);
-    await page.evaluate(() => window.dispatchEvent(new Event("lonora:session-expired")));
-    await expect(page.getByRole("heading", { name: "Your session ended" })).toBeVisible();
-    // Signed out on this device without signing out: the intro is not shown a second time.
-    await context.clearCookies();
-    await page.reload();
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toHaveCount(0);
-  } finally {
+  cleanup(async () => {
     fixture({ ...data, action: "cleanup" });
-  }
+  });
+
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app");
+  await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toBeVisible();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  // The last slide keeps main's sentence: «every agent asks you» is untrue while a signed
+  // grant lets an agent trade inside it without asking (W-AUTH S1a adds it once they go).
+  await expect(page.getByRole("heading", { name: "You decide" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "No sensitive action runs without a permission you grant, and you can stop it any moment.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText(/Every agent asks you/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Start now" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  // The #auth layer is the reference's full-screen layer; ≥900px the card is a floating panel.
+  const layer = page.locator("#auth");
+  expect(await layer.evaluate((node) => getComputedStyle(node).position)).toBe("fixed");
+  expect(await layer.evaluate((node) => getComputedStyle(node).zIndex)).toBe("300");
+  await page.screenshot({ path: ".runtime/auth/auth-signin-390.png" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const card = page.locator("#auth .auth-card");
+  expect(await card.evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe("28px");
+  // The desktop rule must beat the base `#auth .auth-card` (its own `#auth` scope).
+  const desk = await card.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return [style.minHeight, style.paddingInlineStart];
+  });
+  expect(desk).toEqual(["auto", "32px"]);
+  const box = await card.boundingBox();
+  expect(box && box.x > 300 && box.width <= 420).toBe(true);
+  await page.screenshot({ path: ".runtime/auth/auth-signin-1440.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Only e-mail + password (Q46): no phone, sign-up or forgot-password.
+  await expect(page.getByText(/phone|Forgot|Create an account/i)).toHaveCount(0);
+  await page.getByLabel("Email").fill(process.env.LONORA_UI_TEST_EMAIL ?? "ci@example.com");
+  await page
+    .getByLabel("Password")
+    .fill(process.env.LONORA_UI_TEST_PASSWORD ?? "ci-only-owner-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.locator("#auth")).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new Event("lonora:session-expired")));
+  await expect(page.getByRole("heading", { name: "Your session ended" })).toBeVisible();
+  // Signed out on this device without signing out: the intro is not shown a second time.
+  await context.clearCookies();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toHaveCount(0);
 });
 
 test("auth intro, Arabic: the last slide claims nothing a signed grant makes untrue", async ({

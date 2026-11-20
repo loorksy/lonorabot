@@ -3,7 +3,7 @@
 // retry and delete; reactions show under the bubble and the owner's own one is removed by a tap.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -59,6 +59,7 @@ const longPress = (locator) => locator.click({ delay: 900 });
 test("a long press opens reactions and actions; edit resends with edited_from; a task is created", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -101,92 +102,87 @@ test("a long press opens reactions and actions; edit resends with edited_from; a
     tasks.push([route.request().url(), route.request().postDataJSON()]);
     return route.fulfill({ status: 201, json: { id: randomUUID(), title: "t" } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await expect(page.getByTestId("conversation-transcript")).toBeVisible();
 
-    // Reactions: the menu's quick reaction, the chip under the bubble, removal from the list.
-    await longPress(page.getByText("Bought 0.10 gold at 2,400.", { exact: true }));
-    await expect(page.getByText("Message options", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Edit and resend" })).toHaveCount(0);
-    await page.getByRole("button", { name: "React ❤️", exact: true }).click();
-    const chips = page.getByTestId("message-reactions");
-    await expect(chips).toContainText("❤️");
-    await chips.click();
-    await expect(page.getByText("Tap to remove", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "You", exact: true }).click();
-    await expect(chips).toHaveCount(0);
-    expect(reacted).toEqual([
-      ["PUT", "❤️"],
-      ["DELETE", "reactions"],
-    ]);
+  // Reactions: the menu's quick reaction, the chip under the bubble, removal from the list.
+  await longPress(page.getByText("Bought 0.10 gold at 2,400.", { exact: true }));
+  await expect(page.getByText("Message options", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit and resend" })).toHaveCount(0);
+  await page.getByRole("button", { name: "React ❤️", exact: true }).click();
+  const chips = page.getByTestId("message-reactions");
+  await expect(chips).toContainText("❤️");
+  await chips.click();
+  await expect(page.getByText("Tap to remove", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "You", exact: true }).click();
+  await expect(chips).toHaveCount(0);
+  expect(reacted).toEqual([
+    ["PUT", "❤️"],
+    ["DELETE", "reactions"],
+  ]);
 
-    // Copy text.
-    await longPress(page.getByText("Bought 0.10 gold at 2,400.", { exact: true }));
-    await page.getByRole("button", { name: "Copy text", exact: true }).click();
-    await expect(page.getByText("Copied", { exact: true })).toBeVisible();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      "Bought 0.10 gold at 2,400.",
-    );
+  // Copy text.
+  await longPress(page.getByText("Bought 0.10 gold at 2,400.", { exact: true }));
+  await page.getByRole("button", { name: "Copy text", exact: true }).click();
+  await expect(page.getByText("Copied", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "Bought 0.10 gold at 2,400.",
+  );
 
-    // Turn into a task.
-    await longPress(page.getByText("Bought 0.10 gold at 2,400.", { exact: true }));
-    await page.getByRole("button", { name: "Turn into a task", exact: true }).click();
-    await expect(page.getByText("Task created", { exact: true })).toBeVisible();
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0][0]).toContain(`agent_id=${data.agent.id}`);
-    expect(tasks[0][0]).toContain(`thread_id=${data.thread.id}`);
-    expect(tasks[0][1]).toEqual({
-      title: "Bought 0.10 gold at 2,400.",
-      description: "Bought 0.10 gold at 2,400.",
-    });
+  // Turn into a task.
+  await longPress(page.getByText("Bought 0.10 gold at 2,400.", { exact: true }));
+  await page.getByRole("button", { name: "Turn into a task", exact: true }).click();
+  await expect(page.getByText("Task created", { exact: true })).toBeVisible();
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0][0]).toContain(`agent_id=${data.agent.id}`);
+  expect(tasks[0][0]).toContain(`thread_id=${data.thread.id}`);
+  expect(tasks[0][1]).toEqual({
+    title: "Bought 0.10 gold at 2,400.",
+    description: "Bought 0.10 gold at 2,400.",
+  });
 
-    // Edit and resend: the owner's own text comes back into the composer and replaces it.
-    await longPress(page.getByText("Buy gold at 2,400", { exact: true }).last());
-    await page.getByRole("button", { name: "Edit and resend", exact: true }).click();
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await expect(composer).toHaveValue("Buy gold at 2,400");
-    await expect(page.getByText("Edit the message", { exact: true })).toBeVisible();
-    await composer.fill("Buy gold at 2,395");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect.poll(() => posted.length).toBe(1);
-    expect(posted[0].edited_from).toBe(mine.id);
-    expect(posted[0].reply_to).toBeNull();
-    await expect(page.getByText("Edit the message", { exact: true })).toHaveCount(0);
-  } finally {
-    await data.remove();
-  }
+  // Edit and resend: the owner's own text comes back into the composer and replaces it.
+  await longPress(page.getByText("Buy gold at 2,400", { exact: true }).last());
+  await page.getByRole("button", { name: "Edit and resend", exact: true }).click();
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await expect(composer).toHaveValue("Buy gold at 2,400");
+  await expect(page.getByText("Edit the message", { exact: true })).toBeVisible();
+  await composer.fill("Buy gold at 2,395");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0].edited_from).toBe(mine.id);
+  expect(posted[0].reply_to).toBeNull();
+  await expect(page.getByText("Edit the message", { exact: true })).toHaveCount(0);
 });
 
 test("a failed message offers retry and delete; delete drops it from the device", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   await page.route(`**/api/threads/${data.thread.id}/messages`, async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: [] });
     return route.fulfill({ status: 422, json: { code: "message_rejected" } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await composer.fill("Never arrives");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(page.getByText("Message not sent", { exact: true })).toBeVisible();
-    await longPress(page.getByText("Never arrives", { exact: true }));
-    await expect(page.getByText("The message was not sent", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry", exact: true }).last()).toBeVisible();
-    await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await expect(page.getByText("Never arrives", { exact: true })).toHaveCount(0);
-    await page.reload();
-    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
-    await expect(page.getByText("Never arrives", { exact: true })).toHaveCount(0);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await composer.fill("Never arrives");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Message not sent", { exact: true })).toBeVisible();
+  await longPress(page.getByText("Never arrives", { exact: true }));
+  await expect(page.getByText("The message was not sent", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry", exact: true }).last()).toBeVisible();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByText("Never arrives", { exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+  await expect(page.getByText("Never arrives", { exact: true })).toHaveCount(0);
 });
 
-test("a tap on a quoted message rests the list on it", async ({ page, context }) => {
+test("a tap on a quoted message rests the list on it", async ({ page, context, cleanup }) => {
   const data = await fixture(context);
   const first = message(data, { content: "Where is support?" });
   const rows = [first];
@@ -211,22 +207,20 @@ test("a tap on a quoted message rests the list on it", async ({ page, context })
   await page.route(`**/api/threads/${data.thread.id}/messages*`, (route) =>
     route.fulfill({ json: rows }),
   );
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await expect(page.getByText("Support is at 2,380.", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Reply: Where is support?", exact: true }).click();
-    await expect(page).toHaveURL(/around=1/);
-    // The quoted message's neighbourhood is on screen; the newest answer has scrolled away.
-    await expect(page.getByText("Line 2", { exact: true })).toBeInViewport();
-    await expect(page.getByText("Support is at 2,380.", { exact: true })).not.toBeInViewport();
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await expect(page.getByText("Support is at 2,380.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reply: Where is support?", exact: true }).click();
+  await expect(page).toHaveURL(/around=1/);
+  // The quoted message's neighbourhood is on screen; the newest answer has scrolled away.
+  await expect(page.getByText("Line 2", { exact: true })).toBeInViewport();
+  await expect(page.getByText("Support is at 2,380.", { exact: true })).not.toBeInViewport();
 });
 
 test("a failed reply offers Retry once; the retry names it and the banner settles", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const now = new Date().toISOString();
@@ -259,21 +253,19 @@ test("a failed reply offers Retry once; the retry names it and the banner settle
     runs.push(next);
     return route.fulfill({ status: 202, json: next });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const retry = page.getByRole("button", { name: "Retry", exact: true });
-    await expect(retry).toBeVisible();
-    await retry.click();
-    await expect.poll(() => retried.length).toBe(1);
-    await expect(retry).toHaveCount(0);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const retry = page.getByRole("button", { name: "Retry", exact: true });
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect.poll(() => retried.length).toBe(1);
+  await expect(retry).toHaveCount(0);
 });
 
 test("a failed background run shows only when the owner must fix it (11.5); never with Retry", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const now = new Date().toISOString();
@@ -303,12 +295,9 @@ test("a failed background run shows only when the owner must fix it (11.5); neve
   await page.route("**/api/runs?thread_id=*", (route) =>
     route.fulfill({ json: [transient, credentials] }),
   );
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await expect(page.getByText(/The provider rejected this API key/)).toBeVisible();
-    await expect(page.getByText(/· Failed/)).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await expect(page.getByText(/The provider rejected this API key/)).toBeVisible();
+  await expect(page.getByText(/· Failed/)).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
 });

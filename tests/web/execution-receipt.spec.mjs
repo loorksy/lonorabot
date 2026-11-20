@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 // The Execution Receipt (mandate 10.3, 11.2): one card per broker-confirmed operation, with
 // the broker's facts and the agent's reason labelled as the agent's words. An operation is
@@ -30,6 +30,7 @@ for (const locale of ["ar", "en"])
   test(`${locale}: a confirmed operation is one Execution Receipt with the broker's facts`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const text = copy[locale];
     const fixture = JSON.parse(
@@ -120,44 +121,44 @@ for (const locale of ["ar", "en"])
       route.fulfill({ json: [fill, modify, mine] }),
     );
     await page.route("**/api/trading/journal?*", (route) => route.fulfill({ json: journal }));
-    try {
-      await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
-      await page.goto(`/app/${agent.id}`);
-      const card = page.locator(`[data-execution-receipt="${fill.operation_id}"]`);
-      await expect(card.getByText(text.kicker)).toBeVisible();
-      await expect(card.getByText("50071", { exact: true })).toBeVisible();
-      await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
-      await expect(card.getByText(text.price, { exact: true })).toBeVisible();
-      await expect(card.locator("[data-receipt-status]")).toHaveText(text.confirmed);
-      await expect(card.getByText(text.ticket, { exact: true })).toBeVisible();
-      // The facts are the Trade Approval's label/value rows (v38 oaDL), in the same frame
-      // width as every fixed card.
-      const rows = card.locator(".oa-dl > div");
-      await expect(rows).toHaveCount(3);
-      await expect(rows.nth(0).locator("dt")).toHaveText(text.ticket);
-      await expect(rows.nth(0).locator("dd")).toHaveText("50071");
-      await expect(rows.nth(2).locator("dt")).toHaveText(text.price);
-      await expect(rows.nth(2).locator("dd")).toHaveText("2400.55");
-      await expect(card.locator(".mcard-facts")).toHaveCount(0);
-      await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
-      await expect(card.locator("[data-receipt-reason] b")).toHaveText(text.words);
-      await expect(card.locator("[data-receipt-reason] bdi")).toHaveText(fill.reason);
-      const changed = page.locator(`[data-execution-receipt="${modify.operation_id}"]`);
-      await expect(changed).toHaveAttribute("data-receipt-kind", "modify");
-      await expect(changed.locator("[data-receipt-status]")).toHaveText(text.verified);
-      await expect(changed.locator("[data-receipt-reason]")).toHaveCount(0);
-      const own = page.locator(`[data-execution-receipt="${mine.operation_id}"]`);
-      await expect(own.locator(".mcard-request strong")).toHaveText(text.mine);
-      await expect(own.locator("[data-receipt-reason]")).toHaveCount(0);
-      // No order line in the chat, for a confirmed operation or any other (v38).
-      await expect(page.locator(".od-chat, [data-operation-id]")).toHaveCount(0);
-      // No raw operation id in the normal view.
-      await expect(page.getByText(fill.operation_id)).toHaveCount(0);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("execution-receipt-ar.png") });
-      }
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    });
+
+    await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-execution-receipt="${fill.operation_id}"]`);
+    await expect(card.getByText(text.kicker)).toBeVisible();
+    await expect(card.getByText("50071", { exact: true })).toBeVisible();
+    await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
+    await expect(card.getByText(text.price, { exact: true })).toBeVisible();
+    await expect(card.locator("[data-receipt-status]")).toHaveText(text.confirmed);
+    await expect(card.getByText(text.ticket, { exact: true })).toBeVisible();
+    // The facts are the Trade Approval's label/value rows (v38 oaDL), in the same frame
+    // width as every fixed card.
+    const rows = card.locator(".oa-dl > div");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0).locator("dt")).toHaveText(text.ticket);
+    await expect(rows.nth(0).locator("dd")).toHaveText("50071");
+    await expect(rows.nth(2).locator("dt")).toHaveText(text.price);
+    await expect(rows.nth(2).locator("dd")).toHaveText("2400.55");
+    await expect(card.locator(".mcard-facts")).toHaveCount(0);
+    await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
+    await expect(card.locator("[data-receipt-reason] b")).toHaveText(text.words);
+    await expect(card.locator("[data-receipt-reason] bdi")).toHaveText(fill.reason);
+    const changed = page.locator(`[data-execution-receipt="${modify.operation_id}"]`);
+    await expect(changed).toHaveAttribute("data-receipt-kind", "modify");
+    await expect(changed.locator("[data-receipt-status]")).toHaveText(text.verified);
+    await expect(changed.locator("[data-receipt-reason]")).toHaveCount(0);
+    const own = page.locator(`[data-execution-receipt="${mine.operation_id}"]`);
+    await expect(own.locator(".mcard-request strong")).toHaveText(text.mine);
+    await expect(own.locator("[data-receipt-reason]")).toHaveCount(0);
+    // No order line in the chat, for a confirmed operation or any other (v38).
+    await expect(page.locator(".od-chat, [data-operation-id]")).toHaveCount(0);
+    // No raw operation id in the normal view.
+    await expect(page.getByText(fill.operation_id)).toHaveCount(0);
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("execution-receipt-ar.png") });
     }
   });

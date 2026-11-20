@@ -1,10 +1,10 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { ChatList } from "@lonora/contracts";
-import { type ChatRow, foldSearch, listMemberRows, rowKey } from "@lonora/core";
+import { type ChatRow, chatRows, foldSearch, listMemberRows, rowKey } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { type Agent, ApiError, type Resource } from "../../lib/api";
+import { ApiError } from "../../lib/api";
 import { useShellData } from "../data";
 import { isDesktop } from "../motion";
 import { useSheets } from "../sheets/SheetHost";
@@ -125,32 +125,28 @@ function NameStep({
   );
 }
 
+/* The agents and groups are read live, as the new-chat sheet reads them: a page opened before
+   the shell's data arrives fills in, and it saves the rows it shows. */
 function PickStep({
   draft,
-  rows,
-  agents,
-  groups,
   onSave,
 }: {
   draft: Draft;
-  rows: readonly ChatRow[];
-  agents: Agent[];
-  groups: Resource[];
-  onSave: () => Promise<void>;
+  onSave: (picked: ChatRow[]) => Promise<void>;
 }) {
+  const { agents, groups, inbox } = useShellData();
   const [keys, setKeys] = useState(() => new Set(draft.keys));
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const choices = useMemo(
-    () =>
-      [
-        ...agents.map((agent) => rowKey("agent", agent.id)),
-        ...groups.map((group) => rowKey("group", group.id)),
-      ]
-        .map((key) => rows.find((row) => row.key === key))
-        .filter((row): row is ChatRow => Boolean(row)),
-    [agents, groups, rows],
-  );
+  const choices = useMemo(() => {
+    const rows = chatRows(agents, groups, inbox);
+    return [
+      ...agents.map((agent) => rowKey("agent", agent.id)),
+      ...groups.map((group) => rowKey("group", group.id)),
+    ]
+      .map((key) => rows.find((row) => row.key === key))
+      .filter((row): row is ChatRow => Boolean(row));
+  }, [agents, groups, inbox]);
   const q = foldSearch(query);
   const shown = choices.filter(
     (row) =>
@@ -221,7 +217,7 @@ function PickStep({
           onClick={async () => {
             setBusy(true);
             try {
-              await onSave();
+              await onSave(choices.filter((row) => keys.has(row.key)));
             } finally {
               setBusy(false);
             }
@@ -248,13 +244,12 @@ export function useListSheets() {
   const toast = useToast();
   const { setChatLists, chatLists } = data;
 
-  async function save(draft: Draft) {
+  async function save(draft: Draft, picked: readonly ChatRow[]) {
     const name = draft.name.trim().slice(0, 30);
     if (!name) return;
     const taken = () => toast(t`A list named «${name}» already exists`, { type: "warn" });
     if (chatLists.some((list) => list.id !== draft.id && list.name === name)) return taken();
     try {
-      const picked = lists.rows.filter((row) => draft.keys.has(row.key));
       const threadIds = await lists.threadsOf(picked);
       let list: ChatList;
       if (draft.id) {
@@ -303,15 +298,7 @@ export function useListSheets() {
         full: true,
         dir,
         back: () => namePage(draft, "back"),
-        body: (
-          <PickStep
-            draft={draft}
-            rows={lists.rows}
-            agents={data.agents}
-            groups={data.groups}
-            onSave={() => save(draft)}
-          />
-        ),
+        body: <PickStep draft={draft} onSave={(picked) => save(draft, picked)} />,
       },
       { morph: Boolean(dir) },
     );

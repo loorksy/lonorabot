@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 // The Execution Receipt (mandate 10.3, 11.2): one card per broker-confirmed operation, with
 // the broker's facts as label/value rows and the agent's reason labelled as the agent's words.
@@ -31,6 +31,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: a confirmed operation is one Execution Receipt with the broker's facts`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const text = copy[locale];
     const fixture = JSON.parse(
@@ -137,61 +138,61 @@ for (const locale of ["ar", "en"])
       journalReads.push(route.request().url());
       return route.fulfill({ json: journal });
     });
-    try {
-      await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
-      await page.goto(`/thread?id=${thread.id}`);
-      const cards = page.getByTestId("execution-receipt");
-      await expect(cards).toHaveCount(3);
-      // No order line in the chat, for the confirmed operation or any other (v38, D4).
-      await expect(page.getByText(/0\.3/)).toHaveCount(0);
-      expect(journalReads).toEqual([]);
-      // The list is inverted: pick each card by what it holds, not by its place.
-      const card = cards.filter({ hasText: fill.reason });
-      const changed = cards.filter({ hasNotText: fill.reason }).filter({ hasNotText: "50072" });
-      const own = cards.filter({ hasText: "50072" });
-      await expect(card.getByText(text.kicker)).toBeVisible();
-      // The kicker carries its check, and a receipt still verifying waits with the hourglass
-      // (never the calendar), as the web card's (v38).
-      await expect(card.locator('path[d^="M5 12l4 4L19 6"]')).toHaveCount(1);
-      await expect(card.locator('path[d^="M6 2h12M6 22h12"]')).toHaveCount(1);
-      await expect(card.locator('path[d^="M7 3v3M17 3v3"]')).toHaveCount(0);
-      await expect(card.getByText("50071", { exact: true })).toBeVisible();
-      await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
-      await expect(card.getByText(text.price, { exact: true })).toBeVisible();
-      await expect(card.getByText(text.ticket, { exact: true })).toBeVisible();
-      // The facts are label/value rows, as the Trade Approval's (v38 `.oa-dl`, D7): each label
-      // shares its row with its value.
-      const row = (label, value) =>
-        card
-          .locator("div")
-          .filter({ has: page.getByText(label, { exact: true }) })
-          .filter({ has: page.getByText(value, { exact: true }) })
-          .last();
-      for (const [label, value] of [
-        [text.ticket, "50071"],
-        [text.price, "2400.55"],
-      ]) {
-        const cells = row(label, value);
-        await expect(cells).toBeVisible();
-        // Side by side on one row, never a label stacked above its value.
-        const [a, b] = await Promise.all([
-          cells.getByText(label, { exact: true }).boundingBox(),
-          cells.getByText(value, { exact: true }).boundingBox(),
-        ]);
-        expect(Math.abs(a.y + a.height / 2 - (b.y + b.height / 2))).toBeLessThan(8);
-        expect(Math.abs(a.x - b.x)).toBeGreaterThan(40);
-      }
-      await expect(card.getByTestId("execution-receipt-status")).toHaveText(text.confirmed);
-      await expect(card.getByText(text.words, { exact: true })).toBeVisible();
-      await expect(card.getByText(fill.reason, { exact: true })).toBeVisible();
-      await expect(changed.getByTestId("execution-receipt-status")).toHaveText(text.verified);
-      await expect(changed.getByTestId("execution-receipt-reason")).toHaveCount(0);
-      await expect(own.getByText(text.mine, { exact: true })).toBeVisible();
-      await expect(own.getByTestId("execution-receipt-reason")).toHaveCount(0);
-      await expect(page.getByText(fill.operation_id)).toHaveCount(0);
-      if (locale === "ar")
-        await page.screenshot({ path: test.info().outputPath("execution-receipt-native-ar.png") });
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    });
+
+    await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    await page.goto(`/thread?id=${thread.id}`);
+    const cards = page.getByTestId("execution-receipt");
+    await expect(cards).toHaveCount(3);
+    // No order line in the chat, for the confirmed operation or any other (v38, D4).
+    await expect(page.getByText(/0\.3/)).toHaveCount(0);
+    expect(journalReads).toEqual([]);
+    // The list is inverted: pick each card by what it holds, not by its place.
+    const card = cards.filter({ hasText: fill.reason });
+    const changed = cards.filter({ hasNotText: fill.reason }).filter({ hasNotText: "50072" });
+    const own = cards.filter({ hasText: "50072" });
+    await expect(card.getByText(text.kicker)).toBeVisible();
+    // The kicker carries its check, and a receipt still verifying waits with the hourglass
+    // (never the calendar), as the web card's (v38).
+    await expect(card.locator('path[d^="M5 12l4 4L19 6"]')).toHaveCount(1);
+    await expect(card.locator('path[d^="M6 2h12M6 22h12"]')).toHaveCount(1);
+    await expect(card.locator('path[d^="M7 3v3M17 3v3"]')).toHaveCount(0);
+    await expect(card.getByText("50071", { exact: true })).toBeVisible();
+    await expect(card.getByText("2400.55", { exact: true })).toBeVisible();
+    await expect(card.getByText(text.price, { exact: true })).toBeVisible();
+    await expect(card.getByText(text.ticket, { exact: true })).toBeVisible();
+    // The facts are label/value rows, as the Trade Approval's (v38 `.oa-dl`, D7): each label
+    // shares its row with its value.
+    const row = (label, value) =>
+      card
+        .locator("div")
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .filter({ has: page.getByText(value, { exact: true }) })
+        .last();
+    for (const [label, value] of [
+      [text.ticket, "50071"],
+      [text.price, "2400.55"],
+    ]) {
+      const cells = row(label, value);
+      await expect(cells).toBeVisible();
+      // Side by side on one row, never a label stacked above its value.
+      const [a, b] = await Promise.all([
+        cells.getByText(label, { exact: true }).boundingBox(),
+        cells.getByText(value, { exact: true }).boundingBox(),
+      ]);
+      expect(Math.abs(a.y + a.height / 2 - (b.y + b.height / 2))).toBeLessThan(8);
+      expect(Math.abs(a.x - b.x)).toBeGreaterThan(40);
     }
+    await expect(card.getByTestId("execution-receipt-status")).toHaveText(text.confirmed);
+    await expect(card.getByText(text.words, { exact: true })).toBeVisible();
+    await expect(card.getByText(fill.reason, { exact: true })).toBeVisible();
+    await expect(changed.getByTestId("execution-receipt-status")).toHaveText(text.verified);
+    await expect(changed.getByTestId("execution-receipt-reason")).toHaveCount(0);
+    await expect(own.getByText(text.mine, { exact: true })).toBeVisible();
+    await expect(own.getByTestId("execution-receipt-reason")).toHaveCount(0);
+    await expect(page.getByText(fill.operation_id)).toHaveCount(0);
+    if (locale === "ar")
+      await page.screenshot({ path: test.info().outputPath("execution-receipt-native-ar.png") });
   });

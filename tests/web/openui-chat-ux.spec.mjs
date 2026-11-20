@@ -2,7 +2,7 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright environment is not cached by Turbo.
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect } from "../ui-test.mjs";
 import { brokerFixture } from "./broker-fixture.mjs";
 
 let session;
@@ -172,7 +172,13 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   page,
   conversation,
 }) => {
-  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    // Every error event reaches the owner as «An unexpected error occurred», including a
+    // ResizeObserver loop, which is no page error.
+    window.__errors = [];
+    window.addEventListener("error", (event) => window.__errors.push(event.message));
+  });
   const rows = Array.from({ length: 24 }, (_, index) =>
     message(
       conversation,
@@ -225,10 +231,21 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   await expect(page.locator("[data-message-id='ux-message-25']")).toHaveCount(1);
   expect(await transcript.evaluate((element) => element.scrollTop)).toBeLessThan(200);
   await page.locator(".jump").click();
+  // The ↓ scrolls smoothly and turns off 260px before the end: the scroll's end is the
+  // resting place to measure.
+  await expect
+    .poll(() =>
+      transcript.evaluate(
+        (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+      ),
+    )
+    .toBeLessThanOrEqual(2);
   await expect(page.locator(".jump")).not.toHaveClass(/\bon\b/);
   const newest = await page.locator("[data-message-id='ux-message-25']").boundingBox();
   const restingBar = await page.locator(".composer-card").boundingBox();
   expect(newest.y + newest.height).toBeLessThan(restingBar.y);
+  // The composer grew and shrank above the transcript without an error.
+  expect(await page.evaluate(() => window.__errors)).toEqual([]);
 });
 
 test("M6: leaving the chat while recording releases the microphone and sends nothing", async ({
@@ -289,6 +306,7 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   page,
   context,
   conversation,
+  cleanup,
 }) => {
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   const id = conversation.agent.id;
@@ -320,16 +338,15 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   });
   expect(created.ok()).toBeTruthy();
   const group = await created.json();
-  try {
-    await page.goto(`/app/g/${group.id}`);
-    await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
-    await expect(sheet.getByRole("button", { name: /^Skills/ })).toHaveCount(0);
-    await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toHaveCount(0);
-    await sheet.getByRole("button", { name: /^Schedule/ }).click();
-    await expect(page).toHaveURL(/\/app\/new-schedule$/);
-  } finally {
-    await context.request.delete(`/api/groups/${group.id}`, { headers: conversation.headers });
-  }
+  cleanup(() =>
+    context.request.delete(`/api/groups/${group.id}`, { headers: conversation.headers }),
+  );
+  await page.goto(`/app/g/${group.id}`);
+  await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
+  await expect(sheet.getByRole("button", { name: /^Skills/ })).toHaveCount(0);
+  await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toHaveCount(0);
+  await sheet.getByRole("button", { name: /^Schedule/ }).click();
+  await expect(page).toHaveURL(/\/app\/new-schedule$/);
 });
 
 test("the @ list: the role in words, full-width rows, and a picked name drawn as a chip", async ({

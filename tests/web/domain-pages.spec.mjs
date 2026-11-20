@@ -4,7 +4,7 @@
    reload. «تحديد كمكتملة» stops work without approving anything; skills restore with undo. */
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect } from "../ui-test.mjs";
 
 const test = base.extend({
   owner: async ({ context }, use) => {
@@ -301,6 +301,7 @@ test("skills: create, edit, version history, restore and undo", async ({ page, o
 test("a conditional alert is saved for a trading agent and waits in its schedules", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -312,59 +313,58 @@ test("a conditional alert is saved for a trading agent and waits in its schedule
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
   };
   let agent;
-  try {
-    await context.addCookies(
-      data.cookies.map((cookie) => ({
-        ...cookie,
-        url: test.info().project.use.baseURL,
-        httpOnly: cookie.name === "lonora_session",
-        sameSite: "Strict",
-      })),
-    );
-    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-    const created = await context.request.post("/api/agents", {
-      headers,
-      data: {
-        name: `Alerts ${randomUUID().slice(0, 8)}`,
-        trading_account_id: data.account,
-        trading_symbol: data.symbol,
-      },
-    });
-    expect(created.status()).toBe(201);
-    agent = await created.json();
-    const title = `Tell me ${randomUUID().slice(0, 6)}`;
-    await page.goto(`/app/new-schedule?agent=${agent.id}`);
-    const form = page.locator('form[data-form="schedule"]');
-    await expect(form.locator('select[name="agent"]')).toHaveValue(agent.id);
-    await form.getByLabel("Task", { exact: true }).fill(title);
-    await form.getByLabel("Schedule type", { exact: true }).selectOption("condition");
-    await form.getByLabel("Condition — for the conditional alert").fill("above 2350");
-    const posted = saved(page, "POST", /^\/api\/watches$/);
-    await form.getByRole("button", { name: "Save schedule", exact: true }).click();
-    const watch = await (await posted).json();
-    expect(watch.payload).toMatchObject({
-      kind: "price",
-      account_id: data.account,
-      symbol: data.symbol,
-      condition: "above",
-      level: "2350",
-      prompt: title,
-    });
-    // It waits with the agent's schedules.
-    await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}$`));
-    await page.goto(`/app/routines?agent=${agent.id}`);
-    const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
-    await expect(toggle).toHaveAttribute("aria-checked", "true");
-    const control = saved(page, "POST", new RegExp(`^/api/watches/${watch.id}/control$`));
-    await toggle.click();
-    expect((await control).request().postDataJSON()).toEqual({ action: "pause" });
-  } finally {
+  cleanup(async () => {
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
       input: JSON.stringify({ ...data, action: "cleanup" }),
       encoding: "utf8",
     });
-  }
+  });
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const created = await context.request.post("/api/agents", {
+    headers,
+    data: {
+      name: `Alerts ${randomUUID().slice(0, 8)}`,
+      trading_account_id: data.account,
+      trading_symbol: data.symbol,
+    },
+  });
+  expect(created.status()).toBe(201);
+  agent = await created.json();
+  const title = `Tell me ${randomUUID().slice(0, 6)}`;
+  await page.goto(`/app/new-schedule?agent=${agent.id}`);
+  const form = page.locator('form[data-form="schedule"]');
+  await expect(form.locator('select[name="agent"]')).toHaveValue(agent.id);
+  await form.getByLabel("Task", { exact: true }).fill(title);
+  await form.getByLabel("Schedule type", { exact: true }).selectOption("condition");
+  await form.getByLabel("Condition — for the conditional alert").fill("above 2350");
+  const posted = saved(page, "POST", /^\/api\/watches$/);
+  await form.getByRole("button", { name: "Save schedule", exact: true }).click();
+  const watch = await (await posted).json();
+  expect(watch.payload).toMatchObject({
+    kind: "price",
+    account_id: data.account,
+    symbol: data.symbol,
+    condition: "above",
+    level: "2350",
+    prompt: title,
+  });
+  // It waits with the agent's schedules.
+  await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}$`));
+  await page.goto(`/app/routines?agent=${agent.id}`);
+  const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  const control = saved(page, "POST", new RegExp(`^/api/watches/${watch.id}/control$`));
+  await toggle.click();
+  expect((await control).request().postDataJSON()).toEqual({ action: "pause" });
 });
 
 test("task page: a task held for the owner offers pause and resume, each sending its own action", async ({

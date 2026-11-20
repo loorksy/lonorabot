@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function deferred() {
   let resolve;
@@ -47,6 +47,7 @@ async function conversation(context) {
 test("message appears before delayed POST and slow runs, survives navigation, then reconciles once", async ({
   page,
   context,
+  cleanup,
 }) => {
   const { agent, thread, headers } = await conversation(context);
   const post = deferred();
@@ -67,44 +68,44 @@ test("message appears before delayed POST and slow runs, survives navigation, th
     await route.fulfill({ response });
     committed.resolve();
   });
-  try {
-    await page.goto("/app");
-    await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
-    const content = "صباح الخير — تظهر الرسالة فورًا";
-    await page.locator(".composer textarea").fill(content);
-    await page.locator(".composer .send").click();
-    const pending = page.locator(".msg[data-delivery='sending']");
-    await expect(pending).toContainText(content, { timeout: 1000 });
-    await expect(pending).toHaveCount(1);
-    await expect(page.locator(".composer textarea")).toHaveValue("");
-    // Waiting to send: the send time, then the clock instead of the ticks (reference ticks()).
-    await expect(pending.locator(".meta time")).toHaveCount(1);
-    await expect(pending.locator(".ticks.wait")).toBeVisible();
-    await expect(page.locator("[data-stream-run-id]")).toHaveCount(0);
-
-    await page.goBack();
-    await expect(page.getByTestId("conversation-inbox")).toBeVisible();
-    await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
-    await expect(pending).toContainText(content, { timeout: 1000 });
-    post.resolve();
-    await committed.promise;
-    await expect(page.locator(`[data-message-id="${saved.message.id}"]`)).toContainText(content);
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
-    // The independent Run request is deliberately still unresolved here.
-    expect(saved.run_ids).toHaveLength(1);
-    await expect(page.locator(`[data-progress-run-id="${saved.run_ids[0]}"]`)).toHaveCount(1);
-    await expect(page.locator(`[data-activity-phase="queued"]`)).toHaveCount(1);
-  } finally {
+  cleanup(async () => {
     post.resolve();
     runs.resolve();
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  });
+  await page.goto("/app");
+  await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
+  const content = "صباح الخير — تظهر الرسالة فورًا";
+  await page.locator(".composer textarea").fill(content);
+  await page.locator(".composer .send").click();
+  const pending = page.locator(".msg[data-delivery='sending']");
+  await expect(pending).toContainText(content, { timeout: 1000 });
+  await expect(pending).toHaveCount(1);
+  await expect(page.locator(".composer textarea")).toHaveValue("");
+  // Waiting to send: the send time, then the clock instead of the ticks (reference ticks()).
+  await expect(pending.locator(".meta time")).toHaveCount(1);
+  await expect(pending.locator(".ticks.wait")).toBeVisible();
+  await expect(page.locator("[data-stream-run-id]")).toHaveCount(0);
+
+  await page.goBack();
+  await expect(page.getByTestId("conversation-inbox")).toBeVisible();
+  await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
+  await expect(pending).toContainText(content, { timeout: 1000 });
+  post.resolve();
+  await committed.promise;
+  await expect(page.locator(`[data-message-id="${saved.message.id}"]`)).toContainText(content);
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
+  // The independent Run request is deliberately still unresolved here.
+  expect(saved.run_ids).toHaveLength(1);
+  await expect(page.locator(`[data-progress-run-id="${saved.run_ids[0]}"]`)).toHaveCount(1);
+  await expect(page.locator(`[data-activity-phase="queued"]`)).toHaveCount(1);
 });
 
 test("failed pending bubble retries the same receipt while preserving a newer draft", async ({
   page,
   context,
+  cleanup,
 }) => {
   const { agent, thread, headers } = await conversation(context);
   const nonces = [];
@@ -119,31 +120,29 @@ test("failed pending bubble retries the same receipt while preserving a newer dr
     }
     return route.continue();
   });
-  try {
-    await page.goto(`/app/${agent.id}`);
-    const composer = page.locator(".composer textarea");
-    const content = "Retry this exact message";
-    await composer.fill(content);
-    await page.locator(".composer .send").click();
-    const failed = page.locator(".msg[data-delivery='failed']");
-    await expect(failed).toContainText(content);
-    await composer.fill("Keep my newer unsent draft");
-    await failed.locator(".fail-note").click();
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
-    await expect(composer).toHaveValue("Keep my newer unsent draft");
-    expect(nonces).toHaveLength(2);
-    expect(nonces[0]).toBe(nonces[1]);
-    const history = await (await context.request.get(`/api/threads/${thread.id}/messages`)).json();
-    expect(history.filter((message) => message.content === content)).toHaveLength(1);
-  } finally {
-    await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+  await page.goto(`/app/${agent.id}`);
+  const composer = page.locator(".composer textarea");
+  const content = "Retry this exact message";
+  await composer.fill(content);
+  await page.locator(".composer .send").click();
+  const failed = page.locator(".msg[data-delivery='failed']");
+  await expect(failed).toContainText(content);
+  await composer.fill("Keep my newer unsent draft");
+  await failed.locator(".fail-note").click();
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
+  await expect(composer).toHaveValue("Keep my newer unsent draft");
+  expect(nonces).toHaveLength(2);
+  expect(nonces[0]).toBe(nonces[1]);
+  const history = await (await context.request.get(`/api/threads/${thread.id}/messages`)).json();
+  expect(history.filter((message) => message.content === content)).toHaveLength(1);
 });
 
 test("SSE acknowledgement replaces pending text before its HTTP response returns", async ({
   page,
   context,
+  cleanup,
 }) => {
   const { agent, thread, headers } = await conversation(context);
   const responseGate = deferred();
@@ -158,52 +157,52 @@ test("SSE acknowledgement replaces pending text before its HTTP response returns
     await responseGate.promise;
     await route.fulfill({ response });
   });
-  try {
-    await page.goto(`/app/${agent.id}`);
-    const content = "Confirmed by the live event";
-    await page.locator(".composer textarea").fill(content);
-    await page.locator(".composer .send").click();
-    await committed.promise;
-    await expect(page.locator(`[data-message-id="${saved.message.id}"]`)).toContainText(content);
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    responseGate.resolve();
-    await expect(page.locator(".composer textarea")).toHaveValue("");
-    await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
-  } finally {
+  cleanup(async () => {
     responseGate.resolve();
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  });
+  await page.goto(`/app/${agent.id}`);
+  const content = "Confirmed by the live event";
+  await page.locator(".composer textarea").fill(content);
+  await page.locator(".composer .send").click();
+  await committed.promise;
+  await expect(page.locator(`[data-message-id="${saved.message.id}"]`)).toContainText(content);
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  responseGate.resolve();
+  await expect(page.locator(".composer textarea")).toHaveValue("");
+  await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
 });
 
 test("drafts stay with their conversation across switches and reload", async ({
   page,
   context,
+  cleanup,
 }) => {
   const a = await conversation(context),
     b = await conversation(context);
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  try {
-    await page.goto(`/app/${a.agent.id}`);
-    const field = page.locator(".composer textarea");
-    await field.fill("Unsent draft A");
-    await page.locator(`.desktop-list [data-inbox-agent-id="${b.agent.id}"]`).click();
-    await expect(field).toHaveValue("");
-    await field.fill("Unsent draft B");
-    await page.locator(`.desktop-list [data-inbox-agent-id="${a.agent.id}"]`).click();
-    await expect(field).toHaveValue("Unsent draft A");
-    await page.reload();
-    await expect(field).toHaveValue("Unsent draft A");
-    await page.locator(`.desktop-list [data-inbox-agent-id="${b.agent.id}"]`).click();
-    await expect(field).toHaveValue("Unsent draft B");
-  } finally {
+  cleanup(async () => {
     await context.request.delete(`/api/agents/${a.agent.id}`, { headers: a.headers });
     await context.request.delete(`/api/agents/${b.agent.id}`, { headers: b.headers });
-  }
+  });
+  await page.goto(`/app/${a.agent.id}`);
+  const field = page.locator(".composer textarea");
+  await field.fill("Unsent draft A");
+  await page.locator(`.desktop-list [data-inbox-agent-id="${b.agent.id}"]`).click();
+  await expect(field).toHaveValue("");
+  await field.fill("Unsent draft B");
+  await page.locator(`.desktop-list [data-inbox-agent-id="${a.agent.id}"]`).click();
+  await expect(field).toHaveValue("Unsent draft A");
+  await page.reload();
+  await expect(field).toHaveValue("Unsent draft A");
+  await page.locator(`.desktop-list [data-inbox-agent-id="${b.agent.id}"]`).click();
+  await expect(field).toHaveValue("Unsent draft B");
 });
 
 test("failed outbox survives reload without auto-resubmitting and retries the original nonce", async ({
   page,
   context,
+  cleanup,
 }) => {
   const { agent, thread, headers } = await conversation(context);
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
@@ -216,34 +215,32 @@ test("failed outbox survives reload without auto-resubmitting and retries the or
       ? route.fulfill({ status: 503, json: { code: "request_failed" } })
       : route.continue();
   });
-  try {
-    await page.goto(`/app/${agent.id}`);
-    const field = page.locator(".composer textarea");
-    await field.fill("Recover this receipt");
-    await page.locator(".composer .send").click();
-    await expect(field).toHaveValue("");
-    await expect(page.locator('[data-delivery="failed"]')).toContainText("Recover this receipt");
-    await field.fill("A newer draft is separate");
-    await page.reload();
-    await expect(field).toHaveValue("A newer draft is separate");
-    await expect(page.locator('[data-delivery="failed"]')).toHaveCount(1);
-    expect(nonces).toHaveLength(1);
-    fail = false;
-    await page.locator(".fail-note").click();
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    await expect(
-      page.getByTestId("transcript").getByText("Recover this receipt", { exact: true }),
-    ).toHaveCount(1);
-    await expect(field).toHaveValue("A newer draft is separate");
-    expect(nonces).toEqual([nonces[0], nonces[0]]);
-  } finally {
-    await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+  await page.goto(`/app/${agent.id}`);
+  const field = page.locator(".composer textarea");
+  await field.fill("Recover this receipt");
+  await page.locator(".composer .send").click();
+  await expect(field).toHaveValue("");
+  await expect(page.locator('[data-delivery="failed"]')).toContainText("Recover this receipt");
+  await field.fill("A newer draft is separate");
+  await page.reload();
+  await expect(field).toHaveValue("A newer draft is separate");
+  await expect(page.locator('[data-delivery="failed"]')).toHaveCount(1);
+  expect(nonces).toHaveLength(1);
+  fail = false;
+  await page.locator(".fail-note").click();
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  await expect(
+    page.getByTestId("transcript").getByText("Recover this receipt", { exact: true }),
+  ).toHaveCount(1);
+  await expect(field).toHaveValue("A newer draft is separate");
+  expect(nonces).toEqual([nonces[0], nonces[0]]);
 });
 
 test("concurrent optimistic messages keep submission order as earlier acknowledgements arrive", async ({
   page,
   context,
+  cleanup,
 }) => {
   const { agent, thread, headers } = await conversation(context);
   const first = deferred(),
@@ -255,30 +252,29 @@ test("concurrent optimistic messages keep submission order as earlier acknowledg
     await (content === "First queued message" ? first.promise : second.promise);
     return route.continue();
   });
-  try {
-    await page.goto(`/app/${agent.id}`);
-    const field = page.locator(".composer textarea");
-    await field.fill("First queued message");
-    await page.locator(".composer .send").click();
-    await expect(field).toHaveValue("");
-    await field.fill("Second queued message");
-    await page.locator(".composer .send").click();
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(2);
-    first.resolve();
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(1);
-    const order = await page.locator(".msg.mine .bubble .text").allTextContents();
-    expect(order).toEqual(["First queued message", "Second queued message"]);
-    second.resolve();
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    expect(await page.locator(".msg.mine .bubble .text").allTextContents()).toEqual(order);
-  } finally {
+  cleanup(async () => {
     first.resolve();
     second.resolve();
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  });
+  await page.goto(`/app/${agent.id}`);
+  const field = page.locator(".composer textarea");
+  await field.fill("First queued message");
+  await page.locator(".composer .send").click();
+  await expect(field).toHaveValue("");
+  await field.fill("Second queued message");
+  await page.locator(".composer .send").click();
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(2);
+  first.resolve();
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(1);
+  const order = await page.locator(".msg.mine .bubble .text").allTextContents();
+  expect(order).toEqual(["First queued message", "Second queued message"]);
+  second.resolve();
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  expect(await page.locator(".msg.mine .bubble .text").allTextContents()).toEqual(order);
 });
 
-test("local enqueue failure preserves the submitted draft", async ({ page, context }) => {
+test("local enqueue failure preserves the submitted draft", async ({ page, context, cleanup }) => {
   const { agent, thread, headers } = await conversation(context);
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   let posts = 0;
@@ -286,38 +282,36 @@ test("local enqueue failure preserves the submitted draft", async ({ page, conte
     if (request.method() === "POST" && request.url().includes(`/threads/${thread.id}/messages`))
       posts += 1;
   });
-  try {
-    await page.goto(`/app/${agent.id}`);
-    const field = page.locator(".composer textarea");
-    await field.fill("Keep this draft if local acceptance fails");
-    await page.evaluate(() => {
-      window.__uuid = crypto.randomUUID.bind(crypto);
-      crypto.randomUUID = () => {
-        throw Error("Controlled local queue failure");
-      };
-    });
-    await page.locator(".composer .send").click();
-    await expect(field).toHaveValue("Keep this draft if local acceptance fails");
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    expect(posts).toBe(0);
-    await page.evaluate(() => {
-      crypto.randomUUID = window.__uuid;
-    });
-    await page.locator(".composer .send").click();
-    await expect(field).toHaveValue("");
-    await expect(
-      page
-        .getByTestId("transcript")
-        .getByText("Keep this draft if local acceptance fails", { exact: true }),
-    ).toHaveCount(1);
-  } finally {
-    await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+  await page.goto(`/app/${agent.id}`);
+  const field = page.locator(".composer textarea");
+  await field.fill("Keep this draft if local acceptance fails");
+  await page.evaluate(() => {
+    window.__uuid = crypto.randomUUID.bind(crypto);
+    crypto.randomUUID = () => {
+      throw Error("Controlled local queue failure");
+    };
+  });
+  await page.locator(".composer .send").click();
+  await expect(field).toHaveValue("Keep this draft if local acceptance fails");
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  expect(posts).toBe(0);
+  await page.evaluate(() => {
+    crypto.randomUUID = window.__uuid;
+  });
+  await page.locator(".composer .send").click();
+  await expect(field).toHaveValue("");
+  await expect(
+    page
+      .getByTestId("transcript")
+      .getByText("Keep this draft if local acceptance fails", { exact: true }),
+  ).toHaveCount(1);
 });
 
 test("validated interactive preview appears before completion and preserves edits when the canonical run link arrives late", async ({
   page,
   context,
+  cleanup,
 }) => {
   const { agent, thread, headers } = await conversation(context);
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
@@ -406,41 +400,38 @@ test("validated interactive preview appears before completion and preserves edit
     const write = `${request.method()} ${new URL(request.url()).pathname}`;
     if (write !== "POST /api/app-opens") mutations.push(write);
   });
-  try {
-    await page.goto(`/app/${agent.id}`);
-    const preview = page.locator(`[data-stream-run-id="${run.id}"]`);
-    await expect(preview.locator(".native-visual-response")).toBeVisible();
-    await expect(preview).toHaveAttribute("data-activity-phase", "writing");
-    await preview.getByRole("spinbutton", { name: "Quantity", exact: true }).fill("4");
-    await expect(preview.locator('[data-visual-value="total"]')).toHaveText("40");
-    const final = {
-      ...input,
-      id: randomUUID(),
-      seq: 2,
-      role: "assistant",
-      content: run.stream.text,
-      rich_content: rich,
-    };
-    rows = [input, final];
-    // Deliberately expose canonical history before its independent run projection.
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    const canonical = page.locator(`[data-message-id="${final.id}"]`);
-    await expect(canonical).toBeVisible();
-    run.status = "completed";
-    run.updated_at = "2026-10-27T10:00:01Z";
-    run.stream = { ...run.stream, phase: "committed", message_id: final.id };
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await expect(preview).toHaveCount(0);
-    await expect(canonical.getByRole("spinbutton", { name: "Quantity", exact: true })).toHaveValue(
-      "4",
-    );
-    await expect(canonical.locator('[data-visual-value="total"]')).toHaveText("40");
-    await page.reload();
-    await expect(canonical.getByRole("spinbutton", { name: "Quantity", exact: true })).toHaveValue(
-      "4",
-    );
-    expect(mutations).toEqual([]);
-  } finally {
-    await context.request.delete(`/api/agents/${agent.id}`, { headers });
-  }
+  cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+  await page.goto(`/app/${agent.id}`);
+  const preview = page.locator(`[data-stream-run-id="${run.id}"]`);
+  await expect(preview.locator(".native-visual-response")).toBeVisible();
+  await expect(preview).toHaveAttribute("data-activity-phase", "writing");
+  await preview.getByRole("spinbutton", { name: "Quantity", exact: true }).fill("4");
+  await expect(preview.locator('[data-visual-value="total"]')).toHaveText("40");
+  const final = {
+    ...input,
+    id: randomUUID(),
+    seq: 2,
+    role: "assistant",
+    content: run.stream.text,
+    rich_content: rich,
+  };
+  rows = [input, final];
+  // Deliberately expose canonical history before its independent run projection.
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  const canonical = page.locator(`[data-message-id="${final.id}"]`);
+  await expect(canonical).toBeVisible();
+  run.status = "completed";
+  run.updated_at = "2026-10-27T10:00:01Z";
+  run.stream = { ...run.stream, phase: "committed", message_id: final.id };
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(preview).toHaveCount(0);
+  await expect(canonical.getByRole("spinbutton", { name: "Quantity", exact: true })).toHaveValue(
+    "4",
+  );
+  await expect(canonical.locator('[data-visual-value="total"]')).toHaveText("40");
+  await page.reload();
+  await expect(canonical.getByRole("spinbutton", { name: "Quantity", exact: true })).toHaveValue(
+    "4",
+  );
+  expect(mutations).toEqual([]);
 });

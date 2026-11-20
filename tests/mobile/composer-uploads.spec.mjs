@@ -3,7 +3,7 @@
 // goes out with their ids; cancelling a sent message's upload removes the message.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -88,6 +88,7 @@ async function choose(page, names) {
 test("several files upload at once with rings; a cancelled one leaves; the rest go with the message", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const uploads = await held(page);
@@ -97,31 +98,29 @@ test("several files upload at once with rings; a cancelled one leaves; the rest 
     posted.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, json: { code: "request_failed" } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await choose(page, ["a.txt", "b.txt"]);
-    await expect(page.getByTestId("composer-upload")).toHaveCount(2);
-    await expect(page.getByRole("progressbar", { name: "Uploading a.txt" })).toBeVisible();
-    await expect.poll(uploads.count).toBe(2);
-    await page
-      .getByRole("button", { name: "Cancel the upload: Uploading b.txt", exact: true })
-      .click();
-    await expect(page.getByTestId("composer-upload")).toHaveCount(1);
-    uploads.release();
-    await expect(page.getByTestId("composer-upload")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^Remove attachment: / })).toHaveCount(1);
-    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("Here is the file");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect.poll(() => posted.length).toBe(1);
-    expect(posted[0].attachment_ids).toEqual([uploads.idOf("a.txt")]);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await choose(page, ["a.txt", "b.txt"]);
+  await expect(page.getByTestId("composer-upload")).toHaveCount(2);
+  await expect(page.getByRole("progressbar", { name: "Uploading a.txt" })).toBeVisible();
+  await expect.poll(uploads.count).toBe(2);
+  await page
+    .getByRole("button", { name: "Cancel the upload: Uploading b.txt", exact: true })
+    .click();
+  await expect(page.getByTestId("composer-upload")).toHaveCount(1);
+  uploads.release();
+  await expect(page.getByTestId("composer-upload")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Remove attachment: / })).toHaveCount(1);
+  await page.getByRole("textbox", { name: "Message…", exact: true }).fill("Here is the file");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0].attachment_ids).toEqual([uploads.idOf("a.txt")]);
 });
 
 test("a message sent while its file uploads waits, then goes out with the file", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const uploads = await held(page);
@@ -131,28 +130,26 @@ test("a message sent while its file uploads waits, then goes out with the file",
     posted.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, json: { code: "request_failed" } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await choose(page, ["report.txt"]);
-    await expect.poll(uploads.count).toBe(1);
-    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("Read this report");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(page.getByTestId("composer-upload")).toHaveCount(0);
-    const transcript = page.getByTestId("conversation-transcript");
-    await expect(transcript.getByText("Uploading…", { exact: true })).toBeVisible();
-    expect(posted).toHaveLength(0);
-    uploads.release();
-    await expect.poll(() => posted.length).toBe(1);
-    expect(posted[0].content).toBe("Read this report");
-    expect(posted[0].attachment_ids).toEqual([uploads.idOf("report.txt")]);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await choose(page, ["report.txt"]);
+  await expect.poll(uploads.count).toBe(1);
+  await page.getByRole("textbox", { name: "Message…", exact: true }).fill("Read this report");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByTestId("composer-upload")).toHaveCount(0);
+  const transcript = page.getByTestId("conversation-transcript");
+  await expect(transcript.getByText("Uploading…", { exact: true })).toBeVisible();
+  expect(posted).toHaveLength(0);
+  uploads.release();
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0].content).toBe("Read this report");
+  expect(posted[0].attachment_ids).toEqual([uploads.idOf("report.txt")]);
 });
 
 test("cancelling a sent message's upload removes the message; nothing is posted", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const uploads = await held(page);
@@ -162,28 +159,26 @@ test("cancelling a sent message's upload removes the message; nothing is posted"
     posted.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, json: { code: "request_failed" } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await choose(page, ["late.txt"]);
-    await expect.poll(uploads.count).toBe(1);
-    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("Never mind");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    const transcript = page.getByTestId("conversation-transcript");
-    await transcript
-      .getByRole("button", { name: "Cancel the upload: Uploading…", exact: true })
-      .click();
-    await expect(transcript.getByText("Never mind", { exact: true })).toHaveCount(0);
-    uploads.release();
-    await page.waitForTimeout(500);
-    expect(posted).toHaveLength(0);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await choose(page, ["late.txt"]);
+  await expect.poll(uploads.count).toBe(1);
+  await page.getByRole("textbox", { name: "Message…", exact: true }).fill("Never mind");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const transcript = page.getByTestId("conversation-transcript");
+  await transcript
+    .getByRole("button", { name: "Cancel the upload: Uploading…", exact: true })
+    .click();
+  await expect(transcript.getByText("Never mind", { exact: true })).toHaveCount(0);
+  uploads.release();
+  await page.waitForTimeout(500);
+  expect(posted).toHaveLength(0);
 });
 
 test("a sent message whose file fails to upload comes back to the composer; nothing is posted", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   let release;
@@ -215,25 +210,22 @@ test("a sent message whose file fails to upload comes back to the composer; noth
     posted.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, json: { code: "request_failed" } });
   });
-  try {
-    await page.goto(`/thread?id=${data.thread.id}`);
-    await choose(page, ["ok.txt", "broken.txt"]);
-    await expect(page.getByRole("button", { name: "Remove attachment: ok.txt" })).toBeVisible();
-    await expect(page.getByTestId("composer-upload")).toHaveCount(1);
-    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
-    await composer.fill("With a broken file");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    const transcript = page.getByTestId("conversation-transcript");
-    await expect(transcript.getByText("Uploading…", { exact: true })).toBeVisible();
-    await expect(composer).toHaveValue("");
-    release();
-    // The owner's text is back in the composer; the unsent bubble is gone.
-    await expect(composer).toHaveValue("With a broken file");
-    // The file that was already up comes back with it.
-    await expect(page.getByRole("button", { name: "Remove attachment: ok.txt" })).toBeVisible();
-    await expect(transcript.getByText("With a broken file", { exact: true })).toHaveCount(0);
-    expect(posted).toHaveLength(0);
-  } finally {
-    await data.remove();
-  }
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}`);
+  await choose(page, ["ok.txt", "broken.txt"]);
+  await expect(page.getByRole("button", { name: "Remove attachment: ok.txt" })).toBeVisible();
+  await expect(page.getByTestId("composer-upload")).toHaveCount(1);
+  const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+  await composer.fill("With a broken file");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const transcript = page.getByTestId("conversation-transcript");
+  await expect(transcript.getByText("Uploading…", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("");
+  release();
+  // The owner's text is back in the composer; the unsent bubble is gone.
+  await expect(composer).toHaveValue("With a broken file");
+  // The file that was already up comes back with it.
+  await expect(page.getByRole("button", { name: "Remove attachment: ok.txt" })).toBeVisible();
+  await expect(transcript.getByText("With a broken file", { exact: true })).toHaveCount(0);
+  expect(posted).toHaveLength(0);
 });

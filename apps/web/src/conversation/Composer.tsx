@@ -238,10 +238,19 @@ export function Composer({
     if (!slot || !main) return;
     const measure = () => main.style.setProperty("--bottom-h", `${slot.offsetHeight + 10}px`);
     measure();
-    const observer = new ResizeObserver(measure);
+    // The inset resizes the transcript beside this form, whose own observer keeps the newest
+    // message in view. Written inside this callback, that resize cannot be delivered in the
+    // same frame: the browser raises a «ResizeObserver loop» error, which the app shows as a
+    // crash. The next frame writes it before its layout, so both arrive together.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     observer.observe(slot);
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frame);
       main.style.removeProperty("--bottom-h");
     };
   }, []);

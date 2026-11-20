@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 // A Trade Approval card shows the agent's reason labelled as the agent's words and the
 // band it stays valid within (mandate 10.3, 10.3.1); a drifted card says nothing was sent.
@@ -45,6 +45,7 @@ for (const locale of ["ar", "en"])
   test(`${locale}: a Trade Approval card shows the agent's reason and its tolerance band`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const text = copy[locale];
     const fixture = JSON.parse(
@@ -157,98 +158,96 @@ for (const locale of ["ar", "en"])
         json: [pending, drifted, rejected, expired, failed, approved, filled, unsure],
       }),
     );
-    try {
-      await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
-      await page.goto(`/app/${agent.id}`);
-      const card = page.locator(`[data-trade-approval="${pending.id}"]`);
-      await expect(card.locator(".mcard-kicker")).toHaveText(`${text.kicker} · XAUUSD`);
-      // The request in words, never its raw action id.
-      await expect(card.locator(".mcard-request strong")).toHaveText(text.title);
-      await expect(card).not.toContainText("buy");
-      await expect(card.getByText(text.entry, { exact: true })).toBeVisible();
-      await expect(card.getByText(text.market, { exact: true })).toBeVisible();
-      await expect(card.locator("[data-trade-reason] b")).toHaveText(text.words);
-      await expect(card.locator("[data-trade-reason] bdi")).toHaveText(pending.reason);
-      await expect(card.getByText(text.band, { exact: true })).toBeVisible();
-      await expect(card.getByText("101 ± 1.5", { exact: true })).toBeVisible();
-      const ended = page.locator(`[data-trade-approval="${drifted.id}"]`);
-      await expect(ended).toHaveAttribute("data-trade-status", "drifted");
-      await expect(ended.getByText(text.drifted, { exact: true })).toBeVisible();
-      await expect(ended.getByRole("button", { name: /Approve|موافقة/ })).toHaveCount(0);
-      // Never folded (10.2.2): the ended card keeps its frame, request and facts.
-      await expect(ended.locator(".mcard-kicker")).toHaveText(`${text.kicker} · XAUUSD`);
-      await expect(ended.locator(".mcard-request strong")).toHaveText(text.title);
-      await expect(ended.getByText(text.band, { exact: true })).toBeVisible();
-      await expect(page.locator(".msg.k-line")).toHaveCount(0);
-      const width = async (id) =>
-        (
-          await page
-            .locator(".msg", { has: page.locator(`[data-trade-approval="${id}"]`) })
-            .locator(".msg-line")
-            .boundingBox()
-        ).width;
-      expect(await width(drifted.id)).toBe(await width(pending.id));
-      const no = page.locator(`[data-trade-approval="${rejected.id}"]`);
-      await expect(no.getByText(text.rejected, { exact: true })).toBeVisible();
-      await expect(no.locator(".mcard-request strong")).toHaveText(text.title);
-      // A stored card that expired: the shared text, and «طلب جديد» inside its frame.
-      const old = page.locator(`[data-trade-approval="${expired.id}"]`);
-      await expect(old.getByText(text.expired, { exact: true })).toBeVisible();
-      await expect(old.getByRole("button", { name: text.renew, exact: true })).toBeVisible();
-      // A pending entry shows its price; a broker refusal shows its words, not its codes.
-      const refused = page.locator(`[data-trade-approval="${failed.id}"]`);
-      await expect(refused.locator(".mcard-request strong")).toHaveText(text.limit);
-      await expect(refused.getByText("105.5", { exact: true })).toBeVisible();
-      await expect(refused.locator('[data-trade-result="failed"]')).toContainText(
-        "Not enough money",
-      );
-      for (const raw of ["TRADE_RETCODE_NO_MONEY", "10019", "No money", "77001", "77002", "77003"])
-        await expect(refused).not.toContainText(raw);
-      // The broker's own sentence is labelled as its words, after our localized reason (D10).
-      const words = refused.locator("[data-trade-broker-words]");
-      await expect(words.locator("b")).toHaveText(text.brokerWords);
-      await expect(words.locator("bdi")).toHaveText("Not enough money");
-      const resultText = await refused.locator('[data-trade-result="failed"]').innerText();
-      expect(resultText.indexOf(text.brokerWords)).toBeGreaterThan(0);
-      // A code no catalog explains reads the shared fallback, as on Mobile, never «try
-      // again» on a decided card; the broker's price is labelled, never a bare number.
-      expect(resultText).toContain(text.failedReason);
-      expect(resultText).toContain(text.brokerPrice);
-      expect(resultText.indexOf(text.failedReason)).toBeLessThan(
-        resultText.indexOf(text.brokerWords),
-      );
-      // A completed card whose broker refused it never reads as a success (0.4, D2): no
-      // success tint and no check mark beside «نتيجة الوسيط».
-      const tone = (row) =>
-        page.locator(`[data-trade-approval="${row.id}"] [data-trade-status-tone]`);
-      const check = '[data-trade-status-tone] path[d="M5 12l4 4L19 6"]';
-      await expect(tone(failed)).toHaveAttribute("data-trade-status-tone", "plain");
-      await expect(tone(failed)).not.toHaveClass(/\bok\b/);
-      await expect(refused.locator(check)).toHaveCount(0);
-      // The success look is kept for a fill the broker confirmed; an approval still awaiting
-      // the broker's result waits; drift and an unconfirmed outcome warn; a rejection is plain.
-      for (const [row, expected] of [
-        [approved, "wait"],
-        [filled, "ok"],
-        [drifted, "warn"],
-        [unsure, "warn"],
-        [rejected, "plain"],
-      ]) {
-        await expect(tone(row)).toHaveAttribute("data-trade-status-tone", expected);
-        await expect(tone(row)).toHaveClass(
-          expected === "plain" ? /^od-ev$/ : new RegExp(`\\b${expected}\\b`),
-        );
-      }
-      await expect(page.locator(`[data-trade-approval="${filled.id}"] ${check}`)).toHaveCount(1);
-      await expect(page.locator(`[data-trade-approval="${unsure.id}"] ${check}`)).toHaveCount(0);
-      await expect(page.locator(`[data-trade-approval="${approved.id}"] ${check}`)).toHaveCount(0);
-      // As wide as every other fixed card (v38 k-oa).
-      await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
-      if (locale === "ar") {
-        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await card.screenshot({ path: test.info().outputPath("trade-approval-validity-ar.png") });
-      }
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    });
+
+    await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-trade-approval="${pending.id}"]`);
+    await expect(card.locator(".mcard-kicker")).toHaveText(`${text.kicker} · XAUUSD`);
+    // The request in words, never its raw action id.
+    await expect(card.locator(".mcard-request strong")).toHaveText(text.title);
+    await expect(card).not.toContainText("buy");
+    await expect(card.getByText(text.entry, { exact: true })).toBeVisible();
+    await expect(card.getByText(text.market, { exact: true })).toBeVisible();
+    await expect(card.locator("[data-trade-reason] b")).toHaveText(text.words);
+    await expect(card.locator("[data-trade-reason] bdi")).toHaveText(pending.reason);
+    await expect(card.getByText(text.band, { exact: true })).toBeVisible();
+    await expect(card.getByText("101 ± 1.5", { exact: true })).toBeVisible();
+    const ended = page.locator(`[data-trade-approval="${drifted.id}"]`);
+    await expect(ended).toHaveAttribute("data-trade-status", "drifted");
+    await expect(ended.getByText(text.drifted, { exact: true })).toBeVisible();
+    await expect(ended.getByRole("button", { name: /Approve|موافقة/ })).toHaveCount(0);
+    // Never folded (10.2.2): the ended card keeps its frame, request and facts.
+    await expect(ended.locator(".mcard-kicker")).toHaveText(`${text.kicker} · XAUUSD`);
+    await expect(ended.locator(".mcard-request strong")).toHaveText(text.title);
+    await expect(ended.getByText(text.band, { exact: true })).toBeVisible();
+    await expect(page.locator(".msg.k-line")).toHaveCount(0);
+    const width = async (id) =>
+      (
+        await page
+          .locator(".msg", { has: page.locator(`[data-trade-approval="${id}"]`) })
+          .locator(".msg-line")
+          .boundingBox()
+      ).width;
+    expect(await width(drifted.id)).toBe(await width(pending.id));
+    const no = page.locator(`[data-trade-approval="${rejected.id}"]`);
+    await expect(no.getByText(text.rejected, { exact: true })).toBeVisible();
+    await expect(no.locator(".mcard-request strong")).toHaveText(text.title);
+    // A stored card that expired: the shared text, and «طلب جديد» inside its frame.
+    const old = page.locator(`[data-trade-approval="${expired.id}"]`);
+    await expect(old.getByText(text.expired, { exact: true })).toBeVisible();
+    await expect(old.getByRole("button", { name: text.renew, exact: true })).toBeVisible();
+    // A pending entry shows its price; a broker refusal shows its words, not its codes.
+    const refused = page.locator(`[data-trade-approval="${failed.id}"]`);
+    await expect(refused.locator(".mcard-request strong")).toHaveText(text.limit);
+    await expect(refused.getByText("105.5", { exact: true })).toBeVisible();
+    await expect(refused.locator('[data-trade-result="failed"]')).toContainText("Not enough money");
+    for (const raw of ["TRADE_RETCODE_NO_MONEY", "10019", "No money", "77001", "77002", "77003"])
+      await expect(refused).not.toContainText(raw);
+    // The broker's own sentence is labelled as its words, after our localized reason (D10).
+    const words = refused.locator("[data-trade-broker-words]");
+    await expect(words.locator("b")).toHaveText(text.brokerWords);
+    await expect(words.locator("bdi")).toHaveText("Not enough money");
+    const resultText = await refused.locator('[data-trade-result="failed"]').innerText();
+    expect(resultText.indexOf(text.brokerWords)).toBeGreaterThan(0);
+    // A code no catalog explains reads the shared fallback, as on Mobile, never «try
+    // again» on a decided card; the broker's price is labelled, never a bare number.
+    expect(resultText).toContain(text.failedReason);
+    expect(resultText).toContain(text.brokerPrice);
+    expect(resultText.indexOf(text.failedReason)).toBeLessThan(
+      resultText.indexOf(text.brokerWords),
+    );
+    // A completed card whose broker refused it never reads as a success (0.4, D2): no
+    // success tint and no check mark beside «نتيجة الوسيط».
+    const tone = (row) =>
+      page.locator(`[data-trade-approval="${row.id}"] [data-trade-status-tone]`);
+    const check = '[data-trade-status-tone] path[d="M5 12l4 4L19 6"]';
+    await expect(tone(failed)).toHaveAttribute("data-trade-status-tone", "plain");
+    await expect(tone(failed)).not.toHaveClass(/\bok\b/);
+    await expect(refused.locator(check)).toHaveCount(0);
+    // The success look is kept for a fill the broker confirmed; an approval still awaiting
+    // the broker's result waits; drift and an unconfirmed outcome warn; a rejection is plain.
+    for (const [row, expected] of [
+      [approved, "wait"],
+      [filled, "ok"],
+      [drifted, "warn"],
+      [unsure, "warn"],
+      [rejected, "plain"],
+    ]) {
+      await expect(tone(row)).toHaveAttribute("data-trade-status-tone", expected);
+      await expect(tone(row)).toHaveClass(
+        expected === "plain" ? /^od-ev$/ : new RegExp(`\\b${expected}\\b`),
+      );
+    }
+    await expect(page.locator(`[data-trade-approval="${filled.id}"] ${check}`)).toHaveCount(1);
+    await expect(page.locator(`[data-trade-approval="${unsure.id}"] ${check}`)).toHaveCount(0);
+    await expect(page.locator(`[data-trade-approval="${approved.id}"] ${check}`)).toHaveCount(0);
+    // As wide as every other fixed card (v38 k-oa).
+    await expect(page.locator(".msg.k-oa", { has: card })).toHaveCount(1);
+    if (locale === "ar") {
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await card.screenshot({ path: test.info().outputPath("trade-approval-validity-ar.png") });
     }
   });

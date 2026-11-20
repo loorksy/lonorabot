@@ -1,6 +1,6 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: This Playwright scenario runs without Turborepo caching.
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 /* «تجربة المحادثة» (reference chatPrefsPage and streamAnswer, Desktop-37 5753-5830): the
    page's sections and rows, a streaming reply's pacing, and a formatted reply laid out. */
@@ -100,44 +100,39 @@ test("the page: its sections and rows, a dependent switch, and the choices kept"
 test("a streaming reply flows a word at a time and a finished one is shown whole", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60_000);
   let data = fixture({ action: "init" });
   await login(context);
   await prefs(context, {});
-  try {
-    await page.goto(`/app/g/${data.group}`);
-    const preview = page.locator(`[data-stream-run-id='${data.run.id}']`);
-    await expect(preview).toContainText(data.text.trim());
-    // A long piece arrives at once: it is not painted in one burst, and it all arrives.
-    const before = (await preview.innerText()).length;
-    data = fixture({ ...data, action: "append" });
-    await expect.poll(async () => (await preview.innerText()).length).toBeGreaterThan(before);
-    await expect(preview.locator(".caret")).toHaveCount(1);
-    await expect(preview).toContainText("chunk-169");
-    // The composer shows ■ while the reply is written.
-    await expect(page.locator("form .stop")).toBeVisible();
-    fixture({ ...data, action: "complete" });
-    await expect(preview).toHaveCount(0);
-    await expect(page.getByTestId("transcript")).toContainText("chunk-169");
-    await expect(page.locator(".caret")).toHaveCount(0);
-  } finally {
-    fixture({ ...data, action: "cleanup" });
-  }
+  cleanup(() => fixture({ ...data, action: "cleanup" }));
+  await page.goto(`/app/g/${data.group}`);
+  const preview = page.locator(`[data-stream-run-id='${data.run.id}']`);
+  await expect(preview).toContainText(data.text.trim());
+  // A long piece arrives at once: it is not painted in one burst, and it all arrives.
+  const before = (await preview.innerText()).length;
+  data = fixture({ ...data, action: "append" });
+  await expect.poll(async () => (await preview.innerText()).length).toBeGreaterThan(before);
+  await expect(preview.locator(".caret")).toHaveCount(1);
+  await expect(preview).toContainText("chunk-169");
+  // The composer shows ■ while the reply is written.
+  await expect(page.locator("form .stop")).toBeVisible();
+  fixture({ ...data, action: "complete" });
+  await expect(preview).toHaveCount(0);
+  await expect(page.getByTestId("transcript")).toContainText("chunk-169");
+  await expect(page.locator(".caret")).toHaveCount(0);
 });
 
-test("an agent's formatted reply is laid out by default", async ({ page, context }) => {
+test("an agent's formatted reply is laid out by default", async ({ page, context, cleanup }) => {
   test.setTimeout(60_000);
   const data = fixture({ action: "init" });
   await login(context);
   await prefs(context, {});
-  try {
-    await page.goto(`/app/g/${data.group}`);
-    fixture({ ...data, action: "complete", text: "# Weekly plan\n\n- first step\n- second step" });
-    const reply = page.locator(".msg:not(.mine)").last();
-    await expect(reply.locator(".md")).toHaveCount(1);
-    await expect(reply.locator("li")).toHaveText(["first step", "second step"]);
-  } finally {
-    fixture({ ...data, action: "cleanup" });
-  }
+  cleanup(() => fixture({ ...data, action: "cleanup" }));
+  await page.goto(`/app/g/${data.group}`);
+  fixture({ ...data, action: "complete", text: "# Weekly plan\n\n- first step\n- second step" });
+  const reply = page.locator(".msg:not(.mine)").last();
+  await expect(reply.locator(".md")).toHaveCount(1);
+  await expect(reply.locator("li")).toHaveText(["first step", "second step"]);
 });
