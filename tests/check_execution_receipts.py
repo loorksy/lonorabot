@@ -144,6 +144,7 @@ async def checks() -> None:
         await session.flush()
         gold_lease = Lease(run_id=gold_run.id, owner="receipt-worker", fence=1)
         euro_lease = Lease(run_id=euro_run.id, owner="receipt-worker", fence=1)
+
     def buy(volume: str = "0.1") -> TradeRequest:
         return TradeRequest(
             account_id=account_id,
