@@ -31,7 +31,10 @@ async def test_a_deleted_connection_leaves_the_rest_of_each_draft() -> None:
 
         async def saved(agent: dict[str, Any], account_id: str) -> dict[str, Any]:
             # No route writes a draft. The stored draft still drops a deleted account.
-            from lonora_contracts.agent_permissions import PermissionCustomizationChange
+            from lonora_contracts.agent_permissions import (
+                PermissionCustomization,
+                PermissionCustomizationChange,
+            )
             from lonora_db.agent_permissions import save_customization
 
             path = f"/agents/{agent['id']}/permissions"
@@ -43,14 +46,16 @@ async def test_a_deleted_connection_leaves_the_rest_of_each_draft() -> None:
                     agent["id"],
                     PermissionCustomizationChange(
                         expected_revision=current["revision"],
-                        customization={
-                            "account_id": account_id,
-                            "symbol_scope": "selected",
-                            "symbols": ["XAUUSD"],
-                            "actions": ["buy"],
-                            "limits": {"maximum_order_volume": "0.5"},
-                            "duration": "7d",
-                        },
+                        customization=PermissionCustomization.model_validate(
+                            {
+                                "account_id": account_id,
+                                "symbol_scope": "selected",
+                                "symbols": ["XAUUSD"],
+                                "actions": ["buy"],
+                                "limits": {"maximum_order_volume": "0.5"},
+                                "duration": "7d",
+                            }
+                        ),
                     ),
                 )
 

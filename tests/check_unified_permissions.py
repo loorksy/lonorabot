@@ -6,7 +6,7 @@ production verifier. This does not claim physical-device signing coverage.
 
 import asyncio
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -96,7 +96,7 @@ async def main() -> None:
         async def state():
             return await f.request("GET", path)
 
-        async def change(level: str):
+        async def change(level: Literal["analysis", "supervised"]):
             # No route writes a level. The stored ladder still decides the door until it goes.
             from lonora_contracts.agent_permissions import PermissionChange
             from lonora_db.agent_permissions import change_permission
@@ -251,7 +251,10 @@ async def main() -> None:
             "duration": "24h",
             "allow_manual_positions": False,
         }
-        from lonora_contracts.agent_permissions import PermissionCustomizationChange
+        from lonora_contracts.agent_permissions import (
+            PermissionCustomization,
+            PermissionCustomizationChange,
+        )
         from lonora_db.agent_permissions import save_customization
 
         previous = await state()
@@ -261,7 +264,8 @@ async def main() -> None:
                 f.owner,
                 agent["id"],
                 PermissionCustomizationChange(
-                    expected_revision=previous["revision"], customization=draft
+                    expected_revision=previous["revision"],
+                    customization=PermissionCustomization.model_validate(draft),
                 ),
             )
         assert saved["customization"] == draft
@@ -397,7 +401,7 @@ async def main() -> None:
 
         current = await state()
 
-        async def race(level: str):
+        async def race(level: Literal["analysis", "supervised"]):
             async with f.runtime.db.sessions() as session, session.begin():
                 return await change_permission(
                     session,

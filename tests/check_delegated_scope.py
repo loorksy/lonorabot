@@ -1,7 +1,7 @@
 """Delegated research identities never inherit owner-wide financial authority."""
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from check_streaming import Fixture
@@ -112,7 +112,10 @@ async def main() -> None:
             )
             assert result.get("_runtime_wait") is True and result.get("approval_id"), result
             assert result.get("status") != "confirmed", result
-            shown = await f.request("GET", f"/trading/approvals?thread_id={ctx.thread_id}")
+            shown = cast(
+                list[dict[str, Any]],
+                await f.request("GET", f"/trading/approvals?thread_id={ctx.thread_id}"),
+            )
             card = next(row for row in shown if row["id"] == result["approval_id"])
             assert card["status"] == "pending", card["status"]
 

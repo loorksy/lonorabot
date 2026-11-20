@@ -2,7 +2,7 @@
 
 import asyncio
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from check_streaming import Fixture
@@ -205,7 +205,10 @@ async def checks() -> None:
         )
         assert asked.get("_runtime_wait") is True and asked.get("approval_id"), asked
         assert asked.get("status") != "confirmed", asked
-        shown = await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}")
+        shown = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}"),
+        )
         card = next(row for row in shown if row["id"] == asked["approval_id"])
         assert card["status"] == "pending", card["status"]
         # Another account holds nothing of this agent's: nothing to close.
@@ -360,8 +363,9 @@ async def checks() -> None:
             child_asked
         )
         assert child_asked.get("status") != "confirmed", child_asked
-        child_shown = await fixture.request(
-            "GET", f"/trading/approvals?thread_id={child_thread['id']}"
+        child_shown = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/trading/approvals?thread_id={child_thread['id']}"),
         )
         child_card = next(row for row in child_shown if row["id"] == child_asked["approval_id"])
         assert child_card["status"] == "pending", child_card["status"]

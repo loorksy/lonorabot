@@ -71,9 +71,10 @@ async def _previous_grants(
         return ()
     several = await several_accounts(session, card.owner_id)
     grants: list[PreviousGrant] = []
-    for item in raw:
-        if not isinstance(item, dict):
+    for entry in cast(list[Any], raw):
+        if not isinstance(entry, dict):
             continue
+        item = cast(dict[str, Any], entry)
         account_id = _text(item.get("account_id"))
         label = ""
         if several and account_id:
@@ -87,7 +88,7 @@ async def _previous_grants(
             PreviousGrant(
                 full=item.get("full_delegation") is True,
                 scope="account" if item.get("symbol_scope") == "account" else "selected",
-                symbols=tuple(_text(symbol) for symbol in symbols if _text(symbol))
+                symbols=tuple(_text(symbol) for symbol in cast(list[Any], symbols) if _text(symbol))
                 if isinstance(symbols, list)
                 else (),
                 account=label,

@@ -1644,7 +1644,11 @@ class Acceptance:
                 granted += 1
             elif row.operation_id in approved:
                 tapped += 1
-            elif modes.get(agent_id) == "full" and agent_id in full_since:
+            elif (
+                isinstance(agent_id, str)
+                and modes.get(agent_id) == "full"
+                and agent_id in full_since
+            ):
                 full += 1
             else:
                 raise AssertionError((row.operation_id, row.status, agent_id))
