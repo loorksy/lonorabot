@@ -3,8 +3,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { showsTradingControl } from "../../packages/core/src/agent-permission";
 import {
+  approvalEndTone,
   approvalStatusText,
+  brokerPriceLabel,
   brokerTicketLabel,
+  brokerWordsLabel,
+  failedResultFallback,
   financialBoundaryError,
   financialResultReason,
   operationStatusText,
@@ -96,6 +100,55 @@ test("Web and Mobile read operation and approval labels from the one shared tabl
   }
 });
 
+test("the fixed cards say one word for each thing on both clients (v38), never a raw id", () => {
+  // One word for the broker ticket: the shared label, the web catalog and Mobile's labels.
+  assert.equal(brokerTicketLabel("ar"), "تذكرة الوسيط");
+  assert.match(
+    read("apps/web/src/i18n/locales/ar/messages.po"),
+    /\nmsgid "Broker ticket"\nmsgstr "تذكرة الوسيط"\n/,
+  );
+  const mobile = read("apps/mobile/lib/i18n.ts");
+  assert.match(mobile, /approvalTicket: \["تذكرة الوسيط", "Broker ticket"\]/);
+  assert.match(mobile, /receiptTicket: \["تذكرة الوسيط", "Broker ticket"\]/);
+  assert.doesNotMatch(mobile, /رقم العملية لدى الوسيط/);
+  // One kicker: «طلب موافقة · SYMBOL» on both.
+  assert.match(mobile, /tradeApproval: \["طلب موافقة", "Approval request"\]/);
+  // An ended card's own words come from the shared table, an expired one included.
+  assert.equal(approvalStatusText("rejected", "ar"), "مرفوض — لم يُرسل شيء");
+  assert.equal(approvalStatusText("rejected", "en"), "Rejected — nothing was sent");
+  assert.equal(approvalStatusText("expired", "ar"), "انتهت صلاحيته");
+  const web = read("apps/web/src/components/trading/TradeApprovals.tsx");
+  assert.doesNotMatch(web, /<Trans>Expired<\/Trans>/);
+  // The request reads in words («شراء 0.10»), never its raw action id, on both clients.
+  for (const file of [
+    "apps/web/src/components/trading/TradeApprovals.tsx",
+    "apps/mobile/components/trade-approval.tsx",
+  ]) {
+    assert.match(read(file), /orderLineAction\(request,/, file);
+    assert.doesNotMatch(read(file), /String\(request\.action\)|\[request\.action,/, file);
+  }
+  // A decided card's result line shows no raw broker codes or ids (17).
+  const fields = web.match(/const RECEIPT_FIELDS = \[([^\]]*)\]/)?.[1] ?? "";
+  for (const raw of [
+    "numeric_code",
+    "string_code",
+    "message",
+    "order_id",
+    "deal_id",
+    "position_id",
+  ])
+    assert.doesNotMatch(fields, new RegExp(`"${raw}"`), raw);
+  // The order sheet and the legacy journal show no operation id, provisioning id or JSON.
+  const cards = read("apps/web/src/conversation/Cards.tsx");
+  const sheet = cards.slice(
+    cards.indexOf("export function OrderSheetBody"),
+    cards.indexOf("export function Steps"),
+  );
+  assert.doesNotMatch(sheet, /row\.operation_id|row\.account_id|string_code|Technical details/);
+  const journal = read("apps/web/src/components/trading/TradingJournal.tsx");
+  assert.doesNotMatch(journal, /JSON\.stringify|Technical details/);
+});
+
 test("an uncertain broker result never tells the owner to try again, on either client", () => {
   const codes = [
     "broker_result_ambiguous",
@@ -134,6 +187,63 @@ test("an uncertain broker result never tells the owner to try again, on either c
     "apps/mobile/components/trade-approval.tsx",
   ])
     assert.match(read(file), /financialResultReason\(result\.status, result\.code/, file);
+});
+
+test("a decided approval reads as a success only once every result is confirmed", () => {
+  const result = (status: string) => ({ status });
+  // Approved is still awaiting the broker's result: it waits, never a success yet (D2).
+  assert.equal(approvalEndTone({ status: "approved", results: [] }), "wait");
+  assert.equal(
+    approvalEndTone({ status: "completed", results: [result("confirmed"), result("confirmed")] }),
+    "ok",
+  );
+  // Completed whatever the results are (trade.py): a refusal is never green, an uncertain
+  // result is a warning, and no result is no success either (0.4).
+  assert.equal(approvalEndTone({ status: "completed", results: [result("failed")] }), "plain");
+  assert.equal(
+    approvalEndTone({ status: "completed", results: [result("confirmed"), result("failed")] }),
+    "plain",
+  );
+  for (const status of ["ambiguous", "submitted", "reserved"])
+    assert.equal(
+      approvalEndTone({ status: "completed", results: [result("confirmed"), result(status)] }),
+      "warn",
+      status,
+    );
+  assert.equal(approvalEndTone({ status: "completed", results: [] }), "plain");
+  assert.equal(approvalEndTone({ status: "drifted", results: [] }), "warn");
+  for (const status of ["rejected", "withdrawn", "expired", "cancelled"])
+    assert.equal(approvalEndTone({ status, results: [] }), "plain", status);
+  // The broker's own sentence is labelled as its words, as the agent's reason is.
+  assert.equal(brokerWordsLabel("ar"), "بكلمات الوسيط");
+  assert.equal(brokerWordsLabel("en"), "In the broker's words");
+  // A broker's price is labelled; a failed result no catalog explains reads one shared line,
+  // which offers no retry: a decided card has none (D10).
+  assert.equal(brokerPriceLabel("price", "ar"), "سعر الوسيط");
+  assert.equal(brokerPriceLabel("execution_price", "en"), "Execution price");
+  assert.equal(failedResultFallback("ar"), "لم يُنفَّذ هذا الطلب.");
+  assert.equal(failedResultFallback("en"), "This request was not carried out.");
+  // Both approval cards read the one tone and labels, and both fall back to their error
+  // catalog for a result known not to have executed, with the shared line for a code it does
+  // not know.
+  for (const file of [
+    "apps/web/src/components/trading/TradeApprovals.tsx",
+    "apps/mobile/components/trade-approval.tsx",
+  ]) {
+    assert.match(read(file), /approvalEndTone\(row\)/, file);
+    assert.match(read(file), /brokerWordsLabel\(/, file);
+    assert.match(read(file), /brokerPriceLabel\(key, /, file);
+    assert.match(read(file), /failedResultFallback\(/, file);
+    assert.doesNotMatch(read(file), /status === "approved" \|\| status === "completed"/, file);
+  }
+  assert.match(
+    read("apps/mobile/components/trade-approval.tsx"),
+    /result\.status === "failed" && result\.code\s*\? errorText\(new ApiError\(result\.code, 0\), failedResultFallback\(locale\)\)/,
+  );
+  assert.match(
+    read("apps/web/src/components/trading/TradeApprovals.tsx"),
+    /userError\(\{ code: result\.code \}, failedResultFallback\(i18n\.locale\)\)/,
+  );
 });
 
 test("activity rows say what the agent does from registry metadata, never a raw tool id", () => {

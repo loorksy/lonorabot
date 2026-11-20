@@ -163,6 +163,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
                     accessibilityRole="button"
                     accessibilityLabel={shown.back ? t("sh_back") : t("sh_cancel")}
                     onPress={() => (shown.back ? shown.back() : close())}
+                    hitSlop={2}
                     style={{
                       width: 40,
                       height: 40,

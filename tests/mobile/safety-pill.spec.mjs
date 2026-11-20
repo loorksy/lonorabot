@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function simulation(data) {
   return JSON.parse(
@@ -15,6 +15,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: the thread safety pill shows the status line and offers no Stop`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(60000);
     const data = simulation({ action: "init", empty: true });
@@ -53,25 +54,24 @@ for (const locale of ["ar", "en"])
             asks: "Asks you before each trade",
             stop: /Stop new trading|Resume trading|Start trading/,
           };
-    try {
-      const permissions = await (
-        await context.request.get(`/api/agents/${agent.id}/permissions`)
-      ).json();
-      const changed = await context.request.put(`/api/agents/${agent.id}/permissions`, {
-        headers,
-        data: { level: "supervised", expected_revision: permissions.revision },
-      });
-      expect(changed.ok()).toBeTruthy();
-      await page.goto(`/thread?id=${thread.id}`);
-      const pill = page.getByTestId("safety-pill");
-      await expect(pill).toContainText(text.asks);
-      await pill.click();
-      const sheet = page.getByTestId("safety-sheet");
-      // Amendment 1: Lonora has no Stop control; the sheet offers no Stop, Resume or Start.
-      await expect(sheet.getByRole("button", { name: text.stop })).toHaveCount(0);
-      await expect(sheet.getByTestId("safety-trading-state")).toHaveCount(0);
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
-    }
+    });
+    const permissions = await (
+      await context.request.get(`/api/agents/${agent.id}/permissions`)
+    ).json();
+    const changed = await context.request.put(`/api/agents/${agent.id}/permissions`, {
+      headers,
+      data: { level: "supervised", expected_revision: permissions.revision },
+    });
+    expect(changed.ok()).toBeTruthy();
+    await page.goto(`/thread?id=${thread.id}`);
+    const pill = page.getByTestId("safety-pill");
+    await expect(pill).toContainText(text.asks);
+    await pill.click();
+    const sheet = page.getByTestId("safety-sheet");
+    // Amendment 1: Lonora has no Stop control; the sheet offers no Stop, Resume or Start.
+    await expect(sheet.getByRole("button", { name: text.stop })).toHaveCount(0);
+    await expect(sheet.getByTestId("safety-trading-state")).toHaveCount(0);
   });

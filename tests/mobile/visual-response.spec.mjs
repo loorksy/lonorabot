@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function response(locale) {
   const ar = locale === "ar";
@@ -152,6 +152,7 @@ for (const locale of ["en", "ar"]) {
     test(`Expo native ${locale} ${theme}: mixed visuals, local interaction and reopen`, async ({
       page,
       context,
+      cleanup,
     }) => {
       test.setTimeout(60000);
       const fixture = JSON.parse(
@@ -216,94 +217,91 @@ for (const locale of ["en", "ar"]) {
         )
           posts.push(request.postDataJSON());
       });
-      try {
-        await page.goto(`/thread?id=${thread.id}`);
-        const visual = page.getByTestId("native-visual-calculator");
-        await expect(visual).toBeVisible();
-        await expect(page.getByText("Legacy fallback only", { exact: true })).toHaveCount(0);
-        await expect(page.getByText(labels.intro, { exact: true })).toHaveCount(1);
-        await expect(page.getByText(labels.outro, { exact: true })).toHaveCount(1);
-        await expect(
-          visual.getByText(locale === "ar" ? "مثال توضيحي" : "Illustrative example", {
-            exact: true,
-          }),
-        ).toBeVisible();
-        const budget = visual.getByRole("textbox", { name: labels.budget, exact: true });
-        await budget.fill(locale === "ar" ? "٢٠٠٠" : "2000");
-        await budget.blur();
-        await expect(visual.getByText("40 USD", { exact: true })).toBeVisible();
-        await visual.getByRole("button", { name: `${labels.risk} +`, exact: true }).click();
-        await expect(visual.getByText("60 USD", { exact: true })).toBeVisible();
-        await visual.getByRole("switch", { name: labels.include, exact: true }).click();
-        await expect(visual.getByText(labels.detailText, { exact: true })).toHaveCount(0);
-        await visual
-          .getByRole("radio", { name: locale === "ar" ? "أسبوعي" : "Weekly", exact: true })
-          .click();
-        await visual
-          .getByRole("tab", { name: locale === "ar" ? "الثاني" : "Second", exact: true })
-          .click();
-        await expect(visual.getByText("Beta", { exact: true })).toBeVisible();
-        await expect(visual.getByText("Alpha", { exact: true })).toHaveCount(0);
-        await visual
-          .getByRole("textbox", {
-            name: `${locale === "ar" ? "تصفية" : "Filter"} ${labels.filter}`,
-            exact: true,
-          })
-          .fill("Sample B");
-        await expect(visual.getByText("Sample A", { exact: true })).toHaveCount(0);
-        await expect(visual.getByText("Sample B", { exact: true })).toBeVisible();
-        await visual.getByRole("button", { name: labels.details, exact: true }).click();
-        await expect(visual.getByText("No broker action", { exact: true })).toBeVisible();
-        expect(posts).toHaveLength(0);
-        await expect
-          .poll(() =>
-            visual.evaluate((element) => element.getBoundingClientRect().width <= innerWidth),
-          )
-          .toBeTruthy();
-        const color = await visual.evaluate((element) => getComputedStyle(element).backgroundColor);
-        expect(color).toBe(theme === "dark" ? "rgb(11, 12, 14)" : "rgb(250, 250, 248)");
-        await expect
-          .poll(() =>
-            page.evaluate(
-              () =>
-                Object.keys(localStorage).filter((key) => key.startsWith("lonora.visual.")).length,
-            ),
-          )
-          .toBeGreaterThan(0);
-        await page.reload();
-        await expect(visual.getByText("60 USD", { exact: true })).toBeVisible();
-        await expect(visual.getByText("No broker action", { exact: true })).toBeVisible();
-        await expect(
-          visual.getByRole("radio", { name: locale === "ar" ? "أسبوعي" : "Weekly", exact: true }),
-        ).toHaveAttribute("aria-checked", "true");
-        expect(posts).toHaveLength(0);
-        if (locale === "en" && theme === "dark") {
-          const sent = page.waitForResponse(
-            (result) =>
-              result.request().method() === "POST" &&
-              new URL(result.url()).pathname === `/api/threads/${thread.id}/messages`,
-          );
-          await visual.getByRole("button", { name: labels.follow, exact: true }).click();
-          expect((await sent).ok()).toBeTruthy();
-          expect(posts).toHaveLength(1);
-          expect(posts[0].content).toBe("Explain this illustrative calculation at 2000 and 3%.");
-          expect(posts[0].client_nonce).toBeTruthy();
-          expect(posts[0].attachment_ids).toEqual([]);
-          expect(posts[0]).not.toHaveProperty("approval");
-          const journal = await (await context.request.get("/api/trading/journal")).json();
-          expect(journal.filter((row) => row.agent_id === agent.id)).toHaveLength(0);
-          const grants = await (
-            await context.request.get(`/api/agents/${agent.id}/account-authorities`)
-          ).json();
-          expect(grants).toHaveLength(0);
-        }
-        await page.screenshot({
-          path: test.info().outputPath(`native-visual-${locale}-${theme}.png`),
-          fullPage: true,
-        });
-      } finally {
-        await context.request.delete(`/api/agents/${agent.id}`, { headers });
+      cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+      await page.goto(`/thread?id=${thread.id}`);
+      const visual = page.getByTestId("native-visual-calculator");
+      await expect(visual).toBeVisible();
+      await expect(page.getByText("Legacy fallback only", { exact: true })).toHaveCount(0);
+      await expect(page.getByText(labels.intro, { exact: true })).toHaveCount(1);
+      await expect(page.getByText(labels.outro, { exact: true })).toHaveCount(1);
+      await expect(
+        visual.getByText(locale === "ar" ? "مثال توضيحي" : "Illustrative example", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      const budget = visual.getByRole("textbox", { name: labels.budget, exact: true });
+      await budget.fill(locale === "ar" ? "٢٠٠٠" : "2000");
+      await budget.blur();
+      await expect(visual.getByText("40 USD", { exact: true })).toBeVisible();
+      await visual.getByRole("button", { name: `${labels.risk} +`, exact: true }).click();
+      await expect(visual.getByText("60 USD", { exact: true })).toBeVisible();
+      await visual.getByRole("switch", { name: labels.include, exact: true }).click();
+      await expect(visual.getByText(labels.detailText, { exact: true })).toHaveCount(0);
+      await visual
+        .getByRole("radio", { name: locale === "ar" ? "أسبوعي" : "Weekly", exact: true })
+        .click();
+      await visual
+        .getByRole("tab", { name: locale === "ar" ? "الثاني" : "Second", exact: true })
+        .click();
+      await expect(visual.getByText("Beta", { exact: true })).toBeVisible();
+      await expect(visual.getByText("Alpha", { exact: true })).toHaveCount(0);
+      await visual
+        .getByRole("textbox", {
+          name: `${locale === "ar" ? "تصفية" : "Filter"} ${labels.filter}`,
+          exact: true,
+        })
+        .fill("Sample B");
+      await expect(visual.getByText("Sample A", { exact: true })).toHaveCount(0);
+      await expect(visual.getByText("Sample B", { exact: true })).toBeVisible();
+      await visual.getByRole("button", { name: labels.details, exact: true }).click();
+      await expect(visual.getByText("No broker action", { exact: true })).toBeVisible();
+      expect(posts).toHaveLength(0);
+      await expect
+        .poll(() =>
+          visual.evaluate((element) => element.getBoundingClientRect().width <= innerWidth),
+        )
+        .toBeTruthy();
+      const color = await visual.evaluate((element) => getComputedStyle(element).backgroundColor);
+      expect(color).toBe(theme === "dark" ? "rgb(11, 12, 14)" : "rgb(250, 250, 248)");
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              Object.keys(localStorage).filter((key) => key.startsWith("lonora.visual.")).length,
+          ),
+        )
+        .toBeGreaterThan(0);
+      await page.reload();
+      await expect(visual.getByText("60 USD", { exact: true })).toBeVisible();
+      await expect(visual.getByText("No broker action", { exact: true })).toBeVisible();
+      await expect(
+        visual.getByRole("radio", { name: locale === "ar" ? "أسبوعي" : "Weekly", exact: true }),
+      ).toHaveAttribute("aria-checked", "true");
+      expect(posts).toHaveLength(0);
+      if (locale === "en" && theme === "dark") {
+        const sent = page.waitForResponse(
+          (result) =>
+            result.request().method() === "POST" &&
+            new URL(result.url()).pathname === `/api/threads/${thread.id}/messages`,
+        );
+        await visual.getByRole("button", { name: labels.follow, exact: true }).click();
+        expect((await sent).ok()).toBeTruthy();
+        expect(posts).toHaveLength(1);
+        expect(posts[0].content).toBe("Explain this illustrative calculation at 2000 and 3%.");
+        expect(posts[0].client_nonce).toBeTruthy();
+        expect(posts[0].attachment_ids).toEqual([]);
+        expect(posts[0]).not.toHaveProperty("approval");
+        const journal = await (await context.request.get("/api/trading/journal")).json();
+        expect(journal.filter((row) => row.agent_id === agent.id)).toHaveLength(0);
+        const grants = await (
+          await context.request.get(`/api/agents/${agent.id}/account-authorities`)
+        ).json();
+        expect(grants).toHaveLength(0);
       }
+      await page.screenshot({
+        path: test.info().outputPath(`native-visual-${locale}-${theme}.png`),
+        fullPage: true,
+      });
     });
   }
 }

@@ -76,10 +76,19 @@ body,
   height: 100%;
   margin: 0;
 }
+/* v38: phones never inflate the text on rotation */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   background: var(--bg);
   color: var(--text);
   font: 400 var(--fs-md) / 1.6 var(--font);
+  /* v38: phones in landscape keep the app clear of the notch and the rounded corners (the
+     viewport covers the whole screen, viewport-fit=cover; zero elsewhere) */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 /* The legacy element and component styles reach screens outside the reference shell and the
    legacy screens it still mounts (.legacy-surface); the shell's chrome keeps its own defaults. */

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function fixture(data) {
   return JSON.parse(
@@ -12,51 +12,49 @@ function fixture(data) {
 test("chart sheet expands, dismisses with Escape and opens again (Q37: the reference's look)", async ({
   page,
   context,
+  cleanup,
 }) => {
   test.setTimeout(60000);
   const data = fixture({ action: "init" });
   await page.setViewportSize({ width: 390, height: 844 });
-  try {
-    await context.addCookies(
-      data.cookies.map((cookie) => ({
-        ...cookie,
-        url: test.info().project.use.baseURL,
-        httpOnly: cookie.name === "lonora_session",
-        sameSite: "Strict",
-      })),
-    );
-    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-    await page.goto(`/app/${data.agent}`);
-    // A research agent has no «الشارت» in its menu (reference chartOk): its conversation's
-    // chart opens the way an answer's chart does.
-    await expect(page.getByTestId("transcript")).toBeVisible();
-    const openChart = () =>
-      page.evaluate(() => window.dispatchEvent(new CustomEvent("lonora:open-chart")));
-    await openChart();
-    const sheet = page.locator("#dialog");
-    await expect(sheet).toHaveClass(/expandable/);
-    // The conversation has no pair: its latest chart, on that chart's own timeframe, drawn
-    // from the broker's candles with the reference's SVG.
-    await expect(sheet.getByRole("tab", { name: "15m" })).toHaveAttribute("aria-selected", "true");
-    const candles = sheet.locator("svg.chart > g > rect");
-    await expect(candles.first()).toBeVisible();
-    // The chart's RSI(14) is an oscillator: its own labelled pane, never the price scale.
-    const pane = sheet.locator('svg.chart [data-overlay="pane"]');
-    await expect(pane).toContainText("RSI 14");
-    expect(await pane.locator("polyline").count()).toBeGreaterThan(0);
-    expect(await sheet.locator('svg.chart [data-overlay="indicator"]').count()).toBe(0);
-    const initial = await sheet.boundingBox();
-    expect(initial.height).toBeLessThan(800);
-    await sheet.getByRole("button", { name: "Full screen", exact: true }).click();
-    await expect(sheet).toHaveClass(/expanded/);
-    await expect.poll(async () => (await sheet.boundingBox()).height).toBeGreaterThan(800);
-    await page.keyboard.press("Escape");
-    await expect(sheet).not.toHaveAttribute("open", "");
-    await openChart();
-    await expect(candles.first()).toBeVisible();
-    await sheet.getByRole("button", { name: "Close", exact: true }).click();
-    await expect(sheet).not.toHaveAttribute("open", "");
-  } finally {
-    fixture({ ...data, action: "cleanup" });
-  }
+  cleanup(() => fixture({ ...data, action: "cleanup" }));
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.goto(`/app/${data.agent}`);
+  // A research agent has no «الشارت» in its menu (reference chartOk): its conversation's
+  // chart opens the way an answer's chart does.
+  await expect(page.getByTestId("transcript")).toBeVisible();
+  const openChart = () =>
+    page.evaluate(() => window.dispatchEvent(new CustomEvent("lonora:open-chart")));
+  await openChart();
+  const sheet = page.locator("#dialog");
+  await expect(sheet).toHaveClass(/expandable/);
+  // The conversation has no pair: its latest chart, on that chart's own timeframe, drawn
+  // from the broker's candles with the reference's SVG.
+  await expect(sheet.getByRole("tab", { name: "15m" })).toHaveAttribute("aria-selected", "true");
+  const candles = sheet.locator("svg.chart > g > rect");
+  await expect(candles.first()).toBeVisible();
+  // The chart's RSI(14) is an oscillator: its own labelled pane, never the price scale.
+  const pane = sheet.locator('svg.chart [data-overlay="pane"]');
+  await expect(pane).toContainText("RSI 14");
+  expect(await pane.locator("polyline").count()).toBeGreaterThan(0);
+  expect(await sheet.locator('svg.chart [data-overlay="indicator"]').count()).toBe(0);
+  const initial = await sheet.boundingBox();
+  expect(initial.height).toBeLessThan(800);
+  await sheet.getByRole("button", { name: "Full screen", exact: true }).click();
+  await expect(sheet).toHaveClass(/expanded/);
+  await expect.poll(async () => (await sheet.boundingBox()).height).toBeGreaterThan(800);
+  await page.keyboard.press("Escape");
+  await expect(sheet).not.toHaveAttribute("open", "");
+  await openChart();
+  await expect(candles.first()).toBeVisible();
+  await sheet.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(sheet).not.toHaveAttribute("open", "");
 });

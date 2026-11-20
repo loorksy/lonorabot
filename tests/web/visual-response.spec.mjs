@@ -481,7 +481,8 @@ test("dense tables, charts and diagrams remain local and contained at 320px", as
     ),
   ).toBe(true);
   const table = page.locator(".native-visual-table-scroll");
-  await table.focus();
+  // A script focus draws no ring. The ring is for a visible (keyboard) focus.
+  await table.evaluate((element) => element.focus({ focusVisible: true }));
   expect(
     await table.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth)),
   ).toBeGreaterThanOrEqual(2);

@@ -13,7 +13,8 @@ import {
 import { isRequestCancelled } from "../lib/api";
 
 /* Notices: one live region. Typed toasts carry an icon; a toast with an action moves to the
-   bottom as a snackbar and stays longer. Errors announce as alerts. */
+   bottom as a snackbar and stays longer, and waits while the pointer or focus is on it (then
+   2.4s more). Errors announce as alerts. */
 export type ToastType = "success" | "error" | "warn" | "info";
 export type ToastOptions = {
   type?: ToastType;
@@ -73,6 +74,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [show]);
   const value = useMemo(() => show, [show]);
   const type = toast?.type;
+  const hold = () => clearTimeout(timer.current);
+  const resume = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setVisible(false), 2400);
+  };
   return (
     <Context.Provider value={value}>
       {children}
@@ -88,6 +94,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         ]
           .filter(Boolean)
           .join(" ")}
+        {...(toast?.action && {
+          onPointerEnter: hold,
+          onFocus: hold,
+          onPointerLeave: resume,
+          onBlur: resume,
+        })}
       >
         {toast && (
           <>

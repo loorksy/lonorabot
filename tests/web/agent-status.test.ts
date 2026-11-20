@@ -309,13 +309,14 @@ test("M1: the conversation's order line and sheet use the one shared helper", as
   assert.ok(!/result\\??\.(order_id|position_id|deal_id|price|filled_volume)/.test(cards));
 });
 
-test("«حسم» opens the operation's own resolve card, and the order sheet offers «حسم العملية»", async () => {
+test("«حسم» opens the operation's own resolve card; the chat draws no order line (v38)", async () => {
   const { readFileSync } = await import("node:fs");
   const sheet = readFileSync("apps/web/src/conversation/sheets/AgentSheet.tsx", "utf8");
   assert.match(sheet, /openCard\(op\.resolve_card, go\)/);
+  // An operation reaches the chat only as the server's fixed cards: its receipt or its
+  // Settle card, which sits in its own row or slot.
   const conversation = readFileSync("apps/web/src/conversation/Conversation.tsx", "utf8");
-  assert.match(conversation, /card\.facts\.operation\?\.operation_id === journalRow\.operation_id/);
-  assert.match(conversation, /<OrderSheetBody\s+row=\{journalRow\}\s+onResolve=/);
+  assert.doesNotMatch(conversation, /<OrderLine|<OrderSheetBody|\/trading\/journal/);
 });
 
 test("the quota card follows Q22: no spend cap to raise, the provider's own quota", async () => {
@@ -338,7 +339,10 @@ test("R1/R2: the executor's own rows: a never-sent order is Requested → Blocke
   const cards = readFileSync("apps/web/src/conversation/Cards.tsx", "utf8");
   const sheet = cards.slice(cards.indexOf("export function OrderSheetBody"));
   assert.match(sheet, /line\.steps\.map/);
-  assert.doesNotMatch(sheet.slice(0, sheet.indexOf("Technical details")), /userError\(/);
+  const body = sheet.slice(0, sheet.indexOf("export function Steps"));
+  assert.doesNotMatch(body, /userError\(/);
+  // Ticket and account only: no operation id, provisioning id or broker return code (17).
+  assert.doesNotMatch(body, /row\.operation_id|row\.account_id|string_code/);
 });
 
 test("item 21: «Mandate details» opens the signed grant card of this chat", async () => {

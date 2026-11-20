@@ -289,9 +289,13 @@
   color: var(--accent-ink);
 }
 /* ---- Desktop-37 1351-1416: layout, text, data and inputs of the rest of the catalog ---- */
+/* v38: columns follow the card's own width: --cols while each stays at least 96px, then wrap */
 .ux-grid {
   display: grid;
-  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(100%, max(96px, calc(100% / var(--cols) - 8px))), 1fr)
+    );
   gap: 8px;
 }
 .ux-panel {
@@ -365,9 +369,11 @@
   gap: 4px;
   color: var(--muted);
   font-size: var(--fs-xs);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* v38: a tile's label wraps instead of being cut */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
 }
 .ux-stat :where(small) svg {
   width: 14px;
@@ -552,7 +558,7 @@
   font-weight: 500;
 }
 .ux-field > label small {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-xs);
 }
 .ux-field output {
@@ -762,7 +768,7 @@
 .ux-sources {
   display: block;
   margin-top: 4px;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-xs);
 }
 @media (prefers-reduced-motion: reduce) {

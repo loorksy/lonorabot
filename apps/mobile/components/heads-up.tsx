@@ -1,7 +1,7 @@
 // The heads-up, as Web's HeadsUp: an agent's answer that arrives in another chat shows at the
-// top for 5.2 s with «رد»; a tap opens that chat; a swipe up, or the time, hides it. Mute,
-// archive, the owner's quiet hours and an agent's in-app rule suppress it (Q4, Q47); an urgent
-// attention item always shows.
+// top for 5.2 s with «رد» (held while pressed, then 2.4 s more); a tap opens that chat; a swipe
+// up, or the time, hides it. Mute, archive, the owner's quiet hours and an agent's in-app rule
+// suppress it (Q4, Q47); an urgent attention item always shows.
 import type { Event } from "@lonora/contracts";
 import type { QuietHours } from "@lonora/core";
 import { useGlobalSearchParams, usePathname } from "expo-router";
@@ -15,7 +15,9 @@ import { attentionBanner, type Banner, messageBanner } from "../lib/heads-up";
 import { useLists } from "../lib/lists-state";
 import { useSession } from "../lib/session";
 import { useShellData } from "../lib/shell-data";
+import { textDirection } from "../lib/text-direction";
 import { useTheme } from "../lib/theme";
+import { FittedText } from "./fitted-text";
 import { useOpenChat } from "./shell/chat-list";
 import { RowAvatar } from "./shell/kit";
 
@@ -87,6 +89,8 @@ export function HeadsUp() {
         ? data.groups.find((group) => group.id === first(params.groupId))?.state?.thread_id
         : undefined;
   const [banner, setBanner] = useState<(Banner & { serial: number }) | null>(null);
+  // Pressed: it waits; released: 2.4 s more (v38).
+  const [held, setHeld] = useState<boolean | null>(null);
   const offset = useRef(new Animated.Value(-160)).current;
   // News is what arrives after this owner signed in (or the app opened).
   const openedAt = useRef(Date.now());
@@ -107,6 +111,7 @@ export function HeadsUp() {
   const show = useCallback(
     (next: Banner) => {
       serial.current += 1;
+      setHeld(null);
       setBanner({ ...next, serial: serial.current });
       offset.setValue(-160);
       Animated.spring(offset, { toValue: 0, useNativeDriver: true }).start();
@@ -114,10 +119,10 @@ export function HeadsUp() {
     [offset],
   );
   useEffect(() => {
-    if (!banner) return;
-    const timer = setTimeout(hide, 5200);
+    if (!banner || held) return;
+    const timer = setTimeout(hide, held === false ? 2400 : 5200);
     return () => clearTimeout(timer);
-  }, [banner, hide]);
+  }, [banner, hide, held]);
 
   useEffect(() => {
     openedAt.current = Date.now();
@@ -180,6 +185,8 @@ export function HeadsUp() {
     hide();
     void openChat(banner.row);
   };
+  const line = { color: c.muted, fontSize: 13, lineHeight: 18 };
+  const words = textDirection(banner.text, rtl ? "rtl" : "ltr");
   return (
     <Animated.View
       key={banner.serial}
@@ -215,7 +222,9 @@ export function HeadsUp() {
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${banner.row.name}: ${banner.text}`}
+          accessibilityLabel={`${banner.row.name}: ${banner.who ? `${banner.who} ` : ""}${banner.text}`}
+          onPressIn={() => setHeld(true)}
+          onPressOut={() => setHeld(false)}
           onPress={open}
           style={{
             flex: 1,
@@ -238,22 +247,35 @@ export function HeadsUp() {
             >
               {banner.row.name}
             </Text>
-            <Text
-              numberOfLines={2}
-              style={{
-                color: c.muted,
-                fontSize: 13,
-                lineHeight: 18,
-                writingDirection: "auto",
-                textAlign: rtl ? "right" : "left",
-              }}
-            >
-              {banner.text}
-            </Text>
+            {/* Who said it keeps the interface's side; the words read in their own direction
+                and are cut at their own end (as Web's SaidLine and the chat row). */}
+            <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 4 }}>
+              {banner.who ? (
+                <Text
+                  numberOfLines={1}
+                  style={{ ...line, flexShrink: 0, maxWidth: "50%" }}
+                  testID="heads-up-who"
+                >
+                  {banner.who}
+                </Text>
+              ) : null}
+              <FittedText
+                text={banner.text}
+                numberOfLines={2}
+                style={{
+                  ...line,
+                  writingDirection: words,
+                  textAlign: words === "rtl" ? "right" : "left",
+                }}
+                testID="heads-up-words"
+              />
+            </View>
           </View>
         </Pressable>
         <Pressable
           accessibilityRole="button"
+          onPressIn={() => setHeld(true)}
+          onPressOut={() => setHeld(false)}
           onPress={open}
           style={{
             paddingHorizontal: 14,

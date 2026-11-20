@@ -4,7 +4,7 @@
 // creates the agent and its grant card.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function python(args, data) {
   return JSON.parse(
@@ -26,7 +26,11 @@ const text = {
 
 const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map((row) => row.id);
 
-test("Expo ar: one sentence creates the agent and its grant card", async ({ page, context }) => {
+test("Expo ar: one sentence creates the agent and its grant card", async ({
+  page,
+  context,
+  cleanup,
+}) => {
   test.setTimeout(180000);
   const data = simulation({ action: "init", empty: true });
   await context.addCookies(
@@ -53,25 +57,24 @@ test("Expo ar: one sentence creates the agent and its grant card", async ({ page
     await page.getByRole("button", { name: text.send, exact: true }).click();
     await expect(page.getByText(sentence, { exact: true }).first()).toBeVisible();
   };
-  try {
-    await page.goto(`/thread?id=${thread.id}`);
-
-    // «أنشئ وكيل ذهب …»: the grant card, the same server card the Web shows; no
-    // creation card (Lonora says it in one line).
-    await said(words.createGold);
-    const created = worker({ thread: thread.id, account: data.account, symbol: data.symbol, name });
-    expect(created.status).toBe("completed");
-    gold = created.agent;
-    expect(raised(created, "agent_created")).toHaveLength(0);
-    expect(raised(created, "grant_authority")).toHaveLength(1);
-    await page.reload();
-    const grant = page.getByTestId(`owner-action-${raised(created, "grant_authority")[0]}`);
-    await expect(grant.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
-    await expect(grant.getByText(data.symbol, { exact: false }).first()).toBeVisible();
-    await expect(grant.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
-    await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-native-ar.png") });
-  } finally {
+  cleanup(async () => {
     if (gold) await context.request.delete(`/api/agents/${gold}`, { headers });
     simulation({ ...data, action: "cleanup" });
-  }
+  });
+  await page.goto(`/thread?id=${thread.id}`);
+
+  // «أنشئ وكيل ذهب …»: the grant card, the same server card the Web shows; no
+  // creation card (Lonora says it in one line).
+  await said(words.createGold);
+  const created = worker({ thread: thread.id, account: data.account, symbol: data.symbol, name });
+  expect(created.status).toBe("completed");
+  gold = created.agent;
+  expect(raised(created, "agent_created")).toHaveLength(0);
+  expect(raised(created, "grant_authority")).toHaveLength(1);
+  await page.reload();
+  const grant = page.getByTestId(`owner-action-${raised(created, "grant_authority")[0]}`);
+  await expect(grant.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
+  await expect(grant.getByText(data.symbol, { exact: false }).first()).toBeVisible();
+  await expect(grant.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
+  await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-native-ar.png") });
 });

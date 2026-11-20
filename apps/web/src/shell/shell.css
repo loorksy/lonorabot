@@ -106,6 +106,13 @@
   direction: ltr;
   unicode-bidi: isolate;
   display: inline-block;
+  /* a long id or login wraps inside its line instead of running out of the row */
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+/* «back» and the row chevron are drawn for Arabic; in English they point the other way. */
+html[dir="ltr"] svg[data-mirror] {
+  transform: scaleX(-1);
 }
 .app-shell .sr-only {
   position: absolute;
@@ -486,6 +493,47 @@ nav.tabbar.compact .nav-label {
 .chip:active {
   transform: scale(0.97);
 }
+/* v38: small controls answer a tap over at least 44px without changing their look: an
+   invisible area centred on each (the element keeps its size). Switches use ::after, as
+   ::before is their thumb. */
+:where(
+  .head-avatar,
+  .icon,
+  .btn.sm,
+  .btn.small,
+  .chip,
+  .link,
+  .sg-take,
+  .safety-cap,
+  .tabs > button,
+  .switch,
+  .search-clear
+) {
+  position: relative;
+}
+:is(
+  .head-avatar,
+  .icon,
+  .btn.sm,
+  .btn.small,
+  .chip,
+  .link,
+  .sg-take,
+  .safety-cap,
+  .tabs > button,
+  .search-clear,
+  .pencil
+)::before,
+.switch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+  border-radius: inherit;
+}
 .btn {
   display: inline-flex;
   align-items: center;
@@ -621,6 +669,18 @@ button.row:hover {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+/* v38: a setting's description is never cut: a row with a switch shows all of it */
+.row:has(> .switch) small {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+/* v38: on the narrowest phones a row's second line may take a third line rather than be cut */
+@media (max-width: 360px) {
+  .row small {
+    -webkit-line-clamp: 3;
+  }
+}
 .row .value {
   max-width: 52%;
   min-width: 0;
@@ -694,12 +754,6 @@ button.row:hover {
 }
 .tpl-row .tpl-sub {
   display: block;
-}
-.tpl-row .tpl-code {
-  display: block;
-  margin-top: 2px;
-  color: var(--faint);
-  font-size: 11px;
 }
 .group > .btn.full {
   margin: 0;
@@ -1330,6 +1384,8 @@ html[dir="ltr"] .sheet-page.go-back {
   }
   #dialog {
     transition: none;
+    /* v38: a phone in landscape keeps the sheet clear of the notch and the rounded corners */
+    width: min(820px, calc(100% - env(safe-area-inset-left) - env(safe-area-inset-right)));
   }
 }
 /* State pages inside the sheet and the pages */
@@ -1637,7 +1693,7 @@ html[dir="ltr"] .sheet-page.go-back {
   display: flex;
   gap: 4px;
   align-items: center;
-  color: var(--faint);
+  color: var(--muted);
 }
 .app-shell kbd {
   display: inline-grid;
@@ -2098,7 +2154,7 @@ html[dir="ltr"] .sheet-page.go-back {
     align-items: center;
     gap: 6px;
     margin-top: 28px;
-    color: var(--faint);
+    color: var(--muted);
     font-size: var(--fs-xs);
   }
   .welcome small svg {
@@ -2111,6 +2167,13 @@ html[dir="ltr"] .sheet-page.go-back {
   #app.list-collapsed .desktop-list {
     visibility: hidden;
     overflow: hidden;
+  }
+  /* The rail's arrow points where the list will go: inward when open, outward when folded. */
+  #app.list-collapsed .rail-collapse svg {
+    transform: scaleX(-1);
+  }
+  html[dir="ltr"] #app.list-collapsed .rail-collapse svg {
+    transform: none;
   }
   /* The reference's later dialog rule (bottom: --kb, max-height min(88dvh, 780px, …)) still
      holds on desktop: the modal sits above an on-screen keyboard and grows to 88dvh. */
@@ -2150,8 +2213,12 @@ html[dir="ltr"] .sheet-page.go-back {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
-  .sheet-top > .icon {
-    position: static;
+  /* Laid out in the bar's flow, yet each still holds its own 44px area: a static icon would
+     size its ::before by the whole bar, and Close, drawn last, would take Full screen's taps. */
+  .sheet-top > .icon,
+  .sheet-top > .icon.sheet-expand {
+    position: relative;
+    inset: auto;
   }
   .sheet-top:has(.sheet-expand) {
     display: flex;

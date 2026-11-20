@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function simulation(data) {
   return JSON.parse(
@@ -15,6 +15,7 @@ function simulation(data) {
 function seedCard(data) {
   const script = `
 import asyncio,json,sys
+from datetime import timedelta
 from uuid import uuid4
 sys.path.insert(0,'tests')
 from check_streaming import Fixture
@@ -49,6 +50,9 @@ async def main():
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
                 row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
+            if data.get('expired'):
+                # A stored card whose server lifetime ran out while the outcome stays unknown.
+                row.expires_at=utcnow()-timedelta(minutes=1)
             print(json.dumps({'id':row.id if row else None,'operation_id':fields.get('operation_id')}))
     finally:
         await f.close(cleanup=False)
@@ -89,6 +93,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: owner action cards in the thread act with one tap`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = copy[locale];
@@ -118,64 +123,206 @@ for (const locale of ["ar", "en"])
     const thread = await (
       await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
     ).json();
-    try {
-      const uncertain = seedCard({
-        kind: "settle_operation",
-        account: data.account,
-        symbol: data.symbol,
-        agent: agent.id,
-        thread: thread.id,
+    cleanup(() => simulation({ ...data, action: "cleanup" }));
+    const uncertain = seedCard({
+      kind: "settle_operation",
+      account: data.account,
+      symbol: data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+    });
+    await page.goto(`/thread?id=${thread.id}`);
+    const resolveCard = page.getByTestId(`owner-action-${uncertain.id}`);
+    await expect(resolveCard.getByText(text.resolveTitle, { exact: true })).toBeVisible();
+    await expect(resolveCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
+    await expect(
+      resolveCard.getByRole("button", { name: text.unknown, exact: true }),
+    ).toBeVisible();
+    if (locale === "ar")
+      await resolveCard.screenshot({
+        path: test.info().outputPath("owner-action-resolve-native-ar.png"),
       });
-      await page.goto(`/thread?id=${thread.id}`);
-      const resolveCard = page.getByTestId(`owner-action-${uncertain.id}`);
-      await expect(resolveCard.getByText(text.resolveTitle, { exact: true })).toBeVisible();
-      await expect(resolveCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
-      await expect(
-        resolveCard.getByRole("button", { name: text.unknown, exact: true }),
-      ).toBeVisible();
-      if (locale === "ar")
-        await resolveCard.screenshot({
-          path: test.info().outputPath("owner-action-resolve-native-ar.png"),
-        });
-      // A grant card renders the same shared spec: what is signed, the owner's switches
-      // and one passkey tap; "Not now" changes nothing.
-      const grant = seedCard({
-        kind: "grant_authority",
-        account: data.account,
-        symbol: data.symbol,
-        agent: agent.id,
-        thread: thread.id,
+    // A grant card renders the same shared spec: what is signed, the owner's switches
+    // and one passkey tap; "Not now" changes nothing.
+    const grant = seedCard({
+      kind: "grant_authority",
+      account: data.account,
+      symbol: data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+    });
+    await page.reload();
+    const grantCard = page.getByTestId(`owner-action-${grant.id}`);
+    await expect(grantCard.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
+    await expect(grantCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
+    await expect(grantCard.getByTestId("owner-action-option-manual")).toBeVisible();
+    // Amendment 1: no grant card offers to resume trading.
+    await expect(grantCard.getByTestId("owner-action-option-resume")).toHaveCount(0);
+    await expect(
+      grantCard.getByRole("button", { name: text.authorize, exact: true }),
+    ).toBeVisible();
+    if (locale === "ar")
+      await grantCard.screenshot({
+        path: test.info().outputPath("owner-action-grant-native-ar.png"),
       });
-      await page.reload();
-      const grantCard = page.getByTestId(`owner-action-${grant.id}`);
-      await expect(grantCard.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
-      await expect(grantCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
-      await expect(grantCard.getByTestId("owner-action-option-manual")).toBeVisible();
-      // Amendment 1: no grant card offers to resume trading.
-      await expect(grantCard.getByTestId("owner-action-option-resume")).toHaveCount(0);
-      await expect(
-        grantCard.getByRole("button", { name: text.authorize, exact: true }),
-      ).toBeVisible();
-      if (locale === "ar")
-        await grantCard.screenshot({
-          path: test.info().outputPath("owner-action-grant-native-ar.png"),
-        });
-      await grantCard.getByRole("button", { name: text.notNow, exact: true }).click();
-      await expect(grantCard.getByText(text.dismissed, { exact: true })).toBeVisible();
-      const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
-      expect(level.effective_level).toBe("supervised");
-      await resolveCard.getByRole("button", { name: text.executed, exact: true }).click();
-      await expect(resolveCard.getByText(text.recorded, { exact: true })).toBeVisible();
-      const journal = await (
-        await context.request.get(`/api/trading/journal?account_id=${data.account}`)
-      ).json();
-      const row = journal.find((item) => item.operation_id === uncertain.operation_id);
-      expect(row.status).toBe("resolved");
-      expect(row.result.details.resolution.outcome).toBe("executed");
-    } finally {
-      simulation({ ...data, action: "cleanup" });
-    }
+    await grantCard.getByRole("button", { name: text.notNow, exact: true }).click();
+    await expect(grantCard.getByText(text.dismissed, { exact: true })).toBeVisible();
+    const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
+    expect(level.effective_level).toBe("supervised");
+    await resolveCard.getByRole("button", { name: text.executed, exact: true }).click();
+    await expect(resolveCard.getByText(text.recorded, { exact: true })).toBeVisible();
+    const journal = await (
+      await context.request.get(`/api/trading/journal?account_id=${data.account}`)
+    ).json();
+    const row = journal.find((item) => item.operation_id === uncertain.operation_id);
+    expect(row.status).toBe("resolved");
+    expect(row.result.details.resolution.outcome).toBe("executed");
   });
+
+test("Expo ar: an expired Settle card asks again, then shows the newer card", async ({
+  page,
+  context,
+  cleanup,
+}) => {
+  test.setTimeout(60000);
+  const data = simulation({ action: "init", empty: true });
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+  };
+  const agent = await (
+    await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Renew ${randomUUID().slice(0, 6)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    })
+  ).json();
+  const thread = await (
+    await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+  ).json();
+  cleanup(async () => {
+    await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    simulation({ ...data, action: "cleanup" });
+  });
+
+  const seeded = seedCard({
+    kind: "settle_operation",
+    account: data.account,
+    symbol: data.symbol,
+    agent: agent.id,
+    thread: thread.id,
+    expired: true,
+  });
+  await page.goto(`/thread?id=${thread.id}`);
+  const card = page.getByTestId(`owner-action-${seeded.id}`);
+  const renew = card.getByRole("button", { name: "طلب جديد", exact: true });
+  await expect(renew).toBeVisible();
+  const [renewed] = await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith(`/api/owner-actions/${seeded.id}/renew`),
+    ),
+    renew.click(),
+  ]);
+  expect(renewed.status()).toBe(200);
+  const fresh = await renewed.json();
+  // The fresh card waits for the same operation; the old one now shows it, and never asks
+  // again (the server would refuse a second renewal).
+  await expect(page.getByTestId(`owner-action-${fresh.id}`)).toBeVisible();
+  await expect(card.getByRole("button", { name: "عرض الأحدث", exact: true })).toBeVisible();
+  await expect(renew).toHaveCount(0);
+  // Settled, so its account can be removed: an unconfirmed operation blocks that.
+  const settled = await context.request.post(`/api/owner-actions/${fresh.id}/decision`, {
+    headers,
+    data: { decision: "confirm", outcome: "not_executed" },
+  });
+  expect(settled.ok()).toBeTruthy();
+});
+
+test("Expo ar: a broker card whose connection failed says so, never that it is done", async ({
+  page,
+  context,
+  cleanup,
+}) => {
+  const data = simulation({ action: "init", empty: true });
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+  };
+  const agent = await (
+    await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Broker ${randomUUID().slice(0, 6)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    })
+  ).json();
+  const thread = await (
+    await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+  ).json();
+  cleanup(async () => {
+    await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    simulation({ ...data, action: "cleanup" });
+  });
+
+  // A saved broker card whose provisioning failed (D3), as /owner-actions returns it.
+  const card = {
+    id: randomUUID(),
+    kind: "secret",
+    status: "confirmed",
+    status_reason: null,
+    superseded_by: null,
+    source: "agent",
+    agent_id: agent.id,
+    thread_id: thread.id,
+    run_id: null,
+    timeline_seq: 1,
+    facts: {
+      several_accounts: false,
+      secret: {
+        label: "70000001 @ Exness-MT5Trial16",
+        fields: [{ key: "PASSWORD", label: "كلمة مرور التداول", secret: true }],
+        destination: "broker",
+        agent_name: "Lonora",
+        account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+      },
+    },
+    requires_passkey: false,
+    result: { provisioning: "failed" },
+    expires_at: null,
+    decided_at: new Date().toISOString(),
+    decided_via: "owner",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  await page.route("**/api/owner-actions?*", (route) => route.fulfill({ json: [card] }));
+  await page.goto(`/thread?id=${thread.id}`);
+  const shown = page.getByTestId(`owner-action-${card.id}`);
+  await expect(
+    shown.getByText("تعذّر الربط. أوضحت لونورا السبب في المحادثة.", { exact: true }),
+  ).toBeVisible();
+  await expect(shown.getByText("حُفظت مشفّرة. لا يرى أي وكيل القيم.")).toHaveCount(0);
+});
 
 const mandate = {
   ar: { full: "وكّله", ask: "يستأذن", askNow: "الآن: يستأذن", fullNow: "الآن: وكّله" },
@@ -186,6 +333,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: the Mandate card switches the mode its button shows`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = mandate[locale];
@@ -215,32 +363,31 @@ for (const locale of ["ar", "en"])
     const thread = await (
       await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
     ).json();
-    try {
-      const seeded = seedCard({ kind: "trading_mode", agent: agent.id, thread: thread.id });
-      const decisions = [];
-      page.on("request", (request) => {
-        if (request.method() === "POST" && request.url().includes("/api/owner-actions/"))
-          decisions.push(request.postDataJSON());
-      });
-      await page.goto(`/thread?id=${thread.id}`);
-      const card = page.getByTestId(`owner-action-${seeded.id}`);
-      await expect(card.getByText(text.askNow, { exact: false })).toBeVisible();
-      if (locale === "ar")
-        await card.screenshot({
-          path: test.info().outputPath("owner-action-mandate-native-ar.png"),
-        });
-      await card.getByRole("button", { name: text.full, exact: true }).click();
-      await expect(card.getByText(text.fullNow, { exact: false })).toBeVisible();
-      await card.getByRole("button", { name: text.ask, exact: true }).click();
-      await expect(card.getByText(text.askNow, { exact: false })).toBeVisible();
-      expect(decisions).toEqual([
-        { decision: "confirm", trading_mode: "full" },
-        { decision: "confirm", trading_mode: "ask" },
-      ]);
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
-    }
+    });
+    const seeded = seedCard({ kind: "trading_mode", agent: agent.id, thread: thread.id });
+    const decisions = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/api/owner-actions/"))
+        decisions.push(request.postDataJSON());
+    });
+    await page.goto(`/thread?id=${thread.id}`);
+    const card = page.getByTestId(`owner-action-${seeded.id}`);
+    await expect(card.getByText(text.askNow, { exact: false })).toBeVisible();
+    if (locale === "ar")
+      await card.screenshot({
+        path: test.info().outputPath("owner-action-mandate-native-ar.png"),
+      });
+    await card.getByRole("button", { name: text.full, exact: true }).click();
+    await expect(card.getByText(text.fullNow, { exact: false })).toBeVisible();
+    await card.getByRole("button", { name: text.ask, exact: true }).click();
+    await expect(card.getByText(text.askNow, { exact: false })).toBeVisible();
+    expect(decisions).toEqual([
+      { decision: "confirm", trading_mode: "full" },
+      { decision: "confirm", trading_mode: "ask" },
+    ]);
   });
 
 const delegation = {
@@ -269,6 +416,7 @@ for (const locale of ["ar", "en"])
   test(`Expo ${locale}: Custom or Full delegation is one choice in the grant card's list`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = { ...copy[locale], ...delegation[locale] };
@@ -304,77 +452,77 @@ for (const locale of ["ar", "en"])
       (await (await context.request.get(`/api/owner-actions?thread_id=${thread.id}`)).json()).find(
         (row) => row.id === id,
       );
-    try {
-      const seeded = seedCard({
-        kind: "grant_authority",
-        account: data.account,
-        symbol: data.symbol,
-        agent: agent.id,
-        thread: thread.id,
-      });
-      await page.goto(`/thread?id=${thread.id}`);
-      const card = page.getByTestId(`owner-action-${seeded.id}`);
-      const custom = card.getByTestId("owner-action-choice-custom");
-      const full = card.getByTestId("owner-action-choice-full");
-      // One choice inside the card's own list, Custom selected, the same words as Web.
-      await expect(custom).toHaveAttribute("aria-checked", "true");
-      await expect(full).toHaveAttribute("aria-checked", "false");
-      await expect(custom).toContainText(text.custom);
-      await expect(full).toContainText(text.full);
-      await expect(card.getByTestId("owner-action-choice-detail-custom")).toContainText(
-        text.customMeaning,
-      );
-      await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
-      await full.click();
-      await expect(full).toHaveAttribute("aria-checked", "true");
-      const detail = card.getByTestId("owner-action-choice-detail-full");
-      await expect(detail).toContainText(text.fullMeaning);
-      await expect(card.getByTestId("owner-action-option-manual")).toHaveCount(0);
-      await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
-      await expect(card.getByText(text.markets, { exact: true })).toBeVisible();
-      await expect(card.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
-      // The choice is stored in the card's draft on the server.
-      expect((await stored(seeded.id)).facts.grant.delegation).toBe("full");
-      if (locale === "ar")
-        await card.screenshot({ path: test.info().outputPath("owner-action-full-native-ar.png") });
-      await custom.click();
-      await expect(custom).toHaveAttribute("aria-checked", "true");
-      await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
-      expect((await stored(seeded.id)).facts.grant.delegation).toBe("custom");
-      await card.getByRole("button", { name: text.notNow, exact: true }).click();
-      await expect(card.getByText(text.dismissed, { exact: true })).toBeVisible();
-      const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
-      expect(level.effective_level).toBe("supervised");
-      // A card Lonora raised from the owner's own words opens on Full; the owner chooses.
-      const preselected = seedCard({
-        kind: "grant_authority",
-        account: data.account,
-        symbol: data.symbol,
-        agent: agent.id,
-        thread: thread.id,
-        delegation: "full",
-      });
-      await page.reload();
-      const second = page.getByTestId(`owner-action-${preselected.id}`);
-      await expect(second.getByTestId("owner-action-choice-full")).toHaveAttribute(
-        "aria-checked",
-        "true",
-      );
-      await expect(second.getByTestId("owner-action-choice-detail-full")).toContainText(
-        text.fullMeaning,
-      );
-      await second.getByRole("button", { name: text.notNow, exact: true }).click();
-      await expect(second.getByText(text.dismissed, { exact: true })).toBeVisible();
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
-    }
+    });
+    const seeded = seedCard({
+      kind: "grant_authority",
+      account: data.account,
+      symbol: data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+    });
+    await page.goto(`/thread?id=${thread.id}`);
+    const card = page.getByTestId(`owner-action-${seeded.id}`);
+    const custom = card.getByTestId("owner-action-choice-custom");
+    const full = card.getByTestId("owner-action-choice-full");
+    // One choice inside the card's own list, Custom selected, the same words as Web.
+    await expect(custom).toHaveAttribute("aria-checked", "true");
+    await expect(full).toHaveAttribute("aria-checked", "false");
+    await expect(custom).toContainText(text.custom);
+    await expect(full).toContainText(text.full);
+    await expect(card.getByTestId("owner-action-choice-detail-custom")).toContainText(
+      text.customMeaning,
+    );
+    await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
+    await full.click();
+    await expect(full).toHaveAttribute("aria-checked", "true");
+    const detail = card.getByTestId("owner-action-choice-detail-full");
+    await expect(detail).toContainText(text.fullMeaning);
+    await expect(card.getByTestId("owner-action-option-manual")).toHaveCount(0);
+    await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
+    await expect(card.getByText(text.markets, { exact: true })).toBeVisible();
+    await expect(card.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
+    // The choice is stored in the card's draft on the server.
+    expect((await stored(seeded.id)).facts.grant.delegation).toBe("full");
+    if (locale === "ar")
+      await card.screenshot({ path: test.info().outputPath("owner-action-full-native-ar.png") });
+    await custom.click();
+    await expect(custom).toHaveAttribute("aria-checked", "true");
+    await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
+    expect((await stored(seeded.id)).facts.grant.delegation).toBe("custom");
+    await card.getByRole("button", { name: text.notNow, exact: true }).click();
+    await expect(card.getByText(text.dismissed, { exact: true })).toBeVisible();
+    const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
+    expect(level.effective_level).toBe("supervised");
+    // A card Lonora raised from the owner's own words opens on Full; the owner chooses.
+    const preselected = seedCard({
+      kind: "grant_authority",
+      account: data.account,
+      symbol: data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+      delegation: "full",
+    });
+    await page.reload();
+    const second = page.getByTestId(`owner-action-${preselected.id}`);
+    await expect(second.getByTestId("owner-action-choice-full")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(second.getByTestId("owner-action-choice-detail-full")).toContainText(
+      text.fullMeaning,
+    );
+    await second.getByRole("button", { name: text.notNow, exact: true }).click();
+    await expect(second.getByText(text.dismissed, { exact: true })).toBeVisible();
   });
 
 for (const locale of ["ar", "en"])
   test(`Expo ${locale}: a grant card changed on another screen is read again and never signs the other choice`, async ({
     page,
     context,
+    cleanup,
   }) => {
     test.setTimeout(90000);
     const text = { ...copy[locale], ...delegation[locale] };
@@ -407,71 +555,70 @@ for (const locale of ["ar", "en"])
     ).json();
     const cards = async () =>
       (await context.request.get(`/api/owner-actions?thread_id=${thread.id}`)).json();
-    try {
-      const seeded = seedCard({
-        kind: "grant_authority",
-        account: data.account,
-        symbol: data.symbol,
-        agent: agent.id,
-        thread: thread.id,
-      });
-      // This screen keeps what it last read until its tap reaches the server: another
-      // screen's choice (or a lost answer to one) has not reached it yet.
-      let frozen = null;
-      await page.route(
-        (url) => url.pathname.endsWith("/owner-actions"),
-        async (route) => {
-          if (frozen && route.request().method() === "GET") await route.fulfill({ json: frozen });
-          else await route.continue();
-        },
-      );
-      const challenges = [];
-      await page.route(
-        (url) => url.pathname.endsWith(`/owner-actions/${seeded.id}/challenge`),
-        async (route) => {
-          challenges.push(route.request().postDataJSON());
-          frozen = null;
-          await route.continue();
-        },
-      );
-      await page.goto(`/thread?id=${thread.id}`);
-      const card = page.getByTestId(`owner-action-${seeded.id}`);
-      const custom = card.getByTestId("owner-action-choice-custom");
-      const full = card.getByTestId("owner-action-choice-full");
-      await expect(custom).toHaveAttribute("aria-checked", "true");
-      await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
-      frozen = await cards();
-      // The owner picks Full on another screen; this one still shows Custom.
-      const other = await context.request.post(`/api/owner-actions/${seeded.id}/decision`, {
-        headers,
-        data: { decision: "choose", delegation: "full" },
-      });
-      expect(other.ok()).toBeTruthy();
-      await expect(custom).toHaveAttribute("aria-checked", "true");
-      await card.getByRole("button", { name: text.authorize, exact: true }).click();
-      // Refused before any passkey prompt: the card is read again and shows Full now.
-      await expect(card.getByText(text.changed, { exact: true })).toBeVisible();
-      await expect(full).toHaveAttribute("aria-checked", "true");
-      await expect(card.getByTestId("owner-action-choice-detail-full")).toContainText(
-        text.fullMeaning,
-      );
-      await expect(card.getByTestId("owner-action-option-manual")).toHaveCount(0);
-      await expect(card.getByText(text.markets, { exact: true })).toBeVisible();
-      expect(challenges).toEqual([{ delegation: "custom", allow_manual_positions: false }]);
-      // Nothing was prepared or signed.
-      const stored = (await cards()).find((row) => row.id === seeded.id);
-      expect(stored.status).toBe("pending");
-      expect(stored.result).toEqual({});
-      const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
-      expect(level.effective_level).toBe("supervised");
-      if (locale === "ar")
-        await card.screenshot({
-          path: test.info().outputPath("owner-action-changed-native-ar.png"),
-        });
-      await card.getByRole("button", { name: text.notNow, exact: true }).click();
-      await expect(card.getByText(text.dismissed, { exact: true })).toBeVisible();
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
-    }
+    });
+    const seeded = seedCard({
+      kind: "grant_authority",
+      account: data.account,
+      symbol: data.symbol,
+      agent: agent.id,
+      thread: thread.id,
+    });
+    // This screen keeps what it last read until its tap reaches the server: another
+    // screen's choice (or a lost answer to one) has not reached it yet.
+    let frozen = null;
+    await page.route(
+      (url) => url.pathname.endsWith("/owner-actions"),
+      async (route) => {
+        if (frozen && route.request().method() === "GET") await route.fulfill({ json: frozen });
+        else await route.continue();
+      },
+    );
+    const challenges = [];
+    await page.route(
+      (url) => url.pathname.endsWith(`/owner-actions/${seeded.id}/challenge`),
+      async (route) => {
+        challenges.push(route.request().postDataJSON());
+        frozen = null;
+        await route.continue();
+      },
+    );
+    await page.goto(`/thread?id=${thread.id}`);
+    const card = page.getByTestId(`owner-action-${seeded.id}`);
+    const custom = card.getByTestId("owner-action-choice-custom");
+    const full = card.getByTestId("owner-action-choice-full");
+    await expect(custom).toHaveAttribute("aria-checked", "true");
+    await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
+    frozen = await cards();
+    // The owner picks Full on another screen; this one still shows Custom.
+    const other = await context.request.post(`/api/owner-actions/${seeded.id}/decision`, {
+      headers,
+      data: { decision: "choose", delegation: "full" },
+    });
+    expect(other.ok()).toBeTruthy();
+    await expect(custom).toHaveAttribute("aria-checked", "true");
+    await card.getByRole("button", { name: text.authorize, exact: true }).click();
+    // Refused before any passkey prompt: the card is read again and shows Full now.
+    await expect(card.getByText(text.changed, { exact: true })).toBeVisible();
+    await expect(full).toHaveAttribute("aria-checked", "true");
+    await expect(card.getByTestId("owner-action-choice-detail-full")).toContainText(
+      text.fullMeaning,
+    );
+    await expect(card.getByTestId("owner-action-option-manual")).toHaveCount(0);
+    await expect(card.getByText(text.markets, { exact: true })).toBeVisible();
+    expect(challenges).toEqual([{ delegation: "custom", allow_manual_positions: false }]);
+    // Nothing was prepared or signed.
+    const stored = (await cards()).find((row) => row.id === seeded.id);
+    expect(stored.status).toBe("pending");
+    expect(stored.result).toEqual({});
+    const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
+    expect(level.effective_level).toBe("supervised");
+    if (locale === "ar")
+      await card.screenshot({
+        path: test.info().outputPath("owner-action-changed-native-ar.png"),
+      });
+    await card.getByRole("button", { name: text.notNow, exact: true }).click();
+    await expect(card.getByText(text.dismissed, { exact: true })).toBeVisible();
   });

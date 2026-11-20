@@ -33,7 +33,8 @@
   scrollbar-width: none;
   margin-inline: -16px;
   margin-bottom: 6px;
-  padding: 0 4px;
+  /* 2px above and below: the scroller keeps the chips' 44px tap area whole (v38) */
+  padding: 2px 4px;
   border-bottom: 1px solid var(--line);
   scroll-padding-inline: 4px;
   overscroll-behavior-x: contain;
@@ -66,7 +67,8 @@
   content: "";
   position: absolute;
   inset-inline: 8px;
-  bottom: -1px;
+  /* on the bar's line, below its 2px padding */
+  bottom: -3px;
   height: 2.5px;
   border-radius: 2px 2px 0 0;
   background: var(--accent);
@@ -88,8 +90,11 @@
 }
 .desktop-threads .list-filters {
   margin-inline: -8px;
-  padding: 0 14px 10px;
+  padding: 2px 14px 10px;
   scroll-padding-inline: 14px;
+}
+.desktop-threads .list-filters .chip.active::after {
+  bottom: -1px;
 }
 
 /* Rows */
@@ -155,6 +160,16 @@
 .thread .pv > span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* A signed number is one box: the ellipsis hides it whole, never its sign (17, 0.4) */
+.thread .pv .num,
+.hu-t small .num {
+  display: inline-block;
+}
+/* «أنت:» or the speaker keeps its place; the words after it are cut at their own end */
+.thread .pv > .who {
+  flex: none;
+  max-width: 50%;
 }
 .thread .pv svg {
   width: 16px;
@@ -301,7 +316,7 @@
   align-items: flex-start;
   gap: 8px;
   margin: 18px 6px;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-sm);
 }
 .arch-note svg {
@@ -1083,8 +1098,9 @@
 #headsup {
   position: fixed;
   top: calc(env(safe-area-inset-top) + 8px);
-  left: 10px;
-  right: 10px;
+  /* landscape phones: clear of the notch and the rounded corners */
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
   z-index: 150;
   max-width: 520px;
   margin: 0 auto;
@@ -1136,11 +1152,21 @@
   font-size: var(--fs-sm);
 }
 .hu-t small {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
   font-size: var(--fs-sm);
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
+}
+.hu-t small > span {
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+.hu-t small > .who {
+  flex: none;
+  max-width: 50%;
 }
 
 /* A queued message waits with a clock; the bubble's own states stay phase 3's */

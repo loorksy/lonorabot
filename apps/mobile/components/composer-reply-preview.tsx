@@ -1,4 +1,5 @@
 import type { Message } from "@lonora/contracts";
+import { plainLine } from "@lonora/core";
 import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
 import { useShellColors } from "../lib/theme";
@@ -41,7 +42,7 @@ export function ComposerReplyPreview({
             textAlign: rtl ? "right" : "left",
           }}
         >
-          {message.content || t("attachments")}
+          {plainLine(message.content) || t("attachments")}
         </Text>
       </View>
       {onClose ? (

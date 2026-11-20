@@ -2,6 +2,7 @@
 export const ICON_PATHS = {
   back: "M9 5l7 7-7 7M4 12h12",
   chev: "M14 6l-6 6 6 6",
+  down: "M6 9l6 6 6-6",
   plus: "M12 5v14M5 12h14",
   chat: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12zM8.5 12h.01M12 12h.01M15.5 12h.01",
   layers: "M12 2l10 5-10 5L2 7l10-5zM2 12l10 5 10-5M2 17l10 5 10-5",
@@ -30,6 +31,8 @@ export const ICON_PATHS = {
   more: "M5 12h.01M12 12h.01M19 12h.01",
   close: "M6 6l12 12M6 18L18 6",
   clock: "M7 3v3M17 3v3M4 6h16v14H4zM4 10h16M8 14h3",
+  // A wait (an approval awaiting the broker, a receipt still verifying), as Web's.
+  hourglass: "M6 2h12M6 22h12M7 2v3a5 5 0 0 0 10 0V2M7 22v-3a5 5 0 0 1 10 0v3",
   alert: "M12 3l10 18H2zM12 10v5M12 18h.01",
   mic: "M9 11V5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8",
   file: "M14 2H5v20h14V7l-5-5zM14 2v6h5M8 12h8M8 16h8",

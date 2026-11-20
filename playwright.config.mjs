@@ -41,6 +41,8 @@ export default defineConfig({
   use: {
     baseURL,
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+    // A first visit follows the device's theme; the suites start from a dark device.
+    colorScheme: "dark",
     launchOptions: process.env.LONORA_UI_TEST_BROWSER_PATH
       ? { executablePath: process.env.LONORA_UI_TEST_BROWSER_PATH }
       : {},

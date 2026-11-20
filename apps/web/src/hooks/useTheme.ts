@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 
 /* One theme for every component that reads it: a change made in settings reaches the shell
-   (theme-color meta) at once. Kept per device in localStorage («lonora.theme»). */
+   (theme-color meta) at once. Kept per device in localStorage («lonora.theme»); with no saved
+   choice it follows the device, as public/theme-init.js does for the first frame. */
 const listeners = new Set<(theme: "dark" | "light") => void>();
 function stored(): "dark" | "light" {
   try {
-    return JSON.parse(localStorage.getItem("lonora.theme") ?? '"dark"') === "light"
-      ? "light"
-      : "dark";
+    const saved = localStorage.getItem("lonora.theme");
+    if (saved === null)
+      return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    return JSON.parse(saved) === "light" ? "light" : "dark";
   } catch {
     return "dark";
   }

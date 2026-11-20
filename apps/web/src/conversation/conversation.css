@@ -97,6 +97,17 @@
   display: inline;
   white-space: pre-wrap;
 }
+/* A text that reads the other way from the interface (dir on the inline .text) lines its
+   wrapped lines up on its own start; the name, quote and steps beside it keep the interface's. */
+.bubble:has(> .text[dir="ltr"]) {
+  text-align: left;
+}
+.bubble:has(> .text[dir="rtl"]) {
+  text-align: right;
+}
+:where(.bubble) > :where(:not(.text)) {
+  text-align: start;
+}
 .meta {
   float: left;
   display: inline-flex;
@@ -107,6 +118,19 @@
   font-size: var(--fs-xs);
   line-height: 1;
   direction: ltr;
+}
+/* The time ends the words' last line, where a line of them ends: the left of an Arabic text
+   (v38), the right of one that reads left to right, in either interface. */
+:where(html[dir="ltr"]) .bubble > .meta,
+.bubble:has(> .text[dir="ltr"], > .md[dir="ltr"]) > .meta {
+  float: right;
+  margin-left: 12px;
+  margin-right: 0;
+}
+:where(html[dir="ltr"]) .bubble:has(> .text[dir="rtl"], > .md[dir="rtl"]) > .meta {
+  float: left;
+  margin-left: 0;
+  margin-right: 12px;
 }
 .ticks {
   display: inline-grid;
@@ -1505,7 +1529,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   padding: 8px 12px 5px;
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--faint);
+  color: var(--muted);
 }
 .as-row {
   width: 100%;
@@ -1599,7 +1623,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 .as-end {
   flex: none;
   font-size: var(--fs-xs);
-  color: var(--faint);
+  color: var(--muted);
 }
 .as-end.tag {
   padding: 3px 9px;
@@ -1626,7 +1650,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   padding: 7px 12px 8px;
   border-top: 1px solid var(--line);
   font-size: var(--fs-xs);
-  color: var(--faint);
+  color: var(--muted);
 }
 .as-foot span {
   display: inline-flex;
@@ -1929,7 +1953,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 .meta .edited {
   margin-inline-end: 6px;
   font-style: italic;
-  color: var(--faint);
+  color: var(--muted);
 }
 .steps {
   margin: 2px 0 8px;
@@ -2035,7 +2059,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   font-weight: 600;
 }
 .st-t small {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-xs);
 }
 .md {
@@ -2308,6 +2332,17 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   opacity: 1;
   transform: none;
   pointer-events: auto;
+}
+/* While it shows, the composer's backdrop rises over its band: the button sits on the page's
+   background, never over a message or a fixed card's facts (10.2.2). Solid from the composer
+   up to the button's top (12px gap + 42px), then a 28px fade. */
+.jump.on ~ .composer::before {
+  top: -82px;
+  background: linear-gradient(
+    to top,
+    var(--bg) calc(100% - 28px),
+    color-mix(in srgb, var(--bg) 0%, transparent)
+  );
 }
 .jump svg {
   width: 20px;
@@ -3111,7 +3146,6 @@ p.pad {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.oa-exp,
 .oa-st {
   margin-inline-start: auto;
   flex: none;
@@ -3123,18 +3157,9 @@ p.pad {
   background: var(--fill);
   font-variant-numeric: tabular-nums;
 }
-.oa-exp span {
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-.oa-exp svg,
 .oa-st svg {
   width: 13px;
   height: 13px;
-}
-.oa-exp.soon {
-  color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
 }
 .oa-st.st-confirmed {
   color: var(--accent-ink);
@@ -3178,13 +3203,19 @@ p.pad {
 .oa-dl dt {
   color: var(--muted);
   font-size: var(--fs-xs);
-  flex: none;
+  /* v38: the label wraps so a number never breaks («2346.80 ± 1.50» stays whole at 320px) */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .oa-dl dd {
   margin: 0;
   font-size: var(--fs-sm);
   text-align: end;
   min-width: 0;
+}
+.oa-dl dd.ltr {
+  white-space: nowrap;
+  flex: none;
 }
 .oa-fields {
   display: grid;
@@ -3210,7 +3241,7 @@ p.pad {
 }
 .oa-l small {
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .oa-v {
   font-size: var(--fs-sm);
@@ -3448,7 +3479,7 @@ p.pad {
 }
 .oa-input > span small {
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .oa-input input {
   height: 40px;
@@ -3476,7 +3507,8 @@ p.pad {
 }
 .oa.st-cancelled .oa-done,
 .oa.st-expired .oa-done,
-.oa.st-superseded .oa-done {
+.oa.st-superseded .oa-done,
+.oa-done.bad {
   background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 .oa-done b {
@@ -3827,7 +3859,7 @@ p.pad {
   font-weight: 600;
 }
 .od-line li.next {
-  color: var(--faint);
+  color: var(--muted);
 }
 .od-line li.next i {
   background: transparent;
@@ -3878,51 +3910,6 @@ p.pad {
 }
 .od-ev.bad svg {
   color: var(--red);
-}
-.od-tech {
-  border-top: 1px solid var(--line);
-  padding-top: 4px;
-}
-.od-tech summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  list-style: none;
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  padding: 4px 0;
-}
-.od-tech summary::-webkit-details-marker {
-  display: none;
-}
-.od-tech summary svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s;
-}
-.od-tech[open] summary svg {
-  transform: rotate(180deg);
-}
-.od-tech dl {
-  margin: 4px 0 0;
-  display: grid;
-  gap: 2px;
-}
-.od-tech dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: var(--fs-xs);
-}
-.od-tech dt {
-  color: var(--muted);
-}
-.od-tech dd {
-  margin: 0;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 11.5px;
 }
 .od-sheet {
   display: grid;
@@ -4247,9 +4234,8 @@ h2 .oa-tag {
 }
 
 /* ==== v34 · simplified: one card in the chat, everything else a line, a sheet or a page ==== */
-/* a decided (or lapsed) decision is one line */
-.msg.k-line .msg-line,
-.msg.k-odl .msg-line {
+/* a decided (or lapsed) card of a kind outside the fixed cards is one line */
+.msg.k-line .msg-line {
   width: auto;
   max-width: 92%;
 }
@@ -4273,16 +4259,11 @@ h2 .oa-tag {
   width: 14px;
   height: 14px;
 }
-.oa-line-ic.bad,
 .oa-line.st-cancelled .oa-line-ic,
 .oa-line.st-expired .oa-line-ic,
 .oa-line.st-superseded .oa-line-ic {
   background: var(--fill);
   color: var(--muted);
-}
-.oa-line.st-pending .oa-line-ic {
-  background: color-mix(in srgb, var(--amber) 15%, transparent);
-  color: var(--amber);
 }
 .oa-line-body {
   display: grid;
@@ -4298,19 +4279,16 @@ h2 .oa-tag {
   font-size: var(--fs-sm);
   line-height: 1.55;
 }
-.oa-line-text b {
-  font-weight: 700;
-}
 .oa-line-text .sep {
   color: var(--faint);
 }
-.oa-line .btn {
-  flex: none;
-  min-height: 30px;
-  padding: 2px 6px;
-}
 .mcard.is-done {
   padding: 2px 0;
+}
+/* one request of a fixed card: its title above its facts */
+.mcard-request {
+  display: grid;
+  gap: 6px;
 }
 .mcard-line {
   display: flex;
@@ -4329,22 +4307,6 @@ h2 .oa-tag {
 .mcard-line .badge {
   margin: 0;
   flex: none;
-}
-/* the Execution Receipt's broker facts: label above value, as many per row as fit */
-.mcard-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 4px 0 0;
-}
-.mcard-facts dt {
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-.mcard-facts dd {
-  margin: 0;
-  font-size: var(--fs-sm);
-  font-weight: 600;
 }
 /* an order in the chat: one line that updates in place; tap → the full record */
 .od-chat {
@@ -4428,7 +4390,7 @@ h2 .oa-tag {
 }
 
 /* ---- reference 2146-2178 */
-/* v34: a decided card is one line; tapping it shows the whole decision line */
+/* v34: a decided card of an old kind is one line; tapping it shows the whole decision line */
 button.oa-line-body {
   appearance: none;
   background: none;
@@ -4459,6 +4421,9 @@ button.oa-line-body:focus-visible {
   border-radius: 6px;
 }
 .oa-line .btn {
+  flex: none;
+  min-height: 30px;
+  padding: 2px 6px;
   font-size: var(--fs-sm);
 }
 .oa-line-kind {

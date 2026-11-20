@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 function fixture(data) {
   return JSON.parse(
@@ -135,35 +135,34 @@ for (const locale of ["en", "ar"])
   test(`account permission ${locale} is unsigned until device proof and revocation persists`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const state = await setup(context, locale);
     if (locale === "ar") await page.setViewportSize({ width: 390, height: 844 });
-    try {
-      const surface = await state.open(page);
-      await expect(surface).toContainText(state.data.symbol);
-      await expect(surface).toContainText("0.10");
-      await expect(surface).toContainText(
-        locale === "ar" ? "أهداف الربح غير مضمونة" : "Profit targets are not guaranteed",
-      );
-      const pending = await (
-        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
-      ).json();
-      // A new trading agent starts at Ask me; a pending proposal grants nothing.
-      expect(pending.effective_level).toBe("supervised");
-      expect(pending.pending_authority.id).toBe(state.row.id);
-      await state.revoke(page);
-      const saved = await (
-        await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
-      ).json();
-      expect(saved.find((row) => row.id === state.row.id).status).toBe("revoked");
-    } finally {
-      await state.cleanup();
-    }
+    cleanup(() => state.cleanup());
+    const surface = await state.open(page);
+    await expect(surface).toContainText(state.data.symbol);
+    await expect(surface).toContainText("0.10");
+    await expect(surface).toContainText(
+      locale === "ar" ? "أهداف الربح غير مضمونة" : "Profit targets are not guaranteed",
+    );
+    const pending = await (
+      await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+    ).json();
+    // A new trading agent starts at Ask me; a pending proposal grants nothing.
+    expect(pending.effective_level).toBe("supervised");
+    expect(pending.pending_authority.id).toBe(state.row.id);
+    await state.revoke(page);
+    const saved = await (
+      await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
+    ).json();
+    expect(saved.find((row) => row.id === state.row.id).status).toBe("revoked");
   });
 for (const full of [false, true])
   test(`owner signs ${full ? "full" : "bounded"} independent scope through virtual WebAuthn and can revoke it`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const state = await setup(context);
     // Fresh authenticator: remove only the disposable owner's prior credentials.
@@ -187,44 +186,41 @@ for (const full of [false, true])
         automaticPresenceSimulation: true,
       },
     });
-    try {
-      const review = await state.open(page, full);
-      await expect(review).toContainText(full ? "Not restricted" : "0.10");
-      const sign = review.getByTestId("permission-sign");
-      await expect(sign).toBeEnabled();
-      await sign.click();
-      await review
-        .getByLabel("Confirm account password", { exact: true })
-        .fill("ci-only-owner-password");
-      await review.getByRole("button", { name: "Register this device", exact: true }).click();
-      await expect(review.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
-      const verification = page.waitForResponse(
-        (response) =>
-          response.url().endsWith("/account-authorities/verify") &&
-          response.request().method() === "POST",
-      );
-      await sign.click();
-      const verified = await verification;
-      expect(verified.ok()).toBeTruthy();
-      const activated = await verified.json();
-      if (full) {
-        expect(activated.envelope.schema_version).toBe(2);
-        expect(activated.envelope.management_mode).toBe("full");
-        expect(activated.valid_until).toBeNull();
-        expect(activated.envelope.maximum_order_volume).toBeNull();
-      }
-      await expect(review).toHaveCount(0);
-      await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "autonomous");
-      const saved = await (
-        await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
-      ).json();
-      expect(saved.find((row) => row.id === activated.id).status).toBe("active");
-      await state.revoke(page, true);
-      const stopped = await (
-        await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
-      ).json();
-      expect(stopped.find((row) => row.id === activated.id).status).toBe("revoked");
-    } finally {
-      await state.cleanup();
+    cleanup(() => state.cleanup());
+    const review = await state.open(page, full);
+    await expect(review).toContainText(full ? "Not restricted" : "0.10");
+    const sign = review.getByTestId("permission-sign");
+    await expect(sign).toBeEnabled();
+    await sign.click();
+    await review
+      .getByLabel("Confirm account password", { exact: true })
+      .fill("ci-only-owner-password");
+    await review.getByRole("button", { name: "Register this device", exact: true }).click();
+    await expect(review.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
+    const verification = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/account-authorities/verify") &&
+        response.request().method() === "POST",
+    );
+    await sign.click();
+    const verified = await verification;
+    expect(verified.ok()).toBeTruthy();
+    const activated = await verified.json();
+    if (full) {
+      expect(activated.envelope.schema_version).toBe(2);
+      expect(activated.envelope.management_mode).toBe("full");
+      expect(activated.valid_until).toBeNull();
+      expect(activated.envelope.maximum_order_volume).toBeNull();
     }
+    await expect(review).toHaveCount(0);
+    await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "autonomous");
+    const saved = await (
+      await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
+    ).json();
+    expect(saved.find((row) => row.id === activated.id).status).toBe("active");
+    await state.revoke(page, true);
+    const stopped = await (
+      await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
+    ).json();
+    expect(stopped.find((row) => row.id === activated.id).status).toBe("revoked");
   });

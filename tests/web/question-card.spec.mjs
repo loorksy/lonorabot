@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function setup(context, locale) {
   const fixture = JSON.parse(
@@ -32,6 +32,7 @@ for (const locale of ["en", "ar"]) {
   test(`informational ${locale} question is a durable message card with an authoritative selected answer`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const fixture = await setup(context, locale);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -43,87 +44,82 @@ for (const locale of ["en", "ar"]) {
       )
         submissions.push(request.postDataJSON());
     });
-    try {
-      await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
-      const message = page.locator(`[data-message-id="${fixture.question.message_id}"]`);
-      const card = message.locator(`[data-question-id="${fixture.question.id}"]`);
-      await expect(card).toBeVisible();
-      await expect(card.getByText(fixture.question.question, { exact: true })).toBeVisible();
-      const option = card.getByRole("button", {
-        name: fixture.question.choices[0].label,
-        exact: false,
-      });
-      await expect(option).toBeEnabled();
-      expect((await card.boundingBox()).width).toBeGreaterThan(220);
-      // The mark at the end of a row is a small icon, never the size of the row.
-      const mark = await option.locator("svg").boundingBox();
-      expect([mark.width, mark.height]).toEqual([14, 14]);
-      expect((await option.boundingBox()).height).toBeLessThan(80);
-      const response = page.waitForResponse(
-        (result) =>
-          result.request().method() === "POST" &&
-          new URL(result.url()).pathname === `/api/threads/${fixture.thread.id}/messages`,
-      );
-      await option.click();
-      expect((await response).ok()).toBeTruthy();
-      await expect(option).toHaveAttribute("aria-pressed", "true");
-      await expect(option).toBeDisabled();
-      const chosen = await option.locator("svg").boundingBox();
-      expect([chosen.width, chosen.height]).toEqual([14, 14]);
-      await expect(card.getByRole("button")).toHaveCount(2);
-      expect(submissions).toHaveLength(1);
-      expect(submissions[0].input_answer).toEqual({
-        run_id: fixture.run.id,
-        question_id: fixture.question.id,
-        choice_id: "analysis",
-      });
-      const actual = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
-      expect(actual.input_request.status).toBe("answered");
-      expect(actual.input_request.selected_choice_id).toBe("analysis");
-      const messages = await (
-        await context.request.get(`/api/threads/${fixture.thread.id}/messages`)
-      ).json();
-      expect(
-        messages.filter(
-          (row) => row.role === "user" && row.content === fixture.question.choices[0].label,
-        ),
-      ).toHaveLength(1);
-      const grants = await (
-        await context.request.get(`/api/agents/${fixture.agent.id}/account-authorities`)
-      ).json();
-      expect(grants).toHaveLength(0);
-      const journal = await (await context.request.get("/api/trading/journal")).json();
-      expect(
-        journal.filter((row) => row.agent_id === fixture.agent.id || row.run_id === fixture.run.id),
-      ).toHaveLength(0);
-      await page.reload();
-      await expect(
-        card.getByRole("button", { name: fixture.question.choices[0].label, exact: false }),
-      ).toHaveAttribute("aria-pressed", "true");
-      await expect(card.getByRole("button").first()).toBeDisabled();
-    } finally {
-      await fixture.cleanup();
-    }
+    cleanup(() => fixture.cleanup());
+    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+    const message = page.locator(`[data-message-id="${fixture.question.message_id}"]`);
+    const card = message.locator(`[data-question-id="${fixture.question.id}"]`);
+    await expect(card).toBeVisible();
+    await expect(card.getByText(fixture.question.question, { exact: true })).toBeVisible();
+    const option = card.getByRole("button", {
+      name: fixture.question.choices[0].label,
+      exact: false,
+    });
+    await expect(option).toBeEnabled();
+    expect((await card.boundingBox()).width).toBeGreaterThan(220);
+    // The mark at the end of a row is a small icon, never the size of the row.
+    const mark = await option.locator("svg").boundingBox();
+    expect([mark.width, mark.height]).toEqual([14, 14]);
+    expect((await option.boundingBox()).height).toBeLessThan(80);
+    const response = page.waitForResponse(
+      (result) =>
+        result.request().method() === "POST" &&
+        new URL(result.url()).pathname === `/api/threads/${fixture.thread.id}/messages`,
+    );
+    await option.click();
+    expect((await response).ok()).toBeTruthy();
+    await expect(option).toHaveAttribute("aria-pressed", "true");
+    await expect(option).toBeDisabled();
+    const chosen = await option.locator("svg").boundingBox();
+    expect([chosen.width, chosen.height]).toEqual([14, 14]);
+    await expect(card.getByRole("button")).toHaveCount(2);
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0].input_answer).toEqual({
+      run_id: fixture.run.id,
+      question_id: fixture.question.id,
+      choice_id: "analysis",
+    });
+    const actual = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
+    expect(actual.input_request.status).toBe("answered");
+    expect(actual.input_request.selected_choice_id).toBe("analysis");
+    const messages = await (
+      await context.request.get(`/api/threads/${fixture.thread.id}/messages`)
+    ).json();
+    expect(
+      messages.filter(
+        (row) => row.role === "user" && row.content === fixture.question.choices[0].label,
+      ),
+    ).toHaveLength(1);
+    const grants = await (
+      await context.request.get(`/api/agents/${fixture.agent.id}/account-authorities`)
+    ).json();
+    expect(grants).toHaveLength(0);
+    const journal = await (await context.request.get("/api/trading/journal")).json();
+    expect(
+      journal.filter((row) => row.agent_id === fixture.agent.id || row.run_id === fixture.run.id),
+    ).toHaveLength(0);
+    await page.reload();
+    await expect(
+      card.getByRole("button", { name: fixture.question.choices[0].label, exact: false }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(card.getByRole("button").first()).toBeDisabled();
   });
 }
 
 test("ordinary free text can answer a card without selecting or granting an option", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = await setup(context, "en");
-  try {
-    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
-    const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
-    await expect(card).toBeVisible();
-    const composer = page.locator("textarea");
-    await composer.fill("Please compare both scenarios first");
-    await composer.press("Enter");
-    await expect(card.getByRole("button").first()).toBeDisabled();
-    const current = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
-    expect(current.input_request.status).toBe("answered");
-    expect(current.input_request.selected_choice_id).toBeNull();
-  } finally {
-    await fixture.cleanup();
-  }
+  cleanup(() => fixture.cleanup());
+  await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+  const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
+  await expect(card).toBeVisible();
+  const composer = page.locator("textarea");
+  await composer.fill("Please compare both scenarios first");
+  await composer.press("Enter");
+  await expect(card.getByRole("button").first()).toBeDisabled();
+  const current = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
+  expect(current.input_request.status).toBe("answered");
+  expect(current.input_request.selected_choice_id).toBeNull();
 });

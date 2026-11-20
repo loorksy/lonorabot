@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 const LONG =
   "Prepare the weekly report on the gold positions, the open orders and the week's news, then send me a short summary with the three points that matter most for next week.";
@@ -63,58 +63,55 @@ for (const [size, viewport, cap] of [
   ["desktop", { width: 1280, height: 800 }, 0.68],
   ["phone", { width: 390, height: 844 }, 0.88],
 ]) {
-  test(`a long ${size} bubble stops at the reference's width cap`, async ({ page, context }) => {
+  test(`a long ${size} bubble stops at the reference's width cap`, async ({
+    page,
+    context,
+    cleanup,
+  }) => {
     const fixture = await setup(page, context);
-    try {
-      await page.setViewportSize(viewport);
-      await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
-      const message = page.locator('[data-message-id="cards-2"]');
-      await expect(message).toBeVisible();
-      const ratio = await message.evaluate(
-        (node) =>
-          node.querySelector(".msg-line").getBoundingClientRect().width /
-          node.getBoundingClientRect().width,
-      );
-      expect(ratio).toBeGreaterThan(cap - 0.02);
-      expect(ratio).toBeLessThanOrEqual(cap + 0.001);
-    } finally {
-      await fixture.cleanup();
-    }
+    cleanup(() => fixture.cleanup());
+    await page.setViewportSize(viewport);
+    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+    const message = page.locator('[data-message-id="cards-2"]');
+    await expect(message).toBeVisible();
+    const ratio = await message.evaluate(
+      (node) =>
+        node.querySelector(".msg-line").getBoundingClientRect().width /
+        node.getBoundingClientRect().width,
+    );
+    expect(ratio).toBeGreaterThan(cap - 0.02);
+    expect(ratio).toBeLessThanOrEqual(cap + 0.001);
   });
 }
 
 test("a message turned into a task says «Task created» and leaves no card in the chat", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = await setup(page, context);
-  try {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
-    // A photo has no text to make a task of (reference 3885: only plain messages).
-    const photo = page.locator('[data-message-id="cards-1"]');
-    await photo.hover();
-    await photo.locator(".msg-more").click();
-    const menu = page.getByRole("menu");
-    await expect(menu.getByRole("menuitem", { name: "Reply" })).toBeVisible();
-    await expect(menu.getByRole("menuitem", { name: "Turn into a task" })).toHaveCount(0);
-    await page.keyboard.press("Escape");
-    await expect(menu).toHaveCount(0);
+  cleanup(() => fixture.cleanup());
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+  // A photo has no text to make a task of (reference 3885: only plain messages).
+  const photo = page.locator('[data-message-id="cards-1"]');
+  await photo.hover();
+  await photo.locator(".msg-more").click();
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("menuitem", { name: "Reply" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Turn into a task" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
 
-    const text = page.locator('[data-message-id="cards-2"]');
-    await text.hover();
-    await text.locator(".msg-more").click();
-    await page.getByRole("menuitem", { name: "Turn into a task" }).click();
-    await expect(page.locator("#toast")).toHaveText("Task created");
-    const tasks = await (
-      await context.request.get(`/api/tasks?agent_id=${fixture.agent.id}`)
-    ).json();
-    expect(tasks.map((task) => [task.title, task.origin_thread_id])).toEqual([
-      [LONG.slice(0, 160), fixture.thread.id],
-    ]);
-    // The task is not a card of the conversation: the chat still ends at the message.
-    await expect(page.locator(".msg").last()).toHaveAttribute("data-message-id", "cards-2");
-  } finally {
-    await fixture.cleanup();
-  }
+  const text = page.locator('[data-message-id="cards-2"]');
+  await text.hover();
+  await text.locator(".msg-more").click();
+  await page.getByRole("menuitem", { name: "Turn into a task" }).click();
+  await expect(page.locator("#toast")).toHaveText("Task created");
+  const tasks = await (await context.request.get(`/api/tasks?agent_id=${fixture.agent.id}`)).json();
+  expect(tasks.map((task) => [task.title, task.origin_thread_id])).toEqual([
+    [LONG.slice(0, 160), fixture.thread.id],
+  ]);
+  // The task is not a card of the conversation: the chat still ends at the message.
+  await expect(page.locator(".msg").last()).toHaveAttribute("data-message-id", "cards-2");
 });

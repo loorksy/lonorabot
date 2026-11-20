@@ -75,8 +75,9 @@ already saved are refused. Otherwise the agent chooses its label and fields
 (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
 `secret: false` only unmasks a field while it is typed). The server sets the
 destination: an agent's card saves to the owner's `workspace` secrets, and the card
-shows, in server words, the names its values are saved under and any saved value they
-replace; a name a connection uses is never replaced. A value needs at least three
+shows, in server words, which fields it saves and which of them replace a saved value,
+each by its field's label, never by the name it is saved under; a name a connection uses
+is never replaced. A value needs at least three
 characters (`secret_value_too_short`): the scan of workspace output cannot find a
 shorter one at every base64 alignment. Its values never pass the decision route: the
 card's own route, `POST /owner-actions/{id}/secret`, stores them encrypted and settles
@@ -109,7 +110,10 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 Lifetimes: grant cards 24 hours, Settle cards 7 days, Mandate cards 3650 days. Expiry
 needs no scheduler: a pending card past `expires_at` reads as expired and is settled as
-expired when next touched.
+expired when next touched. An expired Settle card offers «طلب جديد» (a fresh card for the
+same operation); once renewed it stays `expired` and names the fresh card in
+`superseded_by`, so Web and Mobile show «عرض الأحدث» on it instead, as on any card a newer
+one replaced: a second renewal would be refused.
 
 ## How cards appear
 

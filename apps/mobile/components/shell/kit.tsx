@@ -1,13 +1,14 @@
 // Small pieces of the reference's look: grouped rows, buttons, empty states, the switch, skeletons.
 import type { Agent, Group as GroupResource } from "@lonora/contracts";
 import type { ChatRow } from "@lonora/core";
-import { Children, type ReactNode, useEffect, useRef } from "react";
+import { Children, isValidElement, type ReactNode, useEffect, useRef } from "react";
 import {
   Animated,
   Pressable,
   ScrollView,
   type ScrollViewProps,
   Text,
+  useWindowDimensions,
   View,
   type ViewStyle,
 } from "react-native";
@@ -162,6 +163,11 @@ export function Row({
 }) {
   const { c } = useTheme();
   const { rtl } = useSession();
+  const { width } = useWindowDimensions();
+  // v38: a setting's description beside a switch is never cut; elsewhere the second line may
+  // take a third line on the narrowest phones rather than be cut.
+  const subLines =
+    isValidElement(trailing) && trailing.type === Switch ? undefined : width <= 360 ? 3 : 2;
   const layout = {
     flexDirection: rtl ? "row-reverse" : "row",
     alignItems: "center",
@@ -189,7 +195,7 @@ export function Row({
         </Text>
         {sub ? (
           <Text
-            numberOfLines={2}
+            numberOfLines={subLines}
             style={{
               color: c.muted,
               fontSize: 14,
@@ -316,6 +322,8 @@ export function Switch({
       aria-checked={value}
       disabled={disabled}
       onPress={() => onChange(!value)}
+      // 28 + 8 above and below: a 44px tap area, the switch unchanged (v38).
+      hitSlop={{ top: 8, bottom: 8 }}
       style={{
         width: 46,
         height: 28,

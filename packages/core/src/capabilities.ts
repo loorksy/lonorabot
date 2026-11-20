@@ -207,12 +207,18 @@ export function skillLine(skill: CapabilitySkill, locale: string): string {
       ? `${text.external} ${skill.repository ? isolate(skill.repository) : "GitHub"}`
       : text[skill.provenance];
   return dot([
-    isolate(skill.skill_id),
+    isolate(skill.title ?? skill.skill_id),
     skill.version ? isolate(skill.version) : null,
     skill.agent_name ? isolate(skill.agent_name) : null,
     origin,
     skill.undone ? text.undone : skill.enabled ? text.on : text.off,
   ]);
+}
+
+/** The server's own title of a tool, from the server's own keys only: a tool named like an
+ * Object member (toString, constructor) has no title unless the server gave it one. */
+export function toolTitle(titles: Record<string, string>, name: string): string | undefined {
+  return Object.hasOwn(titles, name) ? titles[name] : undefined;
 }
 
 export function serverLine(server: CapabilityServer, locale: string): string {

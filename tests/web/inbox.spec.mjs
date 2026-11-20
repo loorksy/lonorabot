@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 for (const locale of ["en", "ar"]) {
   test(`workspace home lists conversations without opening a bot (${locale})`, async ({
     page,
     context,
+    cleanup,
   }) => {
     const fixture = JSON.parse(
       execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -74,49 +75,46 @@ for (const locale of ["en", "ar"]) {
       };
       await route.fulfill({ json: rows });
     });
-    try {
-      for (const path of ["/app", "/app/"]) {
-        await page.goto(path);
-        const home = page.getByTestId("conversation-inbox");
-        await expect(home).toBeVisible();
-        await expect(page).toHaveURL(new RegExp(`${path}$`));
-        await expect(home.locator(`[data-inbox-agent-id="${agent.id}"]`)).toContainText(
-          "Latest actual conversation preview",
-        );
-        await expect(home.locator(`[data-inbox-group-id="${group.id}"]`)).toBeVisible();
-        // The reference's order: pins, then the latest message; the group, newer but with
-        // nothing said yet, comes after the agent's chat.
-        const keys = await home
-          .locator(".thread[data-key]")
-          .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-key")));
-        expect(keys.indexOf(`agent:${agent.id}`)).toBeGreaterThan(-1);
-        expect(keys.indexOf(`group:${group.id}`)).toBeGreaterThan(
-          keys.indexOf(`agent:${agent.id}`),
-        );
-      }
-      expect(openedThread).toBe(0);
-      await page
-        .getByTestId("conversation-inbox")
-        .locator(`[data-inbox-agent-id="${agent.id}"]`)
-        .click();
-      await expect(page).toHaveURL(new RegExp(`/app/${agent.id}\\?thread=${thread.id}$`));
-      await expect(page.getByTestId("transcript")).toBeVisible();
-      // Phones: the chat header's back button; desktop: the rail's chats section.
-      if (locale === "ar") await page.getByRole("button", { name: "رجوع", exact: true }).click();
-      else
-        await page
-          .locator(".desktop-rail")
-          .getByRole("button", { name: "Chats", exact: true })
-          .click();
-      await expect(page.getByTestId("conversation-inbox")).toBeVisible();
-      await expect(
-        page.getByTestId("conversation-inbox").locator(`[data-inbox-agent-id="${agent.id}"]`),
-      ).toContainText("Latest actual conversation preview");
-      expect(errors).toEqual([]);
-    } finally {
+    cleanup(async () => {
       await context.request.delete(`/api/groups/${group.id}`, { headers });
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    });
+    for (const path of ["/app", "/app/"]) {
+      await page.goto(path);
+      const home = page.getByTestId("conversation-inbox");
+      await expect(home).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`${path}$`));
+      await expect(home.locator(`[data-inbox-agent-id="${agent.id}"]`)).toContainText(
+        "Latest actual conversation preview",
+      );
+      await expect(home.locator(`[data-inbox-group-id="${group.id}"]`)).toBeVisible();
+      // The reference's order: pins, then the latest message; the group, newer but with
+      // nothing said yet, comes after the agent's chat.
+      const keys = await home
+        .locator(".thread[data-key]")
+        .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-key")));
+      expect(keys.indexOf(`agent:${agent.id}`)).toBeGreaterThan(-1);
+      expect(keys.indexOf(`group:${group.id}`)).toBeGreaterThan(keys.indexOf(`agent:${agent.id}`));
     }
+    expect(openedThread).toBe(0);
+    await page
+      .getByTestId("conversation-inbox")
+      .locator(`[data-inbox-agent-id="${agent.id}"]`)
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/app/${agent.id}\\?thread=${thread.id}$`));
+    await expect(page.getByTestId("transcript")).toBeVisible();
+    // Phones: the chat header's back button; desktop: the rail's chats section.
+    if (locale === "ar") await page.getByRole("button", { name: "رجوع", exact: true }).click();
+    else
+      await page
+        .locator(".desktop-rail")
+        .getByRole("button", { name: "Chats", exact: true })
+        .click();
+    await expect(page.getByTestId("conversation-inbox")).toBeVisible();
+    await expect(
+      page.getByTestId("conversation-inbox").locator(`[data-inbox-agent-id="${agent.id}"]`),
+    ).toContainText("Latest actual conversation preview");
+    expect(errors).toEqual([]);
   });
 }
 
@@ -159,6 +157,7 @@ test("inbox projection failure preserves bots and retry recovers without reload"
 test("returning to a cached conversation stays visible while fresh reads wait, then logout cancels pending reads", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -230,57 +229,7 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let releaseBackground = () => {};
-  try {
-    await page.goto(`/app/${agent.id}?thread=${thread.id}`);
-    await expect(page.getByTestId("transcript")).toContainText(messages[0].content);
-    await page.locator(".desktop-rail").getByRole("button", { name: "Chats", exact: true }).click();
-    await expect(page.getByTestId("conversation-inbox")).toBeVisible();
-    hold = true;
-    await page
-      .getByTestId("conversation-inbox")
-      .locator(`[data-inbox-agent-id="${agent.id}"]`)
-      .click();
-    await expect.poll(() => heldMessages).toBeGreaterThan(0);
-    await expect.poll(() => heldThreads).toBeGreaterThan(0);
-    // Neither the canonical Thread nor its messages have returned from the network.
-    await expect(page.getByTestId("transcript")).toContainText(messages[0].content);
-    await expect(page.getByText("Opening conversation…", { exact: true })).toHaveCount(0);
-    await expect(page.getByTestId("transcript")).not.toContainText(messages[1].content);
-    releaseThreads();
-    releaseMessages();
-    await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
-    // Opening and closing agent info leaves the same authoritative timeline.
-    await page.getByRole("button", { name: "Agent info", exact: true }).click();
-    await expect(page.locator("#dialog")).toHaveAttribute("open", "");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
-    await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
-    let backgroundStarted = false;
-    const backgroundGate = new Promise((resolve) => {
-      releaseBackground = resolve;
-    });
-    await page.route("**/api/groups", async (route) => {
-      backgroundStarted = true;
-      await backgroundGate;
-      await route.continue();
-    });
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await expect.poll(() => backgroundStarted).toBe(true);
-    await page
-      .locator(".desktop-rail")
-      .getByRole("button", { name: "Settings", exact: true })
-      .click();
-    await page.getByRole("button", { name: /^Sign out/ }).click();
-    // «تسجيل الخروج» asks once in a sheet.
-    await page.locator("dialog").getByRole("button", { name: "Sign out", exact: true }).click();
-    // Signing out reopens the intro (the reference's signOut); skip to the sign-in step.
-    await page.getByRole("button", { name: "Skip", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(page).toHaveURL(/\/app$/);
-    releaseBackground();
-    expect(errors).toEqual([]);
-  } finally {
+  cleanup(() => {
     releaseThreads();
     releaseMessages();
     releaseBackground();
@@ -290,5 +239,54 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
       input: JSON.stringify({ ...fixture, action: "cleanup" }),
       encoding: "utf8",
     });
-  }
+  });
+  await page.goto(`/app/${agent.id}?thread=${thread.id}`);
+  await expect(page.getByTestId("transcript")).toContainText(messages[0].content);
+  await page.locator(".desktop-rail").getByRole("button", { name: "Chats", exact: true }).click();
+  await expect(page.getByTestId("conversation-inbox")).toBeVisible();
+  hold = true;
+  await page
+    .getByTestId("conversation-inbox")
+    .locator(`[data-inbox-agent-id="${agent.id}"]`)
+    .click();
+  await expect.poll(() => heldMessages).toBeGreaterThan(0);
+  await expect.poll(() => heldThreads).toBeGreaterThan(0);
+  // Neither the canonical Thread nor its messages have returned from the network.
+  await expect(page.getByTestId("transcript")).toContainText(messages[0].content);
+  await expect(page.getByText("Opening conversation…", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("transcript")).not.toContainText(messages[1].content);
+  releaseThreads();
+  releaseMessages();
+  await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
+  // Opening and closing agent info leaves the same authoritative timeline.
+  await page.getByRole("button", { name: "Agent info", exact: true }).click();
+  await expect(page.locator("#dialog")).toHaveAttribute("open", "");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
+  let backgroundStarted = false;
+  const backgroundGate = new Promise((resolve) => {
+    releaseBackground = resolve;
+  });
+  await page.route("**/api/groups", async (route) => {
+    backgroundStarted = true;
+    await backgroundGate;
+    await route.continue();
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect.poll(() => backgroundStarted).toBe(true);
+  await page
+    .locator(".desktop-rail")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await page.getByRole("button", { name: /^Sign out/ }).click();
+  // «تسجيل الخروج» asks once in a sheet.
+  await page.locator("dialog").getByRole("button", { name: "Sign out", exact: true }).click();
+  // Signing out reopens the intro (the reference's signOut); skip to the sign-in step.
+  await page.getByRole("button", { name: "Skip", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/app$/);
+  releaseBackground();
+  expect(errors).toEqual([]);
 });

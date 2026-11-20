@@ -128,7 +128,10 @@ export function EmojiPanel({
           onPress={onDelete}
           style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
         >
-          <Icon name="back" size={20} color={c.text} />
+          {/* The arrow is drawn for Arabic; in English it points left, the way it deletes. */}
+          <View style={{ transform: [{ scaleX: rtl ? 1 : -1 }] }}>
+            <Icon name="back" size={20} color={c.text} />
+          </View>
         </Pressable>
       </View>
       <ScrollView

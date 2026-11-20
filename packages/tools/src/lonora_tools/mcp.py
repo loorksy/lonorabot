@@ -389,6 +389,7 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             tool_hashes=review.tools,
             read_only_tools=review.read_only,
             blocked_tools=review.blocked,
+            tool_titles=review.titles,
         )
         await require_lease(session, context.lease, lock=True)
         return {

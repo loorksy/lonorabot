@@ -142,25 +142,41 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   settles or switches a mode (6.10): only the fixed card inside the slot does. Enter in the
   agent's own field presses the agent's own primary Button only, never a button inside a slot,
   and a sent card dims its own blocks, never a slot.
-- **Budget (10.1.4).** A slot counts its height toward the 560 px resting height and is one
-  of the 6 visible blocks: trade approval 230 px, settle 460 px and mandate 405 px (its
-  tallest for an 80-character name of words, Ask and a signed grant's line, which is the
-  English card: measured 404 px, the Arabic card 362 px and 386 with a Latin name; a name of
-  wide capitals such as W and M wraps further, up to 500 px); a Secret card 365 px and 95 px for
-  each field it asks for (`SLOT_HEIGHTS`, `SLOT_ROW_HEIGHTS`; `slot_records` reads the field
-  count), its tallest for an 80-character name of words without the line below, which is the
-  English card: measured 460, 555 and 650 px for one, two and three fields with an Arabic or a
-  Latin name, a broker card's two fields 550, the Arabic card 440, 535 and 630 (398, 493 and
-  588 with a short name); a name of wide capitals adds 63 px to it. Each is measured at
-  390 px with its frame by the web "Slots" journey, the Mandate and Secret cards in both
-  languages. The agent's other blocks fold first; a slot is never folded, and a card over
-  720 px falls back, which brings the record's row back (a Secret card of three fields or more
-  always does). One limit: a Secret card that replaces values already saved (never a broker
-  card) shows one more line, 48 px more for one field, 69 for two and 90 for three, and it is
-  not counted. Counting it would make every two-field card that can show it fall back
-  (724 px), and the clients read it when the card is shown, after it was compiled. Such a card
-  is that much taller than counted: a two-field one with the longest English name, about
-  724 px, is not caught by the 720 px rule.
+- **Budget (10.1.4).** A slot is one of the 6 visible blocks and counts toward the 560 px
+  resting height like any block, at the state its record has when the card is compiled; the
+  record's tallest later state counts toward the 720 px hard limit for the whole card, and a
+  card over it falls back, which brings the record's row back. The agent's other blocks fold
+  first; a slot is never folded, so a card whose slot alone is taller than the resting height
+  (a decided approval, a Secret card of long labels) folds every other block and rests above
+  560 px, never above 720 px. `genui_compile.slot_height` gives both heights from what the
+  record holds then (`lonora_db.genui_slots.SlotRecord`): each fixed card's height at 390 px with
+  its trust frame and its texts at their shortest, as the web "Slots" journeys measure it
+  (tests/web/genui.spec.mjs, Arabic and English, rounded up to the next pixel), plus the lines the record's texts wrap to
+  (`wrapped_lines`, by an upper bound of each glyph's advance that core `fittedLine` shares):
+  - Trade Approval: waiting 407 px, one request with its ticket row (a `modify_order`, the
+    tallest) and a one-line reason; decided 561 px, its tallest end state (the English card
+    whose outcome the broker never confirmed under `broker_result_mismatch` or
+    `execution_interrupted_after_send`; a refusal, a rejection, an expiry or a drift is
+    shorter). Each further request adds 175 px waiting and 340 px decided (its own result
+    line); each further line of the agent's reason with its label, 21 px. A waiting approval
+    rests at its waiting height and is checked against 720 px at its decided height: the
+    measured `modify_order` card, 580 px decided with a two-line reason, falls back beside
+    any other block of the agent's.
+  - Settle: 434 px waiting, its tallest state (an answer or an expiry only shortens it), and 21
+    px a further line of its operation (which names the agent that sent it) or of its account.
+  - Mandate: 357 px with Ask and a signed grant's line (the mode and the grant change while it
+    is shown), and 24 px a further line of the agent's name.
+  - Secret: 419 px waiting with one field and 74 px a further field, a broker card's two fields
+    509 px; each further line of its label, of the name it was given, of who asked, of what it
+    saves or of a field's label adds its line. The line naming saved values it would replace
+    is read when the card is shown, so it counts toward 720 px at its tallest, every field's
+    label (6 px and 21 px a line). A saved, cancelled or expired card is shorter than its form.
+  Nothing is left uncounted: names, labels and the agent's reason are counted as the record
+  holds them when the card is compiled, and each later state of the record at its tallest (an
+  agent renamed afterwards is drawn with its new name, which is not a state of the record). The journeys draw
+  the tallest realistic shapes (both result codes and a batch of two, a 150-character reason,
+  names of words and of wide capitals, field labels at the contract's 60 characters with the
+  «replaces» line) and check each against the heights the compiler counts for that record.
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
   standalone row while a loaded assistant message of the conversation draws it as a slot
   (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is

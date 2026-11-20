@@ -62,6 +62,7 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
         accessibilityLabel={`${text.open}: ${line}`}
         testID="safety-pill"
         onPress={() => setOpen(true)}
+        hitSlop={{ top: 7, bottom: 7 }}
         style={({ pressed }) => ({
           alignSelf: "center",
           flexDirection: rtl ? "row-reverse" : "row",
@@ -83,8 +84,9 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
           accessible={false}
           style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tint }}
         />
+        {/* Two lines at most, so the held state («معلّقة») is never cut at a phone's width. */}
         <Text
-          numberOfLines={1}
+          numberOfLines={2}
           style={{ color: colors.foreground, fontSize: 12, flexShrink: 1, textAlign: align }}
         >
           {line}

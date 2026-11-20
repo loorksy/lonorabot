@@ -37,7 +37,7 @@ export function ChatPrefsPage() {
       <div className="group">
         <ToggleRow
           title={t`Detailed agent status`}
-          sub={t`Under the agent's name: analysing, searching, watching, waiting for the broker, waiting for your decision, paused, unconfirmed operation — and its picture changes with it. When off, only «Active» shows`}
+          sub={t`A line under the agent's name says what it is doing now, such as «Analysing» or «Waiting for your decision», and its picture changes with it. When off: only «Active», «Paused» or «Typing…»`}
           on={prefs.agentStatus}
           onChange={(next) => setChatPref("agentStatus", next)}
         />

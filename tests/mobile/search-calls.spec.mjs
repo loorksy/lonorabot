@@ -2,7 +2,7 @@
 // provider the call says that calls are not set up (as Web).
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 async function fixture(context) {
   const data = JSON.parse(
@@ -44,6 +44,7 @@ async function fixture(context) {
 test("a jump marks its message; a call log calls back; no voice provider says so", async ({
   page,
   context,
+  cleanup,
 }) => {
   const data = await fixture(context);
   const now = new Date().toISOString();
@@ -93,36 +94,33 @@ test("a jump marks its message; a call log calls back; no voice provider says so
   await page.route("**/api/voice/status", (route) =>
     route.fulfill({ json: { transport_configured: false } }),
   );
-  try {
-    await page.goto(`/thread?id=${data.thread.id}&around=3`);
-    const flashed = page.getByTestId("message-flash");
-    await expect(flashed).toContainText("Line 3");
-    await expect(flashed).toHaveCount(0, { timeout: 4000 });
+  cleanup(() => data.remove());
+  await page.goto(`/thread?id=${data.thread.id}&around=3`);
+  const flashed = page.getByTestId("message-flash");
+  await expect(flashed).toContainText("Line 3");
+  await expect(flashed).toHaveCount(0, { timeout: 4000 });
 
-    // A tap on a quote marks its message, again on every tap; the mark never resizes it.
-    await page.goto(`/thread?id=${data.thread.id}`);
-    const quote = page.getByRole("button", { name: "Reply: Line 3", exact: true });
-    await quote.click();
-    await expect(flashed).toContainText("Line 3");
-    const marked = await page.getByText("Line 3", { exact: true }).last().boundingBox();
-    await expect(flashed).toHaveCount(0, { timeout: 4000 });
-    const plain = await page.getByText("Line 3", { exact: true }).last().boundingBox();
-    expect(Math.abs(marked.x - plain.x) + Math.abs(marked.y - plain.y)).toBeLessThan(1);
-    expect(marked.width).toBe(plain.width);
-    await quote.click();
-    await expect(flashed).toContainText("Line 3");
-    // Tapped again while it shows, the mark starts over (as Web): 2 s after the earlier tap,
-    // past its 1.7 s, it still shows.
-    await page.waitForTimeout(1000);
-    await quote.click();
-    await page.waitForTimeout(1000);
-    expect(await flashed.count()).toBe(1);
+  // A tap on a quote marks its message, again on every tap; the mark never resizes it.
+  await page.goto(`/thread?id=${data.thread.id}`);
+  const quote = page.getByRole("button", { name: "Reply: Line 3", exact: true });
+  await quote.click();
+  await expect(flashed).toContainText("Line 3");
+  const marked = await page.getByText("Line 3", { exact: true }).last().boundingBox();
+  await expect(flashed).toHaveCount(0, { timeout: 4000 });
+  const plain = await page.getByText("Line 3", { exact: true }).last().boundingBox();
+  expect(Math.abs(marked.x - plain.x) + Math.abs(marked.y - plain.y)).toBeLessThan(1);
+  expect(marked.width).toBe(plain.width);
+  await quote.click();
+  await expect(flashed).toContainText("Line 3");
+  // Tapped again while it shows, the mark starts over (as Web): 2 s after the earlier tap,
+  // past its 1.7 s, it still shows.
+  await page.waitForTimeout(1000);
+  await quote.click();
+  await page.waitForTimeout(1000);
+  expect(await flashed.count()).toBe(1);
 
-    // A missed call says it can be called back, as Web.
-    await expect(page.getByText("Tap to call back", { exact: true })).toBeVisible();
-    await page.getByTestId("call-back").first().click();
-    await expect(page.getByText(/Calls are not set up/)).toBeVisible();
-  } finally {
-    await data.remove();
-  }
+  // A missed call says it can be called back, as Web.
+  await expect(page.getByText("Tap to call back", { exact: true })).toBeVisible();
+  await page.getByTestId("call-back").first().click();
+  await expect(page.getByText(/Calls are not set up/)).toBeVisible();
 });

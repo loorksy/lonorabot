@@ -41,7 +41,7 @@ const card: OwnerAction = {
   updated_at: "2026-11-12T10:00:00Z",
 };
 
-test("an endpoint card is ours: its title, the saved name, its address and key typed", () => {
+test("an endpoint card is ours: its title, the saved key by its label, its address and key typed", () => {
   assert.equal(ownerActionLabels.ar.connectModel, "ربط مزوّد نماذج");
   // The key is a workspace secret: commands in the workspace that name it receive it.
   assert.match(ownerActionLabels.ar.modelHint, /مساحة العمل/);
@@ -50,9 +50,15 @@ test("an endpoint card is ours: its title, the saved name, its address and key t
     const text = ownerActionLabels[locale];
     const spec = ownerActionCard(card, locale);
     assert.equal(spec.title, text.connectModel);
-    // Replacing a saved key is said, never silent; no provider id is shown raw.
-    assert.ok(spec.lines.some((line) => line.includes("OPENAI_COMPATIBLE_API_KEY")));
-    assert.ok(!spec.lines.some((line) => line.includes("openai_compatible")));
+    // Replacing a saved key is said, never silent, by its field's label: no provider id or
+    // workspace name is shown raw (17). The address is not saved under a name.
+    assert.ok(
+      spec.lines.includes(text.secretReplaces.replace("{fields}", isolated(text.fieldApiKey))),
+    );
+    assert.ok(
+      spec.lines.includes(text.secretSavesAs.replace("{fields}", isolated(text.fieldApiKey))),
+    );
+    assert.ok(!spec.lines.some((line) => /openai_compatible|OPENAI_COMPATIBLE/.test(line)));
     assert.equal(spec.hint, `${text.modelHint} ${text.modelEndpointHint}`);
     assert.deepEqual(spec.secret?.fields, [
       { key: "URL", label: text.fieldServerUrl, type: "url", required: true },

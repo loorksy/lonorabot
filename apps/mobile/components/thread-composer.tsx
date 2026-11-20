@@ -532,6 +532,7 @@ export function ThreadComposer({
                 accessibilityLabel={t("cancel")}
                 onPress={onStop}
                 disabled={busy}
+                hitSlop={6}
                 style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
               >
                 <NativeSymbol name="stop" size={16} color={shell.primaryForeground} />

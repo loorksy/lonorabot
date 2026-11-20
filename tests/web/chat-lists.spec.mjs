@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../ui-test.mjs";
 
 /* The chat list, its owner state on the server and the unified search
    (docs/ui-reference/Lonora-Desktop-37.html, phase 2): rows from seeded conversations, the
@@ -59,7 +59,13 @@ test("rows show the server's state: previews, ticks, unread counts and the badge
   await expect(desktopRow(page, key(beta)).locator(".count")).toContainText("2");
   await expect(desktopRow(page, key(beta))).toContainText("Second update");
   // Q2: one grey tick when the server accepted it; two accent ticks once the run started.
-  await expect(desktopRow(page, key(gamma))).toContainText("You: Accepted only");
+  // v38: «You:» keeps the interface's side; the words after it keep their own direction.
+  await expect(desktopRow(page, key(gamma)).locator(".pv > .who")).toHaveText("You:");
+  await expect(desktopRow(page, key(gamma)).locator(".pv > span[dir]")).toHaveText("Accepted only");
+  await expect(desktopRow(page, key(gamma)).locator(".pv > span[dir]")).toHaveAttribute(
+    "dir",
+    "ltr",
+  );
   await expect(desktopRow(page, key(gamma)).locator(".pv .tick")).toHaveCount(1);
   await expect(desktopRow(page, key(gamma)).locator(".pv .read")).toHaveCount(0);
   await expect(desktopRow(page, key(delta)).locator(".pv .read")).toHaveCount(1);
@@ -83,11 +89,88 @@ test("rows show the server's state: previews, ticks, unread counts and the badge
       return rows.find((entry) => entry.thread_id === fixture.threads[1].id).unread_count;
     })
     .toBe(0);
+  // A group's line in English: the speaker stays on the left, the Arabic words keep their own
+  // direction and their signed numbers stay in order; the banner says it the same way.
+  seed({
+    action: "message",
+    thread: fixture.group.state.thread_id,
+    agent: alpha.id,
+    content: "**الربح** اليوم (+$239) و −1.5%",
+  });
+  const said = "الربح اليوم (+$239) و −1.5%";
+  const x = async (locator) => (await locator.boundingBox()).x;
+  // Each signed number is one box (inline-block): where the line is cut, the ellipsis hides a
+  // figure whole and never shows «….5%» for «−1.5%» (17, 0.4).
+  const whole = async (line) => {
+    await expect(line.locator('bdi.num[dir="ltr"]')).toHaveText(["+$239", "−1.5%"]);
+    for (const number of await line.locator("bdi.num").all())
+      expect(await number.evaluate((node) => getComputedStyle(node).display)).toBe("inline-block");
+  };
+  const group = desktopRow(page, `group:${fixture.group.id}`);
+  await expect(group.locator(".pv > span[dir]")).toHaveText(said);
+  await expect(group.locator(".pv > span[dir]")).toHaveAttribute("dir", "rtl");
+  await whole(group.locator(".pv > span[dir]"));
+  await expect(group.locator(".pv > .who")).toHaveText(`${alpha.name}:`);
+  expect(await x(group.locator(".pv > .who"))).toBeLessThan(
+    await x(group.locator(".pv > span[dir]")),
+  );
+  const banner = page.locator("#headsup small");
+  await expect(banner.locator("span[dir]")).toHaveText(said);
+  await whole(banner.locator("span[dir]"));
+  await expect(banner.locator(".who")).toHaveText(`${alpha.name}:`);
+  expect(await x(banner.locator(".who"))).toBeLessThan(await x(banner.locator("span[dir]")));
+});
+
+test("Arabic: a preview after «أنت:» shows its first words; the cut falls at their own end", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture, "ar");
+  const gamma = fixture.agents[2];
+  const long =
+    "Watch EURUSD into the London open and tell me when the spread widens past two pips today";
+  await page.route("**/api/threads/inbox**", async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    for (const row of rows)
+      if (row.thread_id === fixture.threads[2].id && row.last_message)
+        row.last_message = { ...row.last_message, preview: long, content: long };
+    await route.fulfill({ response, json: rows });
+  });
+  await page.goto("/app");
+  const row = desktopRow(page, key(gamma));
+  const words = row.locator(".pv > span[dir]");
+  await expect(words).toHaveText(long);
+  await expect(words).toHaveAttribute("dir", "ltr");
+  // Longer than the row: the cut is at the end; «Watch» shows whole inside the box.
+  const seen = await words.evaluate((el) => {
+    const node = el.firstChild;
+    const at = node.textContent.indexOf("Watch");
+    const range = document.createRange();
+    range.setStart(node, at);
+    range.setEnd(node, at + 5);
+    const first = range.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return {
+      cut: el.scrollWidth > el.clientWidth,
+      first: first.left >= box.left - 0.5 && first.right <= box.right + 0.5,
+    };
+  });
+  expect(seen).toEqual({ cut: true, first: true });
+  // «أنت:» stays on the reading side, the right.
+  const who = await row.locator(".pv > .who").boundingBox();
+  expect(who.x).toBeGreaterThan((await words.boundingBox()).x);
+  await expect(row.locator(".pv > .who")).toHaveText("أنت:");
+  // The list keeps reading the inbox. A fetch still in flight when the page closes is not
+  // a failure of the preview.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("pinning a fourth chat is refused locally and when the server answers 409", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = seed({ action: "init" });
   const headers = await signIn(context, fixture);
@@ -103,41 +186,41 @@ test("pinning a fourth chat is refused locally and when the server answers 409",
   ).toBe(true);
   await page.goto("/app");
   await expect(desktopRow(page, key(alpha))).toBeVisible();
-  try {
-    // Pinned rows lead, newest pin on top, each with its pin mark.
-    const keys = await page
-      .locator(".desktop-list .thread[data-key]")
-      .evaluateAll((rows) => rows.slice(0, 3).map((row) => row.dataset.key));
-    expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
-    await expect(desktopRow(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
-    await desktopRow(page, key(delta)).click({ button: "right" });
-    await expect(toolbar(page)).toBeVisible();
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
-    // A stale view (another device pinned meanwhile) reaches the server, which refuses.
-    await page.route("**/api/threads/inbox", async (route) => {
-      const rows = await (await route.fetch()).json();
-      await route.fulfill({ json: rows.map((row) => ({ ...row, pinned_order: null })) });
-    });
-    await page.reload();
-    await expect(desktopRow(page, key(delta))).toBeVisible();
-    const refused = page.waitForResponse(
-      (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
-    );
-    await desktopRow(page, key(delta)).click({ button: "right" });
-    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-    await refused;
-    await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
-  } finally {
-    // Later refetches (afterEach deletes the seeded agents) must not reach a closing page.
+  cleanup(async () => {
+    // Refetches (the afterEach deletes the seeded agents) must not reach a closing page.
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await pin([fixture.threads[0].id, fixture.threads[1].id, fixture.threads[2].id], false);
-  }
+  });
+  // Pinned rows lead, newest pin on top, each with its pin mark.
+  const keys = await page
+    .locator(".desktop-list .thread[data-key]")
+    .evaluateAll((rows) => rows.slice(0, 3).map((row) => row.dataset.key));
+  expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
+  await expect(desktopRow(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
+  await desktopRow(page, key(delta)).click({ button: "right" });
+  await expect(toolbar(page)).toBeVisible();
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
+  // A stale view (another device pinned meanwhile) reaches the server, which refuses.
+  await page.route("**/api/threads/inbox", async (route) => {
+    const rows = await (await route.fetch()).json();
+    await route.fulfill({ json: rows.map((row) => ({ ...row, pinned_order: null })) });
+  });
+  await page.reload();
+  await expect(desktopRow(page, key(delta))).toBeVisible();
+  const refused = page.waitForResponse(
+    (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
+  );
+  await desktopRow(page, key(delta)).click({ button: "right" });
+  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+  await refused;
+  await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
 });
 
 test("mute silences a chat's heads-up and badge; critical attention always shows", async ({
   page,
   context,
+  cleanup,
 }) => {
   const fixture = seed({ action: "init" });
   const headers = await signIn(context, fixture);
@@ -172,17 +255,16 @@ test("mute silences a chat's heads-up and badge; critical attention always shows
   await desktopRow(page, key(personal)).click({ button: "right" });
   await toolbar(page).getByRole("button", { name: "Mute notifications" }).click();
   await expect(desktopRow(page, key(personal)).getByRole("img", { name: "Muted" })).toBeVisible();
-  try {
-    const alert = seed({ action: "attention" });
-    expect(alert.importance).toBe("critical");
-    await expect(page.locator("#headsup")).toContainText(personal.name, { timeout: 15_000 });
-  } finally {
+  cleanup(async () => {
     const inbox = await (await context.request.get("/api/threads/inbox")).json();
     await context.request.post("/api/threads/prefs", {
       headers,
       data: { thread_ids: inbox.filter((e) => e.muted).map((e) => e.thread_id), muted: false },
     });
-  }
+  });
+  const alert = seed({ action: "attention" });
+  expect(alert.importance).toBe("critical");
+  await expect(page.locator("#headsup")).toContainText(personal.name, { timeout: 15_000 });
 });
 
 test("archive leaves the list with an undo; the archived page keeps its setting", async ({
@@ -354,6 +436,43 @@ test("a custom list is created with the emoji panel, filters the rows and delete
   await expect(
     page.locator(".desktop-list .list-filters .list-chip", { hasText: listName }),
   ).toBeVisible();
+});
+
+// The list's chats page reads the agents and groups live: opened while /api/groups is held, it
+// shows the agents, then the group once the answer arrives, and saves both.
+test("the list's chats page opened before the groups arrive fills in, and saves the group", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture);
+  const [alpha] = fixture.agents;
+  let release;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/groups", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/app");
+  await page.locator(".desktop-list .list-filters .chip-add").click();
+  const sheet = page.locator("#dialog");
+  const listName = `Held ${Date.now() % 10000}`;
+  await sheet.locator("#list-name").fill(listName);
+  await sheet.getByRole("button", { name: "Add agents or groups" }).click();
+  const group = sheet.getByRole("checkbox", { name: new RegExp(fixture.group.payload.name) });
+  await sheet.getByRole("checkbox", { name: new RegExp(alpha.name) }).click();
+  await expect(group).toHaveCount(0);
+  release();
+  await group.click();
+  await sheet.getByRole("button", { name: "Create the list · 2" }).click();
+  await expect(page.locator("#toast")).toHaveText(`List «${listName}» created`);
+  const lists = await (await context.request.get("/api/chat-lists")).json();
+  const saved = lists.find((list) => list.name === listName);
+  expect(saved.thread_ids.sort()).toEqual(
+    [fixture.threads[0].id, fixture.group.state.thread_id].sort(),
+  );
 });
 
 test("unified search: categories with counts, the latest query only, and the jump to a hit", async ({
@@ -689,7 +808,11 @@ test("offline: a gateway's empty 502 during the flush keeps the message waiting 
   ]);
 });
 
-test("offline: an owner's answer is never sent later by itself", async ({ page, context }) => {
+test("offline: an owner's answer is never sent later by itself", async ({
+  page,
+  context,
+  cleanup,
+}) => {
   const fixture = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_question_browser.py"], {
       input: JSON.stringify({ locale: "en" }),
@@ -705,23 +828,20 @@ test("offline: an owner's answer is never sent later by itself", async ({ page, 
     if (offline) return route.abort("internetdisconnected");
     return route.continue();
   });
-  try {
-    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
-    const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
-    await card.getByRole("button", { name: fixture.question.choices[0].label }).click();
-    const failed = page.locator(".msg[data-delivery='failed']");
-    await expect(failed).toBeVisible();
-    offline = false;
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await page.waitForTimeout(800);
-    // Nothing went out by itself: still failed, one attempt.
-    await expect(failed).toBeVisible();
-    expect(nonces).toHaveLength(1);
-    await failed.getByRole("button", { name: "Retry" }).click();
-    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
-    expect(nonces).toHaveLength(2);
-    expect(nonces[1]).toBe(nonces[0]);
-  } finally {
-    await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
-  }
+  cleanup(() => context.request.delete(`/api/agents/${fixture.agent.id}`, { headers }));
+  await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+  const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
+  await card.getByRole("button", { name: fixture.question.choices[0].label }).click();
+  const failed = page.locator(".msg[data-delivery='failed']");
+  await expect(failed).toBeVisible();
+  offline = false;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.waitForTimeout(800);
+  // Nothing went out by itself: still failed, one attempt.
+  await expect(failed).toBeVisible();
+  expect(nonces).toHaveLength(1);
+  await failed.getByRole("button", { name: "Retry" }).click();
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+  expect(nonces).toHaveLength(2);
+  expect(nonces[1]).toBe(nonces[0]);
 });

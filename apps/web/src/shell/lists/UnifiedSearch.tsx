@@ -1,7 +1,7 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { SearchCategory, SearchResponse, SearchResult } from "@lonora/contracts";
-import { type ChatRow, highlightRange, rowKey } from "@lonora/core";
+import { type ChatRow, highlightRange, plainLine, rowKey, textDirection } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { isRequestCancelled, request } from "../../lib/api";
@@ -112,6 +112,8 @@ function Hit({
   let lead: ReactNode;
   let title: ReactNode;
   let sub: ReactNode;
+  // The snippet as one plain line (no Markdown marks); it sets the line's direction.
+  const snippet = plainLine(item.snippet ?? "");
   let meta: ReactNode = null;
   let open: () => void;
   const icon = (name: IconName) => (
@@ -131,7 +133,7 @@ function Hit({
         icon(item.kind === "group" ? "users" : "bot")
       );
       title = <Highlight text={item.title} query={query} />;
-      sub = <Highlight text={item.snippet || (row ? rowSubtitle(row) : "")} query={query} />;
+      sub = <Highlight text={snippet || (row ? rowSubtitle(row) : "")} query={query} />;
       meta = at ? (
         <time className="search-hit-meta" dir="ltr" dateTime={at}>
           {clockTime(at)}
@@ -157,7 +159,7 @@ function Hit({
           <bdi>{row?.name ?? ""}</bdi> · <bdi>{speaker}</bdi>
         </>
       );
-      sub = <Highlight text={item.snippet} query={query} />;
+      sub = <Highlight text={snippet} query={query} />;
       meta = item.created_at ? (
         <time className="search-hit-meta" dir="ltr" dateTime={item.created_at}>
           {clockTime(item.created_at)}
@@ -177,7 +179,7 @@ function Hit({
     case "tasks":
       lead = icon("task");
       title = <Highlight text={item.title} query={query} />;
-      sub = <Highlight text={item.snippet} query={query} />;
+      sub = <Highlight text={snippet} query={query} />;
       meta = <span className="search-hit-meta">{agentName(item.agent_id)}</span>;
       open = () => nav.go(`/app/tasks/${encodeURIComponent(item.id)}`);
       break;
@@ -186,7 +188,7 @@ function Hit({
       title = <Highlight text={item.title} query={query} />;
       sub =
         item.snippet && item.snippet !== item.title ? (
-          <Highlight text={item.snippet} query={query} />
+          <Highlight text={snippet} query={query} />
         ) : (
           t`Saved file`
         );
@@ -213,7 +215,7 @@ function Hit({
           </small>
         </>
       );
-      sub = <Highlight text={item.snippet} query={query} />;
+      sub = <Highlight text={snippet} query={query} />;
       const owner = agentName(item.agent_id);
       meta =
         owner && owner !== item.title ? <span className="search-hit-meta">{owner}</span> : null;
@@ -231,8 +233,8 @@ function Hit({
       {lead}
       <span className="search-hit-body">
         <span className="search-hit-title">{title}</span>
-        <span className="search-hit-sub">
-          <bdi>{sub}</bdi>
+        <span className="search-hit-sub" dir={textDirection(snippet)}>
+          <bdi dir={textDirection(snippet)}>{sub}</bdi>
         </span>
       </span>
       {meta}

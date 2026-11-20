@@ -418,7 +418,21 @@ function ShellBody() {
   const net = useNetworkPhase(connected);
   const [maintenance, setMaintenance] = useState(false);
   const [forcedUpdate, setForcedUpdate] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // The folded list is remembered on this device («lonora.listCollapsed»).
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("lonora.listCollapsed") ?? "false") === true;
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("lonora.listCollapsed", JSON.stringify(collapsed));
+    } catch {
+      /* this page only */
+    }
+  }, [collapsed]);
   const appRef = useRef<HTMLDivElement>(null);
   const toggleList = useCallback(() => {
     // The list pane leaves and returns with opacity and a slide; the grid changes at once.

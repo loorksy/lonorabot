@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { Message, OwnerAction } from "../../packages/contracts/src/index";
-import { conversationTimeline } from "../../packages/core/src/conversation-timeline";
+import {
+  conversationTimeline,
+  SLOT_OWNER_ACTION_KINDS,
+} from "../../packages/core/src/conversation-timeline";
 import { financialBoundaryError } from "../../packages/core/src/financial-boundary";
 import {
   brokerCardFailed,
@@ -92,33 +95,44 @@ test("every pending card has its one-tap buttons in both languages", () => {
     // Settle Uncertain Operation: exactly these three answers, no free-text fields (10.3).
     assert.equal("notes" in answer, false);
   }
+  // v38: the kind in the head, the broker's silence as the card's title, then the operation.
   const en = ownerActionCard(resolve, "en", now);
-  assert.equal(en.title, "The broker did not confirm this trade");
-  assert.match(en.lines[0] ?? "", /^Market buy ⁨0\.10⁩ ⁨XAUUSD⁩ · at .+ · by ⁨Gold agent⁩$/);
-  assert.match(en.hint ?? "", /will not be sent again/);
-  assert.match(en.hint ?? "", /not as broker confirmation/);
+  assert.equal(en.title, "Unconfirmed operation");
+  assert.equal(en.lines[0], "The broker did not confirm this trade");
+  assert.match(en.lines[1] ?? "", /^Market buy ⁨0\.10⁩ ⁨XAUUSD⁩ · at .+ · by ⁨Gold agent⁩$/);
+  // The hold the server keeps while the outcome is unknown (admission) stays said, in the
+  // safety capsule's own words, and exits stay allowed (6).
+  assert.equal(
+    en.hint,
+    "It will not be sent again. New risk on this market is held until it settles; exits stay allowed. Your answer is recorded as your statement, not as broker confirmation.",
+  );
   const ar = ownerActionCard(resolve, "ar", now);
-  assert.equal(ar.title, "الوسيط لم يؤكد هذه الصفقة");
+  // One spelling with the status line and the capsule (agent-status).
+  assert.equal(ar.title, "عملية غير مؤكَّدة");
+  assert.equal(ar.lines[0], "الوسيط لم يؤكد هذه الصفقة");
+  assert.equal(
+    ar.hint,
+    "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُحسم؛ يبقى الخروج متاحًا. تُسجَّل إجابتك كتصريح منك، لا كتأكيد من الوسيط.",
+  );
   assert.deepEqual(
     ar.buttons.map((button) => button.label),
     ["نُفذت", "لم تُنفذ", "غير معروفة"],
   );
-  // "Unknown" settles the card and releases the hold: the label and hint say so, so it
-  // is never mistaken for "wait".
   assert.equal(en.buttons[2]?.label, "Unknown");
-  // Unknown keeps the hold while the broker is still checked (6.3).
-  assert.match(en.hint ?? "", /Unknown keeps it while the broker is still checked/);
-  assert.match(ar.hint ?? "", /و«غير معروفة» تبقيه بينما يُراجَع الوسيط/);
-  for (const locale of ["en", "ar"]) {
+  // Unknown: the outcome stays unknown, the broker is still checked, nothing is resent.
+  for (const [locale, line] of [
+    [
+      "en",
+      "Recorded: the outcome stays unknown and the broker is still checked. It will not be sent again.",
+    ],
+    ["ar", "سُجّل: تبقى النتيجة غير معروفة ويُراجَع الوسيط، ولن تُرسل مجددًا."],
+  ]) {
     const settled = ownerActionCard(
       { ...resolve, status: "confirmed", result: { outcome: "unknown" } },
       locale,
       now,
     );
-    assert.match(
-      settled.outcome ?? "",
-      /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
-    );
+    assert.equal(settled.outcome, line);
   }
 });
 
@@ -178,11 +192,36 @@ test("card refusals have owner text in both languages", () => {
     "owner_action_already_decided",
     "owner_action_expired_or_decided",
     "owner_action_outcome_required",
+    "trade_approval_already_decided",
+    "trade_approval_run_unavailable",
+    "trade_approval_not_found",
   ]) {
     assert.ok(ownerActionError(code, "en"));
     assert.match(ownerActionError(code, "ar") ?? "", /[؀-ۿ]/);
   }
   assert.equal(ownerActionError("unrelated", "en"), null);
+});
+
+test("a Trade Approval tap the server refuses never says «try again» on money", () => {
+  assert.equal(
+    ownerActionError("trade_approval_already_decided", "ar"),
+    "سبقت الإجابة على هذا الطلب.",
+  );
+  assert.equal(
+    ownerActionError("trade_approval_already_decided", "en"),
+    "This request was already answered.",
+  );
+  assert.equal(
+    ownerActionError("trade_approval_run_unavailable", "ar"),
+    "لم يعد هذا الطلب بانتظارك. لم يُرسل شيء.",
+  );
+  for (const code of [
+    "trade_approval_already_decided",
+    "trade_approval_run_unavailable",
+    "trade_approval_not_found",
+  ])
+    for (const locale of ["en", "ar"])
+      assert.doesNotMatch(ownerActionError(code, locale) ?? "", /try again|حاول مرة أخرى/i);
 });
 
 test("Web and Mobile render the same shared spec and never show agent text", () => {
@@ -653,10 +692,7 @@ test("a Settle card answered Unknown stays pending with Executed and Not execute
       card.buttons.map((button) => button.outcome),
       ["executed", "not_executed"],
     );
-    assert.match(
-      card.lines.join(" "),
-      /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
-    );
+    assert.match(card.lines.join(" "), /It will not be sent again\.|ولن تُرسل مجددًا\./);
   }
 });
 
@@ -683,40 +719,23 @@ const withPurpose = (purpose: "rotate_password" | "replace_token"): OwnerAction 
   },
 });
 
-test("a saved broker card's chip says how connecting stands, never Done beside a failure", () => {
-  assert.equal(ownerActionLabels.ar.statusFailed, "تعذّر");
-  assert.equal(ownerActionLabels.ar.statusSaved, "حُفظ");
-  assert.equal(ownerActionLabels.ar.statusConnecting, "جارٍ الربط");
-  assert.equal(ownerActionLabels.ar.statusChanging, "جارٍ التغيير");
+test("a saved broker card whose connection failed ends as a failure, never «Done»", () => {
   for (const locale of ["ar", "en"] as const) {
     const text = ownerActionLabels[locale];
-    const chip = (card: OwnerAction, provisioning?: OwnerAction["result"]["provisioning"]) =>
-      ownerActionStatus({ ...card, result: provisioning ? { provisioning } : {} }, locale);
-    // The production finding: «تعذّر الربط…» under a «تم» chip.
+    // The production finding: «تعذّر الربط…» shown as a success.
     const failed = { ...broker, result: { provisioning: "failed" as const } };
     assert.equal(ownerActionCard(failed, locale, now).outcome, text.brokerFailed);
-    assert.equal(ownerActionStatus(failed, locale), text.statusFailed);
-    assert.notEqual(ownerActionStatus(failed, locale), text.statusConfirmed);
     assert.equal(brokerCardFailed(failed), true);
     assert.equal(brokerCardFailed({ ...broker, result: { provisioning: "connected" } }), false);
-    assert.equal(chip(broker, "connected"), text.statusConfirmed);
-    assert.equal(chip(broker, "linked"), text.statusSaved);
-    for (const running of [undefined, "pending", "deploying", "reading"] as const)
-      assert.equal(chip(broker, running), text.statusConnecting, String(running));
-    // A new password or token: still running reads as a change, not a connection.
-    for (const purpose of ["rotate_password", "replace_token"] as const) {
-      const changed = withPurpose(purpose);
-      assert.equal(chip(changed, "failed"), text.statusFailed);
-      assert.equal(chip(changed, "connected"), text.statusConfirmed);
-      assert.equal(chip(changed, "linked"), text.statusSaved);
-      for (const running of [undefined, "pending", "deploying", "reading"] as const)
-        assert.equal(chip(changed, running), text.statusChanging, `${purpose} ${running}`);
-    }
-    // An unsaved broker card keeps the chip of its status.
-    assert.equal(chip({ ...broker, status: "pending" }), text.statusPending);
-    assert.equal(chip({ ...broker, status: "cancelled" }), text.statusCancelled);
-    assert.equal(chip({ ...broker, status: "expired" }, "failed"), text.statusExpired);
+    for (const purpose of ["rotate_password", "replace_token"] as const)
+      assert.equal(brokerCardFailed({ ...withPurpose(purpose), result: failed.result }), true);
+    // Only a saved card: a pending or expired one is not a failed connection.
+    assert.equal(brokerCardFailed({ ...failed, status: "expired" }), false);
   }
+  // A Secret card never folds, so it never shows the folded line's chip: its frame says how
+  // it ended (D3); the chip has no broker words left.
+  for (const key of ["statusFailed", "statusSaved", "statusConnecting", "statusChanging"])
+    assert.equal(Object.hasOwn(ownerActionLabels.ar, key), false, key);
 });
 
 test("every other card keeps the chip of its status", () => {
@@ -761,13 +780,36 @@ test("every other card keeps the chip of its status", () => {
       text.statusConfirmed,
     );
   }
-  // Web's settled line shows the shared chip, never its own status map.
+  // A settled fixed card (Settle, Secret, Mandate: the kinds a slot names) is never folded
+  // into a line (10.2.2, v38): it keeps its frame and shows the shared settled line inside it,
+  // never a timer. Only a kind outside the five fixed cards folds into one line with the
+  // shared chip, until W-AUTH and the team stack delete it.
+  assert.deepEqual(Object.values(SLOT_OWNER_ACTION_KINDS).sort(), [
+    "secret",
+    "settle_operation",
+    "trading_mode",
+  ]);
   const source = readFileSync(
     new URL("../../apps/web/src/components/owner-actions/OwnerActionCard.tsx", import.meta.url),
     "utf8",
   );
+  assert.match(source, /\{spec\.outcome\}/);
+  assert.match(source, /new Set<string>\(Object\.values\(SLOT_OWNER_ACTION_KINDS\)\)/);
+  assert.match(source, /ownerActionFolds\(row\) && !inSheet/);
   assert.match(source, /ownerActionStatus\(row, i18n\.locale\)/);
-  assert.doesNotMatch(source, /statusConfirmed/);
-  // Nor a check mark beside «تعذّر»: the icon follows the same failed rule.
-  assert.match(source, /brokerCardFailed\(row\) \? "close"/);
+  assert.doesNotMatch(source, /statusConfirmed|Countdown|oa-exp|expiresIn/);
+  // A broker card whose connection failed never shows its outcome in the success tint.
+  assert.match(source, /oa-done\$\{failed \? " bad" : ""\}/);
+  assert.match(source, /const failed = brokerCardFailed\(row\)/);
+  // «طلب جديد» and «عرض الأحدث» sit inside that frame.
+  assert.match(source, /\{text\.renew\}/);
+  assert.match(source, /\{text\.latest\}/);
+  // Every fixed card keeps its frame and width in the conversation (v38 k-oa): a tapped
+  // Mandate card, an approval and a receipt alike; an old kind's settled card is one line.
+  const conversation = readFileSync(
+    new URL("../../apps/web/src/conversation/Conversation.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(conversation, /cardKind="card"|OrderLine|\/trading\/journal/);
+  assert.match(conversation, /cardKind=\{ownerActionFolds\(row\.action\) \? "line" : "oa"\}/);
 });
