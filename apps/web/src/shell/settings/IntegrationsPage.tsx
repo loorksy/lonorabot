@@ -59,24 +59,27 @@ const levelText = (server: CapabilityServer) => {
 };
 
 /* A server's tools and their levels, each by the server's own title. A server trusted before its
-   titles were kept has none saved: on its saved list (`saved`) of a server that is on, they are
-   read once from the server itself, whose preview keeps them, so a tool shows its name only when
-   the server gives it no title (or cannot be reached). A server with titles kept is never
-   contacted when its sheet opens; «مراجعة الأدوات» reads it again. */
+   titles were kept was never read for them (`kept` false): on its saved list (`saved`) of a
+   server that is on, they are read once from the server itself, whose preview keeps them, so a
+   tool shows its name only when the server gives it no title (or cannot be reached). A server
+   read once is never contacted when its sheet opens, even if it titles none of its tools;
+   «مراجعة الأدوات» reads it again. */
 function McpToolRows({
   connectionId,
   tools,
   titles,
+  kept,
   saved,
   enabled,
 }: {
   connectionId: string;
   tools: { name: string; write: boolean }[];
   titles: Record<string, string>;
+  kept: boolean;
   saved: boolean;
   enabled: boolean;
 }) {
-  const noneKept = saved && enabled && Object.keys(titles).length === 0;
+  const noneKept = saved && enabled && !kept;
   const [read, setRead] = useState<Record<string, string> | null>(null);
   useEffect(() => {
     if (!noneKept) return;
@@ -194,6 +197,7 @@ export function IntegrationsPage() {
                 connectionId={server.connection_id}
                 tools={tools}
                 titles={titles}
+                kept={server.tool_titles_kept}
                 saved={!preview}
                 enabled={server.enabled}
               />

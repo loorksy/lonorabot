@@ -831,12 +831,39 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
                 item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
             )
             assert entry["tool_titles"] == {} and entry["trusted_tier"] == "write_nonfinancial"
+            # Never read for titles: the owner's sheet reads them once.
+            assert entry["tool_titles_kept"] is False
             await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
             listed = await fixture.request("GET", "/capabilities")
             entry = next(
                 item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
             )
-            assert entry["tool_titles"] == titles
+            assert entry["tool_titles"] == titles and entry["tool_titles_kept"] is True
+            # A read where the server titles none of its tools still counts as read: an empty
+            # set then means "no titles", and the sheet does not read the server again.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                saved = await session.get(McpConnectionRow, connection_id)
+                assert saved is not None
+                kept_titles = saved.state["tool_titles"]
+                saved.state = {
+                    key: value for key, value in saved.state.items() if key != "tool_titles"
+                }
+            untitled_tools = server.tools
+            server.tools = [
+                {key: value for key, value in tool.items() if key not in {"title", "description"}}
+                for tool in untitled_tools
+            ]
+            await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            listed = await fixture.request("GET", "/capabilities")
+            entry = next(
+                item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
+            )
+            assert entry["tool_titles"] == {} and entry["tool_titles_kept"] is True
+            server.tools = untitled_tools
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                saved = await session.get(McpConnectionRow, connection_id)
+                assert saved is not None
+                saved.state = {**saved.state, "tool_titles": kept_titles}
             # A later read that no longer titles a pinned tool (or no longer lists it) never
             # drops the title already known: its views keep it rather than the raw name.
             listed_tools = server.tools

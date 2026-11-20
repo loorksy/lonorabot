@@ -200,6 +200,9 @@ def server_entry(
         "trusted_tier": trust.effect_tier if trust else None,
         "trusted_tools": sorted(trust.tool_hashes) if trust else [],
         "tool_titles": tool_titles(row, trust),
+        # Its tools were read for the owner at least once (his review or a preview), so an
+        # empty `tool_titles` means the server titles none of them, not that none were kept.
+        "tool_titles_kept": isinstance((row.state or {}).get("tool_titles"), dict),
         "write_tools": write_tools(trust) if trust else [],
         "blocked_tools": list(trust.blocked_tools) if trust else [],
         "operator_declared": sum(

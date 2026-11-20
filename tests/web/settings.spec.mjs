@@ -517,9 +517,11 @@ test("integrations name tools, skills, servers and accounts in words, never by r
       return route.fulfill({ json: { deleted: true } });
     });
     const connection = randomUUID();
-    // Two more servers whose sheets never contact them: one with titles kept (one tool the
-    // server never titles), one switched off with none kept.
+    // Three more servers whose sheets never contact them: one with titles kept (one tool the
+    // server never titles), one already read whose server titles none of its tools, and one
+    // switched off with none kept.
     const kept = randomUUID();
+    const untitled = randomUUID();
     const off = randomUUID();
     const previews = [];
     page.on("request", (request) => {
@@ -560,6 +562,7 @@ test("integrations name tools, skills, servers and accounts in words, never by r
               trusted_tier: "read",
               trusted_tools: ["list_tags", "search_posts", "toString"],
               tool_titles: {},
+              tool_titles_kept: false,
               write_tools: [],
               blocked_tools: [],
               operator_declared: 0,
@@ -574,6 +577,22 @@ test("integrations name tools, skills, servers and accounts in words, never by r
               trusted_tier: "read",
               trusted_tools: ["search_docs", "toString"],
               tool_titles: { search_docs: "البحث في المستندات" },
+              tool_titles_kept: true,
+              write_tools: [],
+              blocked_tools: [],
+              operator_declared: 0,
+              trust_source_id: null,
+              last_used_at: null,
+            },
+            {
+              connection_id: untitled,
+              name: "Feeds",
+              enabled: true,
+              credentials_configured: false,
+              trusted_tier: "read",
+              trusted_tools: ["list_feeds"],
+              tool_titles: {},
+              tool_titles_kept: true,
               write_tools: [],
               blocked_tools: [],
               operator_declared: 0,
@@ -588,6 +607,7 @@ test("integrations name tools, skills, servers and accounts in words, never by r
               trusted_tier: "read",
               trusted_tools: ["list_files"],
               tool_titles: {},
+              tool_titles_kept: false,
               write_tools: [],
               blocked_tools: [],
               operator_declared: 0,
@@ -678,15 +698,18 @@ test("integrations name tools, skills, servers and accounts in words, never by r
     await expect(sheet).toHaveCount(0);
     // (The test build replays effects as StrictMode does: count the servers, not the calls.)
     expect([...new Set(previews)]).toEqual([connection]);
-    // With titles kept, or switched off, opening its sheet never calls the server: the kept
-    // titles show, and a tool it never titled keeps its name.
-    for (const name of ["Docs", "Archive"]) {
+    // With titles kept, read once though the server titles none, or switched off, opening its
+    // sheet never calls the server: the kept titles show, and a tool it never titled keeps its
+    // name.
+    for (const name of ["Docs", "Feeds", "Archive"]) {
       await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
       await expect(sheet).toHaveCount(1);
       if (name === "Docs") {
         await expect(sheet.getByText("البحث في المستندات")).toBeVisible();
         await expect(sheet.getByText("toString", { exact: true })).toBeVisible();
-      } else await expect(sheet.getByText("list_files", { exact: true })).toBeVisible();
+      } else if (name === "Feeds")
+        await expect(sheet.getByText("list_feeds", { exact: true })).toBeVisible();
+      else await expect(sheet.getByText("list_files", { exact: true })).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(sheet).toHaveCount(0);
     }

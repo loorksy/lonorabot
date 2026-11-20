@@ -64,6 +64,9 @@ export type CapabilityServer = {
    * server trusted before titles were kept has none until its tools are read again.
    * Presentation only. */
   tool_titles: Record<string, string>;
+  /** Its tools were read for the owner at least once (his review or a preview): an empty
+   * `tool_titles` then means the server titles none of them. */
+  tool_titles_kept: boolean;
   write_tools: string[];
   blocked_tools: string[];
   operator_declared: number;

@@ -202,6 +202,7 @@ for (const locale of ["ar", "en"])
       trusted_tier: null,
       trusted_tools: [],
       tool_titles: {},
+      tool_titles_kept: true,
       write_tools: [],
       blocked_tools: [],
       operator_declared: 0,
