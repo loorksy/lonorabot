@@ -162,10 +162,13 @@ function decimalExceeds(left: string, right: string): boolean {
  */
 export function showsTradingControl(input: {
   role?: string | null;
+  template?: string | null;
   trading_account_id?: string | null;
-  level?: AgentPermissionLevel | null;
-  grants?: number;
-  pendingTrade?: boolean;
+  hasTradingAccount?: boolean | null;
 }): boolean {
-  return Boolean(input.trading_account_id);
+  return (
+    input.role !== "delegated" &&
+    input.template !== "research" &&
+    (input.hasTradingAccount ?? Boolean(input.trading_account_id))
+  );
 }

@@ -121,7 +121,7 @@ test("the trading and safety row opens the agent's sheet in its conversation", a
   await expect(page).toHaveURL(new RegExp(`/app/${data.trader.id}$`));
 });
 
-test("a trading agent with no linked account opens the trading settings", async ({ page }) => {
+test("a trading agent with no linked account opens integrations", async ({ page }) => {
   await page.route("**/api/trading/connections", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
   );
@@ -135,12 +135,23 @@ test("a trading agent with no linked account opens the trading settings", async 
       ),
     });
   });
+  await page.route(`**/api/agents/${data.trader.id}/state`, async (route) => {
+    const response = await route.fetch();
+    const state = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...state,
+        trading_readiness: { ...state.trading_readiness, has_trading_account: false },
+      },
+    });
+  });
   await page.goto(`/app/agent/${data.trader.id}`);
   await page
     .locator("main")
     .getByRole("button", { name: /No trading account linked/ })
     .click();
-  await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
+  await expect(page).toHaveURL(/\/app\/integrations$/);
 });
 
 test("the call button follows Q58 when no voice provider is configured", async ({ page }) => {

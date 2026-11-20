@@ -1,5 +1,4 @@
-"""Owner action cards: list, an agent's live Mandate card, passkey challenge and the
-owner's decision.
+"""Owner action cards: list, read or request a Mandate card, and record the owner's decision.
 
 Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
@@ -16,7 +15,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.domain import utcnow
+from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.owner_actions import CARD_ATTESTATION, OwnerActionDecision
 from lonora_contracts.trading import OperationResolution
 from lonora_core.user_error import LonoraError
@@ -28,6 +27,7 @@ from lonora_db.owner_actions import (
     mandate_card,
     owned_card,
     owner_action_data,
+    propose_effect,
     renew_card,
     settle,
     stale_reason,
@@ -68,6 +68,31 @@ async def mandate(
         await owned_agent(session, owner.id, agent_id)
         row = await mandate_card(session, owner.id, agent_id)
         return await owner_action_data(session, row) if row is not None else None
+
+
+@router.post("/mandate")
+async def request_mandate(
+    request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
+    """Show the agent's Mandate card on an explicit owner request. A decision is separate."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        await lock_owner_actions(session, owner.id)
+        await owned_agent(session, owner.id, agent_id)
+        row = await mandate_card(session, owner.id, agent_id)
+        if row is None:
+            row, _ = await propose_effect(
+                session,
+                owner.id,
+                "trading_mode",
+                "trading_mode:" + agent_id,
+                {"agent_id": agent_id},
+                card_id=new_id(),
+                agent_id=agent_id,
+                thread_id=None,
+                run_id=None,
+                source="owner",
+            )
+        return await owner_action_data(session, row)
 
 
 @router.post("/{card_id}/challenge")

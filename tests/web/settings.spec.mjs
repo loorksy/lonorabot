@@ -768,7 +768,7 @@ test("the call device row says only that a call rings it", async ({ page, contex
   await expect(device).not.toContainText("مفتاح المرور");
 });
 
-test("Global models opens the models page; voice and trading keep their settings screens", async ({
+test("settings put voice under contact and trading accounts and models under integrations", async ({
   page,
   context,
   cleanup,
@@ -781,18 +781,16 @@ test("Global models opens the models page; voice and trading keep their settings
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/settings");
+  await expect(page.getByRole("button", { name: "Trading", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Voice", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Notifications and contact/ }).click();
   await page.getByRole("button", { name: /^Voice/ }).click();
-  await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
-  await expect(page.locator(".settings-nav button.selected")).toHaveText("Voice");
+  await expect(page).toHaveURL(/\/app\/voice-settings$/);
   await expect(page.getByRole("heading", { name: "Realtime conversation" })).toBeVisible();
-  const tabs = page.locator(".settings-nav");
-  await tabs.getByRole("button", { name: "Trading", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Global trading settings" })).toBeVisible();
-  // The screen's «Global models» tab, the settings row and the old tab open the models page.
-  await tabs.getByRole("button", { name: "Global models", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/models$/);
-  await page.goto("/app/settings");
-  await page.getByRole("button", { name: /^Global models/ }).click();
+  await page.goto("/app/settings?tab=trading");
+  await expect(page).toHaveURL(/\/app\/integrations$/);
+  await expect(page.getByRole("heading", { name: "Trading accounts" })).toBeVisible();
+  await page.getByRole("button", { name: "Global models", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/models$/);
   // The server's provider state is this test's: no key until this page stores one.
   const server = { configured: false, discovered: false, failDiscovery: false };

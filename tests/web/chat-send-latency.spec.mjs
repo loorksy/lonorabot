@@ -44,6 +44,64 @@ async function conversation(context) {
   return { agent, thread, headers };
 }
 
+test("paging older days keeps the visible message and its DOM node", async ({
+  page,
+  context,
+  cleanup,
+}) => {
+  const { agent, thread, headers } = await conversation(context);
+  cleanup(() => context.request.delete(`/api/agents/${agent.id}`, { headers }));
+  const messages = (first, count) =>
+    Array.from({ length: count }, (_, index) => {
+      const seq = first + index;
+      return {
+        id: randomUUID(),
+        seq,
+        thread_id: thread.id,
+        agent_id: agent.id,
+        role: "assistant",
+        content: `Archived message ${seq}`,
+        attachment_ids: [],
+        reply_to: null,
+        created_at: new Date(Date.UTC(2026, 0, seq)).toISOString(),
+      };
+    });
+  const recent = messages(61, 60);
+  const older = messages(41, 20);
+  const postponed = deferred();
+  cleanup(() => postponed.resolve());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.route(`**/api/threads/${thread.id}/messages*`, async (route) => {
+    const before = new URL(route.request().url()).searchParams.get("before");
+    if (before) await postponed.promise;
+    await route.fulfill({ json: before ? older : recent });
+  });
+  await page.goto(`/app/${agent.id}`);
+  const transcript = page.getByTestId("transcript");
+  const retained = transcript.locator(`[data-message-id="${recent[0].id}"]`);
+  await expect(retained).toHaveCount(1);
+  await retained.evaluate((node) => {
+    node.dataset.scrollProbe = "retained";
+  });
+  await transcript.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  const before = await retained.evaluate((node) => node.getBoundingClientRect().top);
+  postponed.resolve();
+  await expect(transcript.getByText("Archived message 41", { exact: true })).toHaveCount(1);
+  await expect(retained).toHaveAttribute("data-scroll-probe", "retained");
+  expect(
+    Math.abs((await retained.evaluate((node) => node.getBoundingClientRect().top)) - before),
+  ).toBeLessThan(3);
+  await page.getByRole("button", { name: "Go to the latest messages", exact: true }).click();
+  await expect
+    .poll(() =>
+      transcript.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop),
+    )
+    .toBeLessThan(5);
+});
+
 test("message appears before delayed POST and slow runs, survives navigation, then reconciles once", async ({
   page,
   context,

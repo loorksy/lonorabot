@@ -144,6 +144,29 @@ for (const locale of ["ar", "en"])
     const row = journal.find((item) => item.operation_id === uncertain.operation_id);
     expect(row.status).toBe("resolved");
     expect(row.result.details.resolution.outcome).toBe("executed");
+    const chip = page.getByTestId("permission-chip");
+    const field = page.getByRole("textbox", { name: locale === "ar" ? "اكتب رسالة…" : "Message…" });
+    await expect(chip).toBeVisible();
+    await expect(field).toBeVisible();
+    const chipBox = await chip.boundingBox();
+    const fieldBox = await field.boundingBox();
+    expect(fieldBox.y + fieldBox.height).toBeLessThanOrEqual(chipBox.y);
+    await chip.click();
+    const requestLabel = locale === "ar" ? "عرض بطاقة التفويض" : "Show Mandate card";
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (item) =>
+          item.request().method() === "POST" && item.url().includes("/api/owner-actions/mandate?"),
+      ),
+      page.getByRole("button", { name: requestLabel, exact: true }).click(),
+    ]);
+    expect(response.ok()).toBeTruthy();
+    const mandate = await response.json();
+    expect(mandate.status).toBe("pending");
+    await page
+      .getByRole("button", { name: locale === "ar" ? "إغلاق" : "Close", exact: true })
+      .click();
+    await expect(page.getByTestId(`owner-action-${mandate.id}`)).toBeVisible();
   });
 
 test("Expo ar: an expired Settle card asks again, then shows the newer card", async ({

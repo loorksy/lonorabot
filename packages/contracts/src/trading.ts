@@ -223,6 +223,8 @@ export type TradingReadiness = {
   };
   /** The agent's one trading switch, read with the rest of the projection. */
   trading_mode: TradingMode;
+  /** A linked broker account within the agent's account scope. */
+  has_trading_account?: boolean;
   level: "analysis" | "supervised" | "autonomous";
   grants: Array<{
     account_id: string;

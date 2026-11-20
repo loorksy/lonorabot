@@ -9,10 +9,10 @@ export function VoiceSettingsOverlay() {
     void api.get<Payload>("/voice/status").then(setStatus).catch(setError);
   }, []);
   return (
-    <section className="card">
-      <h2>
+    <section>
+      <h3>
         <Trans>Realtime conversation</Trans>
-      </h2>
+      </h3>
       <p>
         <Trans>
           Spoken tasks are saved in the current conversation. GPT-Live can keep listening and

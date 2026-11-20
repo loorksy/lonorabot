@@ -1,6 +1,5 @@
 import { plural, t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { PermissionState } from "@lonora/contracts";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback, useState } from "react";
 import type { Agent } from "../lib/api";
@@ -20,8 +19,6 @@ export type ToolsInput = {
   /** A group's lead (or first member): the new task's preselected agent. */
   groupLead?: string;
   trading: boolean;
-  permission: PermissionState | null;
-  permissionFailed?: boolean;
   webSearch: boolean;
   onWebSearch: (on: boolean) => Promise<void> | void;
   onFiles: () => void;

@@ -1,21 +1,26 @@
-import type { Agent, OwnerAction, PermissionState, TradingMode } from "@lonora/contracts";
-import { mandateLine, modeChangeLine, ownerActionText, tradingSubLine } from "@lonora/core";
+import type { Agent, OwnerAction, TradingMode } from "@lonora/contracts";
+import {
+  mandateLine,
+  modeChangeLine,
+  ownerActionText,
+  showsTradingControl,
+  tradingSubLine,
+} from "@lonora/core";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../lib/api";
 import { agentShowingMandate, otherTradingMode } from "../lib/mandate-mode";
 import { useSession } from "../lib/session";
 import { SettingsGroup, SettingsRow } from "./settings-group";
+import { Icon } from "./shell/icon";
 import { useToast } from "./shell/toast";
 import { colors } from "./ui";
 
 type Props = {
   agent: Agent;
-  threadId?: string;
-  revision?: number;
+  hasTradingAccount?: boolean;
   settings?: boolean;
-  pendingTrade?: boolean;
-  onState?: (state: PermissionState | null) => void;
   /** The parent stores this mode on the agent. The control reads that field. */
   onMode?: (mode: TradingMode) => void;
 };
@@ -23,28 +28,29 @@ type Props = {
 /** The Mandate control. No connected account: nothing (Q9). Drafts grant nothing. */
 export function AgentPermissions(props: Props) {
   const { owner } = useSession();
-  if (!owner || props.agent.role === "delegated") return null;
-  if (!props.agent.trading_account_id) return null;
-  return <ModeControl key={`${owner.id}:${props.agent.id}:${props.revision ?? 0}`} {...props} />;
+  if (
+    !owner ||
+    !showsTradingControl({ ...props.agent, hasTradingAccount: props.hasTradingAccount })
+  )
+    return null;
+  return <ModeControl key={`${owner.id}:${props.agent.id}`} {...props} />;
 }
 
-function ModeControl({ agent, settings = false, onState, onMode }: Props) {
+function ModeControl({ agent, settings = false, onMode }: Props) {
   const { rtl, errorText } = useSession();
+  const insets = useSafeAreaInsets();
   const toast = useToast();
   const locale = rtl ? "ar" : "en";
   const words = ownerActionText(locale);
   const [open, setOpen] = useState(false);
-  const [card, setCard] = useState<OwnerAction | null>(null);
+  const [card, setCard] = useState<OwnerAction | null>();
   const [busy, setBusy] = useState(false);
   const mode: TradingMode | null =
     agent.trading_mode === "full" || agent.trading_mode === "ask" ? agent.trading_mode : null;
   const other = otherTradingMode(mode);
   useEffect(() => {
+    if (!open) return;
     let live = true;
-    void api
-      .get<PermissionState>(`/agents/${encodeURIComponent(agent.id)}/permissions`)
-      .then((row) => live && onState?.(row))
-      .catch(() => live && onState?.(null));
     void api
       .get<OwnerAction | null>(`/owner-actions/mandate?agent_id=${encodeURIComponent(agent.id)}`)
       .then((row) => live && setCard(row))
@@ -52,7 +58,22 @@ function ModeControl({ agent, settings = false, onState, onMode }: Props) {
     return () => {
       live = false;
     };
-  }, [agent.id, onState]);
+  }, [agent.id, open]);
+  const showCard = async () => {
+    setBusy(true);
+    try {
+      setCard(
+        await api.post<OwnerAction>(
+          `/owner-actions/mandate?agent_id=${encodeURIComponent(agent.id)}`,
+          {},
+        ),
+      );
+    } catch (reason) {
+      toast(errorText(reason), { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
   const apply = async (next: TradingMode) => {
     if (!card || busy) return;
     setBusy(true);
@@ -77,8 +98,22 @@ function ModeControl({ agent, settings = false, onState, onMode }: Props) {
   const sub = tradingSubLine(0, mode, locale);
   const sheet = (
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-      <View style={{ flex: 1, backgroundColor: colors.background, padding: 20, gap: 12 }}>
-        <Text style={{ color: colors.foreground, fontSize: 18, textAlign: rtl ? "right" : "left" }}>
+      <View
+        accessibilityViewIsModal
+        style={{
+          flex: 1,
+          backgroundColor: colors.background,
+          paddingTop: insets.top + 20,
+          paddingLeft: insets.left + 20,
+          paddingRight: insets.right + 20,
+          paddingBottom: insets.bottom + 20,
+          gap: 12,
+        }}
+      >
+        <Text
+          accessibilityRole="header"
+          style={{ color: colors.foreground, fontSize: 18, textAlign: rtl ? "right" : "left" }}
+        >
           {words.mandateTitle} · {agent.name}
         </Text>
         {mode && (
@@ -98,17 +133,32 @@ function ModeControl({ agent, settings = false, onState, onMode }: Props) {
             onPress={() => void apply(other)}
             style={{ minHeight: 44, justifyContent: "center" }}
           >
-            <Text style={{ color: colors.foreground, fontSize: 17 }}>
+            <Text
+              style={{ color: colors.foreground, fontSize: 17, textAlign: rtl ? "right" : "left" }}
+            >
               {other === "full" ? words.modeFull : words.modeAsk}
             </Text>
           </Pressable>
-        ) : (
+        ) : other && card === null ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => void showCard()}
+            style={{ minHeight: 44, justifyContent: "center" }}
+          >
+            <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+              {words.mandateRequest}
+            </Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setOpen(false)}
+          style={{ minHeight: 44, justifyContent: "center" }}
+        >
           <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
-            {rtl ? "لا توجد بطاقة تفويض لهذا الوكيل بعد." : "This agent has no Mandate card yet."}
+            {rtl ? "إغلاق" : "Close"}
           </Text>
-        )}
-        <Pressable accessibilityRole="button" onPress={() => setOpen(false)}>
-          <Text style={{ color: colors.secondary }}>{rtl ? "إغلاق" : "Close"}</Text>
         </Pressable>
       </View>
     </Modal>
@@ -132,9 +182,16 @@ function ModeControl({ agent, settings = false, onState, onMode }: Props) {
         accessibilityLabel={line ?? undefined}
         testID="permission-chip"
         onPress={() => setOpen(true)}
-        style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 8 }}
+        style={{
+          minHeight: 44,
+          flexDirection: rtl ? "row-reverse" : "row",
+          alignItems: "center",
+          gap: 4,
+          paddingHorizontal: 6,
+        }}
       >
-        <Text style={{ color: colors.foreground }}>
+        <Icon name={mode === "full" ? "alert" : "shield"} size={14} color={colors.secondary} />
+        <Text numberOfLines={1} style={{ color: colors.foreground }}>
           {mode === "full" ? words.modeFull : mode === "ask" ? words.modeAsk : "…"}
         </Text>
       </Pressable>

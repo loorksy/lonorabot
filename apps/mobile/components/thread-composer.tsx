@@ -393,9 +393,7 @@ export function ThreadComposer({
             minWidth: 0,
             minHeight: 56,
             borderRadius: 28,
-            flexDirection: rtl ? "row-reverse" : "row",
-            alignItems: "flex-end",
-            gap: 8,
+            gap: 4,
             paddingHorizontal: 11,
             paddingVertical: 11,
             backgroundColor: shell.muted,
@@ -403,38 +401,6 @@ export function ThreadComposer({
             borderColor: shell.border,
           }}
         >
-          <View
-            testID="thread-composer-attach-native"
-            style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("attach")}
-              hitSlop={6}
-              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
-              onPress={onAttach}
-              disabled={busy || uploading || disabled || attachments.length + uploads.length >= 10}
-            >
-              {uploading ? (
-                <ActivityIndicator color={shell.secondary} size="small" />
-              ) : (
-                <NativeSymbol name="plus" size={18} color={shell.secondary} />
-              )}
-            </Pressable>
-          </View>
-          {permissionControl}
-          {onWebSearchOff ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("webSearchIsOn")}
-              testID="web-search-on"
-              hitSlop={6}
-              onPress={onWebSearchOff}
-              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
-            >
-              <NativeSymbol name="globe" size={18} color={shell.link} />
-            </Pressable>
-          ) : null}
           <TextInput
             accessibilityLabel={t("message")}
             placeholder={t("message")}
@@ -477,7 +443,7 @@ export function ThreadComposer({
             underlineColorAndroid="transparent"
             selectionColor={shell.foreground}
             style={{
-              flex: 1,
+              width: "100%",
               minHeight: 32,
               height: inputHeight,
               maxHeight: 160,
@@ -493,52 +459,91 @@ export function ThreadComposer({
               writingDirection: "auto",
             }}
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("send")}
-            disabled={!canSend}
-            onPress={() => onSend(mentionAddress(draft, committed.current))}
-            hitSlop={6}
-            testID="thread-composer-send-native"
-            style={({ pressed }) => ({
-              width: 32,
-              height: 32,
-              borderRadius: 16,
-              backgroundColor: shell.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: pressed || !canSend ? 0.4 : 1,
-            })}
+          <View
+            style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}
           >
-            {busy ? (
-              <ActivityIndicator size="small" color={shell.primaryForeground} />
-            ) : (
-              <NativeSymbol name="send" size={16} color={shell.primaryForeground} />
-            )}
-          </Pressable>
-          {working && onStop ? (
             <View
-              style={{
+              testID="thread-composer-attach-native"
+              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("attach")}
+                hitSlop={6}
+                style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+                onPress={onAttach}
+                disabled={
+                  busy || uploading || disabled || attachments.length + uploads.length >= 10
+                }
+              >
+                {uploading ? (
+                  <ActivityIndicator color={shell.secondary} size="small" />
+                ) : (
+                  <NativeSymbol name="plus" size={18} color={shell.secondary} />
+                )}
+              </Pressable>
+            </View>
+            {permissionControl}
+            {onWebSearchOff ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("webSearchIsOn")}
+                testID="web-search-on"
+                hitSlop={6}
+                onPress={onWebSearchOff}
+                style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+              >
+                <NativeSymbol name="globe" size={18} color={shell.link} />
+              </Pressable>
+            ) : null}
+            <View style={{ flex: 1 }} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("send")}
+              disabled={!canSend}
+              onPress={() => onSend(mentionAddress(draft, committed.current))}
+              hitSlop={6}
+              testID="thread-composer-send-native"
+              style={({ pressed }) => ({
                 width: 32,
                 height: 32,
                 borderRadius: 16,
                 backgroundColor: shell.primary,
                 alignItems: "center",
                 justifyContent: "center",
-              }}
+                opacity: pressed || !canSend ? 0.4 : 1,
+              })}
             >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t("cancel")}
-                onPress={onStop}
-                disabled={busy}
-                hitSlop={6}
-                style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+              {busy ? (
+                <ActivityIndicator size="small" color={shell.primaryForeground} />
+              ) : (
+                <NativeSymbol name="send" size={16} color={shell.primaryForeground} />
+              )}
+            </Pressable>
+            {working && onStop ? (
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: shell.primary,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                <NativeSymbol name="stop" size={16} color={shell.primaryForeground} />
-              </Pressable>
-            </View>
-          ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("cancel")}
+                  onPress={onStop}
+                  disabled={busy}
+                  hitSlop={6}
+                  style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+                >
+                  <NativeSymbol name="stop" size={16} color={shell.primaryForeground} />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
     </View>

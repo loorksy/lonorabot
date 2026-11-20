@@ -621,6 +621,7 @@ export function IntegrationsPage() {
           to="/app/providers"
           value={configured ? String(configured) : t`Not added yet`}
         />
+        <NavRow icon="settings" label={t`Global models`} to="/app/models" />
       </div>
       <h3>
         <Trans>Servers and repositories</Trans>

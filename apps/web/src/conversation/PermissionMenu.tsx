@@ -166,6 +166,22 @@ function PermissionMenu({ agent, go }: { agent: Agent; go: (path: string) => voi
   const modelValue = auto
     ? t({ message: "Your default model", context: "model" })
     : (summary?.current.name ?? summary?.current.model ?? "—");
+  const showCard = async () => {
+    setBusy(true);
+    try {
+      setCard(
+        await api.post<OwnerAction>(
+          `/owner-actions/mandate?agent_id=${encodeURIComponent(agent.id)}`,
+          {},
+        ),
+      );
+      refresh();
+    } catch (error) {
+      toast(userError(error), { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="mp-pages" data-page={page === "mode" ? "1" : "2"}>
       <div className="mp-page p1" inert={page !== "mode" ? true : undefined}>
@@ -198,10 +214,16 @@ function PermissionMenu({ agent, go }: { agent: Agent; go: (path: string) => voi
             </span>
           </button>
         )}
-        {card === null && (
-          <p className="pop-note">
-            <Trans>This agent has no Mandate card yet.</Trans>
-          </p>
+        {other && card === null && (
+          <button
+            type="button"
+            className="pop-opt"
+            role="menuitem"
+            disabled={busy}
+            onClick={() => void showCard()}
+          >
+            {words.mandateRequest}
+          </button>
         )}
         <div className="pop-sep" />
         <button

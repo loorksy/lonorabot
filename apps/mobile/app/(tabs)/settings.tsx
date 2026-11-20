@@ -58,13 +58,16 @@ export default function Settings() {
             onPress={() => router.push("/owner")}
           />
           <SettingsRow title={t("account")} icon="agent" onPress={() => router.push("/account")} />
-          <SettingsRow title={t("models")} icon="settings" onPress={() => router.push("/models")} />
           <SettingsRow
-            title={t("capabilities")}
+            title={t("integrations")}
             icon="layers"
             onPress={() => router.push("/integrations")}
           />
-          <SettingsRow title={t("voice")} icon="activity" onPress={() => router.push("/voice")} />
+          <SettingsRow
+            title={t("notificationsAndContact")}
+            icon="activity"
+            onPress={() => router.push("/notify-settings")}
+          />
         </SettingsGroup>
         <SettingsGroup>
           <SettingsRow
@@ -82,7 +85,6 @@ export default function Settings() {
             icon="settings"
             onPress={() => setMode(mode === "dark" ? "light" : "dark")}
           />
-          <SettingsRow title={t("server")} icon="globe" onPress={() => router.push("/server")} />
         </SettingsGroup>
       </ScrollView>
     </View>

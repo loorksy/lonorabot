@@ -15,7 +15,7 @@ past ``expires_at`` reads as expired and is settled as expired when next touched
 """
 
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from lonora_contracts.account_authority import (
     ALL_AUTHORITY_ACTIONS,
@@ -825,8 +825,9 @@ async def propose_effect(
     agent_id: str,
     thread_id: str | None,
     run_id: str | None,
+    source: Literal["agent", "owner"] = "agent",
 ) -> tuple[OwnerActionRow, bool]:
-    """An agent's card for one validated effect: deduplicated per agent, capped. The
+    """A card for one validated effect: deduplicated per agent, with a cap on agent proposals. The
     caller holds the owner-actions lock and has checked the card id is new."""
     reason = await stale_reason(session, owner_id, kind, payload)
     if reason is not None:
@@ -843,19 +844,20 @@ async def propose_effect(
             "expired" if current.expires_at <= utcnow() else "conversation_deleted",
             by=card_id,
         )
-    pending = await session.scalar(
-        select(func.count())
-        .select_from(OwnerActionRow)
-        .where(
-            OwnerActionRow.owner_id == owner_id,
-            OwnerActionRow.agent_id == agent_id,
-            OwnerActionRow.source == "agent",
-            OwnerActionRow.status == "pending",
-            OwnerActionRow.expires_at > utcnow(),
+    if source == "agent":
+        pending = await session.scalar(
+            select(func.count())
+            .select_from(OwnerActionRow)
+            .where(
+                OwnerActionRow.owner_id == owner_id,
+                OwnerActionRow.agent_id == agent_id,
+                OwnerActionRow.source == "agent",
+                OwnerActionRow.status == "pending",
+                OwnerActionRow.expires_at > utcnow(),
+            )
         )
-    )
-    if (pending or 0) >= MAXIMUM_PENDING_PER_AGENT:
-        raise ToolRefusal("owner_action_limit", 429, details=CARDS_WAITING)
+        if (pending or 0) >= MAXIMUM_PENDING_PER_AGENT:
+            raise ToolRefusal("owner_action_limit", 429, details=CARDS_WAITING)
     thread = await card_thread(session, owner_id, agent_id, thread_id)
     row = await create_card(
         session,
@@ -864,7 +866,7 @@ async def propose_effect(
         agent_id=agent_id,
         thread=thread,
         run_id=run_id,
-        source="agent",
+        source=source,
         kind=kind,
         subject=subject,
         payload=payload,

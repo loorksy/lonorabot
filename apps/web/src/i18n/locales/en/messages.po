@@ -3520,8 +3520,7 @@ msgstr "General agent"
 msgid "Global embedding model"
 msgstr "Global embedding model"
 
-#: src/pages/settings-sidebar.tsx:14
-#: src/shell/settings/SettingsRoot.tsx:366
+#: src/shell/settings/IntegrationsPage.tsx:624
 msgid "Global models"
 msgstr "Global models"
 
@@ -3530,8 +3529,8 @@ msgid "Global routing"
 msgstr "Global routing"
 
 #: src/pages/TradingSettingsPanel.tsx:7
-msgid "Global trading settings"
-msgstr "Global trading settings"
+#~ msgid "Global trading settings"
+#~ msgstr "Global trading settings"
 
 #: src/conversation/Conversation.tsx:1133
 msgid "Go to the latest messages"
@@ -3553,8 +3552,7 @@ msgstr "Go to the quoted message"
 msgid "Goal title"
 msgstr "Goal title"
 
-#: src/shell/agent/AgentPage.tsx:236
-#: src/shell/pages.tsx:119
+#: src/shell/pages.tsx:115
 msgid "Goals"
 msgstr "Goals"
 
@@ -8624,12 +8622,10 @@ msgstr "Trades"
 msgid "Trades on its own"
 msgstr "Trades on its own"
 
-#: src/conversation/PermissionMenu.tsx:281
-#: src/conversation/sheets/AgentSheet.tsx:333
-#: src/pages/settings-sidebar.tsx:16
+#: src/conversation/PermissionMenu.tsx:303
+#: src/conversation/sheets/AgentSheet.tsx:341
 #: src/pages/Trading.tsx:24
-#: src/shell/agent/AgentPage.tsx:255
-#: src/shell/settings/SettingsRoot.tsx:368
+#: src/shell/agent/AgentPage.tsx:256
 msgid "Trading"
 msgstr "Trading"
 
@@ -9089,8 +9085,8 @@ msgstr "View usage"
 msgid "Vision"
 msgstr "Vision"
 
-#: src/pages/settings-sidebar.tsx:15
-#: src/shell/settings/SettingsRoot.tsx:367
+#: src/shell/pages.tsx:145
+#: src/shell/settings/NotifyPages.tsx:363
 msgid "Voice"
 msgstr "Voice"
 

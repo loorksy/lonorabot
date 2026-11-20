@@ -79,6 +79,7 @@ async def trading_readiness(
     if fixed_market(agent):
         accounts_query = accounts_query.where(BrokerSessionRow.id == agent.trading_account_id)
     accounts = list(await session.scalars(accounts_query.limit(ACCOUNT_LIMIT)))
+    has_trading_account = bool(accounts)
     # The accounts the line speaks for: the agent's own market; in Ask, its signed grants
     # when it trades on its own under them; otherwise every account it trades on (Full)
     # or may ask to trade on. The sheet still lists operations on the other accounts, each
@@ -183,6 +184,7 @@ async def trading_readiness(
         "state": state,
         "params": params,
         "trading_mode": mode,
+        "has_trading_account": has_trading_account,
         "level": level,
         "grants": grants,
         "unresolved_operations": operations,

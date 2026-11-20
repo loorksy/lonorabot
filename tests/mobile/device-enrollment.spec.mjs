@@ -59,7 +59,8 @@ test("Expo call settings register this device with the passkey, in Arabic", asyn
       automaticPresenceSimulation: true,
     },
   });
-  await page.goto("/voice");
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "الإشعارات والتواصل", exact: true }).click();
   await expect(page.getByText("كيف نتواصل معك", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "اتصل بي", exact: true })).toBeDisabled();
   const register = page.getByRole("button", { name: "سجّل هذا الجهاز", exact: true });

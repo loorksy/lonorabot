@@ -359,6 +359,9 @@ export function NotifyPage() {
           </form>
         </>
       )}
+      <div className="group">
+        <NavRow icon="phone" label={t`Voice`} to="/app/voice-settings" />
+      </div>
       <h3>
         <Trans>Per agent</Trans>
       </h3>
