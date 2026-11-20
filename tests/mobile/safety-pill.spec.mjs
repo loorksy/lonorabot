@@ -52,14 +52,6 @@ for (const locale of ["ar", "en"])
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
     });
-    const permissions = await (
-      await context.request.get(`/api/agents/${agent.id}/permissions`)
-    ).json();
-    const changed = await context.request.put(`/api/agents/${agent.id}/permissions`, {
-      headers,
-      data: { level: "supervised", expected_revision: permissions.revision },
-    });
-    expect(changed.ok()).toBeTruthy();
     await page.goto(`/thread?id=${thread.id}`);
     // Nothing is uncertain: the capsule is absent. There is no Stop control.
     await expect(page.getByTestId("safety-pill")).toHaveCount(0);

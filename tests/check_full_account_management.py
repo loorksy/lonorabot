@@ -24,11 +24,7 @@ async def main():
         agents = (await f.client.get("/api/agents")).json()
         agent = next(row for row in agents if row["role"] == "personal")
         permission = await f.request("GET", f"/agents/{agent['id']}/permissions")
-        await f.request(
-            "PUT",
-            f"/agents/{agent['id']}/permissions",
-            {"level": "supervised", "expected_revision": permission["revision"]},
-        )
+        assert permission["effective_level"] == "supervised"
         thread = await f.conversation(agent)
         context = await f.lease(await f.run(agent, thread))
         connection = await f.request(

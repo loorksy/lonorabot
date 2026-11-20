@@ -106,13 +106,8 @@ async def checks() -> None:
         )
         assert set(symbols) <= set(actual["symbols"])
         permission = await f.request("GET", f"/agents/{personal_id}/permissions")
-        # Lonora starts at Ask me (W15-3): every trade is an approval card.
+        # Lonora starts at Ask me: every trade is an approval card. No route writes it.
         assert permission["effective_level"] == "supervised"
-        await f.request(
-            "PUT",
-            f"/agents/{personal_id}/permissions",
-            {"level": "supervised", "expected_revision": permission["revision"]},
-        )
         entry = {
             "account_id": account,
             "symbol": symbols[0],

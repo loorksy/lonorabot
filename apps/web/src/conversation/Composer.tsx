@@ -255,14 +255,9 @@ export function Composer({
     };
   }, []);
 
+  // Q9: a connected account is the only reason the mode control is shown.
   const trading = agent
-    ? agent.template === "trading" ||
-      showsTradingControl({
-        role: agent.role,
-        trading_account_id: agent.trading_account_id,
-        level: permission?.effective_level,
-        grants: permission?.active_authorities.length,
-      })
+    ? showsTradingControl({ trading_account_id: agent.trading_account_id })
     : false;
 
   /* ---- mentions: group members (+ القائد, متوقف), then @الكل; a direct chat: other agents
@@ -1048,16 +1043,7 @@ export function Composer({
           >
             <Icon name="plus" />
           </button>
-          <PermissionChip
-            threadId={threadId}
-            agent={agent}
-            isGroup={isGroup}
-            trading={trading}
-            // Another agent's level is never shown while this one's loads.
-            permission={permission?.agent_id === agent?.id ? permission : null}
-            permissionFailed={permissionFailed}
-            onChanged={setPermission}
-          />
+          <PermissionChip threadId={threadId} agent={agent} isGroup={isGroup} trading={trading} />
           {options.webSearch && (
             <button
               type="button"

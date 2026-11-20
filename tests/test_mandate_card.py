@@ -443,13 +443,19 @@ async def test_every_agent_read_carries_its_mode_and_full_is_marked_on_its_own()
     try:
         agent = await fixture.agent("Roster", supervised=True)
         held = await fixture.agent("Held")
-        # The old ladder's "No trading", set by the owner: no agent starts there (4.1).
+        # The old ladder's "No trading", stored in-process: no agent starts there, and no
+        # route writes a level (4.1).
+        from lonora_contracts.agent_permissions import PermissionChange
+        from lonora_db.agent_permissions import change_permission
+
         state = await fixture.request("GET", f"/agents/{held['id']}/permissions")
-        await fixture.request(
-            "PUT",
-            f"/agents/{held['id']}/permissions",
-            {"level": "analysis", "expected_revision": state["revision"]},
-        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await change_permission(
+                session,
+                fixture.owner,
+                held["id"],
+                PermissionChange(level="analysis", expected_revision=state["revision"]),
+            )
         assert agent["trading_mode"] == "ask"
         rows = await roster(fixture)
         assert {row["trading_mode"] for row in rows.values()} <= {"ask", "full"}, rows

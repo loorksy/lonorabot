@@ -36,6 +36,13 @@ export const ownerActionLabels = {
     modeFullLine: "Trades on its own and reports afterwards.",
     modeAskLine:
       "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
+    modeAskClause: "Every trade that adds risk waits for your approval",
+    modeFullClause: "It trades on its own and reports afterwards",
+    unresolvedOne: "One unconfirmed operation is waiting for you",
+    unresolvedMany: "{n} unconfirmed operations are waiting for you",
+    withdrawnOne: "one approval request withdrawn",
+    withdrawnTwo: "two approval requests withdrawn",
+    withdrawnMany: "{n} approval requests withdrawn",
     mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
     mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
     mandateGrantStays:
@@ -212,6 +219,13 @@ export const ownerActionLabels = {
     modeAsk: "يستأذن",
     modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",
     modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
+    modeAskClause: "كل صفقة تزيد المخاطرة تنتظر موافقتك",
+    modeFullClause: "يتداول بنفسه ويخبرك بعد التنفيذ",
+    unresolvedOne: "عملية غير مؤكدة بانتظارك",
+    unresolvedMany: "{n} عمليات غير مؤكدة بانتظارك",
+    withdrawnOne: "سُحب طلب موافقة واحد",
+    withdrawnTwo: "سُحب طلبا موافقة",
+    withdrawnMany: "سُحب {n} طلبات موافقة",
     mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
     mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
     mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
@@ -550,6 +564,53 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
 
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
+}
+
+/** «التفويض: يستأذن» / "Trading mode: Ask". Null when the agent has no mode. */
+export function mandateLine(mode: string | null | undefined, locale: string): string | null {
+  const text = ownerActionText(locale);
+  if (mode === "full") return `${text.mandateTitle}: ${text.modeFull}`;
+  if (mode === "ask") return `${text.mandateTitle}: ${text.modeAsk}`;
+  return null;
+}
+
+/** The line under the mode: an unconfirmed operation, otherwise the mode's first clause. */
+export function tradingSubLine(
+  unresolved: number | null | undefined,
+  mode: string | null | undefined,
+  locale: string,
+): string | null {
+  const text = ownerActionText(locale);
+  const count = unresolved ?? 0;
+  if (count === 1) return text.unresolvedOne;
+  if (count > 1)
+    return fill(text.unresolvedMany, {
+      n: language(locale) === "ar" ? isolate(String(count)) : String(count),
+    });
+  if (mode === "ask") return text.modeAskClause;
+  if (mode === "full") return text.modeFullClause;
+  return null;
+}
+
+/** The one line after a Mandate tap. The withdrawn count is the server's, and only for Full. */
+export function modeChangeLine(
+  name: string,
+  mode: "ask" | "full",
+  withdrawn: number,
+  locale: string,
+): string {
+  const text = ownerActionText(locale);
+  const head = `${name}: ${mode === "full" ? text.modeFull : text.modeAsk}`;
+  if (mode !== "full" || !Number.isInteger(withdrawn) || withdrawn < 1) return head;
+  const tail =
+    withdrawn === 1
+      ? text.withdrawnOne
+      : withdrawn === 2
+        ? text.withdrawnTwo
+        : fill(text.withdrawnMany, {
+            n: language(locale) === "ar" ? isolate(String(withdrawn)) : String(withdrawn),
+          });
+  return `${head} · ${tail}`;
 }
 
 function marketsLabel(

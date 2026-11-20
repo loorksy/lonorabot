@@ -97,10 +97,18 @@ async def main() -> None:
             return await f.request("GET", path)
 
         async def change(level: str):
+            # No route writes a level. The stored ladder still decides the door until it goes.
+            from lonora_contracts.agent_permissions import PermissionChange
+            from lonora_db.agent_permissions import change_permission
+
             previous = await state()
-            return await f.request(
-                "PUT", path, {"level": level, "expected_revision": previous["revision"]}
-            )
+            async with f.runtime.db.sessions() as session, session.begin():
+                return await change_permission(
+                    session,
+                    f.owner,
+                    agent["id"],
+                    PermissionChange(level=level, expected_revision=previous["revision"]),
+                )
 
         def call(action: str = "buy", **params: Any):
             return ToolCall(
@@ -156,12 +164,15 @@ async def main() -> None:
             return await f.request("POST", "/account-authorities/verify", proof), proof
 
         initial = await state()
-        # A new trading agent starts at Ask me (W15-3); this check starts from No trading,
-        # the owner's explicit choice.
+        # A new trading agent starts at Ask me. No route writes a level; this check stores
+        # No trading in-process, the owner's old explicit choice.
         assert initial["effective_level"] == "supervised" and not initial["active_authorities"]
-        initial = await f.request(
-            "PUT", path, {"level": "analysis", "expected_revision": initial["revision"]}
+        written = await f.client.put(
+            "/api" + path,
+            json={"level": "analysis", "expected_revision": initial["revision"]},
         )
+        assert written.status_code == 405
+        initial = await change("analysis")
         assert initial["effective_level"] == "analysis"
         async with f.runtime.db.sessions() as session:
             try:
@@ -176,19 +187,10 @@ async def main() -> None:
             assert (await anonymous.get("/api" + path)).status_code == 401
         missing = await f.client.get("/api/agents/" + str(uuid4()) + "/permissions")
         assert missing.status_code == 404
-        csrf = f.client.headers.pop("X-CSRF-Token")
-        try:
-            denied = await f.client.put(
-                "/api" + path,
-                json={"level": "supervised", "expected_revision": initial["revision"]},
-            )
-            assert denied.status_code == 403
-        finally:
-            f.client.headers["X-CSRF-Token"] = csrf
         unsigned = await f.client.put(
             "/api" + path, json={"level": "autonomous", "expected_revision": initial["revision"]}
         )
-        assert unsigned.status_code in {403, 409, 422}
+        assert unsigned.status_code == 405
         assert (await state())["effective_level"] == "analysis"
         before = await broker.snapshot()
         denied = await execute(call(volume="0.1", stop_loss="90"))
@@ -212,7 +214,7 @@ async def main() -> None:
             raise AssertionError("Direct executor bypassed Analysis Only")
         assert await broker.snapshot() == before
         print(
-            "PASS a new trading agent starts at Ask me and No trading is enforced; auth/CSRF and unsigned autonomy cannot bypass server enforcement"
+            "PASS a new trading agent starts at Ask me; no route writes a level; No trading is enforced"
         )
 
         # The very same financial intent is proposed, not submitted, in supervised mode.
@@ -249,12 +251,19 @@ async def main() -> None:
             "duration": "24h",
             "allow_manual_positions": False,
         }
+        from lonora_contracts.agent_permissions import PermissionCustomizationChange
+        from lonora_db.agent_permissions import save_customization
+
         previous = await state()
-        saved = await f.request(
-            "PUT",
-            path + "/customization",
-            {"expected_revision": previous["revision"], "customization": draft},
-        )
+        async with f.runtime.db.sessions() as session, session.begin():
+            saved = await save_customization(
+                session,
+                f.owner,
+                agent["id"],
+                PermissionCustomizationChange(
+                    expected_revision=previous["revision"], customization=draft
+                ),
+            )
         assert saved["customization"] == draft
         assert saved["effective_level"] == "supervised"
         pending = await propose(maximum_order_volume="0.3")
@@ -382,19 +391,26 @@ async def main() -> None:
             "PASS downgrade revokes pending proofs and grant work; no old signature reactivation, position closure, journal deletion or draft loss"
         )
 
-        # Stale client updates cannot race a restrictive update and silently win.
+        # Stale writes cannot race a restrictive update and silently win. No route writes a level.
+        from lonora_contracts.agent_permissions import PermissionChange
+        from lonora_db.agent_permissions import change_permission
+
         current = await state()
-        updates = await asyncio.gather(
-            *[
-                f.client.put(
-                    "/api" + path, json={"level": level, "expected_revision": current["revision"]}
+
+        async def race(level: str):
+            async with f.runtime.db.sessions() as session, session.begin():
+                return await change_permission(
+                    session,
+                    f.owner,
+                    agent["id"],
+                    PermissionChange(level=level, expected_revision=current["revision"]),
                 )
-                for level in ("supervised", "analysis")
-            ]
+
+        updates = await asyncio.gather(
+            *[race(level) for level in ("supervised", "analysis")], return_exceptions=True
         )
-        assert sorted(result.status_code for result in updates) == [200, 409], [
-            r.status_code for r in updates
-        ]
+        statuses = [409 if isinstance(result, LonoraError) else 200 for result in updates]
+        assert sorted(statuses) == [200, 409], updates
         assert (await state())["revision"] > current["revision"]
         await change("supervised")
         stale_revision = (await state())["revision"]

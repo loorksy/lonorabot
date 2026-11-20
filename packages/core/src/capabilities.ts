@@ -22,7 +22,7 @@ export const capabilityLabels = {
   en: {
     title: "Capabilities",
     intro:
-      "Everything your agents can use now. Inside your trusted sources they install and use things without asking; money moves only inside the grants you signed.",
+      "Everything your agents can use now. Inside your trusted sources they install and use things without asking; a trade that adds risk waits for your approval unless you switch that agent to Full.",
     trustedSources: "Trusted sources",
     skills: "Skills",
     servers: "MCP servers",
@@ -77,7 +77,7 @@ export const capabilityLabels = {
     trustRead: "Trust: read only",
     trustWrite: "Trust: non-financial writes",
     neverMoney:
-      "Tools that look like they trade or move money are blocked and never run. Money moves only through your grants.",
+      "Tools that look like they trade or move money are blocked and never run. A trade goes through that agent's mode, Ask or Full.",
     writes: "may change something (only with non-financial writes)",
     needWrites: "need non-financial writes",
     needsReview: "declaration removed, review it to keep using it",
@@ -88,7 +88,7 @@ export const capabilityLabels = {
   ar: {
     title: "القدرات",
     intro:
-      "كل ما يستطيع وكلاؤك استخدامه الآن. ضمن مصادرك الموثوقة يثبّتون ويستخدمون دون أن يسألوك؛ والمال لا يتحرك إلا ضمن التفويضات التي وقّعتها.",
+      "كل ما يستطيع وكلاؤك استخدامه الآن. ضمن مصادرك الموثوقة يثبّتون ويستخدمون دون أن يسألوك؛ وكل صفقة تزيد المخاطرة تنتظر موافقتك إلا إذا وكّلت ذلك الوكيل.",
     trustedSources: "المصادر الموثوقة",
     skills: "المهارات",
     servers: "خوادم MCP",
@@ -143,7 +143,7 @@ export const capabilityLabels = {
     trustRead: "ثقة: قراءة فقط",
     trustWrite: "ثقة: كتابة غير مالية",
     neverMoney:
-      "الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا. المال لا يتحرك إلا ضمن تفويضاتك.",
+      "الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا. الصفقة تمر بتفويض ذلك الوكيل: يستأذن أو وكّله.",
     writes: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
     needWrites: "تحتاج الكتابة غير المالية",
     needsReview: "أُزيل الإعلان، راجعه لتواصل استخدامه",

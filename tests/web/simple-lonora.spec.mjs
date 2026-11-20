@@ -22,29 +22,13 @@ const words = {
 const text = {
   approvalTitle: "طلب تداول",
   approve: "موافقة",
-  authorize: "التفويض بمفتاح المرور",
-  password: "كلمة مرور الحساب",
-  register: "سجّل هذا الجهاز أولًا",
-  signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
-  onItsOwn: "يتداول باستقلال",
-  asks: "يسألك قبل كل صفقة",
+  full: "وكّله",
+  ask: "يستأذن",
 };
 
 const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map((row) => row.id);
 
-/* The trading line of an agent: «الحالة والأمان» from the chat's ⋮ menu (the reference pins
-   nothing under the header in a normal state). */
-async function modeLine(page) {
-  await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
-  await page
-    .getByRole("menuitem", {
-      name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
-    })
-    .click();
-  return page.getByTestId("agent-mode-line");
-}
-
-test("ar: one sentence creates a gold agent; one tap approves a trade, one passkey signs the grant", async ({
+test("ar: one sentence creates a gold agent; one tap approves a trade, one tap sets Full", async ({
   page,
   context,
   cleanup,
@@ -70,31 +54,13 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
   ).json();
   const name = `Gold agent ${randomUUID().slice(0, 6)}`;
   let gold;
-  // enroll: the one-time device registration on a device with no passkey yet.
-  const taps = { create: 0, enroll: 0, approve: 0 };
+  const taps = { create: 0, approve: 0 };
   const said = async (sentence) => {
     const composer = page.locator("textarea");
     await composer.fill(sentence);
     await composer.press("Enter");
     await expect(page.getByText(sentence, { exact: true }).first()).toBeVisible();
   };
-  // A fresh authenticator: the first passkey on this device registers inline.
-  for (const device of await (await context.request.get("/api/auth/devices")).json())
-    expect(
-      (await context.request.delete(`/api/auth/devices/${device.id}`, { headers })).ok(),
-    ).toBeTruthy();
-  const cdp = await context.newCDPSession(page);
-  await cdp.send("WebAuthn.enable");
-  await cdp.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
-  });
   const decisions = [];
   page.on("request", (request) => {
     const url = request.url();
@@ -108,7 +74,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     if (gold) await context.request.delete(`/api/agents/${gold}`, { headers });
     simulation({ ...data, action: "cleanup" });
   });
-  // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
+  // 1. «أنشئ وكيل ذهب …»: the agent and its Mandate card, with no question asked.
   await page.goto(`/app/${lonora.id}`);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   await said(words.createGold);
@@ -121,29 +87,27 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
   expect(created.status, `creation run ${created.error_code}`).toBe("completed");
   gold = created.agent;
   expect(gold).toBeTruthy();
-  // One grant card and no creation card (Lonora says it in one line); nothing else.
   expect(raised(created, "agent_created")).toHaveLength(0);
-  const [grantId] = raised(created, "grant_authority");
-  expect(raised(created, "grant_authority")).toHaveLength(1);
-  const grantRow = (
+  expect(raised(created, "grant_authority")).toHaveLength(0);
+  const [mandateId] = raised(created, "trading_mode");
+  expect(raised(created, "trading_mode")).toHaveLength(1);
+  const mandateRow = (
     await (await context.request.get(`/api/owner-actions?thread_id=${lonoraThread.id}`)).json()
-  ).find((row) => row.id === grantId);
-  expect(grantRow.facts.grant.agent_name).toBe(name);
-  const grant = page.locator(`[data-owner-action="${grantRow.id}"]`);
-  await expect(grant).toHaveAttribute("data-owner-action-status", "pending");
-  await expect(grant.getByText(data.symbol).first()).toBeVisible();
-  await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-ar.png") });
+  ).find((row) => row.id === mandateId);
+  expect(mandateRow.facts.agent.name).toBe(name);
+  expect(mandateRow.facts.trading_mode).toBe("ask");
+  const mandate = page.locator(`[data-owner-action="${mandateRow.id}"]`);
+  await expect(mandate).toHaveAttribute("data-owner-action-status", "pending");
+  await expect(mandate.getByRole("button", { name: text.full, exact: true })).toBeVisible();
+  await mandate.screenshot({ path: test.info().outputPath("simple-lonora-mandate-ar.png") });
 
-  // 2. Before any grant the agent asks: one approval card, one tap.
+  // 2. Before the tap the agent asks: one approval card, one tap.
   const goldThread = await (
     await context.request.post(`/api/agents/${gold}/conversation`, { headers, data: {} })
   ).json();
+  await page.goto(`/app/agent/${gold}`);
+  await expect(page.locator("main .badge")).toContainText(text.ask);
   await page.goto(`/app/${gold}`);
-  // Ask me until the grant: the pill says it asks before each trade.
-  await expect(await modeLine(page)).toContainText(text.asks);
-  await page.keyboard.press("Escape");
-  // The sheet slides away before the conversation behind it takes input again.
-  await expect(page.locator("#app")).not.toHaveAttribute("inert", "");
   await said(words.buyOnce);
   const asked = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
   expect(asked.status).toBe("waiting_input");
@@ -158,29 +122,21 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
   // The confirmed order is shown once, as its Execution Receipt (10.3).
   await expect(page.locator("[data-execution-receipt]").last()).toBeVisible();
 
-  // 3. One passkey tap signs the grant. On a device with no passkey yet the
-  //    same card first asks for the password and registers the device; registering
-  //    continues straight into the passkey prompt for this decision (no second tap).
+  // 3. One tap on the Mandate card sets Full. No passkey.
   await page.goto(`/app/${lonora.id}`);
-  const card = page.locator(`[data-owner-action="${grantRow.id}"]`);
-  const authorize = card.getByRole("button", { name: text.authorize, exact: true });
-  await authorize.click();
+  const card = page.locator(`[data-owner-action="${mandateRow.id}"]`);
+  await card.getByRole("button", { name: text.full, exact: true }).click();
   taps.create += 1;
-  await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
-  await card.getByRole("button", { name: text.register, exact: true }).click();
-  taps.enroll += 1;
   await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-  await expect(card.getByRole("status")).toHaveText(text.signed);
+  const agent = await (await context.request.get(`/api/agents/${gold}`)).json();
+  expect(agent.trading_mode).toBe("full");
   const permission = await (await context.request.get(`/api/agents/${gold}/permissions`)).json();
-  expect(permission.effective_level).toBe("autonomous");
-  expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-  // The gold agent's pill says what the card signed: its pair.
-  await page.goto(`/app/${gold}`);
-  const pill = await modeLine(page);
-  await expect(pill).toContainText(text.onItsOwn);
-  await expect(pill).toContainText(data.symbol);
+  expect(permission.effective_level).toBe("supervised");
+  expect(permission.active_authorities).toEqual([]);
+  await page.goto(`/app/agent/${gold}`);
+  await expect(page.locator("main .badge")).toContainText(text.full);
 
-  // The vision's counts: one confirmation each; nothing else was sent.
-  expect(taps).toEqual({ create: 1, enroll: 1, approve: 1 });
+  // One confirmation each; nothing else was sent.
+  expect(taps).toEqual({ create: 1, approve: 1 });
   expect(decisions.filter((path) => path.includes("/trading/execute"))).toEqual([]);
 });

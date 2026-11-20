@@ -112,15 +112,21 @@ async def main() -> None:
             "PASS exact symbol validation, incomplete binding rejection and legacy rename compatibility"
         )
 
-        # A root trading agent starts at Ask me (W15-3); this check holds it at No trading,
-        # the owner's explicit choice, to show visibility never authorizes trading.
+        # A root trading agent starts at Ask me. This check stores No trading in-process,
+        # the owner's old explicit choice, to show visibility never authorizes trading.
+        # No route writes a level.
+        from lonora_contracts.agent_permissions import PermissionChange
+        from lonora_db.agent_permissions import change_permission
+
         level = await f.request("GET", f"/agents/{flexible['id']}/permissions")
         assert level["effective_level"] == "supervised", level
-        await f.request(
-            "PUT",
-            f"/agents/{flexible['id']}/permissions",
-            {"level": "analysis", "expected_revision": level["revision"]},
-        )
+        async with f.runtime.db.sessions() as session, session.begin():
+            await change_permission(
+                session,
+                f.owner,
+                flexible["id"],
+                PermissionChange(level="analysis", expected_revision=level["revision"]),
+            )
         registry = load_tools()
         thread = await f.conversation(flexible)
         context = await f.lease(await f.run(flexible, thread))

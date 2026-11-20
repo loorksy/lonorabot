@@ -627,29 +627,24 @@ class Acceptance:
     # Journey 1 -----------------------------------------------------------------------
 
     async def gold_agent_trades_on_its_own(self) -> str:
-        """«أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه»: one grant
-        card, one passkey; the agent then trades by itself, and a worker that dies mid-send
-        never sends it twice."""
+        """«أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه»: one Mandate card, one tap; the
+        agent then trades by itself, and a worker that dies mid-send never sends it twice."""
         name = "J1 create a gold agent and let it trade on its own"
         words = "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه"
-        task = "يدير صفقات الذهب على حساب المالك بنفسه ضمن التفويض الموقّع."
+        task = "يدير صفقات الذهب على حساب المالك بنفسه بعد أن يوكّله المالك."
         self.model.script(
             words,
             lambda t: call(
                 "j1-create",
                 "agent_create",
-                {"name": "Gold agent", "market": "XAUUSD", "responsibility": task},
-            ),
-            lambda t: call(
-                "j1-grant",
-                "owner_action_propose",
                 {
-                    "kind": "grant_authority",
-                    "agent_id": t.result("j1-create")["agent"]["id"],
-                    "symbols": ["XAUUSD"],
+                    "name": "Gold agent",
+                    "market": "XAUUSD",
+                    "responsibility": task,
+                    "mode": "full",
                 },
             ),
-            "أنشأت وكيل الذهب على XAUUSD، وهو يسألك قبل كل صفقة حتى توقّع بطاقة التفويض.",
+            "أنشأت وكيل الذهب على XAUUSD، وهو يستأذنك حتى تلمس بطاقة التفويض.",
         )
         run = await self.work(await self.say(self.lonora_thread, words))
         assert run.status == "completed", (run.status, run.error_code)
@@ -669,49 +664,42 @@ class Acceptance:
         async with self.db.sessions() as session:
             memory = await session.get(MemoryRow, gold.id)
             assert memory is not None and f'assigned you "{GOLD}"' in memory.content
-        # Created by the owner's sentence: no question, no grant, Ask me.
+        # Created by the owner's sentence: no question, no grant, still Ask until the tap.
         assert await self.level(gold.id) == "supervised"
         assert await self.count(AccountAuthorityRow, AccountAuthorityRow.agent_id == gold.id) == 0
         # No creation card: Lonora tells the owner in one line (10.3, Q3).
         assert await self.pending(self.lonora_thread, "agent_created") == []
-        grant_cards = await self.pending(self.lonora_thread, "grant_authority")
-        assert len(grant_cards) == 1, grant_cards
-        card = grant_cards[0]
-        grant = card["facts"]["grant"]
-        assert grant["symbols"] == [GOLD] and grant["symbol_scope"] == "selected", grant
-        assert grant["duration"] == "until_stopped" and grant["all_actions"] is True
-        assert grant["allow_manual_positions"] is False  # D1: the owner's own excluded.
-        assert card["requires_passkey"] is True
-        # Nothing trades before the signature: the agent is still Ask me.
+        assert await self.pending(self.lonora_thread, "grant_authority") == []
+        mandate_cards = [
+            card
+            for card in await self.pending(self.lonora_thread, "trading_mode")
+            if card["facts"].get("agent", {}).get("id") == gold.id
+        ]
+        assert len(mandate_cards) == 1, mandate_cards
+        card = mandate_cards[0]
+        assert card["facts"]["trading_mode"] == "ask", card["facts"]
+        assert card["requires_passkey"] is False
+        # Nothing trades on its own before the tap: the agent is still Ask.
         state = await self.state(gold.id)
         assert state["trading_readiness"]["state"] == "ask_me", state
-        # One tap on Authorize with the passkey (the device enrolls inline the first time).
-        decided = await self.passkey(name, card["id"], {})
+        # One tap on the Mandate card sets Full. No passkey.
+        decided = await self.decide(
+            name, card["id"], {"decision": "confirm", "trading_mode": "full"}
+        )
         assert decided["status"] == "confirmed", decided
-        assert await self.level(gold.id) == "autonomous"
-        # The status line, the card and the records agree.
+        assert decided["result"]["trading_mode"] == "full"
+        assert await self.level(gold.id) == "supervised"
         readiness = (await self.state(gold.id))["trading_readiness"]
-        assert readiness["state"] == "on_its_own", readiness
-        assert readiness["params"]["symbols"] == [GOLD], readiness["params"]
-        assert readiness["grants"][0]["allow_manual_positions"] is False
-        async with self.db.sessions() as session:
-            active = list(
-                await session.scalars(
-                    select(AccountAuthorityRow).where(
-                        AccountAuthorityRow.agent_id == gold.id,
-                        AccountAuthorityRow.status == "active",
-                    )
-                )
-            )
-        assert len(active) == 1 and active[0].envelope["symbols"] == [GOLD]
+        assert readiness["state"] == "on_its_own" and readiness["trading_mode"] == "full", readiness
+        assert await self.count(AccountAuthorityRow, AccountAuthorityRow.agent_id == gold.id) == 0
         # Lonora confirms in one Arabic line in the conversation where the owner asked.
         line = (await self.lines(self.lonora_thread))[-1]
         assert any("؀" <= char <= "ۿ" for char in line), line
-        # The agent starts its responsibility: one management Task in its conversation.
+        # The agent starts its Full-mode task. The kickoff run is keyed by the agent.
         management = [
             row
             for row in await self.runs(gold.id)
-            if row.model_metadata.get("account_management_id") == active[0].id
+            if row.model_metadata.get("account_management_id") == gold.id
         ]
         assert len(management) == 1 and management[0].status == "queued", management
         self.journey(name, 1)
@@ -732,7 +720,7 @@ class Acceptance:
             "reason": "Fixture entry",
         }
         script = self.model.script(
-            "The owner has authenticated automatic management of account",
+            "You are in Full mode",
             lambda t: call("j1-buy", "trade_execute", order),
             # After the restart the model sees its order as uncertain and, careless, asks
             # for the same order again under a new call: it must not reach the broker.
@@ -894,9 +882,8 @@ class Acceptance:
     # Journey 2 -----------------------------------------------------------------------
 
     async def lonora_manages_all_pairs(self) -> None:
-        """«خلي لونورا تدير كل أزواجي بنفسها»: one grant card per connected account with
-        all pairs preselected; a broker event on one of its positions wakes Lonora with its
-        normal authority."""
+        """«خلي لونورا تدير كل أزواجي بنفسها»: one tap on Lonora's Mandate card; a broker
+        event on one of its positions wakes Lonora with its normal authority."""
         name = "J2 let Lonora manage all my pairs"
         connection = await self.request(
             "POST",
@@ -911,44 +898,26 @@ class Acceptance:
         )
         await self.services.brokers.get(self.owner, self.second_account)
         words = "خلي لونورا تدير كل أزواجي بنفسها"
-        self.model.script(
-            words,
-            lambda t: calls(
-                (
-                    "j2-first",
-                    "owner_action_propose",
-                    {"kind": "grant_authority", "account_id": self.account},
-                ),
-                (
-                    "j2-second",
-                    "owner_action_propose",
-                    {"kind": "grant_authority", "account_id": self.second_account},
-                ),
-            ),
-            "جهّزت بطاقة تفويض لكل حساب: كل الأزواج، حتى توقفه.",
-        )
+        self.model.script(words, "لونورا تستأذن. بطاقة التفويض في المحادثة، ولمستك توكّلها.")
         run = await self.work(await self.say(self.lonora_thread, words))
         assert run.status == "completed", (run.status, run.error_code)
-        cards = await self.pending(self.lonora_thread, "grant_authority")
-        assert len(cards) == 2, cards
-        by_account = {card["facts"]["account"]["id"]: card for card in cards}
-        assert set(by_account) == {self.account, self.second_account}
-        for card in cards:
-            grant = card["facts"]["grant"]
-            assert grant["symbol_scope"] == "account" and grant["agent_is_personal"] is True
-            assert grant["allow_manual_positions"] is False
-        # The gold agent already trades gold on the first account: the card says so.
-        names = [item["agent_name"] for item in by_account[self.account]["facts"]["conflicts"]]
-        assert names == ["Gold agent"], names
-        for card in cards:
-            decided = await self.passkey(name, card["id"], {})  # Keep both agents.
-            assert decided["status"] == "confirmed", decided
-        assert await self.level(self.lonora) == "autonomous"
+        assert await self.pending(self.lonora_thread, "grant_authority") == []
+        cards = [
+            card
+            for card in await self.pending(self.lonora_thread, "trading_mode")
+            if card["facts"].get("agent", {}).get("id") == self.lonora
+        ]
+        assert len(cards) == 1, cards
+        decided = await self.decide(
+            name, cards[0]["id"], {"decision": "confirm", "trading_mode": "full"}
+        )
+        assert decided["status"] == "confirmed", decided
+        assert await self.level(self.lonora) == "supervised"
         readiness = (await self.state(self.lonora))["trading_readiness"]
-        assert readiness["state"] == "on_its_own" and readiness["params"]["grant_count"] == 2
-        assert readiness["params"]["symbol_scope"] == "account"
-        assert await self.level(self.created[0]) == "autonomous"  # "Keep both".
-        self.journey(name, 2)  # One per connected account; here there are two.
+        assert readiness["state"] == "on_its_own" and readiness["trading_mode"] == "full"
+        gold = await self.request("GET", f"/agents/{self.created[0]}")
+        assert gold["trading_mode"] == "full"  # The gold agent's own tap, not this one.
+        self.journey(name, 1)
 
         # Lonora trades on its own now, then the broker closes the position at its stop.
         words = "افتح شراء 0.1 يورو دولار على الحساب الثاني بوقف خسارة 1.0900"
@@ -973,7 +942,7 @@ class Acceptance:
         run = await self.work(await self.say(self.lonora_thread, words))
         assert run.status == "completed", (run.status, run.error_code)
         opened = [p for p in await self.positions(self.second_account) if p["symbol"] == EURO]
-        assert len(opened) == 1, opened  # No tap: the signed grant covers it.
+        assert len(opened) == 1, opened  # No tap: Full sends it.
         brokers = self.services.brokers
         await reconcile_broker_account(self.db, brokers, self.owner, self.second_account)
         async with self.db.sessions() as session, session.begin():
@@ -1633,8 +1602,11 @@ class Acceptance:
     async def properties(self) -> None:
         import re
 
-        # 1. Nothing traded without a grant or a tap: every live operation an agent sent
-        #    was authorized by a signed grant or by the owner's approval of that operation.
+        # 1. Nothing traded without a grant, a tap on that operation, or Full. This
+        #    journey signs no grant. Full is the owner's tap on that agent's Mandate
+        #    card; the gold send's submitted_at is then moved back two minutes so
+        #    reconciliation can pass its grace, so this check cannot order the send
+        #    against the decision by that column.
         async with self.db.sessions() as session:
             rows = list(
                 await session.scalars(
@@ -1645,8 +1617,6 @@ class Acceptance:
                     )
                 )
             )
-        assert rows
-        async with self.db.sessions() as session:
             approved = {
                 item["operation_id"]
                 for approval in await session.scalars(
@@ -1657,20 +1627,41 @@ class Acceptance:
                 )
                 for item in approval.requests
             }
-        granted = tapped = 0
+            modes = {
+                agent.id: agent.trading_mode
+                for agent in await session.scalars(
+                    select(AgentRow).where(AgentRow.owner_id == self.owner)
+                )
+            }
+            full_since = {
+                card.subject.removeprefix("trading_mode:")
+                for card in await session.scalars(
+                    select(OwnerActionRow).where(
+                        OwnerActionRow.owner_id == self.owner,
+                        OwnerActionRow.kind == "trading_mode",
+                        OwnerActionRow.status == "confirmed",
+                    )
+                )
+                if (card.result or {}).get("trading_mode") == "full"
+            }
+        assert rows
+        granted = tapped = full = 0
         for row in rows:
             execution = cast(dict[str, Any], row.result.get("details", {}).get("execution") or {})
             assert execution.get("send_authorized") is True, row.operation_id
+            agent_id = execution.get("agent_id")
             if execution.get("account_authority_id"):
                 granted += 1
-            else:
-                # Sent without a grant: only ever the owner's approval of this operation.
-                assert row.operation_id in approved, (row.operation_id, row.status)
+            elif row.operation_id in approved:
                 tapped += 1
-        assert granted and tapped, (granted, tapped)
+            elif modes.get(agent_id) == "full" and agent_id in full_since:
+                full += 1
+            else:
+                raise AssertionError((row.operation_id, row.status, agent_id))
+        assert granted == 0 and tapped and full, (granted, tapped, full)
         print(
-            f"PASS nothing traded without a grant or a tap: {granted} operations under a signed "
-            f"grant, {tapped} after the owner's approval"
+            f"PASS nothing traded without a grant, a tap, or Full: {granted} under a signed "
+            f"grant, {tapped} after the owner's approval, {full} after the Mandate tap"
         )
 
         # 2. No duplicates: one agent per name, one live watch per condition, one pending
@@ -1813,21 +1804,10 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                     "market": symbol,
                     "account_id": account,
                     "responsibility": "يدير صفقات الذهب على حساب المالك بنفسه.",
+                    "mode": "full",
                 },
             ),
-            lambda t: call(
-                "ui-grant",
-                "owner_action_propose",
-                {
-                    "kind": "grant_authority",
-                    "agent_id": t.result("ui-create")["agent"]["id"],
-                    # A flat agent has no bound account: the grant names the one it
-                    # was assigned, as there can be several (3.1.2).
-                    "account_id": account,
-                    "symbols": [symbol],
-                },
-            ),
-            "أنشأت وكيل الذهب؛ وقّع البطاقة ليتداول بنفسه.",
+            "أنشأت وكيل الذهب. بطاقة التفويض تنتظر لمستك.",
         )
         model.script(
             UI_WORDS["buy_once"],

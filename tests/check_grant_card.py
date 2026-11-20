@@ -189,12 +189,12 @@ async def main() -> None:
         assert await level(general["id"]) == "supervised"
         assert await level(helper_id) == "supervised"
         helper_state = await fixture.request("GET", f"/agents/{helper_id}/permissions")
-        status, refused = await raw(
-            "PUT",
-            f"/agents/{helper_id}/permissions",
-            {"level": "supervised", "expected_revision": helper_state["revision"]},
+        refused = await fixture.client.put(
+            f"/api/agents/{helper_id}/permissions",
+            json={"level": "supervised", "expected_revision": helper_state["revision"]},
         )
-        assert status == 403 and refused["code"] == "delegated_financial_authority_forbidden"
+        # No route writes a ladder level.
+        assert refused.status_code == 405
         # Editing a focus pair never moves an agent on the ladder.
         before = await fixture.request("GET", "/agents/" + general["id"])
         await fixture.request(
@@ -562,12 +562,18 @@ async def main() -> None:
         )
 
         # 7. Moving down the ladder revokes the signed grant (a new signature is needed).
+        # The owner route is gone; the stored level still does this until the ladder goes.
+        from lonora_contracts.agent_permissions import PermissionChange
+        from lonora_db.agent_permissions import change_permission
+
         state = await fixture.request("GET", f"/agents/{silver['id']}/permissions")
-        lowered = await fixture.request(
-            "PUT",
-            f"/agents/{silver['id']}/permissions",
-            {"level": "supervised", "expected_revision": state["revision"]},
-        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lowered = await change_permission(
+                session,
+                fixture.owner,
+                silver["id"],
+                PermissionChange(level="supervised", expected_revision=state["revision"]),
+            )
         assert lowered["effective_level"] == "supervised" and not lowered["active_authorities"]
         print("PASS moving down the ladder revokes the signed grant")
 

@@ -480,43 +480,25 @@ test("S2: long-press opens the message menu by touch, never by a held mouse butt
   await expect(page.getByRole("menu")).toBeVisible();
 });
 
-test("S7: the permission chip never guesses a level, and the mandate draft belongs to this chat", async ({
+test("S7: the mode chip shows the agent's mode and does not invent one", async ({
   page,
   conversation,
 }) => {
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  const permissions = `**/api/agents/${conversation.agent.id}/permissions`;
-  await page.route(permissions, (route) =>
+  await page.route(`**/api/agents/${conversation.agent.id}/permissions`, (route) =>
     route.fulfill({ status: 503, json: { code: "service_unavailable" } }),
   );
   await page.goto(`/app/${conversation.agent.id}`);
   const chip = page.getByTestId("permission-chip");
-  // The mode is on the agent. A failed ladder read does not hide it or invent a level.
-  await expect(chip).toHaveAttribute("data-level", "unknown");
+  // The mode is on the agent. A failed ladder read does not hide it or invent a mode.
+  await expect(chip).toHaveAttribute("data-level", "ask");
   await expect(chip).toHaveAttribute("data-mode", "ask");
   await expect(chip).toContainText("Ask");
   await expect(chip).not.toContainText("No execution");
   await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
-  const row = page.locator("#dialog").getByRole("button", { name: /^Permission/ });
+  const row = page.locator("#dialog").getByRole("button", { name: /^Trading mode/ });
   await expect(row).toContainText("Ask");
   await expect(row).not.toContainText("No execution");
-  await page.keyboard.press("Escape");
-  await page.unroute(permissions);
-  const drafts = [];
-  await page.route(
-    `**/api/agents/${conversation.agent.id}/account-authorities/draft`,
-    async (route) => {
-      drafts.push(route.request().postDataJSON());
-      await route.fulfill({ status: 409, json: { code: "service_unavailable" } });
-    },
-  );
-  await page.reload();
-  await expect(chip).toHaveAttribute("data-level", /^(analysis|supervised)$/);
-  await chip.click();
-  await page.getByRole("menu").getByText("Delegated execution", { exact: true }).click();
-  await page.getByRole("button", { name: "Review and sign with the passkey" }).click();
-  await expect.poll(() => drafts.length).toBe(1);
-  expect(drafts[0].thread_id).toBe(conversation.thread.id);
 });
 
 test("S8: Lonora's chat has the trading and safety section like any trading agent's", async ({
@@ -547,8 +529,10 @@ test("S8: Lonora's chat has the trading and safety section like any trading agen
   });
   await page.goto(`/app/${lonora.id}`);
   await expect(page.locator("[data-message-id='ux-message-24']")).toBeVisible();
-  // The menu is built when it opens: wait until the agent is loaded.
-  await expect(page.getByTestId("permission-chip")).toBeVisible();
+  // The menu is built when it opens: wait until the header is up. Lonora has no
+  // account, so Q9 shows no mode chip.
+  await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeVisible();
+  await expect(page.getByTestId("permission-chip")).toHaveCount(lonora.trading_account_id ? 1 : 0);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   // «المراقبات» needs a linked account (reference: a trader with an account).
   await expect(page.getByRole("menuitem", { name: "Watches" })).toHaveCount(
@@ -571,45 +555,6 @@ test("S8: Lonora's chat has the trading and safety section like any trading agen
   await page.getByRole("menuitem", { name: "Status and safety" }).click();
   await expect(page.getByRole("heading", { name: "Trading and safety" })).toBeVisible();
   await expect(page.getByTestId("agent-mode-line")).toBeVisible();
-});
-
-test("S10: the mandate sheet follows D1: until stopped, the agent's own pair", async ({
-  page,
-  conversation,
-}) => {
-  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  const { agent } = conversation;
-  expect(agent.trading_symbol).toBeTruthy();
-  const drafts = [];
-  await page.route(`**/api/agents/${agent.id}/account-authorities/draft`, async (route) => {
-    drafts.push(route.request().postDataJSON());
-    await route.fulfill({ status: 409, json: { code: "service_unavailable" } });
-  });
-  const open = async () => {
-    await page.goto(`/app/${agent.id}`);
-    const chip = page.getByTestId("permission-chip");
-    await expect(chip).toHaveAttribute("data-level", /^(analysis|supervised)$/);
-    await chip.click();
-    await page.getByRole("menu").getByText("Delegated execution", { exact: true }).click();
-  };
-  await open();
-  const sheet = page.locator("#dialog");
-  await expect(sheet.getByRole("radio", { name: "Until cancelled", exact: true })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
-  // A fixed-pair agent: its own pair only, never «all pairs».
-  await expect(sheet.getByRole("radio", { name: agent.trading_symbol, exact: true })).toBeVisible(); // Q17: its «Full» is full delegation on its own pair, and the subtitle says so.
-  const full = sheet.getByRole("radio", { name: /Full mandate/ });
-  await expect(full).toContainText(`${agent.trading_symbol} only`);
-  await expect(full).not.toContainText("All pairs");
-
-  await expect(sheet.getByText("All pairs on the account")).toHaveCount(0);
-  await sheet.getByRole("button", { name: "Review and sign with the passkey" }).click();
-  await expect.poll(() => drafts.length).toBe(1);
-  expect(drafts[0].duration).toBe("until_stopped");
-  expect(drafts[0].symbols).toEqual([agent.trading_symbol]);
-  expect(drafts[0].all_pairs).toBeUndefined();
 });
 
 test("S15: on a phone the history picker sits under the header, not beneath it", async ({

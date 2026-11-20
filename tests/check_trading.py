@@ -14,13 +14,11 @@ from uuid import uuid4
 from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.account import AccountState, Order, Position
-from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.schema import (
@@ -470,14 +468,7 @@ async def checks() -> None:
             lease = Lease(run_id=run.id, owner="scripted-worker", fence=1)
         fenced = request()
         async with db.sessions() as session, session.begin():
-            # New agents are analysis-only; a supervised agent sends only an exact,
-            # owner-approved operation.
-            await change_permission(
-                session,
-                owner_id,
-                agent_id,
-                PermissionChange(level="supervised", expected_revision=0),
-            )
+            # The default level is Ask me. A new order still needs an exact approval.
             session.add(
                 TradeApprovalRow(
                     id=str(uuid4()),

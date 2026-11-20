@@ -3,6 +3,7 @@ import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/
 import {
   brokerCardFailed,
   mergeOwnerAction,
+  modeChangeLine,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -24,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, isRequestCancelled } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
+import { useToast } from "../../shell/Toast";
 
 /** The conversation's owner action cards; refreshed by every runtime revision. */
 export function useOwnerActions(threadId: string) {
@@ -85,6 +87,8 @@ export function OwnerActionCard({
 }) {
   const locale = i18n.locale;
   const text = ownerActionText(locale);
+  const toast = useToast();
+  const { refresh } = useClient();
   const spec = ownerActionCard(row, locale);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -147,6 +151,14 @@ export function OwnerActionCard({
     }
     const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
     waiting.current = null;
+    if (button.trading_mode && updated.result.trading_mode) {
+      const applied = updated.result.trading_mode === "full" ? "full" : "ask";
+      const name = updated.facts.agent?.name ?? row.facts.agent?.name ?? "";
+      toast(modeChangeLine(name, applied, updated.result.withdrawn ?? 0, locale), {
+        type: "success",
+      });
+      refresh();
+    }
     if (mounted.current) onChanged(updated);
   }
   /** A grant card's Custom or Full delegation: the server stores the choice in the

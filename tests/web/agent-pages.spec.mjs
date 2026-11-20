@@ -44,15 +44,15 @@ test.afterEach(() => {
   data = null;
 });
 
-test("the trading agent's page: level, trading and safety, watches, and the on/off button", async ({
+test("the trading agent's page: mode, trading, watches, and the on/off button", async ({
   page,
 }) => {
   await page.goto(`/app/agent/${data.trader.id}`);
   const main = page.locator("main");
   await expect(main.locator(".hero h2")).toHaveText(data.trader.name);
-  await expect(main.locator(".hero .badge")).toHaveText("Ask me");
-  await expect(main).toContainText("Trading and safety");
-  await expect(main).toContainText("Ask me on every order");
+  await expect(main.locator(".hero .badge")).toHaveText("Trading mode: Ask");
+  await expect(main.getByRole("heading", { name: "Trading", exact: true })).toBeVisible();
+  await expect(main).toContainText("Every trade that adds risk waits for your approval");
   await expect(main.locator(".wt-row")).toContainText(`${data.symbol} below 200`);
   // Q1, Q44: the agent page never offers to delete the agent.
   await expect(main.getByRole("button", { name: /delete|remove the agent/i })).toHaveCount(0);
@@ -114,7 +114,7 @@ test("the trading and safety row opens the agent's sheet in its conversation", a
   await page.goto(`/app/agent/${data.trader.id}`);
   await page
     .locator("main")
-    .getByRole("button", { name: /Ask me on every order/ })
+    .getByRole("button", { name: /Every trade that adds risk waits for your approval/ })
     .click();
   await expect(page.locator("#dialog").getByTestId("agent-live-state")).toBeVisible();
   // The conversation opens the sheet once and drops ?sheet=agent, so Back does not reopen it.

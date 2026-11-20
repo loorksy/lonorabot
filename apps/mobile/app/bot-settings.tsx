@@ -5,9 +5,9 @@ import { type AgentMarketMode, agentMarketMode, marketScopeChange } from "@lonor
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { AccountAuthoritySettings } from "../components/account-authority-settings";
 import { AgentMarketPicker } from "../components/agent-market-picker";
 import { AgentModelSettings } from "../components/agent-model-settings";
+import { AgentPermissions } from "../components/agent-permissions";
 import { AvatarPicker } from "../components/avatar-picker";
 import { PersonalAgentBadge } from "../components/personal-agent-badge";
 import { SettingsGroup, SettingsRow, SettingsSwitch } from "../components/settings-group";
@@ -171,7 +171,7 @@ export default function BotSettings() {
               allowFixed={allowFixed}
             />
           )}
-          <AccountAuthoritySettings key={agent.id} agent={agent} />
+          <AgentPermissions key={agent.id} agent={agent} settings />
           <AgentModelSettings key={`model-${agent.id}`} agent={agent} />
           <Field
             label={t("title")}

@@ -181,13 +181,14 @@ export function useChatMenu({
               onSelect={fromAnchor(() => openChart())}
             />
           )}
-          {agent && (trading || prefs.agentStatus || liveTasks > 0) && (
-            <PopItem
-              icon="shield"
-              label={<Trans>Status and safety</Trans>}
-              onSelect={fromAnchor(() => statusSheet(agent, trading, prefs.agentStatus))}
-            />
-          )}
+          {agent &&
+            (trading || agent.role === "personal" || prefs.agentStatus || liveTasks > 0) && (
+              <PopItem
+                icon="shield"
+                label={<Trans>Status and safety</Trans>}
+                onSelect={fromAnchor(() => statusSheet(agent, trading, prefs.agentStatus))}
+              />
+            )}
           {agent && trading && agent.trading_account_id && (
             <PopItem
               icon="radar"

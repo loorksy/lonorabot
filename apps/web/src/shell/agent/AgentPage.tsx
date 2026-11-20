@@ -1,8 +1,7 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { PermissionState, TradingReadiness } from "@lonora/contracts";
-import { isolate, tradingReadinessLine } from "@lonora/core";
+import { mandateLine, tradingSubLine } from "@lonora/core";
 import { Icon, type IconName, PairIcon } from "@lonora/ui-web";
 import { type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -25,8 +24,6 @@ import {
   clockTime,
   hasDelegation,
   isTrader,
-  levelIcon,
-  levelLabel,
   usePageAgent,
   useRead,
   watchCondition,
@@ -60,35 +57,8 @@ function NavRow({
   );
 }
 
-/** The reference's modeLine: what the trading agent may do now, from the server's readiness. */
-function modeLine(
-  readiness: TradingReadiness | null | undefined,
-  level: PermissionState["effective_level"],
-) {
-  if (!readiness) return levelLabel(level);
-  switch (readiness.state) {
-    case "on_its_own": {
-      const p = readiness.params;
-      const where =
-        p.full_delegation || p.symbol_scope === "account"
-          ? t`All pairs`
-          : (p.symbols ?? []).map(isolate).join("، ");
-      return [levelLabel("autonomous"), where].filter(Boolean).join(" · ");
-    }
-    case "ask_me":
-      return t`Ask me on every order`;
-    case "no_trading":
-      return t`No trading · analysis and follow-up`;
-    default:
-      // A held state the executor reads (stopped, paused, uncertain, agent paused): the
-      // server's own line, never a calmer one.
-      return tradingReadinessLine(readiness, i18n.locale);
-  }
-}
-
-/* «معلومات الوكيل» (route agent): hero, the rows to its pages, trading and safety, watches
-   and the on/off button. Everything is the server's: the level from /permissions, the
-   readiness and watches from /state. */
+/* «معلومات الوكيل» (route agent): hero, the rows to its pages, trading, watches
+   and the on/off button. The mode line is the agent's trading mode; watches come from /state. */
 export function AgentPage({ agentId }: { agentId: string }) {
   const data = useShellData();
   const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);
@@ -114,9 +84,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   const trader = isTrader(agent);
   const delegated = hasDelegation(agent);
   const personal = agent.role === "personal";
-  const permissions = useRead<PermissionState>(
-    delegated ? `/agents/${encodeURIComponent(agent.id)}/permissions` : null,
-  );
   const live = useAgentLiveState(agent.id).state;
   const connections = useRead<Resource[]>("/trading/connections");
   const voice = useRead<{ transport_configured: boolean }>("/voice/status");
@@ -124,8 +91,13 @@ function AgentPageBody({ agent }: { agent: Agent }) {
     trader ? `/watches?agent_id=${encodeURIComponent(agent.id)}` : null,
   );
   const [busy, setBusy] = useState(false);
-  const level = permissions.value?.effective_level ?? "analysis";
   const accounts = connections.value ?? [];
+  const modeText = mandateLine(agent.trading_mode, i18n.locale);
+  const modeSub = tradingSubLine(
+    live?.trading_readiness?.unresolved_count,
+    agent.trading_mode,
+    i18n.locale,
+  );
   const go = (path: string) => nav.go(path);
   const q = `?agent=${encodeURIComponent(agent.id)}`;
 
@@ -223,10 +195,10 @@ function AgentPageBody({ agent }: { agent: Agent }) {
         <p>
           <bdi>{agentRole(agent)}</bdi>
         </p>
-        {delegated && permissions.value && (
+        {delegated && modeText && (
           <span className="badge">
-            <Icon name={levelIcon[level]} />
-            {levelLabel(level)}
+            <Icon name={agent.trading_mode === "full" ? "alert" : "userCheck"} />
+            {modeText}
           </span>
         )}
         <div className="hero-actions">
@@ -280,20 +252,15 @@ function AgentPageBody({ agent }: { agent: Agent }) {
       {trader && (
         <>
           <h3>
-            <Trans>Trading and safety</Trans>
+            <Trans>Trading</Trans>
           </h3>
           <div className="group">
             {agent.trading_account_id ? (
               <>
                 <NavRow
-                  icon="shield"
-                  // Never a calmer line than the server's: nothing until it has answered.
-                  label={
-                    live?.trading_readiness || permissions.value
-                      ? modeLine(live?.trading_readiness, level)
-                      : t`Loading…`
-                  }
-                  sub={<Trans>Trading</Trans>}
+                  icon={agent.trading_mode === "full" ? "alert" : "shield"}
+                  label={modeText ?? t`Trading mode unknown`}
+                  sub={modeSub ?? undefined}
                   // chat.agent-sheet is the composer's (phase 3): the conversation opens it.
                   onClick={() => go(`/app/${agent.id}?sheet=agent`)}
                 />
@@ -318,8 +285,8 @@ function AgentPageBody({ agent }: { agent: Agent }) {
               <SkRows count={1} />
             ) : (
               <NavRow
-                icon="eye"
-                label={levelLabel("analysis")}
+                icon="trend"
+                label={<Trans>Trading account</Trans>}
                 sub={
                   accounts.length
                     ? t`No trading account chosen · choose an account`

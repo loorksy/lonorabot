@@ -4,8 +4,9 @@ import { Trans } from "@lingui/react/macro";
 import type { AgentLiveState, TradingReadiness } from "@lonora/contracts";
 import {
   agentStatusLine,
+  mandateLine,
   orderLineAction,
-  tradingReadinessLine,
+  tradingSubLine,
   uncertainLine,
 } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
@@ -206,11 +207,12 @@ function AgentSheetBody({
         <div>
           <strong>{agent.name}</strong>
           <small data-testid="agent-mode-line">
-            {readiness
-              ? tradingReadinessLine(readiness, i18n.locale, new Date(), accountName)
-              : state
-                ? agentStatusLine(state, i18n.locale)
-                : ""}
+            {mandateLine(agent.trading_mode, i18n.locale) ??
+              (readiness
+                ? tradingSubLine(readiness.unresolved_count, agent.trading_mode, i18n.locale)
+                : state
+                  ? agentStatusLine(state, i18n.locale)
+                  : "")}
           </small>
         </div>
       </div>

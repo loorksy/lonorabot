@@ -325,14 +325,6 @@ test("header safety capsule: abnormal states only, and no Stop control", async (
     await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
     await state.cleanup();
   });
-  const permissions = await (
-    await context.request.get(`/api/agents/${agent.id}/permissions`)
-  ).json();
-  const changed = await context.request.put(`/api/agents/${agent.id}/permissions`, {
-    headers: state.headers,
-    data: { level: "supervised", expected_revision: permissions.revision },
-  });
-  expect(changed.ok()).toBeTruthy();
   await page.goto(`/app/${agent.id}`);
   // The capsule under the header shows abnormal states only (reference safetyCap).
   const capsule = page.getByTestId("safety-capsule");
