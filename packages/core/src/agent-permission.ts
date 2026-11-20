@@ -157,12 +157,8 @@ function decimalExceeds(left: string, right: string): boolean {
 }
 
 /**
- * The conversation shows the trading level only for an agent that can trade: Lonora (it
- * sees every account), any team agent whose level is not known to be No trading (the team
- * is flat and no agent is bound to an account, mandate 3.1.2, 3.2.1), an agent with an
- * account, a grant (signed or awaiting the signature) or a trade waiting for the owner.
- * A delegated helper, or an agent at No trading, shows a small "No trading" badge instead.
- * Presentation only; nothing is enforced here.
+ * The conversation shows the trading mode only for an agent with a connected broker
+ * account (v38 Q9). An agent with no account shows no mode. Presentation only.
  */
 export function showsTradingControl(input: {
   role?: string | null;
@@ -171,11 +167,5 @@ export function showsTradingControl(input: {
   grants?: number;
   pendingTrade?: boolean;
 }): boolean {
-  return (
-    input.role === "personal" ||
-    Boolean(input.trading_account_id) ||
-    (input.role !== "delegated" && input.level !== "analysis") ||
-    (input.grants ?? 0) > 0 ||
-    Boolean(input.pendingTrade)
-  );
+  return Boolean(input.trading_account_id);
 }

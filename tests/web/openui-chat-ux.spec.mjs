@@ -491,13 +491,14 @@ test("S7: the permission chip never guesses a level, and the mandate draft belon
   );
   await page.goto(`/app/${conversation.agent.id}`);
   const chip = page.getByTestId("permission-chip");
+  // The mode is on the agent. A failed ladder read does not hide it or invent a level.
   await expect(chip).toHaveAttribute("data-level", "unknown");
-  await expect(chip).toContainText("Permission unknown");
+  await expect(chip).toHaveAttribute("data-mode", "ask");
+  await expect(chip).toContainText("Ask");
   await expect(chip).not.toContainText("No execution");
-  // Item 18: the tools sheet's Permission row says the same, never «No execution».
   await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
   const row = page.locator("#dialog").getByRole("button", { name: /^Permission/ });
-  await expect(row).toContainText("Permission unknown");
+  await expect(row).toContainText("Ask");
   await expect(row).not.toContainText("No execution");
   await page.keyboard.press("Escape");
   await page.unroute(permissions);

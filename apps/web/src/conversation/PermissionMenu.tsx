@@ -1,6 +1,8 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentModelSummary, AgentPermissionLevel, PermissionState } from "@lonora/contracts";
+import { ownerActionText } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
 import type { Agent } from "../lib/api";
@@ -29,6 +31,14 @@ export function levelName(level: AgentPermissionLevel) {
     autonomous: t`Delegated execution`,
   }[level];
 }
+/** The chip's word for the agent's mode. Null when the server sent no mode: never a guess. */
+export function modeWord(mode: string | null | undefined): string | null {
+  const words = ownerActionText(i18n.locale);
+  if (mode === "full") return words.modeFull;
+  if (mode === "ask") return words.modeAsk;
+  return null;
+}
+
 export function levelHint(level: AgentPermissionLevel) {
   return {
     analysis: t`Analyses and follows the market without sending any order.`,
@@ -80,7 +90,8 @@ export function PermissionChip({
         </span>
       </span>
     );
-  // Until the level is read (or when it cannot be), the chip says so: never a guessed level.
+  // The chip names the mode. Until the ladder is read it still does not invent a level.
+  const named = modeWord(agent.trading_mode);
   if (!permission)
     return (
       <span
@@ -88,9 +99,10 @@ export function PermissionChip({
         role="status"
         data-testid="permission-chip"
         data-level="unknown"
+        data-mode={agent.trading_mode ?? "unknown"}
       >
-        <Icon name={permissionFailed ? "alert" : "shield"} />
-        <span>{permissionFailed ? t`Permission unknown` : "…"}</span>
+        <Icon name={permissionFailed && !named ? "alert" : "shield"} />
+        <span>{named ?? (permissionFailed ? t`Permission unknown` : "…")}</span>
       </span>
     );
   const level = permission.effective_level;
@@ -100,9 +112,10 @@ export function PermissionChip({
       className={`mode-chip lvl-${level}`}
       aria-haspopup="menu"
       aria-expanded="false"
-      aria-label={t`Permissions: ${levelName(level)}`}
+      aria-label={named ?? t`Permissions: ${levelName(level)}`}
       data-testid="permission-chip"
       data-level={level}
+      data-mode={agent.trading_mode ?? "unknown"}
       onClick={(event) =>
         popover.open(
           event.currentTarget,
@@ -119,7 +132,7 @@ export function PermissionChip({
       }
     >
       <Icon name={level === "autonomous" ? "alert" : LEVEL_ICON[level]} />
-      <span>{levelName(level)}</span>
+      <span>{named ?? levelName(level)}</span>
       <Icon name="down" />
     </button>
   );

@@ -9,7 +9,7 @@ import { useLoad } from "../shell/domain/hooks";
 import { useNavigation } from "../shell/navigation";
 import { useLinkedCount } from "../shell/settings/SettingsRoot";
 import { useSheets } from "../shell/sheets/SheetHost";
-import { LEVEL_ICON, levelName } from "./PermissionMenu";
+import { LEVEL_ICON, levelName, modeWord } from "./PermissionMenu";
 
 /* «إضافة إلى المحادثة» (reference toolsSheet, Desktop-37 4978-5009): tiles ملفات · صور · كاميرا;
    مهمة جديدة · جدولة; الصلاحية · الشارت; البحث في الويب (switch) · التكاملات · المهارات ·
@@ -107,6 +107,7 @@ function ToolsBody({
   const [web, setWeb] = useState(input.webSearch);
   // Until the level is read (or when it cannot be), the row says so: never a guessed level.
   const level: AgentPermissionLevel | null = input.permission?.effective_level ?? null;
+  const named = modeWord(input.agent?.trading_mode);
   const go = (path: string) => {
     close();
     nav.go(path);
@@ -183,7 +184,10 @@ function ToolsBody({
           <AddRow
             icon={level ? LEVEL_ICON[level] : input.permissionFailed ? "alert" : "shield"}
             title={<Trans>Permission</Trans>}
-            sub={level ? levelName(level) : input.permissionFailed ? t`Permission unknown` : "…"}
+            sub={
+              named ??
+              (level ? levelName(level) : input.permissionFailed ? t`Permission unknown` : "…")
+            }
             onClick={() => {
               close();
               requestAnimationFrame(() =>

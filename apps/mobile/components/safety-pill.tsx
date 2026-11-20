@@ -3,7 +3,6 @@ import type { Resource, TradingReadiness } from "@lonora/contracts";
 import {
   isolate,
   operationStatusText,
-  readinessTime,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyText,
@@ -40,7 +39,8 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
       live = false;
     };
   }, [open, trading]);
-  if (!readiness) return null;
+  // The pill is only the uncertain state (A6). A settled mode has no capsule.
+  if (!readiness || readiness.unresolved_count === 0) return null;
   const several = accounts.length > 1;
   const accountName = (id: string) => {
     if (!several) return null;
@@ -138,25 +138,6 @@ export function SafetyPill({ readiness }: { readiness: TradingReadiness | null }
                 </Pressable>
               </View>
               <Text style={body}>{line}</Text>
-              <Text style={heading}>{text.level}</Text>
-              <Text style={body}>{text[readiness.level]}</Text>
-              {readiness.grants.map((grant) => (
-                <Text key={`${grant.account_id}:${grant.symbols.join(",")}`} style={body}>
-                  {[
-                    grant.full_delegation ? text.fullDelegation : text.grants,
-                    accountName(grant.account_id),
-                    grant.symbol_scope === "account"
-                      ? text.allPairs
-                      : grant.symbols.map(isolate).join(rtl ? "، " : ", "),
-                    grant.valid_until
-                      ? `${text.until} ${readinessTime(grant.valid_until, locale)}`
-                      : text.untilStopped,
-                    grant.allow_manual_positions ? text.manualIncluded : text.manualExcluded,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Text>
-              ))}
               <Text style={heading}>{text.unresolved}</Text>
               {readiness.unresolved_operations.length ? (
                 <>
