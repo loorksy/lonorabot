@@ -356,4 +356,3 @@ for (const locale of ["ar", "en"])
       { decision: "confirm", trading_mode: "ask" },
     ]);
   });
-
