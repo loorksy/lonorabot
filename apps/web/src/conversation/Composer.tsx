@@ -35,6 +35,7 @@ import {
   trackDraftUpload,
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
+import { isTrader } from "../shell/domain/hooks";
 import { agentRole } from "../shell/lists/ThreadRow";
 import { usePermissionSheet } from "../shell/PermissionSheet";
 import { useToast } from "../shell/Toast";
@@ -1021,7 +1022,13 @@ export function Composer({
           >
             <Icon name="plus" />
           </button>
-          <PermissionChip threadId={threadId} agent={agent} isGroup={isGroup} trading={trading} />
+          <PermissionChip
+            threadId={threadId}
+            agent={agent}
+            isGroup={isGroup}
+            trading={trading}
+            accountMissing={isTrader(agent) && readiness?.has_trading_account === false}
+          />
           {options.webSearch && (
             <button
               type="button"

@@ -29,6 +29,7 @@ export type Loaded<T> = {
 /** Server data for a page, refetched when the event stream moves the client revision. */
 export function useLoad<T>(load: (() => Promise<T>) | null, key: string): Loaded<T> {
   const { revision } = useClient();
+  const enabled = load !== null;
   const [data, setData] = useState<T>();
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
@@ -65,7 +66,7 @@ export function useLoad<T>(load: (() => Promise<T>) | null, key: string): Loaded
     return () => {
       active = false;
     };
-  }, [key, revision, manual]);
+  }, [key, revision, manual, enabled]);
   const reload = useCallback(() => setManual((value) => value + 1), []);
   return { data, error, loading, reload, set: setData };
 }

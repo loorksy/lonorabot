@@ -671,6 +671,7 @@ export function Conversation({
   const dates = useRef<HTMLElement[]>([]);
   const scrollFrame = useRef(0);
   const userScrollAt = useRef(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const floatTimer = useRef(0);
   const answers = rows.filter(
     (row) => row.kind === "message" && row.message.role !== "user",
@@ -1072,21 +1073,34 @@ export function Conversation({
           userScrollAt.current = Date.now();
           if (event.deltaY < 0) following.current = false;
         }}
-        onTouchStart={() => {
+        onTouchStart={(event) => {
           userScrollAt.current = Date.now();
+          const touch = event.touches[0];
+          touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
         }}
-        onTouchMove={() => {
+        onTouchMove={(event) => {
           userScrollAt.current = Date.now();
+          const touch = event.touches[0];
+          const start = touchStart.current;
+          if (touch && start) {
+            const down = touch.clientY - start.y;
+            if (down > 6 && down > Math.abs(touch.clientX - start.x)) following.current = false;
+          }
         }}
         onKeyDown={() => {
           userScrollAt.current = Date.now();
         }}
         onScroll={(event) => {
           const el = event.currentTarget;
-          const near = nearConversationBottom(el.scrollHeight, el.clientHeight, el.scrollTop);
-          following.current = near;
-          if (near) anchored.current = el.scrollTop;
-          const isFar = el.scrollHeight - el.clientHeight - el.scrollTop > 260;
+          const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
+          if (distance <= 1) {
+            following.current = true;
+            anchored.current = el.scrollTop;
+          } else if (el.scrollTop + 1 < anchored.current) {
+            // Do not re-pin a finger still dragging in the last screen of the chat.
+            following.current = false;
+          }
+          const isFar = distance > 260;
           if (isFar !== far) setFar(isFar);
           if (!isFar && fresh) setFresh(0);
           if (!scrollFrame.current)

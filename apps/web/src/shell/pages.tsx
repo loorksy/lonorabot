@@ -21,6 +21,7 @@ import { TradesPage } from "./agent/TradesPage";
 import { CallPage, IncomingPage } from "./call/CallPages";
 import { useShellData } from "./data";
 import "./domain/domain.css";
+import type { TaskView } from "./domain/api";
 import { FileEditPage, FilesPage } from "./domain/FilesPages";
 import {
   GoalEditPage,
@@ -28,6 +29,7 @@ import {
   KnowledgeEditPage,
   KnowledgePage,
 } from "./domain/GoalsKnowledgePages";
+import type { Loaded } from "./domain/hooks";
 import { NewSchedulePage, SchedulesPage } from "./domain/SchedulesPages";
 import { SkillPage, SkillsPage } from "./domain/SkillsPages";
 import { NewTaskPage, TaskPage, TasksPage } from "./domain/TasksPages";
@@ -180,11 +182,15 @@ export function RootPage({
   search,
   onTab,
   desktop,
+  tasks,
+  preview = false,
 }: {
   root: Root;
   search: { expanded: boolean; query: string; tab: SearchTab };
   onTab: (tab: SearchTab) => void;
   desktop: boolean;
+  tasks: Loaded<TaskView[]>;
+  preview?: boolean;
 }) {
   const data = useShellData();
   if (root === "chats") {
@@ -195,7 +201,7 @@ export function RootPage({
     return <ChatList />;
   }
   if (root === "updates") return <UpdatesPage />;
-  if (root === "tasks") return <TasksPage />;
+  if (root === "tasks") return <TasksPage tasks={tasks} preview={preview} />;
   return <SettingsPage desktop={desktop} />;
 }
 
