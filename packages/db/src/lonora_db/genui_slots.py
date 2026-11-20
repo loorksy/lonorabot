@@ -12,7 +12,7 @@ from typing import Any, cast
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .owner_actions import account_facts
+from .owner_actions import account_facts, several_accounts
 from .schema import (
     AgentRow,
     BrokerSessionRow,
@@ -24,13 +24,25 @@ from .schema import (
 
 
 @dataclass(frozen=True)
+class PreviousGrant:
+    """One ended grant the Mandate card names (migration 0128). ``full`` and ``scope``
+    ``account`` are the two worded forms; otherwise ``symbols`` are the markets. ``account``
+    is that grant's account label when the owner has more than one, else empty."""
+
+    full: bool = False
+    scope: str = "selected"
+    symbols: tuple[str, ...] = ()
+    account: str = ""
+
+
+@dataclass(frozen=True)
 class SlotRecord:
     """What a slot's fixed card draws that sets its height, as the record is when the card is
     compiled (mandate 10.1.4): whether it still waits for the owner, its rows (an approval's
     requests, a Secret card's fields) and the texts that wrap: the agent's reason on an
     approval; the agent a Mandate, Settle or Secret card names; a Settle card's operation and
     account; a Secret card's own label, the name it was given, its field labels and, on a
-    broker card, its account."""
+    broker card, its account. A Mandate card's ``previous_grants`` is the ended-grants line."""
 
     waiting: bool = True
     rows: int = 1
@@ -42,10 +54,46 @@ class SlotRecord:
     detail: str = ""
     labels: tuple[str, ...] = ()
     broker: bool = False
+    previous_grants: tuple[PreviousGrant, ...] = ()
 
 
 def _text(value: Any) -> str:
     return str(value) if isinstance(value, str | int | float) and value != "" else ""
+
+
+async def _previous_grants(
+    session: AsyncSession, card: OwnerActionRow
+) -> tuple[PreviousGrant, ...]:
+    """The ended grants a Mandate card names, in the card's own words: markets, and the
+    account label only when the owner has more than one account."""
+    raw = card.payload.get("previous_grants")
+    if not isinstance(raw, list) or not raw:
+        return ()
+    several = await several_accounts(session, card.owner_id)
+    grants: list[PreviousGrant] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        account_id = _text(item.get("account_id"))
+        label = ""
+        if several and account_id:
+            label = _text(
+                account_facts(await session.get(BrokerSessionRow, account_id), account_id).get(
+                    "label"
+                )
+            )
+        symbols = item.get("symbols")
+        grants.append(
+            PreviousGrant(
+                full=item.get("full_delegation") is True,
+                scope="account" if item.get("symbol_scope") == "account" else "selected",
+                symbols=tuple(_text(symbol) for symbol in symbols if _text(symbol))
+                if isinstance(symbols, list)
+                else (),
+                account=label,
+            )
+        )
+    return tuple(grants)
 
 
 async def slot_records(
@@ -126,7 +174,11 @@ async def slot_records(
         payload = card.payload
         waiting = card.status == "pending"
         if card.kind == "trading_mode":
-            found[("mandate", card.id)] = SlotRecord(waiting=waiting, name=name)
+            found[("mandate", card.id)] = SlotRecord(
+                waiting=waiting,
+                name=name,
+                previous_grants=await _previous_grants(session, card),
+            )
         elif card.kind == "secret":
             fields = cast(list[dict[str, Any]], payload.get("fields") or [])
             account = cast(dict[str, Any], payload.get("account") or {})

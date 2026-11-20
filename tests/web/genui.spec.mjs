@@ -658,6 +658,47 @@ test("Slots: the Settle, Mandate and Secret slots never outgrow the heights the 
   }
 });
 
+test("Slots: the Mandate slot counts the ended-grants line", async ({
+  page,
+  context,
+  browser,
+  cleanup,
+}) => {
+  test.setTimeout(120_000);
+  const fixture = await open(page, context);
+  const { pages, close } = await locales(browser, fixture, page);
+  cleanup(async () => {
+    await close();
+    await fixture.cleanup();
+  });
+  const ids = python("records", fixture.input);
+  python("slots", { ...fixture.input, card: "mandate", record: ids.mandate });
+  // Migration 0128: the grant ends, and the card names both grants on two accounts.
+  python("migration_mandate", fixture.input);
+  const counted = python("slot_heights", {
+    ...fixture.input,
+    card: "mandate",
+    record: ids.mandate,
+  });
+  for (const [locale, target] of pages) {
+    const height = await drawn(target, fixture, "mandate", ids.mandate);
+    const card = target.locator(`.ux-slot [data-owner-action="${ids.mandate}"]`);
+    await expect(card).toContainText(
+      locale === "ar" ? "انتهت صلاحياته الموقّعة السابقة" : "Its earlier signed grants",
+    );
+    await expect(card).toContainText("XAUUSD");
+    await expect(card).toContainText("Pepperstone");
+    expect(
+      height,
+      `${locale} drawn ${height} rest ${counted.rest} later ${counted.later}`,
+    ).toBeLessThanOrEqual(counted.rest);
+    expect(height, `${locale} later`).toBeLessThanOrEqual(counted.later);
+    console.log(
+      `MEASURE mandate previous_grants ${locale} drawn=${height} rest=${counted.rest} later=${counted.later}`,
+    );
+  }
+});
+
 test("Slots: a fixed card in the agent's card is the live record, and its row steps aside", async ({
   page,
   context,

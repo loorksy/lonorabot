@@ -223,6 +223,32 @@ def test_slot_heights_follow_the_record() -> None:
     labelled = slot_height("secret", SlotRecord(labels=(label,)))
     assert labelled[0] > one[0] and labelled[1] - labelled[0] > one[1] - one[0]
     assert slot_height("secret", SlotRecord(waiting=False, labels=("Key",))) == (one[0], one[0])
+    # The ended-grants line is not in the 357 px base. Two grants on two accounts, the
+    # migration's line, count as one more sub-paragraph; a longer line never counts for less.
+    from lonora_db.genui_slots import PreviousGrant
+
+    plain = slot_height("mandate", SlotRecord(name="Gold"))
+    grants = (
+        PreviousGrant(
+            symbols=("XAUUSD", "EURUSD"),
+            account="IC Markets · 51234567 · ICMarketsSC-Demo",
+        ),
+        PreviousGrant(
+            full=True,
+            scope="account",
+            account="Pepperstone · 7002318 · Pepperstone-Edge01",
+        ),
+    )
+    counted = slot_height("mandate", SlotRecord(name="Gold", previous_grants=grants))
+    assert counted[0] > plain[0] and counted[0] == counted[1]
+    longer = (
+        *grants,
+        PreviousGrant(
+            symbols=("GBPUSD", "USDJPY", "XAGUSD"),
+            account="Exness · 100 · Demo",
+        ),
+    )
+    assert slot_height("mandate", SlotRecord(name="Gold", previous_grants=longer))[0] >= counted[0]
 
 
 @pytest.mark.asyncio
