@@ -10,7 +10,7 @@ import { SkPage, SkRows } from "../Skeleton";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { domainApi, type TaskView } from "./api";
-import { useAgentParam, useLoad } from "./hooks";
+import { type Loaded, useAgentParam, useLoad } from "./hooks";
 import { ScheduleList } from "./SchedulesPages";
 import {
   Area,
@@ -48,12 +48,12 @@ export function taskStatus(task: TaskView): string {
 const isDone = (task: TaskView) => task.status === "completed" || task.status === "cancelled";
 
 /** «المهام»: نشطة · مجدولة · مكتملة. */
-export function TasksPage() {
+export function TasksPage({ tasks, preview }: { tasks: Loaded<TaskView[]>; preview: boolean }) {
   const data = useShellData();
   const nav = useNavigation();
   // The tab is in the address, so Back returns to the tab the owner was on.
   const [params, setParams] = useSearchParams();
-  const filter = FILTERS.find((key) => key === params.get("tab")) ?? "active";
+  const filter = (!preview && FILTERS.find((key) => key === params.get("tab"))) || "active";
   const choose = (key: Filter) =>
     setParams(
       (old) => {
@@ -64,10 +64,9 @@ export function TasksPage() {
       },
       { replace: true },
     );
-  const tasks = useLoad(() => domainApi.tasks(), "tasks");
   useEffect(() => {
-    if (params.get("new") === "1") nav.go("/app/new-task", { replace: true });
-  }, [params, nav]);
+    if (!preview && params.get("new") === "1") nav.go("/app/new-task", { replace: true });
+  }, [params, nav, preview]);
   const tabs: [Filter, string][] = [
     ["active", t({ message: "Active", context: "tasks tab" })],
     ["scheduled", t({ message: "Scheduled", context: "tasks tab" })],
@@ -104,12 +103,12 @@ export function TasksPage() {
             <Trans>Schedule a task</Trans>
           </button>
         </>
-      ) : tasks.loading && !tasks.data ? (
+      ) : tasks.error != null && !tasks.data ? (
+        <p role="alert">{userError(tasks.error)}</p>
+      ) : !tasks.data ? (
         <SkPage>
           <SkRows count={7} icon group />
         </SkPage>
-      ) : tasks.error != null && !tasks.data ? (
-        <p role="alert">{userError(tasks.error)}</p>
       ) : (
         <Grouped empty={<Trans>No tasks.</Trans>}>
           {list.map((task) => (

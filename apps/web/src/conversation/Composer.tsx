@@ -18,7 +18,15 @@ import {
   showsTradingControl,
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { useAgentLiveState } from "../lib/agent-live-state";
@@ -35,6 +43,7 @@ import {
   trackDraftUpload,
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
+import { isTrader } from "../shell/domain/hooks";
 import { agentRole } from "../shell/lists/ThreadRow";
 import { usePermissionSheet } from "../shell/PermissionSheet";
 import { useToast } from "../shell/Toast";
@@ -94,6 +103,7 @@ export function Composer({
   editing,
   streaming,
   suggestion,
+  latestButton,
   collaborationSessionId,
   onClearReply,
   onClearEdit,
@@ -113,6 +123,7 @@ export function Composer({
   streaming: boolean;
   /** The agent's own suggested reply (Q23); never a client default. */
   suggestion: string;
+  latestButton: ReactNode;
   collaborationSessionId?: string;
   onClearReply: () => void;
   onClearEdit: () => void;
@@ -152,6 +163,7 @@ export function Composer({
   const options = useThreadOptions(threadId);
   const agentId = agent?.id;
   const readiness = useAgentLiveState(agentId).state?.trading_readiness;
+  const latestVisible = Boolean(latestButton);
 
   /* ---- drafts */
   const current = useRef({ text, files, mentions: committed.current, reply });
@@ -203,7 +215,8 @@ export function Composer({
   useLayoutEffect(() => {
     const el = field.current;
     if (!el) return;
-    void text;
+    // The button reduces the text field's width while the owner reads older messages.
+    void latestVisible;
     el.style.height = "28px";
     // An empty field stays one line: a long placeholder never grows it.
     if (!text) {
@@ -213,7 +226,7 @@ export function Composer({
     const cap = Math.min(164, Math.round(window.innerHeight * 0.34));
     el.style.height = `${Math.max(28, Math.min(cap, el.scrollHeight))}px`;
     el.style.overflowY = el.scrollHeight > cap ? "auto" : "hidden";
-  }, [text]);
+  }, [text, latestVisible]);
   useLayoutEffect(() => {
     const slot = form.current;
     const main = slot?.closest<HTMLElement>("main");
@@ -843,7 +856,7 @@ export function Composer({
             })}
           </div>
         )}
-        <div className="ta-wrap">
+        <div className={`ta-wrap${latestVisible ? " has-latest" : ""}`}>
           <div className="ta-mirror" aria-hidden="true" ref={mirror}>
             {typedCommand && (
               <>
@@ -980,6 +993,7 @@ export function Composer({
               <Icon name="chev" />
             </button>
           </div>
+          {latestButton}
         </div>
         <div className="composer-row">
           <input
@@ -1021,7 +1035,13 @@ export function Composer({
           >
             <Icon name="plus" />
           </button>
-          <PermissionChip threadId={threadId} agent={agent} isGroup={isGroup} trading={trading} />
+          <PermissionChip
+            threadId={threadId}
+            agent={agent}
+            isGroup={isGroup}
+            trading={trading}
+            accountMissing={isTrader(agent) && readiness?.has_trading_account === false}
+          />
           {options.webSearch && (
             <button
               type="button"

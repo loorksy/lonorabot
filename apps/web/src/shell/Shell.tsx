@@ -59,6 +59,8 @@ import {
   ShellDataProvider,
   useShellData,
 } from "./data";
+import { domainApi } from "./domain/api";
+import { useLoad } from "./domain/hooks";
 import { FloatingTabBar, tabLabel } from "./FloatingTabBar";
 import { EASE, flip } from "./flip";
 import { LargeTitle } from "./LargeTitle";
@@ -72,7 +74,7 @@ import type { SearchTab } from "./lists/UnifiedSearch";
 import { isDesktop, reducedMotion, useDesktop } from "./motion";
 import { NetworkStrip, useNetworkPhase } from "./NetworkStrip";
 import { useNewChatSheet } from "./NewChatSheet";
-import { NavigationProvider, useNavigation, useScrollMemory } from "./navigation";
+import { isDirty, NavigationProvider, useNavigation, useScrollMemory } from "./navigation";
 import { usePermissionSheet } from "./PermissionSheet";
 import { usePager } from "./pager";
 import { ChatPane, DetailPages, pageTitle, RootPage, useSettingsRedirect } from "./pages";
@@ -681,6 +683,9 @@ function ShellBody() {
   const busy = useRef(false);
   const swiped = useRef(false);
   const [ghost, setGhost] = useState<Root | null>(null);
+  // The preview and the committed tab use the same request and keep its last result.
+  const showingTasks = ghost === "tasks" || (isRoot(route) && route.root === "tasks");
+  const tasks = useLoad(showingTasks ? () => domainApi.tasks() : null, "tasks");
   const edgeFor = useCallback(
     (r: ShellRoute): EdgeOptions => ({
       edge: isRoot(r) || bareDetail(r, isDesktop()),
@@ -714,7 +719,7 @@ function ShellBody() {
       swiped.current = true;
       nav.go(rootPath(r));
     },
-    blocked: () => sheets.isOpen() || searchRef.current.expanded,
+    blocked: () => isDirty() || sheets.isOpen() || searchRef.current.expanded,
     busy,
   });
   const switchTab = useCallback(
@@ -825,6 +830,7 @@ function ShellBody() {
             search={search}
             onTab={(tab) => updateSearch({ ...searchRef.current, tab })}
             desktop={desktop}
+            tasks={tasks}
           />
         )
       ) : conversation ? (
@@ -957,6 +963,8 @@ function ShellBody() {
                     search={noSearch}
                     onTab={() => undefined}
                     desktop={false}
+                    tasks={tasks}
+                    preview
                   />
                 </PageErrorBoundary>
               </main>

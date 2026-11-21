@@ -172,6 +172,7 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   page,
   conversation,
 }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     localStorage.setItem("lonora.locale", "en");
     // Every error event reaches the owner as «An unexpected error occurred», including a
@@ -206,31 +207,33 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   const growingBar = await page.locator(".composer-card").boundingBox();
   expect(latest.y + latest.height).toBeLessThan(growingBar.y);
   await composer.fill("");
+  const form = page.locator("form.composer");
+  const backdropTop = await form.evaluate((element) => getComputedStyle(element, "::before").top);
+  const restingHeight = (await form.boundingBox()).height;
   await transcript.evaluate((element) => {
     element.scrollTop = 150;
     element.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
   // The ↓ button turns on more than 260px from the newest message (reference syncJump).
-  await expect(page.locator(".jump")).toHaveClass(/\bon\b/);
-  // While it shows, the composer's backdrop is solid up to its top: the button never sits over
-  // a message or a fixed card's facts (10.2.2).
-  await expect
-    .poll(async () => {
-      const solid = await page.locator("form.composer").evaluate((form) => {
-        const before = getComputedStyle(form, "::before");
-        const fade = /calc\(100% - (\d+)px\)/.exec(before.backgroundImage);
-        return fade
-          ? form.getBoundingClientRect().top + Number.parseFloat(before.top) + Number(fade[1])
-          : Number.POSITIVE_INFINITY;
-      });
-      return solid <= (await page.locator(".jump").boundingBox()).y + 0.5;
-    })
-    .toBe(true);
+  const jump = page.getByRole("button", { name: /^Go to the latest messages/ });
+  await expect(jump).toBeVisible();
+  // Keep the jump in the existing composer so neither the button nor a wide scrim hides cards.
+  expect(await form.evaluate((element) => getComputedStyle(element, "::before").top)).toBe(
+    backdropTop,
+  );
+  const bounds = await form.boundingBox();
+  const button = await jump.boundingBox();
+  const field = await composer.boundingBox();
+  expect(bounds.height).toBe(restingHeight);
+  expect(button.y).toBeGreaterThanOrEqual(bounds.y);
+  expect(button.y + button.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+  expect(button.x).toBeGreaterThanOrEqual(field.x + field.width - 0.5);
   rows.push(message(conversation, 25, "assistant", "New content while the owner reads above."));
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("[data-message-id='ux-message-25']")).toHaveCount(1);
+  await expect(jump).toHaveAccessibleName("Go to the latest messages, 1 new");
   expect(await transcript.evaluate((element) => element.scrollTop)).toBeLessThan(200);
-  await page.locator(".jump").click();
+  await jump.click();
   // The ↓ scrolls smoothly and turns off 260px before the end: the scroll's end is the
   // resting place to measure.
   await expect
@@ -240,12 +243,81 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
       ),
     )
     .toBeLessThanOrEqual(2);
-  await expect(page.locator(".jump")).not.toHaveClass(/\bon\b/);
+  await expect(jump).toHaveCount(0);
   const newest = await page.locator("[data-message-id='ux-message-25']").boundingBox();
   const restingBar = await page.locator(".composer-card").boundingBox();
   expect(newest.y + newest.height).toBeLessThan(restingBar.y);
   // The composer grew and shrank above the transcript without an error.
   expect(await page.evaluate(() => window.__errors)).toEqual([]);
+});
+
+test("moving a little into history stays put when the phone composer is focused and resized", async ({
+  page,
+  conversation,
+}) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  const rows = Array.from({ length: 16 }, (_, index) =>
+    message(
+      conversation,
+      index + 1,
+      "assistant",
+      `History ${index}: ${"Read this paragraph. ".repeat(24)}`,
+    ),
+  );
+  await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
+    route.fulfill({ json: rows }),
+  );
+  await page.goto(`/app/${conversation.agent.id}`);
+  const transcript = page.getByTestId("transcript");
+  const distance = () =>
+    transcript.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop);
+  await expect.poll(distance).toBeLessThanOrEqual(2);
+  const offset = await transcript.evaluate((el) => {
+    el.scrollTop -= 52;
+    el.dispatchEvent(new Event("scroll", { bubbles: true }));
+    return el.scrollTop;
+  });
+  const composer = page.locator(".composer textarea");
+  await composer.focus();
+  await page.setViewportSize({ width: 320, height: 525 });
+  await expect.poll(distance).toBeGreaterThan(260);
+  expect(await transcript.evaluate((el) => el.scrollTop)).toBe(offset);
+  await transcript.evaluate((el) => {
+    el.scrollTop -= 10;
+  });
+  const jump = page.getByRole("button", { name: "الانتقال إلى آخر الرسائل" });
+  await expect(jump).toBeVisible();
+  const button = await jump.boundingBox();
+  expect(button.x + button.width).toBeLessThanOrEqual((await composer.boundingBox()).x + 0.5);
+  await page.setViewportSize({ width: 320, height: 844 });
+  await expect.poll(distance).toBeCloseTo(62, 0);
+});
+
+test("a stale broker binding offers to link an account from the narrow composer", async ({
+  page,
+  conversation,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  await page.route(`**/api/agents/${conversation.agent.id}/state`, async (route) => {
+    const state = await (await route.fetch()).json();
+    await route.fulfill({
+      json: {
+        ...state,
+        trading_readiness: { ...state.trading_readiness, has_trading_account: false },
+      },
+    });
+  });
+  await page.goto(`/app/${conversation.agent.id}`);
+  const link = page
+    .locator(".composer")
+    .getByRole("button", { name: "ربط حساب تداول", exact: true });
+  await expect(link).toBeVisible();
+  await expect(page.getByTestId("permission-chip")).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await link.click();
+  await expect(page).toHaveURL(/\/app\/broker$/);
 });
 
 test("M6: leaving the chat while recording releases the microphone and sends nothing", async ({

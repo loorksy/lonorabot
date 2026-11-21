@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useRef } from "react";
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { type EdgeOptions, placeScroll, syncEdge } from "./chrome";
 import { foldNav, type LensRect, lensRect, placeLens, setLens } from "./lens";
@@ -53,6 +53,7 @@ type State = {
   anim: SpringHandle | null;
   done: (() => void) | null;
   will: boolean;
+  committing: boolean;
 };
 
 export type PagerRefs = {
@@ -74,6 +75,7 @@ type Live = {
 
 function createPager(refs: PagerRefs, live: RefObject<Live>, busy: RefObject<boolean>) {
   let pager: State | null = null;
+  let queuedTab: { route: Root; lensFrom: LensRect | null } | null = null;
   const shadeEl = () => {
     const d = document.createElement("div");
     d.className = "pager-shade";
@@ -240,20 +242,12 @@ function createPager(refs: PagerRefs, live: RefObject<Live>, busy: RefObject<boo
     settleTabs(s);
     placeLens(s.nav, false);
   };
-  /* The incoming page is already in place, so the real route change must not animate anything. */
+  // Keep the incoming page in place while the router commits its concurrent update.
   const finish = () => {
     const s = pager;
-    if (!s?.route) return;
-    pager = null;
-    const route = s.route;
-    flushSync(() => {
-      live.current.commit(route);
-      live.current.setGhost(null);
-    });
-    s.ghost?.shade.remove();
-    clearUnit(s.cur);
-    settleTabs(s);
-    setLens(s.nav, lensRect(s.toBtn), false);
+    if (!s?.route || s.committing) return;
+    s.committing = true;
+    live.current.commit(s.route);
   };
   const settle = (s: State, commit: boolean, v0: number, spec: Spring) => {
     const to = commit ? s.side * s.W : 0;
@@ -307,10 +301,15 @@ function createPager(refs: PagerRefs, live: RefObject<Live>, busy: RefObject<boo
     anim: null,
     done: null,
     will: false,
+    committing: false,
   });
   /** Taps on the tab bar and lens drags slide the pages the same way. */
   const pagerTo = (route: Root, lensFrom: LensRect | null = null) => {
-    if (pager) complete();
+    if (pager && !pager.committing) complete();
+    if (pager?.committing) {
+      queuedTab = { route, lensFrom };
+      return;
+    }
     const current = live.current.root;
     const i = current ? ROOTS.indexOf(current) : -1;
     const ti = ROOTS.indexOf(route);
@@ -337,6 +336,7 @@ function createPager(refs: PagerRefs, live: RefObject<Live>, busy: RefObject<boo
     const app = refs.app.current;
     if (!app || !target || !app.contains(target)) return;
     const s = pager;
+    if (s?.committing) return;
     // Catch a page that is still settling: the finger takes over from wherever it is.
     if (s?.anim && !s.dragging && !target.closest("nav.tabbar,.topbar button,.topbar input")) {
       s.anim.stop();
@@ -421,12 +421,26 @@ function createPager(refs: PagerRefs, live: RefObject<Live>, busy: RefObject<boo
     }
     settle(s, commit, v * 1000, commit ? PAGER.swipe : PAGER.back);
   };
-  /** Something navigated underneath while a page travelled: drop the gesture quietly. */
+  /** Hand the preview to the committed route before paint, or drop an interrupted gesture. */
   const routeChanged = () => {
     const s = pager;
-    if (!s || !s.anim || s.done === finish) return;
-    s.anim.stop();
-    reset();
+    if (!s) return;
+    const next = queuedTab;
+    queuedTab = null;
+    if (!s.committing || live.current.root !== s.route) {
+      s.anim?.stop();
+      reset();
+      return;
+    }
+    pager = null;
+    dropGhost(s);
+    clearUnit(s.cur);
+    settleTabs(s);
+    setLens(s.nav, lensRect(s.toBtn), false);
+    if (next && next.route !== live.current.root)
+      queueMicrotask(() => {
+        if (refs.app.current && !pager) pagerTo(next.route, next.lensFrom);
+      });
   };
   const dispose = () => pager?.anim?.stop();
   return { pagerTo, down, move, release, routeChanged, dispose };
@@ -466,7 +480,7 @@ export function usePager({
       c.dispose();
     };
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     void root;
     controller.current?.routeChanged();
   }, [root]);

@@ -88,6 +88,69 @@ async function swipe(page, selector, from, to, { steps = 8, hold = 0 } = {}) {
 }
 
 test.describe("phone shell (390×844, Arabic)", () => {
+  test("the tasks tab keeps its last result through the phone pager and a refresh", async ({
+    page,
+    context,
+    cleanup,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    cleanup(() => fixture({ ...data, action: "cleanup" }));
+    await signIn(context, data);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/updates");
+    await page.route("**/api/tasks", (route) => route.fulfill({ json: [] }));
+    const nav = page.locator("nav.tabbar");
+    const empty = page.locator("#view-scroll").getByText("لا توجد مهام.", { exact: true });
+    await nav.getByRole("button", { name: "المهام", exact: true }).click();
+    await expect(empty).toBeVisible();
+    await nav.getByRole("button", { name: /^يحتاج انتباهك/ }).click();
+    await expect(page).toHaveURL(/\/app\/updates$/);
+
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+    await page.unroute("**/api/tasks");
+    await page.route("**/api/tasks", async (route) => {
+      await held;
+      await route.fulfill({ json: [] });
+    });
+    await page.evaluate(() => {
+      const shell = document.getElementById("app");
+      const detectFlash = new MutationObserver(() => {
+        if (
+          location.pathname === "/app/tasks" &&
+          !shell.classList.contains("paging") &&
+          shell.querySelector(":scope > .topbar")?.getAttribute("data-route") !== "tasks"
+        )
+          shell.dataset.pagerFlash = "true";
+      });
+      detectFlash.observe(shell, {
+        attributeFilter: ["class", "data-route"],
+        childList: true,
+        subtree: true,
+      });
+    });
+    try {
+      const refresh = page.waitForRequest(
+        (request) => new URL(request.url()).pathname === "/api/tasks",
+      );
+      await nav.getByRole("button", { name: "المهام", exact: true }).click();
+      await refresh;
+      await expect(page).toHaveURL(/\/app\/tasks$/);
+      await expect(empty).toBeVisible();
+      await expect(page.locator("#app")).not.toHaveAttribute("data-pager-flash", "true");
+    } finally {
+      release();
+    }
+    await page.evaluate(() => {
+      document.querySelector('nav.tabbar button[data-root="updates"]').click();
+      document.querySelector('nav.tabbar button[data-root="settings"]').click();
+    });
+    await expect(page).toHaveURL(/\/app\/settings$/);
+    await expect(page.locator("#app")).not.toHaveClass(/paging/);
+  });
+
   test("tab bar, lens, pager swipe and tap, glass edge and the dissolving title", async ({
     page,
     context,

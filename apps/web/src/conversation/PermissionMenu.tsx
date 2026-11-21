@@ -48,11 +48,13 @@ export function PermissionChip({
   agent,
   isGroup,
   trading,
+  accountMissing,
 }: {
   threadId?: string;
   agent?: Agent;
   isGroup: boolean;
   trading: boolean;
+  accountMissing: boolean;
 }) {
   const popover = usePopover();
   const nav = useNavigation();
@@ -70,7 +72,16 @@ export function PermissionChip({
         <Icon name="down" />
       </button>
     );
-  // No connected account: no mode control (Q9). Nothing here says the agent cannot trade.
+  if (accountMissing)
+    return (
+      <button type="button" className="mode-chip" onClick={() => nav.go("/app/broker")}>
+        <Icon name="trend" />
+        <span>
+          <Trans>Link a trading account</Trans>
+        </span>
+      </button>
+    );
+  // No connected account: no mode control (Q9).
   if (!agent || !trading) return null;
   const mode = agent.trading_mode;
   const named = modeWord(mode);

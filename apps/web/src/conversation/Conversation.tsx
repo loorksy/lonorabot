@@ -671,6 +671,7 @@ export function Conversation({
   const dates = useRef<HTMLElement[]>([]);
   const scrollFrame = useRef(0);
   const userScrollAt = useRef(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const floatTimer = useRef(0);
   const answers = rows.filter(
     (row) => row.kind === "message" && row.message.role !== "user",
@@ -1072,21 +1073,34 @@ export function Conversation({
           userScrollAt.current = Date.now();
           if (event.deltaY < 0) following.current = false;
         }}
-        onTouchStart={() => {
+        onTouchStart={(event) => {
           userScrollAt.current = Date.now();
+          const touch = event.touches[0];
+          touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
         }}
-        onTouchMove={() => {
+        onTouchMove={(event) => {
           userScrollAt.current = Date.now();
+          const touch = event.touches[0];
+          const start = touchStart.current;
+          if (touch && start) {
+            const down = touch.clientY - start.y;
+            if (down > 6 && down > Math.abs(touch.clientX - start.x)) following.current = false;
+          }
         }}
         onKeyDown={() => {
           userScrollAt.current = Date.now();
         }}
         onScroll={(event) => {
           const el = event.currentTarget;
-          const near = nearConversationBottom(el.scrollHeight, el.clientHeight, el.scrollTop);
-          following.current = near;
-          if (near) anchored.current = el.scrollTop;
-          const isFar = el.scrollHeight - el.clientHeight - el.scrollTop > 260;
+          const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
+          if (distance <= 1) {
+            following.current = true;
+            anchored.current = el.scrollTop;
+          } else if (el.scrollTop + 1 < anchored.current) {
+            // Do not re-pin a finger still dragging in the last screen of the chat.
+            following.current = false;
+          }
+          const isFar = distance > 260;
           if (isFar !== far) setFar(isFar);
           if (!isFar && fresh) setFresh(0);
           if (!scrollFrame.current)
@@ -1141,24 +1155,6 @@ export function Conversation({
       <div ref={floatDate} className="float-date" aria-hidden="true">
         <span />
       </div>
-      <button
-        type="button"
-        className={`jump${far ? " on" : ""}`}
-        aria-label={
-          fresh ? t`Go to the latest messages, ${fresh} new` : t`Go to the latest messages`
-        }
-        onClick={() => {
-          following.current = true;
-          setFresh(0);
-          scroll.current?.scrollTo({
-            top: scroll.current.scrollHeight,
-            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-          });
-        }}
-      >
-        <Icon name="down" />
-        {fresh > 0 && <span className="jump-n">{fresh}</span>}
-      </button>
       <Composer
         key={`composer:${threadId}`}
         threadId={threadId}
@@ -1172,6 +1168,30 @@ export function Conversation({
         editing={editing}
         streaming={streaming || working}
         suggestion={suggestion}
+        latestButton={
+          far && (
+            <button
+              type="button"
+              className="jump"
+              aria-label={
+                fresh ? t`Go to the latest messages, ${fresh} new` : t`Go to the latest messages`
+              }
+              onClick={() => {
+                following.current = true;
+                setFresh(0);
+                scroll.current?.scrollTo({
+                  top: scroll.current.scrollHeight,
+                  behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+                    ? "instant"
+                    : "smooth",
+                });
+              }}
+            >
+              <Icon name="down" />
+              {fresh > 0 && <span className="jump-n">{fresh}</span>}
+            </button>
+          )
+        }
         collaborationSessionId={collaboration?.id}
         onClearReply={() => setReply(null)}
         onClearEdit={() => setEditing(null)}
