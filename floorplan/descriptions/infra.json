@@ -1,0 +1,20 @@
+{
+  "files": {
+    "infra/compose/build-from-source.sh": {
+      "name": "Build image from source",
+      "description": "Builds the server image on the host from source when no published image is available."
+    },
+    "infra/compose/harden-host.sh": {
+      "name": "Harden host",
+      "description": "Turns on the host firewall, automatic security updates and the backup timer."
+    },
+    "infra/compose/install.sh": {
+      "name": "Production installer",
+      "description": "Installs Lonora on a production server."
+    },
+    "infra/compose/lonora-controls.sh": {
+      "name": "Update controls",
+      "description": "The owner-controlled `lonora update` command for a running server."
+    }
+  }
+}

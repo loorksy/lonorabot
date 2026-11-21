@@ -1,0 +1,36 @@
+{
+  "files": {
+    "packages/security/src/lonora_security/__init__.py": {
+      "name": "Security package",
+      "description": "Marks the security code as one package; holds no logic of its own."
+    },
+    "packages/security/src/lonora_security/collaboration.py": {
+      "name": "Collaboration limits",
+      "description": "Keeps agent-to-agent work within the same owner and within a depth limit."
+    },
+    "packages/security/src/lonora_security/financial.py": {
+      "name": "Trade validation",
+      "description": "Checks a trade's symbol, size and prices fit the instrument's rules before anything is sent."
+    },
+    "packages/security/src/lonora_security/network.py": {
+      "name": "Safe web addresses",
+      "description": "Checks an outside address is safe to call and fingerprints it."
+    },
+    "packages/security/src/lonora_security/ota_storage.py": {
+      "name": "Safe update-file reads",
+      "description": "Reads phone-update files without following any planted shortcut."
+    },
+    "packages/security/src/lonora_security/public_http.py": {
+      "name": "Safe public fetch",
+      "description": "Makes a size-bounded, anonymous web request pinned to the address that passed the safety check."
+    },
+    "packages/security/src/lonora_security/runtime_storage.py": {
+      "name": "Confined paths",
+      "description": "Keeps a file path inside its allowed folder, refusing anything that escapes it."
+    },
+    "packages/security/src/lonora_security/secrets.py": {
+      "name": "Secret scrubbing",
+      "description": "Finds and replaces a secret's value — in all its encoded forms — anywhere it might appear in text, so secrets never leak out."
+    }
+  }
+}

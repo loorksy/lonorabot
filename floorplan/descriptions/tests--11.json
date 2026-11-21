@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/test_trusted_sources.py": {
+      "name": "Trusted sources tests",
+      "description": "Automatic checks for trusted sources."
+    },
+    "tests/test_uncertain_outcome.py": {
+      "name": "Uncertain outcome tests",
+      "description": "Automatic checks for uncertain outcome."
+    },
+    "tests/test_update_controls.py": {
+      "name": "Update controls tests",
+      "description": "Automatic checks for update controls."
+    },
+    "tests/test_usage_dashboard.py": {
+      "name": "Usage dashboard tests",
+      "description": "Automatic checks for usage dashboard."
+    },
+    "tests/test_usage_tool.py": {
+      "name": "Usage tool tests",
+      "description": "Automatic checks for usage tool."
+    },
+    "tests/test_version_route.py": {
+      "name": "Version route tests",
+      "description": "Automatic checks for version route."
+    },
+    "tests/test_visual_acceptance.py": {
+      "name": "Visual acceptance tests",
+      "description": "Automatic checks for visual acceptance."
+    },
+    "tests/test_visual_host_lifecycle.py": {
+      "name": "Visual host lifecycle tests",
+      "description": "Automatic checks for visual host lifecycle."
+    },
+    "tests/test_visual_persistence.py": {
+      "name": "Visual persistence tests",
+      "description": "Automatic checks for visual persistence."
+    },
+    "tests/test_visual_response.py": {
+      "name": "Visual response tests",
+      "description": "Automatic checks for visual response."
+    },
+    "tests/test_visual_scalars.py": {
+      "name": "Visual scalars tests",
+      "description": "Automatic checks for visual scalars."
+    },
+    "tests/test_voice_notes.py": {
+      "name": "Voice notes tests",
+      "description": "Automatic checks for voice notes."
+    },
+    "tests/test_wait_update_financial_truth.py": {
+      "name": "Wait update financial truth tests",
+      "description": "Automatic checks for wait update financial truth."
+    },
+    "tests/test_watch_lifecycle.py": {
+      "name": "Watch lifecycle tests",
+      "description": "Automatic checks for watch lifecycle."
+    },
+    "tests/test_watch_source_time.py": {
+      "name": "Watch source time tests",
+      "description": "Automatic checks for watch source time."
+    },
+    "tests/test_web_browser.py": {
+      "name": "Web browser tests",
+      "description": "Browser checks for web."
+    },
+    "tests/test_web_research.py": {
+      "name": "Web research tests",
+      "description": "Automatic checks for web research."
+    },
+    "tests/test_web_shell_cache.py": {
+      "name": "Web shell cache tests",
+      "description": "Automatic checks for web shell cache."
+    },
+    "tests/test_webhook_wake.py": {
+      "name": "Webhook wake tests",
+      "description": "Automatic checks for webhook wake."
+    },
+    "tests/test_websocket_events.py": {
+      "name": "Websocket events tests",
+      "description": "Automatic checks for websocket events."
+    },
+    "tests/test_weekly_report.py": {
+      "name": "Weekly report tests",
+      "description": "Automatic checks for weekly report."
+    },
+    "tests/test_worker_startup.py": {
+      "name": "Worker startup tests",
+      "description": "Automatic checks for worker startup."
+    },
+    "tests/test_workspace_access.py": {
+      "name": "Workspace access tests",
+      "description": "Automatic checks for workspace access."
+    },
+    "tests/test_workspace_artifacts.py": {
+      "name": "Workspace artifacts tests",
+      "description": "Automatic checks for workspace artifacts."
+    },
+    "tests/test_workspace_files.py": {
+      "name": "Workspace files tests",
+      "description": "Automatic checks for workspace files."
+    },
+    "tests/test_workspace_processes.py": {
+      "name": "Workspace processes tests",
+      "description": "Automatic checks for workspace processes."
+    },
+    "tests/test_workspace_running.py": {
+      "name": "Workspace running tests",
+      "description": "Automatic checks for workspace running."
+    },
+    "tests/test_workspace_service.py": {
+      "name": "Workspace service tests",
+      "description": "Automatic checks for workspace service."
+    },
+    "tests/test_workspace_skill_creation.py": {
+      "name": "Workspace skill creation tests",
+      "description": "Automatic checks for workspace skill creation."
+    },
+    "tests/test_workspace_startup.py": {
+      "name": "Workspace startup tests",
+      "description": "Automatic checks for workspace startup."
+    },
+    "tests/ui-reference/domain-states.mjs": {
+      "name": "Domain states tests",
+      "description": "Automatic checks for domain states."
+    },
+    "tests/ui-reference/mobile-side-by-side.mjs": {
+      "name": "Mobile side by side tests",
+      "description": "Automatic checks for mobile side by side."
+    },
+    "tests/ui-reference/seed_domain.py": {
+      "name": "Seed domain tests",
+      "description": "Automatic checks for seed domain."
+    },
+    "tests/ui-reference/seed_reference.py": {
+      "name": "Seed reference tests",
+      "description": "Automatic checks for seed reference."
+    },
+    "tests/ui-reference/side-by-side.mjs": {
+      "name": "Side by side tests",
+      "description": "Automatic checks for side by side."
+    },
+    "tests/ui-test.mjs": {
+      "name": "Ui test tests",
+      "description": "Automatic checks for ui test."
+    },
+    "tests/voice/test_context.py": {
+      "name": "Context tests",
+      "description": "Automatic checks for context."
+    },
+    "tests/voice/test_handoff.py": {
+      "name": "Handoff tests",
+      "description": "Automatic checks for handoff."
+    },
+    "tests/voice/test_live.py": {
+      "name": "Live tests",
+      "description": "Automatic checks for live."
+    },
+    "tests/web/agent-alert.spec.mjs": {
+      "name": "Agent alert tests",
+      "description": "Automatic checks for agent alert."
+    }
+  }
+}

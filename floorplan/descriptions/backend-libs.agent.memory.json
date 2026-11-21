@@ -1,0 +1,52 @@
+{
+  "files": {
+    "packages/memory/src/lonora_memory/__init__.py": {
+      "name": "Memory package",
+      "description": "Marks the memory code as one package; holds no logic of its own."
+    },
+    "packages/memory/src/lonora_memory/commit.py": {
+      "name": "Save memory",
+      "description": "Saves a batch of memory changes all-or-nothing, keeping owner preferences in the shared profile and out of an agent's own document."
+    },
+    "packages/memory/src/lonora_memory/conversation.py": {
+      "name": "Conversation recall",
+      "description": "Lets an agent recall older messages from a conversation it is allowed to read."
+    },
+    "packages/memory/src/lonora_memory/edits.py": {
+      "name": "Memory edits",
+      "description": "Applies the individual edits to a memory document, refusing the whole batch if any part is wrong or the result is too large."
+    },
+    "packages/memory/src/lonora_memory/evidence.py": {
+      "name": "Memory evidence",
+      "description": "Finds the most relevant memory for a query by blending word matches and meaning matches."
+    },
+    "packages/memory/src/lonora_memory/guard.py": {
+      "name": "Memory guard",
+      "description": "Refuses a standing instruction that would have the agent hand private data elsewhere."
+    },
+    "packages/memory/src/lonora_memory/markdown_memory.py": {
+      "name": "Memory formatting",
+      "description": "Normalizes memory text and prepares it for the agent's context."
+    },
+    "packages/memory/src/lonora_memory/method.py": {
+      "name": "Agent method",
+      "description": "Keeps versioned copies of an agent's working method, so an older one can be restored without touching its other memory."
+    },
+    "packages/memory/src/lonora_memory/profile.py": {
+      "name": "Memory views",
+      "description": "Separates an agent's own memory from the shared owner profile and its named sections."
+    },
+    "packages/memory/src/lonora_memory/retrieval.py": {
+      "name": "Memory word-search",
+      "description": "Matches memory by words across languages, keeping technical terms exact."
+    },
+    "packages/memory/src/lonora_memory/semantic.py": {
+      "name": "Memory meaning-search",
+      "description": "Finds memory by meaning, and keeps notes indexed as the owner edits them so an edit never leaves both the old and new note."
+    },
+    "packages/memory/src/lonora_memory/sessions.py": {
+      "name": "History search",
+      "description": "Searches an agent's past conversations within what it is allowed to read."
+    }
+  }
+}

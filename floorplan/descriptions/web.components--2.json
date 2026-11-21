@@ -1,0 +1,100 @@
+{
+  "files": {
+    "apps/web/src/components/skills/CreateSkill.tsx": {
+      "name": "Create skill (web)",
+      "description": "Creates a skill."
+    },
+    "apps/web/src/components/skills/RevokeVersion.tsx": {
+      "name": "Block skill version",
+      "description": "Blocks a specific skill version."
+    },
+    "apps/web/src/components/skills/shared.ts": {
+      "name": "Skills helpers (web)",
+      "description": "Shared pieces for the skills components."
+    },
+    "apps/web/src/components/skills/SkillCard.tsx": {
+      "name": "Skill card",
+      "description": "One skill with its details and actions."
+    },
+    "apps/web/src/components/skills/SkillEditor.tsx": {
+      "name": "Skill editor",
+      "description": "Edits a skill."
+    },
+    "apps/web/src/components/skills/SkillMetadata.tsx": {
+      "name": "Skill metadata",
+      "description": "Shows a skill's name and description."
+    },
+    "apps/web/src/components/skills/skills.css": {
+      "name": "Skills styles",
+      "description": "Styles for the skills section."
+    },
+    "apps/web/src/components/ToolActivityDisclosure.tsx": {
+      "name": "Tool activity details",
+      "description": "An expandable view of a tool's activity."
+    },
+    "apps/web/src/components/trading/AccountSummary.tsx": {
+      "name": "Account summary",
+      "description": "A trading account's balance and figures."
+    },
+    "apps/web/src/components/trading/AgentMarketPicker.tsx": {
+      "name": "Market picker (web)",
+      "description": "Chooses an agent's market and account."
+    },
+    "apps/web/src/components/trading/BrokerConnection.tsx": {
+      "name": "Broker connection (web)",
+      "description": "Connects and manages a broker account."
+    },
+    "apps/web/src/components/trading/BrokerPairPicker.tsx": {
+      "name": "Pair picker (web)",
+      "description": "Chooses a broker currency pair."
+    },
+    "apps/web/src/components/trading/ExecutionReceipt.tsx": {
+      "name": "Execution receipt (web)",
+      "description": "The receipt card for a broker-confirmed trade."
+    },
+    "apps/web/src/components/trading/Orders.tsx": {
+      "name": "Orders list",
+      "description": "The account's pending orders, with cancel."
+    },
+    "apps/web/src/components/trading/Positions.tsx": {
+      "name": "Positions list",
+      "description": "The account's open positions, with edit and close."
+    },
+    "apps/web/src/components/trading/TradeActionCard.tsx": {
+      "name": "Trade action card",
+      "description": "The owner's own trade order form."
+    },
+    "apps/web/src/components/trading/TradeApprovals.tsx": {
+      "name": "Trade approvals (web)",
+      "description": "The cards where the owner approves or refuses a trade."
+    },
+    "apps/web/src/components/trading/TradingJournal.tsx": {
+      "name": "Trading journal (web)",
+      "description": "The record of trading activity."
+    },
+    "apps/web/src/components/trading/useTicketAction.ts": {
+      "name": "Ticket action",
+      "description": "The owner's close or cancel on one broker ticket, kept to a single operation."
+    },
+    "apps/web/src/components/visual/RichResponse.tsx": {
+      "name": "Rich reply (web)",
+      "description": "Draws an agent's rich reply: text, controls, charts, diagrams and tables."
+    },
+    "apps/web/src/components/visual/visual.css": {
+      "name": "Rich reply styles",
+      "description": "Styles for rich agent replies."
+    },
+    "apps/web/src/components/visual/VisualGraphics.tsx": {
+      "name": "Rich reply charts (web)",
+      "description": "The chart and diagram inside a rich reply."
+    },
+    "apps/web/src/components/visual/VisualNumberInput.tsx": {
+      "name": "Rich reply number input",
+      "description": "A number input inside a rich reply."
+    },
+    "apps/web/src/components/visual/VisualTable.tsx": {
+      "name": "Rich reply table",
+      "description": "A table inside a rich reply, with show-more."
+    }
+  }
+}

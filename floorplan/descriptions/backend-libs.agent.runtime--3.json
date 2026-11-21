@@ -1,0 +1,56 @@
+{
+  "files": {
+    "packages/agent-runtime/src/lonora_agent/stream_publication.py": {
+      "name": "Output coalescing",
+      "description": "Groups the model's streamed output so saving it never slows the reading."
+    },
+    "packages/agent-runtime/src/lonora_agent/suggested_reply.py": {
+      "name": "Suggested reply",
+      "description": "Produces the agent's optional suggestion for your next reply, within the same answer."
+    },
+    "packages/agent-runtime/src/lonora_agent/tasks.py": {
+      "name": "Task boundaries",
+      "description": "Pauses a task only at safe points, never in the middle of a tool action."
+    },
+    "packages/agent-runtime/src/lonora_agent/tool_batch.py": {
+      "name": "Parallel tool calls",
+      "description": "Splits an agent's tool calls into groups that can safely run at the same time, keeping the results in order."
+    },
+    "packages/agent-runtime/src/lonora_agent/tool_block.py": {
+      "name": "Tool-call block",
+      "description": "Runs a batch of the model's tool calls, records each result in order, and routes any waits."
+    },
+    "packages/agent-runtime/src/lonora_agent/tool_dispatch.py": {
+      "name": "Run one tool call",
+      "description": "Carries out a single tool call under the rules that keep it safe to replay after a crash."
+    },
+    "packages/agent-runtime/src/lonora_agent/tool_exposure.py": {
+      "name": "Tool exposure",
+      "description": "Chooses, once per run, which tools the model may use, and freezes that choice."
+    },
+    "packages/agent-runtime/src/lonora_agent/tool_guardrails.py": {
+      "name": "Tool guardrails",
+      "description": "Blocks an agent from repeating a pointless read or the same action too many times."
+    },
+    "packages/agent-runtime/src/lonora_agent/tool_intent.py": {
+      "name": "Call bookkeeping",
+      "description": "Keeps the record of tool calls complete and cancels proposals that were superseded."
+    },
+    "packages/agent-runtime/src/lonora_agent/tool_loop.py": {
+      "name": "The agent loop",
+      "description": "The main loop of a run: it alternates between asking the model and carrying out the tools it calls."
+    },
+    "packages/agent-runtime/src/lonora_agent/uncertain_outcome.py": {
+      "name": "Uncertain-outcome line",
+      "description": "Adds one honest line to the reply when an owner request was left with an uncertain result."
+    },
+    "packages/agent-runtime/src/lonora_agent/visual_response.py": {
+      "name": "Card parsing",
+      "description": "Finds and compiles the generated-UI pieces inside a model's reply while the rest of the text keeps streaming."
+    },
+    "packages/agent-runtime/src/lonora_agent/workspace_move.py": {
+      "name": "Workspace file move",
+      "description": "Copies each agent's older analysis files into its home in the owner's workspace, once, before the old store is removed."
+    }
+  }
+}

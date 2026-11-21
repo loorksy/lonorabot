@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/agent_pages_browser.py": {
+      "name": "Agent pages browser tests",
+      "description": "Browser checks for agent pages."
+    },
+    "tests/browser_agents.py": {
+      "name": "Browser agents tests",
+      "description": "Automatic checks for browser agents."
+    },
+    "tests/chat_lists_browser.py": {
+      "name": "Chat lists browser tests",
+      "description": "Browser checks for chat lists."
+    },
+    "tests/check_account_authority.py": {
+      "name": "Account authority tests",
+      "description": "Automatic checks for account authority."
+    },
+    "tests/check_account_picture.py": {
+      "name": "Account picture tests",
+      "description": "Automatic checks for account picture."
+    },
+    "tests/check_account_recovery.py": {
+      "name": "Account recovery tests",
+      "description": "Automatic checks for account recovery."
+    },
+    "tests/check_activation_review.py": {
+      "name": "Activation review tests",
+      "description": "Automatic checks for activation review."
+    },
+    "tests/check_agent_alert_browser.py": {
+      "name": "Agent alert browser tests",
+      "description": "Browser checks for agent alert."
+    },
+    "tests/check_agent_binding.py": {
+      "name": "Agent binding tests",
+      "description": "Automatic checks for agent binding."
+    },
+    "tests/check_agent_create.py": {
+      "name": "Agent create tests",
+      "description": "Automatic checks for agent create."
+    },
+    "tests/check_agent_environment.py": {
+      "name": "Agent environment tests",
+      "description": "Automatic checks for agent environment."
+    },
+    "tests/check_agent_market.py": {
+      "name": "Agent market tests",
+      "description": "Automatic checks for agent market."
+    },
+    "tests/check_agent_model_choice.py": {
+      "name": "Agent model choice tests",
+      "description": "Automatic checks for agent model choice."
+    },
+    "tests/check_agent_model_migration.py": {
+      "name": "Agent model migration tests",
+      "description": "Automatic checks for agent model migration."
+    },
+    "tests/check_agent_model_preference.py": {
+      "name": "Agent model preference tests",
+      "description": "Automatic checks for agent model preference."
+    },
+    "tests/check_approval_validity_migration.py": {
+      "name": "Approval validity migration tests",
+      "description": "Automatic checks for approval validity migration."
+    },
+    "tests/check_attention_browser.py": {
+      "name": "Attention browser tests",
+      "description": "Browser checks for attention."
+    },
+    "tests/check_attention_items.py": {
+      "name": "Attention items tests",
+      "description": "Automatic checks for attention items."
+    },
+    "tests/check_attention.py": {
+      "name": "Attention tests",
+      "description": "Automatic checks for attention."
+    },
+    "tests/check_authority_migration.py": {
+      "name": "Authority migration tests",
+      "description": "Automatic checks for authority migration."
+    },
+    "tests/check_bound_market.py": {
+      "name": "Bound market tests",
+      "description": "Automatic checks for bound market."
+    },
+    "tests/check_broker_connection_backfill_race.py": {
+      "name": "Broker connection backfill race tests",
+      "description": "Automatic checks for broker connection backfill race."
+    },
+    "tests/check_broker_connection_uniqueness.py": {
+      "name": "Broker connection uniqueness tests",
+      "description": "Automatic checks for broker connection uniqueness."
+    },
+    "tests/check_broker_discovery.py": {
+      "name": "Broker discovery tests",
+      "description": "Automatic checks for broker discovery."
+    },
+    "tests/check_broker_history.py": {
+      "name": "Broker history tests",
+      "description": "Automatic checks for broker history."
+    },
+    "tests/check_broker_orders.py": {
+      "name": "Broker orders tests",
+      "description": "Automatic checks for broker orders."
+    },
+    "tests/check_broker_recovery.py": {
+      "name": "Broker recovery tests",
+      "description": "Automatic checks for broker recovery."
+    },
+    "tests/check_calendar_picture.py": {
+      "name": "Calendar picture tests",
+      "description": "Automatic checks for calendar picture."
+    },
+    "tests/check_chart_browser.py": {
+      "name": "Chart browser tests",
+      "description": "Browser checks for chart."
+    },
+    "tests/check_chart_command_receipts.py": {
+      "name": "Chart command receipts tests",
+      "description": "Automatic checks for chart command receipts."
+    },
+    "tests/check_chart_creation_receipts.py": {
+      "name": "Chart creation receipts tests",
+      "description": "Automatic checks for chart creation receipts."
+    },
+    "tests/check_chart_drawing_commands.py": {
+      "name": "Chart drawing commands tests",
+      "description": "Automatic checks for chart drawing commands."
+    },
+    "tests/check_chart_history.py": {
+      "name": "Chart history tests",
+      "description": "Automatic checks for chart history."
+    },
+    "tests/check_chart_snapshot_provenance.py": {
+      "name": "Chart snapshot provenance tests",
+      "description": "Automatic checks for chart snapshot provenance."
+    },
+    "tests/check_chart_streaming.py": {
+      "name": "Chart streaming tests",
+      "description": "Automatic checks for chart streaming."
+    },
+    "tests/check_chart_tools.py": {
+      "name": "Chart tools tests",
+      "description": "Automatic checks for chart tools."
+    },
+    "tests/check_chart_visual_observation.py": {
+      "name": "Chart visual observation tests",
+      "description": "Automatic checks for chart visual observation."
+    },
+    "tests/check_chat_latency.py": {
+      "name": "Chat latency tests",
+      "description": "Automatic checks for chat latency."
+    },
+    "tests/check_clients.py": {
+      "name": "Clients tests",
+      "description": "Automatic checks for clients."
+    },
+    "tests/check_close_wake.py": {
+      "name": "Close wake tests",
+      "description": "Automatic checks for close wake."
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "files": {
+    "packages/adapters/src/lonora_adapters/models/anthropic.py": {
+      "name": "Anthropic connection",
+      "description": "Talks to Anthropic's models, keeping the fixed part of each request cached."
+    },
+    "packages/adapters/src/lonora_adapters/models/base.py": {
+      "name": "Model connection base",
+      "description": "The shared behaviour every AI model connection builds on, including how a failed or cut-off reply is handled."
+    },
+    "packages/adapters/src/lonora_adapters/models/compatible_endpoint.py": {
+      "name": "Custom model endpoint",
+      "description": "Talks to any OpenAI-compatible model the owner adds by its address, which is checked first."
+    },
+    "packages/adapters/src/lonora_adapters/models/deepseek.py": {
+      "name": "DeepSeek connection",
+      "description": "Talks to DeepSeek's models."
+    },
+    "packages/adapters/src/lonora_adapters/models/fake.py": {
+      "name": "Scripted model (test)",
+      "description": "A test-only model that replays a script; never part of production."
+    },
+    "packages/adapters/src/lonora_adapters/models/openai_compatible.py": {
+      "name": "OpenAI-style connection",
+      "description": "The shared connection for OpenAI and every provider that speaks the same way."
+    },
+    "packages/adapters/src/lonora_adapters/models/openai.py": {
+      "name": "OpenAI connection",
+      "description": "Talks to OpenAI's models."
+    },
+    "packages/adapters/src/lonora_adapters/models/openrouter.py": {
+      "name": "OpenRouter connection",
+      "description": "Talks to models through OpenRouter."
+    },
+    "packages/adapters/src/lonora_adapters/models/zai.py": {
+      "name": "Z.ai connection",
+      "description": "Talks to Z.ai's models."
+    },
+    "packages/adapters/src/lonora_adapters/registry.py": {
+      "name": "Channel registry",
+      "description": "Lists the outbound channels available, such as Telegram and webhooks."
+    },
+    "packages/adapters/src/lonora_adapters/storage/__init__.py": {
+      "name": "Storage package",
+      "description": "Marks the secret-storage connections as one package; holds no logic of its own."
+    },
+    "packages/adapters/src/lonora_adapters/storage/broker_secrets.py": {
+      "name": "Broker secrets store",
+      "description": "Keeps the broker token and account passwords, encrypted."
+    },
+    "packages/adapters/src/lonora_adapters/storage/secret_store.py": {
+      "name": "Encrypted secret store",
+      "description": "Keeps the owner's secrets of every other kind, encrypted."
+    },
+    "packages/adapters/src/lonora_adapters/voice/__init__.py": {
+      "name": "Voice adapters package",
+      "description": "Marks the voice connections as one package; holds no logic of its own."
+    },
+    "packages/adapters/src/lonora_adapters/voice/fake.py": {
+      "name": "Scripted speech (test)",
+      "description": "A test-only speech service that replays fixed text and audio."
+    },
+    "packages/adapters/src/lonora_adapters/voice/realtime.py": {
+      "name": "Live voice negotiation",
+      "description": "Sets up a live voice session with OpenAI's Live API."
+    },
+    "packages/adapters/src/lonora_adapters/voice/stt.py": {
+      "name": "Speech to text",
+      "description": "Turns spoken audio into text with OpenAI."
+    },
+    "packages/adapters/src/lonora_adapters/voice/tts.py": {
+      "name": "Text to speech",
+      "description": "Turns text into spoken audio with OpenAI."
+    }
+  }
+}

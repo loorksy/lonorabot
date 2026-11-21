@@ -1,0 +1,145 @@
+{
+  "$schema": "floorplan/architecture@1",
+  "project": {
+    "name": "Lonora",
+    "summary": "Lonora is an always-on AI trading assistant. You chat with AI agents in a web or phone app; the agents keep working on the server even after you close it, can watch markets and place trades through a broker, and talk back by text or voice. A Python (FastAPI) server answers the apps and a background worker runs the agents.",
+    "entrypoints": [
+      "apps/api/src/lonora_api/app.py",
+      "apps/worker/src/lonora_worker/main.py",
+      "apps/web/src/App.tsx",
+      "apps/mobile/app/(tabs)/index.tsx"
+    ]
+  },
+  "audience": "everyone",
+  "ignore": [
+    "apps/web/public/charting_library/**"
+  ],
+  "nodes": [
+    { "id": "web", "label": "Web app", "kind": "ui", "summary": "The browser app: an agent list, a live conversation with each agent, and a side panel for its identity, memory and scheduled work.", "paths": ["apps/web"] },
+    { "id": "web.shell", "parent": "web", "label": "App frame", "kind": "feature", "summary": "The overall layout: navigation, panels and the list of agents and groups.", "paths": ["apps/web/src/shell"] },
+    { "id": "web.conversation", "parent": "web", "label": "Conversation", "kind": "feature", "summary": "The main workspace where you chat with an agent and watch its replies stream in.", "paths": ["apps/web/src/conversation"] },
+    { "id": "web.components", "parent": "web", "label": "Screen parts", "kind": "feature", "summary": "Reusable pieces the web screens are built from.", "paths": ["apps/web/src/components"] },
+
+    { "id": "mobile", "label": "Mobile app", "kind": "ui", "summary": "The iOS and Android app (Expo): the same agents, chats and controls on a phone.", "paths": ["apps/mobile"] },
+    { "id": "mobile.screens", "parent": "mobile", "label": "Screens", "kind": "feature", "summary": "Every screen in the phone app.", "paths": ["apps/mobile/app"] },
+    { "id": "mobile.components", "parent": "mobile", "label": "Screen parts", "kind": "feature", "summary": "Reusable pieces the phone screens are built from.", "paths": ["apps/mobile/components"] },
+    { "id": "mobile.lib", "parent": "mobile", "label": "App logic & server calls", "kind": "library", "summary": "Talks to the server, keeps the saved session, and holds the shared phone-side logic.", "paths": ["apps/mobile/lib"] },
+
+    { "id": "server", "label": "Main server", "kind": "service", "summary": "The Python server that answers every request from the apps: sign-in, agents, messages, trading, market data, voice and more.", "paths": ["apps/api"] },
+    { "id": "server.routes", "parent": "server", "label": "Requests", "kind": "feature", "summary": "All the web requests the apps can make, grouped by topic (agents, messages, trading, market, providers and the rest).", "paths": ["apps/api/src/lonora_api/routes"] },
+    { "id": "server.websocket", "parent": "server", "label": "Live connections", "kind": "feature", "summary": "Streaming updates, live market data and voice, pushed over an always-open connection.", "paths": ["apps/api/src/lonora_api/websocket"] },
+    { "id": "server.middleware", "parent": "server", "label": "Request guards", "kind": "feature", "summary": "Checks that run on every request: limits on how often you can ask, a request id, and a cap on how much data can be sent.", "paths": ["apps/api/src/lonora_api/middleware"] },
+
+    { "id": "worker", "label": "Always-on worker", "kind": "worker", "summary": "Runs the agents in the background so they keep going after you close the browser or phone, and reconciles results if it restarts.", "paths": ["apps/worker"] },
+
+    { "id": "backend-libs", "label": "Server building blocks", "kind": "library", "summary": "The shared Python pieces the server and worker are built from, grouped by what they do." },
+
+    { "id": "backend-libs.agent", "parent": "backend-libs", "label": "Agent engine", "kind": "library", "summary": "Runs each agent: its reasoning loop, its memory and its scheduled routines." },
+    { "id": "backend-libs.agent.runtime", "parent": "backend-libs.agent", "label": "Agent runner", "kind": "library", "summary": "Runs an agent's reasoning loop and carries out what it decides.", "paths": ["packages/agent-runtime"] },
+    { "id": "backend-libs.agent.memory", "parent": "backend-libs.agent", "label": "Memory", "kind": "library", "summary": "What each agent remembers between conversations.", "paths": ["packages/memory"] },
+    { "id": "backend-libs.agent.automation", "parent": "backend-libs.agent", "label": "Scheduled routines", "kind": "library", "summary": "Work agents do on a schedule, without being asked each time.", "paths": ["packages/automation"] },
+
+    { "id": "backend-libs.tools", "parent": "backend-libs", "label": "Agent tools", "kind": "library", "summary": "The actions an agent can take — search, charts, trading, files and the rest.", "paths": ["packages/tools"] },
+
+    { "id": "backend-libs.models", "parent": "backend-libs", "label": "Model connections", "kind": "library", "summary": "Connects to the outside AI model providers and keeps track of usage." },
+    { "id": "backend-libs.models.providers", "parent": "backend-libs.models", "label": "Provider connections", "kind": "library", "summary": "Connects to each AI model provider and routes requests to the right one.", "paths": ["packages/providers"] },
+    { "id": "backend-libs.models.usage", "parent": "backend-libs.models", "label": "Usage tracking", "kind": "library", "summary": "Keeps track of how much each agent uses the AI models.", "paths": ["packages/llm-usage"] },
+
+    { "id": "backend-libs.voice", "parent": "backend-libs", "label": "Voice", "kind": "library", "summary": "Live spoken conversations with an agent.", "paths": ["packages/voice"] },
+
+    { "id": "backend-libs.trading", "parent": "backend-libs", "label": "Trading & markets", "kind": "library", "summary": "Places and reconciles trades, reads market data, and draws the charts." },
+    { "id": "backend-libs.trading.trading", "parent": "backend-libs.trading", "label": "Trading", "kind": "library", "summary": "Places and reconciles trades, with the on/off and emergency-stop controls.", "paths": ["packages/trading"] },
+    { "id": "backend-libs.trading.market", "parent": "backend-libs.trading", "label": "Market data", "kind": "library", "summary": "Reads prices and market information.", "paths": ["packages/market"] },
+    { "id": "backend-libs.trading.charts", "parent": "backend-libs.trading", "label": "Charts", "kind": "library", "summary": "Draws the market and trading charts.", "paths": ["packages/charts"] },
+
+    { "id": "backend-libs.integrations", "parent": "backend-libs", "label": "Integrations & channels", "kind": "library", "summary": "Talks to outside services, sends and receives outside messages, and moves work between parts inside the system." },
+    { "id": "backend-libs.integrations.adapters", "parent": "backend-libs.integrations", "label": "Service adapters", "kind": "library", "summary": "The toolkit and adapters for talking to outside services.", "paths": ["packages/adapters", "packages/adapter-kit"] },
+    { "id": "backend-libs.integrations.channels", "parent": "backend-libs.integrations", "label": "Message channels", "kind": "library", "summary": "Sends and receives messages on outside channels like Telegram.", "paths": ["packages/channels"] },
+    { "id": "backend-libs.integrations.gateway", "parent": "backend-libs.integrations", "label": "Gateway", "kind": "library", "summary": "Routes outside traffic and requests to the right place.", "paths": ["packages/gateway"] },
+    { "id": "backend-libs.integrations.bus", "parent": "backend-libs.integrations", "label": "Event bus", "kind": "library", "summary": "Passes work and events between the parts inside the system.", "paths": ["packages/bus"] },
+
+    { "id": "backend-libs.identity", "parent": "backend-libs", "label": "Sign-in & security", "kind": "library", "summary": "Accounts, sign-in, device trust, encrypted secrets, and sessions." },
+    { "id": "backend-libs.identity.auth", "parent": "backend-libs.identity", "label": "Accounts & sign-in", "kind": "library", "summary": "Accounts, sign-in and device trust.", "paths": ["packages/auth"] },
+    { "id": "backend-libs.identity.security", "parent": "backend-libs.identity", "label": "Security & secrets", "kind": "library", "summary": "Protects the app and stores secrets encrypted.", "paths": ["packages/security"] },
+    { "id": "backend-libs.identity.session", "parent": "backend-libs.identity", "label": "Sessions", "kind": "library", "summary": "Keeps you signed in, and lets the server end a session.", "paths": ["packages/session"] },
+
+    { "id": "backend-libs.data", "parent": "backend-libs", "label": "Database & records", "kind": "data", "summary": "The database tables, the changes that build and update them, and the queries that read and write them.", "paths": ["packages/db"] },
+
+    { "id": "backend-libs.domain", "parent": "backend-libs", "label": "Core rules & shared shapes", "kind": "library", "summary": "The core domain rules, the exact shape of the data passed around, workspace state, and logging." },
+    { "id": "backend-libs.domain.core", "parent": "backend-libs.domain", "label": "Core rules", "kind": "library", "summary": "The core domain rules shared across the whole system.", "paths": ["packages/core/src/lonora_core/**"] },
+    { "id": "backend-libs.domain.contracts", "parent": "backend-libs.domain", "label": "Shared data shapes", "kind": "library", "summary": "The exact shape of the data passed between the parts.", "paths": ["packages/contracts/src/lonora_contracts/**"] },
+    { "id": "backend-libs.domain.workspace", "parent": "backend-libs.domain", "label": "Workspace", "kind": "library", "summary": "The running state of an agent's workspace.", "paths": ["packages/workspace"] },
+    { "id": "backend-libs.domain.logging", "parent": "backend-libs.domain", "label": "Logging", "kind": "library", "summary": "Records what happened for later inspection.", "paths": ["packages/logging"] },
+
+    { "id": "frontend-libs", "label": "Shared screens & design kit", "kind": "library", "summary": "The shared TypeScript pieces the web and phone apps are built from." },
+    { "id": "frontend-libs.ui", "parent": "frontend-libs", "label": "Design kit", "kind": "library", "summary": "The buttons, layouts and colors every screen is built from." },
+    { "id": "frontend-libs.ui.web", "parent": "frontend-libs.ui", "label": "Web building blocks", "kind": "library", "summary": "The buttons, layouts and screen pieces the apps are built from.", "paths": ["packages/ui-web"] },
+    { "id": "frontend-libs.ui.tokens", "parent": "frontend-libs.ui", "label": "Design tokens", "kind": "library", "summary": "The shared colors, spacing and type used everywhere.", "paths": ["packages/ui-tokens"] },
+    { "id": "frontend-libs.chat", "parent": "frontend-libs", "label": "Chat interface", "kind": "library", "summary": "The conversation interface pieces shared by the web and phone apps.", "paths": ["packages/chat-ui"] },
+    { "id": "frontend-libs.shared", "parent": "frontend-libs", "label": "Shared types & logic", "kind": "library", "summary": "Data shapes and helper logic shared between the apps and the server." },
+    { "id": "frontend-libs.shared.logic", "parent": "frontend-libs.shared", "label": "Shared logic", "kind": "library", "summary": "Helper logic and the generated-UI pieces shared by the apps.", "paths": ["packages/core/src/*.ts", "packages/core/src/*.js", "packages/core/src/genui/**"] },
+    { "id": "frontend-libs.shared.contracts", "parent": "frontend-libs.shared", "label": "Shared data shapes (apps)", "kind": "library", "summary": "The data shapes the apps and server agree on.", "paths": ["packages/contracts/src/*.ts"] },
+
+    { "id": "tests", "label": "Tests", "kind": "test", "summary": "The saved checks for the clients, streaming, web and phone apps that run against a real test database.", "paths": ["tests"] },
+
+    { "id": "ops", "label": "Scripts & command line", "kind": "script", "summary": "Install, dev and build scripts, agent evaluations, and the command used to run Lonora on a server.", "paths": ["scripts"] },
+
+    { "id": "infra", "label": "Running on a server", "kind": "infra", "summary": "How Lonora is packaged and run on a server.", "paths": ["infra"] },
+
+    { "id": "pg", "label": "Database (PostgreSQL)", "kind": "external", "summary": "Where everything is stored.", "packages": ["pypi:sqlalchemy", "pypi:alembic", "pypi:asyncpg"] },
+    { "id": "ai", "label": "AI model providers", "kind": "external", "summary": "The outside AI services the agents think with: OpenAI, Anthropic, DeepSeek, Z.ai and OpenRouter.", "hosts": ["api.openai.com", "api.anthropic.com", "api.deepseek.com", "api.z.ai", "openrouter.ai", "openaipublic.blob.core.windows.net"] },
+    { "id": "broker", "label": "Trading broker (MetaApi)", "kind": "external", "summary": "Where live and imported-simulation orders are placed, through MetaApi.", "hosts": ["*.agiliumtrade.ai", "mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai"] },
+    { "id": "telegram", "label": "Telegram", "kind": "external", "summary": "An outside messaging channel agents can send to and receive from.", "hosts": ["api.telegram.org"] },
+    { "id": "push", "label": "Phone notifications", "kind": "external", "summary": "Sends push notifications to the phone app through Expo.", "hosts": ["exp.host"] },
+    { "id": "search", "label": "Web search", "kind": "external", "summary": "Lets agents search the web, through a self-hosted SearXNG and Brave Search.", "hosts": ["searxng:8080", "api.search.brave.com"] }
+  ],
+  "edges": [
+    { "from": "server", "to": "worker", "kind": "queue", "label": "hands off runs", "description": "The server starts an agent run and hands it to the worker, so it keeps running after the app is closed." },
+    { "from": "worker", "to": "pg", "kind": "data", "label": "reads/writes", "description": "The worker saves run progress and results so they survive a restart and show up in both apps." },
+    { "from": "server", "to": "pg", "kind": "data", "label": "reads/writes", "description": "The server reads and writes accounts, agents, messages and settings." }
+  ],
+  "flows": [
+    {
+      "id": "message",
+      "title": "You send a message to an agent",
+      "steps": [
+        { "node": "web.conversation", "note": "You type a message to one of your agents." },
+        { "node": "server.routes", "note": "The server receives it and starts a run." },
+        { "node": "worker", "note": "The run is handed to the always-on worker so it continues even if you close the app." },
+        { "node": "backend-libs.agent", "note": "The agent engine runs the agent's reasoning loop." },
+        { "node": "ai", "note": "It calls an outside AI model provider to think." },
+        { "node": "backend-libs.tools", "note": "The agent uses tools — search, charts, trading — as it needs them, and the reply streams back to you." }
+      ]
+    },
+    {
+      "id": "trade",
+      "title": "An agent places a trade",
+      "steps": [
+        { "node": "backend-libs.agent", "note": "The agent decides to act on the market." },
+        { "node": "backend-libs.tools", "note": "It calls the trading tool." },
+        { "node": "backend-libs.trading", "note": "Trading checks the on/off and emergency-stop controls, then sends the order." },
+        { "node": "broker", "note": "MetaApi places it with the real or imported-simulation account." }
+      ]
+    },
+    {
+      "id": "voice",
+      "title": "You talk to an agent by voice",
+      "steps": [
+        { "node": "mobile.screens", "note": "You open voice in the app." },
+        { "node": "server.websocket", "note": "A live connection opens for the call." },
+        { "node": "backend-libs.voice", "note": "The voice path connects the call to the agent." },
+        { "node": "ai", "note": "It uses a live voice model, routed to the same agent and tools." }
+      ]
+    }
+  ],
+  "tour": [
+    { "node": "web", "title": "The app you use", "note": "Lonora opens as a chat: your agents on one side, a live conversation in the middle, and a panel for the agent's identity, memory and scheduled work." },
+    { "node": "mobile", "title": "The same thing on your phone", "note": "The Expo app gives you the agents, chats and controls on iOS and Android." },
+    { "node": "server", "title": "The main server", "note": "A Python server answers everything the apps ask for — signing in, agents, messages, trading, market data and voice." },
+    { "node": "worker", "title": "The always-on worker", "note": "Agents actually run here, so they keep working after you close the browser or phone." },
+    { "node": "backend-libs.agent", "title": "The agent's brain", "note": "This runs each agent's reasoning loop, its memory, and its scheduled routines." },
+    { "node": "ai", "title": "How agents think", "note": "Agents reason by calling outside AI model providers like OpenAI and Anthropic — no provider keys ship with the project." },
+    { "node": "broker", "title": "Where trades go", "note": "When an agent trades, orders go out through MetaApi, and only against a real account or explicitly-imported simulation data." },
+    { "node": "apps/web/src/App.tsx", "title": "Start reading the code here", "note": "This is the top of the web app, where the whole screen is assembled." }
+  ]
+}

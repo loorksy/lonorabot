@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/agent-runtime/src/lonora_agent/display_bindings.py": {
+      "name": "Unbound template guard",
+      "description": "Lets prose through without treating an unfilled template placeholder as real data."
+    },
+    "packages/agent-runtime/src/lonora_agent/environment.py": {
+      "name": "Operational memory",
+      "description": "Records what an agent's tools observed, sorts out what kind of error occurred, and schedules a retry after a failure."
+    },
+    "packages/agent-runtime/src/lonora_agent/executor.py": {
+      "name": "Run executor",
+      "description": "Runs one agent run from start to finish, keeping its lease alive and recording a clean failure if it breaks."
+    },
+    "packages/agent-runtime/src/lonora_agent/failure_view.py": {
+      "name": "Failure in words",
+      "description": "Turns the machine labels on a failed tool result into words the model can read."
+    },
+    "packages/agent-runtime/src/lonora_agent/genui_capabilities.py": {
+      "name": "Card capabilities note",
+      "description": "Builds the per-turn note telling the model which generated-UI pieces it may use."
+    },
+    "packages/agent-runtime/src/lonora_agent/genui_compile.py": {
+      "name": "Card compiler",
+      "description": "Builds a rich generated-UI card from the turn's real evidence, refusing to show numbers or results the broker has not confirmed."
+    },
+    "packages/agent-runtime/src/lonora_agent/genui_vocabulary.py": {
+      "name": "Card vocabulary",
+      "description": "Builds the list of card building blocks the model may use, straight from the live rules so it can never drift."
+    },
+    "packages/agent-runtime/src/lonora_agent/loop_outcomes.py": {
+      "name": "Turn outcomes",
+      "description": "Decides how a turn ends: a final reply, or a saved wait for an answer, the owner's attention, or an outside event."
+    },
+    "packages/agent-runtime/src/lonora_agent/loop_restore.py": {
+      "name": "Restore a run",
+      "description": "Brings a run back from its last saved point before the loop continues, applying any owner answer or outside wake it carries."
+    },
+    "packages/agent-runtime/src/lonora_agent/model_recovery.py": {
+      "name": "Model failure recovery",
+      "description": "Decides what a run does after every model option has failed — how long to wait and when to escalate."
+    },
+    "packages/agent-runtime/src/lonora_agent/model_runtime.py": {
+      "name": "Model turn",
+      "description": "Runs one request to the AI model, turning stable tool references into real calls and guarding money claims before the loop sees the reply."
+    },
+    "packages/agent-runtime/src/lonora_agent/offers.py": {
+      "name": "Choice tracking",
+      "description": "Tracks what a question's choice was bound to do and what a tapped choice still has to finish."
+    },
+    "packages/agent-runtime/src/lonora_agent/progress.py": {
+      "name": "Progress line",
+      "description": "Produces the live progress line shown while an agent works."
+    },
+    "packages/agent-runtime/src/lonora_agent/public_stream.py": {
+      "name": "Public streaming guard",
+      "description": "Streams the reply as it is written while keeping any result claim final-only."
+    },
+    "packages/agent-runtime/src/lonora_agent/recovery.py": {
+      "name": "Checkpoint restore",
+      "description": "Reads a run's saved messages and pending calls back from its checkpoint."
+    },
+    "packages/agent-runtime/src/lonora_agent/reply_markdown.py": {
+      "name": "Reply formatting fix",
+      "description": "Fixes bold markers the model wrote with a stray space inside them."
+    },
+    "packages/agent-runtime/src/lonora_agent/run_scope.py": {
+      "name": "Run scope check",
+      "description": "Confirms a tool call belongs to the current run, agent, conversation and owner."
+    },
+    "packages/agent-runtime/src/lonora_agent/runtime_notices.py": {
+      "name": "Runtime notices",
+      "description": "Places the runtime's notices where the model will read them, in the owner's language, never as mid-run system text."
+    },
+    "packages/agent-runtime/src/lonora_agent/runtime.py": {
+      "name": "Agent runtime",
+      "description": "Sets up a run with its tools and limits and executes it."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/__init__.py": {
+      "name": "Skills package",
+      "description": "Marks the engine's skills code as one package; holds no logic of its own."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/access.py": {
+      "name": "Skill reads",
+      "description": "Lets a run read its skills step by step, binding each read to a receipt so the content is real."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/catalog.py": {
+      "name": "Owner skill catalog",
+      "description": "Builds the list of skills the owner can see."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/document.py": {
+      "name": "Skill document",
+      "description": "Reads a skill's name and description, while the server stays the authority on what it is allowed to do."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/instructions.py": {
+      "name": "Instruction skills",
+      "description": "Lets an agent save a text-only skill in one go, with versions it can restore."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/lifecycle.py": {
+      "name": "Skill packages",
+      "description": "Manages an agent's skill package versions, their stored files, and running their helper scripts safely in the owner's workspace."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/loader.py": {
+      "name": "Skill loader",
+      "description": "Loads the built-in skills, prompts and the mandatory runtime rules."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/packages.py": {
+      "name": "Pinned packages",
+      "description": "Prepares and validates pinned skill packages, without trusting their publisher."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/paths.py": {
+      "name": "Package file rules",
+      "description": "Enforces the size and path rules of a skill package's files and fingerprints them."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/provenance.py": {
+      "name": "Skill origin labels",
+      "description": "Labels every skill the model sees with where it really came from and how far it is trusted."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/registry.py": {
+      "name": "Skill registry",
+      "description": "Holds the set of installed skills and checks the shipped ones resolve at startup."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/repository.py": {
+      "name": "Public skill inspection",
+      "description": "Inspects a public skill package without ever running its code."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/resolver.py": {
+      "name": "Skill selection",
+      "description": "Decides which skills are eligible and selects them for a turn."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/run_copies.py": {
+      "name": "Skill file copies",
+      "description": "Writes an enabled skill version's files into the agent's workspace, where its scripts run."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/runtime.py": {
+      "name": "Skill context selection",
+      "description": "Picks the skill instructions to include within a budget."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/snapshot.py": {
+      "name": "Skill snapshots",
+      "description": "Keeps a bounded snapshot of the skills chosen for the current run."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/store.py": {
+      "name": "Skill file store",
+      "description": "Stores and reads the files of an agent's skill package versions."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/system_policy.py": {
+      "name": "System rules",
+      "description": "Selects the first-party rules the agent must follow, by what it is actually doing, never by keywords."
+    },
+    "packages/agent-runtime/src/lonora_agent/skills/visual_policy.py": {
+      "name": "Card-writing rules",
+      "description": "The part of the system prompt that teaches the agent how to build generated-UI cards."
+    },
+    "packages/agent-runtime/src/lonora_agent/steering.py": {
+      "name": "Mid-run steering",
+      "description": "Folds in the owner's new input and the server's notices while a run is working."
+    },
+    "packages/agent-runtime/src/lonora_agent/stop_gates.py": {
+      "name": "Stop gates",
+      "description": "Stops a model from ending a run while a task or responsibility is still unfinished."
+    }
+  }
+}

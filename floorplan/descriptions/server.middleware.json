@@ -1,0 +1,20 @@
+{
+  "files": {
+    "apps/api/src/lonora_api/middleware/__init__.py": {
+      "name": "Request-guard package",
+      "description": "Marks the request-guard code as one package; holds no logic of its own."
+    },
+    "apps/api/src/lonora_api/middleware/auth.py": {
+      "name": "Signed-in check",
+      "description": "Makes sure a request comes from the signed-in owner before a protected request runs; used by almost every request on the server."
+    },
+    "apps/api/src/lonora_api/middleware/rate_limit.py": {
+      "name": "Request rate limit",
+      "description": "Caps how many requests a client can make per minute, keeping password guesses in a separate bucket so signing in and adding a device don't use each other's allowance."
+    },
+    "apps/api/src/lonora_api/middleware/request_id.py": {
+      "name": "Request id",
+      "description": "Tags every request with an id so it can be followed through the logs."
+    }
+  }
+}

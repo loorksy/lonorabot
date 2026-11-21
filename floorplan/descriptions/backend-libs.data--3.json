@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/db/migrations/versions/0130_owner_signals.py": {
+      "name": "Owner signals",
+      "description": "Adds the append-only record of what the owner did."
+    },
+    "packages/db/migrations/versions/0131_agent_model_owner_only.py": {
+      "name": "Owner-only model choice",
+      "description": "Makes only the owner able to assign an agent's model."
+    },
+    "packages/db/migrations/versions/0132_trust_from_owner_words.py": {
+      "name": "Trust from owner's words",
+      "description": "Lets an agent trust a source on the owner's words and removes the trust card."
+    },
+    "packages/db/migrations/versions/0135_workspace_given.py": {
+      "name": "Given workspace secrets",
+      "description": "Records secret values given to workspace commands, so the output scan still covers them."
+    },
+    "packages/db/migrations/versions/0136_workspace_processes.py": {
+      "name": "Workspace processes",
+      "description": "Keeps the background processes an agent started until it is told they ended."
+    },
+    "packages/db/migrations/versions/0137_workspace_snapshot_moved.py": {
+      "name": "Workspace move record",
+      "description": "Records when each agent's files were copied into its workspace home."
+    },
+    "packages/db/migrations/versions/0138_skill_package_files.py": {
+      "name": "Skill package files",
+      "description": "Gives skill packages their own file store."
+    },
+    "packages/db/migrations/versions/0139_workspace_running.py": {
+      "name": "What is running",
+      "description": "Records what is running in the workspace and the owner's stop requests."
+    },
+    "packages/db/migrations/versions/0140_push_devices.py": {
+      "name": "Push devices",
+      "description": "Adds the phones registered for push."
+    },
+    "packages/db/migrations/versions/0145_metaapi_token.py": {
+      "name": "MetaApi token",
+      "description": "Keeps the owner's MetaApi token as one broker secret."
+    },
+    "packages/db/migrations/versions/0146_broker_relay.py": {
+      "name": "Broker relay",
+      "description": "Adds the broker requests the main server hands to the worker."
+    },
+    "packages/db/migrations/versions/0150_remove_stop.py": {
+      "name": "Remove Stop",
+      "description": "Removes the Stop feature entirely."
+    },
+    "packages/db/migrations/versions/0155_owner_message_pauses_are_owners.py": {
+      "name": "Owner-message pauses",
+      "description": "Treats a pause an agent made from the owner's message as the owner's own."
+    },
+    "packages/db/migrations/versions/0165_agent_cli_tokens.py": {
+      "name": "Agent command tokens",
+      "description": "Adds each agent's own `lonora` command pass."
+    },
+    "packages/db/migrations/versions/0170_broker_health_attention.py": {
+      "name": "Broker health alerts",
+      "description": "Lets broker-health attention items carry the problem."
+    },
+    "packages/db/migrations/versions/0172_mandate_attention.py": {
+      "name": "Mandate card alert",
+      "description": "Adds the Mandate card's attention item."
+    },
+    "packages/db/migrations/versions/0173_reach_me_without_activity.py": {
+      "name": "Reach-me cleanup",
+      "description": "Removes the 'activity only' reach-me choice."
+    },
+    "packages/db/migrations/versions/0175_morning_briefs.py": {
+      "name": "Morning brief record",
+      "description": "Adds one morning-brief row per owner."
+    },
+    "packages/db/migrations/versions/0176_weekly_reports.py": {
+      "name": "Weekly report state",
+      "description": "Adds the weekly-report state to the morning brief."
+    },
+    "packages/db/migrations/versions/0177_app_opens.py": {
+      "name": "App opens record",
+      "description": "Adds app opens and the learned brief time."
+    },
+    "packages/db/migrations/versions/0190_drop_unused_resource_tables.py": {
+      "name": "Drop unused tables",
+      "description": "Removes two tables nothing ever used."
+    },
+    "packages/db/migrations/versions/0195_drop_model_backups.py": {
+      "name": "Drop backups table",
+      "description": "Removes the model-backups table; backups live in a setting now."
+    },
+    "packages/db/migrations/versions/0196_model_provider_cards.py": {
+      "name": "Provider Secret card",
+      "description": "Lets a Secret card connect a model provider."
+    },
+    "packages/db/migrations/versions/0200_old_workspace_data.py": {
+      "name": "Remove old workspace data",
+      "description": "Drops the former analytical-workspace data that nothing reads any more."
+    },
+    "packages/db/src/lonora_db/__init__.py": {
+      "name": "Database package",
+      "description": "Marks the database code as one package; holds no logic of its own."
+    },
+    "packages/db/src/lonora_db/account_authority.py": {
+      "name": "Account authority records",
+      "description": "The durable store of signed account delegation: propose, require, revoke, and end its task."
+    },
+    "packages/db/src/lonora_db/activation_acknowledgment.py": {
+      "name": "Grant confirmation",
+      "description": "Posts one truthful confirmation in the conversation after a grant is signed."
+    },
+    "packages/db/src/lonora_db/activation_review.py": {
+      "name": "Grant readiness review",
+      "description": "Runs a recovery-safe readiness check after the owner signs a grant."
+    },
+    "packages/db/src/lonora_db/agent_binding.py": {
+      "name": "Agent market binding",
+      "description": "The fixed broker account and market an agent is bound to, enforced for its tools and trades."
+    },
+    "packages/db/src/lonora_db/agent_creation.py": {
+      "name": "Create agents",
+      "description": "The one place persistent agents are created, paused and deleted, with the runaway-creation guard."
+    },
+    "packages/db/src/lonora_db/agent_delivery.py": {
+      "name": "Delivery rules store",
+      "description": "Stores each agent's notification rules and decides whether an alert may be shown."
+    },
+    "packages/db/src/lonora_db/agent_directory.py": {
+      "name": "Agent directory",
+      "description": "Reads agents' routing identities only, never their private prompts."
+    },
+    "packages/db/src/lonora_db/agent_goals.py": {
+      "name": "Goals & links store",
+      "description": "Stores an agent's light goals and knowledge links; a goal is only a note."
+    },
+    "packages/db/src/lonora_db/agent_models.py": {
+      "name": "Agent model store",
+      "description": "Stores each agent's chosen model and matches names to the providers' catalogs."
+    },
+    "packages/db/src/lonora_db/agent_on_its_own.py": {
+      "name": "Agents trading alone",
+      "description": "Lists the agents currently allowed to trade on their own; a read-only view."
+    },
+    "packages/db/src/lonora_db/agent_permissions.py": {
+      "name": "Agent permission ladder",
+      "description": "Stores each agent's approval preference over its signed trading authority."
+    },
+    "packages/db/src/lonora_db/agent_state.py": {
+      "name": "Agent live state",
+      "description": "Works out what an agent is doing now, from durable records only, for the live status."
+    },
+    "packages/db/src/lonora_db/agents.py": {
+      "name": "Agents store",
+      "description": "Creates, lists and updates agent records."
+    },
+    "packages/db/src/lonora_db/app_opens.py": {
+      "name": "App opens store",
+      "description": "Records when the owner opens the app, keeping the first open of each day."
+    },
+    "packages/db/src/lonora_db/artifact_repair.py": {
+      "name": "Image repair",
+      "description": "Carefully repairs older generated images from recorded tool effects."
+    }
+  }
+}

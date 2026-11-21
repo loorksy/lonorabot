@@ -1,0 +1,124 @@
+{
+  "files": {
+    "apps/mobile/app/_layout.tsx": {
+      "name": "App root",
+      "description": "The phone app's root layout that wraps every screen."
+    },
+    "apps/mobile/app/(settings)/_layout.tsx": {
+      "name": "Settings layout",
+      "description": "The layout around the settings screens."
+    },
+    "apps/mobile/app/(settings)/account.tsx": {
+      "name": "Account screen",
+      "description": "The owner's account settings."
+    },
+    "apps/mobile/app/(settings)/integrations.tsx": {
+      "name": "Capabilities screen",
+      "description": "Everything agents can use now, the same report and labels as the web."
+    },
+    "apps/mobile/app/(settings)/models.tsx": {
+      "name": "Models screen",
+      "description": "The owner's AI model providers and routing settings."
+    },
+    "apps/mobile/app/(settings)/notify-settings.tsx": {
+      "name": "Notifications settings",
+      "description": "How agents may reach the owner."
+    },
+    "apps/mobile/app/(settings)/running.tsx": {
+      "name": "What-is-running screen",
+      "description": "Every process in the owner's workspace with the agent that started it; stop one or all of them."
+    },
+    "apps/mobile/app/(settings)/voice.tsx": {
+      "name": "Voice settings",
+      "description": "The voice setup."
+    },
+    "apps/mobile/app/(tabs)/_layout.tsx": {
+      "name": "Tab bar",
+      "description": "The four main tabs — chats, updates, tasks and settings — under one floating bar."
+    },
+    "apps/mobile/app/(tabs)/index.tsx": {
+      "name": "Chats tab",
+      "description": "The chats list: header, filters, every agent and group as a row, and the unified search."
+    },
+    "apps/mobile/app/(tabs)/settings.tsx": {
+      "name": "Settings tab",
+      "description": "The settings home."
+    },
+    "apps/mobile/app/(tabs)/tasks.tsx": {
+      "name": "Tasks tab",
+      "description": "The agents' runs as they are now."
+    },
+    "apps/mobile/app/(tabs)/updates.tsx": {
+      "name": "Updates tab",
+      "description": "What needs the owner across all agents."
+    },
+    "apps/mobile/app/+not-found.tsx": {
+      "name": "Not-found screen",
+      "description": "The screen shown for an address that does not exist."
+    },
+    "apps/mobile/app/agents.tsx": {
+      "name": "Manage agents screen",
+      "description": "Every agent with its role and on/off state, every group with its size, and creating a group."
+    },
+    "apps/mobile/app/archived.tsx": {
+      "name": "Archived screen",
+      "description": "The archived conversations, with un-archive and the keep-archived setting."
+    },
+    "apps/mobile/app/artifact.tsx": {
+      "name": "File preview screen",
+      "description": "Previews and shares one file."
+    },
+    "apps/mobile/app/artifacts.tsx": {
+      "name": "Files screen",
+      "description": "Searches and lists the owner's files by agent."
+    },
+    "apps/mobile/app/bot-settings.tsx": {
+      "name": "Agent settings screen",
+      "description": "One agent's identity, memory, model, permissions and market."
+    },
+    "apps/mobile/app/charts.tsx": {
+      "name": "Charts screen",
+      "description": "The market charts workspace."
+    },
+    "apps/mobile/app/group-settings.tsx": {
+      "name": "Group settings screen",
+      "description": "A group's membership."
+    },
+    "apps/mobile/app/group-thread.tsx": {
+      "name": "Group conversation screen",
+      "description": "A group's conversation."
+    },
+    "apps/mobile/app/image.tsx": {
+      "name": "Full-screen image",
+      "description": "Shows an image full-screen."
+    },
+    "apps/mobile/app/new-group.tsx": {
+      "name": "New group screen",
+      "description": "Creates a new group."
+    },
+    "apps/mobile/app/owner.tsx": {
+      "name": "What-I-know-about-you screen",
+      "description": "Every line of the owner profile with where it came from."
+    },
+    "apps/mobile/app/routine.tsx": {
+      "name": "Routine screen",
+      "description": "Creates and edits a scheduled routine."
+    },
+    "apps/mobile/app/server.tsx": {
+      "name": "Server address screen",
+      "description": "Where the owner enters the server address."
+    },
+    "apps/mobile/app/sign-in.tsx": {
+      "name": "Sign-in screen",
+      "description": "Signs the owner in."
+    },
+    "apps/mobile/app/skills.tsx": {
+      "name": "Skills screen",
+      "description": "An agent's skills: view, create and manage versions."
+    },
+    "apps/mobile/app/thread.tsx": {
+      "name": "Conversation screen",
+      "description": "The main chat screen where the owner talks to an agent; the largest screen in the app."
+    }
+  }
+}

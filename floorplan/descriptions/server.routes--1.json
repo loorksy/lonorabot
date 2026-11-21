@@ -1,0 +1,514 @@
+{
+  "files": {
+    "apps/api/src/lonora_api/routes/__init__.py": {
+      "name": "Shared resource requests",
+      "description": "A reusable set of list, add, read, change and remove requests that the simpler per-agent resource screens (goals, boards, tickets and the like) are built on."
+    },
+    "apps/api/src/lonora_api/routes/account_authority.py": {
+      "name": "Trading authority",
+      "description": "Lets the owner grant, confirm with a signed device check, and revoke an agent's authority over a trading account."
+    },
+    "apps/api/src/lonora_api/routes/agent_delivery.py": {
+      "name": "Agent notification rules",
+      "description": "Reads and sets, per agent, how and when it may notify the owner; agents with no rules of their own follow the defaults."
+    },
+    "apps/api/src/lonora_api/routes/agent_goals.py": {
+      "name": "Agent goals",
+      "description": "An agent's goals and knowledge links, offered through the shared resource requests."
+    },
+    "apps/api/src/lonora_api/routes/agent_models.py": {
+      "name": "Agent's AI model",
+      "description": "Reads and sets which AI model an agent uses, and shows the model card: the choice, the model answering now, the options, and this agent's usage."
+    },
+    "apps/api/src/lonora_api/routes/agent_permissions.py": {
+      "name": "Agent permissions",
+      "description": "Shows an agent's stored permission ladder — what it is allowed to do."
+    },
+    "apps/api/src/lonora_api/routes/agent_secrets.py": {
+      "name": "Workspace secrets",
+      "description": "Lists the owner's saved secrets by name, values never leaving the store, and removes one — refusing to delete a secret a connection still uses."
+    },
+    "apps/api/src/lonora_api/routes/agent_skills.py": {
+      "name": "Agent skills",
+      "description": "Lists and inspects the skills an agent can use, keeps every saved version so one can be restored, and lets the owner block specific versions."
+    },
+    "apps/api/src/lonora_api/routes/agent_state.py": {
+      "name": "Agent live state",
+      "description": "Reports what an agent is doing right now, for the live status shown in the apps."
+    },
+    "apps/api/src/lonora_api/routes/agents.py": {
+      "name": "Agents",
+      "description": "Creates, lists, reads, configures and deletes agents and opens an agent's main conversation; one of the busiest parts of the server."
+    },
+    "apps/api/src/lonora_api/routes/app_opens.py": {
+      "name": "App opens",
+      "description": "Records the first time the owner opens the app each day, shows that habit, and can forget it."
+    },
+    "apps/api/src/lonora_api/routes/artifacts.py": {
+      "name": "Files & uploads",
+      "description": "Stores files the owner or agents upload, lets the owner rewrite a text file, and serves a file back for viewing or download."
+    },
+    "apps/api/src/lonora_api/routes/attention.py": {
+      "name": "Needs your attention",
+      "description": "Gathers what needs the owner across all agents, marks items as seen, and reads or sets the rule for what counts."
+    },
+    "apps/api/src/lonora_api/routes/auth.py": {
+      "name": "Sign in",
+      "description": "Signs the owner in on web and on the phone, reports the current session, and signs out."
+    },
+    "apps/api/src/lonora_api/routes/boards.py": {
+      "name": "Boards",
+      "description": "The owner's boards, offered through the shared resource requests."
+    },
+    "apps/api/src/lonora_api/routes/cancellation.py": {
+      "name": "Cancel a run",
+      "description": "Stops an agent's run while it is in progress."
+    },
+    "apps/api/src/lonora_api/routes/capabilities.py": {
+      "name": "Capabilities view",
+      "description": "Shows everything agents can use right now, each with where it came from, its state, when it was last used, and an undo."
+    },
+    "apps/api/src/lonora_api/routes/charts.py": {
+      "name": "Chart data",
+      "description": "Returns the data behind a saved chart and refreshes it with the latest market data."
+    },
+    "apps/api/src/lonora_api/routes/chat_lists.py": {
+      "name": "Chat lists",
+      "description": "Creates, reads, renames, deletes and sets the members of the lists that group chats in the sidebar."
+    },
+    "apps/api/src/lonora_api/routes/collaboration.py": {
+      "name": "Collaboration view",
+      "description": "Shows who is working together on a conversation, and the details of one collaboration session."
+    },
+    "apps/api/src/lonora_api/routes/connection_tests.py": {
+      "name": "Test a connection",
+      "description": "Checks that a model provider, an outside AI connection or a broker works before the owner saves it, without storing anything."
+    },
+    "apps/api/src/lonora_api/routes/device_authority.py": {
+      "name": "Trusted devices",
+      "description": "Lists the owner's trusted devices and lets them add one with a verification step or remove one, so sensitive actions can be approved from a known device."
+    },
+    "apps/api/src/lonora_api/routes/events.py": {
+      "name": "Live updates",
+      "description": "Keeps an open connection that streams live updates to the web app, resuming from where it left off after a reconnect."
+    },
+    "apps/api/src/lonora_api/routes/groups.py": {
+      "name": "Create a group",
+      "description": "Creates a group of agents."
+    },
+    "apps/api/src/lonora_api/routes/incoming_calls.py": {
+      "name": "Incoming calls",
+      "description": "Reads and sets who may call the owner by voice, shows a current incoming call, and lets the owner answer or decline it."
+    },
+    "apps/api/src/lonora_api/routes/integrations.py": {
+      "name": "Save a secret value",
+      "description": "Saves the secret values an integration needs, for the owner's own session only."
+    },
+    "apps/api/src/lonora_api/routes/knowledge.py": {
+      "name": "Agent knowledge",
+      "description": "Reads an agent's knowledge notes and links and adds, edits or removes a note; editing replaces the old note with the new text."
+    },
+    "apps/api/src/lonora_api/routes/market.py": {
+      "name": "Market data",
+      "description": "Serves the tradable instruments and symbols, one instrument's details, live quotes, price candles, and the economic calendar."
+    },
+    "apps/api/src/lonora_api/routes/mcp.py": {
+      "name": "AI-assistant connections store",
+      "description": "The shared store for connections that let outside AI assistants look things up in the app; other requests use it rather than calling it directly."
+    },
+    "apps/api/src/lonora_api/routes/memory.py": {
+      "name": "Memory & owner profile",
+      "description": "Reads and updates each agent's memory and the owner's own profile, preferences and the lines of what Lonora knows about them, keeping a history any change can be undone from."
+    }
+  },
+  "routes": {
+    "GET /": {
+      "name": "List items",
+      "description": "Lists the owner's items for one of the simple resources (such as goals or boards), optionally filtered to one agent or chat."
+    },
+    "POST /": {
+      "name": "Add an item",
+      "description": "Adds one item to a simple resource for the owner."
+    },
+    "GET /{resource_id}": {
+      "name": "Read an item",
+      "description": "Reads one item of a simple resource by its id."
+    },
+    "PUT /{resource_id}": {
+      "name": "Change an item",
+      "description": "Replaces one item's contents, refusing the change if someone else edited it first."
+    },
+    "DELETE /{resource_id}": {
+      "name": "Remove an item",
+      "description": "Deletes one item of a simple resource."
+    },
+    "GET /agents/{agent_id}/account-authorities": {
+      "name": "List trading authorities",
+      "description": "Lists the trading-account authorities granted to one agent, newest first."
+    },
+    "POST /agents/{agent_id}/account-authorities": {
+      "name": "Propose trading authority",
+      "description": "Proposes giving an agent authority over a trading account, for all symbols or a chosen set; it only takes effect once confirmed."
+    },
+    "POST /account-authorities/{identifier}/challenge": {
+      "name": "Start device confirmation",
+      "description": "Begins confirming a trading-authority grant by asking the owner's trusted device to sign it."
+    },
+    "POST /account-authorities/verify": {
+      "name": "Confirm trading authority",
+      "description": "Finishes the grant once the owner's device has signed, activating the authority and noting it in the conversation."
+    },
+    "POST /account-authorities/{identifier}/revoke": {
+      "name": "Revoke trading authority",
+      "description": "Takes back an agent's authority over a trading account."
+    },
+    "GET /agents/notifications": {
+      "name": "Agents with their own rules",
+      "description": "Lists the agents that have their own notification rules; any other agent follows the defaults."
+    },
+    "GET /agents/{agent_id}/notifications": {
+      "name": "Read an agent's rules",
+      "description": "Shows one agent's notification rules."
+    },
+    "PUT /agents/{agent_id}/notifications": {
+      "name": "Set an agent's rules",
+      "description": "Saves how and when one agent may notify the owner."
+    },
+    "GET /agents/{agent_id}/model": {
+      "name": "Read model choice",
+      "description": "Shows which AI model an agent is set to use."
+    },
+    "PUT /agents/{agent_id}/model": {
+      "name": "Set model choice",
+      "description": "Changes which AI model an agent uses, from any model of a connected provider."
+    },
+    "GET /agents/{agent_id}/model/summary": {
+      "name": "Model card",
+      "description": "Returns everything the model card shows: the choice, the model answering now, the models the owner can pick, and this agent's usage."
+    },
+    "GET /agents/{agent_id}/permissions": {
+      "name": "Read agent permissions",
+      "description": "Shows an agent's stored permission ladder."
+    },
+    "GET /secrets": {
+      "name": "List saved secrets",
+      "description": "Lists the owner's saved secrets by name; the values themselves never leave the store."
+    },
+    "DELETE /secrets/{secret_id}": {
+      "name": "Delete a secret",
+      "description": "Removes one saved secret, unless a connection still uses it."
+    },
+    "GET /skills/{skill_id}/versions": {
+      "name": "Skill version history",
+      "description": "Lists every saved version of a skill, newest first."
+    },
+    "POST /skills/{skill_id}/restore": {
+      "name": "Restore a skill version",
+      "description": "Brings an older skill version back by saving it as the skill's next version."
+    },
+    "GET /agents/{agent_id}/skills/catalog": {
+      "name": "Agent's skills",
+      "description": "Lists the skills one agent can use."
+    },
+    "GET /agents/{agent_id}/skills/catalog/{skill_id}": {
+      "name": "Skill details",
+      "description": "Shows the details of one skill an agent can use."
+    },
+    "GET /agents/{agent_id}/skills/revocations": {
+      "name": "Blocked skill versions",
+      "description": "Lists the skill versions the owner has blocked for one agent."
+    },
+    "POST /agents/{agent_id}/skills/revocations": {
+      "name": "Block a skill version",
+      "description": "Blocks a specific skill version for one agent."
+    },
+    "GET /agents/{agent_id}/state": {
+      "name": "Agent live state",
+      "description": "Reports what one agent is doing right now."
+    },
+    "GET /agents": {
+      "name": "List agents",
+      "description": "Lists the owner's agents."
+    },
+    "POST /agents": {
+      "name": "Create an agent",
+      "description": "Creates a new agent from a name, picture and colour."
+    },
+    "GET /agents/{agent_id}": {
+      "name": "Read an agent",
+      "description": "Reads one agent's details."
+    },
+    "POST /agents/{agent_id}/conversation": {
+      "name": "Open agent conversation",
+      "description": "Opens or returns the agent's main ongoing conversation."
+    },
+    "PATCH /agents/{agent_id}": {
+      "name": "Configure an agent",
+      "description": "Changes an agent's settings."
+    },
+    "DELETE /agents/{agent_id}": {
+      "name": "Delete an agent",
+      "description": "Removes an agent."
+    },
+    "POST /app-opens": {
+      "name": "Record app open",
+      "description": "Notes that the owner opened the app, keeping the first open of each day."
+    },
+    "GET /app-opens": {
+      "name": "Read opening habit",
+      "description": "Returns how regularly the owner opens the app."
+    },
+    "DELETE /app-opens": {
+      "name": "Forget app opens",
+      "description": "Clears the record of when the owner opened the app."
+    },
+    "POST /upload": {
+      "name": "Upload a file",
+      "description": "Stores a file the owner or an agent uploads, keeping a PDF's text and page images beside it for agents to read."
+    },
+    "PUT /{artifact_id}/text": {
+      "name": "Edit a text file",
+      "description": "Lets the owner rewrite a stored text file; other kinds of file cannot be edited."
+    },
+    "GET /{artifact_id}/file": {
+      "name": "Download a file",
+      "description": "Serves a stored file back for viewing or download."
+    },
+    "GET /attention/view": {
+      "name": "Attention summary",
+      "description": "Gathers what needs the owner across all agents."
+    },
+    "GET /attention": {
+      "name": "Attention inbox",
+      "description": "Lists the items waiting for the owner's attention."
+    },
+    "POST /attention/seen": {
+      "name": "Mark attention seen",
+      "description": "Marks attention items as seen."
+    },
+    "GET /attention/policy": {
+      "name": "Read attention rule",
+      "description": "Shows the rule for what counts as needing the owner's attention."
+    },
+    "PUT /attention/policy": {
+      "name": "Set attention rule",
+      "description": "Changes the rule for what counts as needing the owner's attention."
+    },
+    "POST /auth/login": {
+      "name": "Sign in (web)",
+      "description": "Signs the owner in from the browser."
+    },
+    "POST /auth/mobile/login": {
+      "name": "Sign in (phone)",
+      "description": "Signs the owner in from the phone app."
+    },
+    "GET /auth/session": {
+      "name": "Current session",
+      "description": "Reports whether the owner is signed in and who they are."
+    },
+    "POST /auth/logout": {
+      "name": "Sign out",
+      "description": "Ends the owner's session."
+    },
+    "POST /runs/{run_id}/cancel": {
+      "name": "Cancel a run",
+      "description": "Stops one agent run that is in progress."
+    },
+    "GET /capabilities": {
+      "name": "Capabilities view",
+      "description": "Returns everything agents can use now, with source, state, last use and an undo."
+    },
+    "GET /{chart_id}/scene": {
+      "name": "Chart contents",
+      "description": "Returns the data that makes up one saved chart."
+    },
+    "POST /{chart_id}/refresh": {
+      "name": "Refresh a chart",
+      "description": "Updates one chart with the latest market data."
+    },
+    "GET /chat-lists": {
+      "name": "List chat lists",
+      "description": "Returns the lists that group chats in the sidebar."
+    },
+    "POST /chat-lists": {
+      "name": "Create a chat list",
+      "description": "Makes a new list for grouping chats."
+    },
+    "PUT /chat-lists/{list_id}": {
+      "name": "Rename a chat list",
+      "description": "Changes a chat list's name."
+    },
+    "DELETE /chat-lists/{list_id}": {
+      "name": "Delete a chat list",
+      "description": "Removes a chat list."
+    },
+    "PUT /chat-lists/{list_id}/members": {
+      "name": "Set chat list members",
+      "description": "Changes which chats belong to a list."
+    },
+    "GET /threads/{thread_id}/collaboration": {
+      "name": "Conversation collaboration",
+      "description": "Shows who is working together on one conversation."
+    },
+    "GET /collaboration/{session_id}": {
+      "name": "Collaboration details",
+      "description": "Shows the details of one collaboration session."
+    },
+    "POST /providers/{provider}/test": {
+      "name": "Test a model provider",
+      "description": "Checks a model provider's key and settings work, without saving them."
+    },
+    "POST /mcp/test": {
+      "name": "Test an AI connection",
+      "description": "Checks a connection that lets outside AI assistants look things up works, without saving it; remote ones only."
+    },
+    "POST /trading/connections/test": {
+      "name": "Test a broker connection",
+      "description": "Checks a broker connection works before it is saved."
+    },
+    "GET /auth/devices/config": {
+      "name": "Device setup info",
+      "description": "Returns what a device needs to enrol as a trusted device."
+    },
+    "GET /auth/devices": {
+      "name": "List trusted devices",
+      "description": "Lists the owner's trusted devices."
+    },
+    "POST /auth/devices/enrollment": {
+      "name": "Start adding a device",
+      "description": "Begins adding a device as a trusted one."
+    },
+    "POST /auth/devices/enrollment/verify": {
+      "name": "Confirm a new device",
+      "description": "Finishes adding a trusted device once it has proven itself."
+    },
+    "DELETE /auth/devices/{device_id}": {
+      "name": "Remove a device",
+      "description": "Takes a device off the trusted list."
+    },
+    "GET /events": {
+      "name": "Catch up on updates",
+      "description": "Returns recent updates so a reconnecting app can catch up."
+    },
+    "GET /events/stream": {
+      "name": "Live update stream",
+      "description": "Keeps an open connection streaming live updates to the web app."
+    },
+    "POST /create": {
+      "name": "Create a group",
+      "description": "Creates a group of agents."
+    },
+    "GET /voice/incoming/policy": {
+      "name": "Read call rule",
+      "description": "Shows who may call the owner by voice."
+    },
+    "PUT /voice/incoming/policy": {
+      "name": "Set call rule",
+      "description": "Changes who may call the owner by voice."
+    },
+    "GET /voice/incoming": {
+      "name": "Current incoming call",
+      "description": "Shows a voice call coming in to the owner."
+    },
+    "POST /voice/incoming/{identifier}/respond": {
+      "name": "Answer or decline a call",
+      "description": "Records the owner's answer to an incoming voice call."
+    },
+    "POST /secrets": {
+      "name": "Save a secret value",
+      "description": "Saves the secret values an integration needs, for the owner's session only."
+    },
+    "GET /agents/{agent_id}/knowledge": {
+      "name": "Read agent knowledge",
+      "description": "Returns one agent's knowledge notes and links as a single list."
+    },
+    "POST /agents/{agent_id}/knowledge/notes": {
+      "name": "Add a knowledge note",
+      "description": "Adds a note to an agent's knowledge."
+    },
+    "PUT /agents/{agent_id}/knowledge/notes/{note_id}": {
+      "name": "Edit a knowledge note",
+      "description": "Replaces a knowledge note with new text, which is kept as a new note."
+    },
+    "DELETE /agents/{agent_id}/knowledge/notes/{note_id}": {
+      "name": "Delete a knowledge note",
+      "description": "Removes a note from an agent's knowledge."
+    },
+    "GET /market/instruments": {
+      "name": "Tradable instruments",
+      "description": "Lists the instruments that can be traded or watched."
+    },
+    "GET /market/symbols": {
+      "name": "Market symbols",
+      "description": "Lists the market symbols available."
+    },
+    "GET /market/instrument": {
+      "name": "Instrument details",
+      "description": "Returns the details of one instrument."
+    },
+    "GET /market/quote": {
+      "name": "Live quote",
+      "description": "Returns the latest price for one instrument."
+    },
+    "GET /market/candles": {
+      "name": "Price candles",
+      "description": "Returns price candles over time for a chart."
+    },
+    "GET /market/calendar": {
+      "name": "Economic calendar",
+      "description": "Returns upcoming economic events that can move the market."
+    },
+    "GET /agents/{agent_id}/memory": {
+      "name": "Read agent memory",
+      "description": "Returns what one agent remembers."
+    },
+    "PUT /agents/{agent_id}/memory": {
+      "name": "Update agent memory",
+      "description": "Changes what one agent remembers."
+    },
+    "GET /agents/{agent_id}/memory/revisions": {
+      "name": "Memory history",
+      "description": "Lists past changes to one agent's memory."
+    },
+    "GET /owner/profile": {
+      "name": "Read owner profile",
+      "description": "Returns the owner's own profile."
+    },
+    "PUT /owner/profile": {
+      "name": "Update owner profile",
+      "description": "Changes the owner's own profile."
+    },
+    "GET /owner/profile/lines": {
+      "name": "What Lonora knows about you",
+      "description": "Lists every line of the owner's profile with where it came from: what the owner said, or what Lonora observed."
+    },
+    "POST /owner/profile/lines": {
+      "name": "Correct a profile line",
+      "description": "Records the owner's correction or deletion of one profile line, as the owner's own words."
+    },
+    "PUT /owner/preferences": {
+      "name": "Update owner preferences",
+      "description": "Saves the owner's preferences — how to reach them, reply language, name and form of address — as one change."
+    },
+    "GET /owner/profile/revisions": {
+      "name": "Profile history",
+      "description": "Lists past changes to the owner's profile."
+    },
+    "POST /memory/revisions/{revision_id}/revert": {
+      "name": "Undo a memory change",
+      "description": "Undoes one change as a new change attributed to the owner, leaving later changes in place."
+    },
+    "GET /memory/semantic/config": {
+      "name": "Read memory search setting",
+      "description": "Shows the setting for how memory is searched by meaning."
+    },
+    "PUT /memory/semantic/config": {
+      "name": "Set memory search setting",
+      "description": "Changes the setting for how memory is searched by meaning."
+    },
+    "POST /agents/{agent_id}/memory/semantic": {
+      "name": "Add a memory note",
+      "description": "Adds a note to an agent's searchable memory."
+    }
+  }
+}

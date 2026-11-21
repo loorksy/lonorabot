@@ -1,0 +1,136 @@
+{
+  "files": {
+    "apps/mobile/components/personal-agent-badge.tsx": {
+      "name": "Personal agent star",
+      "description": "Shows a star on the owner's personal agent."
+    },
+    "apps/mobile/components/safety-pill.tsx": {
+      "name": "Safety pill",
+      "description": "The thread header's status pill and its sheet, the same as the web."
+    },
+    "apps/mobile/components/settings-group.tsx": {
+      "name": "Settings group",
+      "description": "Grouped settings rows and switches."
+    },
+    "apps/mobile/components/sheet-header.tsx": {
+      "name": "Sheet header",
+      "description": "The header of a bottom sheet, with text buttons."
+    },
+    "apps/mobile/components/shell/chat-list.tsx": {
+      "name": "Chat list (phone)",
+      "description": "The chats list: filters, the archived row, and every agent and group as a row."
+    },
+    "apps/mobile/components/shell/chrome.tsx": {
+      "name": "App chrome",
+      "description": "The phone's frame: the glass top bar, the floating tab bar and the network strip."
+    },
+    "apps/mobile/components/shell/emoji-panel.tsx": {
+      "name": "Emoji panel",
+      "description": "The emoji picker for naming a custom list."
+    },
+    "apps/mobile/components/shell/icon-paths.ts": {
+      "name": "Icon paths (phone)",
+      "description": "The icon drawings, copied from the web building blocks."
+    },
+    "apps/mobile/components/shell/icon.tsx": {
+      "name": "Icon (phone)",
+      "description": "Draws one stroke icon."
+    },
+    "apps/mobile/components/shell/kit.tsx": {
+      "name": "Shell kit",
+      "description": "Small shared pieces of the look: rows, buttons, empty states, switches and skeletons."
+    },
+    "apps/mobile/components/shell/list-sheets.tsx": {
+      "name": "Custom list sheets",
+      "description": "Creating and editing custom chat lists."
+    },
+    "apps/mobile/components/shell/network-strip.tsx": {
+      "name": "Network strip",
+      "description": "Shows when there is no internet and how many messages are waiting, then that the connection is back."
+    },
+    "apps/mobile/components/shell/new-chat-sheet.tsx": {
+      "name": "New chat sheet",
+      "description": "Starting a new agent or group chat."
+    },
+    "apps/mobile/components/shell/notifications.ts": {
+      "name": "Push setup",
+      "description": "Asks for notification permission, registers the phone for push, and opens the conversation a tapped push names."
+    },
+    "apps/mobile/components/shell/selection.tsx": {
+      "name": "Selection toolbar",
+      "description": "The actions when conversations are selected: pin, mute, archive, delete."
+    },
+    "apps/mobile/components/shell/sheets.tsx": {
+      "name": "Sheet system",
+      "description": "The one-at-a-time bottom sheet system."
+    },
+    "apps/mobile/components/shell/thread-row.tsx": {
+      "name": "Conversation row",
+      "description": "One conversation row: avatar, name, time, preview, ticks and marks."
+    },
+    "apps/mobile/components/shell/toast.tsx": {
+      "name": "Toast",
+      "description": "A brief pop-up message above the tab bar, with an undo."
+    },
+    "apps/mobile/components/shell/unified-search.tsx": {
+      "name": "Unified search (phone)",
+      "description": "The owner-wide search behind the chats header's field."
+    },
+    "apps/mobile/components/skills/exact-version-block.tsx": {
+      "name": "Exact version block",
+      "description": "Shows and manages a skill's exact versions."
+    },
+    "apps/mobile/components/skills/shared.ts": {
+      "name": "Skills helpers",
+      "description": "Shared pieces for the skills screens."
+    },
+    "apps/mobile/components/skills/skill-create.tsx": {
+      "name": "Create skill",
+      "description": "Creates a skill."
+    },
+    "apps/mobile/components/skills/skill-details.tsx": {
+      "name": "Skill details",
+      "description": "Shows and edits one skill."
+    },
+    "apps/mobile/components/thread-composer.tsx": {
+      "name": "Message composer",
+      "description": "The box where the owner types, attaches files and sends a message."
+    },
+    "apps/mobile/components/thread-header.tsx": {
+      "name": "Conversation header",
+      "description": "The conversation screen's top bar."
+    },
+    "apps/mobile/components/time-separator.tsx": {
+      "name": "Time separator (phone)",
+      "description": "A date or gap separator in the chat history."
+    },
+    "apps/mobile/components/trade-approval.tsx": {
+      "name": "Trade approval card (phone)",
+      "description": "The card where the owner approves or refuses a trade."
+    },
+    "apps/mobile/components/turn-activity.tsx": {
+      "name": "Turn activity (phone)",
+      "description": "The live 'what the agent is doing' line, from real activity only."
+    },
+    "apps/mobile/components/ui.tsx": {
+      "name": "Phone UI kit",
+      "description": "The phone's base layout pieces and palette: screen, header, button and field."
+    },
+    "apps/mobile/components/upload-ring.tsx": {
+      "name": "Upload ring",
+      "description": "A file's upload progress around a cancel button."
+    },
+    "apps/mobile/components/voice-overlay.tsx": {
+      "name": "Voice overlay",
+      "description": "The on-screen controls during a voice call."
+    },
+    "apps/mobile/components/web-search-row.tsx": {
+      "name": "Web search toggle",
+      "description": "The chat's web-search option; on, the agent gathers sources before replying."
+    },
+    "apps/mobile/components/WorkingIndicator.tsx": {
+      "name": "Working indicator",
+      "description": "Shows that something is in progress."
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "files": {
+    ".claude/skills/constraint-driven-development/scripts/quality-gate.mjs": {
+      "name": "Quality gate (skill script)",
+      "description": "A helper script from an installed Claude skill; not part of Lonora itself."
+    },
+    ".claude/skills/idea-refine/scripts/idea-refine.sh": {
+      "name": "Idea-refine setup (skill script)",
+      "description": "A helper script from an installed Claude skill; not part of Lonora itself."
+    },
+    "docs/ui-reference/Lonora-Desktop-37.html": {
+      "name": "UI reference (v37)",
+      "description": "A saved copy of the design reference the web app's look is built from."
+    },
+    "docs/ui-reference/Lonora-Desktop-38.html": {
+      "name": "UI reference (v38)",
+      "description": "A saved copy of the design reference the web app's look is built from."
+    },
+    "entrypoint.sh": {
+      "name": "Container entrypoint",
+      "description": "Starts the server, worker or migrations when the container runs."
+    },
+    "playwright.config.mjs": {
+      "name": "Browser test config",
+      "description": "Settings for the browser (Playwright) tests."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/check_stop_removal_migration.py": {
+      "name": "Stop removal migration tests",
+      "description": "Automatic checks for stop removal migration."
+    },
+    "tests/check_streaming.py": {
+      "name": "Streaming tests",
+      "description": "Automatic checks for streaming."
+    },
+    "tests/check_supervision.py": {
+      "name": "Supervision tests",
+      "description": "Automatic checks for supervision."
+    },
+    "tests/check_task_browser.py": {
+      "name": "Task browser tests",
+      "description": "Browser checks for task."
+    },
+    "tests/check_task_continuation.py": {
+      "name": "Task continuation tests",
+      "description": "Automatic checks for task continuation."
+    },
+    "tests/check_task_environment_wait.py": {
+      "name": "Task environment wait tests",
+      "description": "Automatic checks for task environment wait."
+    },
+    "tests/check_task_recovery.py": {
+      "name": "Task recovery tests",
+      "description": "Automatic checks for task recovery."
+    },
+    "tests/check_task_wait_settlement.py": {
+      "name": "Task wait settlement tests",
+      "description": "Automatic checks for task wait settlement."
+    },
+    "tests/check_task_wake_context.py": {
+      "name": "Task wake context tests",
+      "description": "Automatic checks for task wake context."
+    },
+    "tests/check_team_picture.py": {
+      "name": "Team picture tests",
+      "description": "Automatic checks for team picture."
+    },
+    "tests/check_team.py": {
+      "name": "Team tests",
+      "description": "Automatic checks for team."
+    },
+    "tests/check_thread_preferences.py": {
+      "name": "Thread preferences tests",
+      "description": "Automatic checks for thread preferences."
+    },
+    "tests/check_tool_result_storage.py": {
+      "name": "Tool result storage tests",
+      "description": "Automatic checks for tool result storage."
+    },
+    "tests/check_trade_approvals.py": {
+      "name": "Trade approvals tests",
+      "description": "Automatic checks for trade approvals."
+    },
+    "tests/check_trading_mode.py": {
+      "name": "Trading mode tests",
+      "description": "Automatic checks for trading mode."
+    },
+    "tests/check_trading.py": {
+      "name": "Trading tests",
+      "description": "Automatic checks for trading."
+    },
+    "tests/check_trust_migration.py": {
+      "name": "Trust migration tests",
+      "description": "Automatic checks for trust migration."
+    },
+    "tests/check_trusted_sources.py": {
+      "name": "Trusted sources tests",
+      "description": "Automatic checks for trusted sources."
+    },
+    "tests/check_unified_permissions.py": {
+      "name": "Unified permissions tests",
+      "description": "Automatic checks for unified permissions."
+    },
+    "tests/check_voice_handoff_recovery.py": {
+      "name": "Voice handoff recovery tests",
+      "description": "Automatic checks for voice handoff recovery."
+    },
+    "tests/check_voice_task_continuity.py": {
+      "name": "Voice task continuity tests",
+      "description": "Automatic checks for voice task continuity."
+    },
+    "tests/check_watch_source_time.py": {
+      "name": "Watch source time tests",
+      "description": "Automatic checks for watch source time."
+    },
+    "tests/check_workspace_artifacts.py": {
+      "name": "Workspace artifacts tests",
+      "description": "Automatic checks for workspace artifacts."
+    },
+    "tests/check_workspace_migrations.py": {
+      "name": "Workspace migrations tests",
+      "description": "Automatic checks for workspace migrations."
+    },
+    "tests/check_workspace_service.py": {
+      "name": "Workspace service tests",
+      "description": "Automatic checks for workspace service."
+    },
+    "tests/check_workspace_skill_creation.py": {
+      "name": "Workspace skill creation tests",
+      "description": "Automatic checks for workspace skill creation."
+    },
+    "tests/device_fixture.py": {
+      "name": "Device fixture tests",
+      "description": "Automatic checks for device fixture."
+    },
+    "tests/fixtures/visual-response.mjs": {
+      "name": "Visual response fixture",
+      "description": "Sample data for the visual response tests."
+    },
+    "tests/flexible-agent-ui.mjs": {
+      "name": "Flexible agent ui tests",
+      "description": "Automatic checks for flexible agent ui."
+    },
+    "tests/home-toolbar-ui.mjs": {
+      "name": "Home toolbar ui tests",
+      "description": "Automatic checks for home toolbar ui."
+    },
+    "tests/legacy_agents.py": {
+      "name": "Legacy agents tests",
+      "description": "Automatic checks for legacy agents."
+    },
+    "tests/mobile/agent-alert.spec.mjs": {
+      "name": "Agent alert tests",
+      "description": "Automatic checks for agent alert."
+    },
+    "tests/mobile/agent-model.spec.mjs": {
+      "name": "Agent model tests",
+      "description": "Automatic checks for agent model."
+    },
+    "tests/mobile/agents-from-chat.spec.mjs": {
+      "name": "Agents from chat tests",
+      "description": "Automatic checks for agents from chat."
+    },
+    "tests/mobile/android-smoke.py": {
+      "name": "Android smoke tests",
+      "description": "Automatic checks for android smoke."
+    },
+    "tests/mobile/approvals.spec.mjs": {
+      "name": "Approvals tests",
+      "description": "Automatic checks for approvals."
+    },
+    "tests/mobile/arabic-labels.test.ts": {
+      "name": "Arabic labels tests",
+      "description": "Automatic checks for arabic labels."
+    },
+    "tests/mobile/attention.spec.mjs": {
+      "name": "Attention tests",
+      "description": "Automatic checks for attention."
+    },
+    "tests/mobile/avatar.spec.mjs": {
+      "name": "Avatar tests",
+      "description": "Automatic checks for avatar."
+    },
+    "tests/mobile/capabilities.spec.mjs": {
+      "name": "Capabilities tests",
+      "description": "Automatic checks for capabilities."
+    }
+  }
+}

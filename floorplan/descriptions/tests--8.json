@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/test_execution_receipts.py": {
+      "name": "Execution receipts tests",
+      "description": "Automatic checks for execution receipts."
+    },
+    "tests/test_execution_records.py": {
+      "name": "Execution records tests",
+      "description": "Automatic checks for execution records."
+    },
+    "tests/test_failure_view.py": {
+      "name": "Failure view tests",
+      "description": "Automatic checks for failure view."
+    },
+    "tests/test_feed_read.py": {
+      "name": "Feed read tests",
+      "description": "Automatic checks for feed read."
+    },
+    "tests/test_financial_admission.py": {
+      "name": "Financial admission tests",
+      "description": "Automatic checks for financial admission."
+    },
+    "tests/test_full_account_management.py": {
+      "name": "Full account management tests",
+      "description": "Automatic checks for full account management."
+    },
+    "tests/test_full_management_tool_guidance.py": {
+      "name": "Full management tool guidance tests",
+      "description": "Automatic checks for full management tool guidance."
+    },
+    "tests/test_gateway_reliability.py": {
+      "name": "Gateway reliability tests",
+      "description": "Automatic checks for gateway reliability."
+    },
+    "tests/test_genui_contracts.py": {
+      "name": "Genui contracts tests",
+      "description": "Automatic checks for genui contracts."
+    },
+    "tests/test_genui_parity.py": {
+      "name": "Genui parity tests",
+      "description": "Automatic checks for genui parity."
+    },
+    "tests/test_genui_projector.py": {
+      "name": "Genui projector tests",
+      "description": "Automatic checks for genui projector."
+    },
+    "tests/test_genui_slots.py": {
+      "name": "Genui slots tests",
+      "description": "Automatic checks for genui slots."
+    },
+    "tests/test_genui_submit.py": {
+      "name": "Genui submit tests",
+      "description": "Automatic checks for genui submit."
+    },
+    "tests/test_genui_taint.py": {
+      "name": "Genui taint tests",
+      "description": "Automatic checks for genui taint."
+    },
+    "tests/test_image_observations.py": {
+      "name": "Image observations tests",
+      "description": "Automatic checks for image observations."
+    },
+    "tests/test_incoming_call_policy.py": {
+      "name": "Incoming call policy tests",
+      "description": "Automatic checks for incoming call policy."
+    },
+    "tests/test_incremental_visual_stream.py": {
+      "name": "Incremental visual stream tests",
+      "description": "Automatic checks for incremental visual stream."
+    },
+    "tests/test_instrument_resolution.py": {
+      "name": "Instrument resolution tests",
+      "description": "Automatic checks for instrument resolution."
+    },
+    "tests/test_judgment_label.py": {
+      "name": "Judgment label tests",
+      "description": "Automatic checks for judgment label."
+    },
+    "tests/test_knowledge_tool.py": {
+      "name": "Knowledge tool tests",
+      "description": "Automatic checks for knowledge tool."
+    },
+    "tests/test_lead_powers.py": {
+      "name": "Lead powers tests",
+      "description": "Automatic checks for lead powers."
+    },
+    "tests/test_mandate_card.py": {
+      "name": "Mandate card tests",
+      "description": "Automatic checks for mandate card."
+    },
+    "tests/test_manual_activity.py": {
+      "name": "Manual activity tests",
+      "description": "Automatic checks for manual activity."
+    },
+    "tests/test_market_data_billing.py": {
+      "name": "Market data billing tests",
+      "description": "Automatic checks for market data billing."
+    },
+    "tests/test_market_health.py": {
+      "name": "Market health tests",
+      "description": "Automatic checks for market health."
+    },
+    "tests/test_market_quote_staleness.py": {
+      "name": "Market quote staleness tests",
+      "description": "Automatic checks for market quote staleness."
+    },
+    "tests/test_market_sessions.py": {
+      "name": "Market sessions tests",
+      "description": "Automatic checks for market sessions."
+    },
+    "tests/test_market_snapshot.py": {
+      "name": "Market snapshot tests",
+      "description": "Automatic checks for market snapshot."
+    },
+    "tests/test_market_structure.py": {
+      "name": "Market structure tests",
+      "description": "Automatic checks for market structure."
+    },
+    "tests/test_market_symbol_resolution.py": {
+      "name": "Market symbol resolution tests",
+      "description": "Automatic checks for market symbol resolution."
+    },
+    "tests/test_mcp_boundary.py": {
+      "name": "Mcp boundary tests",
+      "description": "Automatic checks for mcp boundary."
+    },
+    "tests/test_mcp_configuration.py": {
+      "name": "Mcp configuration tests",
+      "description": "Automatic checks for mcp configuration."
+    },
+    "tests/test_memory_privacy.py": {
+      "name": "Memory privacy tests",
+      "description": "Automatic checks for memory privacy."
+    },
+    "tests/test_memory_retrieval.py": {
+      "name": "Memory retrieval tests",
+      "description": "Automatic checks for memory retrieval."
+    },
+    "tests/test_metaapi_account_readiness.py": {
+      "name": "Metaapi account readiness tests",
+      "description": "Automatic checks for metaapi account readiness."
+    },
+    "tests/test_metaapi_instrument_errors.py": {
+      "name": "Metaapi instrument errors tests",
+      "description": "Automatic checks for metaapi instrument errors."
+    },
+    "tests/test_metaapi_provisioning.py": {
+      "name": "Metaapi provisioning tests",
+      "description": "Automatic checks for metaapi provisioning."
+    },
+    "tests/test_metaapi_rate_limits.py": {
+      "name": "Metaapi rate limits tests",
+      "description": "Automatic checks for metaapi rate limits."
+    },
+    "tests/test_metaapi_reconciliation_history.py": {
+      "name": "Metaapi reconciliation history tests",
+      "description": "Automatic checks for metaapi reconciliation history."
+    },
+    "tests/test_metaapi_undeployed.py": {
+      "name": "Metaapi undeployed tests",
+      "description": "Automatic checks for metaapi undeployed."
+    }
+  }
+}

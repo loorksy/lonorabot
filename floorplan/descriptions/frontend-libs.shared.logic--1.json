@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/core/src/account-authority-labels.ts": {
+      "name": "Delegation wording",
+      "description": "The shared owner controls and risk wording for account delegation, the same on web and phone."
+    },
+    "packages/core/src/account-authority.ts": {
+      "name": "Delegation form logic",
+      "description": "Builds and checks the account-delegation form; the server validates it for real."
+    },
+    "packages/core/src/agent-model.ts": {
+      "name": "Agent model card logic",
+      "description": "Builds the model card shown in an agent's settings, the same on web and phone."
+    },
+    "packages/core/src/agent-permission-errors.ts": {
+      "name": "Permission error text",
+      "description": "The shared plain explanations for permission errors."
+    },
+    "packages/core/src/agent-permission.ts": {
+      "name": "Permission logic",
+      "description": "The shared logic for an agent's permission levels and trading control."
+    },
+    "packages/core/src/agent-scope.ts": {
+      "name": "Agent market mode",
+      "description": "Works out whether an agent has a fixed market or a flexible one."
+    },
+    "packages/core/src/agent-status.ts": {
+      "name": "Agent status line",
+      "description": "Builds an agent's one status line and its watch list, the same on web and phone."
+    },
+    "packages/core/src/app-open.ts": {
+      "name": "App-open reporter",
+      "description": "Reports when the owner brings the app to the front, at most once a day."
+    },
+    "packages/core/src/attachments.ts": {
+      "name": "Attachment size limit",
+      "description": "The shared upload size limit, checked again on the server."
+    },
+    "packages/core/src/avatar-geometry.ts": {
+      "name": "Avatar shapes maths",
+      "description": "Works out the shapes and colours of an agent's avatar."
+    },
+    "packages/core/src/avatar-motion.ts": {
+      "name": "Avatar motion",
+      "description": "Drives the agent avatar's animation without a browser."
+    },
+    "packages/core/src/avatar-state.ts": {
+      "name": "Avatar state",
+      "description": "Works out the avatar's visual state from the agent's real activity."
+    },
+    "packages/core/src/capabilities.ts": {
+      "name": "Capabilities text",
+      "description": "Builds the Capabilities view's text, the same on web and phone."
+    },
+    "packages/core/src/chat-rows.ts": {
+      "name": "Chat list logic",
+      "description": "Builds the conversation list's rows, filters, pins and selection, the same on web and phone."
+    },
+    "packages/core/src/composer-commands.ts": {
+      "name": "Composer commands",
+      "description": "Works out the / commands offered as you type in the message box."
+    },
+    "packages/core/src/composer-mentions.ts": {
+      "name": "Composer mentions",
+      "description": "Works out the @-mentions offered as you type and who a message addresses."
+    },
+    "packages/core/src/conversation-timeline.ts": {
+      "name": "Conversation timeline",
+      "description": "Orders a conversation's items and finds the cards each message embeds."
+    },
+    "packages/core/src/device-proof.ts": {
+      "name": "Web device proof",
+      "description": "Signs a device check in the browser."
+    },
+    "packages/core/src/financial-boundary.ts": {
+      "name": "Money outcome text",
+      "description": "The shared plain explanations for a trade's outcome and status, the same on web and phone."
+    },
+    "packages/core/src/genui/expr.ts": {
+      "name": "Card expression engine",
+      "description": "The card expression language that works out values on the apps."
+    },
+    "packages/core/src/genui/functions.ts": {
+      "name": "Card functions",
+      "description": "The functions cards can use on the apps."
+    },
+    "packages/core/src/genui/input.ts": {
+      "name": "Card number input",
+      "description": "Reads a number typed into a card."
+    },
+    "packages/core/src/genui/limits.ts": {
+      "name": "Card output limits",
+      "description": "The size limits that stop a card expression from growing too large."
+    },
+    "packages/core/src/genui/markdown.ts": {
+      "name": "Card text formatting",
+      "description": "Formats the text inside a card: bold, paragraphs and lists."
+    },
+    "packages/core/src/genui/spec.ts": {
+      "name": "Card validation",
+      "description": "Checks a compiled card is valid before the apps draw it, failing safely."
+    },
+    "packages/core/src/genui/submit.ts": {
+      "name": "Card send logic",
+      "description": "Works out a card's locks and whether its send button may be used."
+    },
+    "packages/core/src/inbox.ts": {
+      "name": "Inbox counts",
+      "description": "Works out the unread counts, the chats badge and the list order."
+    },
+    "packages/core/src/index.ts": {
+      "name": "Shared logic entry",
+      "description": "Gathers and re-exports all the shared app logic."
+    },
+    "packages/core/src/message-parts.ts": {
+      "name": "Message parts",
+      "description": "Reads the server-written parts of a message: voice notes, call logs and commands."
+    },
+    "packages/core/src/order-line.ts": {
+      "name": "Order line",
+      "description": "Builds the one-line status of each trade in the chat, in the owner's words."
+    },
+    "packages/core/src/owner-actions.ts": {
+      "name": "Owner action cards logic",
+      "description": "The shared spec for the owner action cards on web and phone: their text, buttons, forms and status."
+    },
+    "packages/core/src/owner-profile.ts": {
+      "name": "Owner profile wording",
+      "description": "The shared wording for the owner's profile and preferences."
+    },
+    "packages/core/src/peer-outcome.ts": {
+      "name": "Peer result unwrap",
+      "description": "Pulls the result out of the wrapper an agent uses to return another agent's reply."
+    },
+    "packages/core/src/plain-line.ts": {
+      "name": "One-line preview",
+      "description": "Turns a message into one plain line for small places like the list, quotes and search."
+    },
+    "packages/core/src/read-request-gate.ts": {
+      "name": "Connection gate",
+      "description": "Reserves connection capacity for writes and the live reply so reads do not starve it."
+    },
+    "packages/core/src/reply-stream.ts": {
+      "name": "Live reply stream",
+      "description": "Accumulates a reply's live text as it streams in."
+    },
+    "packages/core/src/run-state.ts": {
+      "name": "Run state logic",
+      "description": "Works out a run's state — working, resumable, cancellable — and whether a failed reply can be retried."
+    },
+    "packages/core/src/search-feed.ts": {
+      "name": "Search paging",
+      "description": "The shared paging for the unified search, the same on web and phone."
+    },
+    "packages/core/src/search-fold.ts": {
+      "name": "Search folding",
+      "description": "Folds Arabic text for search the same way as the server, and finds where a match is."
+    },
+    "packages/core/src/thread-questions.ts": {
+      "name": "Thread questions",
+      "description": "Works out which questions are shown in a conversation."
+    }
+  }
+}

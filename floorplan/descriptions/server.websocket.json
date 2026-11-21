@@ -1,0 +1,34 @@
+{
+  "files": {
+    "apps/api/src/lonora_api/websocket/__init__.py": {
+      "name": "Live-connection package",
+      "description": "Marks the live-connection code as one package; holds no logic of its own."
+    },
+    "apps/api/src/lonora_api/websocket/events.py": {
+      "name": "Live updates feed",
+      "description": "Keeps an always-open connection that streams live updates, checking where it came from and closing it cleanly on disconnect, revocation or timeout."
+    },
+    "apps/api/src/lonora_api/websocket/market.py": {
+      "name": "Live market feed",
+      "description": "Keeps an always-open connection that streams live market data to the apps."
+    },
+    "apps/api/src/lonora_api/websocket/voice.py": {
+      "name": "Live voice connection",
+      "description": "Keeps an always-open connection that carries a live voice call with an agent."
+    }
+  },
+  "routes": {
+    "WEBSOCKET /ws/events": {
+      "name": "Live updates",
+      "description": "Opens a live connection that streams updates to the apps, after checking the request is from the app and signed in."
+    },
+    "WEBSOCKET /ws/market": {
+      "name": "Live market data",
+      "description": "Opens a live connection that streams market prices to the apps, after checking it is from the app and signed in."
+    },
+    "WEBSOCKET /ws/voice": {
+      "name": "Live voice",
+      "description": "Opens a live connection for a voice call with an agent, after checking it is from the app and signed in."
+    }
+  }
+}

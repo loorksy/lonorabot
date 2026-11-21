@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/contracts/src/lonora_contracts/__init__.py": {
+      "name": "Contracts package",
+      "description": "Marks the shared-data-shapes code as one package; holds no logic of its own."
+    },
+    "packages/contracts/src/lonora_contracts/account_authority.py": {
+      "name": "Account delegation shape",
+      "description": "The shape of a signed account delegation and its terms."
+    },
+    "packages/contracts/src/lonora_contracts/account.py": {
+      "name": "Account shapes",
+      "description": "The shapes of a trading account, a position and an order."
+    },
+    "packages/contracts/src/lonora_contracts/agent_avatar.py": {
+      "name": "Avatar shape",
+      "description": "The shape of an agent's avatar: its form and colour."
+    },
+    "packages/contracts/src/lonora_contracts/agent_creation.py": {
+      "name": "Agent creation input",
+      "description": "The input for creating a persistent agent from the conversation."
+    },
+    "packages/contracts/src/lonora_contracts/agent_delivery.py": {
+      "name": "Delivery rules shape",
+      "description": "The shape of an agent's notification rules."
+    },
+    "packages/contracts/src/lonora_contracts/agent_goals.py": {
+      "name": "Agent goal shape",
+      "description": "The shape of a light agent goal: a note the owner keeps, which grants nothing."
+    },
+    "packages/contracts/src/lonora_contracts/agent_permissions.py": {
+      "name": "Permission shapes",
+      "description": "The shapes of an agent's approval preference and its non-executable drafts."
+    },
+    "packages/contracts/src/lonora_contracts/agent_scope.py": {
+      "name": "Agent scope shape",
+      "description": "The shape of an agent's visibility; descriptive only, never authority."
+    },
+    "packages/contracts/src/lonora_contracts/agent_secrets.py": {
+      "name": "Secret-create shape",
+      "description": "The shape of a request to save a secret."
+    },
+    "packages/contracts/src/lonora_contracts/agent_state.py": {
+      "name": "Agent state shapes",
+      "description": "The shapes of an agent's live state and current work."
+    },
+    "packages/contracts/src/lonora_contracts/app_opens.py": {
+      "name": "App-open shape",
+      "description": "The shape of an app-open event, with its time zone."
+    },
+    "packages/contracts/src/lonora_contracts/attachments.py": {
+      "name": "File-create shape",
+      "description": "The shape of a request to save a file."
+    },
+    "packages/contracts/src/lonora_contracts/attention.py": {
+      "name": "Attention shapes",
+      "description": "The shapes of the attention view, notifications and policy."
+    },
+    "packages/contracts/src/lonora_contracts/auth.py": {
+      "name": "Sign-in shapes",
+      "description": "The shapes of a login, first-time setup and session info."
+    },
+    "packages/contracts/src/lonora_contracts/broker_activity.py": {
+      "name": "Broker activity shapes",
+      "description": "The shapes of broker activity and recovery state."
+    },
+    "packages/contracts/src/lonora_contracts/broker.py": {
+      "name": "Broker connection shape",
+      "description": "The shape of a broker connection."
+    },
+    "packages/contracts/src/lonora_contracts/chart.py": {
+      "name": "Chart shapes",
+      "description": "The shapes of a chart and its indicators."
+    },
+    "packages/contracts/src/lonora_contracts/chat_lists.py": {
+      "name": "Chat list shapes",
+      "description": "The shapes for creating and editing a chat list."
+    },
+    "packages/contracts/src/lonora_contracts/collaboration.py": {
+      "name": "Collaboration shapes",
+      "description": "The shapes of collaboration state; sharing evidence never transfers money authority."
+    },
+    "packages/contracts/src/lonora_contracts/devices.py": {
+      "name": "Device shapes",
+      "description": "The shapes of device enrollment and a device proof; a proof alone is never a grant."
+    },
+    "packages/contracts/src/lonora_contracts/domain.py": {
+      "name": "Core shapes",
+      "description": "The base shape and the common ones — messages, agents, conversations and card sends — that most others build on."
+    },
+    "packages/contracts/src/lonora_contracts/events.py": {
+      "name": "Event shapes",
+      "description": "The shapes of an event and its reaction and conversation updates."
+    },
+    "packages/contracts/src/lonora_contracts/execution_quality.py": {
+      "name": "Execution quality shapes",
+      "description": "The shapes of the execution policy, exposure and measured quality."
+    },
+    "packages/contracts/src/lonora_contracts/genui_expr.py": {
+      "name": "Card expression language",
+      "description": "The small expression language cards use to work out values, mirroring the frontend's."
+    },
+    "packages/contracts/src/lonora_contracts/genui_functions.py": {
+      "name": "Card functions",
+      "description": "The functions cards can use, mirroring the frontend's."
+    },
+    "packages/contracts/src/lonora_contracts/genui_icons.py": {
+      "name": "Card icons",
+      "description": "The set of icon names a card may use."
+    },
+    "packages/contracts/src/lonora_contracts/genui_intents.py": {
+      "name": "Card intents",
+      "description": "The closed, non-financial set of actions a generated card's send may carry."
+    },
+    "packages/contracts/src/lonora_contracts/genui.py": {
+      "name": "Card documents",
+      "description": "The shape of a generated-UI card and how its lines are parsed and repaired."
+    },
+    "packages/contracts/src/lonora_contracts/groups.py": {
+      "name": "Group-create shape",
+      "description": "The shape of a request to create a group."
+    },
+    "packages/contracts/src/lonora_contracts/history.py": {
+      "name": "History page shape",
+      "description": "The shape of a page of history."
+    },
+    "packages/contracts/src/lonora_contracts/ids.py": {
+      "name": "Id check",
+      "description": "Checks an id is valid."
+    },
+    "packages/contracts/src/lonora_contracts/incoming_calls.py": {
+      "name": "Incoming-call shapes",
+      "description": "The shapes of the reach-me policy and a call request; a call never carries authority."
+    },
+    "packages/contracts/src/lonora_contracts/input_request.py": {
+      "name": "Question shapes",
+      "description": "The shapes of an agent's informational question and its choices."
+    },
+    "packages/contracts/src/lonora_contracts/instrument_names.py": {
+      "name": "Instrument names",
+      "description": "The server's own names for instruments in the owner's language."
+    },
+    "packages/contracts/src/lonora_contracts/integrations.py": {
+      "name": "Integration shape",
+      "description": "The shape of an owner integration."
+    },
+    "packages/contracts/src/lonora_contracts/knowledge.py": {
+      "name": "Knowledge shapes",
+      "description": "The shapes of a knowledge note and a link."
+    },
+    "packages/contracts/src/lonora_contracts/market_health.py": {
+      "name": "Market health shape",
+      "description": "The shape of a market-data health reading and when it goes stale."
+    },
+    "packages/contracts/src/lonora_contracts/market_intelligence.py": {
+      "name": "Detector shapes",
+      "description": "The shapes of a detector's observations; facts, never authority."
+    },
+    "packages/contracts/src/lonora_contracts/market_watch.py": {
+      "name": "Watch shape",
+      "description": "The shape of a market watch."
+    }
+  }
+}

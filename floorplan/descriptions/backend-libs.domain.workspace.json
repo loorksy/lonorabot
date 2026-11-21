@@ -1,0 +1,66 @@
+{
+  "files": {
+    "packages/workspace/src/lonora_workspace/__init__.py": {
+      "name": "Workspace package",
+      "description": "Marks the owner's workspace code as one package; holds no logic of its own."
+    },
+    "packages/workspace/src/lonora_workspace/client.py": {
+      "name": "Workspace client",
+      "description": "The main server's way of talking to the workspace supervisor, scrubbing any secret that appears in command output or files before it is passed on."
+    },
+    "packages/workspace/src/lonora_workspace/dns.py": {
+      "name": "Name lookups",
+      "description": "The small amount of address-lookup handling the network filter needs to read a request and answer or forward it."
+    },
+    "packages/workspace/src/lonora_workspace/egress.py": {
+      "name": "What the workspace may reach",
+      "description": "Builds the rules and name filter for which outside places the workspace is allowed to connect to."
+    },
+    "packages/workspace/src/lonora_workspace/netguard.py": {
+      "name": "Network guard",
+      "description": "Runs as the workspace's network gatekeeper: it applies the connection rules and checks each lookup so the workspace can only reach allowed places."
+    },
+    "packages/workspace/src/lonora_workspace/relay.py": {
+      "name": "Connection relay",
+      "description": "Every connection leaving the workspace is routed through here, which reads where it is headed and allows or blocks it."
+    },
+    "packages/workspace/src/lonora_workspace/supervisor.py": {
+      "name": "Workspace supervisor",
+      "description": "The single trusted process inside the owner's workspace that runs commands, reads and writes files, and starts and stops the workspace's tasks, under strict limits."
+    },
+    "packages/workspace/src/lonora_workspace/users.py": {
+      "name": "Per-agent users",
+      "description": "Gives each agent its own separate account inside the workspace, kept stable even when the workspace is rebuilt."
+    }
+  },
+  "routes": {
+    "GET /v1/health": {
+      "name": "Workspace health",
+      "description": "Reports the workspace supervisor's limits and how much disk is free; an internal check inside the workspace, not reached from the apps."
+    },
+    "POST /v1/run": {
+      "name": "Run a command",
+      "description": "Runs a command inside the owner's workspace, in the foreground or background, under its time and resource limits; an internal request inside the workspace, reached over its local socket rather than the public server."
+    },
+    "POST /v1/files/read": {
+      "name": "Read a workspace file",
+      "description": "Reads a file inside the owner's workspace; an internal request reached over the workspace's local socket."
+    },
+    "POST /v1/files/write": {
+      "name": "Write a workspace file",
+      "description": "Writes a file inside the owner's workspace; an internal request reached over the workspace's local socket."
+    },
+    "GET /v1/processes": {
+      "name": "List workspace tasks",
+      "description": "Lists every task running in the owner's workspace; an internal request reached over the workspace's local socket."
+    },
+    "POST /v1/processes/stop": {
+      "name": "Stop a workspace task",
+      "description": "Stops one task in the owner's workspace; an internal request reached over the workspace's local socket."
+    },
+    "POST /v1/processes/stop-all": {
+      "name": "Stop all workspace tasks",
+      "description": "Stops every task belonging to an agent in the owner's workspace; an internal request reached over the workspace's local socket."
+    }
+  }
+}

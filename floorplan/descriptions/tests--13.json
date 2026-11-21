@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/web/financial-boundary.test.ts": {
+      "name": "Financial boundary tests",
+      "description": "Automatic checks for financial boundary."
+    },
+    "tests/web/first-frame.test.ts": {
+      "name": "First frame tests",
+      "description": "Automatic checks for first frame."
+    },
+    "tests/web/flexible-agents.spec.mjs": {
+      "name": "Flexible agents tests",
+      "description": "Automatic checks for flexible agents."
+    },
+    "tests/web/genui-engine.test.ts": {
+      "name": "Genui engine tests",
+      "description": "Automatic checks for genui engine."
+    },
+    "tests/web/genui-parity.test.ts": {
+      "name": "Genui parity tests",
+      "description": "Automatic checks for genui parity."
+    },
+    "tests/web/genui.spec.mjs": {
+      "name": "Genui tests",
+      "description": "Automatic checks for genui."
+    },
+    "tests/web/group-members.spec.mjs": {
+      "name": "Group members tests",
+      "description": "Automatic checks for group members."
+    },
+    "tests/web/group-status.spec.mjs": {
+      "name": "Group status tests",
+      "description": "Automatic checks for group status."
+    },
+    "tests/web/held-operation.test.ts": {
+      "name": "Held operation tests",
+      "description": "Automatic checks for held operation."
+    },
+    "tests/web/home-toolbar.spec.mjs": {
+      "name": "Home toolbar tests",
+      "description": "Automatic checks for home toolbar."
+    },
+    "tests/web/inbox-order.test.ts": {
+      "name": "Inbox order tests",
+      "description": "Automatic checks for inbox order."
+    },
+    "tests/web/inbox.spec.mjs": {
+      "name": "Inbox tests",
+      "description": "Automatic checks for inbox."
+    },
+    "tests/web/knowledge-notes.spec.mjs": {
+      "name": "Knowledge notes tests",
+      "description": "Automatic checks for knowledge notes."
+    },
+    "tests/web/message-cards.spec.mjs": {
+      "name": "Message cards tests",
+      "description": "Automatic checks for message cards."
+    },
+    "tests/web/message-parts.test.ts": {
+      "name": "Message parts tests",
+      "description": "Automatic checks for message parts."
+    },
+    "tests/web/model-provider-card.test.ts": {
+      "name": "Model provider card tests",
+      "description": "Automatic checks for model provider card."
+    },
+    "tests/web/one-vocabulary.spec.mjs": {
+      "name": "One vocabulary tests",
+      "description": "Automatic checks for one vocabulary."
+    },
+    "tests/web/one-vocabulary.test.ts": {
+      "name": "One vocabulary tests",
+      "description": "Automatic checks for one vocabulary."
+    },
+    "tests/web/openui-chat-ux.spec.mjs": {
+      "name": "Openui chat ux tests",
+      "description": "Automatic checks for openui chat ux."
+    },
+    "tests/web/order-state.test.ts": {
+      "name": "Order state tests",
+      "description": "Automatic checks for order state."
+    },
+    "tests/web/outbox-drafts.test.ts": {
+      "name": "Outbox drafts tests",
+      "description": "Automatic checks for outbox drafts."
+    },
+    "tests/web/outgoing-messages.test.ts": {
+      "name": "Outgoing messages tests",
+      "description": "Automatic checks for outgoing messages."
+    },
+    "tests/web/owner-actions.spec.mjs": {
+      "name": "Owner actions tests",
+      "description": "Automatic checks for owner actions."
+    },
+    "tests/web/owner-actions.test.ts": {
+      "name": "Owner actions tests",
+      "description": "Automatic checks for owner actions."
+    },
+    "tests/web/owner-name.test.ts": {
+      "name": "Owner name tests",
+      "description": "Automatic checks for owner name."
+    },
+    "tests/web/owner-profile.spec.mjs": {
+      "name": "Owner profile tests",
+      "description": "Automatic checks for owner profile."
+    },
+    "tests/web/owner-profile.test.ts": {
+      "name": "Owner profile tests",
+      "description": "Automatic checks for owner profile."
+    },
+    "tests/web/palette.spec.mjs": {
+      "name": "Palette tests",
+      "description": "Automatic checks for palette."
+    },
+    "tests/web/plain-line.test.ts": {
+      "name": "Plain line tests",
+      "description": "Automatic checks for plain line."
+    },
+    "tests/web/popover-morph.test.ts": {
+      "name": "Popover morph tests",
+      "description": "Automatic checks for popover morph."
+    },
+    "tests/web/question-card.spec.mjs": {
+      "name": "Question card tests",
+      "description": "Automatic checks for question card."
+    },
+    "tests/web/rakazo-parity.spec.mjs": {
+      "name": "Rakazo parity tests",
+      "description": "Automatic checks for rakazo parity."
+    },
+    "tests/web/read-request-gate.test.ts": {
+      "name": "Read request gate tests",
+      "description": "Automatic checks for read request gate."
+    },
+    "tests/web/reveal.test.ts": {
+      "name": "Reveal tests",
+      "description": "Automatic checks for reveal."
+    },
+    "tests/web/run-activity.test.ts": {
+      "name": "Run activity tests",
+      "description": "Automatic checks for run activity."
+    },
+    "tests/web/safety-truth.spec.mjs": {
+      "name": "Safety truth tests",
+      "description": "Automatic checks for safety truth."
+    },
+    "tests/web/secret-card-fixture.mjs": {
+      "name": "Secret card fixture tests",
+      "description": "Automatic checks for secret card fixture."
+    },
+    "tests/web/secret-card.spec.mjs": {
+      "name": "Secret card tests",
+      "description": "Automatic checks for secret card."
+    },
+    "tests/web/secret-card.test.ts": {
+      "name": "Secret card tests",
+      "description": "Automatic checks for secret card."
+    },
+    "tests/web/session-requests.test.ts": {
+      "name": "Session requests tests",
+      "description": "Automatic checks for session requests."
+    }
+  }
+}

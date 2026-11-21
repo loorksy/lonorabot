@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/db/migrations/versions/0040_explicit_agent_permission_rows.py": {
+      "name": "Explicit permission rows",
+      "description": "Gives every agent an explicit trading level."
+    },
+    "packages/db/migrations/versions/0040_retire_super_bot_requests.py": {
+      "name": "Retire Super Bot",
+      "description": "Removes the old Super Bot requests and goal autonomy."
+    },
+    "packages/db/migrations/versions/0041_supervision_grants.py": {
+      "name": "Supervision grants (early)",
+      "description": "Adds the early supervision grants and holds, later removed."
+    },
+    "packages/db/migrations/versions/0042_trusted_sources.py": {
+      "name": "Trusted sources",
+      "description": "Adds one trusted-sources list per owner."
+    },
+    "packages/db/migrations/versions/0043_owner_held_pauses.py": {
+      "name": "Owner-held pauses",
+      "description": "Records the owner's own pause and keeps a hold after its setter is gone."
+    },
+    "packages/db/migrations/versions/0044_thread_prefs.py": {
+      "name": "Conversation prefs",
+      "description": "Adds per-owner conversation settings and the agent creation template."
+    },
+    "packages/db/migrations/versions/0045_chat_lists.py": {
+      "name": "Chat lists & search",
+      "description": "Adds owner chat lists and the message search index."
+    },
+    "packages/db/migrations/versions/0046_conversation_conveniences.py": {
+      "name": "Conversation conveniences",
+      "description": "Adds extra conversation conveniences."
+    },
+    "packages/db/migrations/versions/0047_conversation_anchors.py": {
+      "name": "Journal anchors",
+      "description": "Links trading journal operations to the conversation."
+    },
+    "packages/db/migrations/versions/0048_card_lifetimes.py": {
+      "name": "Card lifetimes",
+      "description": "Tracks which card replaced another, owner drafts and approval expiry."
+    },
+    "packages/db/migrations/versions/0050_genui_state_and_origin.py": {
+      "name": "Card state & origin",
+      "description": "Records who wrote a message, a card's submission and its saved values."
+    },
+    "packages/db/migrations/versions/0051_owner_identity_and_delivery.py": {
+      "name": "Owner name & delivery",
+      "description": "Adds the owner's name and form of address and per-agent notification rules."
+    },
+    "packages/db/migrations/versions/0052_usage_cost.py": {
+      "name": "Usage index",
+      "description": "Speeds up the usage and cost view."
+    },
+    "packages/db/migrations/versions/0053_remove_shadow_trading.py": {
+      "name": "Remove shadow trading",
+      "description": "Removes virtual trading entirely."
+    },
+    "packages/db/migrations/versions/0056_routine_title_run_at.py": {
+      "name": "Routine title & time",
+      "description": "Gives routines a title and a one-time run time."
+    },
+    "packages/db/migrations/versions/0057_agent_goals_knowledge_links.py": {
+      "name": "Goals & knowledge links",
+      "description": "Adds light agent goals and knowledge links."
+    },
+    "packages/db/migrations/versions/0058_skill_versions.py": {
+      "name": "Skill versions",
+      "description": "Keeps one row per saved skill version."
+    },
+    "packages/db/migrations/versions/0060_agent_trading_mode.py": {
+      "name": "Trading mode",
+      "description": "Adds the agent's Full or Ask trading mode and the manage-every-position instruction."
+    },
+    "packages/db/migrations/versions/0061_trade_approval_validity.py": {
+      "name": "Approval validity",
+      "description": "Adds the reason and price tolerance on a trade approval."
+    },
+    "packages/db/migrations/versions/0067_decouple_goal_wakes.py": {
+      "name": "Decouple goal wakes",
+      "description": "Detaches watches and routines from trading goals."
+    },
+    "packages/db/migrations/versions/0068_end_trading_goals.py": {
+      "name": "End trading goals",
+      "description": "Removes trading goals and ends the active ones."
+    },
+    "packages/db/migrations/versions/0070_secret_scopes.py": {
+      "name": "Secret scopes",
+      "description": "Turns per-agent secrets into the owner's shared workspace secrets."
+    },
+    "packages/db/migrations/versions/0071_secret_card_kinds.py": {
+      "name": "Secret card",
+      "description": "Turns the old credential card into the Secret card."
+    },
+    "packages/db/migrations/versions/0085_opportunity_pending_operations.py": {
+      "name": "Opportunity operations",
+      "description": "Keeps every unsettled operation an opportunity names."
+    },
+    "packages/db/migrations/versions/0086_end_trading_restrictions.py": {
+      "name": "End trading restrictions",
+      "description": "Removes trading restrictions and ends the active ones."
+    },
+    "packages/db/migrations/versions/0087_end_money_limits.py": {
+      "name": "End money limits",
+      "description": "Removes execution caps and money limits."
+    },
+    "packages/db/migrations/versions/0088_end_notice_cards.py": {
+      "name": "End notice cards",
+      "description": "Removes the notice cards."
+    },
+    "packages/db/migrations/versions/0090_routine_work_threads.py": {
+      "name": "Hidden routine threads",
+      "description": "Turns routine and watch threads into hidden work threads."
+    },
+    "packages/db/migrations/versions/0091_run_origin_index.py": {
+      "name": "Run origin index",
+      "description": "Speeds up finding the conversation a run reports to."
+    },
+    "packages/db/migrations/versions/0100_execution_receipts.py": {
+      "name": "Execution receipts",
+      "description": "Adds the Execution Receipt, replacing the unused receipts table."
+    },
+    "packages/db/migrations/versions/0101_settle_operation_card.py": {
+      "name": "Settle-operation card",
+      "description": "Renames the resolve-operation card to Settle Uncertain Operation."
+    },
+    "packages/db/migrations/versions/0102_genui_summary_kind.py": {
+      "name": "Card summary kind",
+      "description": "Renames the generic card kind from receipt to summary."
+    },
+    "packages/db/migrations/versions/0110_closed_trades.py": {
+      "name": "Closed-trade ledger",
+      "description": "Adds the closed-trade ledger."
+    },
+    "packages/db/migrations/versions/0111_judgment_label.py": {
+      "name": "Judgment label",
+      "description": "Adds the agent's judgment label on a trade."
+    },
+    "packages/db/migrations/versions/0120_skill_versions_outlive_skill.py": {
+      "name": "Skill versions outlive skill",
+      "description": "Keeps a skill's versions after the skill is gone, so any can be restored."
+    },
+    "packages/db/migrations/versions/0121_skill_intents_removed.py": {
+      "name": "Remove skill intents",
+      "description": "Drops the old activation intents from skill manifests."
+    },
+    "packages/db/migrations/versions/0125_flat_team_creation.py": {
+      "name": "Flat team creation",
+      "description": "Lets Lonora create agents on its own, with no card."
+    },
+    "packages/db/migrations/versions/0127_no_supervision_grants.py": {
+      "name": "Remove supervision grants",
+      "description": "Deletes supervision grants; only Lonora leads, by its role."
+    },
+    "packages/db/migrations/versions/0128_authority_migration.py": {
+      "name": "Authority migration",
+      "description": "Moves existing data to the trading-mode model before the old permission code is removed."
+    },
+    "packages/db/migrations/versions/0129_grant_cards_gone.py": {
+      "name": "Remove grant cards",
+      "description": "Removes the grant card kind."
+    }
+  }
+}

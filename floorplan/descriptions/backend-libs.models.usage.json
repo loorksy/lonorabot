@@ -1,0 +1,20 @@
+{
+  "files": {
+    "packages/llm-usage/src/lonora_llm_usage/__init__.py": {
+      "name": "Usage package",
+      "description": "Marks the usage-tracking code as one package; holds no logic of its own."
+    },
+    "packages/llm-usage/src/lonora_llm_usage/context.py": {
+      "name": "Current-run marker",
+      "description": "Remembers which run is active so model usage can be attributed to it."
+    },
+    "packages/llm-usage/src/lonora_llm_usage/models.py": {
+      "name": "Usage record type",
+      "description": "Defines the shape of one usage record: the run, provider, model and tokens used."
+    },
+    "packages/llm-usage/src/lonora_llm_usage/store.py": {
+      "name": "Save usage",
+      "description": "Saves a usage record to the database."
+    }
+  }
+}

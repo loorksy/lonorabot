@@ -1,0 +1,28 @@
+{
+  "files": {
+    "apps/mobile/app.config.ts": {
+      "name": "App build config",
+      "description": "The phone app's build settings and over-the-air update inputs; no credentials."
+    },
+    "apps/mobile/expo-env.d.ts": {
+      "name": "Expo types",
+      "description": "Brings in Expo's type definitions."
+    },
+    "apps/mobile/plugins/with-release-signing.cjs": {
+      "name": "Keep release signing",
+      "description": "Makes sure the Android release signing survives every rebuild."
+    },
+    "apps/mobile/scripts/android-release.py": {
+      "name": "Build Android release",
+      "description": "Builds a signed Android release app with the saved identity."
+    },
+    "apps/mobile/scripts/android-signing.py": {
+      "name": "Android signing identity",
+      "description": "Creates or reuses the private release identity, kept outside the checkout; never prints secrets."
+    },
+    "apps/mobile/scripts/android-verify.py": {
+      "name": "Verify Android build",
+      "description": "Checks the built Android app and reports device compatibility."
+    }
+  }
+}

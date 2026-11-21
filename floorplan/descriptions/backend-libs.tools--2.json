@@ -1,0 +1,88 @@
+{
+  "files": {
+    "packages/tools/src/lonora_tools/runtime_control.py": {
+      "name": "Run control",
+      "description": "Lets an agent check its status, wait, go quiet, and work with boards and tickets."
+    },
+    "packages/tools/src/lonora_tools/schema.py": {
+      "name": "Tool input checking",
+      "description": "Checks a tool call's inputs and trims redundant labels, without exposing the submitted values or secrets."
+    },
+    "packages/tools/src/lonora_tools/scratchpad.py": {
+      "name": "Scratchpad (tool)",
+      "description": "Lets an agent read and write its scratchpad notes."
+    },
+    "packages/tools/src/lonora_tools/search.py": {
+      "name": "Search (tool)",
+      "description": "Lets an agent search its own memory and the threads it takes part in, and search and fetch pages from the web."
+    },
+    "packages/tools/src/lonora_tools/secrets.py": {
+      "name": "Secrets (tool)",
+      "description": "Lets an agent list and delete the owner's workspace secrets from chat, only on the owner's own request."
+    },
+    "packages/tools/src/lonora_tools/session_search.py": {
+      "name": "Session search (tool)",
+      "description": "Lets an agent search within a session."
+    },
+    "packages/tools/src/lonora_tools/skill_access.py": {
+      "name": "Skill access",
+      "description": "Gives an agent read access to its own instruction catalog, without granting it as a tool."
+    },
+    "packages/tools/src/lonora_tools/skills.py": {
+      "name": "Skills (tool)",
+      "description": "Lets an agent view, save, import, validate and restore its skills."
+    },
+    "packages/tools/src/lonora_tools/source_trust.py": {
+      "name": "Trust a source",
+      "description": "Trusts a source only on the owner's own typed words, with no card shown."
+    },
+    "packages/tools/src/lonora_tools/subagent.py": {
+      "name": "Helpers (tool)",
+      "description": "Lets an agent spawn a temporary helper and inspect it."
+    },
+    "packages/tools/src/lonora_tools/supervision.py": {
+      "name": "Lead controls (tool)",
+      "description": "Lets Lonora, as the lead, read and steer its team agents: cancel their runs, switch them to Ask, or delete them."
+    },
+    "packages/tools/src/lonora_tools/symbols.py": {
+      "name": "Symbol resolving",
+      "description": "Turns a symbol request into the account's own spelling of it, or asks which one when it is unclear."
+    },
+    "packages/tools/src/lonora_tools/tasks.py": {
+      "name": "Tasks (tool)",
+      "description": "Lets an agent start, inspect, control and wait on its tasks, and record each step."
+    },
+    "packages/tools/src/lonora_tools/telegram.py": {
+      "name": "Link Telegram (tool)",
+      "description": "Links the owner's Telegram chat from chat, only when the owner sends the code himself."
+    },
+    "packages/tools/src/lonora_tools/terminal.py": {
+      "name": "Workspace terminal (tool)",
+      "description": "Lets an agent use the owner's workspace — run commands, read and write files, manage processes — with every byte that comes back scanned for secrets."
+    },
+    "packages/tools/src/lonora_tools/tool_discovery.py": {
+      "name": "Tool discovery",
+      "description": "Ranks an agent's permitted tools to help it find the right one."
+    },
+    "packages/tools/src/lonora_tools/tool_results.py": {
+      "name": "Saved tool results",
+      "description": "Keeps private, size-bounded copies of tool results in the file store."
+    },
+    "packages/tools/src/lonora_tools/trade.py": {
+      "name": "Trading (tool)",
+      "description": "The agent's trading actions — open, manage and close positions — gated by the owner's approval cards and the broker's own confirmation."
+    },
+    "packages/tools/src/lonora_tools/trading_decision.py": {
+      "name": "Trading decisions (tool)",
+      "description": "Records the evidence behind a trading decision once, so past choices can be explained without re-reading today's market."
+    },
+    "packages/tools/src/lonora_tools/usage.py": {
+      "name": "Usage (tool)",
+      "description": "Lets an agent read the owner's model usage in chat."
+    },
+    "packages/tools/src/lonora_tools/workspace_export.py": {
+      "name": "Export a file (tool)",
+      "description": "Delivers a file from the owner's workspace into the chat as a real attachment."
+    }
+  }
+}

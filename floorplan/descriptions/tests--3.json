@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/check_memory_provenance.py": {
+      "name": "Memory provenance tests",
+      "description": "Automatic checks for memory provenance."
+    },
+    "tests/check_metaapi_adapter.py": {
+      "name": "Metaapi adapter tests",
+      "description": "Automatic checks for metaapi adapter."
+    },
+    "tests/check_metaapi_discovery.py": {
+      "name": "Metaapi discovery tests",
+      "description": "Automatic checks for metaapi discovery."
+    },
+    "tests/check_metaapi_transport.py": {
+      "name": "Metaapi transport tests",
+      "description": "Automatic checks for metaapi transport."
+    },
+    "tests/check_model_card_migration.py": {
+      "name": "Model card migration tests",
+      "description": "Automatic checks for model card migration."
+    },
+    "tests/check_model_context.py": {
+      "name": "Model context tests",
+      "description": "Automatic checks for model context."
+    },
+    "tests/check_money_limits_migration.py": {
+      "name": "Money limits migration tests",
+      "description": "Automatic checks for money limits migration."
+    },
+    "tests/check_notice_card_migration.py": {
+      "name": "Notice card migration tests",
+      "description": "Automatic checks for notice card migration."
+    },
+    "tests/check_old_workspace_data.py": {
+      "name": "Old workspace data tests",
+      "description": "Automatic checks for old workspace data."
+    },
+    "tests/check_opportunity_pending_migration.py": {
+      "name": "Opportunity pending migration tests",
+      "description": "Automatic checks for opportunity pending migration."
+    },
+    "tests/check_opportunity_runtime.py": {
+      "name": "Opportunity runtime tests",
+      "description": "Automatic checks for opportunity runtime."
+    },
+    "tests/check_owner_actions.py": {
+      "name": "Owner actions tests",
+      "description": "Automatic checks for owner actions."
+    },
+    "tests/check_owner_profile.py": {
+      "name": "Owner profile tests",
+      "description": "Automatic checks for owner profile."
+    },
+    "tests/check_owner_skill_catalog.py": {
+      "name": "Owner skill catalog tests",
+      "description": "Automatic checks for owner skill catalog."
+    },
+    "tests/check_owner_trades.py": {
+      "name": "Owner trades tests",
+      "description": "Automatic checks for owner trades."
+    },
+    "tests/check_pause_source_migration.py": {
+      "name": "Pause source migration tests",
+      "description": "Automatic checks for pause source migration."
+    },
+    "tests/check_pending_orders.py": {
+      "name": "Pending orders tests",
+      "description": "Automatic checks for pending orders."
+    },
+    "tests/check_personal_agent.py": {
+      "name": "Personal agent tests",
+      "description": "Automatic checks for personal agent."
+    },
+    "tests/check_position_sizing.py": {
+      "name": "Position sizing tests",
+      "description": "Automatic checks for position sizing."
+    },
+    "tests/check_progressive_skills.py": {
+      "name": "Progressive skills tests",
+      "description": "Automatic checks for progressive skills."
+    },
+    "tests/check_public_skill_package.py": {
+      "name": "Public skill package tests",
+      "description": "Automatic checks for public skill package."
+    },
+    "tests/check_question_browser.py": {
+      "name": "Question browser tests",
+      "description": "Browser checks for question."
+    },
+    "tests/check_rakazo_ui.py": {
+      "name": "Rakazo ui tests",
+      "description": "Automatic checks for rakazo ui."
+    },
+    "tests/check_reach_me_migration.py": {
+      "name": "Reach me migration tests",
+      "description": "Automatic checks for reach me migration."
+    },
+    "tests/check_relationships.py": {
+      "name": "Relationships tests",
+      "description": "Automatic checks for relationships."
+    },
+    "tests/check_restriction_removal_migration.py": {
+      "name": "Restriction removal migration tests",
+      "description": "Automatic checks for restriction removal migration."
+    },
+    "tests/check_review_findings.py": {
+      "name": "Review findings tests",
+      "description": "Automatic checks for review findings."
+    },
+    "tests/check_runtime_collaboration.py": {
+      "name": "Runtime collaboration tests",
+      "description": "Automatic checks for runtime collaboration."
+    },
+    "tests/check_secret_card_migration.py": {
+      "name": "Secret card migration tests",
+      "description": "Automatic checks for secret card migration."
+    },
+    "tests/check_send_boundary.py": {
+      "name": "Send boundary tests",
+      "description": "Automatic checks for send boundary."
+    },
+    "tests/check_settle_card_migration.py": {
+      "name": "Settle card migration tests",
+      "description": "Automatic checks for settle card migration."
+    },
+    "tests/check_shadow_removal_migration.py": {
+      "name": "Shadow removal migration tests",
+      "description": "Automatic checks for shadow removal migration."
+    },
+    "tests/check_simple_lonora.py": {
+      "name": "Simple lonora tests",
+      "description": "Automatic checks for simple lonora."
+    },
+    "tests/check_skill_authority_continuity.py": {
+      "name": "Skill authority continuity tests",
+      "description": "Automatic checks for skill authority continuity."
+    },
+    "tests/check_skill_installation.py": {
+      "name": "Skill installation tests",
+      "description": "Automatic checks for skill installation."
+    },
+    "tests/check_skill_intents_migration.py": {
+      "name": "Skill intents migration tests",
+      "description": "Automatic checks for skill intents migration."
+    },
+    "tests/check_skill_packages.py": {
+      "name": "Skill packages tests",
+      "description": "Automatic checks for skill packages."
+    },
+    "tests/check_skill_repository.py": {
+      "name": "Skill repository tests",
+      "description": "Automatic checks for skill repository."
+    },
+    "tests/check_skill_version_revocation.py": {
+      "name": "Skill version revocation tests",
+      "description": "Automatic checks for skill version revocation."
+    },
+    "tests/check_skills_versioning.py": {
+      "name": "Skills versioning tests",
+      "description": "Automatic checks for skills versioning."
+    }
+  }
+}

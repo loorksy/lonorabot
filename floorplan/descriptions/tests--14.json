@@ -1,0 +1,112 @@
+{
+  "files": {
+    "tests/web/settings.spec.mjs": {
+      "name": "Settings tests",
+      "description": "Automatic checks for settings."
+    },
+    "tests/web/shell-routes.test.ts": {
+      "name": "Shell routes tests",
+      "description": "Automatic checks for shell routes."
+    },
+    "tests/web/shell.spec.mjs": {
+      "name": "Shell tests",
+      "description": "Automatic checks for shell."
+    },
+    "tests/web/simple-lonora.spec.mjs": {
+      "name": "Simple lonora tests",
+      "description": "Automatic checks for simple lonora."
+    },
+    "tests/web/skills-management.spec.mjs": {
+      "name": "Skills management tests",
+      "description": "Automatic checks for skills management."
+    },
+    "tests/web/stream-timeline.test.ts": {
+      "name": "Stream timeline tests",
+      "description": "Automatic checks for stream timeline."
+    },
+    "tests/web/streaming.spec.mjs": {
+      "name": "Streaming tests",
+      "description": "Automatic checks for streaming."
+    },
+    "tests/web/supervision.spec.mjs": {
+      "name": "Supervision tests",
+      "description": "Automatic checks for supervision."
+    },
+    "tests/web/supervision.test.ts": {
+      "name": "Supervision tests",
+      "description": "Automatic checks for supervision."
+    },
+    "tests/web/thread-questions.test.ts": {
+      "name": "Thread questions tests",
+      "description": "Automatic checks for thread questions."
+    },
+    "tests/web/ticket-action.test.ts": {
+      "name": "Ticket action tests",
+      "description": "Automatic checks for ticket action."
+    },
+    "tests/web/trade-approval-validity.spec.mjs": {
+      "name": "Trade approval validity tests",
+      "description": "Automatic checks for trade approval validity."
+    },
+    "tests/web/trading-readiness.test.ts": {
+      "name": "Trading readiness tests",
+      "description": "Automatic checks for trading readiness."
+    },
+    "tests/web/tradingview-feed.spec.mjs": {
+      "name": "Tradingview feed tests",
+      "description": "Automatic checks for tradingview feed."
+    },
+    "tests/web/tradingview-renderer.spec.mjs": {
+      "name": "Tradingview renderer tests",
+      "description": "Automatic checks for tradingview renderer."
+    },
+    "tests/web/tradingview-sheet.spec.mjs": {
+      "name": "Tradingview sheet tests",
+      "description": "Automatic checks for tradingview sheet."
+    },
+    "tests/web/turn-activity.test.ts": {
+      "name": "Turn activity tests",
+      "description": "Automatic checks for turn activity."
+    },
+    "tests/web/v38-global.spec.mjs": {
+      "name": "V38 global tests",
+      "description": "Automatic checks for v38 global."
+    },
+    "tests/web/visual-response.spec.mjs": {
+      "name": "Visual response tests",
+      "description": "Automatic checks for visual response."
+    },
+    "tests/web/visual-response.test.ts": {
+      "name": "Visual response tests",
+      "description": "Automatic checks for visual response."
+    },
+    "tests/web/visual-scalars.test.ts": {
+      "name": "Visual scalars tests",
+      "description": "Automatic checks for visual scalars."
+    },
+    "tests/web/visual-streaming.test.ts": {
+      "name": "Visual streaming tests",
+      "description": "Automatic checks for visual streaming."
+    },
+    "tests/web/voice.spec.mjs": {
+      "name": "Voice tests",
+      "description": "Automatic checks for voice."
+    },
+    "tests/web/what-is-running.spec.mjs": {
+      "name": "What is running tests",
+      "description": "Automatic checks for what is running."
+    },
+    "tests/web/workspace.spec.mjs": {
+      "name": "Workspace tests",
+      "description": "Automatic checks for workspace."
+    },
+    "tests/workspace_fake.py": {
+      "name": "Workspace fake tests",
+      "description": "Automatic checks for workspace fake."
+    },
+    "tests/workspace_running_browser.py": {
+      "name": "Workspace running browser tests",
+      "description": "Browser checks for workspace running."
+    }
+  }
+}

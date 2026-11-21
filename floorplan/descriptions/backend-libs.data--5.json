@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/db/src/lonora_db/owner.py": {
+      "name": "Read the owner",
+      "description": "Reads the single owner record."
+    },
+    "packages/db/src/lonora_db/pauses.py": {
+      "name": "Pauses store",
+      "description": "Records and lifts the pauses on an agent, a task, a routine or a watch, and keeps the owner's own pauses in force."
+    },
+    "packages/db/src/lonora_db/peer_messages.py": {
+      "name": "Peer messages store",
+      "description": "Stores messages between agents, visible in both conversations."
+    },
+    "packages/db/src/lonora_db/personal_agent.py": {
+      "name": "Personal agent",
+      "description": "Keeps the owner's one durable identity agent and finds the specialists for account events."
+    },
+    "packages/db/src/lonora_db/push_devices.py": {
+      "name": "Push devices store",
+      "description": "Registers and removes the owner's phones for push, dropping any whose sign-in was ended."
+    },
+    "packages/db/src/lonora_db/reactions.py": {
+      "name": "Reactions store",
+      "description": "Sets and reads the quick reactions on messages."
+    },
+    "packages/db/src/lonora_db/relationships.py": {
+      "name": "Relationship evidence store",
+      "description": "Saves and reads one kind of measured market-relationship evidence."
+    },
+    "packages/db/src/lonora_db/rich_response.py": {
+      "name": "Rich content check",
+      "description": "Checks a message's generated-UI content, falling back to plain text if it is malformed."
+    },
+    "packages/db/src/lonora_db/routines.py": {
+      "name": "Routines store",
+      "description": "Creates, schedules, enqueues and quarantines the owner's scheduled routines."
+    },
+    "packages/db/src/lonora_db/run_retry.py": {
+      "name": "Retry a run",
+      "description": "Re-runs a failed reply as a new run, respecting any wait the provider asked for."
+    },
+    "packages/db/src/lonora_db/runs.py": {
+      "name": "Runs store",
+      "description": "The store for agent runs: creating, claiming, leasing, checkpointing and projecting their outcome."
+    },
+    "packages/db/src/lonora_db/schema.py": {
+      "name": "Database tables",
+      "description": "Defines every database table and how each kind of record is stored."
+    },
+    "packages/db/src/lonora_db/scratchpad.py": {
+      "name": "Scratchpad store",
+      "description": "Saves and reads an agent's scratchpad notes."
+    },
+    "packages/db/src/lonora_db/search.py": {
+      "name": "Unified search",
+      "description": "Searches across chats, messages, tasks, files, knowledge and skills for the owner."
+    },
+    "packages/db/src/lonora_db/secret_cards.py": {
+      "name": "Secret card store",
+      "description": "The Secret card: what it shows, where the owner's values are saved, and the run that follows."
+    },
+    "packages/db/src/lonora_db/secrets.py": {
+      "name": "Secrets store",
+      "description": "Stores the owner's secrets by kind and refuses to delete one a connection still uses."
+    },
+    "packages/db/src/lonora_db/skill_controls.py": {
+      "name": "Blocked skill versions store",
+      "description": "Records which skill versions the owner has blocked, per agent."
+    },
+    "packages/db/src/lonora_db/skills.py": {
+      "name": "Skills store",
+      "description": "Stores an agent's skills, keeping every saved version."
+    },
+    "packages/db/src/lonora_db/steering.py": {
+      "name": "Steering store",
+      "description": "Holds and delivers the owner's mid-run input to an agent."
+    },
+    "packages/db/src/lonora_db/streaming.py": {
+      "name": "Reply streaming store",
+      "description": "Keeps the running preview of a reply as it is written."
+    },
+    "packages/db/src/lonora_db/supervision.py": {
+      "name": "Lead actions store",
+      "description": "Records Lonora's actions steering a team agent's work: pauses, holds and each intervention."
+    },
+    "packages/db/src/lonora_db/system_alerts.py": {
+      "name": "System alerts",
+      "description": "Wakes Lonora once for each system alert, such as a broker problem or an uncertain operation."
+    },
+    "packages/db/src/lonora_db/task_recovery.py": {
+      "name": "Task recovery",
+      "description": "Retries a stuck task safely from its checkpoint, and hands it to the owner when it keeps failing."
+    },
+    "packages/db/src/lonora_db/task_wait_settlement.py": {
+      "name": "Task-wait commit",
+      "description": "Commits a task's wait and any owner update together."
+    },
+    "packages/db/src/lonora_db/task_wait.py": {
+      "name": "Task wait & wake",
+      "description": "Pauses a task until its condition is met and wakes it when it is."
+    },
+    "packages/db/src/lonora_db/tasks.py": {
+      "name": "Tasks store",
+      "description": "The store for tasks: their steps, state, control and completion."
+    },
+    "packages/db/src/lonora_db/telegram_pairing.py": {
+      "name": "Telegram pairing store",
+      "description": "Pairs the owner's Telegram chat with a bot using a one-time code."
+    },
+    "packages/db/src/lonora_db/thread_prefs.py": {
+      "name": "Conversation state store",
+      "description": "The owner's per-conversation state: read cursor, pins, archive setting and marks."
+    },
+    "packages/db/src/lonora_db/threads.py": {
+      "name": "Conversations store",
+      "description": "Creates and reads conversations and their options, and decides where a background run's records belong."
+    },
+    "packages/db/src/lonora_db/tickets.py": {
+      "name": "Tickets store",
+      "description": "Saves and reads the owner's tickets."
+    },
+    "packages/db/src/lonora_db/tool_usage.py": {
+      "name": "Tool recency store",
+      "description": "Remembers an agent's recently useful tools."
+    },
+    "packages/db/src/lonora_db/trade_approvals.py": {
+      "name": "Trade approvals store",
+      "description": "The store for trade approvals: pending, expired, decided, renewed or withdrawn."
+    },
+    "packages/db/src/lonora_db/trading_accounts.py": {
+      "name": "Trading accounts store",
+      "description": "Saves and reads the owner's trading accounts."
+    },
+    "packages/db/src/lonora_db/trading_decisions.py": {
+      "name": "Trading decisions store",
+      "description": "Keeps immutable snapshots of trading decisions and their history."
+    },
+    "packages/db/src/lonora_db/trading_journal.py": {
+      "name": "Trading journal store",
+      "description": "Records each trade operation, from reservation to confirmed result, as the single source of truth."
+    },
+    "packages/db/src/lonora_db/trading_mode.py": {
+      "name": "Trading mode store",
+      "description": "Stores and changes an agent's Full or Ask trading switch."
+    },
+    "packages/db/src/lonora_db/trading_opportunities.py": {
+      "name": "Opportunities store",
+      "description": "Stores a trading opportunity's identity and its transition history."
+    },
+    "packages/db/src/lonora_db/trading_readiness.py": {
+      "name": "Trading readiness",
+      "description": "Works out whether an agent can trade now and what is stopping it; a view only."
+    },
+    "packages/db/src/lonora_db/transactions.py": {
+      "name": "Shared store helpers",
+      "description": "The shared building blocks the per-topic stores are built on, and the settings store."
+    },
+    "packages/db/src/lonora_db/trusted_sources.py": {
+      "name": "Trusted sources store",
+      "description": "The owner's trusted-sources list: add, remove, restore, and the reviewed tools of a connection."
+    }
+  }
+}

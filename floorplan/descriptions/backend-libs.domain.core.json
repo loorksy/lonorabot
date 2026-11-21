@@ -1,0 +1,100 @@
+{
+  "files": {
+    "packages/core/src/lonora_core/__init__.py": {
+      "name": "Core package",
+      "description": "Marks the core-rules code as one package; holds no logic of its own."
+    },
+    "packages/core/src/lonora_core/agent_skill.py": {
+      "name": "Skill name check",
+      "description": "Checks a skill's name is valid."
+    },
+    "packages/core/src/lonora_core/attachments.py": {
+      "name": "Attachment checks",
+      "description": "Checks an uploaded file's name is safe and its size within the limit."
+    },
+    "packages/core/src/lonora_core/attention.py": {
+      "name": "Attention classifying",
+      "description": "Sorts a runtime event into a kind of attention from its structure, never by matching text or inventing a signal."
+    },
+    "packages/core/src/lonora_core/broker_endpoints.py": {
+      "name": "Broker endpoints",
+      "description": "Names the broker endpoints in one place."
+    },
+    "packages/core/src/lonora_core/broker_health.py": {
+      "name": "Broker problem check",
+      "description": "Works out which broker-health problem a disconnected account has, if any."
+    },
+    "packages/core/src/lonora_core/chart_annotations.py": {
+      "name": "Chart annotation checks",
+      "description": "Checks a chart's drawings and protects each agent's own layer."
+    },
+    "packages/core/src/lonora_core/chart_controller.py": {
+      "name": "Timeframe check",
+      "description": "Checks a chart timeframe is valid."
+    },
+    "packages/core/src/lonora_core/chart_indicator.py": {
+      "name": "Indicator check",
+      "description": "Checks a chart indicator and its period are valid."
+    },
+    "packages/core/src/lonora_core/cron.py": {
+      "name": "Schedule timing",
+      "description": "Works out when a schedule next runs in a given time zone."
+    },
+    "packages/core/src/lonora_core/error_logging.py": {
+      "name": "Safe error text",
+      "description": "Turns a provider error into a short message with no credentials or addresses."
+    },
+    "packages/core/src/lonora_core/group_mentions.py": {
+      "name": "Mentions",
+      "description": "Finds which agents are @-mentioned in a message."
+    },
+    "packages/core/src/lonora_core/market_watch.py": {
+      "name": "Watch condition",
+      "description": "Checks whether a watch's condition is met."
+    },
+    "packages/core/src/lonora_core/message_preview.py": {
+      "name": "Message preview",
+      "description": "Works out a message's kind and one-line preview for the list."
+    },
+    "packages/core/src/lonora_core/message_quote.py": {
+      "name": "Quote text",
+      "description": "Formats a message as a quote."
+    },
+    "packages/core/src/lonora_core/message_replies.py": {
+      "name": "Reply same-thread check",
+      "description": "Makes sure a reply is in the same conversation as the message it replies to."
+    },
+    "packages/core/src/lonora_core/model_pricing.py": {
+      "name": "Model prices",
+      "description": "Holds the public list prices used to show usage cost."
+    },
+    "packages/core/src/lonora_core/model_routing.py": {
+      "name": "Model selection",
+      "description": "Picks the model for a job and matches the owner's words to a model."
+    },
+    "packages/core/src/lonora_core/public_reply.py": {
+      "name": "Reply privacy",
+      "description": "Removes sensitive text from a reply before it is shown, without losing the answer."
+    },
+    "packages/core/src/lonora_core/run_state.py": {
+      "name": "Run states",
+      "description": "The rules for how a run moves between its states, conversational or background."
+    },
+    "packages/core/src/lonora_core/runtime_failure.py": {
+      "name": "Failure family",
+      "description": "Sorts a failure into a family — quota, rate, timeout, model or other — and reads any retry hint."
+    },
+    "packages/core/src/lonora_core/search_fold.py": {
+      "name": "Arabic search folding",
+      "description": "Folds Arabic text the same way in the code and the database so search matches."
+    },
+    "packages/core/src/lonora_core/trading_run_market.py": {
+      "name": "Exact-symbol check",
+      "description": "Refuses a trade whose symbol does not exactly match the account's."
+    },
+    "packages/core/src/lonora_core/user_error.py": {
+      "name": "Errors & refusals",
+      "description": "Defines the app's error and tool-refusal types."
+    }
+  }
+}

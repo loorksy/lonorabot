@@ -1,0 +1,160 @@
+{
+  "files": {
+    "packages/ui-web/src/agent-avatar.tsx": {
+      "name": "Agent avatar (web)",
+      "description": "Draws an agent's avatar with its colour and the 'trades on its own' marker."
+    },
+    "packages/ui-web/src/avatar-geometry.ts": {
+      "name": "Avatar geometry re-export",
+      "description": "Re-exports the shared avatar-shape helpers for the web."
+    },
+    "packages/ui-web/src/avatar-style.tsx": {
+      "name": "Avatar style setting",
+      "description": "Keeps the chosen avatar style for the screens."
+    },
+    "packages/ui-web/src/avatar.css": {
+      "name": "Avatar styles",
+      "description": "The styles for the agent avatar on the web."
+    },
+    "packages/ui-web/src/components/ui/alert-dialog.tsx": {
+      "name": "Confirm dialog",
+      "description": "A pop-up that asks the owner to confirm or cancel."
+    },
+    "packages/ui-web/src/components/ui/badge.tsx": {
+      "name": "Badge",
+      "description": "A small label pill."
+    },
+    "packages/ui-web/src/components/ui/button.tsx": {
+      "name": "Button",
+      "description": "A button."
+    },
+    "packages/ui-web/src/components/ui/card.tsx": {
+      "name": "Card",
+      "description": "A card container for a block of content."
+    },
+    "packages/ui-web/src/components/ui/checkbox.tsx": {
+      "name": "Checkbox",
+      "description": "A checkbox."
+    },
+    "packages/ui-web/src/components/ui/command.tsx": {
+      "name": "Command palette",
+      "description": "A searchable list of commands."
+    },
+    "packages/ui-web/src/components/ui/dialog.tsx": {
+      "name": "Dialog",
+      "description": "A pop-up window."
+    },
+    "packages/ui-web/src/components/ui/dropdown-menu.tsx": {
+      "name": "Dropdown menu",
+      "description": "A menu that drops down from a button."
+    },
+    "packages/ui-web/src/components/ui/field.tsx": {
+      "name": "Form field",
+      "description": "A labelled form field with help and error text."
+    },
+    "packages/ui-web/src/components/ui/input-group.tsx": {
+      "name": "Input group",
+      "description": "A text box with add-ons like a button or icon."
+    },
+    "packages/ui-web/src/components/ui/input.tsx": {
+      "name": "Text input",
+      "description": "A single-line text box."
+    },
+    "packages/ui-web/src/components/ui/label.tsx": {
+      "name": "Label",
+      "description": "A label for a form field."
+    },
+    "packages/ui-web/src/components/ui/popover.tsx": {
+      "name": "Popover",
+      "description": "A small pop-up panel."
+    },
+    "packages/ui-web/src/components/ui/scroll-area.tsx": {
+      "name": "Scroll area",
+      "description": "A scrollable area with a styled scrollbar."
+    },
+    "packages/ui-web/src/components/ui/select.tsx": {
+      "name": "Select",
+      "description": "A drop-down chooser."
+    },
+    "packages/ui-web/src/components/ui/separator.tsx": {
+      "name": "Separator",
+      "description": "A line that separates content."
+    },
+    "packages/ui-web/src/components/ui/skeleton.tsx": {
+      "name": "Loading placeholder",
+      "description": "A pulsing placeholder shown while content loads."
+    },
+    "packages/ui-web/src/components/ui/spinner.tsx": {
+      "name": "Spinner",
+      "description": "A spinning loading indicator."
+    },
+    "packages/ui-web/src/components/ui/switch.tsx": {
+      "name": "Switch",
+      "description": "An on/off switch."
+    },
+    "packages/ui-web/src/components/ui/tabs.tsx": {
+      "name": "Tabs",
+      "description": "A row of tabs that switch between views."
+    },
+    "packages/ui-web/src/components/ui/textarea.tsx": {
+      "name": "Text area",
+      "description": "A multi-line text box."
+    },
+    "packages/ui-web/src/components/ui/toggle.tsx": {
+      "name": "Toggle button",
+      "description": "A button that stays pressed or not."
+    },
+    "packages/ui-web/src/components/ui/tooltip.tsx": {
+      "name": "Tooltip",
+      "description": "A small hint shown on hover."
+    },
+    "packages/ui-web/src/group-avatar.tsx": {
+      "name": "Group avatar (web)",
+      "description": "Draws a group's avatar from its members' faces, the lead first."
+    },
+    "packages/ui-web/src/icons/icon.tsx": {
+      "name": "Icon",
+      "description": "Draws one icon from the shared set."
+    },
+    "packages/ui-web/src/icons/pair-icon.css": {
+      "name": "Pair icon styles",
+      "description": "The styles for a currency-pair icon."
+    },
+    "packages/ui-web/src/icons/pair-icon.tsx": {
+      "name": "Pair icon",
+      "description": "Draws a currency pair's two flags or symbol."
+    },
+    "packages/ui-web/src/icons/pair-images.ts": {
+      "name": "Pair images",
+      "description": "The embedded flag and symbol images for currency pairs, so none are fetched from outside."
+    },
+    "packages/ui-web/src/icons/paths.ts": {
+      "name": "Icon paths re-export",
+      "description": "Re-exports the shared icon drawings."
+    },
+    "packages/ui-web/src/index.ts": {
+      "name": "Design kit entry",
+      "description": "Gathers and re-exports every web building block."
+    },
+    "packages/ui-web/src/lib/utils.ts": {
+      "name": "Class-name helper",
+      "description": "Combines CSS class names cleanly."
+    },
+    "packages/ui-web/src/shadcn.css": {
+      "name": "Component styles",
+      "description": "The base styles for the building blocks."
+    },
+    "packages/ui-web/src/styles.css": {
+      "name": "Web base styles",
+      "description": "The web app's base styles."
+    },
+    "packages/ui-web/src/trading-avatar.css": {
+      "name": "Trading avatar styles",
+      "description": "The static styles for the trading avatar."
+    },
+    "packages/ui-web/src/trading-avatar.tsx": {
+      "name": "Trading avatar (web)",
+      "description": "Draws and animates the agent's trading avatar on the web."
+    }
+  }
+}

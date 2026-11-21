@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/trading/src/lonora_trading/__init__.py": {
+      "name": "Trading package",
+      "description": "Marks the trading code as one package; holds no logic of its own."
+    },
+    "packages/trading/src/lonora_trading/account_authority.py": {
+      "name": "Signed-authority check",
+      "description": "Checks an agent holds a valid signed authority over the account, covering this market and action, before any money action."
+    },
+    "packages/trading/src/lonora_trading/accounts.py": {
+      "name": "Account snapshot",
+      "description": "Reads an account's balance, open positions and orders from the broker as one snapshot."
+    },
+    "packages/trading/src/lonora_trading/admission.py": {
+      "name": "Risk admission",
+      "description": "At the point of trading, blocks new risk while the broker's facts are uncertain, and always lets a position be reduced or closed."
+    },
+    "packages/trading/src/lonora_trading/agent_permission.py": {
+      "name": "Execution door check",
+      "description": "The authority check just before a trade is sent: the agent's mode and standing instruction as they are now, and an exact match to the owner's approval."
+    },
+    "packages/trading/src/lonora_trading/approval_drift.py": {
+      "name": "Approval drift",
+      "description": "Ends a trade approval if the price has moved out of its band since it was shown, and wakes the agent."
+    },
+    "packages/trading/src/lonora_trading/broker_manage.py": {
+      "name": "Manage a broker account",
+      "description": "Carries out the owner's broker-account changes from chat: switch on or off, disconnect, change the password or token, and start the account running again."
+    },
+    "packages/trading/src/lonora_trading/broker_provisioning.py": {
+      "name": "Connect a broker account",
+      "description": "The multi-step job that sets up, starts and connects a trading account from chat, cleaning up anything it created if a step fails."
+    },
+    "packages/trading/src/lonora_trading/broker_recovery.py": {
+      "name": "Broker reconciliation",
+      "description": "Re-reads an account from the broker, matches outside changes to the agent responsible, and wakes it."
+    },
+    "packages/trading/src/lonora_trading/close_wake.py": {
+      "name": "Closed-trade wake",
+      "description": "When a trade closes, wakes the agent that owned the position so it can write a short self-review."
+    },
+    "packages/trading/src/lonora_trading/closed_trades.py": {
+      "name": "Closed-trade ledger",
+      "description": "Keeps one record per trade that fully closed at the broker, linked to the order and judgment that opened it."
+    },
+    "packages/trading/src/lonora_trading/connections.py": {
+      "name": "Broker identity & connect",
+      "description": "Verifies a broker account's identity and creates the connection and its stored credentials together."
+    },
+    "packages/trading/src/lonora_trading/decision_readiness.py": {
+      "name": "Decision readiness",
+      "description": "Keeps the model's judgment, the detector's observations and the execution state separate when deciding whether a trade is ready."
+    },
+    "packages/trading/src/lonora_trading/delegation.py": {
+      "name": "Account delegation check",
+      "description": "Refuses an action on an account the agent is not allowed to act on."
+    },
+    "packages/trading/src/lonora_trading/execution_quality.py": {
+      "name": "Execution quality gate",
+      "description": "The final set rule for how an order will be filled."
+    },
+    "packages/trading/src/lonora_trading/execution.py": {
+      "name": "Execution service",
+      "description": "The one place a trade is actually sent, after every authority, risk and run-integrity check passes, recording a receipt."
+    },
+    "packages/trading/src/lonora_trading/exposure.py": {
+      "name": "Account exposure",
+      "description": "Works out the exact per-symbol exposure on an account, without inventing currency conversions."
+    },
+    "packages/trading/src/lonora_trading/idempotency.py": {
+      "name": "Trade fingerprints",
+      "description": "Builds the fingerprints and ids that stop the same trade being sent twice."
+    },
+    "packages/trading/src/lonora_trading/instruments.py": {
+      "name": "Price formatting",
+      "description": "Formats a price to an instrument's number of digits."
+    },
+    "packages/trading/src/lonora_trading/journal.py": {
+      "name": "Trade journal",
+      "description": "Records the typed facts of each trade at the moment it is sent — never the model's reasoning or secrets."
+    },
+    "packages/trading/src/lonora_trading/manual_activity.py": {
+      "name": "Manual-activity detection",
+      "description": "Spots trading done by the owner or someone else at the broker, by comparing broker facts, and attributes it to an agent where it can."
+    },
+    "packages/trading/src/lonora_trading/morning_brief.py": {
+      "name": "Morning brief",
+      "description": "Builds Lonora's once-a-day brief: it learns the owner's usual time, gathers broker-confirmed facts, and folds in the weekly reports."
+    },
+    "packages/trading/src/lonora_trading/operation_events.py": {
+      "name": "Operation lifecycle",
+      "description": "Records each owner-visible step of a money operation, only from the durable record, never guessed from a broker reply."
+    },
+    "packages/trading/src/lonora_trading/opportunities.py": {
+      "name": "Opportunities engine",
+      "description": "Keeps a trading thesis up to date and links it to the trades that act on it, waking the agent on meaningful changes."
+    },
+    "packages/trading/src/lonora_trading/owner_controls.py": {
+      "name": "Owner attestation",
+      "description": "Lets the owner formally confirm an uncertain operation; it never re-sends the trade."
+    },
+    "packages/trading/src/lonora_trading/ownership.py": {
+      "name": "Ticket ownership",
+      "description": "Works out which agent owns a trade ticket, and the broker facts a request is checked against."
+    },
+    "packages/trading/src/lonora_trading/performance.py": {
+      "name": "Performance snapshot",
+      "description": "Reads an agent's results from broker-confirmed closed trades."
+    },
+    "packages/trading/src/lonora_trading/picture.py": {
+      "name": "Account picture",
+      "description": "Builds the up-to-date picture of each account an agent gets on every wake: positions, exposure, owners and floating profit."
+    },
+    "packages/trading/src/lonora_trading/position_sizing.py": {
+      "name": "Position sizing",
+      "description": "Works out a read-only trade size from the account's current, exact broker economics."
+    },
+    "packages/trading/src/lonora_trading/preflight.py": {
+      "name": "Trade preflight",
+      "description": "The checks a trade must pass before it is sent."
+    },
+    "packages/trading/src/lonora_trading/realized.py": {
+      "name": "Realized profit",
+      "description": "Works out realized profit and loss from the broker's own deals."
+    },
+    "packages/trading/src/lonora_trading/reconciliation.py": {
+      "name": "Operation reconciliation",
+      "description": "Recovers the true outcome of a trade whose sender stopped mid-way, by reading broker evidence — it never re-sends."
+    },
+    "packages/trading/src/lonora_trading/retcodes.py": {
+      "name": "Broker reply normalizing",
+      "description": "Turns the broker's raw reply codes into a consistent form."
+    },
+    "packages/trading/src/lonora_trading/runtime_health.py": {
+      "name": "Broker health",
+      "description": "Checks a broker connection is responding."
+    },
+    "packages/trading/src/lonora_trading/simulation.py": {
+      "name": "Import simulation",
+      "description": "Brings in imported simulation data for an account."
+    },
+    "packages/trading/src/lonora_trading/statistics.py": {
+      "name": "Trade statistics",
+      "description": "Works out an agent's results grouped by the kind of judgment, from broker-confirmed closed trades."
+    },
+    "packages/trading/src/lonora_trading/target_state.py": {
+      "name": "Target-state receipt",
+      "description": "Concludes an uncertain management action from the broker's current state, never by re-sending."
+    },
+    "packages/trading/src/lonora_trading/ticket_transfer.py": {
+      "name": "Ticket transfer",
+      "description": "Moves a deleted agent's open positions and pending orders to Lonora, and wakes Lonora about them."
+    },
+    "packages/trading/src/lonora_trading/verification.py": {
+      "name": "Effect verification",
+      "description": "Separately confirms a trade actually took effect at the broker; it never sends or retries."
+    },
+    "packages/trading/src/lonora_trading/weekly_report.py": {
+      "name": "Weekly report",
+      "description": "Wakes every agent once per trading week to write its report of that week."
+    }
+  }
+}

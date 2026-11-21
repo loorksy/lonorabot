@@ -1,0 +1,40 @@
+{
+  "files": {
+    "packages/core/src/time-separators.ts": {
+      "name": "Time separators",
+      "description": "Decides when to show a date or gap separator in the chat history."
+    },
+    "packages/core/src/trade-action-labels.ts": {
+      "name": "Trade action words",
+      "description": "The owner's words for each trade action, the same on web and phone."
+    },
+    "packages/core/src/trading-avatar-motion.d.ts": {
+      "name": "Avatar engine types",
+      "description": "The type definitions for the trading-avatar animation engine."
+    },
+    "packages/core/src/trading-avatar-motion.js": {
+      "name": "Trading avatar engine",
+      "description": "The interactive signal engine that draws and animates the agent's avatar."
+    },
+    "packages/core/src/trading-readiness.ts": {
+      "name": "Trading readiness line",
+      "description": "Builds the agent's trading-readiness line and its tone, the same on web and phone."
+    },
+    "packages/core/src/turn-activity.ts": {
+      "name": "Turn activity",
+      "description": "Builds the live 'what the agent is doing' line from real run and tool events."
+    },
+    "packages/core/src/user-error.ts": {
+      "name": "Error code reader",
+      "description": "Reads a stable error code out of an error."
+    },
+    "packages/core/src/visual-private-text.ts": {
+      "name": "Reply privacy check",
+      "description": "Stops a card showing sensitive values, matching the server's guard."
+    },
+    "packages/core/src/visual-response.ts": {
+      "name": "Rich reply logic",
+      "description": "The shared checking and calculations for an agent's rich replies, used by both apps' renderers."
+    }
+  }
+}

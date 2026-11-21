@@ -1,0 +1,164 @@
+{
+  "files": {
+    "apps/web/src/shell/lists/EmojiPanel.tsx": {
+      "name": "Emoji panel (web)",
+      "description": "The emoji picker for naming a custom list."
+    },
+    "apps/web/src/shell/lists/HeadsUp.tsx": {
+      "name": "Heads-up banner (web)",
+      "description": "Shows an agent's answer from another chat at the top for a few seconds."
+    },
+    "apps/web/src/shell/lists/lists.css": {
+      "name": "List styles",
+      "description": "Styles for the chat list, filters, selection, search and heads-up."
+    },
+    "apps/web/src/shell/lists/ListSheets.tsx": {
+      "name": "List sheets",
+      "description": "Creating and editing custom chat lists."
+    },
+    "apps/web/src/shell/lists/morph.ts": {
+      "name": "Permission menu morph",
+      "description": "Animates the permission menu forming out of the composer."
+    },
+    "apps/web/src/shell/lists/Popover.tsx": {
+      "name": "Popover",
+      "description": "A pop-up menu anchored to a button, with inner pages."
+    },
+    "apps/web/src/shell/lists/Selection.tsx": {
+      "name": "Selection toolbar (web)",
+      "description": "The actions when conversations are selected: pin, mute, archive, delete."
+    },
+    "apps/web/src/shell/lists/state.tsx": {
+      "name": "Lists state (web)",
+      "description": "The list's shared state: rows, active filter and selection."
+    },
+    "apps/web/src/shell/lists/ThreadRow.tsx": {
+      "name": "Conversation row (web)",
+      "description": "One conversation row: avatar, name, time, preview, ticks and marks."
+    },
+    "apps/web/src/shell/lists/UnifiedSearch.tsx": {
+      "name": "Unified search (web)",
+      "description": "The owner-wide search behind the header or list field."
+    },
+    "apps/web/src/shell/lists/words.ts": {
+      "name": "Count words",
+      "description": "The Arabic count wording for chats and lists."
+    },
+    "apps/web/src/shell/LogoMark.tsx": {
+      "name": "Brand mark",
+      "description": "Lonora's 3D-bars brand logo."
+    },
+    "apps/web/src/shell/motion.ts": {
+      "name": "Motion helpers",
+      "description": "Detects desktop width and the reduced-motion setting, and keeps layout insets measured."
+    },
+    "apps/web/src/shell/navigation.tsx": {
+      "name": "Navigation",
+      "description": "The app's navigation: routing, back handling and remembered scroll."
+    },
+    "apps/web/src/shell/NetworkStrip.tsx": {
+      "name": "Network strip (web)",
+      "description": "The strip that shows offline with messages waiting, then reconnected."
+    },
+    "apps/web/src/shell/NewChatSheet.tsx": {
+      "name": "New chat sheet (web)",
+      "description": "Starting a new agent or group chat."
+    },
+    "apps/web/src/shell/pager.ts": {
+      "name": "Tab pager",
+      "description": "Slides between the main tabs on phones."
+    },
+    "apps/web/src/shell/pages.tsx": {
+      "name": "Page router",
+      "description": "Maps each route to its screen: the four tabs, the conversation and the inner pages."
+    },
+    "apps/web/src/shell/PermissionSheet.tsx": {
+      "name": "Permission sheet",
+      "description": "A sheet explaining how to allow a browser permission the owner refused."
+    },
+    "apps/web/src/shell/routes.ts": {
+      "name": "Route model",
+      "description": "Defines the app's routes: the four tabs, the conversation and the inner pages."
+    },
+    "apps/web/src/shell/settings/AppLock.tsx": {
+      "name": "App lock",
+      "description": "Locks the app behind a code or fingerprint and auto-locks it."
+    },
+    "apps/web/src/shell/settings/AuthFlow.tsx": {
+      "name": "Sign-in flow",
+      "description": "The sign-in and first-time-setup screens."
+    },
+    "apps/web/src/shell/settings/ConnectionPages.tsx": {
+      "name": "Connection pages",
+      "description": "Connecting a trading account, an AI provider and an outside AI connection."
+    },
+    "apps/web/src/shell/settings/device-prefs.ts": {
+      "name": "Device preferences",
+      "description": "This browser's own settings: notifications, text size, contrast and reduced motion."
+    },
+    "apps/web/src/shell/settings/DevicePages.tsx": {
+      "name": "Device settings pages",
+      "description": "Accessibility, storage, and privacy & lock settings for this device."
+    },
+    "apps/web/src/shell/settings/IntegrationsPage.tsx": {
+      "name": "Integrations page",
+      "description": "Trading accounts, AI providers, connections, feeds and skills in one place."
+    },
+    "apps/web/src/shell/settings/lock-state.ts": {
+      "name": "App lock state",
+      "description": "The app-lock code and fingerprint/face unlock."
+    },
+    "apps/web/src/shell/settings/ModelsPage.tsx": {
+      "name": "Models page",
+      "description": "The owner's AI models and routing."
+    },
+    "apps/web/src/shell/settings/NotifyPages.tsx": {
+      "name": "Notifications pages",
+      "description": "How agents reach the owner, the in-app banner, quiet hours and per-agent rules."
+    },
+    "apps/web/src/shell/settings/owner.ts": {
+      "name": "Owner profile (web)",
+      "description": "Reads the owner profile for the settings pages."
+    },
+    "apps/web/src/shell/settings/OwnerPage.tsx": {
+      "name": "Owner profile page",
+      "description": "The owner's profile, what Lonora knows about them, and the change history."
+    },
+    "apps/web/src/shell/settings/RunningPage.tsx": {
+      "name": "What-is-running page",
+      "description": "Every process in the owner's workspace with the agent that started it; stop one or all."
+    },
+    "apps/web/src/shell/settings/settings.css": {
+      "name": "Settings styles",
+      "description": "Styles for the settings, onboarding, usage and lock screens."
+    },
+    "apps/web/src/shell/settings/SettingsRoot.tsx": {
+      "name": "Settings home",
+      "description": "The settings home: the owner row, the groups, the version line and sign-out."
+    },
+    "apps/web/src/shell/settings/ui.tsx": {
+      "name": "Settings kit",
+      "description": "The shared row and toggle pieces the settings pages are built from."
+    },
+    "apps/web/src/shell/settings/UsagePage.tsx": {
+      "name": "Usage page",
+      "description": "The usage and cost view over time, per agent and model."
+    },
+    "apps/web/src/shell/sheets/SheetHost.tsx": {
+      "name": "Sheet system (web)",
+      "description": "The one-at-a-time bottom-sheet system."
+    },
+    "apps/web/src/shell/shell.css": {
+      "name": "Shell styles",
+      "description": "The app shell's styles: top bar, tab bar, pager, sheets and desktop frame."
+    },
+    "apps/web/src/shell/Shell.tsx": {
+      "name": "App shell",
+      "description": "The whole app frame: navigation, panels, the conversation and every page, tied together."
+    },
+    "apps/web/src/shell/ShortcutsSheet.tsx": {
+      "name": "Shortcuts sheet",
+      "description": "The desktop keyboard-shortcuts sheet."
+    }
+  }
+}

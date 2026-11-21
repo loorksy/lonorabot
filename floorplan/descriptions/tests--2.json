@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/check_collaboration_sessions.py": {
+      "name": "Collaboration sessions tests",
+      "description": "Automatic checks for collaboration sessions."
+    },
+    "tests/check_continuous_task_runtime.py": {
+      "name": "Continuous task runtime tests",
+      "description": "Automatic checks for continuous task runtime."
+    },
+    "tests/check_conversation_recall.py": {
+      "name": "Conversation recall tests",
+      "description": "Automatic checks for conversation recall."
+    },
+    "tests/check_conversational_setup.py": {
+      "name": "Conversational setup tests",
+      "description": "Automatic checks for conversational setup."
+    },
+    "tests/check_decision_readiness.py": {
+      "name": "Decision readiness tests",
+      "description": "Automatic checks for decision readiness."
+    },
+    "tests/check_decision_replay.py": {
+      "name": "Decision replay tests",
+      "description": "Automatic checks for decision replay."
+    },
+    "tests/check_delegated_scope.py": {
+      "name": "Delegated scope tests",
+      "description": "Automatic checks for delegated scope."
+    },
+    "tests/check_device_authority.py": {
+      "name": "Device authority tests",
+      "description": "Automatic checks for device authority."
+    },
+    "tests/check_durable_records.py": {
+      "name": "Durable records tests",
+      "description": "Automatic checks for durable records."
+    },
+    "tests/check_dynamic_watches.py": {
+      "name": "Dynamic watches tests",
+      "description": "Automatic checks for dynamic watches."
+    },
+    "tests/check_event_query_plans.py": {
+      "name": "Event query plans tests",
+      "description": "Automatic checks for event query plans."
+    },
+    "tests/check_execution_quality.py": {
+      "name": "Execution quality tests",
+      "description": "Automatic checks for execution quality."
+    },
+    "tests/check_execution_receipts_migration.py": {
+      "name": "Execution receipts migration tests",
+      "description": "Automatic checks for execution receipts migration."
+    },
+    "tests/check_execution_receipts.py": {
+      "name": "Execution receipts tests",
+      "description": "Automatic checks for execution receipts."
+    },
+    "tests/check_execution_recovery.py": {
+      "name": "Execution recovery tests",
+      "description": "Automatic checks for execution recovery."
+    },
+    "tests/check_flat_creation_migration.py": {
+      "name": "Flat creation migration tests",
+      "description": "Automatic checks for flat creation migration."
+    },
+    "tests/check_flexible_agents.py": {
+      "name": "Flexible agents tests",
+      "description": "Automatic checks for flexible agents."
+    },
+    "tests/check_full_account_management.py": {
+      "name": "Full account management tests",
+      "description": "Automatic checks for full account management."
+    },
+    "tests/check_generated_artifacts.py": {
+      "name": "Generated artifacts tests",
+      "description": "Automatic checks for generated artifacts."
+    },
+    "tests/check_genui_browser.py": {
+      "name": "Genui browser tests",
+      "description": "Browser checks for genui."
+    },
+    "tests/check_genui_summary_migration.py": {
+      "name": "Genui summary migration tests",
+      "description": "Automatic checks for genui summary migration."
+    },
+    "tests/check_goal_removal_migration.py": {
+      "name": "Goal removal migration tests",
+      "description": "Automatic checks for goal removal migration."
+    },
+    "tests/check_gold_journey.py": {
+      "name": "Gold journey tests",
+      "description": "Automatic checks for gold journey."
+    },
+    "tests/check_grant_coverage.py": {
+      "name": "Grant coverage tests",
+      "description": "Automatic checks for grant coverage."
+    },
+    "tests/check_group_replies.py": {
+      "name": "Group replies tests",
+      "description": "Automatic checks for group replies."
+    },
+    "tests/check_group_ux.py": {
+      "name": "Group ux tests",
+      "description": "Automatic checks for group ux."
+    },
+    "tests/check_image_observations.py": {
+      "name": "Image observations tests",
+      "description": "Automatic checks for image observations."
+    },
+    "tests/check_incoming_calls.py": {
+      "name": "Incoming calls tests",
+      "description": "Automatic checks for incoming calls."
+    },
+    "tests/check_input_requests.py": {
+      "name": "Input requests tests",
+      "description": "Automatic checks for input requests."
+    },
+    "tests/check_judgment_label_migration.py": {
+      "name": "Judgment label migration tests",
+      "description": "Automatic checks for judgment label migration."
+    },
+    "tests/check_knowledge_retrieval.py": {
+      "name": "Knowledge retrieval tests",
+      "description": "Automatic checks for knowledge retrieval."
+    },
+    "tests/check_llm_harness.py": {
+      "name": "Llm harness tests",
+      "description": "Automatic checks for llm harness."
+    },
+    "tests/check_lossless_downgrades.py": {
+      "name": "Lossless downgrades tests",
+      "description": "Automatic checks for lossless downgrades."
+    },
+    "tests/check_managed_skill_updates.py": {
+      "name": "Managed skill updates tests",
+      "description": "Automatic checks for managed skill updates."
+    },
+    "tests/check_management_task.py": {
+      "name": "Management task tests",
+      "description": "Automatic checks for management task."
+    },
+    "tests/check_market_analysis.py": {
+      "name": "Market analysis tests",
+      "description": "Automatic checks for market analysis."
+    },
+    "tests/check_market_health.py": {
+      "name": "Market health tests",
+      "description": "Automatic checks for market health."
+    },
+    "tests/check_market_runtime.py": {
+      "name": "Market runtime tests",
+      "description": "Automatic checks for market runtime."
+    },
+    "tests/check_market_structure.py": {
+      "name": "Market structure tests",
+      "description": "Automatic checks for market structure."
+    },
+    "tests/check_mcp_directory.py": {
+      "name": "Mcp directory tests",
+      "description": "Automatic checks for mcp directory."
+    }
+  }
+}

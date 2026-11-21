@@ -1,0 +1,116 @@
+{
+  "files": {
+    "packages/contracts/src/lonora_contracts/market.py": {
+      "name": "Market shapes",
+      "description": "The shapes of an instrument, quote, candle, calendar event and trading hours."
+    },
+    "packages/contracts/src/lonora_contracts/mcp.py": {
+      "name": "AI-connection shapes",
+      "description": "The shapes of an outside AI connection and its reviewed tools."
+    },
+    "packages/contracts/src/lonora_contracts/model_backups.py": {
+      "name": "Backup models shape",
+      "description": "The shape of the fallback model choices."
+    },
+    "packages/contracts/src/lonora_contracts/model_catalog.py": {
+      "name": "Model catalog shapes",
+      "description": "The shapes of a model's details and a provider key."
+    },
+    "packages/contracts/src/lonora_contracts/model_context.py": {
+      "name": "Context policy shape",
+      "description": "The shape of the global request-size policy."
+    },
+    "packages/contracts/src/lonora_contracts/model_routing.py": {
+      "name": "Model routing shapes",
+      "description": "The shapes of the model-routing rules and an agent's model choice."
+    },
+    "packages/contracts/src/lonora_contracts/opportunity.py": {
+      "name": "Opportunity shapes",
+      "description": "The shapes of a trading opportunity and its thesis."
+    },
+    "packages/contracts/src/lonora_contracts/owner_actions.py": {
+      "name": "Owner action shapes",
+      "description": "The shapes of the owner action cards, including the Secret card and grant terms."
+    },
+    "packages/contracts/src/lonora_contracts/position_sizing.py": {
+      "name": "Sizing shapes",
+      "description": "The shapes of a position-sizing request and result; an estimate, never authority."
+    },
+    "packages/contracts/src/lonora_contracts/push.py": {
+      "name": "Push registration shape",
+      "description": "The shape of a phone's push registration."
+    },
+    "packages/contracts/src/lonora_contracts/reactions.py": {
+      "name": "Reaction shapes",
+      "description": "The shapes of the quick reactions on a message."
+    },
+    "packages/contracts/src/lonora_contracts/relationships.py": {
+      "name": "Relationship shapes",
+      "description": "The shapes of measured market-relationship evidence; never authority."
+    },
+    "packages/contracts/src/lonora_contracts/routines.py": {
+      "name": "Routine shapes",
+      "description": "The shapes for creating and editing a routine."
+    },
+    "packages/contracts/src/lonora_contracts/rpc.py": {
+      "name": "Internal request shapes",
+      "description": "The shapes of an internal request and its error."
+    },
+    "packages/contracts/src/lonora_contracts/runs.py": {
+      "name": "Run shapes",
+      "description": "The shapes of a run request, its lease and why it failed."
+    },
+    "packages/contracts/src/lonora_contracts/search.py": {
+      "name": "Search query shape",
+      "description": "The shape of a search query."
+    },
+    "packages/contracts/src/lonora_contracts/skills.py": {
+      "name": "Skill shapes",
+      "description": "The shapes of a skill, its manifest, versions and catalog."
+    },
+    "packages/contracts/src/lonora_contracts/supervision.py": {
+      "name": "Lead tool shapes",
+      "description": "The input shapes of Lonora's tools to read and steer team agents."
+    },
+    "packages/contracts/src/lonora_contracts/tasks.py": {
+      "name": "Task shapes",
+      "description": "The shapes of a task, its steps, state and control."
+    },
+    "packages/contracts/src/lonora_contracts/thread_prefs.py": {
+      "name": "Conversation state shapes",
+      "description": "The shapes of the owner's per-conversation state and settings."
+    },
+    "packages/contracts/src/lonora_contracts/tool_environment.py": {
+      "name": "Tool recovery shape",
+      "description": "The shape of a tool's recovery facts; never hidden reasoning or authority."
+    },
+    "packages/contracts/src/lonora_contracts/trading_decision.py": {
+      "name": "Trading decision shapes",
+      "description": "The shapes of a market assessment, readiness and a recorded trading decision."
+    },
+    "packages/contracts/src/lonora_contracts/trading.py": {
+      "name": "Trade shapes",
+      "description": "The shapes of a trade request, its label, result and the owner's settlement."
+    },
+    "packages/contracts/src/lonora_contracts/trusted_sources.py": {
+      "name": "Trusted source shapes",
+      "description": "The shapes for adding a trusted source and trusting a connection's tools."
+    },
+    "packages/contracts/src/lonora_contracts/usage.py": {
+      "name": "Usage shapes",
+      "description": "The shapes of usage figures over time; no limit exists."
+    },
+    "packages/contracts/src/lonora_contracts/visual_response.py": {
+      "name": "Rich reply shapes",
+      "description": "The shapes of an ordinary agent's rich reply: text, cards, diagrams and voice notes."
+    },
+    "packages/contracts/src/lonora_contracts/visual_values.py": {
+      "name": "Visual compatibility helpers",
+      "description": "Small helpers that adapt old card bindings, never running model code."
+    },
+    "packages/contracts/src/lonora_contracts/voice.py": {
+      "name": "Voice shapes",
+      "description": "The shapes of a voice session, its transcript and cancellation."
+    }
+  }
+}

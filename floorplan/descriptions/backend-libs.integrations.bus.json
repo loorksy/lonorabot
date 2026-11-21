@@ -1,0 +1,36 @@
+{
+  "files": {
+    "packages/bus/src/lonora_bus/__init__.py": {
+      "name": "Event-bus package",
+      "description": "Marks the event-bus code as one package; holds no logic of its own."
+    },
+    "packages/bus/src/lonora_bus/attention.py": {
+      "name": "Alert text",
+      "description": "Provides the translated text for mandatory alerts."
+    },
+    "packages/bus/src/lonora_bus/durable_events.py": {
+      "name": "Event stream",
+      "description": "Streams the saved events."
+    },
+    "packages/bus/src/lonora_bus/events.py": {
+      "name": "Build an event",
+      "description": "Builds one runtime event to publish."
+    },
+    "packages/bus/src/lonora_bus/notifications.py": {
+      "name": "Deliver a notification",
+      "description": "Sends an agent's reply out through a channel, when it is one that should be sent."
+    },
+    "packages/bus/src/lonora_bus/outbound.py": {
+      "name": "Outbound projection",
+      "description": "Decides what of an event, if anything, goes out as an outside message."
+    },
+    "packages/bus/src/lonora_bus/queue.py": {
+      "name": "Event queue",
+      "description": "A simple in-memory waiting line for events."
+    },
+    "packages/bus/src/lonora_bus/runtime_events.py": {
+      "name": "Runtime events",
+      "description": "Holds the runtime's live events."
+    }
+  }
+}

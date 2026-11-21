@@ -1,0 +1,52 @@
+{
+  "files": {
+    "packages/charts/src/lonora_charts/__init__.py": {
+      "name": "Charts package",
+      "description": "Marks the chart-drawing code as one package; holds no logic of its own."
+    },
+    "packages/charts/src/lonora_charts/annotations.py": {
+      "name": "Annotation checks",
+      "description": "Re-exports the check for a chart's annotations."
+    },
+    "packages/charts/src/lonora_charts/capabilities.py": {
+      "name": "Chart capabilities",
+      "description": "Lists the timeframes and indicators charts support."
+    },
+    "packages/charts/src/lonora_charts/controller.py": {
+      "name": "Render a chart scene",
+      "description": "Builds a chart's current picture from its data."
+    },
+    "packages/charts/src/lonora_charts/indicators.py": {
+      "name": "Indicator maths",
+      "description": "Works out moving averages, RSI and other indicator lines for a chart."
+    },
+    "packages/charts/src/lonora_charts/runtime.py": {
+      "name": "Chart refresh runtime",
+      "description": "The always-on part that refreshes charts from official market snapshots, never fetching history itself."
+    },
+    "packages/charts/src/lonora_charts/scene_snapshot.py": {
+      "name": "Scene to image",
+      "description": "Draws a saved chart as an image, using only its stored data and no outside requests."
+    },
+    "packages/charts/src/lonora_charts/scene.py": {
+      "name": "Chart scene",
+      "description": "Builds the chart scene the viewer draws."
+    },
+    "packages/charts/src/lonora_charts/snapshot_render.py": {
+      "name": "Chart to PNG",
+      "description": "Turns the server's own chart drawing into a PNG image, with no scripts or outside resources."
+    },
+    "packages/charts/src/lonora_charts/snapshot.py": {
+      "name": "Chart to SVG",
+      "description": "Draws the broker's price bars, wicks included, as an image."
+    },
+    "packages/charts/src/lonora_charts/state.py": {
+      "name": "Chart state",
+      "description": "Creates and updates a chart and replays the commands that change it."
+    },
+    "packages/charts/src/lonora_charts/visual.py": {
+      "name": "Chart visual check",
+      "description": "Takes a bounded, credential-free picture of a saved cloud chart to verify how it looks."
+    }
+  }
+}

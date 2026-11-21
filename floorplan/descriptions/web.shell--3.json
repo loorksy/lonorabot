@@ -1,0 +1,36 @@
+{
+  "files": {
+    "apps/web/src/shell/Skeleton.tsx": {
+      "name": "Loading skeletons",
+      "description": "The placeholder shapes shown while a view's data loads."
+    },
+    "apps/web/src/shell/spring.ts": {
+      "name": "Spring motion",
+      "description": "A damped spring for gesture-driven motion, with a haptic tick."
+    },
+    "apps/web/src/shell/StatePage.tsx": {
+      "name": "Full-screen states",
+      "description": "The not-found, error and whole-app maintenance screens."
+    },
+    "apps/web/src/shell/Toast.tsx": {
+      "name": "Toast (web)",
+      "description": "A brief pop-up notice."
+    },
+    "apps/web/src/shell/TopBar.tsx": {
+      "name": "Top bar",
+      "description": "The glass top bar that content scrolls under."
+    },
+    "apps/web/src/shell/UpdateBar.tsx": {
+      "name": "Update bar",
+      "description": "Shows a 'new version available' bar when a newer web build is live."
+    },
+    "apps/web/src/shell/viewport.ts": {
+      "name": "Viewport sizing",
+      "description": "Tracks the on-screen keyboard height and the viewport size."
+    },
+    "apps/web/src/shell/Welcome.tsx": {
+      "name": "Desktop welcome",
+      "description": "The welcome pane shown on desktop when no chat is open."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "apps/web/src/shell/agent/agent.css": {
+      "name": "Agent page styles",
+      "description": "Styles for the agent pages and their sheets."
+    },
+    "apps/web/src/shell/agent/AgentPage.tsx": {
+      "name": "Agent info page",
+      "description": "An agent's main page: its details, the links to its pages, trading, watches and the on/off button."
+    },
+    "apps/web/src/shell/agent/AvatarSheet.tsx": {
+      "name": "Avatar editor sheet",
+      "description": "Opens the avatar editor for an agent."
+    },
+    "apps/web/src/shell/agent/chart-geometry.ts": {
+      "name": "Chart drawing maths",
+      "description": "Lays out the agent chart sheet's drawing from the broker's candles and the agent's annotations."
+    },
+    "apps/web/src/shell/agent/ChartSheet.tsx": {
+      "name": "Agent chart sheet",
+      "description": "The chart sheet for a pair, with the agent's drawings and indicators shown read-only."
+    },
+    "apps/web/src/shell/agent/GroupPage.tsx": {
+      "name": "Group page",
+      "description": "A group's page and the new-group form: members, purpose and the coordinator."
+    },
+    "apps/web/src/shell/agent/IdentityPage.tsx": {
+      "name": "Identity & model page",
+      "description": "An agent's name, role, model and, for a trader, its account and pair."
+    },
+    "apps/web/src/shell/agent/order-state.ts": {
+      "name": "Order state (web)",
+      "description": "Works out the one-line state of a trade order from the broker's evidence."
+    },
+    "apps/web/src/shell/agent/RecoveryPage.tsx": {
+      "name": "Recovery page",
+      "description": "A broker connection's outage and recovery state."
+    },
+    "apps/web/src/shell/agent/scope.tsx": {
+      "name": "Agent page scope",
+      "description": "Scopes the agent-page styles to the pages and their sheets."
+    },
+    "apps/web/src/shell/agent/shared.tsx": {
+      "name": "Agent page helpers",
+      "description": "Shared helpers for the agent pages: reads, the trading check, the ladder words and the page's agent."
+    },
+    "apps/web/src/shell/agent/TradesPage.tsx": {
+      "name": "Trades page",
+      "description": "The agent's open positions with the owner's edit-stop/target and close, and the trade history."
+    },
+    "apps/web/src/shell/AgentsPage.tsx": {
+      "name": "Manage agents page",
+      "description": "Every agent with its role and on/off state, every group with its size, and creating a group."
+    },
+    "apps/web/src/shell/call/call.css": {
+      "name": "Call styles",
+      "description": "Styles for the call screen, strip, controls and wave."
+    },
+    "apps/web/src/shell/call/CallPages.tsx": {
+      "name": "Call screens",
+      "description": "The voice-call screen, the call strip on other screens, and the incoming-call screen."
+    },
+    "apps/web/src/shell/ChatHeader.tsx": {
+      "name": "Conversation header (web)",
+      "description": "The conversation's top bar: back, avatar, name, call and menu."
+    },
+    "apps/web/src/shell/ChatMenu.tsx": {
+      "name": "Conversation menu",
+      "description": "The conversation's ⋮ menu."
+    },
+    "apps/web/src/shell/chrome.ts": {
+      "name": "Scroll chrome",
+      "description": "The scroll-driven effects: the title dissolving, the glass top bar, and the resting filters."
+    },
+    "apps/web/src/shell/data.tsx": {
+      "name": "Shell data (web)",
+      "description": "Fetches once for every pane: agents, the inbox, lists and the owner's display name."
+    },
+    "apps/web/src/shell/DesktopList.tsx": {
+      "name": "Desktop list pane",
+      "description": "The desktop conversation-list pane with its header, search and rows."
+    },
+    "apps/web/src/shell/DesktopRail.tsx": {
+      "name": "Desktop rail",
+      "description": "The desktop side rail: brand, the four sections and the owner."
+    },
+    "apps/web/src/shell/domain/api.ts": {
+      "name": "Domain pages API",
+      "description": "The server calls for the task, file and knowledge pages."
+    },
+    "apps/web/src/shell/domain/domain.css": {
+      "name": "Domain page styles",
+      "description": "Styles for the task, file, goal, schedule and skill pages."
+    },
+    "apps/web/src/shell/domain/FilesPages.tsx": {
+      "name": "Files pages",
+      "description": "The files list and the edit-a-text-file page."
+    },
+    "apps/web/src/shell/domain/GoalsKnowledgePages.tsx": {
+      "name": "Goals & knowledge pages",
+      "description": "An agent's goals and knowledge notes and links, with their edit forms."
+    },
+    "apps/web/src/shell/domain/hooks.ts": {
+      "name": "Domain page hooks",
+      "description": "Shared hooks for the domain pages: the page's agent and its server data."
+    },
+    "apps/web/src/shell/domain/SchedulesPages.tsx": {
+      "name": "Schedules pages",
+      "description": "An agent's scheduled routines and watches, with creating and editing one."
+    },
+    "apps/web/src/shell/domain/SkillsPages.tsx": {
+      "name": "Skills pages",
+      "description": "An agent's skills, their version history and the edit/create skill form."
+    },
+    "apps/web/src/shell/domain/TasksPages.tsx": {
+      "name": "Tasks pages",
+      "description": "The tasks list (active, scheduled, completed), a task's details and creating one."
+    },
+    "apps/web/src/shell/domain/ui.tsx": {
+      "name": "Domain page kit",
+      "description": "The shared form and row pieces the domain pages are built from."
+    },
+    "apps/web/src/shell/domain/UpdatesPages.tsx": {
+      "name": "Updates page",
+      "description": "What needs the owner across all agents."
+    },
+    "apps/web/src/shell/flip.ts": {
+      "name": "Layout motion",
+      "description": "Carries elements smoothly from where they were when the layout changes."
+    },
+    "apps/web/src/shell/FloatingTabBar.tsx": {
+      "name": "Floating tab bar",
+      "description": "The floating tab bar with its sliding lens and badges."
+    },
+    "apps/web/src/shell/HeaderSearch.tsx": {
+      "name": "Header search",
+      "description": "The search field in the chats header that expands when focused."
+    },
+    "apps/web/src/shell/Lab.tsx": {
+      "name": "States lab",
+      "description": "A development-only page for trying interface states."
+    },
+    "apps/web/src/shell/LargeTitle.tsx": {
+      "name": "Section title",
+      "description": "The large section title that dissolves as the page scrolls."
+    },
+    "apps/web/src/shell/lens.ts": {
+      "name": "Tab lens",
+      "description": "Places and slides the lens under the active tab."
+    },
+    "apps/web/src/shell/lists/api.ts": {
+      "name": "Lists & state API (web)",
+      "description": "The owner's per-conversation state and lists on the server, shared with the phone."
+    },
+    "apps/web/src/shell/lists/ChatList.tsx": {
+      "name": "Chat list (web)",
+      "description": "The conversation list shared by the phone layout and the desktop pane, plus the archived page."
+    },
+    "apps/web/src/shell/lists/emoji-data.ts": {
+      "name": "Emoji data (web)",
+      "description": "The emoji picker's data."
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "files": {
+    "packages/providers/src/lonora_providers/__init__.py": {
+      "name": "Providers package",
+      "description": "Marks the model-provider code as one package; holds no logic of its own."
+    },
+    "packages/providers/src/lonora_providers/capabilities.py": {
+      "name": "Model capability check",
+      "description": "Reports whether a verified model supports a given capability."
+    },
+    "packages/providers/src/lonora_providers/catalog.py": {
+      "name": "Model catalog store",
+      "description": "Reads and saves the list of a provider's models."
+    },
+    "packages/providers/src/lonora_providers/context.py": {
+      "name": "Request sizing",
+      "description": "Works out how large a request one model can take, from its context window."
+    },
+    "packages/providers/src/lonora_providers/credentials.py": {
+      "name": "Provider credentials",
+      "description": "Holds a provider's key and base address for making calls."
+    },
+    "packages/providers/src/lonora_providers/default_model.py": {
+      "name": "Default model",
+      "description": "Chooses the model a fresh install answers with before the owner picks one."
+    },
+    "packages/providers/src/lonora_providers/discovery.py": {
+      "name": "Model discovery",
+      "description": "Asks a provider for its current models and saves them."
+    },
+    "packages/providers/src/lonora_providers/model_windows.py": {
+      "name": "Model size table",
+      "description": "The built-in table of context-window and output sizes per model family."
+    },
+    "packages/providers/src/lonora_providers/registry.py": {
+      "name": "Provider registry",
+      "description": "Builds the right connector for each provider, using the owner's base address when set."
+    },
+    "packages/providers/src/lonora_providers/resilience.py": {
+      "name": "Provider resilience",
+      "description": "Sorts out provider failures, decides when to back off and retry, and tracks each provider's health."
+    },
+    "packages/providers/src/lonora_providers/router.py": {
+      "name": "Model router",
+      "description": "Sends each request to the chosen model and falls through an ordered list of backups when one fails."
+    },
+    "packages/providers/src/lonora_providers/routing_policy.py": {
+      "name": "Routing policy store",
+      "description": "Reads and saves the rules for which model answers."
+    }
+  }
+}

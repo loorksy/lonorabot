@@ -1,0 +1,48 @@
+{
+  "files": {
+    "packages/voice/src/lonora_voice/__init__.py": {
+      "name": "Voice package",
+      "description": "Marks the voice code as one package; holds no logic of its own."
+    },
+    "packages/voice/src/lonora_voice/barge_in.py": {
+      "name": "Interrupt handling",
+      "description": "Handles the owner speaking over the agent, without cancelling the agent's real work."
+    },
+    "packages/voice/src/lonora_voice/context.py": {
+      "name": "Voice context",
+      "description": "Builds the bounded context about the chosen agent and conversation for a voice call."
+    },
+    "packages/voice/src/lonora_voice/handoff.py": {
+      "name": "Transcript window",
+      "description": "Keeps a bounded, non-overlapping window of the live transcript."
+    },
+    "packages/voice/src/lonora_voice/incoming.py": {
+      "name": "Incoming calls",
+      "description": "Handles a call coming in to the owner: the reach-me rule, ringing, answering, declining and logging it in the conversation."
+    },
+    "packages/voice/src/lonora_voice/realtime.py": {
+      "name": "Live voice session",
+      "description": "Runs the live voice link: the microphone stays on the direct connection while the agent's tools stay in Lonora."
+    },
+    "packages/voice/src/lonora_voice/routing.py": {
+      "name": "Voice routing",
+      "description": "Picks the live voice model and route for a call."
+    },
+    "packages/voice/src/lonora_voice/sessions.py": {
+      "name": "Voice sessions",
+      "description": "Starts and ends a voice session, links an answered incoming call, and logs the call in the conversation."
+    },
+    "packages/voice/src/lonora_voice/synthesis.py": {
+      "name": "Speech synthesis",
+      "description": "Turns text into spoken audio."
+    },
+    "packages/voice/src/lonora_voice/transcript.py": {
+      "name": "Save transcript",
+      "description": "Saves a finished voice transcript as a message in the conversation."
+    },
+    "packages/voice/src/lonora_voice/voice_notes.py": {
+      "name": "Voice-note transcription",
+      "description": "Turns the owner's voice notes into text in the background, in the owner's language."
+    }
+  }
+}

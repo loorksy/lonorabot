@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/db/src/lonora_db/artifacts.py": {
+      "name": "Files store",
+      "description": "Saves and reads the owner's uploaded files."
+    },
+    "packages/db/src/lonora_db/attention.py": {
+      "name": "Attention store",
+      "description": "Decides and records what needs the owner's attention and delivers it under the reach-me rules."
+    },
+    "packages/db/src/lonora_db/authority_lock.py": {
+      "name": "Money authority lock",
+      "description": "The single lock that keeps every change to an agent's money authority in order with its final send check."
+    },
+    "packages/db/src/lonora_db/boards.py": {
+      "name": "Boards store",
+      "description": "Saves and reads the owner's boards."
+    },
+    "packages/db/src/lonora_db/broker_relay.py": {
+      "name": "Broker relay store",
+      "description": "Holds the broker requests the main server hands to the worker, and their answers."
+    },
+    "packages/db/src/lonora_db/broker_sessions.py": {
+      "name": "Broker connections store",
+      "description": "Stores the owner's broker connections and what each account calls its symbols."
+    },
+    "packages/db/src/lonora_db/call_log.py": {
+      "name": "Call log",
+      "description": "Writes a finished, declined or missed call into the conversation as a note."
+    },
+    "packages/db/src/lonora_db/cancellation.py": {
+      "name": "Cancel a run",
+      "description": "Cancels a run and its unfinished children, telling the apps and fencing off its work."
+    },
+    "packages/db/src/lonora_db/chat_lists.py": {
+      "name": "Chat lists store",
+      "description": "Creates, reads and edits the owner's chat lists and their members."
+    },
+    "packages/db/src/lonora_db/cli_tokens.py": {
+      "name": "Command tokens store",
+      "description": "Issues, revokes and looks up each agent's `lonora` command pass, and lists them for the output secret scan."
+    },
+    "packages/db/src/lonora_db/client.py": {
+      "name": "Database connection",
+      "description": "The shared connection to the database."
+    },
+    "packages/db/src/lonora_db/cloud_charts.py": {
+      "name": "Charts store",
+      "description": "Saves and reads the owner's charts, checking their drawings."
+    },
+    "packages/db/src/lonora_db/collaboration.py": {
+      "name": "Collaboration store",
+      "description": "Coordinates agents working together, without running a second executor."
+    },
+    "packages/db/src/lonora_db/conversation_locale.py": {
+      "name": "Conversation language",
+      "description": "Works out the language to reply in, from the owner's profile or recent messages."
+    },
+    "packages/db/src/lonora_db/economic_calendar.py": {
+      "name": "Calendar store",
+      "description": "Saves and reads the owner's economic-calendar data."
+    },
+    "packages/db/src/lonora_db/events.py": {
+      "name": "Event ledger",
+      "description": "The shared record of events every part publishes and reads, in a stable delivery order."
+    },
+    "packages/db/src/lonora_db/execution_receipts.py": {
+      "name": "Execution receipts store",
+      "description": "Posts and reads the receipt for each broker-confirmed trade."
+    },
+    "packages/db/src/lonora_db/generated_artifacts.py": {
+      "name": "Generated image linking",
+      "description": "Links an agent's generated images to the message that delivers them."
+    },
+    "packages/db/src/lonora_db/genui_slots.py": {
+      "name": "Card slot records",
+      "description": "Finds the records a generated card may show, with what sets each one's height."
+    },
+    "packages/db/src/lonora_db/genui_submit.py": {
+      "name": "Card submission",
+      "description": "Checks a generated card's send, stores it, and queues the run that answers it."
+    },
+    "packages/db/src/lonora_db/groups.py": {
+      "name": "Groups store",
+      "description": "Saves and reads the owner's agent groups."
+    },
+    "packages/db/src/lonora_db/inbox.py": {
+      "name": "Inbox projection",
+      "description": "Builds the inbox: the owner's conversations with their state and latest visible message."
+    },
+    "packages/db/src/lonora_db/integrations.py": {
+      "name": "Integrations store",
+      "description": "Stores the owner's search, calendar and news-feed integrations and message channels."
+    },
+    "packages/db/src/lonora_db/item_failures.py": {
+      "name": "Failure isolation",
+      "description": "Keeps a failure record per background item so one bad item backs off alone and a batch skips it."
+    },
+    "packages/db/src/lonora_db/knowledge.py": {
+      "name": "Knowledge store",
+      "description": "Reads one agent's knowledge notes and links as a single list."
+    },
+    "packages/db/src/lonora_db/lead.py": {
+      "name": "Lead role",
+      "description": "Works out Lonora's built-in lead role and which team agents it reads and steers."
+    },
+    "packages/db/src/lonora_db/management_task.py": {
+      "name": "Account-management task",
+      "description": "Runs and reconciles the one continuous account-management task an agent in Full mode keeps."
+    },
+    "packages/db/src/lonora_db/market_snapshots.py": {
+      "name": "Market snapshots store",
+      "description": "Saves broker market readings."
+    },
+    "packages/db/src/lonora_db/market_watches.py": {
+      "name": "Watches store",
+      "description": "Creates, reads, controls, extends and stops the owner's market watches."
+    },
+    "packages/db/src/lonora_db/memory_revisions.py": {
+      "name": "Memory history store",
+      "description": "Keeps attributed, undoable changes to the owner profile, preferences and each agent's memory."
+    },
+    "packages/db/src/lonora_db/memory.py": {
+      "name": "Memory store",
+      "description": "Reads and writes an agent's memory document as one attributed change, keeping owner sections apart."
+    },
+    "packages/db/src/lonora_db/messages.py": {
+      "name": "Messages store",
+      "description": "Stores and reads conversation messages, their reactions and edits, and decides which run the owner's next message steers or answers."
+    },
+    "packages/db/src/lonora_db/model_credentials.py": {
+      "name": "Saved model key",
+      "description": "Reads the provider key the owner saved last, with its address."
+    },
+    "packages/db/src/lonora_db/obligations.py": {
+      "name": "Money-history guard",
+      "description": "Refuses to delete an agent, conversation or broker connection while it has an unsettled money operation, so money history is never erased."
+    },
+    "packages/db/src/lonora_db/operational_state.py": {
+      "name": "Protected state",
+      "description": "Re-reads the protected operational facts from records on every model turn."
+    },
+    "packages/db/src/lonora_db/owner_actions.py": {
+      "name": "Owner action cards store",
+      "description": "The durable store of owner action cards: their status, the grants they would create, and the owner's decision."
+    },
+    "packages/db/src/lonora_db/owner_knowledge.py": {
+      "name": "Profile lines store",
+      "description": "Reads every line of the owner profile with where it came from, and records the owner's corrections."
+    },
+    "packages/db/src/lonora_db/owner_profile.py": {
+      "name": "Owner profile store",
+      "description": "The one owner profile every agent reads, with attributed, undoable changes and the reach-me preference."
+    },
+    "packages/db/src/lonora_db/owner_signals.py": {
+      "name": "Owner signals store",
+      "description": "Records what the owner did and builds the one summary of the owner for agents and reports."
+    },
+    "packages/db/src/lonora_db/owner_words.py": {
+      "name": "Owner's own words",
+      "description": "Works out which run is acting on the owner's own typed words rather than something a card composed."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/test_backtesting_excluded.py": {
+      "name": "Backtesting excluded tests",
+      "description": "Automatic checks for backtesting excluded."
+    },
+    "tests/test_broker_connect.py": {
+      "name": "Broker connect tests",
+      "description": "Automatic checks for broker connect."
+    },
+    "tests/test_broker_connection_identity.py": {
+      "name": "Broker connection identity tests",
+      "description": "Automatic checks for broker connection identity."
+    },
+    "tests/test_broker_effect_verification.py": {
+      "name": "Broker effect verification tests",
+      "description": "Automatic checks for broker effect verification."
+    },
+    "tests/test_broker_manage.py": {
+      "name": "Broker manage tests",
+      "description": "Automatic checks for broker manage."
+    },
+    "tests/test_broker_relay.py": {
+      "name": "Broker relay tests",
+      "description": "Automatic checks for broker relay."
+    },
+    "tests/test_broker_secret_boundary.py": {
+      "name": "Broker secret boundary tests",
+      "description": "Automatic checks for broker secret boundary."
+    },
+    "tests/test_candle_pattern_definitions.py": {
+      "name": "Candle pattern definitions tests",
+      "description": "Automatic checks for candle pattern definitions."
+    },
+    "tests/test_capability_exposure.py": {
+      "name": "Capability exposure tests",
+      "description": "Automatic checks for capability exposure."
+    },
+    "tests/test_card_journeys.py": {
+      "name": "Card journeys tests",
+      "description": "Automatic checks for card journeys."
+    },
+    "tests/test_card_lifetimes.py": {
+      "name": "Card lifetimes tests",
+      "description": "Automatic checks for card lifetimes."
+    },
+    "tests/test_chart_annotations.py": {
+      "name": "Chart annotations tests",
+      "description": "Automatic checks for chart annotations."
+    },
+    "tests/test_chart_capabilities.py": {
+      "name": "Chart capabilities tests",
+      "description": "Automatic checks for chart capabilities."
+    },
+    "tests/test_chart_inspection_bounds.py": {
+      "name": "Chart inspection bounds tests",
+      "description": "Automatic checks for chart inspection bounds."
+    },
+    "tests/test_chart_renderer_host.py": {
+      "name": "Chart renderer host tests",
+      "description": "Automatic checks for chart renderer host."
+    },
+    "tests/test_chart_scene_preparation.py": {
+      "name": "Chart scene preparation tests",
+      "description": "Automatic checks for chart scene preparation."
+    },
+    "tests/test_chart_snapshot.py": {
+      "name": "Chart snapshot tests",
+      "description": "Automatic checks for chart snapshot."
+    },
+    "tests/test_chart_visual_runtime.py": {
+      "name": "Chart visual runtime tests",
+      "description": "Automatic checks for chart visual runtime."
+    },
+    "tests/test_chat_acknowledgement.py": {
+      "name": "Chat acknowledgement tests",
+      "description": "Automatic checks for chat acknowledgement."
+    },
+    "tests/test_chat_timing.py": {
+      "name": "Chat timing tests",
+      "description": "Automatic checks for chat timing."
+    },
+    "tests/test_cli_endpoint.py": {
+      "name": "Cli endpoint tests",
+      "description": "Automatic checks for cli endpoint."
+    },
+    "tests/test_cli_injection.py": {
+      "name": "Cli injection tests",
+      "description": "Automatic checks for cli injection."
+    },
+    "tests/test_cli_notify_wake.py": {
+      "name": "Cli notify wake tests",
+      "description": "Automatic checks for cli notify wake."
+    },
+    "tests/test_closed_trades.py": {
+      "name": "Closed trades tests",
+      "description": "Automatic checks for closed trades."
+    },
+    "tests/test_connection_tests.py": {
+      "name": "Connection tests tests",
+      "description": "Automatic checks for connection tests."
+    },
+    "tests/test_context_engine.py": {
+      "name": "Context engine tests",
+      "description": "Automatic checks for context engine."
+    },
+    "tests/test_context_head_refresh.py": {
+      "name": "Context head refresh tests",
+      "description": "Automatic checks for context head refresh."
+    },
+    "tests/test_continuous_stop_gate.py": {
+      "name": "Continuous stop gate tests",
+      "description": "Automatic checks for continuous stop gate."
+    },
+    "tests/test_conversation_conveniences.py": {
+      "name": "Conversation conveniences tests",
+      "description": "Automatic checks for conversation conveniences."
+    },
+    "tests/test_conversation_gate.py": {
+      "name": "Conversation gate tests",
+      "description": "Automatic checks for conversation gate."
+    },
+    "tests/test_conversation_recall.py": {
+      "name": "Conversation recall tests",
+      "description": "Automatic checks for conversation recall."
+    },
+    "tests/test_conversation_status.py": {
+      "name": "Conversation status tests",
+      "description": "Automatic checks for conversation status."
+    },
+    "tests/test_decision_readiness.py": {
+      "name": "Decision readiness tests",
+      "description": "Automatic checks for decision readiness."
+    },
+    "tests/test_delete_transfer.py": {
+      "name": "Delete transfer tests",
+      "description": "Automatic checks for delete transfer."
+    },
+    "tests/test_device_metadata.py": {
+      "name": "Device metadata tests",
+      "description": "Automatic checks for device metadata."
+    },
+    "tests/test_domain_pages.py": {
+      "name": "Domain pages tests",
+      "description": "Automatic checks for domain pages."
+    },
+    "tests/test_durable_event_delivery.py": {
+      "name": "Durable event delivery tests",
+      "description": "Automatic checks for durable event delivery."
+    },
+    "tests/test_dynamic_watches.py": {
+      "name": "Dynamic watches tests",
+      "description": "Automatic checks for dynamic watches."
+    },
+    "tests/test_economic_calendar_read.py": {
+      "name": "Economic calendar read tests",
+      "description": "Automatic checks for economic calendar read."
+    },
+    "tests/test_execution_quality.py": {
+      "name": "Execution quality tests",
+      "description": "Automatic checks for execution quality."
+    }
+  }
+}

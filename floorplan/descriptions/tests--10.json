@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/test_reply_delta_batching.py": {
+      "name": "Reply delta batching tests",
+      "description": "Automatic checks for reply delta batching."
+    },
+    "tests/test_reply_markdown.py": {
+      "name": "Reply markdown tests",
+      "description": "Automatic checks for reply markdown."
+    },
+    "tests/test_research_deployment.py": {
+      "name": "Research deployment tests",
+      "description": "Automatic checks for research deployment."
+    },
+    "tests/test_resolve.py": {
+      "name": "Resolve tests",
+      "description": "Automatic checks for resolve."
+    },
+    "tests/test_routine_output.py": {
+      "name": "Routine output tests",
+      "description": "Automatic checks for routine output."
+    },
+    "tests/test_run_integrity.py": {
+      "name": "Run integrity tests",
+      "description": "Automatic checks for run integrity."
+    },
+    "tests/test_secret_card.py": {
+      "name": "Secret card tests",
+      "description": "Automatic checks for secret card."
+    },
+    "tests/test_secret_chat.py": {
+      "name": "Secret chat tests",
+      "description": "Automatic checks for secret chat."
+    },
+    "tests/test_secret_redaction.py": {
+      "name": "Secret redaction tests",
+      "description": "Automatic checks for secret redaction."
+    },
+    "tests/test_secret_scopes.py": {
+      "name": "Secret scopes tests",
+      "description": "Automatic checks for secret scopes."
+    },
+    "tests/test_skill_packages.py": {
+      "name": "Skill packages tests",
+      "description": "Automatic checks for skill packages."
+    },
+    "tests/test_skill_repository.py": {
+      "name": "Skill repository tests",
+      "description": "Automatic checks for skill repository."
+    },
+    "tests/test_skill_run_copies.py": {
+      "name": "Skill run copies tests",
+      "description": "Automatic checks for skill run copies."
+    },
+    "tests/test_skill_runtime.py": {
+      "name": "Skill runtime tests",
+      "description": "Automatic checks for skill runtime."
+    },
+    "tests/test_skill_version_controls.py": {
+      "name": "Skill version controls tests",
+      "description": "Automatic checks for skill version controls."
+    },
+    "tests/test_skills_eligibility.py": {
+      "name": "Skills eligibility tests",
+      "description": "Automatic checks for skills eligibility."
+    },
+    "tests/test_slash_commands.py": {
+      "name": "Slash commands tests",
+      "description": "Automatic checks for slash commands."
+    },
+    "tests/test_sse_events.py": {
+      "name": "Sse events tests",
+      "description": "Automatic checks for sse events."
+    },
+    "tests/test_supervision.py": {
+      "name": "Supervision tests",
+      "description": "Automatic checks for supervision."
+    },
+    "tests/test_system_policy.py": {
+      "name": "System policy tests",
+      "description": "Automatic checks for system policy."
+    },
+    "tests/test_task_continuation.py": {
+      "name": "Task continuation tests",
+      "description": "Automatic checks for task continuation."
+    },
+    "tests/test_task_runtime.py": {
+      "name": "Task runtime tests",
+      "description": "Automatic checks for task runtime."
+    },
+    "tests/test_task_wait_settlement.py": {
+      "name": "Task wait settlement tests",
+      "description": "Automatic checks for task wait settlement."
+    },
+    "tests/test_teammate_runtime.py": {
+      "name": "Teammate runtime tests",
+      "description": "Automatic checks for teammate runtime."
+    },
+    "tests/test_telegram_channel.py": {
+      "name": "Telegram channel tests",
+      "description": "Automatic checks for telegram channel."
+    },
+    "tests/test_thesis_contracts.py": {
+      "name": "Thesis contracts tests",
+      "description": "Automatic checks for thesis contracts."
+    },
+    "tests/test_thread_preferences.py": {
+      "name": "Thread preferences tests",
+      "description": "Automatic checks for thread preferences."
+    },
+    "tests/test_tool_argument_guidance.py": {
+      "name": "Tool argument guidance tests",
+      "description": "Automatic checks for tool argument guidance."
+    },
+    "tests/test_tool_discovery.py": {
+      "name": "Tool discovery tests",
+      "description": "Automatic checks for tool discovery."
+    },
+    "tests/test_tool_execution_core.py": {
+      "name": "Tool execution core tests",
+      "description": "Automatic checks for tool execution core."
+    },
+    "tests/test_tool_loop_execution.py": {
+      "name": "Tool loop execution tests",
+      "description": "Automatic checks for tool loop execution."
+    },
+    "tests/test_tool_result_storage.py": {
+      "name": "Tool result storage tests",
+      "description": "Automatic checks for tool result storage."
+    },
+    "tests/test_tool_schema_compaction.py": {
+      "name": "Tool schema compaction tests",
+      "description": "Automatic checks for tool schema compaction."
+    },
+    "tests/test_trade_approval_validity.py": {
+      "name": "Trade approval validity tests",
+      "description": "Automatic checks for trade approval validity."
+    },
+    "tests/test_trade_identity.py": {
+      "name": "Trade identity tests",
+      "description": "Automatic checks for trade identity."
+    },
+    "tests/test_trade_symbol_strictness.py": {
+      "name": "Trade symbol strictness tests",
+      "description": "Automatic checks for trade symbol strictness."
+    },
+    "tests/test_trading_mode_tools.py": {
+      "name": "Trading mode tools tests",
+      "description": "Automatic checks for trading mode tools."
+    },
+    "tests/test_trading_mode.py": {
+      "name": "Trading mode tests",
+      "description": "Automatic checks for trading mode."
+    },
+    "tests/test_trading_readiness.py": {
+      "name": "Trading readiness tests",
+      "description": "Automatic checks for trading readiness."
+    },
+    "tests/test_trial_creations.py": {
+      "name": "Trial creations tests",
+      "description": "Automatic checks for trial creations."
+    }
+  }
+}

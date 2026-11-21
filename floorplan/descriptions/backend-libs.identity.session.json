@@ -1,0 +1,16 @@
+{
+  "files": {
+    "packages/session/src/lonora_session/__init__.py": {
+      "name": "Session package",
+      "description": "Marks the session code as one package; holds no logic of its own."
+    },
+    "packages/session/src/lonora_session/continuation.py": {
+      "name": "Resume check",
+      "description": "Decides whether a stopped run is allowed to resume."
+    },
+    "packages/session/src/lonora_session/idempotency.py": {
+      "name": "Stable ids",
+      "description": "Builds stable ids so a repeated request is recognised and not done twice."
+    }
+  }
+}

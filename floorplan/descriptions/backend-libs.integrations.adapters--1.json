@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/adapter-kit/src/lonora_adapter_kit/__init__.py": {
+      "name": "Adapter-kit package",
+      "description": "Marks the adapter toolkit as one package; holds no logic of its own."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/broker.py": {
+      "name": "Broker interface",
+      "description": "The shared shape every broker connection must follow."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/channel.py": {
+      "name": "Channel interface",
+      "description": "The shared shape every outbound message channel must follow."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/context_sections.py": {
+      "name": "Context data sections",
+      "description": "Builds the labelled, escaped blocks of outside content that are kept out of the system's own instructions."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/context.py": {
+      "name": "Request budgeting",
+      "description": "Keeps each model request within its size limits, dropping whole exchanges and saying in place what was left out."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/interfaces.py": {
+      "name": "Adapter interfaces",
+      "description": "Collects the shared shapes outside-service connections follow."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/market.py": {
+      "name": "Market interface",
+      "description": "The shared shape every market-data source must follow."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/model_errors.py": {
+      "name": "Model error classifying",
+      "description": "Works out why a model request failed and turns it into a stable reason the router can act on."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/model.py": {
+      "name": "Model interface",
+      "description": "The shared shape every AI model connection must follow."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/registry.py": {
+      "name": "Adapter registry",
+      "description": "Keeps the set of available connections, looked up by name."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/secrets.py": {
+      "name": "Secret-store interface",
+      "description": "The shared shape a secret store must follow."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/tokenization.py": {
+      "name": "Token counting",
+      "description": "Estimates a request's size offline, using cached token data."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/types.py": {
+      "name": "Model message types",
+      "description": "Defines the shapes of a model message, a tool call and a tool definition."
+    },
+    "packages/adapter-kit/src/lonora_adapter_kit/voice.py": {
+      "name": "Voice interfaces",
+      "description": "The shared shapes for speech-to-text, text-to-speech and the live voice connection."
+    },
+    "packages/adapters/src/lonora_adapters/__init__.py": {
+      "name": "Adapters package",
+      "description": "Marks the outside-service connections as one package; holds no logic of its own."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/__init__.py": {
+      "name": "Brokers package",
+      "description": "Marks the broker connections as one package; holds no logic of its own."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/base.py": {
+      "name": "Broker manager",
+      "description": "Keeps the owner's broker connections and hands out the right one."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/metaapi_discovery.py": {
+      "name": "MetaApi discovery",
+      "description": "Shared setup for reaching MetaApi over both its history and live connections."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/metaapi_lifecycle.py": {
+      "name": "MetaApi connection handling",
+      "description": "Owns the MetaApi connection and honours its rate limits; it never retries a money request here."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/metaapi_provisioning.py": {
+      "name": "MetaApi account setup",
+      "description": "Creates, starts, stops, updates and removes trading accounts at MetaApi."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/metaapi.py": {
+      "name": "MetaApi broker",
+      "description": "The full connection to the MetaApi broker: reading accounts, quotes and candles and sending orders."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/normalize.py": {
+      "name": "Broker data normalizing",
+      "description": "Turns the broker's raw figures — quotes, candles, accounts, positions and session times — into Lonora's own consistent shapes."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/relay.py": {
+      "name": "Relayed broker",
+      "description": "Lets the main server read a broker account through the always-on worker, which actually holds the connection."
+    },
+    "packages/adapters/src/lonora_adapters/brokers/simulation.py": {
+      "name": "Simulation broker",
+      "description": "A demo broker that executes against explicitly imported market snapshots, kept in the database."
+    },
+    "packages/adapters/src/lonora_adapters/channels/__init__.py": {
+      "name": "Channels package",
+      "description": "Marks the outbound-channel connections as one package; holds no logic of its own."
+    },
+    "packages/adapters/src/lonora_adapters/channels/expo_push.py": {
+      "name": "Phone push sender",
+      "description": "Sends push notifications to the owner's phones through Expo, in batches."
+    },
+    "packages/adapters/src/lonora_adapters/channels/telegram.py": {
+      "name": "Telegram sender",
+      "description": "Sends messages to Telegram."
+    },
+    "packages/adapters/src/lonora_adapters/channels/webhook.py": {
+      "name": "Webhook sender",
+      "description": "Sends messages to an outside address as a webhook."
+    },
+    "packages/adapters/src/lonora_adapters/channels/websocket.py": {
+      "name": "In-app notifier",
+      "description": "Delivers a notification into the app over the live connection."
+    },
+    "packages/adapters/src/lonora_adapters/market/__init__.py": {
+      "name": "Market adapters package",
+      "description": "Marks the market-source connections as one package; holds no logic of its own."
+    },
+    "packages/adapters/src/lonora_adapters/market/broker_market.py": {
+      "name": "Broker as market source",
+      "description": "Reads market data straight from a broker connection."
+    },
+    "packages/adapters/src/lonora_adapters/market/economic_calendar.py": {
+      "name": "Calendar source",
+      "description": "Reads an economic-calendar feed."
+    },
+    "packages/adapters/src/lonora_adapters/market/fake.py": {
+      "name": "Recorded market (test)",
+      "description": "A test market source that replays recorded data."
+    },
+    "packages/adapters/src/lonora_adapters/market/news_feed.py": {
+      "name": "News feed reader",
+      "description": "Reads RSS and Atom news feeds safely through the public web client."
+    },
+    "packages/adapters/src/lonora_adapters/mcp/__init__.py": {
+      "name": "AI-connection package",
+      "description": "Marks the outside-AI-connection code as one package; holds no logic of its own."
+    },
+    "packages/adapters/src/lonora_adapters/mcp/connector.py": {
+      "name": "Outside AI connector",
+      "description": "Connects to an outside AI connection and calls its tools."
+    },
+    "packages/adapters/src/lonora_adapters/mcp/oauth.py": {
+      "name": "Connection sign-in",
+      "description": "Handles the sign-in handshake for an outside AI connection."
+    },
+    "packages/adapters/src/lonora_adapters/mcp/policy.py": {
+      "name": "Connection tool policy",
+      "description": "Decides which of an outside AI connection's tools may be used, and never trusts one that could trade or move money."
+    },
+    "packages/adapters/src/lonora_adapters/mcp/transport.py": {
+      "name": "Connection transport",
+      "description": "Carries the requests to and replies from an outside AI connection."
+    },
+    "packages/adapters/src/lonora_adapters/models/__init__.py": {
+      "name": "Model adapters package",
+      "description": "Marks the AI-model connections as one package; holds no logic of its own."
+    }
+  }
+}

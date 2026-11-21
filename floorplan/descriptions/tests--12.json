@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/web/agent-create.test.ts": {
+      "name": "Agent create tests",
+      "description": "Automatic checks for agent create."
+    },
+    "tests/web/agent-model.spec.mjs": {
+      "name": "Agent model tests",
+      "description": "Automatic checks for agent model."
+    },
+    "tests/web/agent-model.test.ts": {
+      "name": "Agent model tests",
+      "description": "Automatic checks for agent model."
+    },
+    "tests/web/agent-pages.spec.mjs": {
+      "name": "Agent pages tests",
+      "description": "Automatic checks for agent pages."
+    },
+    "tests/web/agent-permission.test.ts": {
+      "name": "Agent permission tests",
+      "description": "Automatic checks for agent permission."
+    },
+    "tests/web/agent-status.test.ts": {
+      "name": "Agent status tests",
+      "description": "Automatic checks for agent status."
+    },
+    "tests/web/agents-entry.spec.mjs": {
+      "name": "Agents entry tests",
+      "description": "Automatic checks for agents entry."
+    },
+    "tests/web/agents-from-chat.spec.mjs": {
+      "name": "Agents from chat tests",
+      "description": "Automatic checks for agents from chat."
+    },
+    "tests/web/app-open.test.ts": {
+      "name": "App open tests",
+      "description": "Automatic checks for app open."
+    },
+    "tests/web/attention.spec.mjs": {
+      "name": "Attention tests",
+      "description": "Automatic checks for attention."
+    },
+    "tests/web/avatar-motion.test.ts": {
+      "name": "Avatar motion tests",
+      "description": "Automatic checks for avatar motion."
+    },
+    "tests/web/avatar-studio.spec.mjs": {
+      "name": "Avatar studio tests",
+      "description": "Automatic checks for avatar studio."
+    },
+    "tests/web/avatar.spec.mjs": {
+      "name": "Avatar tests",
+      "description": "Automatic checks for avatar."
+    },
+    "tests/web/branding.spec.mjs": {
+      "name": "Branding tests",
+      "description": "Automatic checks for branding."
+    },
+    "tests/web/broker-fixture.mjs": {
+      "name": "Broker fixture tests",
+      "description": "Automatic checks for broker fixture."
+    },
+    "tests/web/calls.spec.mjs": {
+      "name": "Calls tests",
+      "description": "Automatic checks for calls."
+    },
+    "tests/web/capabilities.spec.mjs": {
+      "name": "Capabilities tests",
+      "description": "Automatic checks for capabilities."
+    },
+    "tests/web/capabilities.test.ts": {
+      "name": "Capabilities tests",
+      "description": "Automatic checks for capabilities."
+    },
+    "tests/web/chart-geometry.test.ts": {
+      "name": "Chart geometry tests",
+      "description": "Automatic checks for chart geometry."
+    },
+    "tests/web/charts.spec.mjs": {
+      "name": "Charts tests",
+      "description": "Automatic checks for charts."
+    },
+    "tests/web/chat-commands.spec.mjs": {
+      "name": "Chat commands tests",
+      "description": "Automatic checks for chat commands."
+    },
+    "tests/web/chat-lists.spec.mjs": {
+      "name": "Chat lists tests",
+      "description": "Automatic checks for chat lists."
+    },
+    "tests/web/chat-mentions.spec.mjs": {
+      "name": "Chat mentions tests",
+      "description": "Automatic checks for chat mentions."
+    },
+    "tests/web/chat-menu-readiness.spec.mjs": {
+      "name": "Chat menu readiness tests",
+      "description": "Automatic checks for chat menu readiness."
+    },
+    "tests/web/chat-menu.spec.mjs": {
+      "name": "Chat menu tests",
+      "description": "Automatic checks for chat menu."
+    },
+    "tests/web/chat-prefs.spec.mjs": {
+      "name": "Chat prefs tests",
+      "description": "Automatic checks for chat prefs."
+    },
+    "tests/web/chat-prefs.test.ts": {
+      "name": "Chat prefs tests",
+      "description": "Automatic checks for chat prefs."
+    },
+    "tests/web/chat-reliability.spec.mjs": {
+      "name": "Chat reliability tests",
+      "description": "Automatic checks for chat reliability."
+    },
+    "tests/web/chat-rows.test.ts": {
+      "name": "Chat rows tests",
+      "description": "Automatic checks for chat rows."
+    },
+    "tests/web/chat-scroll.test.ts": {
+      "name": "Chat scroll tests",
+      "description": "Automatic checks for chat scroll."
+    },
+    "tests/web/chat-send-latency.spec.mjs": {
+      "name": "Chat send latency tests",
+      "description": "Automatic checks for chat send latency."
+    },
+    "tests/web/chat-uploads.spec.mjs": {
+      "name": "Chat uploads tests",
+      "description": "Automatic checks for chat uploads."
+    },
+    "tests/web/chat-wallpaper.spec.mjs": {
+      "name": "Chat wallpaper tests",
+      "description": "Automatic checks for chat wallpaper."
+    },
+    "tests/web/composer-commands.test.ts": {
+      "name": "Composer commands tests",
+      "description": "Automatic checks for composer commands."
+    },
+    "tests/web/composer-mentions.test.ts": {
+      "name": "Composer mentions tests",
+      "description": "Automatic checks for composer mentions."
+    },
+    "tests/web/device-enrollment.spec.mjs": {
+      "name": "Device enrollment tests",
+      "description": "Automatic checks for device enrollment."
+    },
+    "tests/web/domain-pages.spec.mjs": {
+      "name": "Domain pages tests",
+      "description": "Automatic checks for domain pages."
+    },
+    "tests/web/event-stream.test.ts": {
+      "name": "Event stream tests",
+      "description": "Automatic checks for event stream."
+    },
+    "tests/web/execution-receipt.spec.mjs": {
+      "name": "Execution receipt tests",
+      "description": "Automatic checks for execution receipt."
+    },
+    "tests/web/failed-replies.test.ts": {
+      "name": "Failed replies tests",
+      "description": "Automatic checks for failed replies."
+    }
+  }
+}

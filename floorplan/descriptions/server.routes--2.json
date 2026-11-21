@@ -1,0 +1,502 @@
+{
+  "files": {
+    "apps/api/src/lonora_api/routes/messages.py": {
+      "name": "Messages",
+      "description": "Reads a conversation's history for the owner, sends a new message, lets the owner unlock a sent card to edit it, and sets or clears a quick reaction."
+    },
+    "apps/api/src/lonora_api/routes/mobile_updates.py": {
+      "name": "Phone app updates",
+      "description": "Serves over-the-air updates and their files to the phone app; a public, read-only feed that only hands out an update already published."
+    },
+    "apps/api/src/lonora_api/routes/model_router.py": {
+      "name": "Model routing settings",
+      "description": "Reads and sets the rules for which AI model answers, their backups, and the context limits; once a model is set, replies that had failed only for the lack of one are tried again."
+    },
+    "apps/api/src/lonora_api/routes/onboarding.py": {
+      "name": "First-time setup",
+      "description": "Reports whether the owner account has been set up yet, and creates it on first run."
+    },
+    "apps/api/src/lonora_api/routes/opportunities.py": {
+      "name": "Trading opportunities",
+      "description": "Lists the trading opportunities an agent has spotted, and reads one."
+    },
+    "apps/api/src/lonora_api/routes/owner_actions.py": {
+      "name": "Owner action cards",
+      "description": "Lists the cards asking the owner to decide something, including an agent's Mandate card, and records the owner's decision or a fresh card for an expired one."
+    },
+    "apps/api/src/lonora_api/routes/peer_messages.py": {
+      "name": "Peer messages",
+      "description": "Messages between agents, offered through the shared resource requests."
+    },
+    "apps/api/src/lonora_api/routes/performance.py": {
+      "name": "Agent results",
+      "description": "Shows an agent's trading results grouped by the kind of judgment, counting only trades the broker confirmed as closed."
+    },
+    "apps/api/src/lonora_api/routes/providers.py": {
+      "name": "AI providers",
+      "description": "Lists the AI model providers, saves a provider's key, lists its models, and discovers the models a provider offers."
+    },
+    "apps/api/src/lonora_api/routes/push_devices.py": {
+      "name": "Push registration",
+      "description": "Registers or removes this phone so it can receive push notifications."
+    },
+    "apps/api/src/lonora_api/routes/routines.py": {
+      "name": "Scheduled routines",
+      "description": "Creates, lists, edits and deletes an agent's scheduled routines, and shows a routine's run history."
+    },
+    "apps/api/src/lonora_api/routes/runs.py": {
+      "name": "Agent runs",
+      "description": "Lists, starts and reads agent runs, and retries or resumes one that failed or stopped."
+    },
+    "apps/api/src/lonora_api/routes/scratchpad.py": {
+      "name": "Scratchpad",
+      "description": "An agent's scratchpad notes, offered through the shared resource requests."
+    },
+    "apps/api/src/lonora_api/routes/search.py": {
+      "name": "Search",
+      "description": "The owner's unified search across their content; an empty search returns the recent feed."
+    },
+    "apps/api/src/lonora_api/routes/secret_cards.py": {
+      "name": "Secret card",
+      "description": "Handles the single submit of a Secret card: it stores the typed values as workspace secrets, sets up the connection or model key that uses them, and confirms it in the conversation."
+    },
+    "apps/api/src/lonora_api/routes/tasks.py": {
+      "name": "Tasks",
+      "description": "Lists, creates, reads and controls an agent's tasks, and lets the owner mark one done without approving or running anything."
+    },
+    "apps/api/src/lonora_api/routes/threads.py": {
+      "name": "Conversations",
+      "description": "Lists, opens, creates and deletes conversations, reads the inbox, marks threads read, sets per-chat options such as web search, and clears a conversation's history for the owner."
+    },
+    "apps/api/src/lonora_api/routes/tickets.py": {
+      "name": "Tickets",
+      "description": "Starts work on a ticket from a board."
+    },
+    "apps/api/src/lonora_api/routes/trading_decisions.py": {
+      "name": "Past trading decisions",
+      "description": "A read-only replay of the owner's past trading decisions; it starts no new trades."
+    },
+    "apps/api/src/lonora_api/routes/trading.py": {
+      "name": "Trading",
+      "description": "Manages broker connections, reads account and journal, runs a simulation, carries out a trade, and handles the receipts and the owner's approvals that gate it."
+    },
+    "apps/api/src/lonora_api/routes/trusted_sources.py": {
+      "name": "Trusted sources",
+      "description": "Lists, adds, removes and restores the sources the owner trusts, and previews or trusts an outside AI connection's tools; owner session only."
+    },
+    "apps/api/src/lonora_api/routes/usage.py": {
+      "name": "Usage & cost",
+      "description": "Reports how much the owner's agents and models have been used and what it cost, per agent, per model and over time, with a spreadsheet export; a view only, never a cap."
+    },
+    "apps/api/src/lonora_api/routes/version.py": {
+      "name": "App version",
+      "description": "Reports the version of the web app that is being served, so an open screen can notice when a newer one is live."
+    },
+    "apps/api/src/lonora_api/routes/voice.py": {
+      "name": "Voice sessions",
+      "description": "Starts and ends a live voice session with an agent, reports its status, and handles the transcript and interruptions."
+    },
+    "apps/api/src/lonora_api/routes/watches.py": {
+      "name": "Watches",
+      "description": "Lets the owner cancel, pause, resume or extend any of their running watches."
+    },
+    "apps/api/src/lonora_api/routes/webhook.py": {
+      "name": "Incoming webhook",
+      "description": "Receives a message from an outside service that wakes an agent."
+    },
+    "apps/api/src/lonora_api/routes/workspace_running.py": {
+      "name": "What is running",
+      "description": "Shows every task running in the workspace with the agent that started it, and stops one or all of them with a tap."
+    }
+  },
+  "routes": {
+    "GET /threads/{thread_id}/messages": {
+      "name": "Read a conversation",
+      "description": "Returns a conversation's messages for the owner, hiding anything before a cleared point and optionally centred on one message from a search."
+    },
+    "POST /threads/{thread_id}/messages/{message_id}/ui-state/{part}/unlock": {
+      "name": "Unlock a sent card",
+      "description": "Unlocks a card the owner already sent so they can edit it; if its work hasn't started, that submission is cancelled and replaced."
+    },
+    "PUT /threads/{thread_id}/messages/{message_id}/reactions/{emoji}": {
+      "name": "React to a message",
+      "description": "Sets the owner's one quick reaction on a message, replacing any previous one."
+    },
+    "DELETE /threads/{thread_id}/messages/{message_id}/reactions": {
+      "name": "Remove a reaction",
+      "description": "Clears the owner's reaction from a message."
+    },
+    "POST /threads/{thread_id}/messages": {
+      "name": "Send a message",
+      "description": "Sends the owner's message into a conversation, which starts the agent working on a reply."
+    },
+    "GET /mobile/updates": {
+      "name": "Get a phone update",
+      "description": "Hands the phone app the latest published over-the-air update for its platform and channel."
+    },
+    "GET /mobile/updates/assets/{filename}": {
+      "name": "Get an update file",
+      "description": "Serves one file belonging to a phone-app update, checked against its fingerprint."
+    },
+    "GET /settings/models": {
+      "name": "Read model rules",
+      "description": "Returns the rules for which AI model answers."
+    },
+    "PUT /settings/models": {
+      "name": "Set model rules",
+      "description": "Saves the rules for which AI model answers, and retries replies that had been waiting for a model to be chosen."
+    },
+    "PUT /settings/models/backups": {
+      "name": "Set backup models",
+      "description": "Saves the fallback models used when the first choice can't answer."
+    },
+    "GET /settings/models/context": {
+      "name": "Read context limits",
+      "description": "Returns how much past conversation the models are given."
+    },
+    "PUT /settings/models/context": {
+      "name": "Set context limits",
+      "description": "Changes how much past conversation the models are given."
+    },
+    "GET /onboarding": {
+      "name": "Setup status",
+      "description": "Reports whether the owner account has been created yet."
+    },
+    "POST /onboarding": {
+      "name": "Create owner account",
+      "description": "Sets up the owner account on first run."
+    },
+    "GET /trading/opportunities": {
+      "name": "List opportunities",
+      "description": "Lists the trading opportunities agents have spotted."
+    },
+    "GET /trading/opportunities/{identifier}": {
+      "name": "Read an opportunity",
+      "description": "Reads one spotted trading opportunity."
+    },
+    "GET /owner-actions": {
+      "name": "List action cards",
+      "description": "Lists the cards waiting for the owner to decide something."
+    },
+    "GET /owner-actions/mandate": {
+      "name": "Current Mandate card",
+      "description": "Returns an agent's live Mandate card — the newest pending or tapped one — or nothing when it has none."
+    },
+    "POST /owner-actions/mandate": {
+      "name": "Show Mandate card",
+      "description": "Brings up an agent's Mandate card when the owner asks for it."
+    },
+    "POST /owner-actions/{card_id}/challenge": {
+      "name": "Confirm by device",
+      "description": "Asks the owner's trusted device to sign off on an action card before it takes effect."
+    },
+    "POST /owner-actions/{card_id}/decision": {
+      "name": "Decide an action card",
+      "description": "Records the owner's decision on an action card."
+    },
+    "POST /owner-actions/{card_id}/renew": {
+      "name": "Renew an action card",
+      "description": "Issues a fresh card for an expired one that still needs a decision."
+    },
+    "GET /agents/{agent_id}/performance": {
+      "name": "Agent results",
+      "description": "Returns an agent's trading results by kind of judgment, from broker-confirmed closed trades."
+    },
+    "GET /providers": {
+      "name": "List providers",
+      "description": "Lists the AI model providers the settings screens know about."
+    },
+    "PUT /providers/{provider}/credential": {
+      "name": "Save provider key",
+      "description": "Saves the key for one AI provider."
+    },
+    "GET /providers/{provider}/models": {
+      "name": "Provider's models",
+      "description": "Lists the models one provider offers."
+    },
+    "POST /providers/{provider}/discover": {
+      "name": "Discover provider models",
+      "description": "Asks a provider for its current list of models."
+    },
+    "PUT /push/devices/{device_id}": {
+      "name": "Register for push",
+      "description": "Registers this phone to receive push notifications."
+    },
+    "DELETE /push/devices/{device_id}": {
+      "name": "Stop push",
+      "description": "Removes this phone from push notifications."
+    },
+    "GET /routines": {
+      "name": "List routines",
+      "description": "Lists the owner's scheduled routines."
+    },
+    "POST /routines/{agent_id}": {
+      "name": "Create a routine",
+      "description": "Adds a scheduled routine for one agent."
+    },
+    "PUT /routines/{routine_id}": {
+      "name": "Edit a routine",
+      "description": "Changes a routine; anything left out keeps its saved value."
+    },
+    "DELETE /routines/{routine_id}": {
+      "name": "Delete a routine",
+      "description": "Removes a scheduled routine."
+    },
+    "GET /routines/{routine_id}/history": {
+      "name": "Routine history",
+      "description": "Shows when a routine has run and what happened."
+    },
+    "GET /runs": {
+      "name": "List runs",
+      "description": "Lists agent runs."
+    },
+    "POST /runs": {
+      "name": "Start a run",
+      "description": "Starts a new agent run."
+    },
+    "GET /runs/{run_id}": {
+      "name": "Read a run",
+      "description": "Reads one agent run."
+    },
+    "POST /runs/{run_id}/retry": {
+      "name": "Retry a run",
+      "description": "Re-runs a failed reply for the same message, as a new run with the same input."
+    },
+    "POST /runs/{run_id}/resume": {
+      "name": "Resume a run",
+      "description": "Continues a run that was paused or stopped."
+    },
+    "GET /search": {
+      "name": "Search",
+      "description": "Searches the owner's content; an empty search returns the recent feed."
+    },
+    "POST /owner-actions/{card_id}/secret": {
+      "name": "Submit a Secret card",
+      "description": "Saves the values typed into a Secret card as workspace secrets, sets up the connection or model key that uses them, and confirms it in the conversation."
+    },
+    "GET /tasks": {
+      "name": "List tasks",
+      "description": "Returns one agent's latest tasks, or the owner's latest across all agents."
+    },
+    "POST /tasks": {
+      "name": "Create a task",
+      "description": "Adds a task."
+    },
+    "GET /tasks/{task_id}": {
+      "name": "Read a task",
+      "description": "Reads one task."
+    },
+    "POST /tasks/control": {
+      "name": "Control a task",
+      "description": "Pauses, resumes or stops a task."
+    },
+    "POST /tasks/{task_id}/complete": {
+      "name": "Mark task done",
+      "description": "Ends a task as done for the owner; it approves and runs nothing."
+    },
+    "GET /threads/inbox": {
+      "name": "Conversation inbox",
+      "description": "Returns the inbox of conversations needing attention."
+    },
+    "POST /threads/read-all": {
+      "name": "Mark all read",
+      "description": "Marks every conversation as read."
+    },
+    "POST /threads/prefs": {
+      "name": "Update many preferences",
+      "description": "Changes settings on several conversations at once."
+    },
+    "GET /threads/settings": {
+      "name": "Read conversation settings",
+      "description": "Returns the owner's conversation settings."
+    },
+    "PUT /threads/settings": {
+      "name": "Save conversation settings",
+      "description": "Saves the owner's conversation settings."
+    },
+    "GET /threads": {
+      "name": "List conversations",
+      "description": "Lists the owner's conversations."
+    },
+    "POST /threads": {
+      "name": "Create a conversation",
+      "description": "Starts a new conversation."
+    },
+    "GET /threads/{thread_id}": {
+      "name": "Read a conversation's details",
+      "description": "Returns one conversation's details."
+    },
+    "DELETE /threads/{thread_id}": {
+      "name": "Delete a conversation",
+      "description": "Removes a conversation."
+    },
+    "PUT /threads/{thread_id}/options": {
+      "name": "Set conversation options",
+      "description": "Sets a conversation's options, such as having the agent gather sources from the web first."
+    },
+    "POST /threads/{thread_id}/read": {
+      "name": "Mark conversation read",
+      "description": "Marks one conversation as read."
+    },
+    "PATCH /threads/{thread_id}/prefs": {
+      "name": "Set conversation preferences",
+      "description": "Changes one conversation's preferences."
+    },
+    "POST /threads/{thread_id}/clear": {
+      "name": "Clear a conversation",
+      "description": "Hides a conversation's history for the owner; the conversation, its grants and the agent stay."
+    },
+    "POST /{ticket_id}/start": {
+      "name": "Start a ticket",
+      "description": "Begins work on a board ticket."
+    },
+    "GET /trading/decisions": {
+      "name": "Trading decision history",
+      "description": "Lists the owner's past trading decisions, read-only."
+    },
+    "GET /trading/decisions/{decision_id}": {
+      "name": "Read a trading decision",
+      "description": "Reads one past trading decision."
+    },
+    "GET /trading/connections": {
+      "name": "List broker connections",
+      "description": "Lists the owner's broker connections."
+    },
+    "POST /trading/connections": {
+      "name": "Connect a broker",
+      "description": "Adds a broker connection."
+    },
+    "DELETE /trading/connections/{connection_id}": {
+      "name": "Disconnect a broker",
+      "description": "Removes a broker connection."
+    },
+    "GET /trading/accounts/{connection_id}": {
+      "name": "Broker account",
+      "description": "Returns the account behind one broker connection."
+    },
+    "POST /trading/connections/{connection_id}/simulation": {
+      "name": "Set up simulation",
+      "description": "Sets up imported simulation data for a broker connection."
+    },
+    "POST /trading/execute": {
+      "name": "Place a trade",
+      "description": "Carries out a trade after the on/off and emergency-stop controls allow it."
+    },
+    "GET /trading/journal": {
+      "name": "Trading journal",
+      "description": "Returns the record of trading activity."
+    },
+    "GET /trading/receipts": {
+      "name": "Trade receipts",
+      "description": "Returns the receipts for the trades carried out in one conversation."
+    },
+    "GET /trading/approvals": {
+      "name": "Trade approvals",
+      "description": "Lists the trades waiting for the owner's approval."
+    },
+    "POST /trading/approvals/{approval_id}/decision": {
+      "name": "Decide a trade approval",
+      "description": "Records the owner's approval or refusal of a trade."
+    },
+    "POST /trading/approvals/{approval_id}/renew": {
+      "name": "Renew a trade approval",
+      "description": "Asks the agent again in the same conversation when a trade approval has expired."
+    },
+    "GET /trusted-sources": {
+      "name": "List trusted sources",
+      "description": "Lists the sources the owner trusts."
+    },
+    "POST /trusted-sources": {
+      "name": "Add a trusted source",
+      "description": "Adds a source to the owner's trusted list."
+    },
+    "POST /trusted-sources/{source_id}/revoke": {
+      "name": "Remove a trusted source",
+      "description": "Takes a source off the owner's trusted list."
+    },
+    "POST /trusted-sources/{source_id}/restore": {
+      "name": "Restore a trusted source",
+      "description": "Puts a removed source back on the trusted list."
+    },
+    "POST /trusted-sources/mcp/{connection_id}/preview": {
+      "name": "Preview a connection's tools",
+      "description": "Reads an outside AI connection's tools so the owner can see them before trusting it."
+    },
+    "POST /trusted-sources/mcp/{connection_id}": {
+      "name": "Trust a connection",
+      "description": "Trusts an outside AI connection's tools."
+    },
+    "GET /usage/summary": {
+      "name": "Usage summary",
+      "description": "Returns a short summary of usage and cost."
+    },
+    "GET /usage/agents": {
+      "name": "Usage by agent",
+      "description": "Returns how much each agent used the models over a chosen number of days."
+    },
+    "GET /usage/series": {
+      "name": "Usage over time",
+      "description": "Returns cost and usage per hour or day against the previous equal period, with the month so far and a projection."
+    },
+    "GET /usage/rank": {
+      "name": "Usage ranking",
+      "description": "Returns the period's usage per agent and per model, most costly first."
+    },
+    "GET /usage/export.csv": {
+      "name": "Export usage",
+      "description": "Exports the usage-over-time figures as a spreadsheet file."
+    },
+    "GET /version": {
+      "name": "App version",
+      "description": "Returns the version of the web app being served."
+    },
+    "POST /voice/sessions": {
+      "name": "Start a voice call",
+      "description": "Opens a live voice session with an agent."
+    },
+    "DELETE /voice/sessions/{session_id}": {
+      "name": "End a voice call",
+      "description": "Closes a voice session."
+    },
+    "POST /voice/sessions/{session_id}/transcript": {
+      "name": "Save voice transcript",
+      "description": "Records what was said in a voice session."
+    },
+    "POST /voice/sessions/{session_id}/interrupt": {
+      "name": "Interrupt the agent",
+      "description": "Cuts in while the agent is speaking in a voice session."
+    },
+    "GET /voice/status": {
+      "name": "Voice status",
+      "description": "Reports whether voice is available and set up."
+    },
+    "GET /voice/sessions/{session_id}": {
+      "name": "Voice session status",
+      "description": "Reports the status of one voice session."
+    },
+    "POST /voice/cancel-initialization": {
+      "name": "Cancel voice setup",
+      "description": "Stops a voice session that is still starting up."
+    },
+    "POST /{watch_id}/control": {
+      "name": "Control a watch",
+      "description": "Cancels, pauses, resumes or extends one of the owner's watches; extending moves its end time later."
+    },
+    "POST /webhook": {
+      "name": "Receive a webhook",
+      "description": "Takes in a message from an outside service that wakes an agent."
+    },
+    "GET /workspace/running": {
+      "name": "List running tasks",
+      "description": "Shows every task running in the workspace and which agent started it."
+    },
+    "POST /workspace/running/stop": {
+      "name": "Stop one task",
+      "description": "Stops one running workspace task."
+    },
+    "POST /workspace/running/stop-all": {
+      "name": "Stop all tasks",
+      "description": "Stops every running workspace task."
+    }
+  }
+}

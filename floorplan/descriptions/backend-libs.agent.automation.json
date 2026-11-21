@@ -1,0 +1,32 @@
+{
+  "files": {
+    "packages/automation/src/lonora_automation/__init__.py": {
+      "name": "Automation package",
+      "description": "Marks the scheduled-routines code as one package; holds no logic of its own."
+    },
+    "packages/automation/src/lonora_automation/binding.py": {
+      "name": "Routine binding check",
+      "description": "Makes sure a routine belongs to the agent whose conversation it runs in."
+    },
+    "packages/automation/src/lonora_automation/delivery.py": {
+      "name": "Routine history",
+      "description": "Reads a routine's run history."
+    },
+    "packages/automation/src/lonora_automation/runner.py": {
+      "name": "Routine dispatcher",
+      "description": "Fires each due routine on its own, so one that fails backs off alone without stopping the rest."
+    },
+    "packages/automation/src/lonora_automation/scheduling.py": {
+      "name": "Next run time",
+      "description": "Works out when a routine should next run."
+    },
+    "packages/automation/src/lonora_automation/service.py": {
+      "name": "Routine service",
+      "description": "The service that manages scheduled routines."
+    },
+    "packages/automation/src/lonora_automation/types.py": {
+      "name": "Scheduled-wake type",
+      "description": "Defines the shape of a scheduled wake."
+    }
+  }
+}

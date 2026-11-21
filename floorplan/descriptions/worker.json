@@ -1,0 +1,28 @@
+{
+  "files": {
+    "apps/worker/src/lonora_worker/__init__.py": {
+      "name": "Worker package",
+      "description": "Marks the always-on worker's code as one package; holds no logic of its own."
+    },
+    "apps/worker/src/lonora_worker/health.py": {
+      "name": "Worker health",
+      "description": "Reports whether the worker is healthy."
+    },
+    "apps/worker/src/lonora_worker/main.py": {
+      "name": "Worker startup",
+      "description": "Starts the always-on worker and keeps it running until it is told to stop."
+    },
+    "apps/worker/src/lonora_worker/process_identity.py": {
+      "name": "Worker id",
+      "description": "Gives the worker process a unique id."
+    },
+    "apps/worker/src/lonora_worker/runtime.py": {
+      "name": "Worker setup",
+      "description": "Builds the worker's background-step engine."
+    },
+    "apps/worker/src/lonora_worker/signals.py": {
+      "name": "Stop signals",
+      "description": "Lets the worker shut down cleanly when the system asks it to stop."
+    }
+  }
+}

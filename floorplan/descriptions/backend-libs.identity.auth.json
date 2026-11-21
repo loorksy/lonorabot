@@ -1,0 +1,32 @@
+{
+  "files": {
+    "packages/auth/src/lonora_auth/__init__.py": {
+      "name": "Sign-in package",
+      "description": "Marks the accounts and sign-in code as one package; holds no logic of its own."
+    },
+    "packages/auth/src/lonora_auth/account_authority.py": {
+      "name": "Grant activation",
+      "description": "Activates a bounded account delegation once a trusted device has verified the owner."
+    },
+    "packages/auth/src/lonora_auth/account_security.py": {
+      "name": "Password handling",
+      "description": "Normalizes an email and safely hashes and checks a password."
+    },
+    "packages/auth/src/lonora_auth/devices.py": {
+      "name": "Device enrollment",
+      "description": "Adds and verifies the owner's trusted devices using standard device sign-in."
+    },
+    "packages/auth/src/lonora_auth/identity.py": {
+      "name": "Owner identity type",
+      "description": "Defines who the signed-in owner is."
+    },
+    "packages/auth/src/lonora_auth/owner_policy.py": {
+      "name": "Create the owner",
+      "description": "Sets up the owner account on first run."
+    },
+    "packages/auth/src/lonora_auth/sessions.py": {
+      "name": "Session tokens",
+      "description": "Issues, reads and ends a sign-in session and checks its request token."
+    }
+  }
+}

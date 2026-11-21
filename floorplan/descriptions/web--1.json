@@ -1,0 +1,164 @@
+{
+  "files": {
+    "apps/web/chart-runtime/index.html": {
+      "name": "Chart mini-app page",
+      "description": "The page that hosts the chart-drawing mini-app."
+    },
+    "apps/web/index.html": {
+      "name": "Web app page",
+      "description": "The single page the web app loads into."
+    },
+    "apps/web/lingui.config.ts": {
+      "name": "Translation config",
+      "description": "Settings for the Arabic and English translations."
+    },
+    "apps/web/public/theme-init.js": {
+      "name": "Theme pre-load",
+      "description": "Applies the saved light or dark look before the first frame is painted."
+    },
+    "apps/web/scripts/verify-chart-assets.mjs": {
+      "name": "Chart asset check",
+      "description": "Checks the bundled chart library files are present."
+    },
+    "apps/web/src/App.tsx": {
+      "name": "Web app root",
+      "description": "The top of the web app: sign-in, then the main shell."
+    },
+    "apps/web/src/chart-render.tsx": {
+      "name": "Chart render entry",
+      "description": "The entry point for the separate chart-drawing page."
+    },
+    "apps/web/src/hooks/useAgents.ts": {
+      "name": "Agents hook",
+      "description": "Loads the owner's agents for the screens."
+    },
+    "apps/web/src/hooks/useCharts.ts": {
+      "name": "Charts hook",
+      "description": "Reads the current chart state."
+    },
+    "apps/web/src/hooks/useEvents.ts": {
+      "name": "Live events hook",
+      "description": "Keeps the live updates connection and feeds changes to the screens."
+    },
+    "apps/web/src/hooks/useLocalPreferences.ts": {
+      "name": "Local preference",
+      "description": "Remembers a small preference in this browser."
+    },
+    "apps/web/src/hooks/useMarket.ts": {
+      "name": "Market hook",
+      "description": "Loads market data for the market and trading screens."
+    },
+    "apps/web/src/hooks/useOverlayHistory.ts": {
+      "name": "Overlay back handling",
+      "description": "Makes the Back button close the top pop-up layer."
+    },
+    "apps/web/src/hooks/usePersistentThread.ts": {
+      "name": "Persistent thread hook",
+      "description": "Loads and keeps an agent's ongoing conversation."
+    },
+    "apps/web/src/hooks/useTheme.ts": {
+      "name": "Theme hook",
+      "description": "Reads and changes the light or dark look."
+    },
+    "apps/web/src/hooks/useThreads.ts": {
+      "name": "Conversations hook",
+      "description": "Loads a conversation's messages, sends and manages them, and tracks runs."
+    },
+    "apps/web/src/hooks/useTrading.ts": {
+      "name": "Trading hook",
+      "description": "Loads trading data for the trading screen."
+    },
+    "apps/web/src/hooks/useVoice.ts": {
+      "name": "Voice hook",
+      "description": "Runs voice calls: start, mute, levels and the call state."
+    },
+    "apps/web/src/i18n/config.ts": {
+      "name": "Language setup",
+      "description": "Loads the Arabic or English text and sets the reading direction."
+    },
+    "apps/web/src/i18n/direction.ts": {
+      "name": "Reading direction",
+      "description": "Sets the page's left-to-right or right-to-left direction."
+    },
+    "apps/web/src/lib/agent-live-state.ts": {
+      "name": "Agent live state (web)",
+      "description": "Reads an agent's live state, refreshed on every change."
+    },
+    "apps/web/src/lib/api.ts": {
+      "name": "Server client (web)",
+      "description": "Talks to the server: sends requests, carries the session, and handles errors and cancellation."
+    },
+    "apps/web/src/lib/artifacts.ts": {
+      "name": "Files API (web)",
+      "description": "Reads the owner's files and builds a file's URL."
+    },
+    "apps/web/src/lib/auth.ts": {
+      "name": "Sign-in API (web)",
+      "description": "Signs in, out, and reads the current session."
+    },
+    "apps/web/src/lib/bootstrap.ts": {
+      "name": "First-run API (web)",
+      "description": "Checks whether the owner is set up and creates the owner account."
+    },
+    "apps/web/src/lib/broker-identity.ts": {
+      "name": "Broker identity (web)",
+      "description": "Names a broker connection by its login, never a raw id."
+    },
+    "apps/web/src/lib/charts.ts": {
+      "name": "Charts API (web)",
+      "description": "Reads charts and their scenes and asks for a refresh."
+    },
+    "apps/web/src/lib/chat-scroll.ts": {
+      "name": "Chat scroll",
+      "description": "Keeps the latest message in view until the owner scrolls up."
+    },
+    "apps/web/src/lib/composer-drafts.ts": {
+      "name": "Composer drafts (web)",
+      "description": "Keeps unsent input and its uploads per conversation."
+    },
+    "apps/web/src/lib/conversation-cache.ts": {
+      "name": "Conversation cache (web)",
+      "description": "A short-lived cache of read conversations."
+    },
+    "apps/web/src/lib/events.ts": {
+      "name": "Live event stream (web)",
+      "description": "Keeps one resumable connection for live updates."
+    },
+    "apps/web/src/lib/failed-replies.ts": {
+      "name": "Failed replies",
+      "description": "Works out which failed replies to show, tied to the owner's own input."
+    },
+    "apps/web/src/lib/held-operation.ts": {
+      "name": "Held operation",
+      "description": "Keeps one trade identity per ticket action until its outcome settles, so a click never sends twice."
+    },
+    "apps/web/src/lib/market.ts": {
+      "name": "Market API (web)",
+      "description": "Reads instruments, quotes, candles and symbols."
+    },
+    "apps/web/src/lib/model_catalog.ts": {
+      "name": "Model catalog (web)",
+      "description": "Lists providers and their models and discovers models."
+    },
+    "apps/web/src/lib/model_routing.ts": {
+      "name": "Model routing (web)",
+      "description": "Reads and saves the model-routing rules."
+    },
+    "apps/web/src/lib/operation-status.ts": {
+      "name": "Operation status (web)",
+      "description": "The owner label for a financial operation, from the shared table."
+    },
+    "apps/web/src/lib/outgoing-messages.ts": {
+      "name": "Outbox (web)",
+      "description": "Holds messages waiting to send, retries them when the network returns, and tracks their uploads."
+    },
+    "apps/web/src/lib/peer_messages.ts": {
+      "name": "Peer messages API (web)",
+      "description": "The agent-to-agent messages, offered through the shared resource requests."
+    },
+    "apps/web/src/lib/response_streaming.ts": {
+      "name": "Reply streaming helper",
+      "description": "Helps turn the live reply stream into shown text."
+    }
+  }
+}

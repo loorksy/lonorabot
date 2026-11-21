@@ -1,0 +1,52 @@
+{
+  "files": {
+    "apps/mobile/lib/session.tsx": {
+      "name": "Session",
+      "description": "Keeps the signed-in session and the server address, used by almost every screen."
+    },
+    "apps/mobile/lib/shell-data.tsx": {
+      "name": "Shell data",
+      "description": "Fetches once for every screen: agents, groups, the inbox, lists, settings, runs and attention."
+    },
+    "apps/mobile/lib/storage.ts": {
+      "name": "Device storage",
+      "description": "Reads and writes device settings and the native sign-in token."
+    },
+    "apps/mobile/lib/text-direction.ts": {
+      "name": "Text direction (phone)",
+      "description": "Works out whether a piece of text reads right-to-left or left-to-right."
+    },
+    "apps/mobile/lib/theme.tsx": {
+      "name": "Theme (phone)",
+      "description": "The dark and light colour themes for the phone."
+    },
+    "apps/mobile/lib/visual-state.ts": {
+      "name": "Rich reply state",
+      "description": "Keeps a rich reply's local state, scoped to the owner and document."
+    },
+    "apps/mobile/lib/voice-device.d.ts": {
+      "name": "Voice device types",
+      "description": "The type definitions for the voice device."
+    },
+    "apps/mobile/lib/voice-device.native.ts": {
+      "name": "Voice device (phone)",
+      "description": "The phone's microphone and audio for a voice call."
+    },
+    "apps/mobile/lib/voice-device.web.ts": {
+      "name": "Voice device (web build)",
+      "description": "The browser's microphone and audio for a voice call."
+    },
+    "apps/mobile/lib/voice-session.tsx": {
+      "name": "Voice session (phone)",
+      "description": "Runs a voice session on the phone and keeps its state."
+    },
+    "apps/mobile/lib/voice-transport.ts": {
+      "name": "Voice transport (phone)",
+      "description": "Carries the voice call's audio to and from the server."
+    },
+    "apps/mobile/lib/voice-types.ts": {
+      "name": "Voice types",
+      "description": "The type definitions for the voice connection."
+    }
+  }
+}

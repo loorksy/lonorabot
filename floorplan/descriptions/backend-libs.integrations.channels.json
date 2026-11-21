@@ -1,0 +1,68 @@
+{
+  "files": {
+    "packages/channels/src/lonora_channels/__init__.py": {
+      "name": "Channels package",
+      "description": "Marks the message-channels code as one package; holds no logic of its own."
+    },
+    "packages/channels/src/lonora_channels/base.py": {
+      "name": "Channel manifest type",
+      "description": "Defines a channel's name and whether it can receive and send."
+    },
+    "packages/channels/src/lonora_channels/contracts.py": {
+      "name": "Incoming-message type",
+      "description": "Defines the shape of a message arriving from an outside channel."
+    },
+    "packages/channels/src/lonora_channels/manager.py": {
+      "name": "Receive a message",
+      "description": "Takes a message in from an allowed outside channel and posts it into the conversation."
+    },
+    "packages/channels/src/lonora_channels/registry.py": {
+      "name": "Channel list",
+      "description": "Lists the available channels: Telegram, in-app and webhook."
+    },
+    "packages/channels/src/lonora_channels/telegram/__init__.py": {
+      "name": "Telegram package",
+      "description": "Marks the Telegram channel code as one package; holds no logic of its own."
+    },
+    "packages/channels/src/lonora_channels/telegram/manifest.py": {
+      "name": "Telegram manifest",
+      "description": "Declares that the Telegram channel can both receive and send."
+    },
+    "packages/channels/src/lonora_channels/telegram/runtime.py": {
+      "name": "Telegram decoding",
+      "description": "Reads an incoming Telegram update into a message."
+    },
+    "packages/channels/src/lonora_channels/telegram/validation.py": {
+      "name": "Telegram token check",
+      "description": "Checks an incoming Telegram request carries the right secret token."
+    },
+    "packages/channels/src/lonora_channels/validation.py": {
+      "name": "Sender check",
+      "description": "Refuses a message from a channel destination that is not allowed."
+    },
+    "packages/channels/src/lonora_channels/webhook/__init__.py": {
+      "name": "Webhook package",
+      "description": "Marks the webhook channel code as one package; holds no logic of its own."
+    },
+    "packages/channels/src/lonora_channels/webhook/manifest.py": {
+      "name": "Webhook manifest",
+      "description": "Declares that the webhook channel can both receive and send."
+    },
+    "packages/channels/src/lonora_channels/webhook/runtime.py": {
+      "name": "Webhook signature check",
+      "description": "Checks an incoming webhook is genuinely signed with the shared secret."
+    },
+    "packages/channels/src/lonora_channels/websocket/__init__.py": {
+      "name": "In-app channel package",
+      "description": "Marks the in-app channel code as one package; holds no logic of its own."
+    },
+    "packages/channels/src/lonora_channels/websocket/manifest.py": {
+      "name": "In-app manifest",
+      "description": "Declares that the in-app channel can both receive and send."
+    },
+    "packages/channels/src/lonora_channels/websocket/runtime.py": {
+      "name": "In-app decoding",
+      "description": "Reads a message coming from the web or phone app."
+    }
+  }
+}

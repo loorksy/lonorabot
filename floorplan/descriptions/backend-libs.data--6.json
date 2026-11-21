@@ -1,0 +1,36 @@
+{
+  "files": {
+    "packages/db/src/lonora_db/usage.py": {
+      "name": "Usage store",
+      "description": "Works out usage and cost per agent, model and time, with the spreadsheet export; a view only, with no cap."
+    },
+    "packages/db/src/lonora_db/voice_notes.py": {
+      "name": "Voice notes store",
+      "description": "Holds the owner's voice notes until their transcript is ready, then lets the agent answer."
+    },
+    "packages/db/src/lonora_db/voice_provenance.py": {
+      "name": "Voice provenance store",
+      "description": "Carries a voice request's provenance onto the run that re-asks it."
+    },
+    "packages/db/src/lonora_db/voice.py": {
+      "name": "Voice sessions store",
+      "description": "Saves and reads voice sessions."
+    },
+    "packages/db/src/lonora_db/workspace_given.py": {
+      "name": "Given secrets store",
+      "description": "Keeps, encrypted for a while, the secret values given to workspace commands, so the output scan still covers them."
+    },
+    "packages/db/src/lonora_db/workspace_processes.py": {
+      "name": "Workspace processes store",
+      "description": "Tracks the background processes an agent started until it is told they ended."
+    },
+    "packages/db/src/lonora_db/workspace_running.py": {
+      "name": "What-is-running store",
+      "description": "Records what is running in the workspace and carries out the owner's stop requests."
+    },
+    "packages/db/src/lonora_db/workspace_wakes.py": {
+      "name": "Workspace wakes store",
+      "description": "Handles the `lonora wake` command that wakes an agent by its handle."
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "files": {
+    "packages/contracts/src/account-authority.ts": {
+      "name": "Delegation shape (apps)",
+      "description": "The shape of a signed account delegation the apps show."
+    },
+    "packages/contracts/src/agent-permissions.ts": {
+      "name": "Permission shapes (apps)",
+      "description": "The shapes of an agent's permission state and its drafts."
+    },
+    "packages/contracts/src/agent-state.ts": {
+      "name": "Agent state shapes (apps)",
+      "description": "The shapes of an agent's live state and current work."
+    },
+    "packages/contracts/src/attention.ts": {
+      "name": "Attention shapes (apps)",
+      "description": "The shapes of the attention events, notifications, policy and view."
+    },
+    "packages/contracts/src/auth.ts": {
+      "name": "Sign-in shapes (apps)",
+      "description": "The shapes of the owner and a web or phone sign-in."
+    },
+    "packages/contracts/src/capabilities.ts": {
+      "name": "Capabilities shapes (apps)",
+      "description": "The shapes of the Capabilities view and the trusted-sources list."
+    },
+    "packages/contracts/src/devices.ts": {
+      "name": "Device shapes (apps)",
+      "description": "The shapes of a device challenge and its signed proof; a proof alone is never a grant."
+    },
+    "packages/contracts/src/domain.ts": {
+      "name": "Core app shapes",
+      "description": "The common shapes the apps use — agents, conversations, messages, reactions and card sends."
+    },
+    "packages/contracts/src/events.ts": {
+      "name": "Event shapes (apps)",
+      "description": "The shapes of a live event and its reaction and conversation updates."
+    },
+    "packages/contracts/src/genui-catalog.ts": {
+      "name": "Card catalog",
+      "description": "The set of card building blocks, actions, routes and slot cards the apps know."
+    },
+    "packages/contracts/src/genui.ts": {
+      "name": "Card shapes (apps)",
+      "description": "The shapes of a generated-UI card as stored and streamed."
+    },
+    "packages/contracts/src/index.ts": {
+      "name": "Shared shapes entry",
+      "description": "Gathers and re-exports all the shared data shapes for the apps."
+    },
+    "packages/contracts/src/models.ts": {
+      "name": "Model shapes (apps)",
+      "description": "The shapes of providers, models, an agent's model choice and usage."
+    },
+    "packages/contracts/src/notifications.ts": {
+      "name": "Notification shapes (apps)",
+      "description": "The shapes of the reach-me policy and per-agent delivery rules."
+    },
+    "packages/contracts/src/owner-actions.ts": {
+      "name": "Owner action shapes (apps)",
+      "description": "The shapes of the owner action cards, including the Secret and grant cards."
+    },
+    "packages/contracts/src/performance.ts": {
+      "name": "Results shapes (apps)",
+      "description": "The shapes of an agent's results from confirmed closed trades."
+    },
+    "packages/contracts/src/runs.ts": {
+      "name": "Run shapes (apps)",
+      "description": "The shapes of a run, its reply stream, questions and why it failed."
+    },
+    "packages/contracts/src/search.ts": {
+      "name": "Search shapes (apps)",
+      "description": "The shapes of a search result and response."
+    },
+    "packages/contracts/src/skills.ts": {
+      "name": "Skill shapes (apps)",
+      "description": "The shapes of a skill, its manifest and catalog."
+    },
+    "packages/contracts/src/trading.ts": {
+      "name": "Trading shapes (apps)",
+      "description": "The shapes of quotes, candles, accounts, positions, orders, trades and receipts."
+    },
+    "packages/contracts/src/usage.ts": {
+      "name": "Usage shapes (apps)",
+      "description": "The shapes of usage figures over time; no limit exists."
+    },
+    "packages/contracts/src/visual-response.ts": {
+      "name": "Rich reply shapes (apps)",
+      "description": "The shapes of an agent's rich reply and its values."
+    }
+  }
+}

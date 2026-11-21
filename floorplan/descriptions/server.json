@@ -1,0 +1,102 @@
+{
+  "files": {
+    "apps/api/src/lonora_api/__init__.py": {
+      "name": "Server package",
+      "description": "Marks the server code as one package; holds no logic of its own."
+    },
+    "apps/api/src/lonora_api/app.py": {
+      "name": "Server assembly",
+      "description": "Builds the server: wires in the request guards, the sign-in and feature requests, the app-link and Android download addresses, and serves the web app for every other address."
+    },
+    "apps/api/src/lonora_api/chart_renderer.py": {
+      "name": "Chart renderer",
+      "description": "Serves the separate mini-app and its files that draw the trading charts."
+    },
+    "apps/api/src/lonora_api/cli/__init__.py": {
+      "name": "Command-line package",
+      "description": "Marks the code behind the `lonora` command as one package; holds no logic of its own."
+    },
+    "apps/api/src/lonora_api/cli/app.py": {
+      "name": "Command-line entry",
+      "description": "The one way the `lonora` command reaches Lonora: it checks the caller's pass, then runs the named command (prices, candles, a snapshot, a notification, a wake) for the agent it belongs to, refusing anything that names no agent."
+    },
+    "apps/api/src/lonora_api/device_metadata.py": {
+      "name": "App link details",
+      "description": "Serves the public details that let the iOS and Android apps claim their links, never trusting anything the caller sends to decide who is who."
+    },
+    "apps/api/src/lonora_api/env.py": {
+      "name": "Server settings",
+      "description": "Reads the server's settings from its environment and hands them to the rest of the server."
+    },
+    "apps/api/src/lonora_api/errors.py": {
+      "name": "Error handling",
+      "description": "Turns errors into clean, consistent replies for the apps."
+    },
+    "apps/api/src/lonora_api/health.py": {
+      "name": "Health & readiness",
+      "description": "Answers whether the server is alive and whether it's ready to serve, checking the database and the worker's heartbeat; a missing phone never fails it."
+    },
+    "apps/api/src/lonora_api/http_body.py": {
+      "name": "Upload size limit",
+      "description": "Caps how large a request body can be before it is read, so oversized uploads are refused early."
+    },
+    "apps/api/src/lonora_api/pdf_layers.py": {
+      "name": "PDF reading",
+      "description": "Pulls out what an agent can read from an uploaded PDF — its text, or an image of a scanned page — in a separate process that is killed if it takes too long."
+    },
+    "apps/api/src/lonora_api/runtime.py": {
+      "name": "Shared server state",
+      "description": "Holds the shared pieces every request uses — chiefly the database connection — created once when the server starts."
+    },
+    "apps/api/src/lonora_api/server.py": {
+      "name": "Server startup",
+      "description": "Starts the server: it ensures the owner account exists, then serves the apps on a host and port and the `lonora` command on a local socket, in one process."
+    }
+  },
+  "routes": {
+    "GET /.well-known/assetlinks.json": {
+      "name": "Android app link proof",
+      "description": "Serves the details that let the Android app open Lonora's links directly."
+    },
+    "GET /.well-known/apple-app-site-association": {
+      "name": "Apple app link proof",
+      "description": "Serves the details that let the iOS app open Lonora's links directly."
+    },
+    "GET /download/lonora.apk": {
+      "name": "Download Android app",
+      "description": "Serves the Android app file for download, refusing it if the file is missing or not a real app package."
+    },
+    "HEAD /download/lonora.apk": {
+      "name": "Check Android app download",
+      "description": "Reports whether the Android app file is available to download, without sending it."
+    },
+    "GET /{path:path}": {
+      "name": "Serve the web app",
+      "description": "Serves the web app's files for any address that isn't a server request, falling back to the main page so the app can route it."
+    },
+    "GET /charts/render": {
+      "name": "Open chart renderer",
+      "description": "Serves the small mini-app page that draws the trading charts."
+    },
+    "GET /chart-runtime/{path:path}": {
+      "name": "Chart renderer files",
+      "description": "Serves the files the chart mini-app needs."
+    },
+    "GET /charting_library/{path:path}": {
+      "name": "Charting library files",
+      "description": "Serves the files of the bundled charting library the charts are built on."
+    },
+    "POST /v1/{command}": {
+      "name": "Run a command",
+      "description": "Runs one `lonora` command for the agent whose pass is presented, and refuses when no agent is named, reading and sending nothing."
+    },
+    "GET /api/health": {
+      "name": "Is the server alive",
+      "description": "Reports the server is OK, failing if the database can't be reached."
+    },
+    "GET /api/ready": {
+      "name": "Is the server ready",
+      "description": "Reports the server is ready only when the database is reachable and the worker's heartbeat is fresh; a phone not being set up is reported, not failed."
+    }
+  }
+}

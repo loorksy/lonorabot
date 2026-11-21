@@ -1,0 +1,174 @@
+{
+  "files": {
+    "packages/tools/src/lonora_tools/__init__.py": {
+      "name": "Agent-tools package",
+      "description": "Marks the agent-tools code as one package; holds no logic of its own."
+    },
+    "packages/tools/src/lonora_tools/account.py": {
+      "name": "Read a trading account",
+      "description": "Lets an agent read a trading account: its balance, open positions and orders, and recent broker activity."
+    },
+    "packages/tools/src/lonora_tools/agents.py": {
+      "name": "See & create agents",
+      "description": "Lets an agent see the other agents and create new persistent agents from the conversation, with a guard against runaway loops."
+    },
+    "packages/tools/src/lonora_tools/artifacts.py": {
+      "name": "Save & read files",
+      "description": "Lets an agent save files and read back images and stored files it is allowed to see."
+    },
+    "packages/tools/src/lonora_tools/base.py": {
+      "name": "Tool foundations",
+      "description": "The shared foundation every agent tool is built on."
+    },
+    "packages/tools/src/lonora_tools/broker_connect.py": {
+      "name": "Connect a broker",
+      "description": "Lets an agent connect, re-key or switch off the owner's trading account from chat, only on the owner's own typed request."
+    },
+    "packages/tools/src/lonora_tools/browser_service.py": {
+      "name": "Browser service",
+      "description": "A separate, isolated web browser agents use to read pages, with no database, owner secrets or saved sign-ins of its own."
+    },
+    "packages/tools/src/lonora_tools/browser.py": {
+      "name": "Browse the web (tool)",
+      "description": "The agent tool that reads a web page anonymously through the isolated research browser."
+    },
+    "packages/tools/src/lonora_tools/capabilities.py": {
+      "name": "Capabilities report",
+      "description": "Builds the report of everything an agent can use right now, for the owner's Capabilities view and for agents."
+    },
+    "packages/tools/src/lonora_tools/chart_indicator.py": {
+      "name": "Chart indicators",
+      "description": "Works out a technical indicator's values for a chart."
+    },
+    "packages/tools/src/lonora_tools/chart_snapshot.py": {
+      "name": "Chart snapshot",
+      "description": "Takes a picture of a chart's current state for an agent to look at."
+    },
+    "packages/tools/src/lonora_tools/chart_state.py": {
+      "name": "Edit a chart",
+      "description": "Lets an agent read and change a chart: its symbol, timeframe, indicators and drawings."
+    },
+    "packages/tools/src/lonora_tools/chart.py": {
+      "name": "Create a chart",
+      "description": "Lets an agent create a new chart."
+    },
+    "packages/tools/src/lonora_tools/cli_token.py": {
+      "name": "Command-line pass",
+      "description": "Decides which commands get an agent's `lonora` pass, so one agent's pass never lands in another agent's process."
+    },
+    "packages/tools/src/lonora_tools/collaboration.py": {
+      "name": "Work together",
+      "description": "Lets an agent start, inspect and finish working together with another agent."
+    },
+    "packages/tools/src/lonora_tools/consult.py": {
+      "name": "Second opinion",
+      "description": "Lets an agent ask another configured model for an optional second opinion."
+    },
+    "packages/tools/src/lonora_tools/context.py": {
+      "name": "Tool context",
+      "description": "Carries the shared details every tool call needs: the owner, agent, run and database."
+    },
+    "packages/tools/src/lonora_tools/environment.py": {
+      "name": "Tool inspection",
+      "description": "Lets a tool safely look at the real set of available tools."
+    },
+    "packages/tools/src/lonora_tools/feeds.py": {
+      "name": "News feeds",
+      "description": "Lets an agent read and subscribe to news and RSS feeds."
+    },
+    "packages/tools/src/lonora_tools/incoming_call.py": {
+      "name": "Reach the owner",
+      "description": "Lets an agent ask to reach the owner, spending the owner's existing attention rather than adding to it."
+    },
+    "packages/tools/src/lonora_tools/knowledge.py": {
+      "name": "Knowledge notes",
+      "description": "Lets an agent add, list and remove knowledge notes from chat."
+    },
+    "packages/tools/src/lonora_tools/loader.py": {
+      "name": "Tool loader",
+      "description": "Loads the full set of agent tools."
+    },
+    "packages/tools/src/lonora_tools/market_analysis.py": {
+      "name": "Market evidence",
+      "description": "Lets an agent read market evidence for its own analysis — snapshots, sessions, the calendar and candles — never signals or orders."
+    },
+    "packages/tools/src/lonora_tools/market_binding.py": {
+      "name": "Market binding",
+      "description": "Fills in which account and symbol a market tool call means, and guards the money tools for the run."
+    },
+    "packages/tools/src/lonora_tools/market_watch.py": {
+      "name": "Market watches",
+      "description": "Lets an agent set, read, steer, pause and cancel live market watches, avoiding duplicate watches of the same thing."
+    },
+    "packages/tools/src/lonora_tools/market.py": {
+      "name": "Read the market",
+      "description": "Lets an agent read prices, quotes, candles and instrument details for a symbol."
+    },
+    "packages/tools/src/lonora_tools/mcp.py": {
+      "name": "Outside AI connections",
+      "description": "Lets an agent discover, review and use the tools of saved outside AI connections, checking who is allowed before any network call."
+    },
+    "packages/tools/src/lonora_tools/memory.py": {
+      "name": "Memory (tool)",
+      "description": "Lets an agent read and write its durable memory and the shared owner profile, with version history it can restore."
+    },
+    "packages/tools/src/lonora_tools/message.py": {
+      "name": "Message a peer",
+      "description": "Lets an agent send a message or a reaction to another agent."
+    },
+    "packages/tools/src/lonora_tools/models.py": {
+      "name": "Assign a model",
+      "description": "Lets the owner, through chat, assign which AI model an agent uses."
+    },
+    "packages/tools/src/lonora_tools/opportunity.py": {
+      "name": "Opportunities (tool)",
+      "description": "Lets an agent create, read, update and list trading opportunities it has spotted."
+    },
+    "packages/tools/src/lonora_tools/owner_actions.py": {
+      "name": "Propose an action card",
+      "description": "Lets an agent put an action card — including a Mandate card — in the conversation for the owner to decide."
+    },
+    "packages/tools/src/lonora_tools/performance.py": {
+      "name": "Read results",
+      "description": "Lets an agent read its own trading results."
+    },
+    "packages/tools/src/lonora_tools/position_sizing.py": {
+      "name": "Position sizing",
+      "description": "Works out a read-only size estimate for a trade; it never creates a trade proposal."
+    },
+    "packages/tools/src/lonora_tools/profile_taint.py": {
+      "name": "Owner-observation guard",
+      "description": "Decides whether a run may record Lonora's observations about the owner, based on whether it has read content others wrote."
+    },
+    "packages/tools/src/lonora_tools/provenance.py": {
+      "name": "Who a run speaks for",
+      "description": "Tracks whether a run acts on the owner's own words or on content others wrote, so outside input is never treated as the owner's instruction."
+    },
+    "packages/tools/src/lonora_tools/registry.py": {
+      "name": "Tool registry",
+      "description": "Holds the full set of tools and marks which ones return content written by someone other than the owner."
+    },
+    "packages/tools/src/lonora_tools/relationships.py": {
+      "name": "Relationship evidence",
+      "description": "Lets a normal agent record and read one measured, read-only kind of evidence."
+    },
+    "packages/tools/src/lonora_tools/resolve.py": {
+      "name": "Name resolving",
+      "description": "Turns what the owner called something into the actual item, or asks which one when it is unclear."
+    },
+    "packages/tools/src/lonora_tools/routine.py": {
+      "name": "Routines (tool)",
+      "description": "Lets an agent create and read its scheduled routines and switch them on or off."
+    }
+  },
+  "routes": {
+    "GET /health": {
+      "name": "Browser health",
+      "description": "Reports whether the isolated research browser is up; an internal check, not reached from the apps."
+    },
+    "POST /browse": {
+      "name": "Fetch a web page",
+      "description": "Opens and reads a web page in the isolated research browser, refusing when it is busy and giving up if the page takes too long."
+    }
+  }
+}

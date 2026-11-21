@@ -1,0 +1,92 @@
+{
+  "files": {
+    "packages/market/src/lonora_market/__init__.py": {
+      "name": "Market package",
+      "description": "Marks the market-data code as one package; holds no logic of its own."
+    },
+    "packages/market/src/lonora_market/broker.py": {
+      "name": "Broker market source",
+      "description": "Picks the right source of market data for one broker account."
+    },
+    "packages/market/src/lonora_market/cache.py": {
+      "name": "Market cache",
+      "description": "A short-lived store of recent market data so it loads faster."
+    },
+    "packages/market/src/lonora_market/candle_store.py": {
+      "name": "Candle store",
+      "description": "Saves the broker's official price bars under the same account record as its quotes."
+    },
+    "packages/market/src/lonora_market/candles.py": {
+      "name": "Candles for analysis",
+      "description": "Checks a series of price bars and writes them out exactly for analysis files, without rounding or resampling."
+    },
+    "packages/market/src/lonora_market/detectors.py": {
+      "name": "Market detectors",
+      "description": "Versioned, exact observations over real prices, reused for live watching and replay."
+    },
+    "packages/market/src/lonora_market/economic_calendar.py": {
+      "name": "Economic calendar",
+      "description": "Reads the owner's economic-calendar sources, serves the upcoming events, and keeps a cached copy."
+    },
+    "packages/market/src/lonora_market/health.py": {
+      "name": "Market-data health",
+      "description": "Checks that quotes, candles and account data are fresh and sound before they are used."
+    },
+    "packages/market/src/lonora_market/instruments.py": {
+      "name": "Instrument matching",
+      "description": "Works out which of a broker account's symbols a request for an instrument means."
+    },
+    "packages/market/src/lonora_market/models.py": {
+      "name": "Market snapshot type",
+      "description": "Defines the shape of a market snapshot."
+    },
+    "packages/market/src/lonora_market/provider.py": {
+      "name": "Market provider",
+      "description": "The common way the rest of the system reads quotes and candles."
+    },
+    "packages/market/src/lonora_market/quotes.py": {
+      "name": "Quote freshness",
+      "description": "Checks whether a quote is recent enough to use."
+    },
+    "packages/market/src/lonora_market/relationships.py": {
+      "name": "Market correlations",
+      "description": "Works out, on the server, how two instruments have moved together over matching closed bars."
+    },
+    "packages/market/src/lonora_market/runtime.py": {
+      "name": "Market runtime",
+      "description": "The always-on part that keeps broker-neutral market observations up to date."
+    },
+    "packages/market/src/lonora_market/sessions.py": {
+      "name": "Trading-session clock",
+      "description": "Works out the current trading sessions and the trading week from time zones, handling daylight saving."
+    },
+    "packages/market/src/lonora_market/snapshot.py": {
+      "name": "Market snapshot",
+      "description": "Builds a compact set of market facts across timeframes from closed bars — facts only, never trade signals."
+    },
+    "packages/market/src/lonora_market/streaming.py": {
+      "name": "Quote stream",
+      "description": "Streams a symbol's quote, sending an update only when the price changes."
+    },
+    "packages/market/src/lonora_market/structure.py": {
+      "name": "Price structure",
+      "description": "Finds swing highs and lows and recent lines in closed bars — facts, never trading decisions."
+    },
+    "packages/market/src/lonora_market/watch_control.py": {
+      "name": "Watch trigger check",
+      "description": "Decides whether a watch may fire again yet, respecting its cooldown."
+    },
+    "packages/market/src/lonora_market/watch_health.py": {
+      "name": "Watch health",
+      "description": "Records meaningful changes in a watch's health."
+    },
+    "packages/market/src/lonora_market/watch_lifecycle.py": {
+      "name": "Watch transitions",
+      "description": "The exact rule that moves a watch forward, used both live and in replay."
+    },
+    "packages/market/src/lonora_market/watchers.py": {
+      "name": "Market watchers",
+      "description": "Evaluates each live market watch against fresh data and fires it when its condition is met, disabling one that keeps failing."
+    }
+  }
+}

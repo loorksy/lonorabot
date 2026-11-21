@@ -1,0 +1,144 @@
+{
+  "files": {
+    "apps/web/src/lib/reveal.ts": {
+      "name": "Reply pacing",
+      "description": "Shows a streaming reply a word at a time, smoothly, instead of in bursts."
+    },
+    "apps/web/src/lib/rpc.ts": {
+      "name": "Resource requests (web)",
+      "description": "A reusable set of list, add, change and remove requests for the simple resources."
+    },
+    "apps/web/src/lib/run-activity.ts": {
+      "name": "Run activity (web)",
+      "description": "Turns a run's real activity into the avatar's state."
+    },
+    "apps/web/src/lib/stream-timeline.ts": {
+      "name": "Stream timeline",
+      "description": "Places a streaming reply at the message it answers."
+    },
+    "apps/web/src/lib/thread_cache.ts": {
+      "name": "Thread cache",
+      "description": "A small in-memory cache of recent conversations' messages."
+    },
+    "apps/web/src/lib/trading.ts": {
+      "name": "Trading API (web)",
+      "description": "Reads broker connections and accounts and places a trade."
+    },
+    "apps/web/src/lib/tradingview-drawings.ts": {
+      "name": "Chart drawings",
+      "description": "Shows an agent's saved chart drawings on the trading chart."
+    },
+    "apps/web/src/lib/tradingview-feed.ts": {
+      "name": "Chart data feed",
+      "description": "Feeds the trading chart with the broker's own prices."
+    },
+    "apps/web/src/lib/tradingview-studies.ts": {
+      "name": "Chart indicators (web)",
+      "description": "Shows the server's indicator values on the trading chart."
+    },
+    "apps/web/src/lib/user_error.ts": {
+      "name": "Error text (web)",
+      "description": "The owner-facing text for each error code."
+    },
+    "apps/web/src/lib/voice.ts": {
+      "name": "Voice transport (web)",
+      "description": "Carries the voice call's audio to and from the server in the browser."
+    },
+    "apps/web/src/lib/watches.ts": {
+      "name": "Watches API (web)",
+      "description": "The owner's market watches, offered through the shared resource requests."
+    },
+    "apps/web/src/main.tsx": {
+      "name": "Web app entry",
+      "description": "Starts the web app."
+    },
+    "apps/web/src/pages/ActivityList.tsx": {
+      "name": "Activity list",
+      "description": "Lists the agents' runs and their activity."
+    },
+    "apps/web/src/pages/Artifacts.tsx": {
+      "name": "Files page",
+      "description": "Searches and lists the owner's files."
+    },
+    "apps/web/src/pages/Board.tsx": {
+      "name": "Board page",
+      "description": "A board of tickets."
+    },
+    "apps/web/src/pages/GroupPanel.tsx": {
+      "name": "Group panel",
+      "description": "Creating and setting up a group."
+    },
+    "apps/web/src/pages/Knowledge.tsx": {
+      "name": "Knowledge page",
+      "description": "An agent's knowledge, scratchpad and skills."
+    },
+    "apps/web/src/pages/KnowledgeSection.tsx": {
+      "name": "Knowledge section",
+      "description": "The knowledge notes and links part of the knowledge page."
+    },
+    "apps/web/src/pages/Market.tsx": {
+      "name": "Market page",
+      "description": "Market data, charts, quotes and watches."
+    },
+    "apps/web/src/pages/MemoryRevisions.tsx": {
+      "name": "Memory history page",
+      "description": "The attributed, undoable changes to memory and the owner profile."
+    },
+    "apps/web/src/pages/ScratchpadSection.tsx": {
+      "name": "Scratchpad section",
+      "description": "The agent's scratchpad notes."
+    },
+    "apps/web/src/pages/shell/bot-picker.tsx": {
+      "name": "Agent picker",
+      "description": "Chooses which agent a page is about."
+    },
+    "apps/web/src/pages/shell/bot-settings.tsx": {
+      "name": "Agent settings (legacy page)",
+      "description": "An agent's settings: identity, model and market."
+    },
+    "apps/web/src/pages/shell/shell.css": {
+      "name": "Shell layout styles",
+      "description": "Layout styles for the shell and panels."
+    },
+    "apps/web/src/pages/SkillsSection.tsx": {
+      "name": "Skills section",
+      "description": "The agent's skills part of the knowledge page."
+    },
+    "apps/web/src/pages/Trading.tsx": {
+      "name": "Trading page",
+      "description": "The account summary, positions, orders, approvals and journal."
+    },
+    "apps/web/src/pages/VoiceSettingsOverlay.tsx": {
+      "name": "Voice settings overlay",
+      "description": "The voice settings pop-up."
+    },
+    "apps/web/src/providers/AttentionProvider.tsx": {
+      "name": "Attention provider",
+      "description": "Keeps the owner's attention items up to date for the screens."
+    },
+    "apps/web/src/providers/ClientProvider.tsx": {
+      "name": "Client provider",
+      "description": "Holds the shared app state the screens read."
+    },
+    "apps/web/src/providers/VoiceProvider.tsx": {
+      "name": "Voice provider",
+      "description": "Runs the voice call behind the screens."
+    },
+    "apps/web/src/styles.css": {
+      "name": "Web app styles",
+      "description": "The web app's main styles."
+    },
+    "apps/web/src/theme.overrides.css": {
+      "name": "Theme overrides",
+      "description": "The Lonora shell layout and theme overrides."
+    },
+    "apps/web/src/vite-env.d.ts": {
+      "name": "Build types",
+      "description": "Build-time type definitions for the web app."
+    },
+    "apps/web/vite.config.ts": {
+      "name": "Web build config",
+      "description": "How the web app is built and served in development."
+    }
+  }
+}

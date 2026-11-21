@@ -1,0 +1,164 @@
+{
+  "files": {
+    "apps/mobile/components/action-menu.tsx": {
+      "name": "Action menu",
+      "description": "A pop-up menu of actions, with a portable fallback."
+    },
+    "apps/mobile/components/agent-live-status.tsx": {
+      "name": "Agent activity strip",
+      "description": "The thread's background-activity strip, from one poll of the agent's live state."
+    },
+    "apps/mobile/components/agent-market-picker.tsx": {
+      "name": "Market picker",
+      "description": "Chooses an agent's broker account and market."
+    },
+    "apps/mobile/components/agent-model-settings.tsx": {
+      "name": "Agent model settings",
+      "description": "One agent's model choice and usage, the same as on the web."
+    },
+    "apps/mobile/components/agent-permissions.tsx": {
+      "name": "Mandate control",
+      "description": "The agent's trading-mode control; nothing when no account is connected."
+    },
+    "apps/mobile/components/artifact-file-card.tsx": {
+      "name": "File card",
+      "description": "An inline card for a stored file, using authenticated bytes."
+    },
+    "apps/mobile/components/attention-view.tsx": {
+      "name": "Attention view (phone)",
+      "description": "What needs the owner across all agents, from one server projection, the same list as the web."
+    },
+    "apps/mobile/components/avatar-picker.tsx": {
+      "name": "Avatar picker",
+      "description": "Chooses an agent's avatar shape and colour."
+    },
+    "apps/mobile/components/bot-avatar.tsx": {
+      "name": "Agent avatar (phone)",
+      "description": "Draws an agent's avatar natively with its idle motion."
+    },
+    "apps/mobile/components/bot-member-picker.tsx": {
+      "name": "Member picker",
+      "description": "Picks a group's members."
+    },
+    "apps/mobile/components/broker-pair-picker.tsx": {
+      "name": "Pair picker",
+      "description": "Chooses a broker currency pair."
+    },
+    "apps/mobile/components/candlestick-chart.tsx": {
+      "name": "Candle chart",
+      "description": "Draws a candlestick price chart."
+    },
+    "apps/mobile/components/card-facts.tsx": {
+      "name": "Card fact rows",
+      "description": "Draws a card's label/value rows and evidence lines natively, as on the web."
+    },
+    "apps/mobile/components/chart-renderer.tsx": {
+      "name": "Chart renderer (phone)",
+      "description": "Draws a saved chart scene on the phone."
+    },
+    "apps/mobile/components/chart-renderer.web.tsx": {
+      "name": "Chart renderer (web build)",
+      "description": "Draws a saved chart scene in the Expo web build."
+    },
+    "apps/mobile/components/chart-sheet.tsx": {
+      "name": "Chart sheet",
+      "description": "The bottom sheet that opens a chart."
+    },
+    "apps/mobile/components/chat-prefs-sheet.tsx": {
+      "name": "Chat preferences sheet",
+      "description": "The switches a conversation honours, opened from its menu."
+    },
+    "apps/mobile/components/composer-reply-preview.tsx": {
+      "name": "Reply preview",
+      "description": "Shows the message being replied to above the composer."
+    },
+    "apps/mobile/components/conversation-question.tsx": {
+      "name": "Conversation question",
+      "description": "Shows an agent's question in the conversation and takes the answer."
+    },
+    "apps/mobile/components/conversation-row.tsx": {
+      "name": "Conversation row (legacy)",
+      "description": "A conversation row from the template's inbox."
+    },
+    "apps/mobile/components/execution-receipt.tsx": {
+      "name": "Execution receipt card",
+      "description": "Draws the receipt for a broker-confirmed trade, with the broker's own facts."
+    },
+    "apps/mobile/components/fitted-text.tsx": {
+      "name": "Fitted text",
+      "description": "Shows a message cut to the space it is given."
+    },
+    "apps/mobile/components/genui/card.tsx": {
+      "name": "Card (phone)",
+      "description": "Draws a generated-UI card natively, the twin of the web card."
+    },
+    "apps/mobile/components/genui/host.tsx": {
+      "name": "Card host",
+      "description": "Gives a card what it needs from its conversation: locks, marks and send state."
+    },
+    "apps/mobile/components/genui/nodes.tsx": {
+      "name": "Card building blocks",
+      "description": "Draws every building block a generated card can use on the phone."
+    },
+    "apps/mobile/components/genui/theme.ts": {
+      "name": "Card palette (phone)",
+      "description": "The card colours in dark and light on the phone."
+    },
+    "apps/mobile/components/group-avatar.tsx": {
+      "name": "Group avatar (phone)",
+      "description": "Draws a group's avatar from its members."
+    },
+    "apps/mobile/components/header-button.tsx": {
+      "name": "Header button",
+      "description": "A button in a screen's top bar."
+    },
+    "apps/mobile/components/heads-up.tsx": {
+      "name": "Heads-up banner",
+      "description": "Shows an agent's answer that arrives in another chat at the top of the screen for a few seconds."
+    },
+    "apps/mobile/components/incoming-call-settings.tsx": {
+      "name": "Reach-me settings",
+      "description": "How agents reach the owner, the same preference as the web."
+    },
+    "apps/mobile/components/incoming-call.tsx": {
+      "name": "Incoming call overlay",
+      "description": "Shows an incoming voice call to the owner."
+    },
+    "apps/mobile/components/markdown.tsx": {
+      "name": "Formatted text (phone)",
+      "description": "Draws formatted message text on the phone."
+    },
+    "apps/mobile/components/message-bubble.tsx": {
+      "name": "Message bubble",
+      "description": "Draws one message, with its attachments, reactions and rich content."
+    },
+    "apps/mobile/components/message-menu.tsx": {
+      "name": "Message menu",
+      "description": "The long-press menu on a message: reactions and actions."
+    },
+    "apps/mobile/components/native-rich-controls.tsx": {
+      "name": "Rich reply inputs",
+      "description": "The input and slider controls inside a rich agent reply."
+    },
+    "apps/mobile/components/native-rich-graphics.tsx": {
+      "name": "Rich reply charts",
+      "description": "The chart and diagram inside a rich agent reply."
+    },
+    "apps/mobile/components/native-rich-response.tsx": {
+      "name": "Rich reply (phone)",
+      "description": "Draws an agent's rich reply natively: text, controls, charts and diagrams."
+    },
+    "apps/mobile/components/native-rich-theme.ts": {
+      "name": "Rich reply palette",
+      "description": "The shared colours for rich replies, matching the web."
+    },
+    "apps/mobile/components/native-symbol.tsx": {
+      "name": "Symbol icon",
+      "description": "A portable icon that stands in for the system symbols."
+    },
+    "apps/mobile/components/owner-action-card.tsx": {
+      "name": "Owner action card (phone)",
+      "description": "Draws one owner action card from the shared spec, in the owner's language."
+    }
+  }
+}

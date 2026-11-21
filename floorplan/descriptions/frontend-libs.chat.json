@@ -1,0 +1,32 @@
+{
+  "files": {
+    "packages/chat-ui/src/icons.tsx": {
+      "name": "Chat icons",
+      "description": "The small icons used in the chat, such as copy, check, image and globe."
+    },
+    "packages/chat-ui/src/markdown-table.css": {
+      "name": "Message table styles",
+      "description": "The styles for a table inside a message."
+    },
+    "packages/chat-ui/src/markdown-table.tsx": {
+      "name": "Message table",
+      "description": "Draws a sortable table inside a message."
+    },
+    "packages/chat-ui/src/markdown.ts": {
+      "name": "Message formatting",
+      "description": "Turns a message's text into formatted content, making links tappable and keeping bot-output images from loading on their own."
+    },
+    "packages/chat-ui/src/markdown.web.css": {
+      "name": "Message text styles",
+      "description": "The styles for formatted message text on the web."
+    },
+    "packages/chat-ui/src/markdown.web.tsx": {
+      "name": "Formatted message (web)",
+      "description": "Draws a formatted message on the web."
+    },
+    "packages/chat-ui/src/table-utils.ts": {
+      "name": "Table helpers",
+      "description": "Reads a table out of a message and sorts its rows, handling numbers and currencies."
+    }
+  }
+}

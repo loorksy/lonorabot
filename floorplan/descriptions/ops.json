@@ -1,0 +1,96 @@
+{
+  "files": {
+    "scripts/agent_eval/acceptance.py": {
+      "name": "Acceptance scenario",
+      "description": "Runs the mandate's acceptance scenario step by step to check Lonora behaves as required."
+    },
+    "scripts/agent_eval/bank.py": {
+      "name": "Scenario bank",
+      "description": "The set of acceptance scenarios and the starting state for each."
+    },
+    "scripts/agent_eval/broker.py": {
+      "name": "Fake broker (eval)",
+      "description": "A stand-in trading terminal behind Lonora's real broker code, for the evaluations."
+    },
+    "scripts/agent_eval/run.py": {
+      "name": "Acceptance run",
+      "description": "Runs the scenarios on the real tools against a fake broker."
+    },
+    "scripts/agent_eval/runner.py": {
+      "name": "Eval runner",
+      "description": "Runs the real server in-process on a throwaway database for the evaluations."
+    },
+    "scripts/agent_eval/score.py": {
+      "name": "Acceptance scorer",
+      "description": "Scores the evaluation runs with fixed rules — no model, network or database."
+    },
+    "scripts/backup.sh": {
+      "name": "Backup",
+      "description": "Saves an encrypted backup of the database, provider keys and files."
+    },
+    "scripts/build.sh": {
+      "name": "Build & checks",
+      "description": "Runs the code checks and builds the web and mobile apps."
+    },
+    "scripts/cache_model_tokenizers.py": {
+      "name": "Prepare token caches",
+      "description": "Downloads the token-counting data once during setup."
+    },
+    "scripts/capture-avatar-refinement.mjs": {
+      "name": "Avatar capture",
+      "description": "Captures the real avatar's look for review."
+    },
+    "scripts/check_policy_distribution.py": {
+      "name": "Check packaged policy",
+      "description": "Builds the production package offline and checks its policy files are laid out right."
+    },
+    "scripts/dev.sh": {
+      "name": "Dev run",
+      "description": "Starts the database, applies migrations and runs the server for local development."
+    },
+    "scripts/export_agent_tool_reference.py": {
+      "name": "Export tool reference",
+      "description": "Checks the operating policy against the live tool list."
+    },
+    "scripts/export_genui_catalog.py": {
+      "name": "Export card catalog",
+      "description": "Regenerates the card building-block catalog for the apps from the server."
+    },
+    "scripts/install.ps1": {
+      "name": "Install (Windows)",
+      "description": "Sets up Lonora for local development on Windows."
+    },
+    "scripts/install.sh": {
+      "name": "Install",
+      "description": "Sets up Lonora for local development: dependencies and the local settings file."
+    },
+    "scripts/migrate.sh": {
+      "name": "Run migrations",
+      "description": "Applies the database changes up to the latest."
+    },
+    "scripts/ota-publish.sh": {
+      "name": "Publish phone update",
+      "description": "Exports and signs an over-the-air phone-app update, offline."
+    },
+    "scripts/ota-release.py": {
+      "name": "Phone update publisher",
+      "description": "Builds and signs an over-the-air phone-app update."
+    },
+    "scripts/release_manifest.py": {
+      "name": "Release manifest",
+      "description": "Writes the release details baked into the server image."
+    },
+    "scripts/repair-generated-artifacts.py": {
+      "name": "Repair images",
+      "description": "Reviews or applies fixes to older generated images."
+    },
+    "scripts/restore.sh": {
+      "name": "Restore",
+      "description": "Restores the database, keys and files from an encrypted backup."
+    },
+    "scripts/verify_agent_journeys.py": {
+      "name": "Verify journeys",
+      "description": "Runs real-model checks of the non-financial things an owner does with Lonora."
+    }
+  }
+}

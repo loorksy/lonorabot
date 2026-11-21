@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/db/migrations/env.py": {
+      "name": "Migration runner",
+      "description": "Runs the database changes in order."
+    },
+    "packages/db/migrations/versions/0001_foundation.py": {
+      "name": "Foundation tables",
+      "description": "Creates the first set of database tables."
+    },
+    "packages/db/migrations/versions/0002_thread_sequences.py": {
+      "name": "Message order index",
+      "description": "Speeds up reading a conversation's messages in order."
+    },
+    "packages/db/migrations/versions/0003_run_leases.py": {
+      "name": "Run leases",
+      "description": "Adds the leases that let one worker own a run at a time."
+    },
+    "packages/db/migrations/versions/0004_memory_skills.py": {
+      "name": "Memory & skills tables",
+      "description": "Adds the tables for agent memory and skills."
+    },
+    "packages/db/migrations/versions/0005_routines.py": {
+      "name": "Routines table",
+      "description": "Adds the table for scheduled routines."
+    },
+    "packages/db/migrations/versions/0006_groups_peers.py": {
+      "name": "Groups & peers tables",
+      "description": "Adds the tables for agent groups and messages between agents."
+    },
+    "packages/db/migrations/versions/0007_global_models.py": {
+      "name": "Global model settings",
+      "description": "Adds the tables for the shared model settings."
+    },
+    "packages/db/migrations/versions/0008_voice.py": {
+      "name": "Voice tables",
+      "description": "Adds the tables for voice sessions."
+    },
+    "packages/db/migrations/versions/0009_broker_sessions.py": {
+      "name": "Broker sessions",
+      "description": "Adds the tables for broker connections and sessions."
+    },
+    "packages/db/migrations/versions/0010_charts_watches.py": {
+      "name": "Charts & watches tables",
+      "description": "Adds the tables for charts and market watches."
+    },
+    "packages/db/migrations/versions/0011_trading_journal.py": {
+      "name": "Trading journal table",
+      "description": "Adds the table that records each trade."
+    },
+    "packages/db/migrations/versions/0012_reconciliation.py": {
+      "name": "Reconciliation index",
+      "description": "Speeds up finding trades that still need reconciling."
+    },
+    "packages/db/migrations/versions/0013_market_snapshots.py": {
+      "name": "Market snapshots table",
+      "description": "Adds durable broker market readings, with no credentials or made-up prices."
+    },
+    "packages/db/migrations/versions/0014_agent_profiles.py": {
+      "name": "Agent titles",
+      "description": "Lets agents keep a title and description."
+    },
+    "packages/db/migrations/versions/0015_trading_goals.py": {
+      "name": "Trading goals (early)",
+      "description": "Adds the early trading-goals tables, later removed."
+    },
+    "packages/db/migrations/versions/0016_trade_approvals.py": {
+      "name": "Trade approvals table",
+      "description": "Adds the table for the owner's trade approvals."
+    },
+    "packages/db/migrations/versions/0017_agent_trading_binding.py": {
+      "name": "Agent market binding",
+      "description": "Fixes a new agent's broker account and market."
+    },
+    "packages/db/migrations/versions/0018_agent_scope_timeline.py": {
+      "name": "Agent scope & anchors",
+      "description": "Adds the Personal agent identity and the approval timeline anchors."
+    },
+    "packages/db/migrations/versions/0019_collaboration_mentions.py": {
+      "name": "Collaboration & mentions",
+      "description": "Adds the tables for collaboration and message mentions."
+    },
+    "packages/db/migrations/versions/0020_approval_broker_snapshot.py": {
+      "name": "Approval broker snapshot",
+      "description": "Stores the broker state the owner saw when approving a trade."
+    },
+    "packages/db/migrations/versions/0021_thread_work_lane.py": {
+      "name": "Hidden work lane",
+      "description": "Keeps an agent's internal work out of the conversation list."
+    },
+    "packages/db/migrations/versions/0022_delegated_scope.py": {
+      "name": "Delegated scope limits",
+      "description": "Stops a Personal-visible agent creating unrestricted financial agents."
+    },
+    "packages/db/migrations/versions/0023_task_outcome_projection.py": {
+      "name": "Task outcome repair",
+      "description": "Fixes contradictory task and ticket outcomes left by older versions."
+    },
+    "packages/db/migrations/versions/0024_trading_opportunity.py": {
+      "name": "Opportunities table",
+      "description": "Adds the table for trading opportunities and their thesis."
+    },
+    "packages/db/migrations/versions/0025_shadow_execution.py": {
+      "name": "Shadow trading (early)",
+      "description": "Adds the early virtual-trading tables, later removed."
+    },
+    "packages/db/migrations/versions/0026_attention.py": {
+      "name": "Attention table",
+      "description": "Adds the one table for what needs the owner's attention."
+    },
+    "packages/db/migrations/versions/0027_device_authority.py": {
+      "name": "Device authority",
+      "description": "Adds signed one-time device challenges and the agent authority record."
+    },
+    "packages/db/migrations/versions/0028_analytical_workspace.py": {
+      "name": "Analytical workspace (early)",
+      "description": "Adds the early agent-file snapshots and operation receipts."
+    },
+    "packages/db/migrations/versions/0029_account_authority.py": {
+      "name": "Account delegation",
+      "description": "Adds signed, bounded account delegation."
+    },
+    "packages/db/migrations/versions/0030_full_account_management.py": {
+      "name": "Full account management",
+      "description": "Adds non-expiring account management, keeping existing grants."
+    },
+    "packages/db/migrations/versions/0031_event_delivery_indexes.py": {
+      "name": "Event delivery indexes",
+      "description": "Speeds up delivering events and reading context."
+    },
+    "packages/db/migrations/versions/0032_message_rich_content.py": {
+      "name": "Rich message content",
+      "description": "Lets a message carry a generated-UI card alongside its text."
+    },
+    "packages/db/migrations/versions/0033_flexible_agent_scope.py": {
+      "name": "Flexible agent scope",
+      "description": "Adds owner-created general agents and default-market preferences."
+    },
+    "packages/db/migrations/versions/0034_trading_restrictions.py": {
+      "name": "Trading restrictions (early)",
+      "description": "Adds the early expiring trading restrictions, later removed."
+    },
+    "packages/db/migrations/versions/0035_agent_tool_usage.py": {
+      "name": "Tool usage recency",
+      "description": "Remembers an agent's recently useful tools."
+    },
+    "packages/db/migrations/versions/0036_durable_records.py": {
+      "name": "Durable records",
+      "description": "Lets financial and authority records outlive the agents, threads and runs they name."
+    },
+    "packages/db/migrations/versions/0037_gateway_reliability.py": {
+      "name": "Worker reliability",
+      "description": "Adds per-item failure records, run-recovery counts and worker-step liveness."
+    },
+    "packages/db/migrations/versions/0038_owner_actions.py": {
+      "name": "Owner action cards",
+      "description": "Adds the table for single-use owner action cards."
+    },
+    "packages/db/migrations/versions/0039_owner_profile_memory_revisions.py": {
+      "name": "Owner profile & memory history",
+      "description": "Creates the one shared owner profile every agent reads, and attributed, undoable memory changes."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "packages/agent-runtime/src/lonora_agent/__init__.py": {
+      "name": "Agent-engine package",
+      "description": "Marks the agent-engine code as one package; holds no logic of its own."
+    },
+    "packages/agent-runtime/src/lonora_agent/automation/__init__.py": {
+      "name": "Automation package",
+      "description": "Marks the engine's automation code as one package; holds no logic of its own."
+    },
+    "packages/agent-runtime/src/lonora_agent/automation/background.py": {
+      "name": "Start background work",
+      "description": "Starts a ticket as background work for an agent."
+    },
+    "packages/agent-runtime/src/lonora_agent/automation/routines.py": {
+      "name": "Routine tick",
+      "description": "Fires the scheduled routines that are due."
+    },
+    "packages/agent-runtime/src/lonora_agent/automation/wakes.py": {
+      "name": "Wake an agent",
+      "description": "Starts a new run to wake an agent."
+    },
+    "packages/agent-runtime/src/lonora_agent/automation/webhooks.py": {
+      "name": "Wake from a webhook",
+      "description": "Wakes an agent in one of the owner's conversations when a signed outside message arrives."
+    },
+    "packages/agent-runtime/src/lonora_agent/cancellation.py": {
+      "name": "Cancellation checkpoint",
+      "description": "Checks at safe points whether a run has been cancelled."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/__init__.py": {
+      "name": "Collaboration package",
+      "description": "Marks the engine's collaboration code as one package; holds no logic of its own."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/agent_create.py": {
+      "name": "Create a team agent",
+      "description": "Creates a persistent team agent from a spec, with its standing instructions, and cleans up its links when it is deleted."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/groups.py": {
+      "name": "Group targets",
+      "description": "Works out which agents in a group a message is meant for."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/mentions.py": {
+      "name": "Mentions",
+      "description": "Finds which agents are mentioned in a message."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/outcome_return.py": {
+      "name": "Return helpers' outcomes",
+      "description": "Collects the results of background helper work and reports them back into the conversation that asked for it."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/participation.py": {
+      "name": "Who replies",
+      "description": "Decides which agents reply in a group: the mentioned ones, or the lead when none are mentioned."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/peer_messages.py": {
+      "name": "Delegate to a peer",
+      "description": "Hands a piece of work to another agent."
+    },
+    "packages/agent-runtime/src/lonora_agent/collaboration/subagents.py": {
+      "name": "Helper runs",
+      "description": "Spawns and inspects a temporary helper run of an agent."
+    },
+    "packages/agent-runtime/src/lonora_agent/context_engine.py": {
+      "name": "Context engine",
+      "description": "Keeps each request to the AI model within the model's limits by summarizing and trimming older conversation while keeping the real messages intact."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/__init__.py": {
+      "name": "Context package",
+      "description": "Marks the context-building code as one package; holds no logic of its own."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/account_symbols.py": {
+      "name": "Known account symbols",
+      "description": "Adds what earlier reads learned about an account's symbols to the agent's context."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/attachments.py": {
+      "name": "Attachment context",
+      "description": "Prepares the text and images of a message's attachments for the agent to read, within size limits."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/builder.py": {
+      "name": "Context builder",
+      "description": "Assembles everything an agent reads before it thinks: memory, history, permissions, the account picture and more."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/command.py": {
+      "name": "Command context",
+      "description": "Reads the slash-command an owner message carries and tells the agent what it asks for."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/compaction.py": {
+      "name": "History summarizing",
+      "description": "Summarizes older conversation so it still fits, without changing what actually happened."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/decisions.py": {
+      "name": "Past-decisions context",
+      "description": "Adds a short pointer to real past decisions, not the whole market history."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/environment.py": {
+      "name": "Operational context",
+      "description": "Adds a bounded summary of what the agent's tools have recently observed."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/financial_result.py": {
+      "name": "Guard money claims",
+      "description": "Stops an agent claiming a trade or money action succeeded unless the server has independent proof."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/governance.py": {
+      "name": "Shared context limits",
+      "description": "Shares the common context-size limits used across the agent and routing."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/group.py": {
+      "name": "Group context",
+      "description": "Adds a group's details to an agent's context."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/history.py": {
+      "name": "History context",
+      "description": "Adds past messages to the agent's context, labelling other agents' messages and card data as information, never as the owner's orders."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/image_observations.py": {
+      "name": "Image context",
+      "description": "Prepares the images a tool returned for one model request, within size limits."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/memory.py": {
+      "name": "Memory context",
+      "description": "Adds the owner's preferences and the agent's own memory and notes to its context."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/permissions.py": {
+      "name": "Permission context",
+      "description": "Tells the agent, every turn, what it is currently allowed to do, from verified state only."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/picture.py": {
+      "name": "Account picture",
+      "description": "Gives the agent, on every wake, an up-to-date picture of its accounts: positions, exposure, floating profit and upcoming high-impact events."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/reply.py": {
+      "name": "Reply context",
+      "description": "Adds the message being replied to into the agent's context."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/routine.py": {
+      "name": "Wake context",
+      "description": "Tells the agent what woke it — a scheduled routine, a workspace call or a signed outside message — as untrusted data."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/run_evidence.py": {
+      "name": "Earlier-run evidence",
+      "description": "Carries bounded, timestamped evidence from the agent's earlier runs into this one."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/scratchpad.py": {
+      "name": "Scratchpad context",
+      "description": "Adds the agent's recent scratchpad notes to its context."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/skills.py": {
+      "name": "Skills context",
+      "description": "Chooses which of the agent's skills are relevant and adds their instructions to its context."
+    },
+    "packages/agent-runtime/src/lonora_agent/context/team.py": {
+      "name": "Team context",
+      "description": "Adds the team and routing details to a lead agent's context."
+    },
+    "packages/agent-runtime/src/lonora_agent/continuation.py": {
+      "name": "Task continuation",
+      "description": "Lets a long task keep running in further bounded slices without resetting its original budget."
+    },
+    "packages/agent-runtime/src/lonora_agent/conversation_gate.py": {
+      "name": "End-of-turn check",
+      "description": "Decides whether an agent's reply really ends the owner's request, and records how a chosen option turned out."
+    }
+  }
+}

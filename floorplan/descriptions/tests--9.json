@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/test_metaapi_unknown_symbol.py": {
+      "name": "Metaapi unknown symbol tests",
+      "description": "Automatic checks for metaapi unknown symbol."
+    },
+    "tests/test_method_versions.py": {
+      "name": "Method versions tests",
+      "description": "Automatic checks for method versions."
+    },
+    "tests/test_mobile_updates.py": {
+      "name": "Mobile updates tests",
+      "description": "Automatic checks for mobile updates."
+    },
+    "tests/test_model_access_guard.py": {
+      "name": "Model access guard tests",
+      "description": "Automatic checks for model access guard."
+    },
+    "tests/test_model_context.py": {
+      "name": "Model context tests",
+      "description": "Automatic checks for model context."
+    },
+    "tests/test_model_default.py": {
+      "name": "Model default tests",
+      "description": "Automatic checks for model default."
+    },
+    "tests/test_model_provider_card.py": {
+      "name": "Model provider card tests",
+      "description": "Automatic checks for model provider card."
+    },
+    "tests/test_model_providers.py": {
+      "name": "Model providers tests",
+      "description": "Automatic checks for model providers."
+    },
+    "tests/test_morning_brief.py": {
+      "name": "Morning brief tests",
+      "description": "Automatic checks for morning brief."
+    },
+    "tests/test_named_account.py": {
+      "name": "Named account tests",
+      "description": "Automatic checks for named account."
+    },
+    "tests/test_named_work.py": {
+      "name": "Named work tests",
+      "description": "Automatic checks for named work."
+    },
+    "tests/test_native_visual_policy.py": {
+      "name": "Native visual policy tests",
+      "description": "Automatic checks for native visual policy."
+    },
+    "tests/test_no_stop_control.py": {
+      "name": "No stop control tests",
+      "description": "Automatic checks for no stop control."
+    },
+    "tests/test_offer_obligation.py": {
+      "name": "Offer obligation tests",
+      "description": "Automatic checks for offer obligation."
+    },
+    "tests/test_one_vocabulary.py": {
+      "name": "One vocabulary tests",
+      "description": "Automatic checks for one vocabulary."
+    },
+    "tests/test_order_line_fixture.py": {
+      "name": "Order line fixture tests",
+      "description": "Automatic checks for order line fixture."
+    },
+    "tests/test_owner_actions.py": {
+      "name": "Owner actions tests",
+      "description": "Automatic checks for owner actions."
+    },
+    "tests/test_owner_identity.py": {
+      "name": "Owner identity tests",
+      "description": "Automatic checks for owner identity."
+    },
+    "tests/test_owner_intent.py": {
+      "name": "Owner intent tests",
+      "description": "Automatic checks for owner intent."
+    },
+    "tests/test_owner_model.py": {
+      "name": "Owner model tests",
+      "description": "Automatic checks for owner model."
+    },
+    "tests/test_owner_profile.py": {
+      "name": "Owner profile tests",
+      "description": "Automatic checks for owner profile."
+    },
+    "tests/test_owner_skill_catalog.py": {
+      "name": "Owner skill catalog tests",
+      "description": "Automatic checks for owner skill catalog."
+    },
+    "tests/test_paused_agent.py": {
+      "name": "Paused agent tests",
+      "description": "Automatic checks for paused agent."
+    },
+    "tests/test_pauses.py": {
+      "name": "Pauses tests",
+      "description": "Automatic checks for pauses."
+    },
+    "tests/test_pdf_layers.py": {
+      "name": "Pdf layers tests",
+      "description": "Automatic checks for pdf layers."
+    },
+    "tests/test_performance_summary.py": {
+      "name": "Performance summary tests",
+      "description": "Automatic checks for performance summary."
+    },
+    "tests/test_permission_drafts.py": {
+      "name": "Permission drafts tests",
+      "description": "Automatic checks for permission drafts."
+    },
+    "tests/test_position_sizing.py": {
+      "name": "Position sizing tests",
+      "description": "Automatic checks for position sizing."
+    },
+    "tests/test_preflight_identity.py": {
+      "name": "Preflight identity tests",
+      "description": "Automatic checks for preflight identity."
+    },
+    "tests/test_private_memory.py": {
+      "name": "Private memory tests",
+      "description": "Automatic checks for private memory."
+    },
+    "tests/test_proactive_wakes.py": {
+      "name": "Proactive wakes tests",
+      "description": "Automatic checks for proactive wakes."
+    },
+    "tests/test_progressive_skills.py": {
+      "name": "Progressive skills tests",
+      "description": "Automatic checks for progressive skills."
+    },
+    "tests/test_provider_resilience.py": {
+      "name": "Provider resilience tests",
+      "description": "Automatic checks for provider resilience."
+    },
+    "tests/test_public_http.py": {
+      "name": "Public http tests",
+      "description": "Automatic checks for public http."
+    },
+    "tests/test_public_stream.py": {
+      "name": "Public stream tests",
+      "description": "Automatic checks for public stream."
+    },
+    "tests/test_push_devices.py": {
+      "name": "Push devices tests",
+      "description": "Automatic checks for push devices."
+    },
+    "tests/test_push_sender.py": {
+      "name": "Push sender tests",
+      "description": "Automatic checks for push sender."
+    },
+    "tests/test_realized.py": {
+      "name": "Realized tests",
+      "description": "Automatic checks for realized."
+    },
+    "tests/test_relationships.py": {
+      "name": "Relationships tests",
+      "description": "Automatic checks for relationships."
+    },
+    "tests/test_release_manifest.py": {
+      "name": "Release manifest tests",
+      "description": "Automatic checks for release manifest."
+    }
+  }
+}

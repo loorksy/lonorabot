@@ -1,0 +1,40 @@
+{
+  "files": {
+    "packages/ui-tokens/src/appearance.ts": {
+      "name": "Appearance tokens",
+      "description": "The light and dark appearance settings."
+    },
+    "packages/ui-tokens/src/brand.ts": {
+      "name": "Brand settings",
+      "description": "Lonora's name, slug and app id."
+    },
+    "packages/ui-tokens/src/generate-css.ts": {
+      "name": "Token CSS generator",
+      "description": "Turns the design tokens into CSS."
+    },
+    "packages/ui-tokens/src/icons.ts": {
+      "name": "Icon set",
+      "description": "The shared set of icon drawings used on web and phone."
+    },
+    "packages/ui-tokens/src/index.ts": {
+      "name": "Design tokens entry",
+      "description": "Gathers and re-exports the design tokens."
+    },
+    "packages/ui-tokens/src/reference.css": {
+      "name": "Reference styles",
+      "description": "The design-reference colours and style variables as CSS."
+    },
+    "packages/ui-tokens/src/reference.ts": {
+      "name": "Reference tokens",
+      "description": "The design-reference colours and styles, including the high-contrast set."
+    },
+    "packages/ui-tokens/src/tokens.css": {
+      "name": "Base token styles",
+      "description": "The base design-token styles as CSS."
+    },
+    "packages/ui-tokens/src/visual.ts": {
+      "name": "Card metrics",
+      "description": "The shared spacing, sizes and fonts the card renderers use."
+    }
+  }
+}

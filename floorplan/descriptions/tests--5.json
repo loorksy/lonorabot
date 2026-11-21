@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/mobile/chart-sheet.spec.mjs": {
+      "name": "Chart sheet tests",
+      "description": "Automatic checks for chart sheet."
+    },
+    "tests/mobile/charts.spec.mjs": {
+      "name": "Charts tests",
+      "description": "Automatic checks for charts."
+    },
+    "tests/mobile/chat-lists.spec.mjs": {
+      "name": "Chat lists tests",
+      "description": "Automatic checks for chat lists."
+    },
+    "tests/mobile/chat-prefs.spec.mjs": {
+      "name": "Chat prefs tests",
+      "description": "Automatic checks for chat prefs."
+    },
+    "tests/mobile/chat-reliability.spec.mjs": {
+      "name": "Chat reliability tests",
+      "description": "Automatic checks for chat reliability."
+    },
+    "tests/mobile/chat-runtime.spec.mjs": {
+      "name": "Chat runtime tests",
+      "description": "Automatic checks for chat runtime."
+    },
+    "tests/mobile/chat-runtime.test.ts": {
+      "name": "Chat runtime tests",
+      "description": "Automatic checks for chat runtime."
+    },
+    "tests/mobile/commands.test.ts": {
+      "name": "Commands tests",
+      "description": "Automatic checks for commands."
+    },
+    "tests/mobile/composer-calls.spec.mjs": {
+      "name": "Composer calls tests",
+      "description": "Automatic checks for composer calls."
+    },
+    "tests/mobile/composer-uploads.spec.mjs": {
+      "name": "Composer uploads tests",
+      "description": "Automatic checks for composer uploads."
+    },
+    "tests/mobile/composer-uploads.test.ts": {
+      "name": "Composer uploads tests",
+      "description": "Automatic checks for composer uploads."
+    },
+    "tests/mobile/conversation-cache.test.ts": {
+      "name": "Conversation cache tests",
+      "description": "Automatic checks for conversation cache."
+    },
+    "tests/mobile/conversation-timeline.test.ts": {
+      "name": "Conversation timeline tests",
+      "description": "Automatic checks for conversation timeline."
+    },
+    "tests/mobile/device-enrollment.spec.mjs": {
+      "name": "Device enrollment tests",
+      "description": "Automatic checks for device enrollment."
+    },
+    "tests/mobile/draft-persistence.spec.mjs": {
+      "name": "Draft persistence tests",
+      "description": "Automatic checks for draft persistence."
+    },
+    "tests/mobile/draft-store.test.ts": {
+      "name": "Draft store tests",
+      "description": "Automatic checks for draft store."
+    },
+    "tests/mobile/execution-receipt.spec.mjs": {
+      "name": "Execution receipt tests",
+      "description": "Automatic checks for execution receipt."
+    },
+    "tests/mobile/first-run.spec.mjs": {
+      "name": "First run tests",
+      "description": "Automatic checks for first run."
+    },
+    "tests/mobile/flexible-agents.spec.mjs": {
+      "name": "Flexible agents tests",
+      "description": "Automatic checks for flexible agents."
+    },
+    "tests/mobile/genui.spec.mjs": {
+      "name": "Genui tests",
+      "description": "Automatic checks for genui."
+    },
+    "tests/mobile/heads-up.spec.mjs": {
+      "name": "Heads up tests",
+      "description": "Automatic checks for heads up."
+    },
+    "tests/mobile/heads-up.test.ts": {
+      "name": "Heads up tests",
+      "description": "Automatic checks for heads up."
+    },
+    "tests/mobile/home-toolbar.spec.mjs": {
+      "name": "Home toolbar tests",
+      "description": "Automatic checks for home toolbar."
+    },
+    "tests/mobile/incoming-call.test.ts": {
+      "name": "Incoming call tests",
+      "description": "Automatic checks for incoming call."
+    },
+    "tests/mobile/mandate-mode.test.ts": {
+      "name": "Mandate mode tests",
+      "description": "Automatic checks for mandate mode."
+    },
+    "tests/mobile/mention-session.test.ts": {
+      "name": "Mention session tests",
+      "description": "Automatic checks for mention session."
+    },
+    "tests/mobile/message-actions.spec.mjs": {
+      "name": "Message actions tests",
+      "description": "Automatic checks for message actions."
+    },
+    "tests/mobile/message-actions.test.ts": {
+      "name": "Message actions tests",
+      "description": "Automatic checks for message actions."
+    },
+    "tests/mobile/offline-queue.test.ts": {
+      "name": "Offline queue tests",
+      "description": "Automatic checks for offline queue."
+    },
+    "tests/mobile/ota-checker.test.ts": {
+      "name": "Ota checker tests",
+      "description": "Automatic checks for ota checker."
+    },
+    "tests/mobile/owner-actions.spec.mjs": {
+      "name": "Owner actions tests",
+      "description": "Automatic checks for owner actions."
+    },
+    "tests/mobile/owner-knowledge.spec.mjs": {
+      "name": "Owner knowledge tests",
+      "description": "Automatic checks for owner knowledge."
+    },
+    "tests/mobile/question-card.spec.mjs": {
+      "name": "Question card tests",
+      "description": "Automatic checks for question card."
+    },
+    "tests/mobile/reach-me.spec.mjs": {
+      "name": "Reach me tests",
+      "description": "Automatic checks for reach me."
+    },
+    "tests/mobile/reach-me.test.ts": {
+      "name": "Reach me tests",
+      "description": "Automatic checks for reach me."
+    },
+    "tests/mobile/routine-title.test.ts": {
+      "name": "Routine title tests",
+      "description": "Automatic checks for routine title."
+    },
+    "tests/mobile/run-retry.test.ts": {
+      "name": "Run retry tests",
+      "description": "Automatic checks for run retry."
+    },
+    "tests/mobile/run-thread.test.ts": {
+      "name": "Run thread tests",
+      "description": "Automatic checks for run thread."
+    },
+    "tests/mobile/safety-pill.spec.mjs": {
+      "name": "Safety pill tests",
+      "description": "Automatic checks for safety pill."
+    },
+    "tests/mobile/search-calls.spec.mjs": {
+      "name": "Search calls tests",
+      "description": "Automatic checks for search calls."
+    }
+  }
+}

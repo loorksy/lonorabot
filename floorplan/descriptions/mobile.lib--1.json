@@ -1,0 +1,164 @@
+{
+  "files": {
+    "apps/mobile/lib/agent-live-state.ts": {
+      "name": "Agent live-state poll",
+      "description": "One poll of an agent's live state, shared by the thread's header pill and activity strip."
+    },
+    "apps/mobile/lib/agents.ts": {
+      "name": "Agents API",
+      "description": "Reads and updates agents and opens an agent's conversation."
+    },
+    "apps/mobile/lib/api-error.ts": {
+      "name": "API error",
+      "description": "The error type for a failed server request."
+    },
+    "apps/mobile/lib/api.ts": {
+      "name": "Server client",
+      "description": "Talks to the server: sends requests, carries the session, and handles uploads and cancellation."
+    },
+    "apps/mobile/lib/artifacts.ts": {
+      "name": "Files logic",
+      "description": "Loads and views the owner's files, sandboxing agent-created HTML."
+    },
+    "apps/mobile/lib/attention-labels.ts": {
+      "name": "Attention labels (phone)",
+      "description": "The owner text for each attention code, matching the web."
+    },
+    "apps/mobile/lib/broker-identity.ts": {
+      "name": "Broker identity label",
+      "description": "Names a broker connection by its login, never a raw id."
+    },
+    "apps/mobile/lib/charts.ts": {
+      "name": "Charts API",
+      "description": "Reads charts and their scenes and asks for a refresh."
+    },
+    "apps/mobile/lib/chat-prefs.ts": {
+      "name": "Chat preferences",
+      "description": "The per-device chat preferences applied to every conversation."
+    },
+    "apps/mobile/lib/commands.ts": {
+      "name": "Composer commands (phone)",
+      "description": "The / commands a chat offers on the phone, from the shared rules."
+    },
+    "apps/mobile/lib/composer-drafts.ts": {
+      "name": "Composer drafts",
+      "description": "Keeps unsent input per conversation so it survives navigation."
+    },
+    "apps/mobile/lib/composer-uploads.ts": {
+      "name": "Composer uploads",
+      "description": "The running uploads in the composer, each with its progress and cancel."
+    },
+    "apps/mobile/lib/conversation-cache.ts": {
+      "name": "Conversation cache",
+      "description": "A navigation cache of conversations, never persisted or trusted for money."
+    },
+    "apps/mobile/lib/conversation-projection.ts": {
+      "name": "Conversation projection",
+      "description": "Places the current reply at the message it answers."
+    },
+    "apps/mobile/lib/device-proof.d.ts": {
+      "name": "Device proof types",
+      "description": "The type definitions for device sign-in."
+    },
+    "apps/mobile/lib/device-proof.native.ts": {
+      "name": "Device proof (phone)",
+      "description": "Signs a device check on the phone."
+    },
+    "apps/mobile/lib/device-proof.web.ts": {
+      "name": "Device proof (web build)",
+      "description": "Signs a device check in the Expo web build."
+    },
+    "apps/mobile/lib/draft-store.ts": {
+      "name": "Draft storage",
+      "description": "Saves each conversation's draft on the device so it survives a restart."
+    },
+    "apps/mobile/lib/emoji-data.ts": {
+      "name": "Emoji data",
+      "description": "The emoji picker's data, copied from the web."
+    },
+    "apps/mobile/lib/events.ts": {
+      "name": "Live event stream (phone)",
+      "description": "Keeps the live updates connection for the phone."
+    },
+    "apps/mobile/lib/groups.ts": {
+      "name": "Groups API",
+      "description": "Reads and updates groups and opens a group's conversation."
+    },
+    "apps/mobile/lib/heads-up.ts": {
+      "name": "Heads-up rules",
+      "description": "Decides what, if anything, shows at the top of the screen, honouring the reach-me rules."
+    },
+    "apps/mobile/lib/i18n.ts": {
+      "name": "Phone translations",
+      "description": "The Arabic and English text for the phone app."
+    },
+    "apps/mobile/lib/incoming-call.ts": {
+      "name": "Incoming call logic",
+      "description": "Works out visible and accepted incoming calls and the reach-me choice."
+    },
+    "apps/mobile/lib/labels-shell-extra.ts": {
+      "name": "Extra shell words",
+      "description": "Words the web catalog lacks: the owner's ticks and the row summary."
+    },
+    "apps/mobile/lib/labels-shell.ts": {
+      "name": "Shell words",
+      "description": "The shell's Arabic and English words, taken from the web catalog so both apps match."
+    },
+    "apps/mobile/lib/lists-api.ts": {
+      "name": "Lists & state API",
+      "description": "The owner's per-conversation state and custom lists on the server, shared with the web."
+    },
+    "apps/mobile/lib/lists-state.tsx": {
+      "name": "Lists state",
+      "description": "The list's shared state: rows, active filter and selection."
+    },
+    "apps/mobile/lib/mandate-mode.ts": {
+      "name": "Mandate mode helpers",
+      "description": "Works out the trading mode a Mandate decision applied."
+    },
+    "apps/mobile/lib/message-actions.ts": {
+      "name": "Message actions",
+      "description": "The rules for which messages can be edited, resent, turned into a task or reacted to."
+    },
+    "apps/mobile/lib/ota-checker.ts": {
+      "name": "Update checker",
+      "description": "Downloads an over-the-air update; it activates on the next launch, not mid-conversation."
+    },
+    "apps/mobile/lib/ota.ts": {
+      "name": "Updates hook",
+      "description": "Checks for over-the-air updates."
+    },
+    "apps/mobile/lib/outgoing-messages.ts": {
+      "name": "Outbox",
+      "description": "Holds messages waiting to send, retries them when the network returns, and tracks their uploads."
+    },
+    "apps/mobile/lib/push.d.ts": {
+      "name": "Push types",
+      "description": "The type definitions for push registration."
+    },
+    "apps/mobile/lib/push.native.ts": {
+      "name": "Push (phone)",
+      "description": "Registers the phone for push and opens the conversation a tapped push names."
+    },
+    "apps/mobile/lib/push.web.ts": {
+      "name": "Push (web build)",
+      "description": "A no-op push in the Expo web build; push reaches phones only."
+    },
+    "apps/mobile/lib/routine-title.ts": {
+      "name": "Routine title",
+      "description": "Works out the title a routine save sends."
+    },
+    "apps/mobile/lib/routine.ts": {
+      "name": "Routines API",
+      "description": "Reads, creates, edits and deletes routines."
+    },
+    "apps/mobile/lib/run-thread.ts": {
+      "name": "Run report thread",
+      "description": "Works out where the owner reads a run."
+    },
+    "apps/mobile/lib/session-lifecycle.ts": {
+      "name": "Session teardown",
+      "description": "Closes the device-side resources when a session ends."
+    }
+  }
+}

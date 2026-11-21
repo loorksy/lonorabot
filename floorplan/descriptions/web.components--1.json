@@ -1,0 +1,164 @@
+{
+  "files": {
+    "apps/web/src/components/ai/agent-status.css": {
+      "name": "Agent status styles",
+      "description": "Styles for the agent's live status."
+    },
+    "apps/web/src/components/ai/AgentAvatar.tsx": {
+      "name": "Agent avatar (web comp)",
+      "description": "Draws an agent's avatar."
+    },
+    "apps/web/src/components/ai/AgentLiveStatus.tsx": {
+      "name": "Agent live status",
+      "description": "Shows what an agent is doing right now."
+    },
+    "apps/web/src/components/ai/AttentionInbox.tsx": {
+      "name": "Attention inbox",
+      "description": "Lists what needs the owner's attention."
+    },
+    "apps/web/src/components/ai/avatar-studio.css": {
+      "name": "Avatar studio styles",
+      "description": "Styles for the avatar editor."
+    },
+    "apps/web/src/components/ai/AvatarStudio.tsx": {
+      "name": "Avatar studio",
+      "description": "The editor for an agent's avatar shape and colour."
+    },
+    "apps/web/src/components/ai/beautiful-ui.css": {
+      "name": "Activity styles",
+      "description": "Styles for the activity and loading look."
+    },
+    "apps/web/src/components/ai/CollaborationMarker.tsx": {
+      "name": "Collaboration marker",
+      "description": "Shows when agents are working together on a run."
+    },
+    "apps/web/src/components/ai/PersonalAgentBadge.tsx": {
+      "name": "Personal agent badge (web)",
+      "description": "Shows a badge on the owner's personal agent."
+    },
+    "apps/web/src/components/ai/primitives.tsx": {
+      "name": "Activity pieces",
+      "description": "The shimmer and loading pieces, driven by real runtime state."
+    },
+    "apps/web/src/components/ai/TurnActivity.tsx": {
+      "name": "Turn activity (web comp)",
+      "description": "The compact 'what the agent is doing' line."
+    },
+    "apps/web/src/components/artifact-file-card.css": {
+      "name": "File card styles",
+      "description": "Styles for an inline file card."
+    },
+    "apps/web/src/components/ArtifactFileCard.tsx": {
+      "name": "File card (web)",
+      "description": "An inline card for a stored file."
+    },
+    "apps/web/src/components/call/call.css": {
+      "name": "Call audio styles",
+      "description": "Styles that hide the call's audio element."
+    },
+    "apps/web/src/components/call/RealtimeVoice.tsx": {
+      "name": "Live voice audio",
+      "description": "Hosts the voice call's audio element."
+    },
+    "apps/web/src/components/call/Transcript.tsx": {
+      "name": "Call transcript",
+      "description": "Shows the recent lines of a call."
+    },
+    "apps/web/src/components/charts/ChartAnnotations.tsx": {
+      "name": "Chart annotations panel",
+      "description": "Lists and shows a chart's drawings."
+    },
+    "apps/web/src/components/charts/ChartIndicators.tsx": {
+      "name": "Chart indicators panel",
+      "description": "Lists and shows a chart's indicators."
+    },
+    "apps/web/src/components/charts/ChartLiveFeed.tsx": {
+      "name": "Chart live feed",
+      "description": "Keeps a chart updating with live prices."
+    },
+    "apps/web/src/components/charts/ChartRenderBridge.tsx": {
+      "name": "Chart render bridge",
+      "description": "Draws a chart scene without credentials, from bounded owned data."
+    },
+    "apps/web/src/components/charts/ChartToolbar.tsx": {
+      "name": "Chart toolbar",
+      "description": "The chart's toolbar."
+    },
+    "apps/web/src/components/charts/ChartWorkspace.tsx": {
+      "name": "Chart workspace",
+      "description": "The chart area with its toolbar, annotations and indicators."
+    },
+    "apps/web/src/components/charts/TradingChart.tsx": {
+      "name": "Trading chart",
+      "description": "The one chart renderer that draws the price chart."
+    },
+    "apps/web/src/components/common/FilePreviewPanel.tsx": {
+      "name": "File preview panel",
+      "description": "Previews a file: image, PDF or isolated HTML."
+    },
+    "apps/web/src/components/common/ImageGallery.tsx": {
+      "name": "Image preview",
+      "description": "Shows an image attachment."
+    },
+    "apps/web/src/components/conversation-question.css": {
+      "name": "Question styles",
+      "description": "Styles for an agent's question card."
+    },
+    "apps/web/src/components/conversation-question.tsx": {
+      "name": "Conversation question (web comp)",
+      "description": "Shows an agent's question and takes the answer."
+    },
+    "apps/web/src/components/ErrorBoundary.tsx": {
+      "name": "Error boundary",
+      "description": "Catches a crash and shows a calm screen instead of a blank one."
+    },
+    "apps/web/src/components/genui/genui.css": {
+      "name": "Card styles",
+      "description": "Styles for generated-UI cards."
+    },
+    "apps/web/src/components/genui/index.tsx": {
+      "name": "Card mount point",
+      "description": "The single place a generated-UI card is placed in a message."
+    },
+    "apps/web/src/components/genui/UiCard.tsx": {
+      "name": "Card (web)",
+      "description": "Draws a generated-UI card in the app's look."
+    },
+    "apps/web/src/components/market/EconomicCalendar.tsx": {
+      "name": "Economic calendar (web)",
+      "description": "Shows upcoming economic events."
+    },
+    "apps/web/src/components/market/MarketOverview.tsx": {
+      "name": "Market overview",
+      "description": "A summary of the market."
+    },
+    "apps/web/src/components/market/MarketQuote.tsx": {
+      "name": "Market quote",
+      "description": "Shows a symbol's latest price."
+    },
+    "apps/web/src/components/market/MarketWatch.tsx": {
+      "name": "Market watch (web)",
+      "description": "Shows and manages market watches."
+    },
+    "apps/web/src/components/market/SymbolSearch.tsx": {
+      "name": "Symbol search",
+      "description": "Searches for a market symbol."
+    },
+    "apps/web/src/components/models/AgentModelCard.tsx": {
+      "name": "Agent model card",
+      "description": "One agent's model, choice and usage."
+    },
+    "apps/web/src/components/owner-actions/OwnerActionCard.tsx": {
+      "name": "Owner action card (web)",
+      "description": "Draws one owner action card, in the owner's language, with one tap."
+    },
+    "apps/web/src/components/PdfViewer.tsx": {
+      "name": "PDF viewer",
+      "description": "Shows a PDF."
+    },
+    "apps/web/src/components/SandboxedHtmlViewer.tsx": {
+      "name": "Isolated HTML viewer",
+      "description": "Shows an HTML file safely in a locked-down frame."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/mobile/search-feed.test.ts": {
+      "name": "Search feed tests",
+      "description": "Automatic checks for search feed."
+    },
+    "tests/mobile/secret-card.spec.mjs": {
+      "name": "Secret card tests",
+      "description": "Automatic checks for secret card."
+    },
+    "tests/mobile/session-lifecycle.test.ts": {
+      "name": "Session lifecycle tests",
+      "description": "Automatic checks for session lifecycle."
+    },
+    "tests/mobile/simple-lonora.spec.mjs": {
+      "name": "Simple lonora tests",
+      "description": "Automatic checks for simple lonora."
+    },
+    "tests/mobile/skills-management.spec.mjs": {
+      "name": "Skills management tests",
+      "description": "Automatic checks for skills management."
+    },
+    "tests/mobile/slash-commands.spec.mjs": {
+      "name": "Slash commands tests",
+      "description": "Automatic checks for slash commands."
+    },
+    "tests/mobile/supervision.spec.mjs": {
+      "name": "Supervision tests",
+      "description": "Automatic checks for supervision."
+    },
+    "tests/mobile/test_android_artifact.py": {
+      "name": "Android artifact tests",
+      "description": "Automatic checks for android artifact."
+    },
+    "tests/mobile/text-direction.test.ts": {
+      "name": "Text direction tests",
+      "description": "Automatic checks for text direction."
+    },
+    "tests/mobile/trade-approval-validity.spec.mjs": {
+      "name": "Trade approval validity tests",
+      "description": "Automatic checks for trade approval validity."
+    },
+    "tests/mobile/v38-global.spec.mjs": {
+      "name": "V38 global tests",
+      "description": "Automatic checks for v38 global."
+    },
+    "tests/mobile/visual-response.spec.mjs": {
+      "name": "Visual response tests",
+      "description": "Automatic checks for visual response."
+    },
+    "tests/mobile/voice-readiness.test.ts": {
+      "name": "Voice readiness tests",
+      "description": "Automatic checks for voice readiness."
+    },
+    "tests/mobile/voice-transport.test.ts": {
+      "name": "Voice transport tests",
+      "description": "Automatic checks for voice transport."
+    },
+    "tests/mobile/what-is-running.spec.mjs": {
+      "name": "What is running tests",
+      "description": "Automatic checks for what is running."
+    },
+    "tests/mobile/workspace.spec.mjs": {
+      "name": "Workspace tests",
+      "description": "Automatic checks for workspace."
+    },
+    "tests/model_browser_fixture.py": {
+      "name": "Model browser fixture tests",
+      "description": "Automatic checks for model browser fixture."
+    },
+    "tests/ops/build_test_images.sh": {
+      "name": "Build test images sh tests",
+      "description": "Automatic checks for build test images sh."
+    },
+    "tests/ops/fixtures/9998_good_probe.py": {
+      "name": "9998 good probe fixture",
+      "description": "Sample data for the 9998 good probe tests."
+    },
+    "tests/ops/fixtures/9999_broken_probe.py": {
+      "name": "9999 broken probe fixture",
+      "description": "Sample data for the 9999 broken probe tests."
+    },
+    "tests/ops/lifecycle_test.sh": {
+      "name": "Lifecycle test sh tests",
+      "description": "Automatic checks for lifecycle test sh."
+    },
+    "tests/pause_cards.py": {
+      "name": "Pause cards tests",
+      "description": "Automatic checks for pause cards."
+    },
+    "tests/run_foundation_checks.py": {
+      "name": "Run foundation checks tests",
+      "description": "Automatic checks for run foundation checks."
+    },
+    "tests/seed_chart_reply.py": {
+      "name": "Seed chart reply tests",
+      "description": "Automatic checks for seed chart reply."
+    },
+    "tests/settle_card.py": {
+      "name": "Settle card tests",
+      "description": "Automatic checks for settle card."
+    },
+    "tests/test_acceptance_scenario.py": {
+      "name": "Acceptance scenario tests",
+      "description": "Automatic checks for acceptance scenario."
+    },
+    "tests/test_account_symbols.py": {
+      "name": "Account symbols tests",
+      "description": "Automatic checks for account symbols."
+    },
+    "tests/test_agent_create.py": {
+      "name": "Agent create tests",
+      "description": "Automatic checks for agent create."
+    },
+    "tests/test_agent_delivery_rules.py": {
+      "name": "Agent delivery rules tests",
+      "description": "Automatic checks for agent delivery rules."
+    },
+    "tests/test_agent_environment.py": {
+      "name": "Agent environment tests",
+      "description": "Automatic checks for agent environment."
+    },
+    "tests/test_agent_eval.py": {
+      "name": "Agent eval tests",
+      "description": "Automatic checks for agent eval."
+    },
+    "tests/test_agent_permission_contracts.py": {
+      "name": "Agent permission contracts tests",
+      "description": "Automatic checks for agent permission contracts."
+    },
+    "tests/test_agent_permissions_enforcement.py": {
+      "name": "Agent permissions enforcement tests",
+      "description": "Automatic checks for agent permissions enforcement."
+    },
+    "tests/test_app_opens.py": {
+      "name": "App opens tests",
+      "description": "Automatic checks for app opens."
+    },
+    "tests/test_approval_brakes.py": {
+      "name": "Approval brakes tests",
+      "description": "Automatic checks for approval brakes."
+    },
+    "tests/test_attachment_provenance.py": {
+      "name": "Attachment provenance tests",
+      "description": "Automatic checks for attachment provenance."
+    },
+    "tests/test_attention.py": {
+      "name": "Attention tests",
+      "description": "Automatic checks for attention."
+    },
+    "tests/test_auth_rate_limit.py": {
+      "name": "Auth rate limit tests",
+      "description": "Automatic checks for auth rate limit."
+    },
+    "tests/test_background_questions.py": {
+      "name": "Background questions tests",
+      "description": "Automatic checks for background questions."
+    },
+    "tests/test_background_silence.py": {
+      "name": "Background silence tests",
+      "description": "Automatic checks for background silence."
+    }
+  }
+}

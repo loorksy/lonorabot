@@ -1,0 +1,96 @@
+{
+  "files": {
+    "packages/gateway/src/lonora_gateway/__init__.py": {
+      "name": "Gateway package",
+      "description": "Marks the worker's gateway code as one package; holds no logic of its own."
+    },
+    "packages/gateway/src/lonora_gateway/attention.py": {
+      "name": "Attention projection",
+      "description": "Turns meaningful runtime changes into one audited item for the owner's attention, retrying safely and setting aside anything that keeps failing."
+    },
+    "packages/gateway/src/lonora_gateway/broker_relay.py": {
+      "name": "Broker relay (worker side)",
+      "description": "The always-on worker's side of answering the main server's broker reads."
+    },
+    "packages/gateway/src/lonora_gateway/connection_manager.py": {
+      "name": "Live connection upkeep",
+      "description": "Keeps voice and other live connections healthy and closes them cleanly."
+    },
+    "packages/gateway/src/lonora_gateway/event_dispatch.py": {
+      "name": "Event dispatch",
+      "description": "Sends each runtime event to the right place: channels, integrations and notifications."
+    },
+    "packages/gateway/src/lonora_gateway/health.py": {
+      "name": "Worker health",
+      "description": "Reports the worker is healthy only while its heartbeat is fresh and no critical step has stalled."
+    },
+    "packages/gateway/src/lonora_gateway/heartbeat.py": {
+      "name": "Heartbeat",
+      "description": "Writes the worker's regular heartbeat."
+    },
+    "packages/gateway/src/lonora_gateway/history_maintenance.py": {
+      "name": "History upkeep",
+      "description": "Runs the optional conversation summaries in the background."
+    },
+    "packages/gateway/src/lonora_gateway/lifecycle.py": {
+      "name": "Worker states",
+      "description": "Defines the worker's lifecycle states."
+    },
+    "packages/gateway/src/lonora_gateway/liveness.py": {
+      "name": "Step supervision",
+      "description": "Runs each background step on its own and keeps track of whether it is alive."
+    },
+    "packages/gateway/src/lonora_gateway/owner_cards.py": {
+      "name": "Owner cards from events",
+      "description": "Raises and settles owner action cards straight from runtime events, with no model involved."
+    },
+    "packages/gateway/src/lonora_gateway/process_identity.py": {
+      "name": "Process id",
+      "description": "Gives the worker process a unique id."
+    },
+    "packages/gateway/src/lonora_gateway/push.py": {
+      "name": "Phone push delivery",
+      "description": "Sends due notifications to the owner's phones through Expo and reads back the delivery receipts, dropping a phone reported gone."
+    },
+    "packages/gateway/src/lonora_gateway/recovery.py": {
+      "name": "Expired-run recovery",
+      "description": "Finds runs whose lease has expired so they can be recovered."
+    },
+    "packages/gateway/src/lonora_gateway/run_dispatch.py": {
+      "name": "Run dispatch",
+      "description": "Starts each queued agent run on the right model."
+    },
+    "packages/gateway/src/lonora_gateway/runtime.py": {
+      "name": "Owner services",
+      "description": "Builds the set of services the worker uses for one owner."
+    },
+    "packages/gateway/src/lonora_gateway/scheduler.py": {
+      "name": "Scheduler tick",
+      "description": "Runs one pass of each scheduled step."
+    },
+    "packages/gateway/src/lonora_gateway/service.py": {
+      "name": "The worker",
+      "description": "The always-on worker itself: it runs all the background steps that keep agents, trading and notifications going."
+    },
+    "packages/gateway/src/lonora_gateway/shutdown.py": {
+      "name": "Graceful shutdown",
+      "description": "Drains work and returns the worker's leases when it stops."
+    },
+    "packages/gateway/src/lonora_gateway/supervisor.py": {
+      "name": "Step supervisor",
+      "description": "Keeps a background step running."
+    },
+    "packages/gateway/src/lonora_gateway/thread_prefs.py": {
+      "name": "Archive handling",
+      "description": "When the owner has turned off keeping conversations archived, brings an archived conversation back to the list on a new message."
+    },
+    "packages/gateway/src/lonora_gateway/wake_dispatch.py": {
+      "name": "Market wake dispatch",
+      "description": "Checks the market watches and wakes agents when one fires."
+    },
+    "packages/gateway/src/lonora_gateway/watchdog.py": {
+      "name": "Watchdog",
+      "description": "A model-free check that keeps the worker honest, catching operations and runs that went wrong."
+    }
+  }
+}

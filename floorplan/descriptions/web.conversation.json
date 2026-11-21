@@ -1,0 +1,80 @@
+{
+  "files": {
+    "apps/web/src/conversation/Cards.tsx": {
+      "name": "Conversation cards",
+      "description": "The special cards in the conversation: error, question and the order/trade state."
+    },
+    "apps/web/src/conversation/ChatPrefsPage.tsx": {
+      "name": "Chat preferences page (web)",
+      "description": "The per-device chat preferences applied to every conversation."
+    },
+    "apps/web/src/conversation/commands.tsx": {
+      "name": "Composer commands (web)",
+      "description": "The / commands a chat offers and the chip of a sent command."
+    },
+    "apps/web/src/conversation/Composer.tsx": {
+      "name": "Message composer (web)",
+      "description": "The box where the owner types, attaches files, picks commands and sends; the biggest conversation piece."
+    },
+    "apps/web/src/conversation/context.ts": {
+      "name": "Conversation context",
+      "description": "Shared conversation state and helpers: reactions, speaker colours and message parts."
+    },
+    "apps/web/src/conversation/conversation.css": {
+      "name": "Conversation styles",
+      "description": "The conversation screen's styles."
+    },
+    "apps/web/src/conversation/Conversation.tsx": {
+      "name": "Conversation (web)",
+      "description": "The main chat workspace: the messages, the live reply, the cards and the composer."
+    },
+    "apps/web/src/conversation/GenUiPart.tsx": {
+      "name": "Card part",
+      "description": "Places a generated-UI card and its quoted submission in a message."
+    },
+    "apps/web/src/conversation/Markdown.tsx": {
+      "name": "Message formatting (web)",
+      "description": "Formats a message's text: mentions, links, bold, code, tables and lists."
+    },
+    "apps/web/src/conversation/Message.tsx": {
+      "name": "Message (web)",
+      "description": "Draws one message bubble with its ticks, reply preview and live typing."
+    },
+    "apps/web/src/conversation/PermissionMenu.tsx": {
+      "name": "Mandate chip & menu",
+      "description": "The agent's trading-mode chip and the Mandate card it opens."
+    },
+    "apps/web/src/conversation/prefs.ts": {
+      "name": "Chat preferences (web)",
+      "description": "The per-device chat preferences."
+    },
+    "apps/web/src/conversation/sheets/AgentSheet.tsx": {
+      "name": "Agent status sheet",
+      "description": "The status line under the name and its sheet, and the safety capsule for a trading agent."
+    },
+    "apps/web/src/conversation/sheets/WatchesSheet.tsx": {
+      "name": "Watches sheet",
+      "description": "An agent's market watches."
+    },
+    "apps/web/src/conversation/threadOptions.ts": {
+      "name": "Thread options",
+      "description": "The per-chat web-search option the agent reads each turn."
+    },
+    "apps/web/src/conversation/ToolsSheet.tsx": {
+      "name": "Add-to-conversation sheet",
+      "description": "The + sheet: files, images, camera, task, schedule, permission, chart, web search, integrations, skills, knowledge."
+    },
+    "apps/web/src/conversation/UploadRing.tsx": {
+      "name": "Upload ring (web)",
+      "description": "A file's upload progress ring with cancel."
+    },
+    "apps/web/src/conversation/Voice.tsx": {
+      "name": "Voice note (web)",
+      "description": "Plays a voice note with its waveform and speed controls."
+    },
+    "apps/web/src/conversation/wallpaper.ts": {
+      "name": "Chat wallpaper",
+      "description": "Draws the conversation's background pattern."
+    }
+  }
+}

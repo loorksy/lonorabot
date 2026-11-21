@@ -1,0 +1,32 @@
+{
+  "files": {
+    "packages/logging/src/lonora_logging/__init__.py": {
+      "name": "Logging package",
+      "description": "Marks the logging code as one package; holds no logic of its own."
+    },
+    "packages/logging/src/lonora_logging/context.py": {
+      "name": "Log context",
+      "description": "Remembers the current request and run so logs can be tied to them."
+    },
+    "packages/logging/src/lonora_logging/correlation.py": {
+      "name": "Run correlation",
+      "description": "Tags the logs of a run with its id."
+    },
+    "packages/logging/src/lonora_logging/logger.py": {
+      "name": "Logging setup",
+      "description": "Sets up logging as JSON with secrets removed."
+    },
+    "packages/logging/src/lonora_logging/redaction.py": {
+      "name": "Log redaction",
+      "description": "Removes secrets from a log record before it is written."
+    },
+    "packages/logging/src/lonora_logging/serialize_error.py": {
+      "name": "Error code",
+      "description": "Gives an error its stable code for the log."
+    },
+    "packages/logging/src/lonora_logging/sinks.py": {
+      "name": "JSON log format",
+      "description": "Writes each log line as JSON with secrets removed and the request and run ids."
+    }
+  }
+}
