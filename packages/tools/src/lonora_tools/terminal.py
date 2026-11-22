@@ -103,8 +103,8 @@ def tail(text: str) -> tuple[str, int]:
 
 async def require_ordinary(context: ToolContext) -> None:
     """Commands, writes and stops come only from an ordinary run of the agent. A command
-    in the workspace has effects (the internet, other venues' APIs a script may call:
-    9.5); a helper and an observe-only wake take no effects (6.9, `base.HELPER_EFFECTS`),
+    in the workspace has effects (the internet and any API a script may call); a helper
+    and an observe-only wake take no effects (6.9, `base.HELPER_EFFECTS`),
     so they may only look."""
     if not await ordinary_run(context):
         raise LonoraError("workspace_run_scope_refused", 403)

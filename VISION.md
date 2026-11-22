@@ -733,3 +733,13 @@ The owner decided that Lonora has no Stop control at all («لا داعي لزر
 - step 6 of section 16.
 
 `TradingControl` (`enabled` and `emergency_stop`), `require_trading`, the "trading not started" state, the `resume_trading` card and every Stop control on web and mobile are removed in phase 3, with their text, clients and assertions (14.1.3, 14.1.4). The owner's controls are the Mandate card (4.1, 4.2), the pause of an agent or a piece of work (4.6, 4.7) and the broker connection (9.3).
+
+### Amendment 2 (2026-11-22): MetaTrader only
+
+The owner decided that Lonora trades MetaTrader accounts only («على MT5 فقط»), on any symbol the owner's broker offers («مهما كان الزوج الذي يدعمه وسيط المستخدم»), and on no other venue («لا داعي للكريبتو نهائياً»):
+
+- 9.5 is void and replaced by: "Lonora trades only the MetaTrader accounts connected through MetaApi (9.1–9.4), through the execution door. Agents MUST NOT place, modify or cancel orders, or move funds, on any other venue (crypto exchanges, other brokers' APIs, wallets or payment services) by any path: tools, MCP, the workspace or the `lonora` CLI, even when the owner asks. Asked to, an agent says in one line that Lonora trades MetaTrader accounts only."
+- P2 gains this venue scope. The execution door already serves only MetaTrader accounts; on every other path agents apply it from their operating manual (`packages/agent-runtime/resources/system/lonora.md`).
+- Every symbol a connected account's broker offers may be traded. Lonora keeps no symbol list; symbols stay the broker's symbols (7.3.2).
+- Reading public information about other markets (prices, news, research) for judgment stays allowed; it is not trading.
+- The workspace keeps its internet egress (7.1.2). This amendment governs what agents do with it.
