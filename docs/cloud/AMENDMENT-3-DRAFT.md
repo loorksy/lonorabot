@@ -70,3 +70,6 @@ mandate:
       Lonora itself and acts without notice only against an attack in progress.
 12. **Trading scope.** VISION Amendment 2 (MetaTrader only, any symbol the owner's broker offers, no other venue)
     applies to Lonora Cloud unchanged.
+13. **The customer's client.** In Lonora Cloud the owner uses the native app («كل شيء على التطبيق»); the operator's
+    website is only the account portal (subscription, payment, account). Once the app offers every owner capability of
+    the web client (section 13), the web client may be switched off for customers; the API the app uses stays.
