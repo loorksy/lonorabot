@@ -197,8 +197,9 @@ notices.
 gates server rollouts (§13.3).
 
 **Store and payments (D38, D39).** Google Play is the main channel and a signed APK from the website the fallback.
-Purchases and plan changes happen only on the website; the app shows the plan's state but sells nothing and shows no
-prices or purchase links unless Google Play's payments policy for that country allows it.
+Purchases and plan changes happen only on the company website; the app shows the plan's state but sells nothing and
+links to no purchase, so no store service fee applies (D39). Once Phase M is complete the customer's web app is turned
+off (D37): the app is the only product surface, the website only the account.
 
 ### 3.7 Technology for `lonora-cloud`
 
@@ -492,7 +493,9 @@ chat, status page.
 **Transparency:** "Staff access to your Lonora" — every break-glass session and diagnostics bundle, with who, when, why,
 duration; a toggle to pre-authorize support access for a time window.
 
-**Data:** export (account data + latest backup), delete account (typed confirmation, cool-off).
+**Data:** export (account data + latest backup), delete account (typed confirmation, cool-off). The deletion request
+page works without the app and is the link Google Play requires in the Data safety form, next to the privacy policy
+(the website is required by the store even for an app-only product).
 
 **Referrals** (Phase 8): link, credits earned.
 
