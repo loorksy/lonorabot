@@ -1,6 +1,6 @@
 # Lonora Cloud — executable phases
 
-**Status: Proposed. Not binding until VISION.md Amendment 3 is issued.** Read [README.md](README.md) (rules for Claude
+**Status: Adopted by VISION.md Amendment 3 (2026-11-22).** Read [README.md](README.md) (rules for Claude
 Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: `lonorabot` = this repository;
 `lonora-cloud` = the new control-plane repository (D2).
 
@@ -28,7 +28,7 @@ Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: 
 
 | ID | Task | Done when |
 |---|---|---|
-| P0-T1 | Edit and issue Amendment 3 ([draft](AMENDMENT-3-DRAFT.md)) with its date. | The owner says "issued". |
+| P0-T1 | **Done (2026-11-22).** Edit and issue Amendment 3 ([draft](AMENDMENT-3-DRAFT.md)) with its date. | The owner says "issued". |
 | P0-T2 | Confirm or change D1–D18. | Every one is `Confirmed` or `Changed`. |
 | P0-T3 | Company (D19); engage counsel for D20–D23; accountant. | Counsel engaged with this plan as the brief. |
 | P0-T4 | Register the cloud domain (D5); Cloudflare account; brand name check. | Domain in Cloudflare. |
@@ -50,7 +50,7 @@ All additive, off by default, no change to VISION §6 or agent behaviour (Amendm
 
 | ID | Task | Acceptance criteria |
 |---|---|---|
-| P1-T1 | Append the issued Amendment 3 verbatim under "## Owner amendments" in `VISION.md`; change the status line of `docs/cloud/*.md` to "Adopted by Amendment 3". | Text matches the owner's issued version exactly; no other mandate text changed. |
+| P1-T1 | **Done (2026-11-22).** Append the issued Amendment 3 verbatim under "## Owner amendments" in `VISION.md`; change the status line of `docs/cloud/*.md` to "Adopted by Amendment 3". | Text matches the owner's issued version exactly; no other mandate text changed. |
 | P1-T2 | Machine-readable `lonora`: `--json` for `status`, `start`, `update`, `rollback`, `backup`, `restore-test` in `infra/compose/lonora`; one JSON object on stdout, human text unchanged without the flag; documented schema in `docs/operations.md`. | `tests/ops/lifecycle_test.sh` (or a sibling test) parses every command's JSON; exit codes unchanged; secrets never printed. |
 | P1-T3 | Origin-certificate TLS mode (D4): `infra/compose/mode-origin.yml` and a Caddyfile branch that serves a provided certificate/key and requires the Authenticated Origin Pulls client CA; `install.sh --origin-cert F --origin-key F --origin-pull-ca F`; `lonora` selects the mode like it selects direct/proxy. | Direct and proxy modes byte-identical in behaviour; origin mode rejects a client without the pull certificate; `/api/events/stream` still unbuffered. |
 | P1-T4 | Setup link (D7): the first-run screen that calls `initializeOwner` (`apps/web/src/lib/bootstrap.ts`) reads `#token=…` from the URL fragment, pre-fills it, removes it from history immediately; `lonora rotate-bootstrap` writes a new `LONORA_BOOTSTRAP_TOKEN` and recreates the api service. | Web test: link opens, token never appears in a request URL or server log, owner created; reuse returns 409; rotated token invalidates the old link. |
@@ -237,7 +237,8 @@ consent or approvals; the supervisors panel shows live data on staging.
 
 ### Launch go/no-go checklist
 
-- [ ] Amendment 3 in VISION.md; D1–D40 confirmed.
+- [x] Amendment 3 in VISION.md (2026-11-22).
+- [ ] D1–D44 confirmed or changed (none left `Proposed`).
 - [ ] The app is on Google Play's production track; the PM-T1 parity list is closed.
 - [ ] Counsel sign-off on D20–D23; legal documents published; risk disclosure accepted at signup.
 - [ ] Billing provider live mode approved; tax configured.

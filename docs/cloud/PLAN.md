@@ -1,6 +1,6 @@
 # Lonora Cloud — master plan
 
-**Status: Proposed. Not binding until VISION.md Amendment 3 is issued** ([draft](AMENDMENT-3-DRAFT.md)).
+**Status: Adopted by VISION.md Amendment 3 (2026-11-22)** ([draft record](AMENDMENT-3-DRAFT.md)).
 Decisions referenced as `Dn` are in [DECISIONS.md](DECISIONS.md). Executable tasks are in [PHASES.md](PHASES.md).
 
 ---

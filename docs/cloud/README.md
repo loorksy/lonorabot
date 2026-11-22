@@ -1,8 +1,8 @@
 # Lonora Cloud — the plan to run Lonora as a company
 
-**Status: Proposed. Not binding.** `VISION.md` §17 says multi-user hosting is out of scope. Nothing in this
-folder may be implemented until the owner issues Amendment 3 (draft: [AMENDMENT-3-DRAFT.md](AMENDMENT-3-DRAFT.md))
-and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depends on.
+**Status: Adopted by VISION.md Amendment 3 (issued by the owner on 2026-11-22).** The plan is binding. A task still
+waits for every decision in [DECISIONS.md](DECISIONS.md) that it depends on and is marked `Proposed`, and for the
+blockers listed below (CI first, P0-T10).
 
 ---
 
@@ -16,6 +16,7 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 ### أين وصلنا (2026-11-22)
 - **منفّذ وموجود على `main`:**
   - التعديل 2 في VISION: **MT5 فقط**، على أي رمز يدعمه وسيط العميل.
+  - **التعديل 3 في VISION: Lonora Cloud** (صدر 2026-11-22)، فصارت هذه الخطة ملزمة.
   - القاعدة نفسها في دليل الوكيل.
   - حظر نطاقات منصات التداول الأخرى في الطرفية، بالاسم فقط.
   - خريطة الكود (`floorplan/`)، وهذه الخطة، والمقترحات في `docs/proposals/`.
@@ -26,7 +27,6 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
   مزوّد النماذج ومفتاحه بنفسه**، والشركة لا تدفع ثمن النماذج (D6، D41).
 - **موانع قبل أي تنفيذ:**
   - **الـCI على GitHub معطّل** (P0-T10).
-  - التعديل 3 لم يصدر بعد.
   - القرارات المقترحة تنتظر التأكيد.
   - القانون، ومزوّد الدفع، واتفاق MetaApi، وترخيص TradingView.
 - **رحلة العميل كاملة:** [JOURNEY.md](JOURNEY.md).

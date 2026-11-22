@@ -1,6 +1,6 @@
 # Lonora Cloud — the customer journey, end to end
 
-**Status: Proposed, with the plan.** Each step names what the customer sees, what happens behind it, and where the
+**Status: Adopted with the plan (VISION.md Amendment 3, 2026-11-22).** Each step names what the customer sees, what happens behind it, and where the
 plan specifies it. Product decisions it reflects: MetaTrader only (VISION Amendment 2), the company's MetaApi account
 (D27), the native Android app as the product and the website for the account only (D36–D39).
 

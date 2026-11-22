@@ -1,8 +1,8 @@
 # Draft — VISION.md Amendment 3
 
-**Status: Draft for the owner.** It becomes binding only when the owner issues it. Once issued, a Claude Code session
-appends it verbatim under "## Owner amendments" in `VISION.md`, with the issue date, in a pull request of its own
-(task P1-T1).
+**Status: Issued by the owner on 2026-11-22** («ممتاز اذن ادفعه الى VISION.md») and appended verbatim to `VISION.md`
+under "## Owner amendments". **The binding text is the one in `VISION.md`;** this file is kept as the record of the
+draft. Change the mandate only by a new owner amendment, not by editing either copy.
 
 ---
 
