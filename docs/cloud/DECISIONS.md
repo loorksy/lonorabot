@@ -49,12 +49,21 @@ here in the same pull request. "Blocks" names the first task that cannot start w
 | D39 | Payments and store policy | **Nothing is sold in the app, and the app links to no purchase.** Subscription, payment and upgrades on the company website only; the app shows plan state. | Google's June 2026 terms: a service fee starting at 10% of the first $1M of yearly earnings, also on auto-renewing subscriptions and on purchases made through links from the app (US, EEA, UK); a purchase made on the website with no link from the app pays none. It also keeps billing independent of the store. Re-check the current terms at build time. | PM-T6 | Proposed |
 | D40 | iOS | **Later**, from the same Expo code, after Android is stable. | One store and one review process at a time. | — | Proposed |
 
+## Agent and product (owner, 2026-11-22)
+
+| ID | Decision | Recommendation | Why | Blocks | Status |
+|---|---|---|---|---|---|
+| D41 | Who pays for model usage | **The customer's own key (BYOK, D6)** for now. Company-paid models, like the company-paid MetaApi of D27, would remove the hardest onboarding step but need usage limits, which the earlier owner decisions in `docs/usage-dashboard.md` forbid; the owner decides. | Asked during planning, not yet answered. | — | Proposed |
+| D42 | A terminal client for the owner (nanobot style) | — | Owner: «CLI للوكيل وليس المستخدم». The spec was removed. | — | Rejected (2026-11-22) |
+| D43 | The agents' workspace CLI | **Keep it and complete its order commands** (`trade`, `close`, `modify`, `cancel`, VISION §7.3). It is the only way the programs agents leave running in the workspace can read and trade MT5 accounts: the workspace cannot reach MetaApi or the token (§7.1.4, §7.2.3). | Owner asked whether the terminal alone suffices; it does for the agent's own turns, not for its scripts. | PT-3 | Proposed |
+| D44 | How agents search the web | **Hybrid:** the provider's built-in search first, Lonora's own `web_search` (SearXNG, GDELT for news) as the free fallback, better page reading. Spec: [docs/proposals/web-research.md](../proposals/web-research.md). | Better quality than SearXNG at about $10 per 1,000 searches on the owner's key; leading agents work this way. | PT-6 | Proposed |
+
 ## Commercial
 
 | ID | Decision | Recommendation | Blocks | Status |
 |---|---|---|---|---|
-| D13 | Plans | Resource tiers only (VISION P1: no trading, activity or model limits). Starter (8 GB VM, workspace 2 GB / 1 CPU / 10 GB), Pro (16 GB, workspace 4 GB / 2 CPU / 20 GB), Max (32 GB dedicated vCPU, workspace 8 GB / 4 CPU / 50 GB, custom domain, daily snapshots, priority support), Enterprise (dedicated, SSO, contract SLA). Sizes follow the installer preflight (RAM ≥ 3584 MB + workspace memory). | P4-T5 | Proposed |
-| D14 | Prices | Set **after** measuring real cost per instance in Phase 3 with the cost worksheet in PLAN.md §5.3. Starting hypotheses to test: Starter $39–49, Pro $79–99, Max $149–199 per month, two months free on annual. | P4-T5 | Proposed |
+| D13 | Plans | Resource tiers only (VISION P1: no trading, activity or model limits). Starter (8 GB VM, workspace 2 GB / 1 CPU / 10 GB), Pro (16 GB, workspace 4 GB / 2 CPU / 20 GB), Max (32 GB dedicated vCPU, workspace 8 GB / 4 CPU / 50 GB, custom domain, daily snapshots, priority support), Enterprise (dedicated, SSO, contract SLA). Sizes follow the installer preflight (RAM ≥ 3584 MB + workspace memory). | P4-T5 | Deferred (2026-11-22): owner «الباقات لاحقاً» |
+| D14 | Prices | Set **after** measuring real cost per instance in Phase 3 with the cost worksheet in PLAN.md §5.3. Starting hypotheses to test: Starter $39–49, Pro $79–99, Max $149–199 per month, two months free on annual. | P4-T5 | Deferred (2026-11-22): owner «الباقات لاحقاً» |
 | D15 | Trial | **7 days on Starter, card required**, instance destroyed 3 days after an unconverted trial ends (export offered). | P4-T6 | Proposed |
 | D16 | Billing provider | Depends on D19. **Stripe Billing + Stripe Tax** if the company is in a Stripe country; otherwise **Paddle** (merchant of record: it collects and remits global sales tax/VAT). Before integrating, get written confirmation that the provider accepts automated-trading software. | P4-T4 | Proposed |
 | D17 | Support desk | **Built in-house** in the control plane (tickets, SLAs, macros, CSAT, supervisors, approvals) because it needs instance context, RBAC and break-glass. Live chat can start with an embedded Chatwoot (open source, self-hosted) and move in-house later. | P5-T6 | Proposed |

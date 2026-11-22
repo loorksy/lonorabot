@@ -13,6 +13,24 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 احتياطية) — مثل نموذج myclaw.ai — مع بوابة عملاء، فوترة، لوحة إدارة، لوحة مشرفين، دعم فني، عمليات،
 أمان وامتثال وقانون وتسويق.
 
+### أين وصلنا (2026-11-22)
+- **منفّذ وموجود على `main`:**
+  - التعديل 2 في VISION: **MT5 فقط**، على أي رمز يدعمه وسيط العميل.
+  - القاعدة نفسها في دليل الوكيل.
+  - حظر نطاقات منصات التداول الأخرى في الطرفية، بالاسم فقط.
+  - خريطة الكود (`floorplan/`)، وهذه الخطة، والمقترحات في `docs/proposals/`.
+- **لم يُنفَّذ بعد:** كل مراحل السحابة (0–9 وM)، ومسار المنتج (أوامر CLI الوكيل PT-3، وبيئة الوكيل PT-4، والبحث
+  الهجين PT-6).
+- **قرارات المالك المسجّلة:** MetaApi من حساب الشركة (D27)؛ MT5 فقط ولا كريبتو (VISION 2، D33)؛ التطبيق هو المنتج
+  والموقع للاشتراك والحساب فقط (D36–D39)؛ لا CLI للمالك (D42)؛ الباقات والأسعار لاحقاً (D13، D14).
+- **موانع قبل أي تنفيذ:**
+  - **الـCI على GitHub معطّل** (P0-T10).
+  - التعديل 3 لم يصدر بعد.
+  - القرارات المقترحة تنتظر التأكيد.
+  - القانون، ومزوّد الدفع، واتفاق MetaApi، وترخيص TradingView.
+- **سؤال مفتوح:** من يدفع تكلفة نماذج الذكاء الاصطناعي (D41).
+- **رحلة العميل كاملة:** [JOURNEY.md](JOURNEY.md).
+
 ### لماذا نسخة لكل عميل وليس قاعدة بيانات مشتركة
 - قاعدة Lonora تفرض **مالكاً واحداً بنيوياً**: `get_owner()` يقرأ `OwnerRow.singleton == 1`
   (`packages/db/src/lonora_db/owner.py`). تحويلها لقاعدة مشتركة يعني إعادة كتابة كل مسار وكل جدول ونواة الأمان.
@@ -68,7 +86,8 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 | **طبقة التحكم** | التسجيل، الباقات، التوفير الآلي، التحديثات، النسخ الاحتياطي، المراقبة | مستودع جديد `lonora-cloud` |
 | **وكيل المضيف** | برنامج صغير على كل VM ينفّذ أوامر `lonora` المسموحة فقط (موقَّعة) | `lonora-cloud` |
 | **خدمة ربط الوسطاء** | تنشئ اتصالات MetaApi من حساب الشركة وتصدر لكل نسخة توكناً محصوراً بحساباتها | `lonora-cloud` |
-| **بوابة العملاء** | الحساب، الدفع، حالة النسخة، فتح Lonora، ربط الهاتف، النسخ، الدعم | `lonora-cloud` |
+| **التطبيق (أندرويد أصلي)** | المنتج كله بعد التسجيل: الوكلاء، المحادثات، البطاقات، الصوت، الإعدادات | `apps/mobile` في هذا المستودع |
+| **الموقع وبوابة العملاء** | الاشتراك والدفع وإدارة الحساب فقط: الفواتير، النسخ، نافذة الصيانة، التصدير، صفحة الحذف، الدعم | `lonora-cloud` |
 | **لوحة الإدارة** | العملاء، الأسطول، الإصدارات، الفوترة، الحوادث، الأمان، السجل | `lonora-cloud` |
 | **لوحة المشرفين** | طوابير الدعم، SLA، أداء الموظفين، الموافقات، التصعيد، الجودة | ضمن لوحة الإدارة بصلاحيات |
 | **الدعم الفني** | تذاكر، دردشة، قاعدة معرفة عربي/إنجليزي، مساعد ذكي، حزمة تشخيص بموافقة العميل | `lonora-cloud` |
@@ -98,6 +117,9 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
    وتسعيراً للحجم (D32). وامتلاك مفتاح يصل لكل اتصالات العملاء يحتاج رأي المحامي أيضاً.
 5. **التكلفة لكل عميل** (VM لكل عميل + اتصالات MetaApi عالية الموثوقية) — تُقاس في المرحلة 3 قبل تثبيت الأسعار.
 6. إساءة استخدام مساحات العمل (هجمات/سبام من خوادمنا) — مراقبة وحظر وسياسة استخدام.
+7. **Google Play** قد يرفض التطبيق أو يزيله (سياسة التطبيقات المالية أو سياسة الدفع) — مراجعة السياسات قبل الإرسال،
+   وملف APK موقّع من الموقع احتياطياً.
+8. **الـCI معطّل اليوم**، فلا شيء يحمي `main` — يُصلح أولاً (P0-T10).
 
 ---
 
@@ -109,6 +131,8 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 | [AMENDMENT-3-DRAFT.md](AMENDMENT-3-DRAFT.md) | Draft text of VISION.md Amendment 3, for the owner to edit and issue. |
 | [PLAN.md](PLAN.md) | The full design: architecture, isolation, lifecycle, portal, admin, supervisors, support, billing, operations, security, legal, go-to-market, KPIs, risks. |
 | [PHASES.md](PHASES.md) | The executable roadmap: phases, tasks with IDs, acceptance criteria, verification, and a starter prompt per phase. |
+| [JOURNEY.md](JOURNEY.md) | The customer journey end to end, step by step, with what happens behind each step and where the plan specifies it. |
+| [../proposals/](../proposals/README.md) | Product specifications that are not built yet: agent environment, web research. |
 
 ## Rules for Claude Code sessions executing this plan
 
@@ -132,3 +156,7 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
    in `lonora-cloud` run its `make check`.
 7. **No secrets in either repository.** Staging uses provider test modes, a separate cloud project and test domains.
 8. **Arabic and right-to-left first** for every customer-facing and staff-facing screen and email (VISION §17).
+9. **Find code with the map:** `floorplan/architecture.json` and `floorplan/descriptions/` describe every module and
+   file; regenerate the viewer with the floorplan plugin. The map can lag recent edits, so confirm in the code.
+10. **Verification without CI:** while GitHub Actions is down (P0-T10), run the local checks of PHASES.md (definition of
+    done, item 8), list them in the pull request, and push to `main` only with the owner's explicit permission.

@@ -16,6 +16,11 @@ Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: 
 5. No secret, credential, customer data or generated build output is committed.
 6. Docs describe the behaviour as built (VISION §0.4): `docs/operations.md` for operators, the help centre for customers.
 7. If a `Proposed` decision blocks the task, stop and ask the owner; record the answer in DECISIONS.md.
+8. While CI is unavailable (P0-T10), run locally and list in the pull request: `.venv/bin/ruff check .`,
+   `.venv/bin/ruff format --check .`, `.venv/bin/pyright`, `.venv/bin/python scripts/export_agent_tool_reference.py
+   --check`, `scripts/export_genui_catalog.py --check`, `scripts/check_policy_distribution.py`, and the pytest files the
+   change touches (`.venv` from `bash scripts/install.sh`; database tests need `LONORA_DATABASE_URL` to a `_test` database).
+   Say plainly which suites could not run.
 
 ---
 
@@ -32,9 +37,10 @@ Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: 
 | P0-T7 | Create the empty repository `loorksy/lonora-cloud` and add it to the Claude Code environment. | A Claude Code session can clone it. |
 | P0-T8 | Staff identity provider (D25) and hardware keys for the first staff. | Owner signs in with a key. |
 | P0-T9 | MetaApi (D27, D32): open the company's MetaApi account; ask MetaApi in writing for permission to serve customers from it, volume pricing for high reliability, a DPA; with a test token, record the server's maximum `validity_in_hours`, the `get_access_rules` manifest entry for trading + streaming on listed accounts, and whether rotating the company token invalidates narrowed tokens (PLAN §3.8). | Written answer from MetaApi; the three facts recorded in D31's row. |
+| P0-T10 | Restore GitHub Actions. Since at least 2026-11-20 every `Validate Lonora` run (`.github/workflows/ci.yml`), on `main` and on branches, fails within a second with no logs: the job never starts on a runner, which usually means an account billing, spending-limit or minutes problem (GitHub → Settings → Billing → Actions). | A push to a branch runs `bash scripts/build.sh` and the test jobs to completion. |
 
-**Exit:** Amendment 3 issued, D1–D18 and D27–D31 settled, MetaApi's written answer received, repository and accounts
-exist.
+**Exit:** Amendment 3 issued, D1–D18 and D27–D31 settled, MetaApi's written answer received, CI running again, repository
+and accounts exist.
 
 ---
 
@@ -253,6 +259,7 @@ consent or approvals; the supervisors panel shows live data on staging.
 | PT-2 | Openness gaps with nanobot (D35): skills catalogue installable from chat; plugin bundles; stdio MCP tools as native tools. | Each weighed against VISION P3/P5 and `docs/mcp-boundary.md`. |
 | PT-3 | Workspace CLI order commands (VISION §7.3: `trade`, `close`, `modify`, `cancel`) — not built yet; prerequisite of PT-4. | VISION phase 4 "done when". |
 | PT-4 | Agent environment with Claude Code's philosophy: [docs/proposals/agent-environment.md](../proposals/agent-environment.md) (G1–G5). | Decisions A1–A5. |
+| PT-6 | Web research, hybrid (D44): [docs/proposals/web-research.md](../proposals/web-research.md) stages S1–S6 — page reading, provider search for Anthropic, SearXNG freshness and GDELT news, DeepSeek, OpenAI after its Responses path, research skill. | Decisions W1–W4. |
 
 ---
 

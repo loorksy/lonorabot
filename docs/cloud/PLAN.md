@@ -299,6 +299,15 @@ nothing restricts which ones an agent may trade (`assert_market_binding` keeps o
 watches and decisions on its pair and is never applied to orders). No crypto exchange is built, offered or supported.
 Financial MCP tools stay untrusted by design (`docs/mcp-boundary.md`): money moves only through the door.
 
+**Shipped on `main`:** the workspace refuses other trading venues by name (`OTHER_VENUE_DOMAINS` in
+`packages/core/src/lonora_core/broker_endpoints.py`): crypto exchanges' domains and other brokers' trading API hosts do
+not resolve and the relay refuses them. Their addresses are deliberately not blocked, because they sit behind CDN
+addresses unrelated sites share. Agents' web research runs outside the workspace and still reads their public pages.
+
+**Web research (D44).** Agents search with their provider's built-in search first (billed to the owner's key, about
+$10 per 1,000 searches) and fall back to Lonora's own `web_search`: SearXNG from the customer's own VM address, GDELT
+for news behind one limiter per instance. Spec: `docs/proposals/web-research.md` (PT-6).
+
 **Honest gaps compared with nanobot's model** (from the nanobot floorplan): no skills marketplace with one-click
 install (in Lonora the owner asks in chat and the agent installs from a trusted repository), no bundled "plugins" of
 skills plus MCP servers, and stdio MCP servers are workspace processes rather than native tools. Each is a product
@@ -760,6 +769,8 @@ Contracts as Pydantic models, generated TypeScript types for the two web apps, O
 same code), `production`. Promotion by tag; database migrations forward-only with expand/contract.
 
 ### 13.2 CI/CD
+
+CI is not running today (P0-T10): restore it before Phase 1; until then the local checks of PHASES.md (definition of done, item 8) apply.
 
 - Lonora image: `.github/workflows/publish-server-image.yml` already publishes `ghcr.io/loorksy/lonorabot`. Add SBOM,
   vulnerability scan with a severity gate, image signing and provenance attestation. The control plane accepts a release
