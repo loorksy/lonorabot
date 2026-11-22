@@ -15,7 +15,7 @@ composed by the model**, which is VISION P3 ("build an environment, not features
 | Read and write files | `workspace_file_read`, `workspace_file_write` | Equal |
 | Exact in-place edit | None; an agent rewrites the file or uses `sed` | **Gap G1** |
 | Find files, search contents | Through the shell (`rg`, `find`) | Enough |
-| Web search and fetch | `web_search`, `web_fetch`, `web_browse` (self-hosted SearXNG and a headless browser) | Equal |
+| Web search and fetch | `web_search`, `web_fetch`, `web_browse` (self-hosted SearXNG and a headless browser) | Equal in tools, weaker in search quality: see `web-research.md` |
 | Subagents | `subagent_spawn`, `subagent_inspect` (`LONORA_MAXIMUM_SUBAGENTS`, default 4) | Equal |
 | Task tracking | `task_start`, `task_step_update`, `task_wait`, `task_inspect`, `task_control` (durable) | Ahead (durable) |
 | Ask the user | `wait_for_input`, `owner_action_propose`, `owner_call_request` | Equal |
