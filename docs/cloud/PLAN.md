@@ -1,6 +1,6 @@
 # Lonora Cloud — master plan
 
-**Status: Proposed. Not binding until VISION.md Amendment 2 is issued** ([draft](AMENDMENT-2-DRAFT.md)).
+**Status: Proposed. Not binding until VISION.md Amendment 3 is issued** ([draft](AMENDMENT-3-DRAFT.md)).
 Decisions referenced as `Dn` are in [DECISIONS.md](DECISIONS.md). Executable tasks are in [PHASES.md](PHASES.md).
 
 ---
@@ -14,11 +14,11 @@ supervisors panel, a support desk, operations and reliability, security and comp
 
 **Non-goals.**
 - No change to what Lonora is or how its agents trade (VISION §1–§12). The product stays a delegated trading agent.
-- No shared multi-owner database. One installation serves one owner (Amendment 2 §1).
+- No shared multi-owner database. One installation serves one owner (Amendment 3 §1).
 - No change to the invisible safety core (VISION §6).
-- No platform-sold model access (D6). No platform access to customers' Lonora, model keys or chats (D7, Amendment 2 §3).
+- No platform-sold model access (D6). No platform access to customers' Lonora, model keys or chats (D7, Amendment 3 §3).
   Broker connections are provided by the company's MetaApi account only through the provisioner of §3.8, which never
-  trades and never stores a password (Amendment 2 §10).
+  trades and never stores a password (Amendment 3 §10).
 - No use of Claude Code or the Agent SDK as Lonora's engine (VISION P4).
 
 ---
@@ -181,7 +181,7 @@ Alembic, PostgreSQL 16, Pydantic contracts; React + Vite + Tailwind + TypeScript
 Ruff, Pyright, Biome; pytest + Playwright. Infrastructure as code with OpenTofu. Brand tokens copied from
 `docs/brand-kit.md` / `packages/ui-tokens` (a copy, not an import across repositories).
 
-### 3.8 Broker connections through the company's MetaApi account (D27, Amendment 2 §10)
+### 3.8 Broker connections through the company's MetaApi account (D27, Amendment 3 §10)
 
 **What the customer does.** In chat: «عندي حساب MT5، تداول عليه». Lonora asks for the account number and the server,
 shows the broker Secret card for the password (D30), and reports the balance when the connection is up. No visit to
@@ -240,7 +240,7 @@ invalidates tokens narrowed from it; whether a narrowed token can itself provisi
    suspicion.
 10. **Self-hosted Lonora is unchanged:** the owner's own MetaApi token, VISION §9.2 as written.
 
-### 3.9 The open agent: any API, MCP and skill (Amendment 2 §11)
+### 3.9 The open agent: any API, MCP and skill (Amendment 3 §11)
 
 Lonora is an agent with its own computer, in the manner of Grok Bot (VISION §1, P3). Hosting keeps all of it.
 
@@ -262,10 +262,10 @@ stated in the help centre so "any server" is not over-promised:
   MetaApi's names and Lonora's own domain.
 - At most 256 connections per agent user; idle connections close after an hour (streams with pings are unaffected).
 
-**What hosting adds** (Amendment 2 §11): the cloud domain in `LONORA_WORKSPACE_BLOCKED_DOMAINS` (so a workspace cannot
+**What hosting adds** (Amendment 3 §11): the cloud domain in `LONORA_WORKSPACE_BLOCKED_DOMAINS` (so a workspace cannot
 reach other customers or the control plane), SMTP 25 blocked, and the abuse ladder of §13.8. Nothing else.
 
-**Trading scope: MetaTrader only (owner decision of 2026-11-22).** Lonora Cloud trades MT5 accounts through MetaApi
+**Trading scope: MetaTrader only (VISION Amendment 2).** Lonora Cloud trades MT5 accounts through MetaApi
 and the execution door, on **any symbol the customer's broker offers**: forex, metals, indices, energies, and stock or
 crypto CFDs where that broker lists them. Symbols are the broker's own (`packages/tools/src/lonora_tools/symbols.py`);
 nothing restricts which ones an agent may trade (`assert_market_binding` keeps only a fixed-market agent's charts,
@@ -360,7 +360,7 @@ halt on regressions, and a held-rollback alert to SRE.
 
 | Event | What happens |
 |---|---|
-| Payment fails | Dunning (§9.4). Owner warned by email, push relay and a notice in Lonora's sign-in/settings area (Amendment 2 §5) at T-7d, T-3d, T-24h, T-1h. |
+| Payment fails | Dunning (§9.4). Owner warned by email, push relay and a notice in Lonora's sign-in/settings area (Amendment 3 §5) at T-7d, T-3d, T-24h, T-1h. |
 | Grace ends (7 days) | `quiescing` → `suspended`: `lonora quiesce`, stack stopped, the instance's MetaApi accounts undeployed (§3.8), VM kept, data intact. Portal shows how to pay and resume. |
 | Paid while suspended | `resuming`: MetaApi accounts deployed, `lonora start`, `/ready`, notice cleared. |
 | 30 days suspended | Final backup kept 30 more days, MetaApi accounts deleted, VM and DNS destroyed, instance `deleted`. |
@@ -368,7 +368,7 @@ halt on regressions, and a held-rollback alert to SRE.
 | Deletion request (GDPR) | Typed confirmation, 7-day cool-off, then immediate destroy; backups purged at the end of their lock period; billing records kept as tax law requires. |
 | Abuse/security | Graduated (§13.8); immediate quiesce only for an active attack or legal order, recorded with reason and approver. |
 
-### 4.7 Trading-specific rules (Amendment 2 §9)
+### 4.7 Trading-specific rules (Amendment 3 §9)
 
 - The operator never closes, modifies or opens positions. Open positions at the broker remain the owner's when an
   instance stops. Every warning says so plainly, in the owner's language.
@@ -612,7 +612,7 @@ MRR/ARR, expansion/contraction, churn, ARPU, LTV, cohort revenue, computed from 
 
 ### 9.4 Dunning
 
-Provider smart retries; emails at day 0, 3, 5, 7; push relay notice; Lonora settings-area notice (Amendment 2 §5);
+Provider smart retries; emails at day 0, 3, 5, 7; push relay notice; Lonora settings-area notice (Amendment 3 §5);
 suspension at day 7 through quiesce (§4.6); one-click resume after payment.
 
 ### 9.5 Before integration
@@ -789,7 +789,7 @@ Outbound SMTP 25 blocked at the provider firewall; the existing `workspace-net` 
 MetaApi hosts and Lonora's own address from the workspace; the host agent reports connection-rate and port-spread
 counters; thresholds trigger a Trust & Safety case. Long-lived TLS and WebSocket streams to data vendors and APIs are
 normal traffic for this product: thresholds are tuned on staging against real trading workloads, and every step
-after "notify" needs a person except against an attack in progress (Amendment 2 §11). Action ladder: notify owner →
+after "notify" needs a person except against an attack in progress (Amendment 3 §11). Action ladder: notify owner →
 throttle workspace egress → stop the `workspace` service only (Lonora and trading keep running) → quiesce and suspend. `abuse@` mailbox and provider notices
 feed cases. AUP forbids attacks, spam, mining, illegal content and sanctions evasion.
 
@@ -902,7 +902,7 @@ the SLA commitments and ticket volume (target ≤ 0.3 tickets per instance per m
 | MetaApi costs grow faster than revenue | Margin | Included connections per plan (D28), undeploy on suspension, monthly reconciliation and forecast alert |
 | Model-provider changes | Customer impact | Status monitoring, help-centre guidance, VISION §9.4 proactive health already reports it to the owner |
 | Support load from onboarding (keys, MetaApi) | Cost and churn | Guides, video, assistant, first-week outreach |
-| Mandate drift (sessions acting outside Amendment 2) | Product broken | README rules for Claude Code; reviews against VISION |
+| Mandate drift (sessions acting outside Amendment 3) | Product broken | README rules for Claude Code; reviews against VISION |
 
 ## 21. Why customers choose Lonora Cloud
 

@@ -1,4 +1,4 @@
-# Draft — VISION.md Amendment 2
+# Draft — VISION.md Amendment 3
 
 **Status: Draft for the owner.** It becomes binding only when the owner issues it. Once issued, a Claude Code session
 appends it verbatim under "## Owner amendments" in `VISION.md`, with the issue date, in a pull request of its own
@@ -6,7 +6,7 @@ appends it verbatim under "## Owner amendments" in `VISION.md`, with the issue d
 
 ---
 
-### Amendment 2 (YYYY-MM-DD): Lonora Cloud, one dedicated installation per customer
+### Amendment 3 (YYYY-MM-DD): Lonora Cloud, one dedicated installation per customer
 
 The owner decided that Lonora is also offered as a hosted service in which every customer has a separate space
 («كل مستخدم له مساحة منفصلة»), and that the product stays the delegated trading agent it is today
@@ -67,6 +67,5 @@ mandate:
     - outbound SMTP port 25 is blocked;
     - the abuse ladder of the operator's acceptable-use policy (notify, throttle, stop the workspace), which never stops
       Lonora itself and acts without notice only against an attack in progress.
-12. **Trading scope of Lonora Cloud: MetaTrader only.** The owner decided that Lonora Cloud trades only MetaTrader
-    accounts through MetaApi, on any symbol the owner's broker offers («على MT5 فقط، مهما كان الزوج الذي يدعمه وسيط
-    المستخدم»). No crypto exchange or other venue is built, offered or supported in Lonora Cloud.
+12. **Trading scope.** VISION Amendment 2 (MetaTrader only, any symbol the owner's broker offers, no other venue)
+    applies to Lonora Cloud unchanged.

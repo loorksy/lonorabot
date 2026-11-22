@@ -25,7 +25,7 @@ here in the same pull request. "Blocks" names the first task that cannot start w
 
 | ID | Decision | Recommendation | Why | Blocks | Status |
 |---|---|---|---|---|---|
-| D27 | Who provides MetaApi | **The company's MetaApi account.** The customer enters only account number, server and password; the company pays MetaApi and bills the customer. Design in PLAN §3.8, mandate text in Amendment 2 §10. | Owner: «لا يحتاج المستخدم غير رقم الحساب والخادم وكلمة المرور، وليس توكن … يتم محاسبتنا نحن». | P1-T12 | Confirmed (2026-11-22) |
+| D27 | Who provides MetaApi | **The company's MetaApi account.** The customer enters only account number, server and password; the company pays MetaApi and bills the customer. Design in PLAN §3.8, mandate text in Amendment 3 §10. | Owner: «لا يحتاج المستخدم غير رقم الحساب والخادم وكلمة المرور، وليس توكن … يتم محاسبتنا نحن». | P1-T12 | Confirmed (2026-11-22) |
 | D28 | Pricing of connections | Each plan **includes** connections (Starter 1, Pro 2, Max 5); more are billed monthly at cost plus margin. Only the number of connections is counted: never trades, volume or activity. | MetaApi bills per deployed account; included connections keep pricing simple; P1 forbids anything else. | P4-T11 | Proposed |
 | D29 | MetaApi reliability tier | **High reliability** for every paying plan (MetaApi recommends it for production; it costs more); regular only for trials. | A trading agent that loses its connection overnight is the failure customers remember. | P3-T13 | Proposed |
 | D30 | Where the password is typed | **In Lonora's Secret card, as today**; it passes once through the provisioning service to MetaApi in memory. Alternative: MetaApi's own configuration link (the customer types the password on a MetaApi page; it never touches our servers) but the customer leaves Lonora. | Keeps the journey inside chat (VISION §9.2); honest disclosure of the single pass. | P1-T12 | Proposed |
@@ -35,7 +35,7 @@ here in the same pull request. "Blocks" names the first task that cannot start w
 
 | ID | Decision | Recommendation | Why | Blocks | Status |
 |---|---|---|---|---|---|
-| D33 | Crypto as a first-class venue | — | Owner: «لا داعي للكريبتو نهائياً … على MT5 فقط». Lonora Cloud trades MT5 through MetaApi only, on any symbol the customer's broker offers (Amendment 2 §12). The crypto adapter spec was removed. | — | Rejected (2026-11-22) |
+| D33 | Crypto as a first-class venue | — | Owner: «لا داعي للكريبتو نهائياً … على MT5 فقط». Lonora Cloud trades MT5 through MetaApi only, on any symbol the customer's broker offers (VISION Amendment 2). The crypto adapter spec was removed. | — | Rejected (2026-11-22) |
 | D34 | Fixed outbound IP per customer | — | Its only reason was crypto-exchange key allowlists (D33). MetaApi connects to the broker from MetaApi's side, so an MT5-only service does not need it. | — | Withdrawn (2026-11-22) |
 | D35 | Closing the gaps with nanobot | Consider for `lonorabot`, not for hosting: a skills catalogue with install from chat, plugin bundles (skills + MCP servers), stdio MCP tools as native tools. Each is a product change under VISION P3/P5 and `docs/mcp-boundary.md`; see [docs/proposals/agent-environment.md](../proposals/agent-environment.md). | Owner wants nanobot-level openness; today Lonora covers it through the workspace and owner-trusted remote MCP. | PT-2 | Proposed |
 

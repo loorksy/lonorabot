@@ -1,6 +1,6 @@
 # Lonora Cloud — executable phases
 
-**Status: Proposed. Not binding until VISION.md Amendment 2 is issued.** Read [README.md](README.md) (rules for Claude
+**Status: Proposed. Not binding until VISION.md Amendment 3 is issued.** Read [README.md](README.md) (rules for Claude
 Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: `lonorabot` = this repository;
 `lonora-cloud` = the new control-plane repository (D2).
 
@@ -23,7 +23,7 @@ Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: 
 
 | ID | Task | Done when |
 |---|---|---|
-| P0-T1 | Edit and issue Amendment 2 ([draft](AMENDMENT-2-DRAFT.md)) with its date. | The owner says "issued". |
+| P0-T1 | Edit and issue Amendment 3 ([draft](AMENDMENT-3-DRAFT.md)) with its date. | The owner says "issued". |
 | P0-T2 | Confirm or change D1–D18. | Every one is `Confirmed` or `Changed`. |
 | P0-T3 | Company (D19); engage counsel for D20–D23; accountant. | Counsel engaged with this plan as the brief. |
 | P0-T4 | Register the cloud domain (D5); Cloudflare account; brand name check. | Domain in Cloudflare. |
@@ -33,35 +33,35 @@ Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: 
 | P0-T8 | Staff identity provider (D25) and hardware keys for the first staff. | Owner signs in with a key. |
 | P0-T9 | MetaApi (D27, D32): open the company's MetaApi account; ask MetaApi in writing for permission to serve customers from it, volume pricing for high reliability, a DPA; with a test token, record the server's maximum `validity_in_hours`, the `get_access_rules` manifest entry for trading + streaming on listed accounts, and whether rotating the company token invalidates narrowed tokens (PLAN §3.8). | Written answer from MetaApi; the three facts recorded in D31's row. |
 
-**Exit:** Amendment 2 issued, D1–D18 and D27–D31 settled, MetaApi's written answer received, repository and accounts
+**Exit:** Amendment 3 issued, D1–D18 and D27–D31 settled, MetaApi's written answer received, repository and accounts
 exist.
 
 ---
 
 ## Phase 1 — Instance readiness (`lonorabot`)
 
-All additive, off by default, no change to VISION §6 or agent behaviour (Amendment 2 §6).
+All additive, off by default, no change to VISION §6 or agent behaviour (Amendment 3 §6).
 
 | ID | Task | Acceptance criteria |
 |---|---|---|
-| P1-T1 | Append the issued Amendment 2 verbatim under "## Owner amendments" in `VISION.md`; change the status line of `docs/cloud/*.md` to "Adopted by Amendment 2". | Text matches the owner's issued version exactly; no other mandate text changed. |
+| P1-T1 | Append the issued Amendment 3 verbatim under "## Owner amendments" in `VISION.md`; change the status line of `docs/cloud/*.md` to "Adopted by Amendment 3". | Text matches the owner's issued version exactly; no other mandate text changed. |
 | P1-T2 | Machine-readable `lonora`: `--json` for `status`, `start`, `update`, `rollback`, `backup`, `restore-test` in `infra/compose/lonora`; one JSON object on stdout, human text unchanged without the flag; documented schema in `docs/operations.md`. | `tests/ops/lifecycle_test.sh` (or a sibling test) parses every command's JSON; exit codes unchanged; secrets never printed. |
 | P1-T3 | Origin-certificate TLS mode (D4): `infra/compose/mode-origin.yml` and a Caddyfile branch that serves a provided certificate/key and requires the Authenticated Origin Pulls client CA; `install.sh --origin-cert F --origin-key F --origin-pull-ca F`; `lonora` selects the mode like it selects direct/proxy. | Direct and proxy modes byte-identical in behaviour; origin mode rejects a client without the pull certificate; `/api/events/stream` still unbuffered. |
 | P1-T4 | Setup link (D7): the first-run screen that calls `initializeOwner` (`apps/web/src/lib/bootstrap.ts`) reads `#token=…` from the URL fragment, pre-fills it, removes it from history immediately; `lonora rotate-bootstrap` writes a new `LONORA_BOOTSTRAP_TOKEN` and recreates the api service. | Web test: link opens, token never appears in a request URL or server log, owner created; reuse returns 409; rotated token invalidates the old link. |
 | P1-T5 | `lonora quiesce [--timeout SECONDS] --json`: maintenance on → wait until no `ln_trading_journal` row is in `UNRESOLVED_STATUSES` (`lonora_contracts.trading`) or timeout → stop the gateway; output lists remaining unresolved operation ids. Read-only query run inside the api container. | Test with a seeded unresolved row: quiesce reports it and still stops; `lonora start` resumes and reconciliation runs; no write to the journal by quiesce. |
-| P1-T6 | Hosted notices (Amendment 2 §5): `LONORA_HOSTED_PORTAL_URL` shows one "Account and billing" link in settings and sign-in (web and mobile); `LONORA_HOSTED_NOTICE_FILE` (JSON: level, ar, en, until) shown only there. | Absent settings → nothing rendered (snapshot tests); present → link and notice in Arabic RTL and English; nowhere else. |
+| P1-T6 | Hosted notices (Amendment 3 §5): `LONORA_HOSTED_PORTAL_URL` shows one "Account and billing" link in settings and sign-in (web and mobile); `LONORA_HOSTED_NOTICE_FILE` (JSON: level, ar, en, until) shown only there. | Absent settings → nothing rendered (snapshot tests); present → link and notice in Arabic RTL and English; nowhere else. |
 | P1-T7 | Push relay client in `packages/adapters/src/lonora_adapters/channels/expo_push.py`: with `LONORA_PUSH_RELAY_URL` and `LONORA_PUSH_RELAY_TOKEN`, send the same payloads and device registrations to the relay instead of Expo. | `tests/test_push_sender.py` covers both paths with a fake relay; default path unchanged. |
 | P1-T8 | Mobile connect (D9): deep link `lonora://connect?server=https://…` and QR scan on `apps/mobile/app/server.tsx`, stored through `apps/mobile/lib/session.tsx`; confirmation shows the host; https required except local addresses. | Mobile tests for link parsing, rejection of non-https remote hosts, manual entry still works. |
 | P1-T9 | Passkeys on customer subdomains: confirm each instance serves Digital Asset Links and Apple app-site-association for its own host from `LONORA_PASSKEY_*`; document `webcredentials:*.lonora.app` in the mobile release configuration. | Checklist run on two staging hosts with real devices; results in `docs/mobile/`. |
 | P1-T10 | Workspace image location: `LONORA_WORKSPACE_IMAGE` (path) so `workspace.img` can live on an attached volume; default `workspace.img` next to `.env` as today. | Lifecycle test with a custom path; grow-in-place and never-shrink rules unchanged. |
 | P1-T11 | `lonora diagnostics --json`: versions, service states, `/ready`, resource usage and the last N lines per service, scrubbed inside the api container with `lonora_security.secrets`, size-capped. | Test: a planted secret and its base64/hex/URL forms never appear in the bundle. |
-| P1-T12 | Hosted broker provisioning (D27, D30, Amendment 2 §10): with `LONORA_BROKER_PROVISIONER_URL` and its instance credential set, the connect flow asks only number, server and the password Secret card (no MetaApi-token card); the create/deploy/update/remove steps of `packages/trading/src/lonora_trading/broker_provisioning.py` call the provisioner (keeping the stable `transaction-id`) instead of `metaapi_provisioning.py`; the returned narrowed token is written as `METAAPI_TOKEN` through the existing `replace_token` path (`broker_manage.py`), also for renewals; a "this connection costs X per month" confirmation from the provisioner is shown in the connect step before creation. Trading code and the execution door untouched. | Tests with a fake provisioner: connect, retry after a lost answer makes one account, password never logged or kept after acceptance, renewal swaps the token without dropping the connection, extra-connection confirmation; without the setting the self-hosted flow (owner's token card) is unchanged; core safety tests pass unchanged. |
+| P1-T12 | Hosted broker provisioning (D27, D30, Amendment 3 §10): with `LONORA_BROKER_PROVISIONER_URL` and its instance credential set, the connect flow asks only number, server and the password Secret card (no MetaApi-token card); the create/deploy/update/remove steps of `packages/trading/src/lonora_trading/broker_provisioning.py` call the provisioner (keeping the stable `transaction-id`) instead of `metaapi_provisioning.py`; the returned narrowed token is written as `METAAPI_TOKEN` through the existing `replace_token` path (`broker_manage.py`), also for renewals; a "this connection costs X per month" confirmation from the provisioner is shown in the connect step before creation. Trading code and the execution door untouched. | Tests with a fake provisioner: connect, retry after a lost answer makes one account, password never logged or kept after acceptance, renewal swaps the token without dropping the connection, extra-connection confirmation; without the setting the self-hosted flow (owner's token card) is unchanged; core safety tests pass unchanged. |
 
 **Exit:** all tasks merged; a fresh staging VM installs non-interactively in origin mode, reaches `/ready`, onboards
 through a setup link, answers every `--json` command, and a self-hosted install without the new flags behaves as before.
 
 **Starter prompt (Phase 1):**
-> Read VISION.md including Amendment 2, AGENTS.md, CLAUDE.md, docs/cloud/README.md, docs/cloud/DECISIONS.md and the
+> Read VISION.md including Amendment 3, AGENTS.md, CLAUDE.md, docs/cloud/README.md, docs/cloud/DECISIONS.md and the
 > Phase 1 section of docs/cloud/PHASES.md. Implement only task P1-T2 on a branch `cloud/p1-t2-status-json` from the
 > latest main. Keep self-hosted behaviour identical without the new flag, never print secrets, extend
 > tests/ops/lifecycle_test.sh, run bash scripts/build.sh, and open a pull request titled "cloud(P1-T2): …" that lists
@@ -109,7 +109,7 @@ through a setup link, answers every `--json` command, and a self-hosted install 
 | P3-T11 | Staging end-to-end: real VM to `active`; SSE through Cloudflare; uploads at Lonora's limits; voice check; p95 provisioning time. | 20 consecutive provisions succeed; p95 under 5 minutes. |
 | P3-T12 | Cost measurement for each plan size with the worksheet (PLAN §5.3), including MetaApi high-reliability connections. | Numbers recorded in DECISIONS D14 discussion; owner sets prices. |
 | P3-T13 | `broker-provisioner` (PLAN §3.8): separate deployment; company MetaApi token in KMS/Vault by workload identity; egress allowlist of MetaApi provisioning and token-management hosts only; endpoints of PLAN §12 bound to the calling instance's accounts; create in the MetaApi region nearest the broker server, tag with the instance id, deploy at the D29 tier; password held in memory only; audit and the customer-facing connection log. | Tests: password absent from database, queues and logs (planted-value scan); an instance cannot read or change another instance's accounts; a request to a trading host from the provisioner fails at the network; repeated create with one `transaction_id` makes one account; staging connects a MetaApi demo account end to end through P1-T12. |
-| P3-T15 | Open-agent hosting (Amendment 2 §11): `LONORA_WORKSPACE_BLOCKED_DOMAINS` set to the cloud domain; SMTP 25 blocked at the provider firewall and nothing else. | Staging: from a customer workspace, HTTPS/WSS to a public API, a remote MCP server, `pip install`, `git clone` and SSH all work; another customer's instance, the portal API, the provisioner, MetaApi and `169.254.169.254` are refused. |
+| P3-T15 | Open-agent hosting (Amendment 3 §11): `LONORA_WORKSPACE_BLOCKED_DOMAINS` set to the cloud domain; SMTP 25 blocked at the provider firewall and nothing else. | Staging: from a customer workspace, HTTPS/WSS to a public API, a remote MCP server, `pip install`, `git clone` and SSH all work; another customer's instance, the portal API, the provisioner, MetaApi and `169.254.169.254` are refused. |
 | P3-T14 | Narrowed tokens and metering: mint tokens narrowed to the instance's account set (trading + streaming), validity per D31, re-mint on connect/remove and on schedule, deliver by host-agent `broker_token` job or instance pull; undeploy on suspension and deploy on resume; deployed-hours metering and monthly reconciliation with MetaApi's invoice. | A control-plane outage simulated for 48 h does not stop trading; a token under 7 days alerts; suspension stops MetaApi billing for that instance; usage report matches MetaApi's numbers within 1%. |
 
 **Exit:** the API can create, update, suspend, resume and destroy a real customer instance with no manual step and no
@@ -212,7 +212,7 @@ consent or approvals; the supervisors panel shows live data on staging.
 
 ### Launch go/no-go checklist
 
-- [ ] Amendment 2 in VISION.md; D1–D32 confirmed.
+- [ ] Amendment 3 in VISION.md; D1–D32 confirmed.
 - [ ] Counsel sign-off on D20–D23; legal documents published; risk disclosure accepted at signup.
 - [ ] Billing provider live mode approved; tax configured.
 - [ ] Pen test: no critical/high open.

@@ -1,7 +1,7 @@
 # Lonora Cloud — the plan to run Lonora as a company
 
 **Status: Proposed. Not binding.** `VISION.md` §17 says multi-user hosting is out of scope. Nothing in this
-folder may be implemented until the owner issues Amendment 2 (draft: [AMENDMENT-2-DRAFT.md](AMENDMENT-2-DRAFT.md))
+folder may be implemented until the owner issues Amendment 3 (draft: [AMENDMENT-3-DRAFT.md](AMENDMENT-3-DRAFT.md))
 and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depends on.
 
 ---
@@ -37,13 +37,13 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 - حدّ صادق يُذكر في صفحة الأمان: مفتاح الشركة يصل إلى الاتصالات التي أنشأها؛ لذلك له أشد الضوابط، وكل استخدام له
   يظهر للعميل.
 
-### وكيل مفتوح مثل Grok Bot — الاستضافة لا تقلّص شيئاً (التعديل 2 §11)
+### وكيل مفتوح مثل Grok Bot — الاستضافة لا تقلّص شيئاً (التعديل 3 §11)
 كل وكلاء العميل يملكون حاسوبهم الخاص كما في النسخة الذاتية اليوم:
 - **أي API:** إنترنت، أي أداة سطر أوامر، `pip`/`npm`، SSH، عمليات خلفية، متصفح، وأسرار من أي نوع.
 - **أي خادم MCP بعيد:** يثق به المالك برسالة، مع OAuth. وخوادم MCP المحلية تعمل داخل مساحة العمل.
 - **مهارات** من مستودعات GitHub موثوقة، أو يكتبها الوكلاء بأنفسهم.
-- **التداول: MT5 فقط** (قرار المالك 2026-11-22) عبر باب التنفيذ، على **أي رمز يدعمه وسيط العميل**: عملات، ذهب ومعادن،
-  مؤشرات، طاقة، وعقود CFD على الأسهم أو الكريبتو إن كان الوسيط يعرضها. لا منصات كريبتو ولا أي منصة أخرى.
+- **التداول: MT5 فقط** (التعديل 2 في VISION، صادر) عبر باب التنفيذ، على **أي رمز يدعمه وسيط العميل**: عملات، ذهب ومعادن،
+  مؤشرات، طاقة، وعقود CFD على الأسهم أو الكريبتو إن كان الوسيط يعرضها. التداول على أي منصة أخرى ممنوع عبر أي طريق، حتى لو طلبه المالك.
 - الحدود الوحيدة المضافة: لا وصول إلى خوادم العملاء الآخرين ولا طبقة التحكم، ومنفذ SMTP 25 مغلق، وسلّم مكافحة الإساءة
   (لا يوقف Lonora نفسه أبداً).
 - حدود الشبكة الحقيقية (موجودة اليوم): الاتصالات عبر TLS/HTTP/SSH **بالاسم** — يغطي كل خدمات الويب وWebSocket —
@@ -62,7 +62,7 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 | **الدعم الفني** | تذاكر، دردشة، قاعدة معرفة عربي/إنجليزي، مساعد ذكي، حزمة تشخيص بموافقة العميل | `lonora-cloud` |
 
 ### المراحل (التفاصيل في [PHASES.md](PHASES.md))
-0. قرارات المالك + التعديل 2 على VISION + الشركة والقانون والدفع (ابدأ مبكراً: موافقات الدفع تأخذ أسابيع).
+0. قرارات المالك + التعديل 3 على VISION + الشركة والقانون والدفع (ابدأ مبكراً: موافقات الدفع تأخذ أسابيع).
 1. **تجهيز النسخة** في هذا المستودع: `lonora status --json`، رابط الإعداد، شهادة Cloudflare، الإيقاف الآمن،
    مرحّل الإشعارات، ربط الجوال بـQR، حزمة التشخيص — كلها إضافية ومطفأة افتراضياً للمستضيف الذاتي.
 2. هيكل طبقة التحكم (مستودع جديد، قاعدة بيانات، مصادقة، سجل تدقيق، طابور مهام).
@@ -91,14 +91,14 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 | File | What it is |
 |---|---|
 | [DECISIONS.md](DECISIONS.md) | Owner decisions, each with a recommendation and its status. Claude Code reads this first. |
-| [AMENDMENT-2-DRAFT.md](AMENDMENT-2-DRAFT.md) | Draft text of VISION.md Amendment 2, for the owner to edit and issue. |
+| [AMENDMENT-3-DRAFT.md](AMENDMENT-3-DRAFT.md) | Draft text of VISION.md Amendment 3, for the owner to edit and issue. |
 | [PLAN.md](PLAN.md) | The full design: architecture, isolation, lifecycle, portal, admin, supervisors, support, billing, operations, security, legal, go-to-market, KPIs, risks. |
 | [PHASES.md](PHASES.md) | The executable roadmap: phases, tasks with IDs, acceptance criteria, verification, and a starter prompt per phase. |
 
 ## Rules for Claude Code sessions executing this plan
 
-1. **Read before acting:** `VISION.md` (including Amendment 2 once issued), `AGENTS.md`, `CLAUDE.md`,
-   [DECISIONS.md](DECISIONS.md), then the phase in [PHASES.md](PHASES.md). If Amendment 2 is not yet in
+1. **Read before acting:** `VISION.md` (including Amendment 3 once issued), `AGENTS.md`, `CLAUDE.md`,
+   [DECISIONS.md](DECISIONS.md), then the phase in [PHASES.md](PHASES.md). If Amendment 3 is not yet in
    `VISION.md`, stop and tell the owner; do not implement.
 2. **A decision marked `Proposed` that the task depends on is not yours to settle.** Ask the owner, then record the
    answer in DECISIONS.md in the same pull request.
@@ -110,7 +110,7 @@ and confirms the decisions in [DECISIONS.md](DECISIONS.md) that the phase depend
 5. **Zero access is a feature:** no task may give the control plane a way to sign in as an owner, read instance secrets,
    chats, memory, broker data or model keys, or place, modify, close or cancel an order. The one broker action the
    control plane takes is the MetaApi connection lifecycle by `broker-provisioner` (create, deploy, undeploy, update,
-   remove, narrowed tokens), under PLAN §3.8 and Amendment 2 §10; it must never gain a path to trading hosts or store a
+   remove, narrowed tokens), under PLAN §3.8 and Amendment 3 §10; it must never gain a path to trading hosts or store a
    broker password.
 6. **One task family per branch and pull request**, titled `cloud(P<phase>-T<n>): …`, based on the latest `main`
    (AGENTS.md). Tests ship with the change. In this repository run `bash scripts/build.sh` and the affected test suites;
