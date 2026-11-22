@@ -16,7 +16,9 @@ supervisors panel, a support desk, operations and reliability, security and comp
 - No change to what Lonora is or how its agents trade (VISION §1–§12). The product stays a delegated trading agent.
 - No shared multi-owner database. One installation serves one owner (Amendment 2 §1).
 - No change to the invisible safety core (VISION §6).
-- No platform-sold model access (D6). No platform access to customers' Lonora, keys, chats or accounts (D7, Amendment 2 §3).
+- No platform-sold model access (D6). No platform access to customers' Lonora, model keys or chats (D7, Amendment 2 §3).
+  Broker connections are provided by the company's MetaApi account only through the provisioner of §3.8, which never
+  trades and never stores a password (Amendment 2 §10).
 - No use of Claude Code or the Agent SDK as Lonora's engine (VISION P4).
 
 ---
@@ -31,14 +33,18 @@ supervisors panel, a support desk, operations and reliability, security and comp
 
 **What the customer brings**
 - Model API keys (BYOK, VISION §12, D6), entered in chat inside their Lonora.
-- Their MetaApi token and broker account (VISION §9), connected from chat.
+- Their MetaTrader account number, server and password, as their broker gave them. **No MetaApi account and no
+  token**: the company's MetaApi account provides the connection and the company pays for it (D27, §3.8).
 - Optionally a Telegram bot token.
 
 **The promise (front page of the marketing site)**
-> Your Lonora, your keys, your accounts. We run the servers. We cannot trade, read your keys or sign in to your Lonora.
+> Your Lonora, your keys, your accounts. We run the servers. Only your Lonora trades your account. We never store your
+> broker password, and we cannot sign in to your Lonora or read your model keys.
 
-This is enforced by architecture (§3.4), not only by policy, and it is the main differentiator against hosts that
-operate a shared backend.
+This is enforced by architecture (§3.4, §3.8), not only by policy, and it is the main differentiator against hosts
+that operate a shared backend. Honest limit, stated on the security page: the company's MetaApi key can reach the
+MetaApi connections it created. It lives in one isolated service that never trades, under the controls of §3.8, and
+every use is shown to the customer.
 
 ---
 
@@ -115,6 +121,7 @@ flowchart LR
 | `portal-web` (React + Vite + Tailwind) | Customer portal at `my.lonora.app`. |
 | `admin-web` (React + Vite + Tailwind) | Staff console at `admin.lonora.app`, including the supervisors panel; reachable only through a Zero Trust gateway. |
 | `lonora-host-agent` | Runs on each customer VM (§10). |
+| `broker-provisioner` | The only holder of the company's MetaApi API token. Creates, deploys, undeploys, updates and removes customers' MetaApi accounts and issues each instance a token narrowed to its own accounts (§3.8). Separate deployment, egress to MetaApi only. |
 | Postgres | Managed, point-in-time recovery, multi-zone. |
 | KMS / Vault | Signing keys, provider tokens, escrow decryption keys (D8). |
 | Object storage | Backups per instance prefix, object lock (WORM), lifecycle by plan. |
@@ -128,10 +135,12 @@ balancer. Workers coordinate through database leases (the same pattern Lonora's 
 | Allowed | Never |
 |---|---|
 | `lonora status --json`, `/ready`, service states, image digest and release, update/backup/restore-test results | Chats, memory, owner profile, agents' instructions |
-| CPU, memory, disk, workspace usage, OOM kills, egress counters | Secrets, `.env` values, model keys, MetaApi token, broker passwords |
+| CPU, memory, disk, workspace usage, OOM kills, egress counters | Secrets, `.env` values, model keys, the instance's narrowed MetaApi token, broker passwords (except the one pass in §3.8) |
 | Backup metadata (time, size, checksum) and the **encrypted** backup file | Decrypted backups (except DR under dual control, D8) |
 | `owner_initialized: true/false` (public `GET /onboarding`) | Owner password, passkeys, sessions |
 | Push requests through the relay (device token + title + body that the instance already sends to Expo) | Trading journal, positions, accounts, orders |
+| To `broker-provisioner`: connect/rotate/remove requests (login, server, platform, and the password **once, in memory**, forwarded to MetaApi) | The password at rest anywhere in the control plane, or in any log |
+| From `broker-provisioner`: MetaApi account ids, deployment/connection state, the narrowed token | Balances, positions, history, orders (the instance reads those from MetaApi itself) |
 | Diagnostics bundle **only with the customer's consent per ticket** (scrubbed on the instance) | Raw service logs (break-glass only, §7.5) |
 
 ### 3.5 Domains, TLS and edge (D4, D5)
@@ -171,6 +180,65 @@ Same stack as Lonora so one team and one set of Claude Code habits cover both: P
 Alembic, PostgreSQL 16, Pydantic contracts; React + Vite + Tailwind + TypeScript for the two web apps; pnpm + turbo;
 Ruff, Pyright, Biome; pytest + Playwright. Infrastructure as code with OpenTofu. Brand tokens copied from
 `docs/brand-kit.md` / `packages/ui-tokens` (a copy, not an import across repositories).
+
+### 3.8 Broker connections through the company's MetaApi account (D27, Amendment 2 §10)
+
+**What the customer does.** In chat: «عندي حساب MT5، تداول عليه». Lonora asks for the account number and the server,
+shows the broker Secret card for the password (D30), and reports the balance when the connection is up. No visit to
+metaapi.cloud, no token, no MetaApi bill.
+
+**What Lonora does today.** One owner-scope secret `METAAPI_TOKEN` (`packages/db/src/lonora_db/secrets.py`) serves both
+provisioning (`packages/trading/src/lonora_trading/broker_provisioning.py`,
+`packages/adapters/src/lonora_adapters/brokers/metaapi_provisioning.py`, which sends each create with a stable
+`transaction-id` so a resend never makes a second account) and trading (`packages/adapters/src/lonora_adapters/brokers/metaapi.py`,
+only through the execution door). Token rotation is `replace_token` (`packages/trading/src/lonora_trading/broker_manage.py`).
+
+**Facts read from the MetaApi SDK Lonora pins (`metaapi-cloud-sdk==29.1.1`).**
+- Every provisioning call (create, deploy, undeploy, redeploy, update, delete, list, configuration link) requires an
+  API (JWT) token (`clients/metaapi/metatrader_account_client.py`).
+- A token can be narrowed by application, role and resource, for example to given account ids
+  (`TokenManagementApi.narrow_down_token_resources`), with `validity_in_hours` (default 24 h). The SDK has no call to
+  revoke a narrowed token before it expires.
+- Hosts differ by function: provisioning `mt-provisioning-api-v1.<domain>`, token management `profile-api-v1.<domain>`,
+  trading and account data `mt-client-api-v1…`, market data `mt-market-data-client-api-v1…`.
+- `create_configuration_link(account_id, ttl_in_days)` yields a MetaApi page where the end user types login and
+  password (the D30 alternative).
+- MetaApi bills an account only while it is deployed; high-reliability accounts cost more. Exact rates and volume terms
+  come from MetaApi (D32).
+
+**To verify with a real company token in P0-T9:** the server's maximum `validity_in_hours`; the access-rule manifest
+(`get_access_rules`) for a rule limited to trading and streaming on listed accounts; whether rotating the company token
+invalidates tokens narrowed from it; whether a narrowed token can itself provision (it must not be needed).
+
+**Design.**
+1. **One holder.** `broker-provisioner` alone holds the company's MetaApi API token, in KMS/Vault, usable only by its
+   workload identity. No person reads it; manual use needs two approvals, like key escrow (D8).
+2. **Connect.** In hosted mode (`LONORA_BROKER_PROVISIONER_URL` set) the instance sends
+   `create {login, server, platform, password, transaction_id}` over mTLS with its instance credential. The provisioner
+   creates the MetaApi account in the MetaApi region nearest the broker server, tags it with the instance id, records
+   `metaapi_account_id → instance_id`, deploys it at the D29 tier, and drops the password from memory once MetaApi has
+   accepted it. The password is never written to the control plane's database, queues or logs (tested).
+3. **Narrowed token.** The provisioner mints a token narrowed to **the set of this instance's account ids**, with
+   trading and streaming roles only, valid per D31. The instance stores it as `METAAPI_TOKEN`, where the owner's token
+   lives today, so the broker adapter and the execution door do not change at all.
+4. **Renewal.** Re-minted on every connect or removal and on the D31 schedule, delivered by the host agent
+   (`broker_token` job) or pulled by the instance; under 7 days of life left pages SRE. A control-plane outage shorter
+   than a token's remaining life never stops trading.
+5. **Management from chat** (VISION §9.3): password rotation, disconnect, enable/disable go to the provisioner, which
+   acts only on accounts mapped to the calling instance. Lonora's stable `transaction-id` is passed through, so the
+   existing no-duplicate-account guarantee holds end to end.
+6. **Lifecycle.** Undeploy on suspension (billing stops), deploy on resume, delete on instance deletion. Positions stay
+   at the broker and remain the owner's.
+7. **Metering.** Deployed hours per account from the provisioner's deploy/undeploy events, reconciled monthly with
+   MetaApi's invoice; feeds connection billing (D28) and the cost worksheet (§5.3).
+8. **The provisioner cannot trade.** Its egress allowlist contains only the provisioning and token-management hosts;
+   trading and account-data hosts are unreachable from it. Its code never imports the SDK's trading or streaming
+   clients (static test). Every call is audited and listed to the customer ("connection created / renewed / removed").
+9. **Containment.** A compromised customer VM holds a token narrowed to its own accounts and a credential the
+   provisioner maps to its own accounts only. Response: undeploy or delete that MetaApi account (cuts access whatever
+   the token's expiry) and ask the owner to change the broker password. The company token rotates quarterly and on any
+   suspicion.
+10. **Self-hosted Lonora is unchanged:** the owner's own MetaApi token, VISION §9.2 as written.
 
 ---
 
@@ -215,7 +283,8 @@ opened, and the customer sees "We are finishing your setup by hand; no action ne
    `LONORA_ENCRYPTION_KEY`, `LONORA_BOOTSTRAP_TOKEN`, `LONORA_WEBHOOK_SECRET`, the backup key) are **generated on the VM**,
    never in the control plane. The agent seals `LONORA_ENCRYPTION_KEY` and the backup key to the KMS public key and
    uploads only the sealed blob (D8). Non-secret settings (domain, project, resource limits, `LONORA_HOSTED_PORTAL_URL`,
-   `LONORA_PUSH_RELAY_URL`, relay credential) come from the control plane.
+   `LONORA_PUSH_RELAY_URL`, `LONORA_BROKER_PROVISIONER_URL`, the relay and provisioner instance credentials) come from
+   the control plane.
 4. **starting:** `lonora start`; the agent waits for `/ready`.
 5. **verifying:** an external probe through Cloudflare checks `/health`, `/ready`, TLS, maintenance flag absent, image
    digest equals the release requested.
@@ -232,8 +301,8 @@ opened, and the customer sees "We are finishing your setup by hand; no action ne
   the agent for `lonora rotate-bootstrap` and shows a new link. After onboarding the agent rotates the bootstrap token
   anyway (defence in depth).
 - The portal polls the public `GET /onboarding` and moves the instance to `active` when `owner_initialized` is true.
-- First steps then happen **inside Lonora, in chat**, as VISION requires: model key, MetaApi connection, agents. The
-  portal only links to guides; it never collects those secrets.
+- First steps then happen **inside Lonora, in chat**, as VISION requires: model key, then the MT5 account (number,
+  server, password: §3.8), then agents. The portal only links to guides; it never collects those secrets.
 
 ### 4.4 Updates (detail in §13.3)
 
@@ -255,9 +324,9 @@ halt on regressions, and a held-rollback alert to SRE.
 | Event | What happens |
 |---|---|
 | Payment fails | Dunning (§9.4). Owner warned by email, push relay and a notice in Lonora's sign-in/settings area (Amendment 2 §5) at T-7d, T-3d, T-24h, T-1h. |
-| Grace ends (7 days) | `quiescing` → `suspended`: `lonora quiesce`, stack stopped, VM kept, data intact. Portal shows how to pay and resume. |
-| Paid while suspended | `resuming`: `lonora start`, `/ready`, notice cleared. |
-| 30 days suspended | Final backup kept 30 more days, VM and DNS destroyed, instance `deleted`. |
+| Grace ends (7 days) | `quiescing` → `suspended`: `lonora quiesce`, stack stopped, the instance's MetaApi accounts undeployed (§3.8), VM kept, data intact. Portal shows how to pay and resume. |
+| Paid while suspended | `resuming`: MetaApi accounts deployed, `lonora start`, `/ready`, notice cleared. |
+| 30 days suspended | Final backup kept 30 more days, MetaApi accounts deleted, VM and DNS destroyed, instance `deleted`. |
 | Customer cancels | Runs until the end of the paid term; export offered; then as "30 days suspended". |
 | Deletion request (GDPR) | Typed confirmation, 7-day cool-off, then immediate destroy; backups purged at the end of their lock period; billing records kept as tax law requires. |
 | Abuse/security | Graduated (§13.8); immediate quiesce only for an active attack or legal order, recorded with reason and approver. |
@@ -287,11 +356,14 @@ halt on regressions, and a held-rollback alert to SRE.
 | Backups (off-host) | 7 daily | 14 daily + 8 weekly | 30 daily + 12 weekly + 12 monthly | Custom |
 | Restore test | Weekly | Weekly | Weekly + on demand | Custom |
 | Workspace snapshot | Weekly | Daily | Daily, 14 kept | Custom |
+| Broker connections included (D28) | 1 | 2 | 5 | Custom |
+| MetaApi reliability (D29) | High (regular during trial) | High | High | High |
 | Custom domain | — | — | Yes | Yes |
 | Support | Business hours, first reply 24 h | Business hours, 8 h | 24/7 for P1, 2 h | Named contact, contract SLA |
 | Availability target | 99.5% | 99.5% | 99.9% | Contract |
 
-Nothing in any plan limits agents, trades, model calls, conversations or routines.
+Nothing in any plan limits agents, trades, model calls, conversations or routines. A connection beyond those included
+is billed monthly (D28); it is never refused for trading reasons.
 
 ### 5.2 Entitlements
 
@@ -305,6 +377,7 @@ never the plan name.
 monthly cost per instance =
     VM + workspace volume + snapshots
   + backup storage (avg backup size × retained copies) + egress
+  + MetaApi: included connections × deployed hours × the D29 tier's rate (from the D32 agreement)
   + Cloudflare share + email/SMS share + monitoring share
   + support cost (tickets per instance per month × cost per ticket)
   + payment fees (% + fixed) + taxes not recovered
@@ -327,7 +400,8 @@ preferences.
 
 **Getting started:** handle choice with live availability, region, plan, acceptance of Terms, Privacy Policy, Risk
 Disclosure and AUP (versioned acceptances stored), checkout, live provisioning progress (SSE) with steps and ETA, the
-setup link, then a checklist of guides (connect a model key, connect MetaApi, connect Telegram, install the app).
+setup link, then a checklist of guides (connect a model key, connect your MT5 account, connect Telegram, install the
+app).
 
 **Dashboard:** status (healthy, degraded, updating, suspended), "Open my Lonora", "Connect phone" QR, version and what
 changed, next maintenance window and "Update now" when an update waits, resource graphs (CPU, RAM, disk, workspace),
@@ -470,7 +544,8 @@ Jobs that need approval wait in `awaiting_approval` and run only after a valid d
 - **Support assistant (Phase 8):** answers customers from the help centre and drafts replies for agents with a human
   approving each send; it sees only the ticket and the consented bundle; it runs on the company's own model key, never a
   customer's.
-- **Help centre content at launch:** getting started; connecting model providers; connecting MetaApi and a broker;
+- **Help centre content at launch:** getting started; connecting model providers; connecting an MT5 account (number,
+  server, password; finding the server name in the broker's email or terminal);
   Telegram; mobile app and passkeys; agents and modes (Full/Ask) explained from VISION; backups and restores; updates
   and windows; billing; security and the zero-access promise; trading risk notice; troubleshooting by symptom.
 - **Quality loop:** CSAT on solve, QA sampling, weekly support review that feeds the help centre and product bugs.
@@ -490,7 +565,9 @@ redirect alone.
 
 Monthly and annual; trials (D15); proration on upgrade, credit on downgrade; coupons and promotion codes; account
 credits; invoices with tax IDs; refunds with approvals; tax by provider (Stripe Tax or Paddle as merchant of record);
-currencies (USD first, local prices later).
+currencies (USD first, local prices later). Extra broker connections (D28) as a quantity line on the subscription,
+changed when the customer connects or removes an account beyond the plan's included number; the connect step in chat
+tells the owner the monthly price before the account is created.
 
 ### 9.3 Revenue reporting
 
@@ -556,6 +633,10 @@ rollouts(id, release_id, rings_json, status, created_by) ; rollout_targets(rollo
 dns_records(instance_id, provider_ref, name, created_at, deleted_at)
 certificates(instance_id, provider_ref, not_after)
 relay_credentials(instance_id, token_hash, created_at, revoked_at) ; relay_devices(instance_id, device_token_hash)
+broker_accounts(metaapi_account_id PK, instance_id, platform, broker_server, metaapi_region, reliability, state,
+                created_transaction_id UNIQUE, created_at, deleted_at)          -- never the login password
+broker_tokens(instance_id, account_ids, issued_at, not_after, delivered_at)  -- metadata only, never the token
+broker_usage(metaapi_account_id, day, deployed_hours) ; broker_audit(id, instance_id, action, metaapi_account_id, at)
 tickets(id, account_id, instance_id, channel, category, severity, status, assignee_id, team_id, sla_policy_id,
         first_response_due, resolution_due, created_at, solved_at)
 ticket_messages(id, ticket_id, author_type, author_id, body, internal, attachments, created_at)
@@ -588,6 +669,7 @@ referrals(id, referrer_id, referred_id, status, reward)
 | Staff | `/admin/v1/customers`, `/instances`, `/jobs`, `/releases`, `/rollouts`, `/billing`, `/tickets`, `/approvals`, `/breakglass`, `/abuse`, `/incidents`, `/staff`, `/audit`, `/kb`, `/settings` |
 | Host agent | `POST /agent/v1/enroll`, `GET /agent/v1/jobs`, `POST /agent/v1/jobs/{id}/progress`, `/result`, `POST /agent/v1/heartbeat`, `POST /agent/v1/escrow`, `POST /agent/v1/backups` |
 | Push relay | `POST /relay/v1/devices`, `POST /relay/v1/push` (instance relay credential) |
+| Broker provisioner | `POST /broker/v1/accounts` (create, idempotent on `transaction_id`), `PATCH /broker/v1/accounts/{id}` (password, enable/disable), `DELETE /broker/v1/accounts/{id}`, `GET /broker/v1/accounts`, `GET /broker/v1/token` (instance provisioner credential; only that instance's accounts) |
 | Webhooks | `POST /webhooks/billing/{provider}`, `/webhooks/email/inbound`, `/webhooks/provider/{name}` |
 | Public | `GET /v1/handles/{handle}/available`, status page feed |
 
@@ -646,6 +728,9 @@ notice. Mobile clients below `min_client_version` are warned before the ring tha
 | Certificate | origin certificate expires in < 30 days | P3 |
 | Control plane | API error rate, job queue age, webhook failures, DB replication | P1/P2 |
 | Abuse | egress anomaly, provider abuse notice | P2 |
+| Broker token | any instance token with under 7 days of life; renewal failures | P2 (P1 under 48 h) |
+| MetaApi | deploy failures, accounts disconnected across many instances, MetaApi status incidents, monthly cost above forecast | P2 |
+| Provisioner | any call to a host outside its egress allowlist (should be impossible), unusual create/delete rate | P1 |
 
 Dashboards: fleet health, provisioning funnel and timings, rollout progress, backup/restore health, cost per instance,
 support SLA. External uptime probes run from two regions. Public status page per region and component.
@@ -691,6 +776,10 @@ account takeover; DNS/edge misconfiguration; abuse from customer workspaces; bil
 - Signed allowlisted jobs over mTLS; agent outbound-only; per-VM origin certificates; firewall to Cloudflare only.
 - Signed images verified before rollout; SBOM and vulnerability gates.
 - Secrets generated on the VM; escrow sealed on the VM (D8).
+- The company's MetaApi token: one holder (`broker-provisioner`), workload identity only, egress limited to MetaApi's
+  provisioning and token hosts, no trading client in its code, quarterly rotation, every use audited and shown to the
+  customer; broker passwords pass in memory only (§3.8). This key is the highest-value secret the company holds and gets
+  its own section in the threat model.
 - Portal: Argon2id, TOTP/passkeys, CSRF protection, strict CSP, rate limits, CAPTCHA on signup, breached-password check.
 - Staff: SSO + hardware keys, Zero Trust gateway, least privilege, quarterly reviews, hash-chained audit.
 - Central logs carry no instance content; error tracking scrubbed; retention limits.
@@ -719,8 +808,11 @@ account takeover; DNS/edge misconfiguration; abuse from customer workspaces; bil
   Disclosure** (no profit promise, the customer decides and is responsible for their accounts, agents can lose money,
   the operator cannot trade or reverse trades), Cookie Policy, DPA, SLA, refund policy, sub-processor list, security
   page, vulnerability disclosure.
-- Third-party terms to review: MetaApi (each customer has their own account; check terms for hosted use and any
-  partner programme), model providers (BYOK), app stores (financial app policies), Cloudflare and the cloud provider
+- **MetaApi agreement (D32):** the company's account serves every customer, so the company is MetaApi's customer and
+  the customers' broker logins are processed by MetaApi on the company's behalf: written agreement allowing this,
+  volume pricing, DPA, sub-processor listing, and counsel's view on holding a key that reaches every customer's
+  connection (D20).
+- Other third-party terms to review: model providers (BYOK), app stores (financial app policies), Cloudflare and the cloud provider
   (acceptable use for agent workloads), TradingView licence (D22), unlicensed icons (D23), SearXNG AGPL kept unmodified.
 - Sanctions and export screening at signup and payment.
 - Insurance: cyber liability and professional indemnity.
@@ -766,7 +858,10 @@ the SLA commitments and ticket volume (target ≤ 0.3 tickets per instance per m
 | Cost per VM too high for the price | Thin margin | Measure in P3; Starter sizing; dense cells in Phase 9 |
 | Customer agents abuse the network | Provider terminates the account | §13.8, AUP, per-VM isolation, quick suspension of the workspace only |
 | Security incident | Trust lost | Zero access, isolation, signed jobs, pen tests, incident plan |
-| MetaApi or model-provider changes | Customer impact | Status monitoring, help-centre guidance, VISION §9.4 proactive health already reports it to the owner |
+| MetaApi refuses the model or changes its prices/terms | Every customer's trading connection | D32 written agreement before launch; volume terms; keep the self-hosted path (owner's own token) working; evaluate a second connection provider behind the door adapter (VISION §9.5) |
+| The company's MetaApi key is stolen | Access to every customer connection | §3.8 controls; rotation; undeploy-all runbook; insurance |
+| MetaApi costs grow faster than revenue | Margin | Included connections per plan (D28), undeploy on suspension, monthly reconciliation and forecast alert |
+| Model-provider changes | Customer impact | Status monitoring, help-centre guidance, VISION §9.4 proactive health already reports it to the owner |
 | Support load from onboarding (keys, MetaApi) | Cost and churn | Guides, video, assistant, first-week outreach |
 | Mandate drift (sessions acting outside Amendment 2) | Product broken | README rules for Claude Code; reviews against VISION |
 
@@ -777,4 +872,6 @@ the SLA commitments and ticket volume (target ≤ 0.3 tickets per instance per m
 - Dedicated VM per customer and a zero-access design that is checkable (staff-access log in the portal).
 - Arabic-first product and support.
 - Updates in the market-closed window; backups proved by weekly restore tests.
-- Bring your own keys: no markup on model usage, no usage caps.
+- Bring your own model keys: no markup on model usage, no usage caps.
+- Connect a broker account with what the broker gave you (number, server, password). No MetaApi account to open, no
+  token to copy, no second bill.

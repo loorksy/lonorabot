@@ -31,8 +31,10 @@ Code), [DECISIONS.md](DECISIONS.md) and [PLAN.md](PLAN.md) first. Repositories: 
 | P0-T6 | Cloud accounts: one for the control plane, one for the fleet, one staging project (D3); spending alerts. | API tokens exist in the owner's vault. |
 | P0-T7 | Create the empty repository `loorksy/lonora-cloud` and add it to the Claude Code environment. | A Claude Code session can clone it. |
 | P0-T8 | Staff identity provider (D25) and hardware keys for the first staff. | Owner signs in with a key. |
+| P0-T9 | MetaApi (D27, D32): open the company's MetaApi account; ask MetaApi in writing for permission to serve customers from it, volume pricing for high reliability, a DPA; with a test token, record the server's maximum `validity_in_hours`, the `get_access_rules` manifest entry for trading + streaming on listed accounts, and whether rotating the company token invalidates narrowed tokens (PLAN §3.8). | Written answer from MetaApi; the three facts recorded in D31's row. |
 
-**Exit:** Amendment 2 issued, D1–D18 settled, repository and accounts exist.
+**Exit:** Amendment 2 issued, D1–D18 and D27–D31 settled, MetaApi's written answer received, repository and accounts
+exist.
 
 ---
 
@@ -53,6 +55,7 @@ All additive, off by default, no change to VISION §6 or agent behaviour (Amendm
 | P1-T9 | Passkeys on customer subdomains: confirm each instance serves Digital Asset Links and Apple app-site-association for its own host from `LONORA_PASSKEY_*`; document `webcredentials:*.lonora.app` in the mobile release configuration. | Checklist run on two staging hosts with real devices; results in `docs/mobile/`. |
 | P1-T10 | Workspace image location: `LONORA_WORKSPACE_IMAGE` (path) so `workspace.img` can live on an attached volume; default `workspace.img` next to `.env` as today. | Lifecycle test with a custom path; grow-in-place and never-shrink rules unchanged. |
 | P1-T11 | `lonora diagnostics --json`: versions, service states, `/ready`, resource usage and the last N lines per service, scrubbed inside the api container with `lonora_security.secrets`, size-capped. | Test: a planted secret and its base64/hex/URL forms never appear in the bundle. |
+| P1-T12 | Hosted broker provisioning (D27, D30, Amendment 2 §10): with `LONORA_BROKER_PROVISIONER_URL` and its instance credential set, the connect flow asks only number, server and the password Secret card (no MetaApi-token card); the create/deploy/update/remove steps of `packages/trading/src/lonora_trading/broker_provisioning.py` call the provisioner (keeping the stable `transaction-id`) instead of `metaapi_provisioning.py`; the returned narrowed token is written as `METAAPI_TOKEN` through the existing `replace_token` path (`broker_manage.py`), also for renewals; a "this connection costs X per month" confirmation from the provisioner is shown in the connect step before creation. Trading code and the execution door untouched. | Tests with a fake provisioner: connect, retry after a lost answer makes one account, password never logged or kept after acceptance, renewal swaps the token without dropping the connection, extra-connection confirmation; without the setting the self-hosted flow (owner's token card) is unchanged; core safety tests pass unchanged. |
 
 **Exit:** all tasks merged; a fresh staging VM installs non-interactively in origin mode, reaches `/ready`, onboards
 through a setup link, answers every `--json` command, and a self-hosted install without the new flags behaves as before.
@@ -104,10 +107,12 @@ through a setup link, answers every `--json` command, and a self-hosted install 
 | P3-T9 | Push relay service (D9): relay credentials per instance, device binding per instance, rate limits, operator notices. | An instance cannot push to a device registered by another instance (test). |
 | P3-T10 | Quiesce, suspend, resume, destroy flows (PLAN §4.6) with DNS/certificate cleanup and retention timers (D24). | E2E on staging including an instance with a seeded unresolved operation. |
 | P3-T11 | Staging end-to-end: real VM to `active`; SSE through Cloudflare; uploads at Lonora's limits; voice check; p95 provisioning time. | 20 consecutive provisions succeed; p95 under 5 minutes. |
-| P3-T12 | Cost measurement for each plan size with the worksheet (PLAN §5.3). | Numbers recorded in DECISIONS D14 discussion; owner sets prices. |
+| P3-T12 | Cost measurement for each plan size with the worksheet (PLAN §5.3), including MetaApi high-reliability connections. | Numbers recorded in DECISIONS D14 discussion; owner sets prices. |
+| P3-T13 | `broker-provisioner` (PLAN §3.8): separate deployment; company MetaApi token in KMS/Vault by workload identity; egress allowlist of MetaApi provisioning and token-management hosts only; endpoints of PLAN §12 bound to the calling instance's accounts; create in the MetaApi region nearest the broker server, tag with the instance id, deploy at the D29 tier; password held in memory only; audit and the customer-facing connection log. | Tests: password absent from database, queues and logs (planted-value scan); an instance cannot read or change another instance's accounts; a request to a trading host from the provisioner fails at the network; repeated create with one `transaction_id` makes one account; staging connects a MetaApi demo account end to end through P1-T12. |
+| P3-T14 | Narrowed tokens and metering: mint tokens narrowed to the instance's account set (trading + streaming), validity per D31, re-mint on connect/remove and on schedule, deliver by host-agent `broker_token` job or instance pull; undeploy on suspension and deploy on resume; deployed-hours metering and monthly reconciliation with MetaApi's invoice. | A control-plane outage simulated for 48 h does not stop trading; a token under 7 days alerts; suspension stops MetaApi billing for that instance; usage report matches MetaApi's numbers within 1%. |
 
 **Exit:** the API can create, update, suspend, resume and destroy a real customer instance with no manual step and no
-orphan resources.
+orphan resources, and that instance connects an MT5 demo account with only number, server and password.
 
 ---
 
@@ -124,7 +129,8 @@ orphan resources.
 | P4-T7 | Dunning, suspension with quiesce, resume; notices by email, push relay and the hosted notice file. | Failed-payment simulation through day 7 suspends; payment resumes within 5 minutes. |
 | P4-T8 | Cancel at term end, data export, account deletion with cool-off (D24). | Deletion purges per D24; invoices retained. |
 | P4-T9 | Maintenance window, "Update now", backups list, backup download, restore request (typed confirmation). | Restore job requires confirmation and warns about replaced data. |
-| P4-T10 | Transparency page (staff access log), notification preferences, security page (sessions, factors), WCAG 2.1 AA. | axe checks; every break-glass session appears for the customer. |
+| P4-T10 | Transparency page (staff access log and the broker connection log of P3-T13), notification preferences, security page (sessions, factors), WCAG 2.1 AA. | axe checks; every break-glass session and every connection created/renewed/removed appears for the customer. |
+| P4-T11 | Connection billing (D28): included connections per plan; extra connections as a subscription quantity changed on connect/remove; price returned to the instance for the confirmation of P1-T12. | Connecting beyond the included number adds the charge after the owner confirms; removing it drops the charge at the next period. |
 
 **Exit:** test-mode purchase → active instance → plan change → cancel → deletion, fully automated.
 
@@ -205,7 +211,7 @@ consent or approvals; the supervisors panel shows live data on staging.
 
 ### Launch go/no-go checklist
 
-- [ ] Amendment 2 in VISION.md; D1–D26 confirmed.
+- [ ] Amendment 2 in VISION.md; D1–D32 confirmed.
 - [ ] Counsel sign-off on D20–D23; legal documents published; risk disclosure accepted at signup.
 - [ ] Billing provider live mode approved; tax configured.
 - [ ] Pen test: no critical/high open.
@@ -214,6 +220,8 @@ consent or approvals; the supervisors panel shows live data on staging.
 - [ ] Support staffed per D18; help centre complete; status page live; on-call rota active.
 - [ ] Cost per instance measured; prices give the target margin.
 - [ ] TradingView licence and icon licences settled.
+- [ ] MetaApi written agreement (D32) in place; the provisioner's network test proves it cannot reach trading hosts;
+      broker passwords proven absent from every control-plane store and log; undeploy-all runbook rehearsed.
 
 ---
 

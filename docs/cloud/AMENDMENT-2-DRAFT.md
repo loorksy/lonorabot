@@ -22,18 +22,19 @@ mandate:
 3. **The operator MUST NOT:**
    - sign in to an installation as its owner, or hold any credential that does;
    - read, copy or transmit an installation's secrets, broker credentials, model keys, conversations, memory, owner
-     profile or trading data, except by restoring that installation's own backup at the owner's request;
+     profile or trading data, except by restoring that installation's own backup at the owner's request, and except
+     the one pass of a broker password to MetaApi that item 10 provides;
    - place, modify, close, cancel or approve any order, or change any agent's mode or pauses.
-4. **Plans limit hosting resources only:** CPU, memory, disk, backup retention, snapshot frequency, regions, domains and
-   support level. Nothing in a plan limits a trading decision, an agent's activity or model use (P1). Model access stays
+4. **Plans limit hosting resources only:** CPU, memory, disk, backup retention, snapshot frequency, regions, domains,
+   the number of broker connections the operator provides (item 10), and support level. Nothing in a plan limits a trading decision, an agent's activity or model use (P1). Model access stays
    API keys the owner provides (section 12); the operator sells no model access.
 5. **P5 addition.** When `LONORA_HOSTED_PORTAL_URL` is set, the app MAY also show, outside conversations and only in the
    sign-in and settings areas: one "Account and billing" link to the operator's portal, and the operator's notices about
    maintenance, billing or suspension. No portal function is built inside Lonora.
 6. **Hosting hooks are additive.** Changes made to Lonora for hosting (machine-readable `lonora` output, the one-time
    setup link, origin-certificate TLS, `lonora quiesce`, a push relay, connecting the mobile app by QR code, the
-   diagnostics bundle) are off by default for self-hosted installations, read the trading journal at most, and MUST NOT
-   change section 6 or any agent behaviour.
+   diagnostics bundle, and the hosted provisioning path of item 10) are off by default for self-hosted installations,
+   read the trading journal at most, and MUST NOT change section 6 or any agent behaviour.
 7. **The control plane is a separate system.** The portal, billing, provisioning, administration and support software
    MUST NOT be part of the Lonora image.
 8. **P4 is unchanged.** Claude Code may build and maintain Lonora and the control plane. Neither runs Claude Code or the
@@ -41,3 +42,19 @@ mandate:
 9. **Suspension.** When the operator stops an installation (non-payment, abuse, security or the owner's request), it
    first warns the owner, then runs `lonora quiesce`. Open broker positions stay open and are the owner's; the operator
    never closes or changes them.
+10. **Broker connections in Lonora Cloud.** The owner connects a MetaTrader account with only the account number, the
+    server and the password their broker gave them («لا يحتاج المستخدم غير رقم الحساب والخادم وكلمة المرور، وليس
+    توكن»). The operator's MetaApi account provides the connection and the operator pays for it («يتم محاسبتنا نحن على
+    استخدام المستخدم»). In Lonora Cloud only:
+    - the MetaApi API token step of section 9.2 does not apply: the owner never creates or enters a MetaApi token;
+    - the operator's provisioning service is the only holder of the operator's MetaApi API token. At the request of an
+      owner's installation it creates, deploys, undeploys, updates and removes that owner's MetaApi accounts, and gives
+      the installation a token narrowed to that installation's own accounts, renewed before it expires;
+    - the broker password goes from the Secret card (7.2) through the provisioning service to MetaApi once, in memory.
+      The operator never stores or logs it;
+    - the provisioning service MUST NOT use the operator's token to read account data beyond connection state, or to
+      place, modify, close or cancel any order. Every use of it is audited and shown to the owner;
+    - the execution door (section 6) and every order path in the installation are unchanged: the installation trades
+      with its narrowed token exactly as it trades today;
+    - connections are a hosting resource under item 4. A plan may include a number of connections and bill more; it
+      never limits trading on a connected account.
