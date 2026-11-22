@@ -29,8 +29,9 @@ mandate:
    the number of broker connections the operator provides (item 10), and support level. Nothing in a plan limits a trading decision, an agent's activity or model use (P1). Model access stays
    API keys the owner provides (section 12); the operator sells no model access.
 5. **P5 addition.** When `LONORA_HOSTED_PORTAL_URL` is set, the app MAY also show, outside conversations and only in the
-   sign-in and settings areas: one "Account and billing" link to the operator's portal, and the operator's notices about
-   maintenance, billing or suspension. No portal function is built inside Lonora.
+   sign-in and settings areas: one "Account" link to the operator's portal (in an app-store build, only where the
+   store's payments policy allows it), and the operator's notices about maintenance, billing or suspension. No portal
+   function is built inside Lonora, and nothing is sold inside the app.
 6. **Hosting hooks are additive.** Changes made to Lonora for hosting (machine-readable `lonora` output, the one-time
    setup link, origin-certificate TLS, `lonora quiesce`, a push relay, connecting the mobile app by QR code, the
    diagnostics bundle, and the hosted provisioning path of item 10) are off by default for self-hosted installations,

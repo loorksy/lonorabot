@@ -26,8 +26,10 @@ supervisors panel, a support desk, operations and reliability, security and comp
 ## 1. Product
 
 **What the customer gets**
-- Their own Lonora at `https://<handle>.lonora.app` (D5), on a VM nobody else uses (D1): web app, the mobile app
-  connected by QR code, their own Linux workspace, database, encryption keys and backups.
+- **The Lonora Android app is the product (D36).** The website is only for signing up, paying and managing the
+  account; after signup everything happens in the native app: agents, conversations, cards, voice, settings.
+- Behind the app, their own Lonora at `https://<handle>.lonora.app` (D5), on a VM nobody else uses (D1): their own Linux
+  workspace, database, encryption keys and backups. The web app stays reachable as a fallback (D37).
 - Managed updates in their chosen window (D11), nightly encrypted backups shipped off the server, weekly automatic
   restore tests, workspace snapshots, monitoring, a status page and support in Arabic and English.
 
@@ -159,20 +161,44 @@ balancer. Workers coordinate through database leases (the same pattern Lonora's 
 - Handles: 3–30 chars, `[a-z0-9-]`, reserved list (`www`, `my`, `admin`, `api`, `status`, `mail`, `support`, `app`,
   brand terms), profanity filter, immutable after provisioning (renaming = new domain + migration).
 
-### 3.6 Mobile app, passkeys and push (D9)
+### 3.6 The Android app is the product (D36)
 
-- **Connect:** the portal shows a QR code and a deep link `lonora://connect?server=https://<handle>.lonora.app`; the app's
-  server screen (`apps/mobile/app/server.tsx`, stored by `apps/mobile/lib/session.tsx`) accepts it (P1-T8). Manual entry
-  stays for self-hosters.
-- **Passkeys:** RP ID is the customer's own host. iOS associated domains use `webcredentials:*.lonora.app`; Android
-  Digital Asset Links are served by each instance (it already handles `LONORA_PASSKEY_*`). Verified in P1-T9.
-- **Push relay:** today each instance sends to Expo (`packages/adapters/src/lonora_adapters/channels/expo_push.py`,
-  `LONORA_EXPO_ACCESS_TOKEN`). A shared Expo token on every VM would let one compromised VM push to other customers'
-  devices. With `LONORA_PUSH_RELAY_URL` set, the instance sends to the relay with its own relay credential; the relay
-  holds the Expo token and only forwards to device tokens that instance registered (P1-T7, P3-T9). The relay also
-  carries the operator's own notices (maintenance, billing) to the owner's devices.
-- **OTA and APK:** cloud instances do not serve their own OTA bundles; the app uses the published channel
-  (`docs/mobile/ota.md`). `infra/release/compatibility.json` (`min_client_version`) gates rollouts (§13.3).
+The customer installs one app and never needs the web app. It is the existing Expo app (`apps/mobile`), built as a
+native Android app (React Native with native UI and Hermes, not a web page in a shell).
+
+**What exists today (`apps/mobile/README.md`):** a signed universal release APK (Android 7/API 24+) with a private
+release identity kept outside the repository; signed OTA updates with a pinned certificate; the first-run screen
+«إعداد Lonora» that creates the owner on a new server; native sessions in SecureStore; Arabic-first RTL; conversations,
+agents, groups, files, artifacts, charts, routines, memory and settings.
+
+**What is missing for an app-only product.** The app is documented as a *companion surface*: provider and integration
+configuration, financial execution controls, boards, skills/scratchpad/knowledge editing and realtime voice "remain in
+the full Web interface", and some native settings open the matching Web dialog. That README is partly out of date
+(later releases mention native voice work), so the first task is an audit against the current code (PM-T1). VISION §13
+already requires completing "mobile screens missing where web and the server have them".
+
+**Handoff from the website to the app.**
+- After payment the portal shows **"Install from Google Play"** and **"Open in the app"**: a deep link
+  `lonora://setup?server=https://<handle>.lonora.app&token=<bootstrap>` that opens the existing first-run screen with
+  the server and setup token filled in (PM-T2). The owner chooses their password and passkey in the app (D7: the
+  company never knows them).
+- On another device the same link is shown as a QR code; manual server entry stays for self-hosters.
+- After setup the app keeps the server and session; daily use never needs the website.
+
+**Passkeys:** RP ID is the customer's own host; Android Digital Asset Links are served by each instance (it already
+handles `LONORA_PASSKEY_*`), verified in P1-T9.
+
+**Push:** native notifications through the relay (`LONORA_PUSH_RELAY_URL`, P1-T7, P3-T9): the relay holds the Expo
+token and forwards only to devices the instance registered; it also carries the company's maintenance and billing
+notices.
+
+**Updates:** store releases for native changes; signed OTA for JavaScript changes, using the published channel
+(`docs/mobile/ota.md`), never served by customer instances. `infra/release/compatibility.json` (`min_client_version`)
+gates server rollouts (§13.3).
+
+**Store and payments (D38, D39).** Google Play is the main channel and a signed APK from the website the fallback.
+Purchases and plan changes happen only on the website; the app shows the plan's state but sells nothing and shows no
+prices or purchase links unless Google Play's payments policy for that country allows it.
 
 ### 3.7 Technology for `lonora-cloud`
 
@@ -330,10 +356,11 @@ opened, and the customer sees "We are finishing your setup by hand; no action ne
 
 ### 4.3 Owner onboarding (D7)
 
-- Setup link: `https://<handle>.lonora.app/setup#token=<bootstrap>` — the token is in the URL fragment so it never
-  reaches proxies or logs. The first-run screen (the one calling `initializeOwner` in `apps/web/src/lib/bootstrap.ts`)
-  reads and clears it, the owner chooses email + password (and then a passkey); `POST /onboarding` creates the owner
-  exactly as today (P1-T4).
+- **In the app (D36):** the portal's "Open in the app" deep link (§3.6) opens the app's existing first-run screen with
+  the server and setup token filled in; the owner chooses email + password (and then a passkey); `POST /onboarding`
+  creates the owner exactly as today (PM-T2).
+- Web fallback (D37): `https://<handle>.lonora.app/setup#token=<bootstrap>`, token in the URL fragment so it never
+  reaches proxies or logs, read and cleared by the web first-run screen (`apps/web/src/lib/bootstrap.ts`, P1-T4).
 - The link is single-use (the API returns 409 once the owner exists) and expires in 72 hours; on expiry the portal asks
   the agent for `lonora rotate-bootstrap` and shows a new link. After onboarding the agent rotates the bootstrap token
   anyway (defence in depth).
@@ -428,7 +455,13 @@ VM is a normal instance labelled `trial`; unconverted trials get export instruct
 
 ---
 
-## 6. Customer portal (`my.lonora.app`)
+## 6. Website and customer portal (`my.lonora.app`): signup, payment, account (D36)
+
+**The journey:** website → sign up and verify email → choose handle, plan and pay (or trial) → provisioning progress →
+"Install from Google Play" → "Open in the app" → set password and passkey in the app → from then on everything is
+in the app (model key, MT5 account, agents, conversations, approvals, voice). The website is for the account only:
+billing, plan, backups, maintenance window, support history, data export and deletion.
+
 
 **Account and security:** signup (email + password, Argon2id, breached-password check, CAPTCHA), email verification,
 login with rate limits, TOTP and passkeys, password reset, sessions list and revoke, login history, optional
@@ -436,11 +469,12 @@ Google/Apple sign-in (portal only — never the instance, D7), language (Arabic 
 preferences.
 
 **Getting started:** handle choice with live availability, region, plan, acceptance of Terms, Privacy Policy, Risk
-Disclosure and AUP (versioned acceptances stored), checkout, live provisioning progress (SSE) with steps and ETA, the
-setup link, then a checklist of guides (connect a model key, connect your MT5 account, connect Telegram, install the
+Disclosure and AUP (versioned acceptances stored), checkout, live provisioning progress (SSE) with steps and ETA, then
+"Install from Google Play" and "Open in the app" (§3.6), then a checklist of guides (connect a model key, connect your MT5 account, connect Telegram, install the
 app).
 
-**Dashboard:** status (healthy, degraded, updating, suspended), "Open my Lonora", "Connect phone" QR, version and what changed, next maintenance window and "Update now" when an update waits, resource graphs (CPU, RAM, disk, workspace),
+**Dashboard:** status (healthy, degraded, updating, suspended), "Open in the app" and its QR code for another device,
+version and what changed, next maintenance window and "Update now" when an update waits, resource graphs (CPU, RAM, disk, workspace),
 incidents affecting the customer's region.
 
 **Maintenance:** choose window (default D11) and time zone; history of updates with results.
@@ -565,7 +599,8 @@ Jobs that need approval wait in `awaiting_approval` and run only after a valid d
 
 ## 8. Support
 
-- **Channels:** portal tickets and live chat; email (`support@`, inbound webhook to tickets); help centre (ar/en);
+- **Channels:** in the app, a Help entry that opens the support pages for the customer's account (later an in-app
+  support chat); portal tickets and live chat; email (`support@`, inbound webhook to tickets); help centre (ar/en);
   status page; later Telegram/WhatsApp inboxes and a community group.
 - **Tiers:** L1 account, billing, onboarding guidance; L2 instance and connection troubleshooting (MetaApi, model keys,
   Telegram, mobile); L3 SRE/engineering.
@@ -853,6 +888,10 @@ account takeover; DNS/edge misconfiguration; abuse from customer workspaces; bil
   connection (D20).
 - Other third-party terms to review: model providers (BYOK), app stores (financial app policies), Cloudflare and the cloud provider
   (acceptable use for agent workloads), TradingView licence (D22), unlicensed icons (D23), SearXNG AGPL kept unmodified.
+- **Google Play (D38, D39):** the Financial Services policy and financial-features declaration, the payments policy
+  (no in-app selling or purchase steering unless allowed in that country), the Data safety form, account deletion
+  (a deletion link and a path from the app), the privacy policy URL, target API level, and developer verification
+  rules for apps installed outside Play.
 - Sanctions and export screening at signup and payment.
 - Insurance: cyber liability and professional indemnity.
 - Trademark registration for the brand in key markets.
@@ -862,6 +901,7 @@ account takeover; DNS/edge misconfiguration; abuse from customer workspaces; bil
 
 ## 17. Go-to-market
 
+- **Google Play listing (ar/en):** screenshots, short video, store search keywords, ratings and replies to reviews.
 - **Brand and site:** marketing site (ar/en): promise, how it works, security and zero access, pricing, FAQ, help centre,
   blog, changelog, status, legal pages.
 - **Launch sequence:** private alpha (10–20 known traders, free, weekly calls) → closed beta with waitlist (100, paid with
@@ -896,6 +936,7 @@ the SLA commitments and ticket volume (target ≤ 0.3 tickets per instance per m
 | TradingView licence does not cover hosting | Charts removed or licence cost | D22 before launch |
 | Cost per VM too high for the price | Thin margin | Measure in P3; Starter sizing; dense cells in Phase 9 |
 | Customer agents abuse the network | Provider terminates the account | §13.8, AUP, per-VM isolation, quick suspension of the workspace only |
+| Google Play rejects or removes the app (financial-app or payments policy) | Customers cannot install or update | Policy review before submission (PM-T6); signed APK from the website as a fallback (D38); OTA for urgent JavaScript fixes |
 | Security incident | Trust lost | Zero access, isolation, signed jobs, pen tests, incident plan |
 | MetaApi refuses the model or changes its prices/terms | Every customer's trading connection | D32 written agreement before launch; volume terms; keep the self-hosted path (owner's own token) working; evaluate a second connection provider behind the door adapter (VISION §9.5) |
 | The company's MetaApi key is stolen | Access to every customer connection | §3.8 controls; rotation; undeploy-all runbook; insurance |
@@ -909,7 +950,7 @@ the SLA commitments and ticket volume (target ≤ 0.3 tickets per instance per m
 - A trading specialist, not a general chatbot host, with an execution door that journals, never resends uncertain
   orders and reconciles with the broker (VISION §6).
 - Dedicated VM per customer and a zero-access design that is checkable (staff-access log in the portal).
-- Arabic-first product and support.
+- A native Android app as the whole product, Arabic-first, with support in Arabic and English.
 - Updates in the market-closed window; backups proved by weekly restore tests.
 - Bring your own model keys: no markup on model usage, no usage caps.
 - Connect a broker account with what the broker gave you (number, server, password). No MetaApi account to open, no

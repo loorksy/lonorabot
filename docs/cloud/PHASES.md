@@ -51,7 +51,7 @@ All additive, off by default, no change to VISION §6 or agent behaviour (Amendm
 | P1-T5 | `lonora quiesce [--timeout SECONDS] --json`: maintenance on → wait until no `ln_trading_journal` row is in `UNRESOLVED_STATUSES` (`lonora_contracts.trading`) or timeout → stop the gateway; output lists remaining unresolved operation ids. Read-only query run inside the api container. | Test with a seeded unresolved row: quiesce reports it and still stops; `lonora start` resumes and reconciliation runs; no write to the journal by quiesce. |
 | P1-T6 | Hosted notices (Amendment 3 §5): `LONORA_HOSTED_PORTAL_URL` shows one "Account and billing" link in settings and sign-in (web and mobile); `LONORA_HOSTED_NOTICE_FILE` (JSON: level, ar, en, until) shown only there. | Absent settings → nothing rendered (snapshot tests); present → link and notice in Arabic RTL and English; nowhere else. |
 | P1-T7 | Push relay client in `packages/adapters/src/lonora_adapters/channels/expo_push.py`: with `LONORA_PUSH_RELAY_URL` and `LONORA_PUSH_RELAY_TOKEN`, send the same payloads and device registrations to the relay instead of Expo. | `tests/test_push_sender.py` covers both paths with a fake relay; default path unchanged. |
-| P1-T8 | Mobile connect (D9): deep link `lonora://connect?server=https://…` and QR scan on `apps/mobile/app/server.tsx`, stored through `apps/mobile/lib/session.tsx`; confirmation shows the host; https required except local addresses. | Mobile tests for link parsing, rejection of non-https remote hosts, manual entry still works. |
+| P1-T8 | Mobile connect (D9, D36): deep link `lonora://connect?server=https://…` and QR scan on `apps/mobile/app/server.tsx`, stored through `apps/mobile/lib/session.tsx`; confirmation shows the host; https required except local addresses. | Mobile tests for link parsing, rejection of non-https remote hosts, manual entry still works. |
 | P1-T9 | Passkeys on customer subdomains: confirm each instance serves Digital Asset Links and Apple app-site-association for its own host from `LONORA_PASSKEY_*`; document `webcredentials:*.lonora.app` in the mobile release configuration. | Checklist run on two staging hosts with real devices; results in `docs/mobile/`. |
 | P1-T10 | Workspace image location: `LONORA_WORKSPACE_IMAGE` (path) so `workspace.img` can live on an attached volume; default `workspace.img` next to `.env` as today. | Lifecycle test with a custom path; grow-in-place and never-shrink rules unchanged. |
 | P1-T11 | `lonora diagnostics --json`: versions, service states, `/ready`, resource usage and the last N lines per service, scrubbed inside the api container with `lonora_security.secrets`, size-capped. | Test: a planted secret and its base64/hex/URL forms never appear in the bundle. |
@@ -67,6 +67,24 @@ through a setup link, answers every `--json` command, and a self-hosted install 
 > latest main. Keep self-hosted behaviour identical without the new flag, never print secrets, extend
 > tests/ops/lifecycle_test.sh, run bash scripts/build.sh, and open a pull request titled "cloud(P1-T2): …" that lists
 > the commands proving each acceptance criterion.
+
+---
+
+## Phase M — The Android app is the product (`lonorabot`, alongside Phases 2–4, D36)
+
+| ID | Task | Acceptance criteria |
+|---|---|---|
+| PM-T1 | Parity audit: every owner capability of the web app and the server against `apps/mobile` (the README's web-only list: provider and integration configuration, financial execution controls, boards, skills/scratchpad/knowledge editing, realtime voice, push; plus every native screen that opens a Web dialog). | A tracked list with one row per gap, checked against the current code, not the README. |
+| PM-T2 | Setup deep link: `lonora://setup?server=…&token=…` opens the existing first-run screen («إعداد Lonora») with both filled in; token used once and cleared; the portal shows the link and its QR code. | Mobile test: link → owner created → signed in; reused token refused (409); expired token shows "ask for a new link". |
+| PM-T3 | Close every gap of PM-T1 natively, fixed cards first (Mandate, Trade Approval, Secret, settlement), no "open in Web" for an owner flow. | Each row of PM-T1 closed with a native screen and its test; the VISION §16 acceptance scenario runs on the app alone. |
+| PM-T4 | Native push through the relay (P1-T7, P3-T9) and native realtime voice. | Push reaches a physical device from a staging instance; voice handoff works on a physical device. |
+| PM-T5 | Google Play release pipeline (D38): company developer account, Play App Signing with the upload key in a vault (not on a build host), version codes, internal → closed → production tracks, OTA compatibility rules kept. | A release reaches the internal track from CI with no key on any developer machine. |
+| PM-T6 | Store compliance (D39): Financial Services policy and financial-features declaration, payments policy, Data safety form, account deletion path, privacy policy URL, target API level. | Approved on the closed track. |
+| PM-T7 | Crash and performance reporting with scrubbing (no secrets, conversation text or trading data). | A planted secret never appears in a crash report. |
+| PM-T8 | Physical-device matrix: Android versions from 7 to current, small and low-memory phones, Arabic RTL and English. | Matrix run recorded for each release candidate. |
+| PM-T9 | iOS build from the same code (D40), later. | — |
+
+**Exit:** a customer can sign up on the website and do everything else in the app, installed from Google Play.
 
 ---
 
@@ -213,7 +231,8 @@ consent or approvals; the supervisors panel shows live data on staging.
 
 ### Launch go/no-go checklist
 
-- [ ] Amendment 3 in VISION.md; D1–D32 confirmed.
+- [ ] Amendment 3 in VISION.md; D1–D40 confirmed.
+- [ ] The app is on Google Play's production track; the PM-T1 parity list is closed.
 - [ ] Counsel sign-off on D20–D23; legal documents published; risk disclosure accepted at signup.
 - [ ] Billing provider live mode approved; tax configured.
 - [ ] Pen test: no critical/high open.
