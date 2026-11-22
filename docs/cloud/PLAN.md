@@ -1,0 +1,780 @@
+# Lonora Cloud — master plan
+
+**Status: Proposed. Not binding until VISION.md Amendment 2 is issued** ([draft](AMENDMENT-2-DRAFT.md)).
+Decisions referenced as `Dn` are in [DECISIONS.md](DECISIONS.md). Executable tasks are in [PHASES.md](PHASES.md).
+
+---
+
+## 0. Scope
+
+**Goal.** A company that runs a dedicated, isolated Lonora for every customer, in the manner of managed hosts of
+personal agents (one private, always-on instance per customer), with everything a company needs to compete
+internationally: signup and billing, automated provisioning, a customer portal, an administration console, a
+supervisors panel, a support desk, operations and reliability, security and compliance, legal, and go-to-market.
+
+**Non-goals.**
+- No change to what Lonora is or how its agents trade (VISION §1–§12). The product stays a delegated trading agent.
+- No shared multi-owner database. One installation serves one owner (Amendment 2 §1).
+- No change to the invisible safety core (VISION §6).
+- No platform-sold model access (D6). No platform access to customers' Lonora, keys, chats or accounts (D7, Amendment 2 §3).
+- No use of Claude Code or the Agent SDK as Lonora's engine (VISION P4).
+
+---
+
+## 1. Product
+
+**What the customer gets**
+- Their own Lonora at `https://<handle>.lonora.app` (D5), on a VM nobody else uses (D1): web app, the mobile app
+  connected by QR code, their own Linux workspace, database, encryption keys and backups.
+- Managed updates in their chosen window (D11), nightly encrypted backups shipped off the server, weekly automatic
+  restore tests, workspace snapshots, monitoring, a status page and support in Arabic and English.
+
+**What the customer brings**
+- Model API keys (BYOK, VISION §12, D6), entered in chat inside their Lonora.
+- Their MetaApi token and broker account (VISION §9), connected from chat.
+- Optionally a Telegram bot token.
+
+**The promise (front page of the marketing site)**
+> Your Lonora, your keys, your accounts. We run the servers. We cannot trade, read your keys or sign in to your Lonora.
+
+This is enforced by architecture (§3.4), not only by policy, and it is the main differentiator against hosts that
+operate a shared backend.
+
+---
+
+## 2. Decision record: one installation per customer
+
+| Evidence in this repository | Consequence |
+|---|---|
+| `get_owner()` selects `OwnerRow.singleton == 1` (`packages/db/src/lonora_db/owner.py`); `initialize_owner()` refuses a second owner (`packages/auth/src/lonora_auth/owner_policy.py`). | The schema is single-owner by construction. A shared database means rewriting every owner-scoped path. |
+| VISION §6 guarantees are per installation (journal, idempotency, per-account send serialization). | A shared deployment would have to re-prove the safety core across tenants. A dedicated one inherits it untouched. |
+| VISION §7.1: one workspace per owner, agents run arbitrary commands with internet egress; the workspace container holds `SETUID`/`SETGID`/`CHOWN` capabilities (`infra/compose/docker-compose.prod.yml`). | Untrusted code. Co-locating it on a shared kernel with other customers' broker credentials is the main risk to avoid → VM per customer (D1). |
+| `docker-compose.prod.yml`, `install.sh`, the `lonora` CLI (update with digest pinning, backup, health gate and automatic rollback; encrypted backup; restore; restore-test; maintenance), systemd units and `harden-host.sh` exist and are tested for one owner per server. | The tenant plane is mostly *already built*. The new work is the control plane that drives N of them. |
+
+Rejected alternatives: shared database with `tenant_id` (rewrites the product and the safety core); containers per
+customer on shared hosts without extra isolation (kernel-sharing with untrusted code). Dense cells with gVisor/Kata for
+the workspace are kept as a future cheaper tier (Phase 9) after a dedicated security review.
+
+---
+
+## 3. Architecture
+
+### 3.1 Overview
+
+```mermaid
+flowchart LR
+  subgraph Customer
+    B[Browser] ; M[Mobile app]
+  end
+  subgraph Edge[Cloudflare]
+    CF[DNS + proxy + WAF<br/>*.lonora.app]
+  end
+  subgraph Fleet[Customer fleet - one VM per customer]
+    subgraph VM1[VM: alice]
+      C1[Caddy origin cert] --> S1[Lonora prod stack<br/>api, gateway, db, workspace,<br/>searxng, browser]
+      A1[host agent]
+    end
+    subgraph VM2[VM: bob]
+      C2[Caddy] --> S2[Lonora stack] ; A2[host agent]
+    end
+  end
+  subgraph CP[Control plane - separate cloud account]
+    API[cloud-api] ; W[cloud-worker] ; P[portal-web my.] ; AD[admin-web admin.]
+    DB[(Postgres PITR)] ; KMS[(KMS / Vault)] ; RELAY[push relay]
+  end
+  OBJ[(Object storage<br/>backups, object lock)]
+  PROV[Cloud provider API] ; BILL[Billing provider] ; MAIL[Email provider]
+
+  B --> CF --> C1
+  M --> CF
+  B --> P --> API
+  A1 -- outbound mTLS, signed jobs --> API
+  A2 -- outbound mTLS --> API
+  A1 -- encrypted backups --> OBJ
+  S1 -- push via relay token --> RELAY
+  W --> PROV ; W --> CF ; API --> BILL ; API --> MAIL ; API --> KMS ; API --> DB
+```
+
+### 3.2 Tenant plane: the customer VM
+
+| Layer | Content |
+|---|---|
+| OS | Ubuntu LTS minimal image, cloud-init, `infra/compose/harden-host.sh`, unattended security upgrades, Docker Engine + Compose plugin pinned to tested versions. |
+| Lonora | Installed by `infra/compose/install.sh --domain <handle>.lonora.app --project lonora --version <release> --env-from <prepared .env> --workspace-memory … --workspace-cpus … --workspace-disk …`, then driven only by the `lonora` CLI. Origin-certificate TLS mode (P1-T3). |
+| Workspace disk | `workspace.img` on a separate attached volume so it can be snapshotted and resized (D10). |
+| Host agent | `lonora-host-agent` (systemd, root), outbound-only, runs signed allowlisted jobs (§10). |
+| Network | Provider firewall: inbound TCP 443 from Cloudflare ranges only; no inbound SSH (staff shell only through short-lived certificates via an access proxy, dual approval, recorded). Outbound open (the workspace needs the internet) with SMTP 25 blocked and egress anomaly detection (§13.8). |
+| Sizing | Installer preflight: free RAM ≥ 3584 MB + workspace memory, free disk ≥ 10 GB + workspace disk + 2 GB, ≥ 2 CPUs. Plans in §5. |
+
+### 3.3 Control plane (`lonora-cloud`, D2)
+
+| Service | Responsibility |
+|---|---|
+| `cloud-api` (FastAPI) | Portal API, staff API, host-agent API, billing/email/provider webhooks, push relay. |
+| `cloud-worker` | Durable jobs with database leases: provisioning state machine, rollouts, backup verification, dunning, notifications, SLA timers, retention purges. |
+| `portal-web` (React + Vite + Tailwind) | Customer portal at `my.lonora.app`. |
+| `admin-web` (React + Vite + Tailwind) | Staff console at `admin.lonora.app`, including the supervisors panel; reachable only through a Zero Trust gateway. |
+| `lonora-host-agent` | Runs on each customer VM (§10). |
+| Postgres | Managed, point-in-time recovery, multi-zone. |
+| KMS / Vault | Signing keys, provider tokens, escrow decryption keys (D8). |
+| Object storage | Backups per instance prefix, object lock (WORM), lifecycle by plan. |
+| Third parties | Cloud provider (D3), Cloudflare (D4), billing (D16), transactional email, error tracking (scrubbed), metrics/logs stack (D26), external uptime probes, on-call paging. |
+
+The control plane runs in a **different cloud account** from the fleet, with two or more application nodes behind a load
+balancer. Workers coordinate through database leases (the same pattern Lonora's gateway uses), so replicas are safe.
+
+### 3.4 What crosses between an instance and the control plane
+
+| Allowed | Never |
+|---|---|
+| `lonora status --json`, `/ready`, service states, image digest and release, update/backup/restore-test results | Chats, memory, owner profile, agents' instructions |
+| CPU, memory, disk, workspace usage, OOM kills, egress counters | Secrets, `.env` values, model keys, MetaApi token, broker passwords |
+| Backup metadata (time, size, checksum) and the **encrypted** backup file | Decrypted backups (except DR under dual control, D8) |
+| `owner_initialized: true/false` (public `GET /onboarding`) | Owner password, passkeys, sessions |
+| Push requests through the relay (device token + title + body that the instance already sends to Expo) | Trading journal, positions, accounts, orders |
+| Diagnostics bundle **only with the customer's consent per ticket** (scrubbed on the instance) | Raw service logs (break-glass only, §7.5) |
+
+### 3.5 Domains, TLS and edge (D4, D5)
+
+- Wildcard DNS record `*.lonora.app` is not used; each instance gets its own proxied record `<handle>` → VM IP, created
+  by the provisioner through the Cloudflare API, so a destroyed instance stops resolving at once.
+- Cloudflare Universal SSL covers first-level subdomains for browsers. Each VM gets its **own** Origin CA certificate
+  (never a shared wildcard key: one compromised VM must not be able to impersonate others). Authenticated Origin Pulls
+  makes Caddy accept only Cloudflare.
+- Caddy maintenance mode (`infra/compose/Caddyfile.prod`, the `/maintenance/on` flag) keeps working; the 503 message is
+  shown during updates and quiesce.
+- To verify in Phase 1: Server-Sent Events on `/api/events/stream` through the proxy (no buffering, heartbeat under the
+  proxy read timeout), uploads at Lonora's limits, WebRTC voice (direct to the model provider, not proxied).
+- Custom domains (Max): Cloudflare for SaaS custom hostnames, CNAME to `<handle>.lonora.app`, ownership verification
+  (Phase 8).
+- Handles: 3–30 chars, `[a-z0-9-]`, reserved list (`www`, `my`, `admin`, `api`, `status`, `mail`, `support`, `app`,
+  brand terms), profanity filter, immutable after provisioning (renaming = new domain + migration).
+
+### 3.6 Mobile app, passkeys and push (D9)
+
+- **Connect:** the portal shows a QR code and a deep link `lonora://connect?server=https://<handle>.lonora.app`; the app's
+  server screen (`apps/mobile/app/server.tsx`, stored by `apps/mobile/lib/session.tsx`) accepts it (P1-T8). Manual entry
+  stays for self-hosters.
+- **Passkeys:** RP ID is the customer's own host. iOS associated domains use `webcredentials:*.lonora.app`; Android
+  Digital Asset Links are served by each instance (it already handles `LONORA_PASSKEY_*`). Verified in P1-T9.
+- **Push relay:** today each instance sends to Expo (`packages/adapters/src/lonora_adapters/channels/expo_push.py`,
+  `LONORA_EXPO_ACCESS_TOKEN`). A shared Expo token on every VM would let one compromised VM push to other customers'
+  devices. With `LONORA_PUSH_RELAY_URL` set, the instance sends to the relay with its own relay credential; the relay
+  holds the Expo token and only forwards to device tokens that instance registered (P1-T7, P3-T9). The relay also
+  carries the operator's own notices (maintenance, billing) to the owner's devices.
+- **OTA and APK:** cloud instances do not serve their own OTA bundles; the app uses the published channel
+  (`docs/mobile/ota.md`). `infra/release/compatibility.json` (`min_client_version`) gates rollouts (§13.3).
+
+### 3.7 Technology for `lonora-cloud`
+
+Same stack as Lonora so one team and one set of Claude Code habits cover both: Python 3.12, FastAPI, SQLAlchemy 2 async,
+Alembic, PostgreSQL 16, Pydantic contracts; React + Vite + Tailwind + TypeScript for the two web apps; pnpm + turbo;
+Ruff, Pyright, Biome; pytest + Playwright. Infrastructure as code with OpenTofu. Brand tokens copied from
+`docs/brand-kit.md` / `packages/ui-tokens` (a copy, not an import across repositories).
+
+---
+
+## 4. Instance lifecycle
+
+### 4.1 States
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending_payment
+  pending_payment --> queued: paid or trial started
+  queued --> creating_vm --> enrolling --> installing --> starting --> verifying --> awaiting_owner
+  awaiting_owner --> active: owner_initialized
+  active --> updating --> active
+  active --> resizing --> active
+  active --> migrating --> active
+  active --> quiescing --> suspended
+  suspended --> resuming --> active
+  suspended --> deleting
+  active --> deleting: cancelled at term end or deletion request
+  deleting --> deleted
+  creating_vm --> failed
+  installing --> failed
+  verifying --> failed
+  failed --> queued: retry
+  failed --> deleting: compensate
+```
+
+Every transition is a row in `instance_events` (actor, reason, job id). Every step is idempotent on
+`(instance_id, step, attempt)`, retried with backoff, and has a compensation (destroy a half-built VM, remove its DNS
+record, revoke its enrollment token). After three failed attempts the instance goes to `failed`, an internal ticket is
+opened, and the customer sees "We are finishing your setup by hand; no action needed".
+
+### 4.2 Provisioning steps (target: under 5 minutes from payment to setup link)
+
+1. **queued → creating_vm:** choose region (D12) and size (plan); create firewall, VM with labels
+   (`instance_id`, `plan`, `env`), attached workspace volume; cloud-init carries a single-use enrollment token
+   (1 hour), the control-plane CA certificate and the job-signing public key.
+2. **enrolling:** the host agent generates its key pair, enrolls with the token, receives a short-lived mTLS client
+   certificate, reports facts (CPU, RAM, disk, kernel, Docker version).
+3. **installing:** the agent runs the signed `install` job. Secrets (`LONORA_POSTGRES_PASSWORD`,
+   `LONORA_ENCRYPTION_KEY`, `LONORA_BOOTSTRAP_TOKEN`, `LONORA_WEBHOOK_SECRET`, the backup key) are **generated on the VM**,
+   never in the control plane. The agent seals `LONORA_ENCRYPTION_KEY` and the backup key to the KMS public key and
+   uploads only the sealed blob (D8). Non-secret settings (domain, project, resource limits, `LONORA_HOSTED_PORTAL_URL`,
+   `LONORA_PUSH_RELAY_URL`, relay credential) come from the control plane.
+4. **starting:** `lonora start`; the agent waits for `/ready`.
+5. **verifying:** an external probe through Cloudflare checks `/health`, `/ready`, TLS, maintenance flag absent, image
+   digest equals the release requested.
+6. **awaiting_owner:** the bootstrap token is handed to the portal through the agent once, encrypted to the portal
+   session, and shown as the **setup link** (§4.3). The control plane does not store it.
+
+### 4.3 Owner onboarding (D7)
+
+- Setup link: `https://<handle>.lonora.app/setup#token=<bootstrap>` — the token is in the URL fragment so it never
+  reaches proxies or logs. The first-run screen (the one calling `initializeOwner` in `apps/web/src/lib/bootstrap.ts`)
+  reads and clears it, the owner chooses email + password (and then a passkey); `POST /onboarding` creates the owner
+  exactly as today (P1-T4).
+- The link is single-use (the API returns 409 once the owner exists) and expires in 72 hours; on expiry the portal asks
+  the agent for `lonora rotate-bootstrap` and shows a new link. After onboarding the agent rotates the bootstrap token
+  anyway (defence in depth).
+- The portal polls the public `GET /onboarding` and moves the instance to `active` when `owner_initialized` is true.
+- First steps then happen **inside Lonora, in chat**, as VISION requires: model key, MetaApi connection, agents. The
+  portal only links to guides; it never collects those secrets.
+
+### 4.4 Updates (detail in §13.3)
+
+`lonora update <version>` already pins the digest, backs up, migrates, gates on health and rolls back automatically.
+The control plane decides **when** and **to whom**: release rings, the customer's maintenance window (D11), automatic
+halt on regressions, and a held-rollback alert to SRE.
+
+### 4.5 Resize and migrate
+
+- **Upgrade:** provider resize (reboot) in the next window or "now" if the customer asks; then `lonora start` with the new
+  workspace limits (the workspace disk grows in place).
+- **Downgrade:** RAM/CPU shrink by resize; the workspace disk never shrinks (`lonora` refuses), so a smaller disk means
+  **migration**: new VM → `lonora backup` → restore on the new VM (`lonora restore FILE --replace --with-config`) →
+  copy workspace volume snapshot if it fits → DNS switch → old VM destroyed after 48 hours.
+- **Region move and host evacuation** use the same migration job.
+
+### 4.6 Suspend, resume, cancel, delete (D24)
+
+| Event | What happens |
+|---|---|
+| Payment fails | Dunning (§9.4). Owner warned by email, push relay and a notice in Lonora's sign-in/settings area (Amendment 2 §5) at T-7d, T-3d, T-24h, T-1h. |
+| Grace ends (7 days) | `quiescing` → `suspended`: `lonora quiesce`, stack stopped, VM kept, data intact. Portal shows how to pay and resume. |
+| Paid while suspended | `resuming`: `lonora start`, `/ready`, notice cleared. |
+| 30 days suspended | Final backup kept 30 more days, VM and DNS destroyed, instance `deleted`. |
+| Customer cancels | Runs until the end of the paid term; export offered; then as "30 days suspended". |
+| Deletion request (GDPR) | Typed confirmation, 7-day cool-off, then immediate destroy; backups purged at the end of their lock period; billing records kept as tax law requires. |
+| Abuse/security | Graduated (§13.8); immediate quiesce only for an active attack or legal order, recorded with reason and approver. |
+
+### 4.7 Trading-specific rules (Amendment 2 §9)
+
+- The operator never closes, modifies or opens positions. Open positions at the broker remain the owner's when an
+  instance stops. Every warning says so plainly, in the owner's language.
+- `lonora quiesce` (P1-T5): turn maintenance on, wait (bounded) until the trading journal has no row in
+  `UNRESOLVED_STATUSES` (`lonora_contracts.trading`), return any that remain in its JSON result, then stop the gateway.
+  The control plane tells the owner about remaining unresolved operations by email, push relay and the settings-area
+  notice. It reads the journal; it never sends, cancels or resends anything (VISION §6.3), and reconciliation resumes
+  on the next start.
+- Suspensions for non-payment are scheduled into the next market-closed window when one comes before the hard deadline.
+- Updates default to the weekend forex close (D11).
+
+---
+
+## 5. Plans, entitlements and price
+
+### 5.1 Plans (D13 — resources and service only, VISION P1)
+
+| | Starter | Pro | Max | Enterprise |
+|---|---|---|---|---|
+| VM | 8 GB, 2–4 vCPU shared | 16 GB, 4 vCPU | 32 GB, 8 dedicated vCPU | Dedicated host / region |
+| Workspace | 2 GB RAM, 1 CPU, 10 GB | 4 GB, 2 CPU, 20 GB | 8 GB, 4 CPU, 50 GB | Custom |
+| Backups (off-host) | 7 daily | 14 daily + 8 weekly | 30 daily + 12 weekly + 12 monthly | Custom |
+| Restore test | Weekly | Weekly | Weekly + on demand | Custom |
+| Workspace snapshot | Weekly | Daily | Daily, 14 kept | Custom |
+| Custom domain | — | — | Yes | Yes |
+| Support | Business hours, first reply 24 h | Business hours, 8 h | 24/7 for P1, 2 h | Named contact, contract SLA |
+| Availability target | 99.5% | 99.5% | 99.9% | Contract |
+
+Nothing in any plan limits agents, trades, model calls, conversations or routines.
+
+### 5.2 Entitlements
+
+`plans` → versioned `plan_versions` (limits as data) → `entitlements` per instance, recomputed from billing events.
+Provisioning, resize, backup retention, snapshot schedule, support SLA and custom-domain features read entitlements,
+never the plan name.
+
+### 5.3 Cost worksheet (fill with measured numbers in P3-T12)
+
+```
+monthly cost per instance =
+    VM + workspace volume + snapshots
+  + backup storage (avg backup size × retained copies) + egress
+  + Cloudflare share + email/SMS share + monitoring share
+  + support cost (tickets per instance per month × cost per ticket)
+  + payment fees (% + fixed) + taxes not recovered
+price ≥ cost / (1 − target gross margin)        target gross margin: 70–80%
+```
+
+### 5.4 Trial (D15)
+
+7 days on Starter, card required, one trial per payment fingerprint and per verified email domain heuristics; a trial
+VM is a normal instance labelled `trial`; unconverted trials get export instructions and are destroyed 3 days later.
+
+---
+
+## 6. Customer portal (`my.lonora.app`)
+
+**Account and security:** signup (email + password, Argon2id, breached-password check, CAPTCHA), email verification,
+login with rate limits, TOTP and passkeys, password reset, sessions list and revoke, login history, optional
+Google/Apple sign-in (portal only — never the instance, D7), language (Arabic RTL default, English), notification
+preferences.
+
+**Getting started:** handle choice with live availability, region, plan, acceptance of Terms, Privacy Policy, Risk
+Disclosure and AUP (versioned acceptances stored), checkout, live provisioning progress (SSE) with steps and ETA, the
+setup link, then a checklist of guides (connect a model key, connect MetaApi, connect Telegram, install the app).
+
+**Dashboard:** status (healthy, degraded, updating, suspended), "Open my Lonora", "Connect phone" QR, version and what
+changed, next maintenance window and "Update now" when an update waits, resource graphs (CPU, RAM, disk, workspace),
+incidents affecting the customer's region.
+
+**Maintenance:** choose window (default D11) and time zone; history of updates with results.
+
+**Backups:** list with time, size and last restore-test result; "Back up now"; request restore to a point (typed
+confirmation, creates a restore job, owner warned that data after that point is replaced); download an encrypted backup
+(format documented; decryption key handling per D8).
+
+**Billing:** plan, change plan with proration preview, payment methods, invoices (PDF), billing address and VAT/tax ID,
+cancel with exit survey and retention offer, reactivate.
+
+**Support:** help-centre search, new ticket (category, severity, optional diagnostics consent), ticket threads, live
+chat, status page.
+
+**Transparency:** "Staff access to your Lonora" — every break-glass session and diagnostics bundle, with who, when, why,
+duration; a toggle to pre-authorize support access for a time window.
+
+**Data:** export (account data + latest backup), delete account (typed confirmation, cool-off).
+
+**Referrals** (Phase 8): link, credits earned.
+
+---
+
+## 7. Staff console (`admin.lonora.app`) and supervisors panel
+
+### 7.1 Access
+
+Staff identity provider (D25) via OIDC, hardware security keys required, behind a Zero Trust gateway, session timeout,
+re-authentication for sensitive actions, every read of customer data and every action written to an append-only,
+hash-chained audit log. Quarterly access reviews.
+
+### 7.2 Roles and permissions
+
+| Permission | Owner | Admin | SRE | Support L1 | Support L2 | Support Supervisor | Finance | Trust & Safety | Analyst |
+|---|---|---|---|---|---|---|---|---|---|
+| customers.read | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | aggregated |
+| customers.write (profile, notes, tags) | ✓ | ✓ | | ✓ | ✓ | ✓ | | | |
+| instances.read (health, versions, jobs) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | aggregated |
+| instances.operate (restart, update, backup, restore-test, maintenance, rotate setup link) | ✓ | ✓ | ✓ | | ✓ | ✓ | | | |
+| instances.restore / migrate / resize | ✓ | ✓ | ✓ | | request | approve | | | |
+| instances.destroy | ✓ | approve | request | | | | | | |
+| breakglass.request | | | ✓ | | ✓ | ✓ | | ✓ | |
+| breakglass.approve | ✓ | ✓ | | | | ✓ | | ✓ | |
+| escrow.decrypt (DR, two approvers) | ✓ | ✓ | | | | | | ✓ | |
+| billing.read | ✓ | ✓ | | ✓ | ✓ | ✓ | ✓ | | aggregated |
+| billing.credit / refund ≤ limit | ✓ | ✓ | | | ✓ (small) | ✓ | ✓ | | |
+| billing.refund > limit, plan exceptions | ✓ | ✓ | | | | request | approve | | |
+| tickets.* | ✓ | ✓ | read | ✓ | ✓ | ✓ | billing queue | abuse queue | |
+| kb.edit / kb.publish | ✓ | ✓ | | draft | draft | publish | | | |
+| releases.manage / rollouts | ✓ | ✓ | ✓ | | | | | | |
+| abuse.act (throttle, stop workspace, suspend) | ✓ | ✓ | | | | | | ✓ | |
+| incidents.manage, status page | ✓ | ✓ | ✓ | | | ✓ (comms) | | | |
+| staff.manage | ✓ | ✓ | | | | team members | | | |
+| audit.read | ✓ | ✓ | own | | | team | | ✓ | |
+| flags.manage (control-plane features only) | ✓ | ✓ | ✓ | | | | | | |
+
+"request/approve" pairs go through the approvals inbox (§7.6). No role can read instance secrets or sign in as an owner.
+
+### 7.3 Administration modules
+
+1. **Overview:** MRR/ARR, new and churned customers, active instances, fleet health, provisioning success and p95 time,
+   update success, backup and restore-test pass rates, open incidents, ticket backlog, SLA breaches.
+2. **Customers:** search by email, handle, invoice or payment id; profile with plan, status, payments, tickets, instance,
+   acceptances, notes, tags, risk flags; actions: extend trial, credit, change plan, suspend/unsuspend with reason,
+   resend setup link, email the customer.
+3. **Fleet / instances:** filterable table (region, version, health, plan, window); instance page with state history,
+   heartbeat, metrics, versions, backups and restore-test results, update history, jobs; actions from §7.2. No screen
+   shows instance content.
+4. **Provisioning queue:** jobs, attempts, failures, dead letters, retry, compensate.
+5. **Releases and rollouts:** releases (digest, `release.json`, signature status, `min_client_version`), rollout
+   creation (rings, schedule within windows), pause/abort, automatic halt, per-instance hold/pin.
+6. **Billing:** subscriptions, invoices, refunds, credits, coupons, dunning, failed payments, tax exports, revenue.
+7. **Support desk:** see §8.
+8. **Trust & Safety:** abuse reports (mailbox, provider notices, egress alerts), cases, evidence, actions ladder,
+   sanctions-screening hits.
+9. **Incidents:** declare, affected regions/instances, status page updates, customer notices, postmortems.
+10. **Staff:** invite, roles, deactivate, key enrolment status, access reviews.
+11. **Audit log:** filter by actor, action, target, time; export; chain verification.
+12. **Content:** help-centre articles, announcements, email templates (ar/en), legal document versions.
+13. **Analytics:** acquisition funnel (visit → signup → paid → provisioned → onboarded), cohorts, churn reasons; instance
+    usage only from opt-in aggregate counters.
+14. **Settings:** plans and plan versions, regions, provider capacity, feature flags for control-plane features.
+
+### 7.4 Supervisors panel (لوحة المشرفين)
+
+For Support Supervisors (and Admin/Owner):
+
+- **Queues:** by team, language, plan, priority, channel; unassigned and stale tickets; bulk assign.
+- **SLA board:** first-response and resolution timers, breaches, tickets at risk in the next hour, per plan.
+- **Team performance:** tickets handled, first-response time, handling time, resolution time, reopen rate, CSAT per
+  agent and team, workload balance; daily and weekly views.
+- **Quality review:** random sample of solved tickets per agent, scoring rubric (accuracy, tone, policy, speed), coaching
+  notes, trend.
+- **Escalations:** L1 → L2 → SRE/engineering board with owner and due time; linked incidents.
+- **Approvals inbox:** refunds above an agent's limit, plan exceptions, break-glass requests, restores, migrations,
+  account deletions, suspensions; approve/deny with reason (audited).
+- **Roster:** shifts, on-duty agents, coverage gaps against D18, out-of-office routing.
+- **Knowledge management:** approve and publish articles and macros, find articles that fail (searches without results,
+  tickets after reading).
+- **Broadcasts:** maintenance and incident notices to an affected segment (region, version, plan), by email, push relay
+  and portal banner.
+- **Customer health:** at-risk list (failed payments, repeated tickets, degraded instance, low CSAT) for outreach.
+
+### 7.5 Break-glass (support access to a customer's server)
+
+- Default: no staff member can see anything inside an instance.
+- A session needs **customer consent** (portal toggle or ticket consent) or, for a security incident, two approvals
+  (Trust & Safety + Supervisor/Admin). It is time-boxed (default 2 h), scoped, and the customer is notified at start and
+  end and sees it in "Staff access to your Lonora".
+- Scope levels: **diagnostics** (scrubbed bundle, `lonora status`, `lonora logs SERVICE` bounded lines), **operate**
+  (restart, maintenance, restore-test). **Shell** on the VM is SRE-only, dual-approved, through short-lived SSH
+  certificates and full session recording. Honest note: root on a VM can technically read `.env`; the controls are no
+  standing access, approvals, recording, alerts and audit.
+- Break-glass never includes signing in to Lonora as the owner.
+
+### 7.6 Approvals
+
+Generic `approvals` table: type, target, requested by, reason, required approver roles, expiry, decision, decided by.
+Jobs that need approval wait in `awaiting_approval` and run only after a valid decision.
+
+---
+
+## 8. Support
+
+- **Channels:** portal tickets and live chat; email (`support@`, inbound webhook to tickets); help centre (ar/en);
+  status page; later Telegram/WhatsApp inboxes and a community group.
+- **Tiers:** L1 account, billing, onboarding guidance; L2 instance and connection troubleshooting (MetaApi, model keys,
+  Telegram, mobile); L3 SRE/engineering.
+- **Severity:** P1 instance down or cannot reach the broker because of the platform; P2 degraded; P3 how-to; P4
+  feedback/feature request. SLAs per plan (§5.1).
+- **Ticket model:** requester, instance, category, severity, status (new, open, pending customer, pending internal,
+  solved, closed), assignee, team, tags, SLA timers, internal notes, macros, merge, linked incident, CSAT.
+- **Instance context panel** beside every ticket: health, version, last update/backup/restore-test, recent alerts and
+  incidents — never content.
+- **Diagnostics bundle:** `lonora diagnostics --json` (P1-T11) generated on the instance, scrubbed with
+  `packages/security/src/lonora_security/secrets.py`, uploaded only after consent for that ticket, deleted after 30 days.
+- **Support assistant (Phase 8):** answers customers from the help centre and drafts replies for agents with a human
+  approving each send; it sees only the ticket and the consented bundle; it runs on the company's own model key, never a
+  customer's.
+- **Help centre content at launch:** getting started; connecting model providers; connecting MetaApi and a broker;
+  Telegram; mobile app and passkeys; agents and modes (Full/Ask) explained from VISION; backups and restores; updates
+  and windows; billing; security and the zero-access promise; trading risk notice; troubleshooting by symptom.
+- **Quality loop:** CSAT on solve, QA sampling, weekly support review that feeds the help centre and product bugs.
+
+---
+
+## 9. Billing
+
+### 9.1 Provider abstraction
+
+`BillingProvider` interface (create customer, checkout session, change plan, cancel, refund, credit, portal link, list
+invoices) with Stripe and Paddle implementations (D16). All state changes come from **webhooks** into an idempotent
+`billing_events` log (provider event id unique), which drives subscriptions and entitlements. The portal never trusts a
+redirect alone.
+
+### 9.2 Features
+
+Monthly and annual; trials (D15); proration on upgrade, credit on downgrade; coupons and promotion codes; account
+credits; invoices with tax IDs; refunds with approvals; tax by provider (Stripe Tax or Paddle as merchant of record);
+currencies (USD first, local prices later).
+
+### 9.3 Revenue reporting
+
+MRR/ARR, expansion/contraction, churn, ARPU, LTV, cohort revenue, computed from billing events; accounting export.
+
+### 9.4 Dunning
+
+Provider smart retries; emails at day 0, 3, 5, 7; push relay notice; Lonora settings-area notice (Amendment 2 §5);
+suspension at day 7 through quiesce (§4.6); one-click resume after payment.
+
+### 9.5 Before integration
+
+Written confirmation from the chosen provider that automated-trading software is accepted (D16); KYB of the company
+(D19). Both can take weeks, so they start in Phase 0.
+
+---
+
+## 10. Host agent
+
+| Aspect | Design |
+|---|---|
+| Packaging | Python 3.12 zipapp (no system Python changes), systemd service, signed release, self-update through a signed job. |
+| Identity | Single-use enrollment token from cloud-init → key pair on the VM → CSR → short-lived mTLS client certificate from the control-plane CA, renewed automatically. |
+| Transport | Outbound HTTPS only (long-poll `GET /agent/v1/jobs`, `POST …/result`, `POST /agent/v1/heartbeat`); no listening port. |
+| Job integrity | Each job is signed (Ed25519) by the control plane: `job_id`, `instance_id`, `type`, `params`, `not_after`, `nonce`. The agent verifies the signature against a pinned key, the instance id, expiry and nonce replay before running. |
+| Allowlist | `install`, `start`, `status`, `update{version}`, `rollback`, `backup`, `backup_upload`, `restore_test`, `restore{backup_ref}` (approval), `maintenance{on,off}`, `quiesce`, `rotate_bootstrap`, `setup_link`, `diagnostics` (consent), `logs{service,lines}` (break-glass), `snapshot_workspace`, `resize_prepare`, `os_patch`, `agent_update`. Nothing else, no shell. |
+| Implementation | Each job calls the `lonora` CLI (`infra/compose/lonora`) with `--json` and returns its object; long jobs stream progress. |
+| Heartbeat (30 s) | Agent version, `lonora status --json`, `/ready`, per-service state, CPU/RAM/disk/workspace usage, OOM kills, egress connection counters, time since last backup. |
+| Secrets | The agent never reads `.env` values except to seal the two escrowed keys at install (§4.2). Its logs are scrubbed. |
+| Failure | Missed heartbeats → `unreachable` alert; the external probe tells "agent down, Lonora up" from "both down". |
+
+---
+
+## 11. Control-plane data model (first version)
+
+```
+accounts(id, email, email_verified_at, password_hash, locale, tz, status, risk_flags, created_at)
+account_factors(account_id, type{totp,passkey}, data, created_at)
+account_sessions(id, account_id, ip, ua, created_at, revoked_at)
+legal_documents(id, kind{tos,privacy,risk,aup,dpa}, version, locale, body_ref, published_at)
+legal_acceptances(account_id, document_id, accepted_at, ip)
+plans(id, code) ; plan_versions(id, plan_id, limits_json, price_refs_json, active_from)
+subscriptions(id, account_id, plan_version_id, provider, provider_ref, status, period_end, trial_end, cancel_at)
+billing_events(id, provider, provider_event_id UNIQUE, type, payload, processed_at)
+invoices(id, account_id, provider_ref, amount, currency, status, pdf_url, issued_at)
+credits(id, account_id, amount, reason, created_by)
+coupons(id, code, terms_json, valid_until)
+regions(id, provider, code, status, capacity_json)
+instances(id, account_id, handle UNIQUE, region_id, state, plan_version_id, release_id, window_json,
+          provider_server_id, ip, created_at, deleted_at)
+instance_events(id, instance_id, from_state, to_state, actor, reason, job_id, at)
+entitlements(instance_id, limits_json, computed_from, at)
+jobs(id, instance_id, type, params, signature, status, attempt, lease_until, result, created_at, finished_at)
+agent_identities(instance_id, cert_serial, not_after, enrolled_at, revoked_at)
+enrollment_tokens(hash, instance_id, expires_at, used_at)
+heartbeats_latest(instance_id, payload, at)          -- history goes to the metrics store
+backups(id, instance_id, object_key, size, sha256, created_at, restore_test_id)
+restore_tests(id, instance_id, backup_id, result, duration, at)
+snapshots(id, instance_id, provider_ref, created_at, expires_at)
+escrow(instance_id, kind{encryption_key,backup_key}, sealed_blob_ref, kms_key_version, created_at)
+releases(id, version, digest, release_json, signature_verified, min_client_version, published_at)
+rollouts(id, release_id, rings_json, status, created_by) ; rollout_targets(rollout_id, instance_id, ring, status, at)
+dns_records(instance_id, provider_ref, name, created_at, deleted_at)
+certificates(instance_id, provider_ref, not_after)
+relay_credentials(instance_id, token_hash, created_at, revoked_at) ; relay_devices(instance_id, device_token_hash)
+tickets(id, account_id, instance_id, channel, category, severity, status, assignee_id, team_id, sla_policy_id,
+        first_response_due, resolution_due, created_at, solved_at)
+ticket_messages(id, ticket_id, author_type, author_id, body, internal, attachments, created_at)
+ticket_events(id, ticket_id, type, data, actor, at)
+sla_policies(id, plan_code, severity, first_response_minutes, resolution_minutes, hours{business,24x7})
+macros(id, locale, title, body, team_id) ; kb_articles(id, locale, slug, title, body, status, version)
+csat(ticket_id, score, comment, at) ; qa_reviews(ticket_id, reviewer_id, scores_json, notes)
+diagnostics_bundles(id, ticket_id, instance_id, object_key, consent_at, expires_at)
+staff(id, email, name, status, idp_subject) ; staff_roles(staff_id, role) ; teams(id, name, locale)
+approvals(id, type, target, requested_by, reason, required_roles, expires_at, decision, decided_by, decided_at)
+breakglass_sessions(id, instance_id, scope, requested_by, approved_by, consent_ref, started_at, ended_at, recording_ref)
+abuse_reports(id, source, instance_id, evidence_ref, status) ; abuse_cases(id, instance_id, actions_json, status)
+incidents(id, severity, title, status, regions, started_at, resolved_at, postmortem_ref)
+notifications(id, account_id, channel, template, data, sent_at, status)
+audit_log(id, actor_type, actor_id, action, target, data, at, prev_hash, hash)
+feature_flags(key, scope, value)
+referrals(id, referrer_id, referred_id, status, reward)
+```
+
+---
+
+## 12. API surface (first version)
+
+| Group | Endpoints |
+|---|---|
+| Portal auth | `POST /v1/auth/signup`, `/verify-email`, `/login`, `/logout`, `/password/reset`, `/factors/*`, `GET /v1/me`, `/sessions` |
+| Portal instances | `GET/POST /v1/instances`, `GET /v1/instances/{id}`, `/events` (SSE), `/setup-link`, `/window`, `/update-now`, `/backups`, `/backups/{id}/download`, `/restore`, `/connect-qr`, `/staff-access`, `/consents` |
+| Portal billing | `GET /v1/billing`, `POST /v1/billing/checkout`, `/change-plan`, `/cancel`, `/reactivate`, `GET /v1/billing/invoices` |
+| Portal support | `GET/POST /v1/tickets`, `/v1/tickets/{id}/messages`, `/v1/tickets/{id}/diagnostics-consent`, `GET /v1/kb/search` |
+| Staff | `/admin/v1/customers`, `/instances`, `/jobs`, `/releases`, `/rollouts`, `/billing`, `/tickets`, `/approvals`, `/breakglass`, `/abuse`, `/incidents`, `/staff`, `/audit`, `/kb`, `/settings` |
+| Host agent | `POST /agent/v1/enroll`, `GET /agent/v1/jobs`, `POST /agent/v1/jobs/{id}/progress`, `/result`, `POST /agent/v1/heartbeat`, `POST /agent/v1/escrow`, `POST /agent/v1/backups` |
+| Push relay | `POST /relay/v1/devices`, `POST /relay/v1/push` (instance relay credential) |
+| Webhooks | `POST /webhooks/billing/{provider}`, `/webhooks/email/inbound`, `/webhooks/provider/{name}` |
+| Public | `GET /v1/handles/{handle}/available`, status page feed |
+
+Contracts as Pydantic models, generated TypeScript types for the two web apps, OpenAPI published internally.
+
+---
+
+## 13. Operations
+
+### 13.1 Environments
+
+`dev` (local, fake provider driver), `staging` (real provider in a separate project, billing test mode, test domain,
+same code), `production`. Promotion by tag; database migrations forward-only with expand/contract.
+
+### 13.2 CI/CD
+
+- Lonora image: `.github/workflows/publish-server-image.yml` already publishes `ghcr.io/loorksy/lonorabot`. Add SBOM,
+  vulnerability scan with a severity gate, image signing and provenance attestation. The control plane accepts a release
+  only after verifying its signature and reading `/app/release.json` (`scripts/release_manifest.py`) and
+  `infra/release/compatibility.json`.
+- `lonora-cloud`: lint, types, tests, migrations check, Playwright for portal/admin, container build, deploy to staging on
+  merge, production on tag with approval.
+
+### 13.3 Releases and rollouts
+
+Rings: **ring 0** company-owned test instances → **ring 1** about 1% (at least 5) → **ring 2** 10% → **ring 3** 50% →
+**ring 4** everyone. Each instance updates only inside its window (D11) through `lonora update <version>`. A ring advances
+after all its targets report success, `/ready` stays green 30 minutes, and alert rates do not rise. Any held rollback,
+failed update above 1%, or new alert class halts the rollout and pages SRE. Urgent security fixes may skip windows with a
+notice. Mobile clients below `min_client_version` are warned before the ring that requires it.
+
+### 13.4 Backups and disaster recovery
+
+- Nightly `lonora backup` (existing `infra/systemd/lonora-backup.timer`) → agent uploads the encrypted file to
+  `backups/<instance_id>/<timestamp>.gpg` with object lock for the plan's retention; checksum recorded.
+- Weekly `lonora restore-test` **on the customer's own VM** (the key is already there; the company does not decrypt
+  customer data to test it). Measure its peak memory on Starter in P6-T3; run it inside the window, pausing the workspace
+  if needed. Failures page SRE and open an internal ticket.
+- Workspace volume snapshots (D10).
+- **DR:** region loss → provision replacement VMs in another region and restore from the latest off-host backup with the
+  escrowed keys (D8, two approvers). RPO = 24 h (nightly), RTO target 4 h per region. Max plan later adds continuous
+  PostgreSQL WAL archiving for a 15-minute RPO (Phase 9). Twice-yearly DR drill on staging.
+- Control plane: managed Postgres PITR, daily logical backups to a second provider, infrastructure as code to rebuild.
+
+### 13.5 Monitoring and alerting
+
+| Alert | Condition | Severity |
+|---|---|---|
+| Instance down | external `/ready` failing 5 min and heartbeat says gateway/api unhealthy | P1 |
+| Agent unreachable | no heartbeat 3 min while external probe is green | P3 |
+| Disk | VM disk > 85%, workspace disk > 90% | P2 |
+| Memory | repeated OOM kills in db/api/gateway (workspace OOMs are expected and only counted) | P2 |
+| Backup missing | no successful off-host backup in 26 h | P2 |
+| Restore test failed | last weekly restore-test failed | P2 |
+| Update | held rollback / failed update | P1 for rollout halt |
+| Certificate | origin certificate expires in < 30 days | P3 |
+| Control plane | API error rate, job queue age, webhook failures, DB replication | P1/P2 |
+| Abuse | egress anomaly, provider abuse notice | P2 |
+
+Dashboards: fleet health, provisioning funnel and timings, rollout progress, backup/restore health, cost per instance,
+support SLA. External uptime probes run from two regions. Public status page per region and component.
+
+### 13.6 Incident management
+
+SEV1–SEV4 definitions, incident commander and communications roles, status page within 15 minutes for SEV1/2, customer
+notices to affected segments, postmortem within five business days with actions tracked, monthly reliability review.
+
+### 13.7 Fleet maintenance
+
+Unattended security upgrades with reboots inside windows; Docker Engine upgrades as a rollout; host agent updates
+signed; base image rebuilt monthly; periodic `harden-host.sh` re-apply; capacity per region tracked against provider
+quotas.
+
+### 13.8 Abuse prevention
+
+Outbound SMTP 25 blocked at the provider firewall; the existing `workspace-net` guard already blocks private ranges,
+MetaApi hosts and Lonora's own address from the workspace; the host agent reports connection-rate and port-spread
+counters; thresholds trigger a Trust & Safety case. Action ladder: notify owner → throttle workspace egress → stop the
+`workspace` service only (Lonora and trading keep running) → quiesce and suspend. `abuse@` mailbox and provider notices
+feed cases. AUP forbids attacks, spam, mining, illegal content and sanctions evasion.
+
+### 13.9 Cost management
+
+Per-instance cost from provider billing APIs and the worksheet (§5.3); margin by plan; idle-instance and right-sizing
+reports; reserved capacity when the fleet is stable.
+
+---
+
+## 14. Security
+
+**Threat model (written in P7-T1), covering at least:** control-plane compromise; one customer VM compromised by its
+own agents' code; staff insider; stolen staff session; supply chain (image, dependencies, host agent); customer portal
+account takeover; DNS/edge misconfiguration; abuse from customer workspaces; billing fraud.
+
+**Key controls**
+- Zero standing access to instances; break-glass with consent or dual approval, time limits, recording, customer
+  notification (§7.5).
+- Instance login independent of the portal (D7): a portal takeover cannot reach trading.
+- Separate cloud accounts for control plane and fleet; provider tokens scoped and stored in KMS/Vault; no human uses
+  them directly.
+- Signed allowlisted jobs over mTLS; agent outbound-only; per-VM origin certificates; firewall to Cloudflare only.
+- Signed images verified before rollout; SBOM and vulnerability gates.
+- Secrets generated on the VM; escrow sealed on the VM (D8).
+- Portal: Argon2id, TOTP/passkeys, CSRF protection, strict CSP, rate limits, CAPTCHA on signup, breached-password check.
+- Staff: SSO + hardware keys, Zero Trust gateway, least privilege, quarterly reviews, hash-chained audit.
+- Central logs carry no instance content; error tracking scrubbed; retention limits.
+- Pen test before public launch and yearly; vulnerability disclosure policy and `security.txt`; bug bounty after GA.
+
+---
+
+## 15. Privacy and compliance
+
+- **Roles** (counsel to confirm): the company is controller of portal, billing and support data, and processor of the
+  data inside a customer's Lonora.
+- GDPR features: DPA, records of processing, DPIA (trading and financial data), sub-processor list (cloud provider,
+  Cloudflare, billing, email, storage, monitoring), EU data residency by default (D12), data-subject requests (export,
+  deletion), breach process with 72-hour notification, cookie consent on marketing site.
+- Retention per D24, enforced by scheduled purges with audit.
+- Roadmap: SOC 2 Type I around months 6–9, Type II after 12–18 months; ISO 27001 if enterprise demand requires it.
+
+---
+
+## 16. Legal and company (owner and counsel)
+
+- Company formation (D19), bank account, payment provider KYB (D16), accounting and tax registration.
+- **Regulatory review (D20) before any public sale:** licensing for investment advice, portfolio management or signal
+  provision in each target market; marketing rules for financial products; geo-blocking (D21).
+- Documents, versioned with recorded acceptance: Terms of Service, Privacy Policy, Acceptable Use Policy, **Trading Risk
+  Disclosure** (no profit promise, the customer decides and is responsible for their accounts, agents can lose money,
+  the operator cannot trade or reverse trades), Cookie Policy, DPA, SLA, refund policy, sub-processor list, security
+  page, vulnerability disclosure.
+- Third-party terms to review: MetaApi (each customer has their own account; check terms for hosted use and any
+  partner programme), model providers (BYOK), app stores (financial app policies), Cloudflare and the cloud provider
+  (acceptable use for agent workloads), TradingView licence (D22), unlicensed icons (D23), SearXNG AGPL kept unmodified.
+- Sanctions and export screening at signup and payment.
+- Insurance: cyber liability and professional indemnity.
+- Trademark registration for the brand in key markets.
+- Marketing claims policy: no performance promises; testimonials only with disclosure.
+
+---
+
+## 17. Go-to-market
+
+- **Brand and site:** marketing site (ar/en): promise, how it works, security and zero access, pricing, FAQ, help centre,
+  blog, changelog, status, legal pages.
+- **Launch sequence:** private alpha (10–20 known traders, free, weekly calls) → closed beta with waitlist (100, paid with
+  discount) → public launch.
+- **Acquisition:** Arabic trading communities, content and video tutorials, Telegram/YouTube creators with disclosed
+  affiliate terms, referral programme (account credit), partnerships (brokers and prop firms where counsel allows).
+- **Lifecycle email:** welcome, setup reminders until onboarded, first-week guides, billing, win-back after cancel.
+- **Analytics:** privacy-friendly analytics on site and portal; instance telemetry only as opt-in aggregate counters.
+
+## 18. Organization
+
+Founding stage: owner (product and decisions), 1–2 backend, 1 frontend, 1 SRE (or contractor), support lead + Arabic and
+English L1 agents sized to D18, external counsel and accountant, part-time designer, marketing lead. Grow support with
+the SLA commitments and ticket volume (target ≤ 0.3 tickets per instance per month after onboarding).
+
+## 19. KPIs
+
+| Area | KPIs |
+|---|---|
+| Business | MRR, ARR, ARPU, CAC, LTV/CAC, logo and revenue churn, trial→paid, net revenue retention |
+| Activation | time from payment to setup link, to owner onboarded, to first agent (opt-in counter) |
+| Reliability | monthly availability per plan, provisioning success and p95 time, update success, backup success, restore-test pass rate, MTTR |
+| Support | first response, resolution time, CSAT, backlog, SLA compliance, tickets per instance |
+| Cost | cost per instance, gross margin per plan |
+
+## 20. Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Licensing/regulation in target markets | Cannot sell | D20 before launch; positioning as software the customer runs; geo-blocking; disclosures |
+| Payment provider refuses the category | No revenue | Confirm before building (D16); have a second provider ready |
+| TradingView licence does not cover hosting | Charts removed or licence cost | D22 before launch |
+| Cost per VM too high for the price | Thin margin | Measure in P3; Starter sizing; dense cells in Phase 9 |
+| Customer agents abuse the network | Provider terminates the account | §13.8, AUP, per-VM isolation, quick suspension of the workspace only |
+| Security incident | Trust lost | Zero access, isolation, signed jobs, pen tests, incident plan |
+| MetaApi or model-provider changes | Customer impact | Status monitoring, help-centre guidance, VISION §9.4 proactive health already reports it to the owner |
+| Support load from onboarding (keys, MetaApi) | Cost and churn | Guides, video, assistant, first-week outreach |
+| Mandate drift (sessions acting outside Amendment 2) | Product broken | README rules for Claude Code; reviews against VISION |
+
+## 21. Why customers choose Lonora Cloud
+
+- A trading specialist, not a general chatbot host, with an execution door that journals, never resends uncertain
+  orders and reconciles with the broker (VISION §6).
+- Dedicated VM per customer and a zero-access design that is checkable (staff-access log in the portal).
+- Arabic-first product and support.
+- Updates in the market-closed window; backups proved by weekly restore tests.
+- Bring your own keys: no markup on model usage, no usage caps.
