@@ -230,8 +230,11 @@ consent or approvals; the supervisors panel shows live data on staging.
 
 | ID | Item | Notes |
 |---|---|---|
-| PT-1 | Crypto door adapter (D33): exchange orders through `ExecutionService.execute` with journal, client-order-id idempotency, reconciliation, preflight and broker truth; exchange API keys as broker-destination secrets (never in the workspace). | VISION §6 and §9.5 govern it; the safety-core tests must cover the new venue before any agent can use it. |
+| PT-1 | Crypto door adapter (D33, [spec](../proposals/crypto-door-adapter.md)): exchange orders through `ExecutionService.execute` with journal, client-order-id idempotency, reconciliation, preflight and broker truth; exchange API keys as broker-destination secrets (never in the workspace). | VISION §6 and §9.5 govern it; the safety-core tests must cover the new venue before any agent can use it. |
 | PT-2 | Openness gaps with nanobot (D35): skills catalogue installable from chat; plugin bundles; stdio MCP tools as native tools. | Each weighed against VISION P3/P5 and `docs/mcp-boundary.md`. |
+| PT-3 | Workspace CLI order commands (VISION §7.3: `trade`, `close`, `modify`, `cancel`) — not built yet; shared prerequisite of PT-1, PT-4 and PT-5. | VISION phase 4 "done when". |
+| PT-4 | Agent environment with Claude Code's philosophy: [docs/proposals/agent-environment.md](../proposals/agent-environment.md) (G1–G5). | Decisions A1–A5. |
+| PT-5 | Owner CLI and terminal app in nanobot's style: [docs/proposals/owner-cli.md](../proposals/owner-cli.md) (C0–C5). | Decisions C1–C4. |
 
 ---
 
