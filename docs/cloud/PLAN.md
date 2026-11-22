@@ -240,7 +240,7 @@ invalidates tokens narrowed from it; whether a narrowed token can itself provisi
    suspicion.
 10. **Self-hosted Lonora is unchanged:** the owner's own MetaApi token, VISION §9.2 as written.
 
-### 3.9 The open agent: any API, MCP, skill and venue (Amendment 2 §11)
+### 3.9 The open agent: any API, MCP and skill (Amendment 2 §11)
 
 Lonora is an agent with its own computer, in the manner of Grok Bot (VISION §1, P3). Hosting keeps all of it.
 
@@ -252,12 +252,11 @@ Lonora is an agent with its own computer, in the manner of Grok Bot (VISION §1,
 | Remote MCP servers | The owner trusts a server by a typed chat message; OAuth and bearer credentials supported; read tier and non-financial write tier (receipt per call) | `docs/mcp-boundary.md`, `docs/trusted-sources.md`, `packages/adapters/src/lonora_adapters/mcp/` (`oauth.py`, `transport.py`), `packages/tools/src/lonora_tools/mcp.py` |
 | Local (stdio) MCP servers | Run by an agent in the workspace as its own process, like any command | `docs/mcp-boundary.md` |
 | Skills | From trusted public GitHub repositories, or written by agents in the workspace, every write versioned | `packages/agent-runtime/src/lonora_agent/skills/`, `docs/workspace-created-skills.md`, `docs/skill-repository-inspection.md` |
-| Crypto and other venues (Binance etc.) | The owner connects the venue's API key by Secret card; agents trade it by calling its API from the workspace; Lonora reports those orders from the venue's own history and says once that the venue is outside the execution door's guarantees | VISION §9.5 |
 
 **Network rules the workspace really applies** (`packages/workspace/src/lonora_workspace/relay.py`, `egress.py`), to be
 stated in the help centre so "any server" is not over-promised:
 - Client-first connections must be **TLS, HTTP or SSH**, addressed **by name**. This covers HTTPS and secure WebSocket
-  (every exchange's REST and stream APIs), FIX over TLS, remote MCP, git and SSH. Raw tunnels, SOCKS and connections to
+  (data vendors, news and any web API), FIX over TLS, remote MCP, git and SSH. Raw tunnels, SOCKS and connections to
   a bare IP address are refused; server-first protocols pass once the server speaks.
 - Private, link-local (including the cloud metadata address `169.254.169.254`) and reserved ranges are blocked, as are
   MetaApi's names and Lonora's own domain.
@@ -266,20 +265,12 @@ stated in the help centre so "any server" is not over-promised:
 **What hosting adds** (Amendment 2 §11): the cloud domain in `LONORA_WORKSPACE_BLOCKED_DOMAINS` (so a workspace cannot
 reach other customers or the control plane), SMTP 25 blocked, and the abuse ladder of §13.8. Nothing else.
 
-**What crypto trading needs from the hosting**
-- **A fixed outbound IP per customer (D34).** Exchanges let the owner restrict an API key to one IP; the dedicated VM
-  gives that. The portal and the help centre show it, and migrations keep it (a persistent provider IP moved to the new
-  VM, §4.5), so an allowlisted key never breaks.
-- **Region and exchange availability.** Exchanges restrict API access by the server's location; the fleet region (D12)
-  decides which exchanges work. Check the target exchanges against each region before opening it; offer region choice
-  per customer later (P9-T2).
-- **Key hygiene in the help centre:** create keys with trading permission only, no withdrawal; restrict them to the
-  instance IP; one key per Lonora.
-- **Guarantees.** Workspace trading is outside the execution door (no journal, idempotency or reconciliation). The
-  first-class answer is a **crypto door adapter** (VISION §9.5 "another venue gets a door adapter when one is built"),
-  a product track decided separately (D33); until then the §9.5 disclosure stands.
-- Financial MCP tools stay untrusted by design (`docs/mcp-boundary.md`): money moves through the door or, for other
-  venues, through the workspace with the §9.5 disclosure.
+**Trading scope: MetaTrader only (owner decision of 2026-11-22).** Lonora Cloud trades MT5 accounts through MetaApi
+and the execution door, on **any symbol the customer's broker offers**: forex, metals, indices, energies, and stock or
+crypto CFDs where that broker lists them. Symbols are the broker's own (`packages/tools/src/lonora_tools/symbols.py`);
+nothing restricts which ones an agent may trade (`assert_market_binding` keeps only a fixed-market agent's charts,
+watches and decisions on its pair and is never applied to orders). No crypto exchange is built, offered or supported.
+Financial MCP tools stay untrusted by design (`docs/mcp-boundary.md`): money moves only through the door.
 
 **Honest gaps compared with nanobot's model** (from the nanobot floorplan): no skills marketplace with one-click
 install (in Lonora the owner asks in chat and the agent installs from a trusted repository), no bundled "plugins" of
@@ -320,7 +311,7 @@ opened, and the customer sees "We are finishing your setup by hand; no action ne
 
 ### 4.2 Provisioning steps (target: under 5 minutes from payment to setup link)
 
-1. **queued → creating_vm:** choose region (D12) and size (plan); reserve a persistent IP (D34); create firewall, VM with labels
+1. **queued → creating_vm:** choose region (D12) and size (plan); create firewall, VM with labels
    (`instance_id`, `plan`, `env`), attached workspace volume; cloud-init carries a single-use enrollment token
    (1 hour), the control-plane CA certificate and the job-signing public key.
 2. **enrolling:** the host agent generates its key pair, enrolls with the token, receives a short-lived mTLS client
@@ -362,8 +353,7 @@ halt on regressions, and a held-rollback alert to SRE.
   workspace limits (the workspace disk grows in place).
 - **Downgrade:** RAM/CPU shrink by resize; the workspace disk never shrinks (`lonora` refuses), so a smaller disk means
   **migration**: new VM → `lonora backup` → restore on the new VM (`lonora restore FILE --replace --with-config`) →
-  copy workspace volume snapshot if it fits → move the persistent IP to the new VM (D34, so exchange keys allowlisted
-  to it keep working) → DNS switch → old VM destroyed after 48 hours.
+  copy workspace volume snapshot if it fits → DNS switch → old VM destroyed after 48 hours.
 - **Region move and host evacuation** use the same migration job.
 
 ### 4.6 Suspend, resume, cancel, delete (D24)
@@ -450,8 +440,7 @@ Disclosure and AUP (versioned acceptances stored), checkout, live provisioning p
 setup link, then a checklist of guides (connect a model key, connect your MT5 account, connect Telegram, install the
 app).
 
-**Dashboard:** status (healthy, degraded, updating, suspended), "Open my Lonora", "Connect phone" QR, the instance's
-fixed outbound IP with a copy button (for exchange API-key allowlists, D34), version and what changed, next maintenance window and "Update now" when an update waits, resource graphs (CPU, RAM, disk, workspace),
+**Dashboard:** status (healthy, degraded, updating, suspended), "Open my Lonora", "Connect phone" QR, version and what changed, next maintenance window and "Update now" when an update waits, resource graphs (CPU, RAM, disk, workspace),
 incidents affecting the customer's region.
 
 **Maintenance:** choose window (default D11) and time zone; history of updates with results.
@@ -592,8 +581,7 @@ Jobs that need approval wait in `awaiting_approval` and run only after a valid d
   approving each send; it sees only the ticket and the consented bundle; it runs on the company's own model key, never a
   customer's.
 - **Help centre content at launch:** getting started; connecting model providers; connecting an MT5 account (number,
-  server, password; finding the server name in the broker's email or terminal); connecting a crypto exchange
-  (trading-only key, no withdrawal, restricted to the instance IP shown in the portal; the §9.5 disclosure); connecting
+  server, password; finding the server name in the broker's email or terminal); connecting
   any API, MCP server or skill from chat, with the network rules of §3.9;
   Telegram; mobile app and passkeys; agents and modes (Full/Ask) explained from VISION; backups and restores; updates
   and windows; billing; security and the zero-access promise; trading risk notice; troubleshooting by symptom.
@@ -799,8 +787,8 @@ quotas.
 
 Outbound SMTP 25 blocked at the provider firewall; the existing `workspace-net` guard already blocks private ranges,
 MetaApi hosts and Lonora's own address from the workspace; the host agent reports connection-rate and port-spread
-counters; thresholds trigger a Trust & Safety case. Long-lived TLS and WebSocket streams to exchanges, data vendors and
-APIs are normal traffic for this product: thresholds are tuned on staging against real trading workloads, and every step
+counters; thresholds trigger a Trust & Safety case. Long-lived TLS and WebSocket streams to data vendors and APIs are
+normal traffic for this product: thresholds are tuned on staging against real trading workloads, and every step
 after "notify" needs a person except against an attack in progress (Amendment 2 §11). Action ladder: notify owner →
 throttle workspace egress → stop the `workspace` service only (Lonora and trading keep running) → quiesce and suspend. `abuse@` mailbox and provider notices
 feed cases. AUP forbids attacks, spam, mining, illegal content and sanctions evasion.
@@ -863,8 +851,6 @@ account takeover; DNS/edge misconfiguration; abuse from customer workspaces; bil
   the customers' broker logins are processed by MetaApi on the company's behalf: written agreement allowing this,
   volume pricing, DPA, sub-processor listing, and counsel's view on holding a key that reaches every customer's
   connection (D20).
-- **Crypto:** counsel covers agents trading the customer's own exchange accounts from a hosted server (for example the
-  EU's crypto-asset rules) and each target exchange's terms on third-party hosted bots and API use.
 - Other third-party terms to review: model providers (BYOK), app stores (financial app policies), Cloudflare and the cloud provider
   (acceptable use for agent workloads), TradingView licence (D22), unlicensed icons (D23), SearXNG AGPL kept unmodified.
 - Sanctions and export screening at signup and payment.
@@ -913,8 +899,6 @@ the SLA commitments and ticket volume (target ≤ 0.3 tickets per instance per m
 | Security incident | Trust lost | Zero access, isolation, signed jobs, pen tests, incident plan |
 | MetaApi refuses the model or changes its prices/terms | Every customer's trading connection | D32 written agreement before launch; volume terms; keep the self-hosted path (owner's own token) working; evaluate a second connection provider behind the door adapter (VISION §9.5) |
 | The company's MetaApi key is stolen | Access to every customer connection | §3.8 controls; rotation; undeploy-all runbook; insurance |
-| An exchange refuses API access from the fleet region | Customers cannot trade that exchange | Check target exchanges per region before opening it (§3.9); region choice per customer (P9-T2) |
-| A changed instance IP breaks allowlisted exchange keys | Agents stop trading crypto | Persistent IP moved on every migration (D34); notice before any unavoidable change |
 | MetaApi costs grow faster than revenue | Margin | Included connections per plan (D28), undeploy on suspension, monthly reconciliation and forecast alert |
 | Model-provider changes | Customer impact | Status monitoring, help-centre guidance, VISION §9.4 proactive health already reports it to the owner |
 | Support load from onboarding (keys, MetaApi) | Cost and churn | Guides, video, assistant, first-week outreach |

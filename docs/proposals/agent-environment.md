@@ -64,7 +64,8 @@ an open tunnel (VISION §7.2.3 stays the guarantee against MetaApi; the relay is
 ### G4 — Complete the workspace CLI
 Build `lonora trade|close|modify|cancel` exactly as VISION §7.3.2–7.3.6 specify (execution door, `--key` idempotency,
 exit codes 0/10/20/30/77), in `packages/cli/lonora` and `apps/api/src/lonora_api/cli/app.py`. This is VISION phase 4's
-"done when" and the prerequisite E0 of the crypto adapter (`docs/proposals/crypto-door-adapter.md`).
+"done when". It lets the programs agents leave running in the workspace (watchers, webhook listeners, schedulers)
+read and trade the MT5 accounts through the door, which the workspace otherwise cannot reach (VISION §7.1.4, §7.2.3).
 
 ### G5 — Coding and other agents as workspace tools
 VISION §12.2 already lets an agent install and run any command-line tool with API keys the owner provided. That

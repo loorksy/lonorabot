@@ -35,8 +35,8 @@ here in the same pull request. "Blocks" names the first task that cannot start w
 
 | ID | Decision | Recommendation | Why | Blocks | Status |
 |---|---|---|---|---|---|
-| D33 | Crypto as a first-class venue | **Yes, as a separate product track in `lonorabot`:** a door adapter for crypto exchanges so their orders get the execution door's journal, idempotency (exchanges accept a client order id), reconciliation and broker truth (VISION §6, §9.5). Until it ships, crypto trading works from the workspace with the §9.5 disclosure. Spec: [docs/proposals/crypto-door-adapter.md](../proposals/crypto-door-adapter.md); needs the owner's go-ahead. | Owner: «ممكن يتداول على الكريبتو». The door is Lonora's strongest guarantee; crypto without it is second-class. | PT-1 | Proposed |
-| D34 | Fixed outbound IP per customer | **Yes:** a persistent provider IP per instance, shown in the portal, moved to the new VM on every migration. | Exchanges let owners restrict API keys to one IP; a changed IP silently breaks trading. | P3-T15 | Proposed |
+| D33 | Crypto as a first-class venue | — | Owner: «لا داعي للكريبتو نهائياً … على MT5 فقط». Lonora Cloud trades MT5 through MetaApi only, on any symbol the customer's broker offers (Amendment 2 §12). The crypto adapter spec was removed. | — | Rejected (2026-11-22) |
+| D34 | Fixed outbound IP per customer | — | Its only reason was crypto-exchange key allowlists (D33). MetaApi connects to the broker from MetaApi's side, so an MT5-only service does not need it. | — | Withdrawn (2026-11-22) |
 | D35 | Closing the gaps with nanobot | Consider for `lonorabot`, not for hosting: a skills catalogue with install from chat, plugin bundles (skills + MCP servers), stdio MCP tools as native tools. Each is a product change under VISION P3/P5 and `docs/mcp-boundary.md`; see [docs/proposals/agent-environment.md](../proposals/agent-environment.md). | Owner wants nanobot-level openness; today Lonora covers it through the workspace and owner-trusted remote MCP. | PT-2 | Proposed |
 
 ## Commercial
