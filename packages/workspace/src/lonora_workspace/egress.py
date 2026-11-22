@@ -6,8 +6,8 @@ to a private, link-local, loopback-adjacent or reserved range, to Lonora's own p
 address, or to a resolved MetaApi address is rejected; Docker's embedded resolver is
 reachable only by root (the guard's own forwarder), and no other resolver is reachable
 (DNS and DNS-over-TLS ports are rejected off the host), so every name goes through the
-forwarder. Names under a broker domain or Lonora's domain, and answers that lead into
-one, do not resolve. Every agent TCP connection goes through the relay (relay.py), which
+forwarder. Names under a broker domain, another trading venue's domain (owner Amendment 2) or
+Lonora's domain, and answers that lead into one, do not resolve. Every agent TCP connection goes through the relay (relay.py), which
 refuses those names in TLS server names, HTTP hosts and proxy CONNECT targets and binds
 the dialled address to the name; agent UDP (except DNS to the forwarder on loopback) and
 IPv6 TCP, which the relay cannot read, are rejected.
@@ -17,7 +17,7 @@ import ipaddress
 import re
 from collections.abc import Iterable
 
-from lonora_core.broker_endpoints import BROKER_DOMAINS, under
+from lonora_core.broker_endpoints import BROKER_DOMAINS, OTHER_VENUE_DOMAINS, under
 
 TABLE = "lonora_workspace"
 RELAY_PORT = 15001
@@ -63,10 +63,17 @@ def domain_name(value: str) -> str:
 
 
 def denied_domains(lonora_domain: str | None, extra: Iterable[str] = ()) -> tuple[str, ...]:
-    names = [*BROKER_DOMAINS, *(domain_name(name) for name in extra)]
+    names = [*BROKER_DOMAINS, *OTHER_VENUE_DOMAINS, *(domain_name(name) for name in extra)]
     if lonora_domain:
         names.append(domain_name(lonora_domain))
     return tuple(dict.fromkeys(names))
+
+
+def address_domains(domains: Iterable[str]) -> tuple[str, ...]:
+    """The denied domains whose resolved addresses are blocked as well as their names. Other
+    trading venues are refused by name only: they sit behind CDN addresses that unrelated
+    sites share, and the relay already binds every dialled address to its name."""
+    return tuple(domain for domain in domains if domain not in OTHER_VENUE_DOMAINS)
 
 
 def name_denied(name: str, domains: Iterable[str]) -> bool:

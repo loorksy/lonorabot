@@ -27,6 +27,7 @@ from .egress import (
     DOCKER_RESOLVER,
     RELAY_PORT,
     TABLE,
+    address_domains,
     denied_domains,
     name_denied,
     networks,
@@ -139,7 +140,7 @@ class Answers:
                     owned = {
                         address
                         for owner, address in dns.owned_addresses(answer)
-                        if name_denied(owner, self.domains)
+                        if name_denied(owner, address_domains(self.domains))
                     }
                     if owned - set(self.denied):
                         until = time.monotonic() + DENIED_SECONDS
@@ -250,7 +251,7 @@ async def serve(
     await Relay(domains, ANSWERS.of).serve(RELAY_PORT)
     announce()
     log.warning("workspace_netguard_ready domains=%d", len(domains))
-    known = [*METAAPI_KNOWN_HOSTS, *domains]
+    known = [*METAAPI_KNOWN_HOSTS, *address_domains(domains)]
     while True:
         # Every few minutes, or at once when a lookup found a chain into a denied domain.
         with contextlib.suppress(TimeoutError):
@@ -301,7 +302,7 @@ def main() -> None:
     apply(extra)
 
     async def run() -> None:
-        learned = set(await resolve([*METAAPI_KNOWN_HOSTS, *domains]))
+        learned = set(await resolve([*METAAPI_KNOWN_HOSTS, *address_domains(domains)]))
         apply([*extra, *sorted(learned)])
         await serve(domains, extra, learned, refresh)
 

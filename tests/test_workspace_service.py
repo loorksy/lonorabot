@@ -15,11 +15,17 @@ import uuid
 from pathlib import Path
 
 import pytest
-from lonora_core.broker_endpoints import BROKER_DOMAINS, METAAPI_KNOWN_HOSTS, METAAPI_SDK_DOMAIN
+from lonora_core.broker_endpoints import (
+    BROKER_DOMAINS,
+    METAAPI_KNOWN_HOSTS,
+    METAAPI_SDK_DOMAIN,
+    OTHER_VENUE_DOMAINS,
+)
 from lonora_workspace import dns, netguard, relay
 from lonora_workspace.egress import (
     BLOCKED_V4,
     BLOCKED_V6,
+    address_domains,
     denied_domains,
     name_denied,
     networks,
@@ -47,6 +53,57 @@ def test_only_names_under_a_denied_domain_are_refused():
         assert not name_denied(allowed, domains), allowed
     with pytest.raises(ValueError):
         denied_domains("bad domain")
+
+
+def test_other_trading_venues_are_refused_in_the_workspace():
+    """Owner Amendment 2: MetaTrader only. Other venues' trading hosts are denied by name."""
+    domains = denied_domains(None)
+    for venue in (
+        "api.binance.com",
+        "fapi.binance.com",
+        "testnet.binance.vision",
+        "stream.bybit.com",
+        "www.okx.com",
+        "api.exchange.coinbase.com",
+        "futures.kraken.com",
+        "api.hyperliquid.xyz",
+        "paper-api.alpaca.markets",
+        "api-fxtrade.oanda.com",
+        "Stream-FXPractice.OANDA.com.",
+    ):
+        assert name_denied(venue, domains), venue
+    # Public pages of brokers that also offer MetaTrader accounts, and lookalike names, stay open.
+    for allowed in ("www.oanda.com", "pypi.org", "notbinance.com", "binance.com.example.org"):
+        assert not name_denied(allowed, domains), allowed
+    assert len(set(OTHER_VENUE_DOMAINS)) == len(OTHER_VENUE_DOMAINS)
+    assert not set(OTHER_VENUE_DOMAINS) & set(BROKER_DOMAINS)
+    for venue in OTHER_VENUE_DOMAINS:
+        assert venue == venue.lower() and denied_domains(None, [venue])
+    # Refused by name only: their CDN addresses are shared with unrelated sites, so the guard
+    # never resolves and blocks them; MetaApi's and Lonora's own addresses stay blocked.
+    learned = address_domains(denied_domains("lonora.example.com"))
+    assert not set(OTHER_VENUE_DOMAINS) & set(learned)
+    assert set(BROKER_DOMAINS) <= set(learned) and "lonora.example.com" in learned
+
+
+def test_a_chain_into_another_venue_is_refused_without_blocking_its_shared_address(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    query = dns.query("cdn-alias.example", dns.A)
+    target = b"\x03api\x07binance\x03com\x00"
+    cname = query[12:-4] + struct.pack("!HHIH", dns.CNAME, 1, 60, len(target)) + target
+    target_at = 12 + len(query[12:]) + len(query[12:-4]) + 10
+    a_record = struct.pack("!H", 0xC000 | target_at) + struct.pack("!HHIH", dns.A, 1, 60, 4)
+    a_record += bytes([13, 35, 1, 2])
+    chained = query[:2] + struct.pack("!HHHHH", 0x8180, 1, 2, 0, 0) + query[12:] + cname + a_record
+
+    async def upstream(packet: bytes) -> bytes:
+        return packet[:2] + chained[2:]
+
+    monkeypatch.setattr(netguard, "forward_udp", upstream)
+    answers = netguard.Answers(denied_domains(None))
+    assert asyncio.run(answers.of("cdn-alias.example")) == set()
+    assert answers.blocked() == set() and not answers.changed.is_set()
 
 
 def test_every_private_reserved_and_loopback_range_is_rejected():
