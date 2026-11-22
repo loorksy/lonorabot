@@ -276,7 +276,7 @@ Lonora is an agent with its own computer, in the manner of Grok Bot (VISION §1,
 | Capability | How | Where |
 |---|---|---|
 | Call any API | The workspace has internet egress, any CLI tool, `pip`/`npm` installs, SSH, long-running processes, a headless browser; keys come from the generic Secret card and are injected as `NAME` and `/run/secrets/NAME` | VISION §7.1, §7.2, §12.2; `packages/workspace/` |
-| Remote MCP servers | The owner trusts a server by a typed chat message; OAuth and bearer credentials supported; read tier and non-financial write tier (receipt per call) | `docs/mcp-boundary.md`, `docs/trusted-sources.md`, `packages/adapters/src/lonora_adapters/mcp/` (`oauth.py`, `transport.py`), `packages/tools/src/lonora_tools/mcp.py` |
+| Remote MCP servers | The owner trusts a server by a typed chat message; a static bearer credential (the OAuth helpers in `oauth.py` exist but nothing calls them yet, so a server that signs in only by OAuth cannot be connected); read tier and non-financial write tier (receipt per call) | `docs/mcp-boundary.md`, `docs/trusted-sources.md`, `packages/adapters/src/lonora_adapters/mcp/` (`oauth.py`, `transport.py`), `packages/tools/src/lonora_tools/mcp.py` |
 | Local (stdio) MCP servers | Run by an agent in the workspace as its own process, like any command | `docs/mcp-boundary.md` |
 | Skills | From trusted public GitHub repositories, or written by agents in the workspace, every write versioned | `packages/agent-runtime/src/lonora_agent/skills/`, `docs/workspace-created-skills.md`, `docs/skill-repository-inspection.md` |
 
