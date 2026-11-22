@@ -20,7 +20,7 @@ composed by the model**, which is VISION P3 ("build an environment, not features
 | Task tracking | `task_start`, `task_step_update`, `task_wait`, `task_inspect`, `task_control` (durable) | Ahead (durable) |
 | Ask the user | `wait_for_input`, `owner_action_propose`, `owner_call_request` | Equal |
 | Skills | `skills_list`, `skill_view`, `skill_save`, `skill_package_*`, `skill_repository_inspect`, versions and restore | Ahead (versioned) |
-| MCP | `mcp_connections`, `mcp_tools`, `mcp_execute`, `mcp_trust` (remote, static bearer credential, owner trust; the OAuth helpers are not wired) | **Gap G2**: tools are called through a generic executor, not as first-class tools; stdio servers are workspace processes only |
+| MCP | `mcp_connections`, `mcp_tools`, `mcp_execute`, `mcp_trust` (remote, static bearer credential, owner trust; the OAuth helpers are not wired: see [mcp-oauth.md](mcp-oauth.md)) | **Gap G2**: tools are called through a generic executor, not as first-class tools; stdio servers are workspace processes only |
 | Deferred tool discovery | The registry's stable `tool_call` bridge (Hermes-style, `registry.py`) | Equal |
 | Memory | `memory_read`/`write`, knowledge notes, owner profile | Ahead |
 | Scheduling | `routine_*`, `watch_*` | Ahead (Claude Code has none built in) |

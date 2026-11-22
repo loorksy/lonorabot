@@ -58,7 +58,7 @@ blockers listed below (CI first, P0-T10).
 ### وكيل مفتوح مثل Grok Bot — الاستضافة لا تقلّص شيئاً (التعديل 3 §11)
 كل وكلاء العميل يملكون حاسوبهم الخاص كما في النسخة الذاتية اليوم:
 - **أي API:** إنترنت، أي أداة سطر أوامر، `pip`/`npm`، SSH، عمليات خلفية، متصفح، وأسرار من أي نوع.
-- **أي خادم MCP بعيد:** يثق به المالك برسالة، برمز دخول ثابت (Bearer). دوال OAuth موجودة في الكود لكنها غير موصولة بعد. وخوادم MCP المحلية تعمل داخل مساحة العمل.
+- **أي خادم MCP بعيد:** يثق به المالك برسالة، برمز دخول ثابت (Bearer) اليوم. تسجيل الدخول بـ OAuth غير موصول بعد، وإكماله مؤكد في الخطة (D45، PT-7، `docs/proposals/mcp-oauth.md`). وخوادم MCP المحلية تعمل داخل مساحة العمل.
 - **مهارات** من مستودعات GitHub موثوقة، أو يكتبها الوكلاء بأنفسهم.
 - **التداول: MT5 فقط** (التعديل 2 في VISION، صادر) عبر باب التنفيذ، على **أي رمز يدعمه وسيط العميل**: عملات، ذهب ومعادن،
   مؤشرات، طاقة، وعقود CFD على الأسهم أو الكريبتو إن كان الوسيط يعرضها. التداول على أي منصة أخرى ممنوع عبر أي طريق، حتى لو طلبه المالك.
@@ -132,7 +132,7 @@ blockers listed below (CI first, P0-T10).
 | [PLAN.md](PLAN.md) | The full design: architecture, isolation, lifecycle, portal, admin, supervisors, support, billing, operations, security, legal, go-to-market, KPIs, risks. |
 | [PHASES.md](PHASES.md) | The executable roadmap: phases, tasks with IDs, acceptance criteria, verification, and a starter prompt per phase. |
 | [JOURNEY.md](JOURNEY.md) | The customer journey end to end, step by step, with what happens behind each step and where the plan specifies it. |
-| [../proposals/](../proposals/README.md) | Product specifications that are not built yet: agent environment, web research. |
+| [../proposals/](../proposals/README.md) | Product specifications that are not built yet: agent environment, web research, MCP sign-in with OAuth. |
 
 ## Rules for Claude Code sessions executing this plan
 

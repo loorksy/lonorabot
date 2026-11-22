@@ -261,6 +261,7 @@ consent or approvals; the supervisors panel shows live data on staging.
 | PT-3 | Workspace CLI order commands (VISION §7.3: `trade`, `close`, `modify`, `cancel`) — not built yet; prerequisite of PT-4. | VISION phase 4 "done when". |
 | PT-4 | Agent environment with Claude Code's philosophy: [docs/proposals/agent-environment.md](../proposals/agent-environment.md) (G1–G5). | Decisions A1–A5. |
 | PT-6 | Web research, hybrid (D44): [docs/proposals/web-research.md](../proposals/web-research.md) stages S1–S6 — page reading, provider search for Anthropic, SearXNG freshness and GDELT news, DeepSeek, OpenAI after its Responses path, research skill. | Decisions W1–W4. |
+| PT-7 | MCP sign-in with OAuth (D45): [docs/proposals/mcp-oauth.md](../proposals/mcp-oauth.md) stages S1–S6 — discovery and client registration, sign-in card and callback, token refresh and step-up, the stateless protocol revision, the card in the Android app, a real provider end to end. | Decisions O-A, O-B. Owner confirmed the need. |
 
 ---
 
