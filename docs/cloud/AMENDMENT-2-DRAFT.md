@@ -58,3 +58,13 @@ mandate:
       with its narrowed token exactly as it trades today;
     - connections are a hosting resource under item 4. A plan may include a number of connections and bill more; it
       never limits trading on a connected account.
+11. **Hosting never narrows the agent.** Lonora is an open agent like Grok Bot («يستطيع الاتصال بأي خادم … أي API أو
+    MCP أو تثبيت أي بلوجن … يربط حساب باينانس … ويتداول على الكريبتو»). Lonora Cloud keeps every capability of the
+    self-hosted product: the workspace's internet egress, any command-line tool or package (7.1, 12.2), owner-trusted
+    MCP servers and skill sources, secrets of any kind (7.2), and trading other venues such as crypto exchanges from the
+    workspace (9.5). Hosting may add only these limits, all on the workspace:
+    - the operator's own domain and services are added to the denied names, so a workspace cannot reach other
+      customers' installations or the control plane;
+    - outbound SMTP port 25 is blocked;
+    - the abuse ladder of the operator's acceptable-use policy (notify, throttle, stop the workspace), which never stops
+      Lonora itself and acts without notice only against an attack in progress.

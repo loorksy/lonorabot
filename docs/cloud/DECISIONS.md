@@ -31,6 +31,14 @@ here in the same pull request. "Blocks" names the first task that cannot start w
 | D30 | Where the password is typed | **In Lonora's Secret card, as today**; it passes once through the provisioning service to MetaApi in memory. Alternative: MetaApi's own configuration link (the customer types the password on a MetaApi page; it never touches our servers) but the customer leaves Lonora. | Keeps the journey inside chat (VISION §9.2); honest disclosure of the single pass. | P1-T12 | Proposed |
 | D31 | Narrowed-token lifetime | **14 days, renewed every 3 days**; alert if any token is under 7 days. | MetaApi narrowed tokens cannot be revoked before expiry in the SDK; short enough to contain, long enough that a control-plane outage does not stop trading. Verify the server's maximum in P0-T9. | P3-T14 | Proposed |
 
+## Open agent (owner requirement of 2026-11-22)
+
+| ID | Decision | Recommendation | Why | Blocks | Status |
+|---|---|---|---|---|---|
+| D33 | Crypto as a first-class venue | **Yes, as a separate product track in `lonorabot`:** a door adapter for crypto exchanges so their orders get the execution door's journal, idempotency (exchanges accept a client order id), reconciliation and broker truth (VISION §6, §9.5). Until it ships, crypto trading works from the workspace with the §9.5 disclosure. Needs its own spec and the owner's go-ahead. | Owner: «ممكن يتداول على الكريبتو». The door is Lonora's strongest guarantee; crypto without it is second-class. | PT-1 | Proposed |
+| D34 | Fixed outbound IP per customer | **Yes:** a persistent provider IP per instance, shown in the portal, moved to the new VM on every migration. | Exchanges let owners restrict API keys to one IP; a changed IP silently breaks trading. | P3-T15 | Proposed |
+| D35 | Closing the gaps with nanobot | Consider for `lonorabot`, not for hosting: a skills catalogue with install from chat, plugin bundles (skills + MCP servers), stdio MCP tools as native tools. Each is a product change under VISION P3/P5 and `docs/mcp-boundary.md`. | Owner wants nanobot-level openness; today Lonora covers it through the workspace and owner-trusted remote MCP. | PT-2 | Proposed |
+
 ## Commercial
 
 | ID | Decision | Recommendation | Blocks | Status |
