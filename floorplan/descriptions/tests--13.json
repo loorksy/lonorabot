@@ -112,6 +112,10 @@
       "name": "Palette tests",
       "description": "Automatic checks for palette."
     },
+    "tests/web/peer-card.test.ts": {
+      "name": "Agent collaboration card tests",
+      "description": "Automatic checks for the shared rules of the agent collaboration card on web and phone."
+    },
     "tests/web/plain-line.test.ts": {
       "name": "Plain line tests",
       "description": "Automatic checks for plain line."

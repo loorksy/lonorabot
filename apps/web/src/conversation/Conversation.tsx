@@ -6,6 +6,7 @@ import {
   isWorking,
   type MentionAddress,
   nearConversationBottom,
+  peersByMessage,
   retriedRunIds,
   SLOT_OWNER_ACTION_KINDS,
   stopTargets,
@@ -51,14 +52,7 @@ import { useNetworkPhase } from "../shell/NetworkStrip";
 import { useNavigation } from "../shell/navigation";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
-import {
-  AgentErrorCard,
-  type FailureFamily,
-  PeerCard,
-  peersByMessage,
-  QuestionCard,
-  Steps,
-} from "./Cards";
+import { AgentErrorCard, type FailureFamily, PeerCard, QuestionCard, Steps } from "./Cards";
 import { Composer, type ComposerSend } from "./Composer";
 import {
   type ConversationApi,
