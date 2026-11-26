@@ -22,14 +22,10 @@
     },
     "packages/adapters/src/lonora_adapters/models/openai_compatible.py": {
       "name": "OpenAI-style connection",
-      "description": "The shared connection for OpenAI and every provider that speaks the same way."
-    },
-    "packages/adapters/src/lonora_adapters/models/openai.py": {
-      "name": "OpenAI connection",
-      "description": "Talks to OpenAI's models."
+      "description": "The shared connection for DeepSeek, Z.ai, OpenRouter and the owner's own endpoint, which speak OpenAI's older chat format."
     },
     "packages/adapters/src/lonora_adapters/models/openai_responses.py": {
-      "name": "OpenAI Responses connection",
+      "name": "OpenAI connection",
       "description": "Talks to OpenAI's models through the Responses API, and can shape each request the way the ChatGPT plan requires."
     },
     "packages/adapters/src/lonora_adapters/models/openrouter.py": {

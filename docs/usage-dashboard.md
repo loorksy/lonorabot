@@ -17,8 +17,9 @@ Cost is priced at read time from `lonora_core.model_pricing` (USD per million un
 input, cached input and output tokens, recorded on `PRICES_AS_OF`). Old rows are priced
 the same way as new ones; nothing is stored per row.
 
-- Anthropic reports `input_tokens` without the cache reads; the OpenAI-compatible APIs
-  (OpenAI, DeepSeek, Z.ai, OpenRouter) include the cached tokens in `prompt_tokens`. The
+- Anthropic reports `input_tokens` without the cache reads; OpenAI's Responses API
+  includes them in `input_tokens`, and the OpenAI-compatible APIs (DeepSeek, Z.ai,
+  OpenRouter) include them in `prompt_tokens`. The
   dashboard normalizes: `input_tokens` is every prompt token, cached included, and
   cached tokens are priced once, at the cached rate.
 - A model the table does not name has no cost: `cost_usd` sums the priced requests and

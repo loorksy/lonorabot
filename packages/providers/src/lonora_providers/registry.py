@@ -4,13 +4,13 @@ from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapters.models.anthropic import AnthropicAdapter
 from lonora_adapters.models.compatible_endpoint import CompatibleEndpointAdapter
 from lonora_adapters.models.deepseek import DeepSeekAdapter
-from lonora_adapters.models.openai import OpenAIAdapter
+from lonora_adapters.models.openai_responses import OpenAIResponsesAdapter
 from lonora_adapters.models.openrouter import OpenRouterAdapter
 from lonora_adapters.models.zai import ZaiAdapter
 from lonora_core.user_error import LonoraError
 
 PROVIDERS: dict[str, Callable[..., ModelAdapter]] = {
-    "openai": OpenAIAdapter,
+    "openai": OpenAIResponsesAdapter,
     "anthropic": AnthropicAdapter,
     "deepseek": DeepSeekAdapter,
     "zai": ZaiAdapter,

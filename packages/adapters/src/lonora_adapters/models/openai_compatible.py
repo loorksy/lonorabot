@@ -84,8 +84,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
             "stream": False,
         }
         if max_output_tokens is not None:
-            output_field = "max_completion_tokens" if self.provider == "openai" else "max_tokens"
-            payload[output_field] = max_output_tokens
+            payload["max_tokens"] = max_output_tokens
         if tools:
             payload["tools"] = [
                 {"type": "function", "function": tool.model_dump()} for tool in tools

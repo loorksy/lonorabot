@@ -21,7 +21,7 @@ from lonora_adapter_kit.model_errors import (
 )
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_adapters.models.anthropic import AnthropicAdapter
-from lonora_adapters.models.openai import OpenAIAdapter
+from lonora_adapters.models.deepseek import DeepSeekAdapter
 from lonora_agent.environment import ToolRetryScheduled
 from lonora_agent.executor import execute_run
 from lonora_agent.model_recovery import (
@@ -469,7 +469,9 @@ async def test_anthropic_cut_off_tool_input_is_truncated_never_invalid(stream: b
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [False, True])
-async def test_openai_length_finish_flags_text_and_refuses_tool_calls(stream: bool) -> None:
+async def test_chat_completions_length_finish_flags_text_and_refuses_tool_calls(
+    stream: bool,
+) -> None:
     def handle(request: httpx.Request) -> httpx.Response:
         tools = json.loads(request.content).get("messages")[0]["content"] == "tools"
         if stream:
@@ -495,7 +497,7 @@ async def test_openai_length_finish_flags_text_and_refuses_tool_calls(stream: bo
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        adapter = OpenAIAdapter("fixture-key", client)
+        adapter = DeepSeekAdapter("fixture-key", client)
 
         async def delta(_: str) -> None:
             return None
@@ -517,7 +519,7 @@ async def test_unterminated_stream_and_content_filter_and_discovery() -> None:
         return httpx.Response(200, text=sse({"choices": [{"delta": {"content": "Gold"}}]}))
 
     with pytest.raises(ModelProviderError) as caught:
-        await adapter_reply(OpenAIAdapter, cut, stream=True)
+        await adapter_reply(DeepSeekAdapter, cut, stream=True)
     assert caught.value.reason is FailureReason.CONNECTION
 
     def filtered(_: httpx.Request) -> httpx.Response:
@@ -526,7 +528,7 @@ async def test_unterminated_stream_and_content_filter_and_discovery() -> None:
         )
 
     with pytest.raises(ModelProviderError) as caught:
-        await adapter_reply(OpenAIAdapter, filtered, stream=False)
+        await adapter_reply(DeepSeekAdapter, filtered, stream=False)
     assert caught.value.reason is FailureReason.CONTENT_POLICY
 
     def models(_: httpx.Request) -> httpx.Response:

@@ -25,12 +25,12 @@ stays one of the stable codes Runs, Tasks and clients already read.
 | `overloaded` | 503/529, `overloaded_error`, overload wording on 429, the ChatGPT plan's `subscription_sharing_usage_unavailable` and `subscription_sharing_user_unavailable` | `model_provider_unavailable` |
 | `server_error` | other 5xx, `api_error`, untyped stream error events | `model_provider_unavailable` |
 | `timeout` | read/connect timeout, 408/504 | `model_provider_unavailable` |
-| `connection` | transport errors, a stream that closed before its end marker | `model_provider_unavailable` |
+| `connection` | transport errors, a stream that closed before its end marker (`response.completed` on the Responses API) | `model_provider_unavailable` |
 | `context_overflow` / `payload_too_large` | "prompt is too long", `context_length_exceeded`, 413 | `context_limit_exceeded` |
 | `model_not_found` | 404, `not_found_error`, "the model … does not exist" | `model_endpoint_unavailable` |
 | `content_policy` | content filters, `refusal`/`content_filter` stops | `model_content_blocked` |
 | `output_limit` | "max_tokens … > N, which is the maximum", "at most N completion tokens" | `model_request_rejected` |
-| `truncated` | `max_tokens`/`length` stop with tool calls or no text | `model_output_truncated` |
+| `truncated` | `max_tokens`/`length` stop, or an incomplete Responses reply (`response.incomplete`), with tool calls or no text | `model_output_truncated` |
 | `format_error` | other 4xx, the ChatGPT plan's `subscription_sharing_unsupported_capability` | `model_request_rejected` |
 | `invalid_response` | malformed body or stream | `model_response_invalid` |
 
@@ -161,6 +161,10 @@ Adapters read the stop reason before trusting any tool input:
 - A rejected budget (`output_limit`) is retried once with the provider's stated
   maximum (or half), which is remembered for that model in the process.
 - `refusal`/`content_filter` stops raise `content_policy`.
+- OpenAI's Responses API (`lonora_adapters/models/openai_responses.py`) reports the
+  same through its terminal event: `response.incomplete` is a `length` stop (a
+  `content_filter` one when it says so), and a refusal part in the answer is a
+  `refusal` stop. Tool arguments are parsed only after `response.completed`.
 
 ## A Run that outlasts the router
 
@@ -326,7 +330,9 @@ Nothing waits for agreement and nothing executes on its advice.
 - The model picker lists every discovered model of a connected provider; catalogs
   that do not report capabilities (OpenAI) include non-chat models.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured
-  per adapter.
+  per adapter. OpenAI's reasoning items are not sent back: requests are
+  stateless (`store: false`) and Lonora's history keeps an assistant's text and
+  tool calls only.
 - There is no spend cap (owner decision D4); usage is shown per agent.
 - The output family table must follow provider documentation as models change.
 

@@ -15,8 +15,8 @@ leading agents do. It changes how research reaches the model; it changes no trad
 | News and calendar | `news_feed_subscribe`/`read`, `economic_calendar_read`, trusted sources | Gateway |
 
 No model adapter uses a provider's built-in web search: `packages/adapters/src/lonora_adapters/models/anthropic.py`
-calls `/messages`, and `openai.py` (through `openai_compatible.py`) calls `/chat/completions`, both without server
-tools.
+calls `/messages`, and `openai_responses.py` calls OpenAI's `/responses`, both without server tools; the other
+OpenAI-style providers (`openai_compatible.py`) call `/chat/completions`.
 
 ## 2. Findings
 
@@ -43,8 +43,8 @@ tools.
 - The model adapters offer the provider's built-in search when the agent's current model supports it:
   - **Anthropic:** the `web_search` server tool in the `/messages` request.
   - **DeepSeek:** its server-side search tool, on requests with thinking disabled.
-  - **OpenAI:** the Responses `web_search` tool. This needs a Responses API path in the OpenAI adapter (today it uses
-    Chat Completions), so it comes after Anthropic and DeepSeek.
+  - **OpenAI:** the Responses `web_search` tool, in the request the OpenAI adapter already sends to the Responses API.
+    It comes after Anthropic and DeepSeek.
   - Z.ai and OpenRouter: added when their search features are verified against current documentation.
 - **Provenance (VISION §6.10).** Search results return as distinct blocks. On any such block the adapter's caller
   marks the run with `mark_external_content` (`packages/tools/src/lonora_tools/provenance.py`), so taint rules apply
