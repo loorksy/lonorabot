@@ -10,7 +10,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/executor.py": {
       "name": "Run executor",
-      "description": "Runs one agent run from start to finish, keeping its lease alive and recording a clean failure if it breaks."
+      "description": "Runs one agent run from start to finish, keeping its lease alive and recording a clean failure if it breaks; a background run refused by every model tells the owner, and one a model answers clears that notice."
     },
     "packages/agent-runtime/src/lonora_agent/failure_view.py": {
       "name": "Failure in words",

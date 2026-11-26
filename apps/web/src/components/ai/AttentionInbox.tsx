@@ -43,6 +43,7 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     secret_requested: t`Your agent needs a secret from you`,
     mandate_proposed: t`A Mandate card is waiting for your tap`,
     gateway_stopped: t`Lonora's background service has stopped`,
+    model_access_failed: t`A model provider refused background work`,
   };
 }
 export function AttentionInbox({

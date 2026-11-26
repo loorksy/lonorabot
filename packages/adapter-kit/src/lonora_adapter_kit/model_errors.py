@@ -125,6 +125,9 @@ class ModelProviderError(LonoraError):
         self.retry_after = retry_after
         self.output_limit = output_limit
         self.inferred = inferred
+        # Set by the router when its whole chain failed: each candidate's provider, model
+        # and failure, so background work can tell which routes refused access.
+        self.failures: tuple[tuple[str, str, ModelProviderError], ...] = ()
 
 
 def reason_of(error: LonoraError) -> FailureReason | None:

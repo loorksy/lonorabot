@@ -6,7 +6,7 @@
     },
     "packages/db/src/lonora_db/attention.py": {
       "name": "Attention store",
-      "description": "Decides and records what needs the owner's attention and delivers it under the reach-me rules."
+      "description": "Decides and records what needs the owner's attention and delivers it under the reach-me rules, including a notice when a model provider refuses an agent's background work."
     },
     "packages/db/src/lonora_db/authority_lock.py": {
       "name": "Money authority lock",
@@ -120,13 +120,13 @@
       "name": "Watches store",
       "description": "Creates, reads, controls, extends and stops the owner's market watches."
     },
-    "packages/db/src/lonora_db/memory.py": {
-      "name": "Memory store",
-      "description": "Reads and writes an agent's memory document as one attributed change, keeping owner sections apart."
-    },
     "packages/db/src/lonora_db/memory_revisions.py": {
       "name": "Memory history store",
       "description": "Keeps attributed, undoable changes to the owner profile, preferences and each agent's memory."
+    },
+    "packages/db/src/lonora_db/memory.py": {
+      "name": "Memory store",
+      "description": "Reads and writes an agent's memory document as one attributed change, keeping owner sections apart."
     },
     "packages/db/src/lonora_db/messages.py": {
       "name": "Messages store",

@@ -1,7 +1,9 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from lonora_contracts.domain import ThreadCreate, utcnow
+from lonora_contracts.model_routing import Capability
 from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
@@ -13,6 +15,8 @@ from .runs import create_run
 from .schema import AgentRow, RoutineRow
 from .threads import background_origin, create_thread
 from .transactions import owned_agent
+
+log = logging.getLogger("lonora.routines")
 
 
 def next_run(request: RoutineCreate, after: datetime) -> datetime:
@@ -138,7 +142,34 @@ async def disable_routine(session: AsyncSession, routine_id: str) -> bool:
     return True
 
 
+async def model_access_refused(session: AsyncSession, row: RoutineRow) -> bool:
+    """Whether every model the routine's agent could use for background work has a standing
+    ``model_access_failed`` item (P1-08): its Run could only fail the same way again."""
+    from .agent_models import model_candidates
+    from .attention import refused_routes
+
+    refused = await refused_routes(session, row.owner_id)
+    if not refused:
+        return False
+    chain, _ = await model_candidates(
+        session, Capability.BACKGROUND, owner_id=row.owner_id, agent_id=row.agent_id
+    )
+    return bool(chain) and all(
+        choice.provider in refused or choice.provider + ":" + choice.model in refused
+        for choice in chain
+    )
+
+
 async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
+    if await model_access_refused(session, row):
+        # Held until the owner saves a key or a run on that route succeeds: the tick
+        # advances and creates no Run. A one-shot counts as fired, as a failed run would.
+        log.info("routine_held code=model_access_failed")
+        if row.run_at is not None:
+            row.enabled, row.last_run_at = False, now
+        else:
+            row.next_run_at = next_tick(row, now)
+        return False
     await create_run(
         session,
         row.owner_id,
@@ -158,6 +189,11 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
         row.enabled, row.last_run_at = False, now
         return True
     row.last_run_at = now
+    row.next_run_at = next_tick(row, now)
+    return True
+
+
+def next_tick(row: RoutineRow, now: datetime) -> datetime:
     request = RoutineCreate(
         prompt=row.prompt,
         interval_seconds=row.interval_seconds,
@@ -168,8 +204,7 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
     previous = row.next_run_at if row.next_run_at.tzinfo else row.next_run_at.replace(tzinfo=UTC)
     candidate = next_run(request, previous)
     # Collapse missed schedules into one wake; never replay a burst after downtime.
-    row.next_run_at = candidate if candidate > now else next_run(request, now)
-    return True
+    return candidate if candidate > now else next_run(request, now)
 
 
 async def owned_routine(session: AsyncSession, owner_id: str, routine_id: str) -> RoutineRow:

@@ -363,6 +363,10 @@ msgstr "A Mandate card is waiting for your tap"
 msgid "A message in the agent's conversation with an alert"
 msgstr "A message in the agent's conversation with an alert"
 
+#: src/components/ai/AttentionInbox.tsx:46
+msgid "A model provider refused background work"
+msgstr "A model provider refused background work"
+
 #: src/pages/shell/bot-panel.tsx:42
 #~ msgid "A new teammate"
 #~ msgstr "A new teammate"
@@ -4724,7 +4728,7 @@ msgstr "New price"
 msgid "New request"
 msgstr "New request"
 
-#: src/components/ai/AttentionInbox.tsx:125
+#: src/components/ai/AttentionInbox.tsx:126
 msgid "New requests are waiting longer than usual to start"
 msgstr "New requests are waiting longer than usual to start"
 

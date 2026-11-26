@@ -21,9 +21,11 @@ from lonora_contracts.model_routing import (
     AgentModelChange,
     AgentModelPreference,
     AgentModelRecord,
+    Capability,
     ModelSelection,
+    RoutingPolicy,
 )
-from lonora_core.model_routing import model_match_score
+from lonora_core.model_routing import model_match_score, select_model
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,6 +71,40 @@ async def agent_model_preference(
         return await stored_agent_model(session, owner_id, agent_id)
     except LonoraError:
         return None
+
+
+async def model_candidates(
+    session: AsyncSession,
+    capability: Capability,
+    *,
+    owner_id: str | None = None,
+    agent_id: str | None = None,
+    run_choice: ModelSelection | None = None,
+) -> tuple[list[ModelSelection], AgentModelRecord | None]:
+    """The models one request tries, in order and with repeats: the Run's own choice, the
+    Agent's primary model, the global route for the capability, the Agent's fallbacks, then
+    the global backups; and the Agent's record. The router de-duplicates and caps them."""
+    settings = SettingsRepository()
+    routing = RoutingPolicy.model_validate(await settings.get(session, "model_routing"))
+    try:
+        primary: ModelSelection | None = select_model(routing, capability)
+    except LonoraError as error:
+        if error.code != "model_not_configured":
+            raise
+        primary = None
+    backups = await settings.get(session, "model_backups")
+    record = (
+        await agent_model_preference(session, owner_id, agent_id) if owner_id and agent_id else None
+    )
+    preference = record.preference if record else None
+    ordered = [
+        *([run_choice] if run_choice else []),
+        *([preference.primary] if preference and preference.primary else []),
+        *([primary] if primary else []),
+        *(preference.fallbacks if preference else []),
+        *(ModelSelection.model_validate(item) for item in backups.get("choices", [])),
+    ]
+    return ordered, record
 
 
 def same_choice(record: AgentModelRecord, preference: AgentModelPreference) -> bool:

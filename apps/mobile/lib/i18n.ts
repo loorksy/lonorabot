@@ -326,6 +326,10 @@ export const labels = {
     "توقفت خدمة الخلفية في لونورا",
     "Lonora's background service has stopped",
   ],
+  attentionModelAccessFailed: [
+    "رفض مزوّد النموذج العمل في الخلفية",
+    "A model provider refused background work",
+  ],
   attentionItemQuarantined: [
     "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
     "A background item was paused after repeated errors; everything else keeps running",

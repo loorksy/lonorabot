@@ -37,6 +37,7 @@ AttentionCode = Literal[
     "secret_requested",
     "mandate_proposed",
     "gateway_stopped",
+    "model_access_failed",
 ]
 AttentionStatus = Literal["pending", "ready", "seen", "suppressed"]
 
@@ -59,8 +60,10 @@ ATTENTION_EVENTS: dict[AttentionCode, AttentionEvent] = {
     "broker_account_undeployed": "broker_health",
     "broker_connection_lost": "broker_health",
     "broker_rate_limited": "broker_health",
-    # Lonora's own background work stopped (Amendment 5): no Gateway is running.
+    # Lonora's own background work stopped (Amendment 5): no Gateway is running, or a model
+    # provider refused access to background work (one item per route and cause).
     "gateway_stopped": "background_health",
+    "model_access_failed": "background_health",
 }
 # The broker health problems of mandate 9.4, one item per account and problem.
 BROKER_HEALTH_CODES: tuple[AttentionCode, ...] = (

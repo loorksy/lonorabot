@@ -363,6 +363,10 @@ msgstr "بطاقة التفويض بانتظار لمستك"
 msgid "A message in the agent's conversation with an alert"
 msgstr "رسالة في محادثة الوكيل مع تنبيه"
 
+#: src/components/ai/AttentionInbox.tsx:46
+msgid "A model provider refused background work"
+msgstr "رفض مزوّد النموذج العمل في الخلفية"
+
 #: src/pages/shell/bot-panel.tsx:42
 #~ msgid "A new teammate"
 #~ msgstr "زميل جديد"
@@ -4718,7 +4722,7 @@ msgstr "السعر الجديد"
 msgid "New request"
 msgstr "طلب جديد"
 
-#: src/components/ai/AttentionInbox.tsx:125
+#: src/components/ai/AttentionInbox.tsx:126
 msgid "New requests are waiting longer than usual to start"
 msgstr "الطلبات الجديدة تنتظر أكثر من المعتاد لتبدأ"
 

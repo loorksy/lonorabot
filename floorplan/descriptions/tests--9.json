@@ -12,6 +12,10 @@
       "name": "Mobile updates tests",
       "description": "Automatic checks for mobile updates."
     },
+    "tests/test_model_access.py": {
+      "name": "Model access tests",
+      "description": "Automatic checks for model access."
+    },
     "tests/test_model_access_guard.py": {
       "name": "Model access guard tests",
       "description": "Automatic checks for model access guard."

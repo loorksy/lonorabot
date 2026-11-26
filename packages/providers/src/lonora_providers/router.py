@@ -29,11 +29,9 @@ from lonora_contracts.model_routing import (
     AgentModelRecord,
     Capability,
     ModelSelection,
-    RoutingPolicy,
 )
-from lonora_core.model_routing import select_model
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import agent_model_preference
+from lonora_db.agent_models import model_candidates
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
@@ -165,24 +163,13 @@ class GlobalModelRouter:
             if choices is not None:
                 ordered = list(choices)
             else:
-                routing = RoutingPolicy.model_validate(await settings.get(session, "model_routing"))
-                try:
-                    primary: ModelSelection | None = select_model(routing, capability)
-                except LonoraError as error:
-                    if error.code != "model_not_configured":
-                        raise
-                    primary = None
-                backups = await settings.get(session, "model_backups")
-                if owner_id and agent_id:
-                    record = await agent_model_preference(session, owner_id, agent_id)
-                preference = record.preference if record else None
-                ordered = [
-                    *([run_choice] if run_choice else []),
-                    *([preference.primary] if preference and preference.primary else []),
-                    *([primary] if primary else []),
-                    *(preference.fallbacks if preference else []),
-                    *(ModelSelection.model_validate(item) for item in backups.get("choices", [])),
-                ]
+                ordered, record = await model_candidates(
+                    session,
+                    capability,
+                    owner_id=owner_id,
+                    agent_id=agent_id,
+                    run_choice=run_choice,
+                )
             catalogs: dict[str, list[ModelDescriptor]] = {}
             for provider in dict.fromkeys(item.provider for item in ordered):
                 payload = await settings.get(session, "catalog:" + provider)
@@ -401,19 +388,24 @@ class GlobalModelRouter:
         """
         errors = [error for _, error in failures]
         transient = [error for error in errors if RECOVERY[error.reason].transient]
+        configured = [error for error in errors if error.reason is not FailureReason.NOT_CONFIGURED]
         if transient:
             first = transient[0]
             positive = [wait for wait in waits if wait > 0]
-            return ModelProviderError(
+            exhausted = ModelProviderError(
                 first.reason,
                 http_status=first.http_status,
                 retry_after=min(positive) if positive else first.retry_after,
                 provider_type=first.diagnostic_type,
             )
-        configured = [error for error in errors if error.reason is not FailureReason.NOT_CONFIGURED]
-        if configured:
-            return configured[0]
-        return ModelProviderError(FailureReason.NOT_CONFIGURED)
+        elif configured:
+            exhausted = configured[0]
+        else:
+            exhausted = ModelProviderError(FailureReason.NOT_CONFIGURED)
+        exhausted.failures = tuple(
+            (selection.provider, selection.model, error) for selection, error in failures
+        )
+        return exhausted
 
     def _retry_wait(self, error: ModelProviderError, attempt: int) -> float | None:
         if error.retry_after is not None:

@@ -134,7 +134,7 @@
     },
     "packages/db/src/lonora_db/agent_models.py": {
       "name": "Agent model store",
-      "description": "Stores each agent's chosen model and matches names to the providers' catalogs."
+      "description": "Stores each agent's chosen model, lists the models a request tries in order, and matches names to the providers' catalogs."
     },
     "packages/db/src/lonora_db/agent_on_its_own.py": {
       "name": "Agents trading alone",

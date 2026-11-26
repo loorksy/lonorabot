@@ -130,6 +130,20 @@ or a channel.
   confirmation that woke nobody (its wake already spent, or its Task paused), broker
   activity while Lonora is paused, an opportunity whose wake cannot report in the
   agent's conversation, watch invalidation and expiry, and the 11.4 items stay items.
+- **A model provider refuses background work.** When a background run fails because
+  every model it could use refused access (a rejected key, spent credit, a model the key
+  may not use or that the provider does not have), the owner gets one
+  `model_access_failed` item per provider route and cause, and its push (VISION 11.5,
+  Amendment 5). A rejected key or spent credit is the provider's route; a refused or
+  missing model is that provider's model. The text is fixed: the provider's name and the
+  failure family, never the provider's message; a reason read only from wording on a
+  generic response raises nothing, and a failure the owner is waiting on (a conversation)
+  shows its own error instead. The item ends when the owner saves another key for that
+  provider, or when a run that a model of that route answered completes. While it
+  stands, a due routine whose agent has no model left outside the refused routes
+  advances without a run (`model_access_refused` in `lonora_db/routines.py`; a one-shot
+  counts as fired, as its failed run would). Nothing is limited (P1): those runs could
+  only fail. Watches keep evaluating without a model.
 - **Channels.** A webhook integration without a thread never forwards a work thread's
   messages; the conversation copy is sent once. Telegram carries only the 11.4 alerts.
 - **Kept on purpose.** A run that sent an order whose result is not verified always says

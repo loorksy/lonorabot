@@ -216,7 +216,11 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                             )
                         continue
                     settings = await policy(session, services.owner_id)
-                    outbound = {"content": attention_text(notification.code, settings.locale)}
+                    outbound = {
+                        "content": attention_text(
+                            notification.code, settings.locale, notification.parameters
+                        )
+                    }
                     identity = "attention:" + notification.id
                     if config["type"] == "telegram":
                         found = await push_record(session, notification)

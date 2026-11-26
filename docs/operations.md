@@ -616,7 +616,9 @@ Secret card an agent's run is waiting on, a Mandate card an agent proposed, a br
 health problem (a rejected MetaApi
 token, an undeployed account, or a connection lost for more than two minutes), once per
 account and outage however often its reason changes, and a problem with Lonora's own background
-work (VISION Amendment 5). The one problem a Gateway cannot push is its own stop: while no
+work (VISION Amendment 5): a model provider refusing background work (a rejected key, spent
+credit, or a model the key may not use or the provider does not have), once per provider route,
+cause and saved key. The one problem a Gateway cannot push is its own stop: while no
 Gateway heartbeat has been fresh for three minutes, the API sends that push itself, once per
 stop. The text is
 Lonora's fixed text for that event in the owner's language under the agent's name; no price,
