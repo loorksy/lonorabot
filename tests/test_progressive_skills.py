@@ -77,11 +77,11 @@ def test_ineligible_views_never_replace_active_instructions(
 
 def test_combined_instruction_budget_is_not_silently_evicted() -> None:
     payloads = [
-        {**procedure(identity, context_budget=10000), "content": identity[0] * 9000}
-        for identity in ("alpha", "beta")
+        {**procedure(identity, context_budget=12000), "content": identity[0] * 11000}
+        for identity in ("alpha", "beta", "gamma")
     ]
     with pytest.raises(LonoraError, match="skill_total_budget_exceeded"):
-        bundle(payloads, "beta", ("alpha",))
+        bundle(payloads, "gamma", ("alpha", "beta"))
 
 
 @pytest.mark.parametrize("arguments", [{"limit": 21}, {"offset": -1}, {"offset": 100001}])

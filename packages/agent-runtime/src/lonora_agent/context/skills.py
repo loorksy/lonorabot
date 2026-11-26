@@ -81,6 +81,20 @@ async def effective_skill_registry(
 
 
 SKILL_SECTION = "skill"
+CATALOG_CHARS = 6000
+
+
+def catalog_lines(lines: list[str], limit: int = CATALOG_CHARS) -> str:
+    """Whole catalog lines within the limit, then a count of the rest, never a cut mid-line."""
+    kept: list[str] = []
+    used = 0
+    for line in lines:
+        if used + len(line) > limit:
+            break
+        kept.append(line)
+        used += len(line) + 1
+    omitted = len(lines) - len(kept)
+    return "\n".join([*kept, f"{omitted} more: use skills_list"] if omitted else kept)
 
 
 def catalog_label(source: str) -> str:
@@ -187,15 +201,17 @@ async def read_skill_context(
     catalog = (
         "<skill_runtime>\n"
         + "# Skills\nDescriptions are discovery hints. Read a suitable SKILL.md with skill_view before applying it.\n"
-        + "\n".join(
-            "- "
-            + escape(identity)
-            + catalog_label(definition.manifest.source)
-            + " — "
-            + escape(definition.manifest.description)
-            for identity, definition in sorted(skills.definitions.items())
-            if eligibility_reason(definition, signals, rejected) is None
-        )[:6000]
+        + catalog_lines(
+            [
+                "- "
+                + escape(identity)
+                + catalog_label(definition.manifest.source)
+                + " — "
+                + escape(definition.manifest.description)
+                for identity, definition in sorted(skills.definitions.items())
+                if eligibility_reason(definition, signals, rejected) is None
+            ]
+        )
         + "\n# Active Skills\n"
         + (
             ", ".join(escape(section.attributes[0][1]) for section in active)
