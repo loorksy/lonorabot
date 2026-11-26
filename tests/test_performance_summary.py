@@ -29,10 +29,11 @@ def entry(
     label: str,
     order: str | None = None,
     status: str = "confirmed",
+    **request: Any,
 ) -> Any:
     row = journal(
         "op-" + uuid4().hex[:10],
-        {"action": action, "symbol": "XAUUSD"},
+        {"action": action, "symbol": "XAUUSD", **request},
         agent_id=agent,
         status=status,
         updated_at=utcnow() - timedelta(minutes=30),
@@ -43,6 +44,12 @@ def entry(
     if order:
         row.result = {**row.result, "details": {**row.result["details"], "order_id": order}}
     return row
+
+
+def money(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The count and money of each row, without its outcomes and R."""
+    keys = ("label", "currency", "count", "net_realized_pnl", "unpriced")
+    return [{key: row[key] for key in keys if key in row} for row in rows]
 
 
 @pytest.mark.asyncio
@@ -111,7 +118,7 @@ async def test_statistics_per_label_equal_the_broker_deals() -> None:
         async with fixture.runtime.db.sessions() as session:
             block = await statistics_block(session, fixture.owner, gold["id"])
             only_usd = await statistics_block(session, fixture.owner, gold["id"], account_id=usd)
-        assert block["closed_trades"] == [
+        assert money(block["closed_trades"]) == [
             # 30.5 - 0.5 - 1 = 29; 29 - 12 = 17 (USD); EUR is its own row.
             {"label": "scale_in", "currency": "USD", "count": 2, "net_realized_pnl": "17"},
             {"label": "scale_in", "currency": "EUR", "count": 1, "net_realized_pnl": "7"},
@@ -151,7 +158,7 @@ async def test_a_close_without_broker_profit_is_counted_and_adds_nothing() -> No
         assert await record(fixture, connection) == 2
         async with fixture.runtime.db.sessions() as session:
             block = await statistics_block(session, fixture.owner, agent["id"])
-        assert block["closed_trades"] == [
+        assert money(block["closed_trades"]) == [
             {
                 "label": "breakout",
                 "currency": "USD",
@@ -197,7 +204,7 @@ async def test_a_netting_add_counts_its_label_and_unknown_pnl_is_never_zero() ->
         assert await record(fixture, connection) == 2
         async with fixture.runtime.db.sessions() as session:
             block = await statistics_block(session, fixture.owner, agent["id"])
-        assert block["closed_trades"] == [
+        assert money(block["closed_trades"]) == [
             {"label": "breakout", "currency": "USD", "count": 1, "net_realized_pnl": "6"},
             # Every trade of the row has an unknown P&L: no net, never "0".
             {
@@ -209,6 +216,112 @@ async def test_a_netting_add_counts_its_label_and_unknown_pnl_is_never_zero() ->
             },
         ]
         assert block["management"] == [{"label": "scale_in", "count": 1}]
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_r_groups_and_the_team_scope_of_lonora_and_a_team_agent() -> None:
+    """R per group from the journaled stop; wins shown with their sample. A team agent
+    sees only its own unless it asks for the team, which combines every agent's closes;
+    Lonora sees the team per agent, with the owner's own tickets as agent null."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.execution_quality import PerformanceRead
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_trading.performance import performance_snapshot
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        gold = (await fixture.agent("Gold", supervised=True))["id"]
+        silver = (await fixture.agent("Silver", supervised=True))["id"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora = (await ensure_personal_agent(session, fixture.owner)).id
+        connection = await simulation(fixture, [])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add_all(
+                [
+                    entry(
+                        fixture,
+                        connection,
+                        gold,
+                        "buy",
+                        label="breakout",
+                        order="g-1",
+                        stop_loss="95",
+                    ),
+                    entry(fixture, connection, gold, "sell", label="breakout", order="g-2"),
+                    entry(
+                        fixture,
+                        connection,
+                        silver,
+                        "buy",
+                        label="fade",
+                        order="s-1",
+                        stop_loss="98",
+                    ),
+                ]
+            )
+        await add_history(
+            fixture,
+            connection,
+            deal("g-1", "IN", "BUY", minutes=20, order="g-1", commission="-1"),
+            deal("g-1", "OUT", "SELL", minutes=19, profit="20", price="110"),
+            deal("g-2", "IN", "SELL", minutes=18, order="g-2"),
+            deal("g-2", "OUT", "BUY", minutes=17, profit="-6", price="103"),
+            deal("s-1", "IN", "BUY", minutes=16, order="s-1"),
+            deal("s-1", "OUT", "SELL", minutes=15, profit="-2", price="99"),
+            deal("m-1", "IN", "BUY", minutes=14),
+            deal("m-1", "OUT", "SELL", minutes=13, profit="5", price="101"),
+        )
+        assert await record(fixture, connection) == 4
+
+        async def read(agent: str, **params: Any) -> list[dict[str, Any]]:
+            body = PerformanceRead(account_id=connection, **params)
+            block = await performance_snapshot(fixture.runtime.db, fixture.owner, agent, body)
+            return block["closed_trades"]
+
+        # 10 of a 5 risk is 2 R; the net, 19 after commission, is 1.9 R. No stop: no R.
+        assert await read(gold) == [
+            {
+                "label": "breakout",
+                "currency": "USD",
+                "count": 2,
+                "outcomes": {"wins": 1, "losses": 1, "flat": 0, "of": 2},
+                "net_realized_pnl": "13",
+                "r": {
+                    "n": 1,
+                    "mean": "1.9",
+                    "sum": "1.9",
+                    "mean_win": "1.9",
+                    "mean_loss": None,
+                    "unknown": {"no_initial_stop": 1},
+                },
+            }
+        ]
+        assert [(row["side"], row["count"]) for row in await read(gold, group_by="side")] == [
+            ("buy", 1),
+            ("sell", 1),
+        ]
+        assert [
+            (row["label"], row["symbol"]) for row in await read(gold, group_by="label_symbol")
+        ] == [("breakout", "XAUUSD")]
+        assert set((await read(gold, group_by="session"))[0]) >= {"session", "count", "r"}
+        assert await read(gold, since=utcnow()) == []
+        # The team for a team agent: every agent's closes combined, never the owner's.
+        team = await read(gold, scope="team")
+        assert [(row["label"], row["count"]) for row in team] == [("breakout", 2), ("fade", 1)]
+        assert team[1]["r"]["mean"] == "-0.5" and "agent_id" not in team[0]
+        # Lonora: per agent, and the owner's own ticket as agent null.
+        lead = await read(lonora, scope="team")
+        assert [(row["agent_id"], row["label"], row["count"]) for row in lead] == [
+            (gold, "breakout", 2),
+            (silver, "fade", 1),
+            (None, "unlabelled", 1),
+        ]
+        assert await read(lonora) == []
     finally:
         await retire(fixture, connection)
         await fixture.close()

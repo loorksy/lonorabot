@@ -13,5 +13,12 @@ async def performance_snapshot(
 ) -> dict[str, Any]:
     async with db.sessions() as session:
         return await statistics_block(
-            session, owner_id, agent_id, account_id=params.account_id, symbol=params.symbol
+            session,
+            owner_id,
+            agent_id,
+            account_id=params.account_id,
+            symbol=params.symbol,
+            group_by=params.group_by,
+            since=params.since,
+            scope=params.scope,
         )

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from .account import AccountState, Order, Position
 from .domain import Contract
@@ -65,7 +65,12 @@ class ExecutionQuality(Contract):
 
 
 class PerformanceRead(Contract):
-    """Narrow your results to one account or symbol."""
+    """Narrow your results to one account or symbol, group them, and choose the window."""
 
     account_id: str | None = None
     symbol: str | None = None
+    group_by: Literal["label", "symbol", "session", "side", "label_symbol"] = "label"
+    # Closes at or after this instant (with its time zone); no window when absent.
+    since: AwareDatetime | None = None
+    # team: every agent's closes; for Lonora, per agent and the owner's own tickets.
+    scope: Literal["own", "team"] = "own"

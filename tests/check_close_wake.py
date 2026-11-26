@@ -171,6 +171,8 @@ async def stop_loss_hit(f: Fixture, account: str) -> None:
     (run,) = await runs_of(f, agent["id"], "broker_event")
     assert CLOSED in run.prompt and '"realized_pnl": "-12.5"' in run.prompt
     assert '"label": "secure_then_add"' in run.prompt and trade[:8] in run.prompt
+    # The ledger row's deals carry no prices and no journaled order opened it: no R.
+    assert '"r_multiple": null' in run.prompt and '"r_unknown": "no_initial_stop"' in run.prompt
     assert run.model_metadata["closed_trade_id"] == trade
     assert run.prompt.endswith("otherwise end without a reply.")
     seen: list[list[ModelMessage]] = []
