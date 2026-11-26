@@ -1,1 +1,52 @@
-{ "tasks": [] }
+{
+  "updatedAt": "2026-11-26T12:00:00Z",
+  "tasks": [
+    {
+      "title": "Open Lonora from a link",
+      "request": "Activating a customer's account is one click, and the customer opens their Lonora from the website",
+      "summary": "A new customer's setup link now opens the first-run step with its one-time code already filled in, on the web and in the phone app. The phone app asks before it switches to the server the link names.",
+      "items": [
+        {
+          "ref": "apps/web/src/lib/setup-link.ts",
+          "change": "new",
+          "note": "New: takes the one-time setup code from the link the website gives a customer, once, so they don't have to copy it by hand."
+        },
+        {
+          "ref": "apps/web/src/shell/settings/AuthFlow.tsx",
+          "change": "changed",
+          "note": "The first-run screen opens straight on the owner-setup step with the code filled in when the customer came from a setup link."
+        },
+        {
+          "ref": "apps/mobile/app/connect.tsx",
+          "change": "new",
+          "note": "New: the screen a Lonora link opens in the phone app; it shows which server the link points to and connects only after the customer confirms."
+        },
+        {
+          "ref": "apps/mobile/lib/connect-link.ts",
+          "change": "new",
+          "note": "New: refuses unsafe server addresses in a link and keeps the setup code only in memory, with the server it came for, until sign-in uses it."
+        },
+        {
+          "ref": "apps/mobile/app/sign-in.tsx",
+          "change": "changed",
+          "note": "Fills the setup code from the link into the owner-setup form, once and only for the linked server. It reads a newly confirmed link each time it comes into view, so a link confirmed while sign-in is open fills that form too."
+        },
+        {
+          "ref": "apps/web/src/main.tsx",
+          "change": "changed",
+          "note": "Wipes a setup link's one-time code from the address bar when the app starts, so it never stays there when the first-run step does not open."
+        },
+        {
+          "ref": "tests/web/setup-link.spec.mjs",
+          "change": "new",
+          "note": "New: browser checks that a setup link's code leaves the address bar on an installation that already has its owner, and while the owner is signed in."
+        },
+        {
+          "ref": "tests/mobile/first-run.spec.mjs",
+          "change": "changed",
+          "note": "Adds checks that a confirmed Lonora link fills the setup code, from a fresh start and while sign-in is already open."
+        }
+      ]
+    }
+  ]
+}
