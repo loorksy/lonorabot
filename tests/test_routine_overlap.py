@@ -270,7 +270,7 @@ async def test_a_late_routine_run_is_told_when_it_was_due():
         await fixture.close()
 
 
-def test_missed_cron_occurrences_are_counted_up_to_a_bound():
+def test_missed_occurrences_are_counted_up_to_a_bound():
     from lonora_contracts.routines import RoutineCreate
     from lonora_db.routines import MISSED_COUNT_CAP, missed_occurrences
 
@@ -278,9 +278,12 @@ def test_missed_cron_occurrences_are_counted_up_to_a_bound():
     due = datetime(2026, 11, 26, 6, tzinfo=UTC)
     assert missed_occurrences(hourly, due, due + timedelta(hours=3, seconds=30)) == 3
     assert missed_occurrences(hourly, due, due + timedelta(minutes=59)) == 0
-    # A minute-by-minute schedule after a month of downtime stops counting at the bound.
+    # A minute-by-minute schedule after a month of downtime stops counting at the bound,
+    # a cron and an interval alike (docs/proactivity.md).
     minutely = RoutineCreate(prompt="p", cron="* * * * *")
     assert missed_occurrences(minutely, due, due + timedelta(days=30)) == MISSED_COUNT_CAP
+    every_minute = RoutineCreate(prompt="p", interval_seconds=60)
+    assert missed_occurrences(every_minute, due, due + timedelta(days=30)) == MISSED_COUNT_CAP
     every = RoutineCreate(prompt="p", interval_seconds=600)
     assert missed_occurrences(every, due, due + timedelta(minutes=35)) == 3
     once = RoutineCreate(prompt="p", run_at=datetime(2099, 1, 1, tzinfo=UTC))

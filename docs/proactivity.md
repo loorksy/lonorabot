@@ -76,15 +76,17 @@ to the agent's conversation, like the runs the new code queues.
   item for the aging operation. The watchdog then fails the run, and the routine fires
   on its next tick.
 - **Missed occurrences.** Missed schedules collapse into one wake; a burst is never
-  replayed after downtime, a suspension, `lonora quiesce` or an update window. A cron
-  collapse is counted up to 1000 occurrences.
+  replayed after downtime, a suspension, `lonora quiesce` or an update window. A
+  collapse, cron or interval, is counted up to 1000 occurrences (`MISSED_COUNT_CAP`): a
+  count at that bound is a lower bound, and so is a skipped count that includes one.
 - **What the run carries.** Each routine run carries, in server-only metadata that
   `create_run` strips from every caller: `scheduled_for` (the occurrence it fires),
   `started_at` (its first `running` transition, recorded once by `mark_routine_started`
   in `execute_run`), `missed_occurrences` (the later occurrences folded into it) and
-  `skipped_occurrences` (those skipped before it while its earlier run was unfinished;
-  the routine's count then starts again from zero). The routine's history shows them on
-  each run (`model_metadata`).
+  `skipped_occurrences` (every occurrence skipped while an earlier run was unfinished,
+  since the routine's last run and across a pause or a schedule change; the routine's
+  count then starts again from zero). The routine's history shows them on each run
+  (`model_metadata`).
 - **The late sentence.** A routine run that started more than 15 minutes after
   `scheduled_for` gets one fixed server sentence in its `<wake>` frame
   (`late_routine_note` in `lonora_agent/context/routine.py`): when it was due, when it

@@ -23,8 +23,9 @@ def next_run(request: RoutineCreate, after: datetime) -> datetime:
     return after + timedelta(seconds=request.interval_seconds or 60)
 
 
-# Counting a cron collapse stops here: after months of downtime a minute-by-minute
-# schedule would otherwise hold the routine's transaction for seconds.
+# Counting a collapse, cron or interval, stops here, so a count at the bound is a lower
+# bound: after months of downtime a minute-by-minute cron would otherwise hold the
+# routine's transaction for seconds.
 MISSED_COUNT_CAP = 1000
 
 
@@ -113,7 +114,10 @@ def due_query(now: datetime) -> Select[RoutineRow]:
 
 
 async def enqueue_due(session: AsyncSession, limit: int = 30) -> int:
-    """Enqueue every due routine in the caller's transaction (one batch, one outcome)."""
+    """Enqueue every due routine in the caller's transaction (one batch, one outcome).
+
+    A routine whose earlier run is unfinished is skipped (``enqueue_routine``) and is not
+    in the returned count."""
     now = utcnow()
     due = list(
         (await session.scalars(due_query(now).limit(limit).with_for_update(skip_locked=True))).all()
@@ -138,7 +142,9 @@ async def due_routines(session: AsyncSession, limit: int = 30) -> list[tuple[str
 
 
 async def enqueue_one(session: AsyncSession, routine_id: str) -> bool:
-    """Enqueue one routine in its own transaction, if it is still due and unclaimed."""
+    """Enqueue one routine in its own transaction, if it is still due and unclaimed.
+
+    False when it is not, or when its earlier run is unfinished and the tick is skipped."""
     now = utcnow()
     row = await session.scalar(
         due_query(now)
