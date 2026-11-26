@@ -101,7 +101,8 @@ to the agent's conversation, like the runs the new code queues.
 A scheduled or background run with nothing new posts nothing. The agent decides what is
 new; the server makes sure that an empty background run leaves nothing in a
 conversation, the attention list or a channel, and a failed one nothing in a conversation
-or a channel.
+or a channel, except the owner's item when a model provider refused it (below; Amendment
+5), which also reaches the phone and Telegram.
 
 - **Background runs** (`is_background` in `lonora_core/run_state.py`): the triggers
   `routine`, `watch` (opportunity wakes included), `broker_event` (an agent's wake for
@@ -141,9 +142,10 @@ or a channel.
   partial text remains where it ran, even in a chat. The mobile run strip leaves failed
   background runs out (`run.background`), except a failure only the owner can fix (its
   family `model` or `quota`: a rejected key, an unknown model, spent credit), which is
-  news. Web shows a failure only under the owner's own message, as before. Background work that may end silent in a
-  conversation (a watch set in a chat, `lonora wake`, a webhook) reads its helpers'
-  outcomes out of the owner's sight: each goes to a hidden thread of that work
+  news. Web shows a failure only under the owner's own message, as before, and a
+  background failure only the owner can fix as its `model_access_failed` attention line.
+  Background work that may end silent in a conversation (a watch set in a chat, `lonora
+  wake`, a webhook) reads its helpers' outcomes out of the owner's sight: each goes to a hidden thread of that work
   (`outcome_thread_id`) and reaches the run, or its follow-up, only by steering, in the
   data frame of another agent's words (6.10). A background follow-up takes no message of
   the conversation as its own input: no quote and no attachment of the owner's latest
