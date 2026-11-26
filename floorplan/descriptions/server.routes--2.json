@@ -1,5 +1,9 @@
 {
   "files": {
+    "apps/api/src/lonora_api/routes/chatgpt_sign_in.py": {
+      "name": "ChatGPT sign-in routes",
+      "description": "Gives the Secret card OpenAI's sign-in address, takes the address the owner pastes back and settles the card like a saved key, and signs the ChatGPT plan out."
+    },
     "apps/api/src/lonora_api/routes/messages.py": {
       "name": "Messages",
       "description": "Reads a conversation's history for the owner, sends a new message, lets the owner unlock a sent card to edit it, and sets or clears a quick reaction."

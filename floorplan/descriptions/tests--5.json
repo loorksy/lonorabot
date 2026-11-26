@@ -28,6 +28,10 @@
       "name": "Chat runtime tests",
       "description": "Automatic checks for chat runtime."
     },
+    "tests/mobile/chatgpt-sign-in.test.ts": {
+      "name": "ChatGPT sign-in card tests",
+      "description": "Automatic checks for the phone's ChatGPT sign-in card."
+    },
     "tests/mobile/commands.test.ts": {
       "name": "Commands tests",
       "description": "Automatic checks for commands."

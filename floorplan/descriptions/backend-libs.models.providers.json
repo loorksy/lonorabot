@@ -12,6 +12,10 @@
       "name": "Model list",
       "description": "Gives each provider's models from Lonora's fixed list, and the owner's own server's models from what it listed."
     },
+    "packages/providers/src/lonora_providers/chatgpt_sign_in.py": {
+      "name": "Sign in with ChatGPT",
+      "description": "Lets the owner use their ChatGPT plan instead of a key: it starts OpenAI's official sign-in, checks the address the owner pastes back, verifies the account, keeps the tokens encrypted and renews them one caller at a time, notes which plan models the account offers, and signs out."
+    },
     "packages/providers/src/lonora_providers/context.py": {
       "name": "Request sizing",
       "description": "Works out how large a request one model can take, from its context window."

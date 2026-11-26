@@ -56,6 +56,10 @@
       "name": "Chat list logic",
       "description": "Builds the conversation list's rows, filters, pins and selection, the same on web and phone."
     },
+    "packages/core/src/chatgpt-plan.ts": {
+      "name": "ChatGPT plan card logic",
+      "description": "The words and steps of signing in with ChatGPT on the Secret card, the same on web and phone: the two steps, the pasted address, the connected account, Manage usage, sign-out, the plan's limit and every sign-in error, in Arabic and English."
+    },
     "packages/core/src/composer-commands.ts": {
       "name": "Composer commands",
       "description": "Works out the / commands offered as you type in the message box."
