@@ -81,6 +81,7 @@ packages = ["lonora_api", "lonora_api.cli", "lonora_api.middleware", "lonora_api
 
 [tool.setuptools.package-data]
 "lonora_bus" = ["attention_messages.json"]
+"lonora_providers" = ["models.json"]
 
 [tool.setuptools.data-files]
 "share/lonora/bootstrap" = ["packages/agent-runtime/resources/bootstrap/*.md", "packages/agent-runtime/resources/bootstrap/LICENSE.nanobot"]
