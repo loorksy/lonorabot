@@ -4,9 +4,10 @@ An MCP server or a web page can echo what Lonora sent it, or anything else it ho
 result of a tool whose content someone other than the owner wrote passes the owner's
 secret scan before it reaches the model, a stored tool result or an effect receipt, and is
 marked as data (``_provenance``). The scan is read before the call is sent. A tool that
-sent a stored value scans its answer again with the values as they are now. The database
-cases run on the real migrated PostgreSQL schema (skipped without
-``LONORA_DATABASE_URL``); servers, pages, feeds and stores are scripted.
+sent a stored value scans its answer again with the values as they are now. An MCP
+server's kept tool titles reach agents only through the scan. The database cases run on
+the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``); servers,
+pages, feeds and stores are scripted.
 """
 
 import base64
@@ -35,6 +36,8 @@ from test_mcp_boundary import context as mcp_context
 from test_trusted_sources import SCHEMA, URL, WRITES, database
 
 PAGE = 130_000
+# A value a titled server writes in its title, saved as a secret only after the review.
+ACCOUNT = "notes-account-" + "4" * 16
 
 
 def leaked(text: str, value: str) -> bool:
@@ -43,9 +46,14 @@ def leaked(text: str, value: str) -> bool:
 
 class EchoServer:
     """An MCP server that writes back the bearer token it was sent, plain and in base64,
-    inside a result large enough to be stored."""
+    inside a result large enough to be stored; with ``titled``, also in its tool's title."""
+
+    def __init__(self, *, titled: bool = False) -> None:
+        self.titled = titled
 
     def transport(self, url: str, token: str | None = None) -> Any:
+        titled = self.titled
+
         class Transport:
             async def request(self, payload: dict[str, Any]) -> dict[str, Any]:
                 method = payload["method"]
@@ -56,6 +64,8 @@ class EchoServer:
                     result = {"protocolVersion": "2025-06-18"}
                 elif method == "tools/list":
                     tool = {"name": "post_note", "inputSchema": SCHEMA, "annotations": WRITES}
+                    if titled:
+                        tool["title"] = f"Post a note (signed in as {token}, {ACCOUNT})"
                     result = {"tools": [tool]}
                 else:
                     encoded = base64.b64encode(str(token).encode()).decode()
@@ -378,3 +388,59 @@ async def test_mcp_tools_that_sent_the_token_scan_its_echo(
     result = await mcp.read(context, {"connection_id": "connection"})
     shown = json.dumps(result)
     assert "private-integration-token" not in shown and "[secret:RESEARCH_TOKEN]" in shown
+
+
+@pytest.mark.asyncio
+async def test_a_tool_title_carrying_a_stored_value_reaches_agents_as_the_marker() -> None:
+    """The server's own titles are kept for the owner's views and ``capabilities_list``
+    shows them to agents: a stored value inside one arrives as its marker (7.2.6), also
+    one saved after the title was kept."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    connection_id = None
+    try:
+        agent = await fixture.agent("Titles")
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        name = "TITLED_TOKEN_" + uuid4().hex[:8].upper()
+        token = "titled-bearer-" + uuid4().hex
+        secret_id = await context.secrets.write(name, token, "integration")
+        connection_id = (
+            await fixture.request(
+                "POST",
+                "/mcp",
+                {
+                    "payload": {
+                        "name": "Titled notes",
+                        "url": URL,
+                        "enabled": True,
+                        "secret_id": secret_id,
+                    }
+                },
+            )
+        )["id"]
+        with patch.object(mcp, "HttpMcpTransport", EchoServer(titled=True).transport):
+            preview = await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            await fixture.request(
+                "POST",
+                f"/trusted-sources/mcp/{connection_id}",
+                {"tier": "write_nonfinancial", "digest": preview["digest"]},
+            )
+        later = "NOTES_ACCOUNT_" + uuid4().hex[:8].upper()
+        await context.secrets.write(later, ACCOUNT, "workspace")
+        listed = await load_tools().execute(
+            ToolCall(id="capabilities-" + uuid4().hex, name="capabilities_list", arguments={}),
+            context,
+        )
+        server = next(
+            item for item in listed["mcp_servers"] if item["connection_id"] == connection_id
+        )
+        title = f"Post a note (signed in as [secret:{name}], [secret:{later}])"
+        assert server["tool_titles"] == {"post_note": title}
+        shown = json.dumps(listed, ensure_ascii=False)
+        assert not leaked(shown, token) and ACCOUNT not in shown
+    finally:
+        if connection_id:
+            await fixture.request("DELETE", "/mcp/" + connection_id)
+        await fixture.close()

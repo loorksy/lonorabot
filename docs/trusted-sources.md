@@ -148,6 +148,9 @@ read of its tools (the preview) adds what it reads without dropping a title alre
 so a tool the server stops titling keeps its known title. A server trusted before titles
 were kept has none: its sheet on Web reads them once from the server when it opens, if the
 server is on; a server with titles kept is never contacted by opening its sheet.
+Agents read the kept titles in `capabilities_list`, through the owner's secret scan as it
+stands then: a stored value a server put in a title arrives as `[secret:NAME]` (VISION.md
+7.2.6), a value saved after the title was kept included.
 
 A server is trusted in one of two ways:
 
