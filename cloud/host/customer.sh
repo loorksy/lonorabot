@@ -72,7 +72,7 @@ EOF
     run mount "$dir/workspace"
     run touch "$dir/workspace/.lonora-workspace-disk"
     say "Starting Lonora for $domain."
-    compose up -d --wait api gateway
+    compose up -d --wait --wait-timeout 240 api gateway
     printf '%s {\n\timport customer %s-api\n}\n' "$domain" "$project" >"$HOME_DIR/caddy/customers/$handle.caddy"
     chmod 644 "$HOME_DIR/caddy/customers/$handle.caddy"
     reload_proxy
@@ -88,7 +88,7 @@ update() {
     local running
     running="$(compose ps --services --status running | grep -E '^(workspace-net|workspace|browser)$' | tr '\n' ' ' || true)"
     # shellcheck disable=SC2086 # one word per running on-demand service
-    compose up -d --wait api gateway $running && say "$handle runs the current release."
+    compose up -d --wait --wait-timeout 240 api gateway $running && say "$handle runs the current release."
 }
 
 remove() {
@@ -105,7 +105,11 @@ remove() {
 workspace() {
     [[ -f "$dir/.env" ]] || die "No customer $handle."
     case "${1:-}" in
-        start) compose up -d workspace-net workspace browser ;;
+        start)
+            # Without its own disk mounted (a nofail mount that was skipped), the workspace would write
+            # to the shared disk, so it does not start.
+            $DRY || mountpoint -q "$dir/workspace" || die "The workspace disk of $handle is not mounted: mount $dir/workspace first."
+            compose up -d workspace-net workspace browser ;;
         stop) compose stop workspace workspace-net browser ;;
         *) die 'usage: customer.sh workspace <handle> start|stop' ;;
     esac

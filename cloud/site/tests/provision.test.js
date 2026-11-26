@@ -53,7 +53,7 @@ describe("one-click activation on the host", () => {
     assert.equal(out.status, 0, out.stderr);
     assert.match(out.stdout, /^setup_link=https:\/\/bob\.lonora\.test\/#token=[A-Za-z0-9_-]{43}\n$/);
     assert.match(out.stderr, /would run: docker exec -i lonora-postgres psql/);
-    assert.match(out.stderr, /would run: docker compose .*--profile on-demand up -d --wait api gateway/);
+    assert.match(out.stderr, /would run: docker compose .*--profile on-demand up -d --wait --wait-timeout 240 api gateway/);
     assert.match(out.stderr, /would run: docker exec lonora-caddy caddy reload/);
     const password = setting("bob", "LONORA_DATABASE_URL").match(/:([^:@]+)@/)[1];
     for (const secret of [setting("bob", "LONORA_ENCRYPTION_KEY"), setting("bob", "LONORA_WEBHOOK_SECRET"), password]) {
@@ -69,7 +69,7 @@ describe("one-click activation on the host", () => {
     const out = script("release", "v0.4.0");
     assert.equal(out.status, 0, out.stderr);
     assert.equal(out.stderr.match(/Building the release image once/g).length, 1);
-    assert.equal(out.stderr.match(/up -d --wait api gateway/g).length, 2);
+    assert.equal(out.stderr.match(/up -d --wait --wait-timeout 240 api gateway/g).length, 2);
     assert.match(fs.readFileSync(path.join(home, "release.env"), "utf8"), /^LONORA_IMAGE=127\.0\.0\.1:5055\/lonora@sha256:/);
   });
 
