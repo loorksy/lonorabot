@@ -27,6 +27,9 @@ class FakeEventSource extends EventTarget {
   message(value: unknown) {
     this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(value) }));
   }
+  ping() {
+    this.dispatchEvent(new MessageEvent("ping", { data: "{}" }));
+  }
 }
 const originalSource = globalThis.EventSource;
 const originalWindow = globalThis.window;
@@ -157,4 +160,37 @@ test("silent or proxy-buffered startup retries with cursor preserved", () => {
   assert.equal(FakeEventSource.instances[0].closed, true);
   mock.timers.tick(500);
   assert.equal(FakeEventSource.instances[1].url, "/api/events/stream?cursor=12");
+});
+
+test("a stream silent after ready reconnects within 45 s and resumes without duplicates", () => {
+  const states: boolean[] = [];
+  const seen: number[] = [];
+  connection = eventStream(
+    5,
+    (value) => seen.push(value.cursor),
+    (value) => states.push(value),
+  );
+  const first = FakeEventSource.instances[0];
+  first.ready(5);
+  first.message(event(6));
+  // Pings keep a quiet stream alive; they are not events and never move the cursor.
+  mock.timers.tick(30_000);
+  first.ping();
+  mock.timers.tick(30_000);
+  first.ping();
+  mock.timers.tick(44_999);
+  assert.equal(first.closed, false);
+  assert.deepEqual(states, [true]);
+  // A half-open connection still looks open; only the silence shows it is gone.
+  mock.timers.tick(1);
+  assert.equal(first.closed, true);
+  assert.deepEqual(states, [true, false]);
+  mock.timers.tick(500);
+  const second = FakeEventSource.instances[1];
+  assert.equal(second.url, "/api/events/stream?cursor=6");
+  second.ready(6);
+  second.message(event(6));
+  second.message(event(7));
+  assert.deepEqual(seen, [6, 7]);
+  assert.deepEqual(states, [true, false, true]);
 });
