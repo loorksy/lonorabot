@@ -518,7 +518,7 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
     stalled = liveness.register(StepSpec("reconcile", 10, 300))
     stalled.registered_at = utcnow() - timedelta(hours=1)
     watchdog = Watchdog(db, liveness, set())
-    quiet = {"steps": 0, "runs": 0, "overdue": 0, "operations": 0, "ended": 0}
+    quiet = {"steps": 0, "runs": 0, "overdue": 0, "delayed": 0, "operations": 0, "ended": 0}
     assert await watchdog.tick() == {**quiet, "steps": 1, "overdue": 1, "operations": 1}
     # One item per operation and per episode: a second pass raises nothing new.
     assert await watchdog.tick() == quiet
@@ -546,6 +546,59 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
     }
     assert statuses == {"step_stalled": "suppressed", "wakes_overdue": "ready"}
     assert [item.status for item in await system_items(db, owner, "operation_unresolved")] == [
+        "suppressed"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_an_owner_message_left_queued_opens_one_episode_until_it_is_claimed(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    waited = utcnow() - timedelta(seconds=61)
+    async with db.sessions() as session, session.begin():
+        message = await create_run(
+            session, owner, RunRequest(thread_id=thread, agent_id=agent, prompt="Gold now?")
+        )
+        message.created_at = message.updated_at = waited
+        # Background work and a run waiting out its retry backoff are not delayed.
+        work = ThreadRow(owner_id=owner, agent_id=agent, title="Routine", purpose="work")
+        session.add(work)
+        await session.flush()
+        session.add(
+            RunRow(
+                thread_id=work.id,
+                agent_id=agent,
+                trigger="routine",
+                created_at=waited,
+                updated_at=waited,
+            )
+        )
+        later = (utcnow() + timedelta(minutes=5)).isoformat()
+        retrying = ThreadRow(owner_id=owner, agent_id=agent, title="Retrying")
+        session.add(retrying)
+        await session.flush()
+        session.add(
+            RunRow(
+                thread_id=retrying.id,
+                agent_id=agent,
+                execution_state={"environment": {"retry": {"not_before": later}}},
+                created_at=waited,
+                updated_at=waited,
+            )
+        )
+    watchdog = Watchdog(db, Liveness(), set())
+    assert await watchdog.delayed_runs() == 1
+    assert await watchdog.delayed_runs() == 0  # One item per episode.
+    [item] = await system_items(db, owner, "gateway_degraded")
+    assert item.parameters["reason_code"] == "runs_delayed"
+    assert item.parameters["count"] == 1 and item.parameters["oldest_seconds"] >= 61
+    async with db.sessions() as session, session.begin():
+        claimed = await claim_next(session, "worker-test", 120)
+        assert claimed is not None and claimed.id == message.id
+    assert await watchdog.delayed_runs() == 0
+    assert "delayed" not in watchdog.episodes
+    assert [row.status for row in await system_items(db, owner, "gateway_degraded")] == [
         "suppressed"
     ]
 

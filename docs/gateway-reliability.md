@@ -118,6 +118,15 @@ from the others.
 - **Overdue wakes.** Routines and timer waits more than five minutes past due raise one
   `gateway_degraded` item per episode (`reason_code: wakes_overdue`), unless a stalled
   scheduler step already reported it.
+- **Delayed runs.** A Run someone waits on (the owner's message in a conversation or a
+  group, or a broker event, Lonora's system-alert wake included) that has been queued,
+  due and unclaimed for more than 60 s (`QUEUE_DELAY`) raises one `gateway_degraded`
+  item per episode (`reason_code: runs_delayed`, with the `count` and `oldest_seconds`
+  when it opened), withdrawn once none is left waiting. A run waiting out its retry
+  backoff counts from when the retry came due, and a paused agent's work waits for the
+  owner. Every pass while runs are delayed logs `run.queue_delayed` with the count and
+  the oldest wait, and `run.queue_recovered` once they are claimed. The web shows the
+  item as "New requests are waiting longer than usual to start".
 - **Aging operations.** A live operation still `reserved`, `submitted` or `ambiguous`
   fifteen minutes after it was submitted raises exactly one `operation_unresolved`
   item ("A trade still has no confirmed broker result"). It is never resent. An
@@ -228,7 +237,8 @@ passkey, so nothing is left looking active while it can no longer run:
   reconciliation and liveness is persisted; a hung iteration times out; a worker whose
   claims fail goes stale; the stall threshold; readiness; recovery-count quarantine and
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
-  ended episodes after a restart; coalesced quarantine notices and the kept critical
+  ended episodes after a restart; an owner message left queued opening one delayed-runs
+  episode until it is claimed; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.

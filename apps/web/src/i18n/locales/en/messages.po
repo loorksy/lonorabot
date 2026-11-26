@@ -4724,6 +4724,10 @@ msgstr "New price"
 msgid "New request"
 msgstr "New request"
 
+#: src/components/ai/AttentionInbox.tsx:125
+msgid "New requests are waiting longer than usual to start"
+msgstr "New requests are waiting longer than usual to start"
+
 #: src/components/trading/ExecutionReceipt.tsx:30
 msgid "New stop loss"
 msgstr "New stop loss"
