@@ -84,6 +84,15 @@ for (const locale of ["ar", "en"])
     await expect(answer).not.toContainText("peer_outcome");
     await expect(request).toContainText(text.completed);
     await links(answer, recipient, sender);
+
+    // The exchange is read on its own: another side read failing never hides its cards.
+    const ownerActions = (url) => url.pathname === "/api/owner-actions";
+    await page.route(ownerActions, (route) => route.fulfill({ status: 500 }));
+    await page.reload();
+    await expect(request).toHaveCount(1);
+    await expect(answer).toHaveCount(1);
+    await page.unroute(ownerActions);
+
     await answer.getByRole("link", { name: recipient, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/thread\\?id=${data.target_thread}`));
   });
