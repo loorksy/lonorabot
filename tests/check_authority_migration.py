@@ -944,8 +944,9 @@ async def second_upgrade(db: Database, owner_id: str, account_id: str, ids: dict
         stored = await level(session, owner_id, ids["stored"])
         assert stored is not None and stored["revision"] == 4
     heads = alembic("heads").strip().splitlines()
-    # 0129 repeats the grant-card delete. The mode migration under test stays 0128.
-    assert heads == ["0129_grant_cards_gone (head)"], heads
+    # One head (0129 repeats the grant-card delete; later releases chain after it). The
+    # mode migration under test stays 0128.
+    assert len(heads) == 1 and heads[0].endswith("(head)"), heads
     print(
         "PASS a second upgrade shows no second card; the method line follows the owner's language"
     )
