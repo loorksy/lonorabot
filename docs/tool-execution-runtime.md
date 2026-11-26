@@ -246,7 +246,11 @@ the list the context engine labels untrusted) passes the owner's secret scan in
 `ToolRegistry.execute` and is marked `_provenance: third_party` (VISION.md 7.2.6). The
 scan is read once for the Run pass (`run_scan`), before the first such call is sent, so
 a store that cannot be read refuses the call unsent; a workspace command reads it again,
-and keeps that read, after its CLI token is issued.
+and keeps that read, after its CLI token is issued. A tool that sends one of the owner's
+stored values to a third party (the MCP server's token in `mcp_tools` and `mcp_execute`,
+the Brave key in `web_search`, a stored feed or calendar address in `news_feed_read` and
+`economic_calendar_read`) also scans its own result with a read made after that value,
+so an echo of a value the owner saved during the pass arrives as `[secret:NAME]` too.
 
 A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
 `class` is one of input, resolution, connection, permission, provider, internal

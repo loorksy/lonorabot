@@ -3,7 +3,8 @@
 An MCP server or a web page can echo what Lonora sent it, or anything else it holds. Every
 result of a tool whose content someone other than the owner wrote passes the owner's
 secret scan before it reaches the model, a stored tool result or an effect receipt, and is
-marked as data (``_provenance``). The scan is read before the call is sent. The database
+marked as data (``_provenance``). The scan is read before the call is sent. A tool that
+sent a stored value scans its answer again with the values as they are now. The database
 cases run on the real migrated PostgreSQL schema (skipped without
 ``LONORA_DATABASE_URL``); servers, pages, feeds and stores are scripted.
 """
@@ -11,17 +12,21 @@ cases run on the real migrated PostgreSQL schema (skipped without
 import base64
 import json
 from dataclasses import replace
+from datetime import timedelta
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 from lonora_adapter_kit.types import ToolCall
-from lonora_contracts.domain import Contract
+from lonora_contracts.domain import Contract, utcnow
+from lonora_contracts.market import CalendarEvent
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import ArtifactRow, EffectReceiptRow
 from lonora_security.runtime_storage import confined_path
-from lonora_tools import mcp
+from lonora_security.secrets import SecretScan
+from lonora_tools import feeds, market_analysis, mcp, search
 from lonora_tools.base import Tool
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import ToolRegistry
@@ -260,3 +265,116 @@ async def test_the_registry_reads_the_scan_before_a_third_party_call_and_never_a
         assert events == ["read", "sent"]
     finally:
         await fixture.close()
+
+
+# A value the owner saved while the Run pass was going on: its scan was read before.
+FRESH = "fresh-token-" + "7" * 16
+
+
+def saved_during_the_pass(stored: str, **fields: Any) -> Any:
+    async def read(_: str) -> str:
+        return stored
+
+    async def scanned() -> dict[str, str]:
+        return {"FRESH_KEY": FRESH}
+
+    return SimpleNamespace(
+        secrets=SimpleNamespace(read=read, scanned_values=scanned),
+        workspace_given=None,
+        cli_tokens=None,
+        scans={"owner": SecretScan({})},
+        **fields,
+    )
+
+
+def echoed(result: dict[str, Any]) -> bool:
+    """The value shows in the result, or its marker does not."""
+    shown = json.dumps(result, ensure_ascii=False)
+    return FRESH in shown or "[secret:FRESH_KEY]" not in shown
+
+
+@pytest.mark.asyncio
+async def test_a_web_search_that_sent_a_stored_key_scans_its_echo() -> None:
+    context = saved_during_the_pass(FRESH, searxng_url=None)
+    brave = {"type": "brave_search", "enabled": True, "secret_id": "brave"}
+    answer = {
+        "web": {
+            "results": [
+                {"title": "Echo", "url": "https://www.python.org/", "description": f"Key {FRESH}"}
+            ]
+        }
+    }
+    with (
+        patch.object(search, "brave_configuration", AsyncMock(return_value=brave)),
+        patch.object(search, "search_payload", AsyncMock(return_value=answer)),
+    ):
+        result = await search.web_search(context, {"query": "echo"})
+    assert not echoed(result), result
+
+
+@pytest.mark.asyncio
+async def test_a_feed_read_from_its_stored_address_scans_the_echo_of_its_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = saved_during_the_pass(f"https://news.example.test/rss?token={FRESH}")
+    row = SimpleNamespace(
+        id="feed-1", payload={"secret_id": "feed", "domain": "news.example.test", "name": "Desk"}
+    )
+
+    async def listed(_: Any) -> list[Any]:
+        return [row]
+
+    async def fetch(url: str, limit: int) -> dict[str, Any]:
+        # A feed's self link repeats the address it was read from.
+        return {"status": "ok", "feed_title": "Desk " + url, "items": []}
+
+    monkeypatch.setattr(feeds, "subscribed", listed)
+    monkeypatch.setattr(feeds, "one_feed", fetch)
+    result = await feeds.read(context, {})
+    assert not echoed(result), result
+
+
+@pytest.mark.asyncio
+async def test_a_calendar_read_from_its_stored_address_scans_the_echo_of_its_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = saved_during_the_pass(
+        f"https://calendar.example.test/feed?key={FRESH}", db=None, owner_id="owner"
+    )
+    now = utcnow()
+
+    async def read_calendar(
+        db: Any, owner_id: str, *, read_secret: Any
+    ) -> tuple[list[dict[str, Any]], list[tuple[str, CalendarEvent]]]:
+        address = await read_secret("calendar")
+        event = CalendarEvent(
+            id="cpi",
+            name="CPI, from " + address,
+            currency="USD",
+            observed_at=now,
+            scheduled_at=now + timedelta(hours=1),
+            impact="high",
+            source="fixture",
+        )
+        status = {"integration_id": "calendar", "name": "Desk", "status": "ok", "events": 1}
+        return [status], [("calendar", event)]
+
+    monkeypatch.setattr(market_analysis, "read_calendar", read_calendar)
+    result = await market_analysis.calendar(context, {})
+    assert result["events"] and not echoed(result), result
+
+
+@pytest.mark.asyncio
+async def test_mcp_tools_that_sent_the_token_scan_its_echo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from test_mcp_boundary import ADVERTISED
+
+    described = {**ADVERTISED, "description": "Research, signed in with private-integration-token."}
+    install_transport(monkeypatch, ScriptedTransport(tools=[described]))
+    context = mcp_context(declarations=(declaration(),), secret_id="credential")
+    # Read before the owner saved the token.
+    context.scans = {"owner": SecretScan({})}
+    result = await mcp.read(context, {"connection_id": "connection"})
+    shown = json.dumps(result)
+    assert "private-integration-token" not in shown and "[secret:RESEARCH_TOKEN]" in shown

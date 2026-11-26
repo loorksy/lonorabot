@@ -291,7 +291,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     "execution_allowed": state in {"trusted", "operator_declared"},
                 }
             )
-        return {
+        listing = {
             "tools": discovered,
             "trusted_tier": trust.tier if trust else None,
             "source_trust": "untrusted_external_metadata",
@@ -304,6 +304,9 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         }
     finally:
         await adapter.close()
+    # The server may echo the token it was just sent in its own descriptions: scanned with
+    # the values as they are now (7.2.6).
+    return (await scan(context)).data(listing)
 
 
 async def execution_declared(context: ToolContext) -> str | None:
