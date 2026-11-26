@@ -183,6 +183,11 @@ async def execute_segment(
             return [blocked_result(decision)]
 
         async def before_effect() -> None:
+            tool = registry.tools.get(call.name)
+            if context.drain is not None and not (tool and tool.read_only):
+                # From here until its result is checkpointed, a stopping Gateway's backstop
+                # never cuts this worker (tool_loop leaves the effect after the segment).
+                context.drain.enter_effect()
             # Receipts and known financial reconciliation above retain priority.
             # New effects cannot use instructions withdrawn since selection.
             await assert_skill_authority(

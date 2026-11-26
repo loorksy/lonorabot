@@ -45,6 +45,7 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_db.trading_journal import persist_result, release_reservation
+from lonora_gateway.shutdown import drain
 from lonora_session.idempotency import stable_id
 from lonora_tools.base import Tool
 from lonora_tools.context import RunDrain, ToolContext
@@ -185,6 +186,28 @@ class UnobservableBroker(SimulationBroker):
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
     ) -> TradeResult:
         raise AssertionError("Recovery must never send")
+
+
+class HeldBroker(SimulationBroker):
+    """Holds a send just past its boundary until released: a broker effect in flight."""
+
+    def __init__(self, db: Database, owner_id: str, connection_id: str):
+        super().__init__(db, owner_id, connection_id)
+        self.crossed, self.release = asyncio.Event(), asyncio.Event()
+        self.calls: list[str] = []
+
+    async def execute(
+        self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
+    ) -> TradeResult:
+        self.calls.append(request.operation_id)
+
+        async def boundary() -> None:
+            assert before_send is not None
+            await before_send()
+            self.crossed.set()
+            await self.release.wait()
+
+        return await super().execute(request, boundary)
 
 
 class NoArguments(BaseModel):
@@ -1020,6 +1043,75 @@ async def main() -> None:
         ]
         print(
             "PASS a drain hands a Run back after its slow read at the next step boundary, with no uncertain marker, and the next claim continues from the same checkpoint"
+        )
+
+        # A financial call in flight at the stop: its send is never cut, not even by the
+        # backstop, it is journaled once, and the next Gateway never sends it again.
+        async with db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, drained["id"])
+            assert managing is not None
+            managing.manages_all_positions = True
+        await refresh()
+        entry = await run(trade("buy", EURO, volume="0.1", stop_loss="95"))
+        assert entry.status == "confirmed" and entry.broker_id, entry
+        held = HeldBroker(db, fixture.owner, account)
+        services.brokers.connections[account] = (cached[0], held)
+        close = ToolCall(
+            id="drain-close-" + uuid4().hex,
+            name="trade_execute",
+            arguments={
+                "account_id": account,
+                "action": "close_position",
+                "symbol": EURO,
+                "position_id": entry.broker_id,
+                "tolerance": "5",
+                "reason": "Fixture request",
+            },
+        )
+        stopping = RunDrain()
+        context = replace(
+            await fixture.lease(await fixture.run(drained, drained_thread)), drain=stopping
+        )
+        model = ScriptedModel(
+            ModelReply(tool_calls=[close]), ModelReply(text="The euro position is closed.")
+        )
+        await refresh()
+        with patch("lonora_agent.tool_loop.model_turn", model):
+            worker = asyncio.create_task(execute_run(context, registry, 120, 8))
+            await asyncio.wait_for(held.crossed.wait(), 30)
+            stopping.requested = True
+            draining = asyncio.create_task(drain([worker], 0.1, 30, stopping.effects))
+            await asyncio.sleep(0.5)
+            # Well past the backstop, the worker inside the send is still not cancelled.
+            assert not worker.done() and not draining.done()
+            held.release.set()
+            await asyncio.wait_for(draining, 30)
+            assert not worker.cancelled() and worker.exception() is None
+            row = await handed_back(context.lease.run_id, context.lease.fence)
+            outcome = tool_results(row)[close.id]
+            operation = outcome["results"][0]["operation_id"]
+            operations.append(operation)
+            assert outcome["results"][0]["status"] == "confirmed", outcome
+            assert held.calls == [operation] and len(model.requests) == 1
+            await execute_run(await next_claim(row.id), registry, 120, 8)
+        services.brokers.connections[account] = cached
+        async with db.sessions() as session:
+            row = await session.get(RunRow, context.lease.run_id)
+            closes = list(
+                await session.scalars(
+                    select(TradingJournalRow).where(
+                        TradingJournalRow.request["position_id"].as_string() == entry.broker_id,
+                        TradingJournalRow.request["action"].as_string() == "close_position",
+                    )
+                )
+            )
+        assert row is not None and row.status == "completed", row and row.status
+        # One journal entry, confirmed from the one send; the next Gateway sent nothing.
+        assert [(item.operation_id, item.status) for item in closes] == [(operation, "confirmed")]
+        assert held.calls == [operation] and len(model.requests) == 2
+        assert not any(p.id == entry.broker_id for p in await broker.positions())
+        print(
+            "PASS a financial call in flight when the Gateway stops is never cut by the drain or its backstop, is journaled once, and the next Gateway continues without resending it"
         )
     finally:
         async with db.sessions() as session, session.begin():

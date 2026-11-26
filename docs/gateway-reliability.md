@@ -161,12 +161,22 @@ a crash recovery; the status line shows the Run as queued, not as a retry. The s
 never interrupts a call already started (a read, or a change past `before_effect`): the
 call ends within its own deadline and the Run hands back right after it.
 
-Work still running after 25 s is cancelled. The gateway then returns every lease it
-still holds to the queue (`release_leases`): status `queued`, fence kept. A late write
-from the old lease is still rejected, the checkpoint and its in-flight markers are
-untouched, and the next gateway resumes the work at once instead of after
-`run_lease_seconds`. A release is a clean hand-over and does not count as a crash
-recovery.
+After 25 s a backstop cancels a worker still busy, a model stream or a read that does
+not end (`BACKSTOP_SECONDS`). It never cancels a worker inside an effect: from
+`before_effect` of a call that is not read-only until that call's result is
+checkpointed, the worker is in `RunDrain.effects`, so a send is never cut and its journal
+entry never left open by the drain; the call ends within its own deadline and the Run
+then hands back. The run drain and the drain of relayed requests (an owner's order) run
+at the same time, inside one shutdown deadline of 50 s (`SHUTDOWN_SECONDS`, the only
+point where anything still running is cancelled). That deadline sits below the 60 s
+stop grace of the container (`stop_grace_period`) and of systemd (`TimeoutStopSec`), so
+the gateway always gets to the next steps before it is killed.
+
+The gateway then returns every lease it still holds to the queue (`release_leases`):
+status `queued`, fence kept. A late write from the old lease is still rejected, the
+checkpoint and its in-flight markers are untouched, and the next gateway resumes the
+work at once instead of after `run_lease_seconds`. A release is a clean hand-over and
+does not count as a crash recovery.
 
 A Run renews its lease every third of the lease length (`keep_lease`). A transient
 database error (dropped connection, failover, timeout, or a renewal that hangs) is
@@ -221,6 +231,8 @@ passkey, so nothing is left looking active while it can no longer run:
   ended episodes after a restart; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; the hand-back of a Run at its next step
   boundary after a slow read or a change, and the Gateway's signal set before it drains;
+  the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
+  run and relay drains share one deadline below the stop grace;
   a transient error at the final commit;
   durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot

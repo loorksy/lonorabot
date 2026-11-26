@@ -206,7 +206,8 @@ Today every other caller (`trade_execute`) submits a single request.
   recheck, an approved close-all that keeps sending its other exits after a stopped-out
   position and after a lost response, approved agent cards that close, cancel and
   tighten on an uncertain market while entries and wider stops there stay blocked, and
-  a stopping Gateway's drain, which hands a Run back at its next step boundary
+  a stopping Gateway's drain, which hands a Run back at its next step boundary and
+  never cuts a send in flight: that close is journaled once and never resent
   (`docs/gateway-reliability.md`, "Drain and lease renewal").
 - `tests/check_opportunity_runtime.py`: owner attestations settle a thesis entry
   link (`not_executed` releases it, `executed` acts on it), an observed-closed entry

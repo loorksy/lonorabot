@@ -74,8 +74,19 @@ class BrokerRelay:
             broker = await services.brokers.get(request.owner_id, request.connection_id)
             return await perform(broker, request.kind, request.arguments)
 
-    async def drain(self, grace: float) -> None:
+    async def drain(self, grace: float, steps: asyncio.Task[None] | None = None) -> None:
         """At shutdown: let requests in flight (an owner's order above all) finish and be
-        answered before the broker connections close."""
-        if self.tasks:
-            await asyncio.wait(set(self.tasks), timeout=grace)
+        answered before the broker connections close.
+
+        It runs beside the run drain (``steps``): until that ends, the relay step may still
+        claim one more request, which is waited for too.
+        """
+        deadline = time.monotonic() + grace
+        while self.tasks or (steps is not None and not steps.done()):
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return
+            waiting: set[asyncio.Task[None]] = set(self.tasks)
+            if steps is not None and not steps.done():
+                waiting.add(steps)
+            await asyncio.wait(waiting, timeout=left, return_when=asyncio.FIRST_COMPLETED)

@@ -20,6 +20,7 @@ import lonora_gateway.attention as attention
 import lonora_gateway.service as service
 import lonora_market.watchers as watchers
 import pytest
+import yaml
 from lonora_adapter_kit.types import ModelReply
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_automation.runner import dispatch_routines
@@ -662,6 +663,101 @@ async def test_the_gateway_tells_its_runs_to_hand_back_before_it_drains(
     assert seen == [True]
 
 
+@pytest.mark.asyncio
+async def test_the_backstop_cancels_a_busy_worker_but_never_one_inside_an_effect() -> None:
+    effects: set[asyncio.Task[Any]] = set()
+    finished: list[str] = []
+
+    async def streaming() -> None:
+        # A model stream that does not end: the backstop is what stops it.
+        await asyncio.sleep(60)
+
+    async def sending() -> None:
+        effects.add(cast(asyncio.Task[Any], asyncio.current_task()))
+        try:
+            await asyncio.sleep(0.6)
+        finally:
+            effects.discard(cast(asyncio.Task[Any], asyncio.current_task()))
+        finished.append("sent")
+
+    async def stuck() -> None:
+        effects.add(cast(asyncio.Task[Any], asyncio.current_task()))
+        await asyncio.sleep(60)
+
+    clock = asyncio.get_running_loop().time
+    busy, effect = asyncio.create_task(streaming()), asyncio.create_task(sending())
+    started = clock()
+    await drain([busy, effect], 0.1, 5, effects)
+    # The send ran to its own end long after the backstop; the stream was cut at it.
+    assert busy.cancelled() and not effect.cancelled() and finished == ["sent"]
+    assert 0.5 < clock() - started < 2
+    # Only the one shutdown deadline cuts an effect that never ends.
+    hung = asyncio.create_task(stuck())
+    started = clock()
+    await drain([hung], 0.1, 0.5, effects)
+    assert hung.cancelled() and 0.4 < clock() - started < 1.5
+
+
+@pytest.mark.asyncio
+async def test_shutdown_releases_leases_inside_one_deadline_below_the_stop_grace(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db, owner, agent, thread = task_db
+    monkeypatch.setattr(service, "STEPS", ())
+    monkeypatch.setattr(service, "BACKSTOP_SECONDS", 0.2)
+    monkeypatch.setattr(service, "SHUTDOWN_SECONDS", 1.0)
+    gateway = service.Gateway(db, "unused-key", tmp_path, maximum_subagents=0)
+
+    async def busy(lane: str | None = None, name: str = "worker") -> None:
+        # A worker inside a model call that does not end before the backstop.
+        await asyncio.sleep(60)
+
+    answered: list[str] = []
+
+    async def order() -> None:
+        # An owner's relayed order that needs longer than the backstop.
+        await asyncio.sleep(0.5)
+        answered.append("order")
+
+    monkeypatch.setattr(gateway, "worker_loop", busy)
+    async with db.sessions() as session, session.begin():
+        run = await create_run(
+            session, owner, RunRequest(thread_id=thread, agent_id=agent, prompt="drain me")
+        )
+    async with db.sessions() as session, session.begin():
+        assert await claim_next(session, gateway.identity, 120)
+    serving = asyncio.create_task(gateway.serve())
+    await asyncio.sleep(0.05)
+    gateway.relay.tasks.add(asyncio.create_task(order()))
+    # A request that never ends gives up at the shutdown deadline, not after it.
+    gateway.relay.tasks.add(asyncio.create_task(asyncio.sleep(60)))
+    clock = asyncio.get_running_loop().time
+    started = clock()
+    gateway.request_stop()
+    await asyncio.wait_for(serving, 5)
+    # The run drain and the relay drain ran at the same time, inside the one deadline.
+    assert clock() - started < 1.6 and answered == ["order"]
+    async with db.sessions() as session:
+        row = await session.get(RunRow, run.id)
+    assert row and row.status == "queued" and row.lease_fence == 1
+    for task in gateway.relay.tasks:
+        task.cancel()
+
+
+def test_the_stop_grace_leaves_room_after_the_shutdown_deadline() -> None:
+    root = Path(__file__).resolve().parents[1]
+    compose = yaml.safe_load((root / "infra/compose/docker-compose.prod.yml").read_text())
+    grace = compose["services"]["gateway"]["stop_grace_period"]
+    unit = (root / "infra/systemd/lonora-gateway.service").read_text()
+    timeout = next(
+        line.split("=", 1)[1] for line in unit.splitlines() if line.startswith("TimeoutStopSec=")
+    )
+    assert service.BACKSTOP_SECONDS < service.SHUTDOWN_SECONDS
+    # Releasing leases and closing connections still fit before Docker or systemd kills.
+    for seconds in (int(grace.removesuffix("s")), int(timeout)):
+        assert seconds >= service.SHUTDOWN_SECONDS + 10
+
+
 def test_every_gateway_iteration_is_a_scheduled_step(tmp_path: Path) -> None:
     # start() schedules STEPS only: an iteration without a StepSpec never runs in production.
     gateway = service.Gateway(
@@ -897,6 +993,35 @@ async def test_a_draining_gateway_never_starts_a_call_or_a_model_turn(
     done = await saved_run(context)
     assert done.status == "completed" and writes == [1, 2]
     assert set(results(done)) == {"w1", "w2"} and len(model.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_backstop_never_cuts_a_change_past_before_effect(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started, writes = asyncio.Event(), list[int]()
+
+    async def write(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        # Longer than the backstop: a cut here would leave the change uncertain.
+        await asyncio.sleep(0.6)
+        writes.append(args["n"])
+        return {"version": args["n"]}
+
+    registry = ToolRegistry([Tool("fixture_write", "Write", Arguments, write, False)])
+    stopping = RunDrain()
+    block = calls(("w1", "fixture_write", 1))
+    context = replace(await conversation_run(task_db, seeded(block)), drain=stopping)
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Saved.")))
+    worker = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    assert stopping.effects == {worker}
+    stopping.requested = True
+    await drain([worker], 0.1, 5, stopping.effects)
+    # The change ran to its end, its result was checkpointed, then the Run handed back.
+    assert not worker.cancelled() and writes == [1] and stopping.effects == set()
+    run = await handed_back(context)
+    assert results(run) == {"w1": {"ok": True, "version": 1}}
 
 
 # A retired Super Bot request keeps the id of the goal it named, as a value.

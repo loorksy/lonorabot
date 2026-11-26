@@ -510,9 +510,14 @@ async def execute_tool_loop(
                 raise ToolRetryScheduled()
             # A call already started ran to its end; the next one waits for the next Gateway.
             await hand_back_if_draining(context, state, save)
-            outcome = await run_and_record_segment(
-                context, registry, state, messages, pending, exposure, scope, save
-            )
+            try:
+                outcome = await run_and_record_segment(
+                    context, registry, state, messages, pending, exposure, scope, save
+                )
+            finally:
+                if context.drain is not None:
+                    # Its effect, if any, is recorded in the checkpoint now.
+                    context.drain.leave_effect()
             if outcome is not None:
                 return outcome
             if halt_reason(state):

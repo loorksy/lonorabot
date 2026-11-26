@@ -1,6 +1,7 @@
+import asyncio
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
@@ -26,10 +27,22 @@ class RunDrain:
 
     Once ``requested``, every Run hands back to the queue at its next step boundary, with
     its fence and checkpoint kept; a call already started runs to its end first.
+    ``effects`` holds the workers inside a call that is not read-only, from
+    ``before_effect`` until its result is checkpointed: the drain's backstop never cancels
+    one of them there.
     """
 
     def __init__(self) -> None:
         self.requested = False
+        self.effects: set[asyncio.Task[Any]] = set()
+
+    def enter_effect(self) -> None:
+        if task := asyncio.current_task():
+            self.effects.add(task)
+
+    def leave_effect(self) -> None:
+        if task := asyncio.current_task():
+            self.effects.discard(task)
 
 
 @dataclass(frozen=True)
