@@ -10,6 +10,7 @@ A model is available to an agent when its provider is connected and its catalog 
 """
 
 from collections.abc import Iterable
+from functools import cache
 from typing import Any, cast
 
 from lonora_contracts.model_catalog import ModelDescriptor
@@ -31,10 +32,15 @@ def list_source() -> str:
 
 def listed_models(provider: str) -> list[ModelDescriptor]:
     """The shipped models of one provider, sorted by id; none for the owner's endpoint."""
+    return list(_listed(provider))
+
+
+@cache
+def _listed(provider: str) -> tuple[ModelDescriptor, ...]:
     source = list_source()
     # Built without validation: the import and its test check the data, and a provider
     # is listed before its connection exists (openai_chatgpt is not a ProviderId yet).
-    return [
+    return tuple(
         ModelDescriptor.model_construct(
             id=entry["id"],
             provider=provider,
@@ -51,7 +57,7 @@ def listed_models(provider: str) -> list[ModelDescriptor]:
             source=source,
         )
         for entry in listed_entries(provider)
-    ]
+    )
 
 
 async def provider_catalog(session: AsyncSession, provider: str) -> list[ModelDescriptor]:
