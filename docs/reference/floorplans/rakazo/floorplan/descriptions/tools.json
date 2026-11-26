@@ -1,0 +1,108 @@
+{
+  "files": {
+    "packages/adapters/src/runs/tools/run-tool-audit.ts": {
+      "name": "Tool audit events",
+      "description": "Writes a tool.call audit event for a bot's denied or reviewed tool calls."
+    },
+    "packages/adapters/src/runs/tools/run-tool-review.ts": {
+      "name": "Auto review runner",
+      "description": "Sends a gated call and the owner's words to the reviewer chain and stores its verdict on the effect."
+    },
+    "packages/adapters/src/runs/tools/run-tools-user-computer.ts": {
+      "name": "Owner computer gate",
+      "description": "Limits the owner's own computer tools to their runs and asks for approval per app or shell."
+    },
+    "packages/adapters/src/runtime/pi/tools/pi-tool-call-guard.ts": {
+      "name": "Nameless call repair",
+      "description": "Drops tool calls with empty names from transcripts before a provider rejects the whole conversation."
+    },
+    "packages/adapters/src/tools/builtin.tool-definition.ts": {
+      "name": "Built-in tool list",
+      "description": "Collects the built-in tool definitions and defines the find_tool and use_tool bridge and computer-mode switches."
+    },
+    "packages/adapters/src/tools/lazy-tool-catalog.ts": {
+      "name": "Lazy tool catalog",
+      "description": "Exposes large connector tool sets through search, load and execute meta-tools instead of listing every schema."
+    },
+    "packages/adapters/src/tools/workspace-file-tools.ts": {
+      "name": "Workspace file tools",
+      "description": "Reads, lists and writes files in a bot's workspace using resolved workspace paths."
+    },
+    "packages/adapters/src/approvals/auto-review.ts": {
+      "name": "Auto review core",
+      "description": "Configures the approval-model checker, redacts arguments and parses the pass, ask or error verdict."
+    },
+    "packages/adapters/src/approvals/auto-review.prompt.ts": {
+      "name": "Auto review prompts",
+      "description": "Defines the reviewer's pass and ask rubrics for new sites, lasting writes and own-computer actions."
+    },
+    "packages/adapters/src/approvals/approval-ask.ts": {
+      "name": "Approval card builder",
+      "description": "Builds the bounded, escaped approval card block shown to the owner for a held tool call."
+    },
+    "packages/adapters/src/approvals/approval-effect.ts": {
+      "name": "Approval effect replay",
+      "description": "Binds approved calls to stored effects for replay and settles duplicate or uncertain effects."
+    },
+    "packages/adapters/src/mcp/mcp-tool-permissions.ts": {
+      "name": "MCP tool allow-list",
+      "description": "Checks whether an MCP server assignment permits a given tool name."
+    },
+    "packages/adapters/src/mcp/mcp-connector.ts": {
+      "name": "MCP connector",
+      "description": "Runs MCP servers over stdio or remote transports with OAuth, discovery and per-assignment tool filtering."
+    },
+    "packages/adapters/src/mcp/mcp-connector.tool-definition.ts": {
+      "name": "MCP catalog groups",
+      "description": "Groups MCP tools for the catalog and supplies an unavailable placeholder tool when a server fails."
+    },
+    "packages/adapters/src/mcp/mcp-package-installer.ts": {
+      "name": "MCP package installer",
+      "description": "Installs npm stdio MCP servers once into a managed directory and launches the installed binary."
+    },
+    "packages/adapters/src/mcp/mcp-response-limit.ts": {
+      "name": "MCP response cap",
+      "description": "Fails MCP response bodies that grow past 16 MB before the SDK buffers them."
+    },
+    "packages/adapters/src/providers/computer/desktop/desktop-command-guard.ts": {
+      "name": "Desktop command guard",
+      "description": "Refuses shell commands that would kill or modify processes and files shared on the desktop."
+    },
+    "packages/adapters/src/providers/computer/desktop/desktop-command-guard.prompt.ts": {
+      "name": "Guard refusal text",
+      "description": "Provides the message returned when the desktop command guard blocks a command."
+    },
+    "packages/adapters/src/computers/host/host-computer-sandbox.ts": {
+      "name": "Host computer client",
+      "description": "Sends bounded, authenticated, never-retried requests to the owner's desktop app for local commands and files."
+    },
+    "packages/adapters/src/computers/host/user-computer-tools.ts": {
+      "name": "User computer tool names",
+      "description": "Names the owner-computer tools and normalizes the app name shown on approval cards."
+    },
+    "packages/adapters/src/computers/sandbox/sandbox-allowance.ts": {
+      "name": "Sandbox allowance",
+      "description": "Computes sandbox hour cost against the plan allowance, treating user-machine computers as free."
+    },
+    "packages/adapters/src/computers/sandbox/sandbox-kind-capabilities.ts": {
+      "name": "Sandbox kind capabilities",
+      "description": "Looks up what each computer kind supports, such as native shell, screen and running on the user's machine."
+    },
+    "packages/adapters/src/providers/computer/docker/docker-sandbox.ts": {
+      "name": "Docker sandbox",
+      "description": "Implements the sandbox provider interface on Docker containers; only its imports were skimmed."
+    },
+    "packages/adapters/src/secrets/vault/vault-redaction.ts": {
+      "name": "Vault redaction forms",
+      "description": "Builds the redaction strings for passwords, one-time codes, API keys and cards so they never reach outputs."
+    },
+    "packages/adapters/src/secrets/run-secret.ts": {
+      "name": "Run secret handling",
+      "description": "Pauses runs for protected secret entry and consumes single-use secrets before side effects."
+    },
+    "packages/adapters/src/runs/assembly/run-context.ts": {
+      "name": "Run context and taint",
+      "description": "Holds per-run state and tracks whether outside content has tainted the run."
+    }
+  }
+}

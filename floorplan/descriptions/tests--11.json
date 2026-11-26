@@ -159,6 +159,14 @@
     "tests/web/agent-alert.spec.mjs": {
       "name": "Agent alert tests",
       "description": "Automatic checks for agent alert."
+    },
+    "tests/web/setup-link.test.ts": {
+      "name": "Setup link tests",
+      "description": "Checks that only well-formed setup codes are taken from a link and that the code is read once."
+    },
+    "tests/web/setup-link.spec.mjs": {
+      "name": "Setup link browser checks",
+      "description": "Checks in a browser that a setup link's one-time code leaves the address bar even when the first-run step does not open."
     }
   }
 }

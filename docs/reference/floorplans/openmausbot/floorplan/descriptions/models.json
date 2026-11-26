@@ -1,0 +1,112 @@
+{
+  "files": {
+    "server/model-manifest/schema.ts": {
+      "name": "Manifest zod schema",
+      "description": "Validates the model manifest with per-engine id rules, unique ids, a current default and price entries."
+    },
+    "server/model-manifest/bundled.ts": {
+      "name": "Bundled manifest loader",
+      "description": "Parses the bundled manifest strictly at load and converts an engine section into a picker catalog."
+    },
+    "server/model-manifest/manifest.ts": {
+      "name": "Manifest refresh store",
+      "description": "Downloads the manifest from GitHub hourly, caches it on disk, and gates models by installed CLI version."
+    },
+    "server/model-manifest/wiring.test.ts": {
+      "name": "Manifest wiring test",
+      "description": "Checks that drivers pick up a newer cached manifest when they load."
+    },
+    "server/model-catalog/catalog.ts": {
+      "name": "models.dev catalog store",
+      "description": "Chooses the newest of own cache, OpenCode cache and bundled snapshot, and refreshes from models.dev daily."
+    },
+    "server/model-catalog/trim.ts": {
+      "name": "models.dev catalog trimmer",
+      "description": "Reduces models.dev data to tool-calling models, dropping entries with braces, and packs or unpacks it."
+    },
+    "server/model-catalog/presets.ts": {
+      "name": "Provider presets",
+      "description": "Pins base URLs and key-check paths for recommended OpenAI-compatible providers so refreshes cannot redirect keys."
+    },
+    "scripts/build-model-catalog.mjs": {
+      "name": "Catalog snapshot builder",
+      "description": "Builds the models.dev snapshot file from api.json and verifies the committed copy."
+    },
+    "server/default-model-selection.ts": {
+      "name": "Default model selection",
+      "description": "Picks a new bot's engine and model by ranking available engines, never switching provider silently."
+    },
+    "server/drivers/codex-catalog.ts": {
+      "name": "Codex model catalog",
+      "description": "Lists OpenAI models via codex app-server, falls back to a static list, and merges config.toml providers."
+    },
+    "server/drivers/pi-catalog.ts": {
+      "name": "Pi model catalog",
+      "description": "Parses Pi's get_available_models frame into provider-qualified custom model options."
+    },
+    "server/hosted-models.ts": {
+      "name": "Hosted model policy",
+      "description": "Restricts selectable models to a company-assigned catalog and routes engines through a gateway."
+    },
+    "server/model-context-window.ts": {
+      "name": "Context window guess",
+      "description": "Estimates a model's context window from its id when the catalog gives none."
+    },
+    "server/model-prices.ts": {
+      "name": "List price lookup",
+      "description": "Resolves dated list prices and estimates turn cost from operator, list or reported prices."
+    },
+    "server/prices.ts": {
+      "name": "Operator price list",
+      "description": "Defines operator sell prices and computes the billable amount for a turn."
+    },
+    "server/startup-model-catalog.ts": {
+      "name": "Startup model cache",
+      "description": "Persists each engine's model list on disk and refreshes it in the background at start."
+    },
+    "server/routes/thread-models.ts": {
+      "name": "Thread model route",
+      "description": "Handles POST follow-model to move threads with their own model back to the bot's model."
+    },
+    "server/routes/internal-models.ts": {
+      "name": "Agent model menu",
+      "description": "Builds the compact per-engine model menu a bot sees, with efforts, blocked models and connect hints."
+    },
+    "server/drivers/claude-model-access.ts": {
+      "name": "Claude org model blocks",
+      "description": "Reads the account's modelAccessCache to flag organization-blocked models and notes model swaps."
+    },
+    "server/drivers/claude-model-extras.ts": {
+      "name": "Claude model extras",
+      "description": "Adds custom models from settings.json and env to the Claude list and builds endpoint catalogs."
+    },
+    "server/agent-endpoint-models.ts": {
+      "name": "Endpoint model discovery",
+      "description": "Lists official models or fetches a gateway's /models over safe HTTP with size and id limits."
+    },
+    "server/thread-model.ts": {
+      "name": "Thread model fallback",
+      "description": "Decides when a thread's own model falls back because its engine is unavailable or signed out."
+    },
+    "shared/thread-model.ts": {
+      "name": "Thread model helpers",
+      "description": "Compares model selections and finds threads running on a model other than the bot's."
+    },
+    "server/model-requests.ts": {
+      "name": "Model change requests",
+      "description": "Validates a model proposal and builds the owner approval card for changing a bot's default."
+    },
+    "shared/ai-ranking.ts": {
+      "name": "AI ranking",
+      "description": "Ranks engines Claude, ChatGPT, Gemini, Grok, then others for a new bot's default."
+    },
+    "packages/phone-protocol/src/effort-levels.ts": {
+      "name": "Effort level lookup",
+      "description": "Returns a model's offered effort levels, preferring model over engine defaults."
+    },
+    "src/lib/model-choices.ts": {
+      "name": "Picker model choices",
+      "description": "Expands variants into picker rows, applies a pick to a selection and offers typed OpenCode ids."
+    }
+  }
+}

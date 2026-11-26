@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Lonora · لوحة الإدارة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Readex+Pro:wght@300..600&display=swap" rel="stylesheet">
+<style>
+/* Lonora Cloud admin panel: staff approve, activate, reject and suspend accounts (docs/cloud D46, PW-T4).
+   Staff sign in at the proxy (cloud/host/Caddyfile); the API checks the staff email again on every call. */
+:root{
+  --bg:#07080B;--surface:#15161B;--surface-2:#1A1C22;--ink:#F7F5EF;--ink-2:#C5C8D1;--muted:#8B919E;
+  --line:rgba(247,245,239,.08);--line-2:rgba(247,245,239,.14);--accent:#22E3A8;--accent-a16:rgba(34,227,168,.16);
+  --warn:#FFC76B;--danger:#FF8A8A;--lav:#A9AED6;
+  --font:"Readex Pro",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+  --r:14px;color-scheme:dark
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-weight:340;font-size:15px;line-height:1.7}
+header{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:16px;padding:14px clamp(16px,3vw,32px);background:rgba(7,8,11,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header h1{font-size:17px;font-weight:500;margin:0}
+header .who{margin-inline-start:auto;color:var(--muted);font-size:13px}
+main{max-width:1180px;margin:0 auto;padding:20px clamp(16px,3vw,32px) 60px}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.tab{min-height:44px;padding:8px 14px;border-radius:999px;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);cursor:pointer;font:inherit}
+.tab[aria-pressed="true"]{background:var(--accent-a16);border-color:var(--accent);color:var(--ink)}
+.tab b{font-family:var(--mono);font-weight:500;margin-inline-start:6px;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:44px}
+input:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bar input{flex:1;min-width:220px}
+button.btn{min-height:44px;padding:8px 16px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);cursor:pointer;font:inherit}
+button.primary{background:var(--accent);border-color:var(--accent);color:#06130E;font-weight:500}
+button.danger{border-color:rgba(255,138,138,.5);color:var(--danger)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.list{display:grid;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.row{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline}
+.row .name{font-weight:500;font-size:16px}
+.row .email{font-family:var(--mono);font-size:13px;color:var(--ink-2);direction:ltr;unicode-bidi:isolate}
+.pill{font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2)}
+.pill.pending{color:var(--warn);border-color:rgba(255,199,107,.4)}
+.pill.approved{color:var(--lav)}
+.pill.active{color:var(--accent);border-color:rgba(34,227,168,.4)}
+.pill.rejected,.pill.suspended{color:var(--danger);border-color:rgba(255,138,138,.4)}
+.meta{color:var(--muted);font-size:13px}
+details{margin-top:10px}
+summary{cursor:pointer;color:var(--ink-2);min-height:32px}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:10px 0}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+.ltr{direction:ltr;unicode-bidi:isolate;font-family:var(--mono);font-size:13px}
+.actions{display:grid;gap:10px;margin-top:12px}
+.actions .line{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.actions .line input,.actions .line textarea{flex:1;min-width:220px}
+.empty,.note{color:var(--muted);padding:24px;text-align:center}
+.toast{position:fixed;inset-inline:16px;bottom:16px;margin:auto;max-width:520px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:12px;padding:12px 16px;display:none}
+.toast.show{display:block}
+.toast.bad{border-color:rgba(255,138,138,.5)}
+.log{font-size:13px;color:var(--ink-2);margin:8px 0 0;padding:0;list-style:none}
+.log li{padding:4px 0;border-top:1px solid var(--line)}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s}.card:hover{border-color:var(--line-2)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Lonora · لوحة الإدارة</h1>
+  <span class="who" id="who"></span>
+  <button class="btn" id="export" type="button">تصدير CSV</button>
+</header>
+<main id="main">
+  <div class="tabs" role="toolbar" aria-label="الحالة" id="tabs"></div>
+  <div class="bar">
+    <label class="sr" for="q" hidden>بحث</label>
+    <input id="q" type="search" placeholder="بحث بالاسم أو البريد" autocomplete="off">
+    <button class="btn" id="refresh" type="button">تحديث</button>
+  </div>
+  <div class="list" id="list" aria-live="polite"></div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(() => {
+  const STATUS = {
+    pending: "بانتظار الموافقة", approved: "تمت الموافقة", provisioning: "قيد التجهيز", active: "مُفعَّل", rejected: "مرفوض", suspended: "موقوف",
+  };
+  const USES = { watch: "مراقبة", trade: "تداول", analysis: "تحليل", news: "أخبار", brief: "التقرير الصباحي", other: "غير ذلك" };
+  const ERRORS = {
+    staff_only: "هذه اللوحة للموظفين فقط. ادخل ببريدك وكلمة مرور الموظف.", bad_state: "حالة الحساب تغيّرت؛ حدّث القائمة.",
+    reason_required: "اكتب السبب؛ سيراه العميل.", instance_url: "عنوان النسخة يجب أن يبدأ بـ https://",
+    setup_link: "رابط الإعداد يجب أن يبدأ بـ https://", not_found: "الحساب غير موجود.", origin: "طلب من مصدر آخر.",
+    handle: "الاسم الفرعي: أحرف إنجليزية صغيرة وأرقام وشرطة، من 3 إلى 30، ويبدأ بحرف.", handle_taken: "هذا الاسم الفرعي مستخدم.",
+    server_exists: "لهذا الحساب نسخة Lonora؛ أكّد حذفها أيضاً.", provision_failed: "تعذّر التجهيز.", deprovision_failed: "تعذّر حذف النسخة.",
+  };
+  let status = "pending";
+  let counts = {};
+  let provisioning = false;
+  let baseDomain = "";
+  const JOB = { creating: "تجهيز النسخة", ready: "جاهز", failed: "فشل", removed: "أُزيل" };
+  const $ = (s) => document.querySelector(s);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else if (v !== undefined && v !== null) n.setAttribute(k, v);
+    }
+    for (const kid of kids) n.append(kid instanceof Node ? kid : document.createTextNode(String(kid ?? "")));
+    return n;
+  };
+  const toast = (text, bad = false) => {
+    const t = $("#toast"); t.textContent = text; t.className = `toast show${bad ? " bad" : ""}`;
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.className = "toast"; }, 4200);
+  };
+  const date = (iso) => iso ? new Intl.DateTimeFormat("ar", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso)) : "—";
+
+  async function api(path, body) {
+    const res = await fetch(path, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" } : { credentials: "same-origin" });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error([ERRORS[out.error] || "تعذّر الطلب، حاول مرة أخرى.", out.message].filter(Boolean).join(" "));
+    return out;
+  }
+
+  function tabs() {
+    const box = $("#tabs"); box.replaceChildren();
+    for (const s of Object.keys(STATUS)) {
+      box.append(el("button", { class: "tab", type: "button", "aria-pressed": String(s === status), onclick: () => { status = s; load(); } }, STATUS[s], el("b", {}, counts[s] ?? 0)));
+    }
+  }
+
+  function action(a, label, extra, cls = "btn") {
+    return el("button", { class: cls, type: "button", onclick: async (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      try {
+        const body = { id: a.id, action: label, ...(extra ? extra() : {}) };
+        if (label === "delete") {
+          const hasServer = a.job && a.job.status !== "removed" && a.job.server_id;
+          if (!confirm(hasServer ? "حذف الحساب نهائياً بطلب صاحبه، مع حذف نسخته بكل بياناتها؟ لا يمكن التراجع." : "حذف الحساب نهائياً بطلب صاحبه؟ لا يمكن التراجع.")) { btn.disabled = false; return; }
+          if (hasServer) body.remove_server = true;
+        }
+        await api("/api/admin/decide", body);
+        toast("تم."); await load();
+      } catch (err) { toast(err.message, true); btn.disabled = false; }
+    } }, { approve: "موافقة", activate: provisioning && !(extra && extra.manual) ? "تفعيل بضغطة واحدة" : "تفعيل", retry: "إعادة المحاولة", reject: "رفض", suspend: "إيقاف", reinstate: "إعادة التفعيل", delete: "حذف بطلبه" }[label]);
+  }
+
+  function card(a) {
+    const reason = el("textarea", { rows: "2", maxlength: "500", placeholder: "السبب (يراه العميل)" });
+    const url = el("input", { type: "url", inputmode: "url", placeholder: "https://name.lonora.app", dir: "ltr" });
+    const link = el("input", { type: "url", inputmode: "url", placeholder: "رابط الإعداد الأول (اختياري)", dir: "ltr" });
+    const acts = el("div", { class: "actions" });
+    if (a.status === "pending") acts.append(el("div", { class: "line" }, action(a, "approve", null, "btn primary")));
+    if (a.status === "pending" || a.status === "approved") {
+      if (provisioning) {
+        // One click: the customer's Lonora is created on the host; the account turns active with its setup link.
+        const handle = el("input", { type: "text", dir: "ltr", maxlength: "30", placeholder: a.handle || "الاسم الفرعي (اختياري، يُقترح من البريد)" });
+        const failedBefore = a.job && a.job.status === "failed";
+        acts.append(el("div", { class: "line" }, handle, el("span", { class: "meta ltr" }, `.${baseDomain}`),
+          action(a, failedBefore ? "retry" : "activate", () => ({ handle: handle.value.trim() || undefined }), "btn primary")));
+        const manual = el("details", {}, el("summary", {}, "تفعيل يدوي بعنوان نسخة جاهزة"),
+          el("div", { class: "line" }, url, link, action(a, "activate", () => ({ manual: true, instance_url: url.value.trim(), setup_link: link.value.trim() || undefined }))));
+        acts.append(manual);
+      } else {
+        acts.append(el("div", { class: "line" }, url, link, action(a, "activate", () => ({ instance_url: url.value.trim(), setup_link: link.value.trim() || undefined }), "btn primary")));
+      }
+      acts.append(el("div", { class: "line" }, reason, action(a, "reject", () => ({ reason: reason.value }), "btn danger")));
+    }
+    if (a.status === "active") acts.append(el("div", { class: "line" }, reason, action(a, "suspend", () => ({ reason: reason.value }), "btn danger")));
+    if (a.status === "suspended") acts.append(el("div", { class: "line" }, action(a, "reinstate", null, "btn primary")));
+    acts.append(el("div", { class: "line" }, action(a, "delete", null, "btn danger")));
+    const log = el("ul", { class: "log" });
+    const det = el("details", { ontoggle: async (e) => {
+      if (!e.currentTarget.open || log.dataset.loaded) return;
+      try {
+        const out = await api(`/api/admin/audit?account=${encodeURIComponent(a.id)}`);
+        for (const x of out.entries) log.append(el("li", {}, `${date(x.at)} · ${x.actor} · ${x.action}${x.details && x.details.reason ? ` · ${x.details.reason}` : ""}`));
+        log.dataset.loaded = "1";
+      } catch (err) { log.append(el("li", {}, err.message)); }
+    } },
+      el("summary", {}, "التفاصيل والإجراءات"),
+      el("dl", {},
+        el("dt", {}, "الدولة"), el("dd", {}, a.country),
+        el("dt", {}, "اللغة"), el("dd", {}, a.lang === "ar" ? "العربية" : "English"),
+        el("dt", {}, "الوسيط"), el("dd", {}, a.broker || "—"),
+        el("dt", {}, "الاستخدام"), el("dd", {}, (a.uses || []).map((u) => USES[u] || u).join("، ") || "—"),
+        el("dt", {}, "الوثائق"), el("dd", { class: "ltr" }, `${a.terms_version} · ${a.risk_version} · ${a.privacy_version}`),
+        el("dt", {}, "عنوان النسخة"), el("dd", { class: "ltr" }, a.instance_url || "—"),
+        el("dt", {}, "التجهيز"), el("dd", {}, a.job ? `${JOB[a.job.status] || a.job.status}${a.job.error ? ` · ${a.job.error}` : ""} · ${date(a.job.updated_at)}` : "—"),
+        el("dt", {}, "القرار"), el("dd", {}, a.decided_by ? `${date(a.decided_at)} · ${a.decided_by}` : "—"),
+        el("dt", {}, "السبب"), el("dd", {}, a.reason || "—")),
+      acts, el("div", { class: "meta" }, "السجل"), log);
+    return el("article", { class: "card" },
+      el("div", { class: "row" }, el("span", { class: "name" }, a.name), el("span", { class: "email" }, a.email), el("span", { class: `pill ${a.status}` }, STATUS[a.status]), el("span", { class: "meta" }, date(a.created_at))),
+      det);
+  }
+
+  async function load() {
+    const list = $("#list");
+    try {
+      const q = $("#q").value.trim();
+      const out = await api(`/api/admin/accounts?status=${status}${q ? `&q=${encodeURIComponent(q)}` : ""}`);
+      counts = out.counts; provisioning = out.provisioning === true; baseDomain = out.base_domain || ""; tabs();
+      list.replaceChildren(...(out.accounts.length ? out.accounts.map(card) : [el("p", { class: "empty" }, "لا حسابات في هذه الحالة.")]));
+    } catch (err) {
+      tabs(); list.replaceChildren(el("p", { class: "note" }, location.protocol === "file:" ? "معاينة: الخادم غير متصل." : err.message));
+    }
+  }
+
+  $("#refresh").addEventListener("click", load);
+  $("#q").addEventListener("input", () => { clearTimeout(load.t); load.t = setTimeout(load, 300); });
+  $("#export").addEventListener("click", () => { location.href = "/api/admin/export"; });
+  tabs(); load();
+  // While an account is being prepared, refresh every 20 seconds.
+  setInterval(() => { if (status === "provisioning" || (counts.provisioning || 0) > 0) load(); }, 20000);
+})();
+</script>
+</body>
+</html>

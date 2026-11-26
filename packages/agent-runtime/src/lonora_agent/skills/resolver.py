@@ -8,6 +8,11 @@ from lonora_tools.base import ToolScope
 from .provenance import skill_provenance
 from .registry import CAPABILITY_TOOLS, SkillDefinition, SkillRegistry
 
+# Characters of active Skill text one Run may hold (owner decision TX-D4): room for the
+# trade procedures plus the trading knowledge a decision needs. A context size, not a
+# trading limit.
+ACTIVE_BUDGET = 32000
+
 
 @dataclass(frozen=True)
 class SkillSignals:
@@ -24,7 +29,7 @@ class SkillSelection:
     selected: list[SkillDefinition] = field(default_factory=list[SkillDefinition])
     reasons: dict[str, str] = field(default_factory=dict[str, str])
     rejected: dict[str, str] = field(default_factory=dict[str, str])
-    budget: int = 16000
+    budget: int = ACTIVE_BUDGET
 
     def context(self) -> str:
         return "\n\n".join(
@@ -89,7 +94,7 @@ def eligibility_reason(
 def resolve_skills(
     registry: SkillRegistry,
     signals: SkillSignals,
-    budget: int = 16000,
+    budget: int = ACTIVE_BUDGET,
     rejected: dict[str, str] | None = None,
 ) -> SkillSelection:
     selection = SkillSelection(rejected=dict(rejected or {}), budget=budget)

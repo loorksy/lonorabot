@@ -1,0 +1,160 @@
+{
+  "files": {
+    "server/runtime/tree.ts": {
+      "name": "Assignment tree helpers",
+      "description": "Walks assignment lineage and applies the continuation loop guard, restart notes and terminal checks."
+    },
+    "server/runtime/level.ts": {
+      "name": "Approval level cascade",
+      "description": "Computes a delegated turn's approval level from the requester, chief lineage and the engine's supported cap."
+    },
+    "server/member-turn.ts": {
+      "name": "Member turn selection",
+      "description": "Validates a saved model variant against engine capabilities and shapes the model selection for a room member turn."
+    },
+    "server/main-thread.ts": {
+      "name": "Main thread choice",
+      "description": "Picks a bot's main thread from its tasks, skipping routine runs and archived conversations."
+    },
+    "server/turn-context.ts": {
+      "name": "Turn context builder",
+      "description": "Chooses between resuming an engine session and replaying a transcript preamble for the next turn."
+    },
+    "server/turn-continuation.ts": {
+      "name": "Step-cap handoff",
+      "description": "Writes a markdown handoff file when a turn hits a step cap and detects which stops may continue."
+    },
+    "server/turn-outcome.ts": {
+      "name": "Turn outcome analysis",
+      "description": "Tracks why turns stopped, builds harness-observed evidence and detects outward actions that forbid a rerun."
+    },
+    "server/turn-dispatch-guard.ts": {
+      "name": "Dispatch guard",
+      "description": "Re-checks cancellation after sendTurn resolves and classifies admission failures that may resume when a slot frees."
+    },
+    "server/turn-resources.ts": {
+      "name": "Turn resource claims",
+      "description": "Tracks whole-turn claims on desktops, browsers and phones so a screenshot and its click share one resource."
+    },
+    "server/context-budget.ts": {
+      "name": "Compaction budget",
+      "description": "Computes the compaction threshold from the model window and decides when measured context size demands a fold."
+    },
+    "server/compaction-summary.ts": {
+      "name": "Compaction summary",
+      "description": "Picks the fold point, asks a side model for a bounded summary and falls back to deterministic excerpts."
+    },
+    "server/context-rebuild.ts": {
+      "name": "Context replay selection",
+      "description": "Selects a bounded, byte-capped replay of history with a compaction summary and one-line tool stubs."
+    },
+    "server/delta-context.ts": {
+      "name": "Delta context ledger",
+      "description": "Tracks which messages an engine session has received and renders only the unseen ones for a resumed turn."
+    },
+    "server/system-prompt.ts": {
+      "name": "System prompt builder",
+      "description": "Assembles ordered prompt sections and splits them into stable, volatile and roster halves for provider caching."
+    },
+    "server/steer-queue.ts": {
+      "name": "Steer queue",
+      "description": "Persists messages sent mid-turn off the transcript, ordering and draining them as coalesced turns after the run settles."
+    },
+    "server/channel-queue.ts": {
+      "name": "Channel follow-up queue",
+      "description": "Holds room follow-ups sent while a channel works and drains them when it settles."
+    },
+    "server/room-queue.ts": {
+      "name": "Room line projection",
+      "description": "Projects running and queued room members into per-thread queue entries for the UI."
+    },
+    "server/room-turn-timeout.ts": {
+      "name": "Room turn timeout",
+      "description": "Defines which engine events count as progress and converts configured minutes into a room turn timeout."
+    },
+    "server/room-round-turns.ts": {
+      "name": "Room round limits",
+      "description": "Counts each bot's turns in one room round and caps repeat answers per member."
+    },
+    "server/room-member-lock.ts": {
+      "name": "Room member lock",
+      "description": "Holds a bot's room turn claim across the gap before it is marked busy and notifies waiters on release."
+    },
+    "server/quick-model-fallback.ts": {
+      "name": "Quick model fallback",
+      "description": "Reruns a turn on the bot's own model under the same turn id when the quick model is refused."
+    },
+    "server/limit-failover.ts": {
+      "name": "Limit failover",
+      "description": "Decides which backup engine may take over a usage-limited or signed-out conversation and when it returns."
+    },
+    "server/automatic-recovery.ts": {
+      "name": "Startup backup choice",
+      "description": "Lists backup models for a turn that never started and refuses backups missing tools the original had."
+    },
+    "server/repeat-detector.ts": {
+      "name": "Repeat call detector",
+      "description": "Counts identical tool call keys per thread and reports when a repeat threshold is crossed."
+    },
+    "server/harness/live-steps.ts": {
+      "name": "Live step status",
+      "description": "Turns running tool calls and their output into status-line progress frames for the chat."
+    },
+    "server/harness/progress-gate.ts": {
+      "name": "Progress frame gate",
+      "description": "Coalesces turn.progress events so the status line gets changed frames at most every 400 ms per thread."
+    },
+    "server/harness/unasked-stop.ts": {
+      "name": "Unasked stop detector",
+      "description": "Reports an engine's unrequested abort message as a failure instead of showing it as a person's Stop."
+    },
+    "server/harness-budget.ts": {
+      "name": "Harness call budgets",
+      "description": "Defines proxy and harness timeouts for browser, computer, data and device calls so answers outlive the callers."
+    },
+    "server/harness-mcp-request.ts": {
+      "name": "Harness MCP request",
+      "description": "Makes one MCP request to a harness tool family and words restarts or timeouts as may-have-run errors."
+    },
+    "server/drivers/agents-mcp.ts": {
+      "name": "Agents MCP server",
+      "description": "Answers MCP initialize, tools/list and tools/call for the agents tools, routing every call through the harness."
+    },
+    "server/drivers/agents-proxy.ts": {
+      "name": "Agents stdio proxy",
+      "description": "Runs the agents MCP server over stdio inside an engine process, reading JSON-RPC lines and replying."
+    },
+    "server/drivers/agents-client.ts": {
+      "name": "Harness HTTP client",
+      "description": "Calls the harness loopback internal API with the turn's capability bearer using node:http."
+    },
+    "server/drivers/agents-check-back-tool.ts": {
+      "name": "Check-back tool",
+      "description": "Defines the check_back tool and posts its request to the harness internal check-backs route."
+    },
+    "server/drivers/agents-wait-tools.ts": {
+      "name": "Wait tools",
+      "description": "Defines wait_until, list_waits and cancel_wait and forwards them to the harness internal waits route."
+    },
+    "server/drivers/retry.ts": {
+      "name": "Retry classification",
+      "description": "Classifies provider errors as transient or terminal and supplies capped jittered backoff and interruptible delays."
+    },
+    "server/drivers/prompt-split.ts": {
+      "name": "Prompt split helpers",
+      "description": "Returns the stable and volatile prompt halves and builds the context-updated note for changed volatile text."
+    },
+    "server/agents-bridge-switch.ts": {
+      "name": "Tool bridge switch",
+      "description": "Decides per thread whether the agents tool list is bridged and rewrites bridged call titles."
+    },
+    "server/routes/bot-messages.ts": {
+      "name": "Bot message routes",
+      "description": "Handles chat sends, steers, cards and stops, deciding steer or queue through admission."
+    },
+    "src/lib/live-events.ts": {
+      "name": "Live events client",
+      "description": "Opens the /api/events stream with resume cursor, stale detection and retry backoff, and publishes frames."
+    }
+  }
+}

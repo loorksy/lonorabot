@@ -70,7 +70,7 @@
     },
     "tests/mobile/first-run.spec.mjs": {
       "name": "First run tests",
-      "description": "Automatic checks for first run."
+      "description": "Automatic checks for first run on the phone app, including a Lonora link that fills the setup code, also when sign-in is already open."
     },
     "tests/mobile/flexible-agents.spec.mjs": {
       "name": "Flexible agents tests",

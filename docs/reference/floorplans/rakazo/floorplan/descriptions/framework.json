@@ -1,0 +1,188 @@
+{
+  "files": {
+    "apps/worker/src/index.ts": {
+      "name": "Worker entry",
+      "description": "Boots the worker: pool, realtime, run runtime, Graphile hosts, reconciler, health and shutdown handling."
+    },
+    "apps/worker/src/health.ts": {
+      "name": "Worker health file",
+      "description": "Writes a heartbeat file every 30 seconds that the Docker healthcheck reads to detect a dead worker."
+    },
+    "apps/api/src/index.ts": {
+      "name": "API entry",
+      "description": "Starts the Hono server, optional inbound-only listener, websocket upgrade and drain-aware shutdown."
+    },
+    "apps/api/src/app.ts": {
+      "name": "API composition",
+      "description": "Builds the API app: foundation, RunStarter, job publisher, run runtime, reconciler and a stop that hands runs back."
+    },
+    "apps/api/src/http/health.ts": {
+      "name": "API health routes",
+      "description": "Serves /health, /ready with a database probe, and private-network /internal/health."
+    },
+    "apps/api/src/http/drain.ts": {
+      "name": "Connection drain",
+      "description": "Defines the SIGUSR2 run-drain signal and closes streams and sockets first on a deploy."
+    },
+    "apps/api/src/threads/thread-target.ts": {
+      "name": "Send message flow",
+      "description": "Writes a user message, steers or answers a waiting run, or creates a queued run in one transaction."
+    },
+    "apps/api/src/routes/threads.ts": {
+      "name": "Thread routes",
+      "description": "Serves thread RPCs and the cursor-based event stream with heartbeats and peer or background filtering."
+    },
+    "apps/api/src/auth/user-devices.ts": {
+      "name": "Device socket routes",
+      "description": "Pairs desktop devices and accepts their websocket, with a forward path between API processes."
+    },
+    "apps/desktop/src/main/this-computer/native-stack.ts": {
+      "name": "Desktop native stack",
+      "description": "Launches a local API and worker on the desktop with Graphile wakeups and the Pi runtime."
+    },
+    "packages/adapters/src/runs/wakeups/run-wakeup.ts": {
+      "name": "Run starter and scanner",
+      "description": "Starts due runs in process, hands them over on runs:ready, and rescans every 5 seconds to recover dead ones."
+    },
+    "packages/adapters/src/runs/wakeups/wakeup.ts": {
+      "name": "Graphile job layer",
+      "description": "Publishes and runs Graphile jobs in interactive, background and maintenance hosts, and prunes dead jobs."
+    },
+    "packages/adapters/src/runs/wakeups/wake-run.ts": {
+      "name": "Run wake nudge",
+      "description": "Nudges a committed run to start now or later, logging instead of failing when the nudge is lost."
+    },
+    "packages/adapters/src/runs/wakeups/job-reconciler.ts": {
+      "name": "Leader reconciler",
+      "description": "Repairs stuck runs, bot outcomes and routine wakes every 30 seconds under a Postgres advisory-lock leader."
+    },
+    "packages/adapters/src/runs/wakeups/background-job-handlers.ts": {
+      "name": "Job handlers",
+      "description": "Dispatches typed background jobs and re-enters the owning tenant for each job's row."
+    },
+    "packages/adapters/src/runs/lifecycle/run-attempt.ts": {
+      "name": "Run attempt and heartbeat",
+      "description": "Finds a continuable run, claims it, renews its lease every 60 seconds and aborts when the lease is lost."
+    },
+    "packages/adapters/src/runs/lifecycle/run-lifecycle.ts": {
+      "name": "Run claim and requeue",
+      "description": "Claims runs under a fence, renews leases, computes retry delays and requeues interrupted or failed-setup runs."
+    },
+    "packages/adapters/src/runs/lifecycle/run-execution.ts": {
+      "name": "Run admission",
+      "description": "Admits runs by free memory and heap headroom rather than a fixed run count, and tracks active runs."
+    },
+    "packages/adapters/src/runs/lifecycle/run-recovery.ts": {
+      "name": "Recovery blockers",
+      "description": "Finds runs blocked by another run's computer lease and expires abandoned takeover holds."
+    },
+    "packages/adapters/src/runs/lifecycle/run-fail.ts": {
+      "name": "Run failure handling",
+      "description": "Maps run errors to user text and decides requeue, routine retry, backoff or pause."
+    },
+    "packages/adapters/src/runs/lifecycle/stuck-work.ts": {
+      "name": "Stuck work reconciler",
+      "description": "Notifies and expires queued or takeover-waiting runs that sit untouched past the configured age."
+    },
+    "packages/adapters/src/runs/lifecycle/run-effects.ts": {
+      "name": "Approved effect replay",
+      "description": "Orders and replays approved external effects when a paused run resumes after approval."
+    },
+    "packages/adapters/src/runs/executor/executor.ts": {
+      "name": "Run executor",
+      "description": "Drives continueRun: find, claim, hold, assemble, run the turn, retry setup and release in order."
+    },
+    "packages/adapters/src/runs/assembly/run-runtime.ts": {
+      "name": "Run runtime wiring",
+      "description": "Defines runtime env settings and builds connectors, executor and job handlers shared by API and worker."
+    },
+    "packages/adapters/src/runs/assembly/run-routines.ts": {
+      "name": "Routine wake logic",
+      "description": "Turns a due routine into a run after staleness, owner and watch checks, advancing its next time."
+    },
+    "packages/adapters/src/runs/turn/run-turn-pause.ts": {
+      "name": "Turn pause for input",
+      "description": "Saves the turn checkpoint and moves a run to waiting_input when the agent asks the user."
+    },
+    "packages/adapters/src/runs/turn/turn-checkpoint.ts": {
+      "name": "Turn checkpoint format",
+      "description": "Defines the versioned saved transcript used to resume a paused or handed-back turn."
+    },
+    "packages/adapters/src/runs/turn/tool-loop.ts": {
+      "name": "Tool loop guard",
+      "description": "Stops a run that repeats the same tool call or exceeds the action limits."
+    },
+    "packages/adapters/src/notifications/realtime.ts": {
+      "name": "Postgres realtime",
+      "description": "Fans out topic signals through pg_notify and one LISTEN connection with reconnect and an in-memory variant."
+    },
+    "packages/adapters/src/server/server-foundation.ts": {
+      "name": "Server foundation",
+      "description": "Starts the secret store, security stores, content keys and thread events the same way in API and worker."
+    },
+    "packages/adapters/src/messaging/bot-messages.ts": {
+      "name": "Bot to bot messages",
+      "description": "Delivers a message between bots as one transaction that creates the target's run, with hops and replay keys."
+    },
+    "packages/adapters/src/routines/strategic-initiative.ts": {
+      "name": "Daily initiative check-in",
+      "description": "Creates a daily check-in run per bot from stale scratchpad items, restricted to safe tools."
+    },
+    "packages/adapters/src/tasks/ticket-wake.ts": {
+      "name": "Ticket assignee wake",
+      "description": "Creates a silent run that wakes a ticket's current assignee bot."
+    },
+    "packages/adapters/src/runtime/pi/usage/pi-usage.ts": {
+      "name": "Pi usage normalizer",
+      "description": "Normalizes provider token and cost data from model calls into one usage record shape."
+    },
+    "packages/adapters/src/computers/computer-lifecycle.ts": {
+      "name": "Computer lifecycle",
+      "description": "Defines computer execution leases, their 5-minute length, acquisition, renewal and release."
+    },
+    "packages/core/src/runs/run-state.ts": {
+      "name": "Run state machine",
+      "description": "Defines run statuses, legal transitions, terminal and waiting sets, and which triggers count as conversational."
+    },
+    "packages/core/src/runs/stuck-work.ts": {
+      "name": "Stuck work thresholds",
+      "description": "Sets the 4-hour notify and 24-hour expire ages for waiting runs, overridable by environment."
+    },
+    "packages/core/src/bots/bot-messages.ts": {
+      "name": "Bot message hops",
+      "description": "Caps bot-to-bot message chains at 100 hops and tells when the cap is reached."
+    },
+    "packages/db/src/database/row-security.ts": {
+      "name": "Row security context",
+      "description": "Holds the tenant or system database context that Postgres row-level security policies read."
+    },
+    "packages/db/src/threads/events.ts": {
+      "name": "Thread event log",
+      "description": "Appends sequenced thread events under the thread lock and finalizes runs with fenced writes."
+    },
+    "packages/db/src/threads/event-stream.ts": {
+      "name": "Event stream follower",
+      "description": "Streams thread events after a cursor, using realtime signals only as a wake-up latch."
+    },
+    "packages/db/src/runs/run-turn-checkpoint.ts": {
+      "name": "Checkpoint storage",
+      "description": "Stores the saved turn transcript as a reserved external-effect row, encrypted per space."
+    },
+    "packages/adapter-kit/src/registry.ts": {
+      "name": "Adapter registry",
+      "description": "Declares the adapter slots and a registry for runtime, sandbox, jobs, realtime and other swappable parts."
+    },
+    "packages/adapter-kit/src/background-jobs.ts": {
+      "name": "Background job types",
+      "description": "Validates job payloads and builds typed jobs such as run.continue, routine.wakeup and messaging.send."
+    },
+    "packages/adapter-kit/src/interfaces.ts": {
+      "name": "Adapter interfaces",
+      "description": "Defines shared interfaces including JobPublisher, JobWorkerHost and queue order contracts."
+    },
+    "packages/logging/src/axiom.ts": {
+      "name": "Root logger setup",
+      "description": "Builds the service logger with optional Axiom and Sentry sinks chosen from environment variables."
+    }
+  }
+}

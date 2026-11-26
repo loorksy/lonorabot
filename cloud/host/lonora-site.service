@@ -1,0 +1,17 @@
+# The Lonora Cloud website and admin panel (cloud/host/server.mjs), installed by customer.sh init.
+# It runs as its own unprivileged user; the only root actions it can ask for are customer.sh create
+# and remove (/etc/sudoers.d/lonora-site). Its settings and secrets: /srv/lonora/site.env.
+[Unit]
+Description=Lonora Cloud website
+After=network-online.target docker.service
+
+[Service]
+User=lonora-site
+WorkingDirectory=/srv/lonora/site
+Environment=SITE_LISTEN=/srv/lonora/run/site.sock SITE_DB=/srv/lonora/site/site.db HOST_SCRIPT=/srv/lonora/src/cloud/host/customer.sh
+EnvironmentFile=/srv/lonora/site.env
+ExecStart=/usr/bin/node /srv/lonora/src/cloud/host/server.mjs
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

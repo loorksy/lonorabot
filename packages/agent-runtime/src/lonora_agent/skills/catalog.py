@@ -12,7 +12,7 @@ from lonora_db.schema import SkillRow
 from pydantic import ValidationError
 
 from .registry import installed_registry, legacy_skill_id
-from .resolver import SkillSignals, resolve_skills
+from .resolver import ACTIVE_BUDGET, SkillSignals, resolve_skills
 
 
 def owner_skill_catalog(
@@ -52,7 +52,7 @@ def owner_skill_catalog(
         reason = rejected.get(identity)
         if reason is None and definition is not None:
             selection = resolve_skills(
-                registry, replace(signals, requested=frozenset({identity})), 16000, rejected
+                registry, replace(signals, requested=frozenset({identity})), ACTIVE_BUDGET, rejected
             )
             if identity not in {item.manifest.id for item in selection.selected}:
                 reason = selection.rejected.get(identity, "skill_unavailable")

@@ -1,0 +1,11 @@
+{
+  "name": "lonora-cloud-site",
+  "private": true,
+  "type": "module",
+  "description": "Lonora Cloud website, registration and admin approval, served by cloud/host/server.mjs on the shared host (docs/cloud/DECISIONS.md D46, D48). Staged here until loorksy/lonora-cloud exists (D2).",
+  "scripts": {
+    "test": "node --no-warnings --test tests/*.test.js",
+    "dev": "node --no-warnings ../host/server.mjs"
+  },
+  "engines": { "node": ">=22.13" }
+}

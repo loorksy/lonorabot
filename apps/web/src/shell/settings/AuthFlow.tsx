@@ -4,6 +4,7 @@ import { Icon, type IconName } from "@lonora/ui-web";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { auth, type Owner } from "../../lib/auth";
 import { initializeOwner } from "../../lib/bootstrap";
+import { takeSetupToken } from "../../lib/setup-link";
 import { userError } from "../../lib/user_error";
 import { LogoMark } from "../LogoMark";
 import "./settings.css";
@@ -53,8 +54,10 @@ export function AuthFlow({
   onLogin: (owner: Owner) => void;
 }) {
   const after: Step = initialized ? (expired ? "expired" : "signin") : "bootstrap";
+  // A setup link (#token=…) opens the first-run step directly, with its token filled in.
+  const [setupToken] = useState(() => (initialized ? null : takeSetupToken()));
   const [step, setStepOnly] = useState<Step>(() =>
-    introSeen() && initialized && !intro ? after : "intro",
+    setupToken ? "bootstrap" : introSeen() && initialized && !intro ? after : "intro",
   );
   const [slide, setSlide] = useState(0);
   const [error, setError] = useState<unknown>();
@@ -275,7 +278,13 @@ export function AuthFlow({
               required
               autoComplete="off"
               dir="ltr"
+              defaultValue={setupToken ?? undefined}
             />
+            {setupToken ? (
+              <p className="muted">
+                <Trans>The setup link filled in the token. It works once.</Trans>
+              </p>
+            ) : null}
             {err}
             <button type="submit" className="btn primary full" disabled={busy}>
               <Trans>Create workspace</Trans>

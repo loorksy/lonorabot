@@ -308,6 +308,9 @@ test("Expo: a slot is the live record in its trust frame, and its row steps asid
   context,
   cleanup,
 }) => {
+  // Six fixture processes and two page loads: it finished in 28–30 s against the 30 s default,
+  // so one run in three timed out at the last click.
+  test.slow();
   const fixture = python("setup");
   const csrf = fixture.cookies.find((row) => row.name === "lonora_csrf").value;
   const headers = { "X-CSRF-Token": csrf };
