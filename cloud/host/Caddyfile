@@ -1,0 +1,54 @@
+# The reverse proxy of the Lonora Cloud host (D48): automatic TLS for the website and for every
+# customer's own domain. customer.sh writes one route per customer (lonora/customers/<handle>.caddy)
+# and reloads this file. The website listens only on the unix socket below.
+{
+	email {$ACME_EMAIL}
+}
+
+# One customer's Lonora: {args[0]} is its server's container name.
+(customer) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "microphone=(self), camera=()"
+	}
+	# As in infra/compose/Caddyfile.prod: chat events are flushed at once.
+	@event_stream path /api/events/stream
+	handle @event_stream {
+		reverse_proxy {args[0]}:8000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		reverse_proxy {args[0]}:8000
+	}
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 64KB
+	}
+	# Staff sign in here (lonora/staff: one "email bcrypt-hash" line each, from caddy hash-password).
+	# The site trusts X-Staff-Email only because this proxy sets it here and removes it everywhere else.
+	@admin path /admin /admin/* /api/admin/*
+	handle @admin {
+		basic_auth {
+			import /etc/caddy/lonora/staff
+		}
+		reverse_proxy unix//run/lonora/site.sock {
+			header_up X-Staff-Email {http.auth.user.id}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+	handle {
+		reverse_proxy unix//run/lonora/site.sock {
+			header_up -X-Staff-Email
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}
+
+import /etc/caddy/lonora/customers/*.caddy

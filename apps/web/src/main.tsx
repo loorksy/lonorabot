@@ -8,6 +8,7 @@ import App from "./App";
 import { ChartRenderBridge } from "./components/charts/ChartRenderBridge";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { activateLocale } from "./i18n/config";
+import { takeSetupToken } from "./lib/setup-link";
 import { A11Y_DEFAULTS, applyA11y, readDevicePref } from "./shell/settings/device-prefs";
 import "./styles.css";
 
@@ -19,6 +20,9 @@ const rendererLocale =
 activateLocale((rendererLocale ?? localStorage.getItem("lonora.locale")) === "en" ? "en" : "ar");
 // «سهولة الاستخدام» applies from the first paint.
 applyA11y(readDevicePref("a11y", A11Y_DEFAULTS));
+// A setup link's token (#token=…) leaves the address bar before anything renders: an installation
+// with its owner, or a signed-in owner, never shows the first-run step that reads it.
+takeSetupToken();
 const root = document.getElementById("root");
 if (!root) throw new Error("root_element_missing");
 ReactDOM.createRoot(root).render(

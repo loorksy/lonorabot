@@ -1,9 +1,10 @@
 import { brand } from "@lonora/ui-tokens";
-import { Redirect } from "expo-router";
-import { useEffect, useState } from "react";
+import { Redirect, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
 import { onboardingStatus } from "../lib/api";
+import { type HeldSetupToken, sameServer, takeSetupToken } from "../lib/connect-link";
 import { useSession } from "../lib/session";
 
 export default function SignIn() {
@@ -51,10 +52,28 @@ export default function SignIn() {
   }, [ready, owner, address, recheck]);
   const pending = checked?.address !== address;
   const setup = !pending && checked?.initialized === false;
-  // The setup token is kept only while the setup form is shown.
+  // A connect link's setup token (lonora://connect…&token=) fills the setup form once, and only
+  // for the server the link named. It is taken each time this screen comes into view: a phone
+  // with no owner already waits here when a link is confirmed. That server is the one the owner
+  // just confirmed, so an address typed before gives way to it.
+  const [linked, setLinked] = useState<HeldSetupToken | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      const held = takeSetupToken();
+      if (!held) return;
+      setLinked(held);
+      setServer(null);
+    }, []),
+  );
+  // The setup token is kept only while the setup form is shown, and the link's token is filled
+  // only into the form of the server it was issued for.
   useEffect(() => {
     if (!setup) setToken("");
-  }, [setup]);
+    else if (linked && sameServer(linked.server, address)) {
+      setToken(linked.token);
+      setLinked(null);
+    }
+  }, [setup, address, linked]);
   if (!ready) return <Loading />;
   if (owner) return <Redirect href="/" />;
   // One rule for the button and for the keyboard's submit key.

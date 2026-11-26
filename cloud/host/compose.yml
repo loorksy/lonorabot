@@ -1,0 +1,71 @@
+# The shared services of the Lonora Cloud host (docs/cloud/DECISIONS.md D48): the reverse proxy with
+# automatic TLS, one PostgreSQL server (a database and role per customer, made by customer.sh) and
+# web search. The website runs beside them as lonora-site.service (server.mjs, on a unix socket the
+# proxy reaches); every customer is its own Compose project (customer.yml) on these networks.
+# Started by customer.sh init, with /srv/lonora/host.env.
+name: lonora-host
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: lonora-caddy
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in host.env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in host.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # staff (sign-ins for the admin panel) and customers/<handle>.caddy (one route each)
+      - /srv/lonora/caddy:/etc/caddy/lonora:ro
+      - /srv/lonora/run:/run/lonora
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [lonora-edge]
+    mem_limit: 256m
+    cpus: 0.5
+  postgres:
+    image: postgres:16-alpine
+    container_name: lonora-postgres
+    restart: unless-stopped
+    # Each customer's server and worker hold up to 15 connections each.
+    command: ["postgres", "-c", "max_connections=300"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run customer.sh init}
+    volumes: ["database:/var/lib/postgresql/data"]
+    networks: [lonora-db]
+    mem_limit: 2g
+    cpus: 1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  # Private JSON search for every customer's agents (infra/research/searxng.yml); never public.
+  searxng:
+    image: ghcr.io/searxng/searxng@sha256:892ed5710603e38f9dc201e6a0b2f3f14dbdb8108edcadac30e55b165c979fb7
+    container_name: lonora-searxng
+    restart: unless-stopped
+    user: searxng
+    entrypoint: [/bin/sh, -c]
+    command:
+      - export SEARXNG_SECRET="$$(python -c 'import secrets; print(secrets.token_hex(32))')"; exec /usr/local/searxng/.venv/bin/granian searx.webapp:app
+    volumes: ["../../infra/research/searxng.yml:/etc/searxng/settings.yml:ro"]
+    environment:
+      SEARXNG_BIND_ADDRESS: 0.0.0.0:8080
+    networks: [lonora-search]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777", "/var/cache/searxng:size=64m,mode=1777"]
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+networks:
+  lonora-edge: {name: lonora-edge}
+  # No route out: only Lonora's servers and workers of each customer reach the database.
+  lonora-db: {name: lonora-db, internal: true}
+  lonora-search: {name: lonora-search}
+volumes:
+  database:
+  caddy-data:
+  caddy-config:

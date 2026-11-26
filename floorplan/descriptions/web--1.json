@@ -159,6 +159,10 @@
     "apps/web/src/lib/response_streaming.ts": {
       "name": "Reply streaming helper",
       "description": "Helps turn the live reply stream into shown text."
+    },
+    "apps/web/src/lib/setup-link.ts": {
+      "name": "Setup link reader",
+      "description": "Reads the one-time setup code from a setup link's address once and wipes it from the address bar and history; the app calls it as soon as it starts."
     }
   }
 }
