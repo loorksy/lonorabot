@@ -30,7 +30,7 @@
     },
     "tests/test_gate.py": {
       "name": "Gate tests",
-      "description": "Automatic checks that the gate runs every core safety test and that CI runs the gate."
+      "description": "Automatic checks that the gate runs every core safety test, leaves the checkout as it found it and keeps the database password off command lines, and that CI runs the gate."
     },
     "tests/test_gateway_reliability.py": {
       "name": "Gateway reliability tests",
