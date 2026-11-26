@@ -1,6 +1,80 @@
 {
-  "updatedAt": "2026-11-26T12:00:00Z",
+  "updatedAt": "2026-11-26T20:00:00Z",
   "tasks": [
+    {
+      "title": "Lonora Cloud server: safety fixes",
+      "request": "Check the findings of a review of the one-server rework and fix the real ones with small changes",
+      "summary": "Activating an account can no longer wipe a customer that was set up by hand under the same name; staff are asked to pick another name. Building a new version no longer blocks activations, a version that fails for one customer still moves the others and names the ones left behind, a damaged customer disk no longer stops the whole server from starting, and live chat updates are passed on at once as on the current server.",
+      "items": [
+        {
+          "ref": "cloud/host/customer.sh",
+          "change": "changed",
+          "note": "Refuses a name already in use without removing anything, waits at most a minute for another job, builds a version without holding up activations, reports customers it could not move, and marks each customer disk as optional at start-up."
+        },
+        {
+          "ref": "cloud/site/functions/_lib/provision.js",
+          "change": "changed",
+          "note": "When the installer changed nothing, the attempt is not undone, so another customer's installation is never removed."
+        },
+        {
+          "ref": "cloud/host/Caddyfile",
+          "change": "changed",
+          "note": "Passes each customer's live chat updates on at once, as the current server does."
+        },
+        {
+          "ref": "cloud/site/tests/provision.test.js",
+          "change": "changed",
+          "note": "Checks that activating an account never removes an installation made by hand under the same name."
+        }
+      ]
+    },
+    {
+      "title": "Lonora Cloud on one server",
+      "request": "Rework the website and activation for one Hostinger server that holds the website, the admin panel and every customer (D48), with the least code",
+      "summary": "The website now runs on the shared server itself instead of Cloudflare, with the same handlers. Activate creates the customer's own Lonora there in under a minute, and each new version is built once and every customer moved to it. Removed: the Cloudflare settings file, the Hetzner and Cloudflare provisioning and the server's ready callback. Tested in practice mode only; not yet run on the real server.",
+      "items": [
+        {
+          "ref": "infra.cloud",
+          "change": "new",
+          "note": "New on the map: the website, the admin panel and the shared server's tools for customers."
+        },
+        {
+          "ref": "cloud/host/customer.sh",
+          "change": "new",
+          "note": "New: creates, updates and removes one customer's Lonora with its own database, keys and address, and builds each version once for all customers."
+        },
+        {
+          "ref": "cloud/host/server.mjs",
+          "change": "new",
+          "note": "New: serves the website and admin panel on the server and runs the existing handlers unchanged in shape."
+        },
+        {
+          "ref": "cloud/site/functions/_lib/provision.js",
+          "change": "changed",
+          "note": "Activate now asks the shared server for the customer's Lonora instead of renting a Hetzner server and a Cloudflare address."
+        },
+        {
+          "ref": "cloud/site/functions/_lib/core.js",
+          "change": "changed",
+          "note": "Staff are recognised from the server's own sign-in instead of Cloudflare Access."
+        },
+        {
+          "ref": "cloud/site/functions/api/admin/decide.js",
+          "change": "changed",
+          "note": "One click now ends with an active account; deleting removes the customer's installation."
+        },
+        {
+          "ref": "cloud/site/tests/provision.test.js",
+          "change": "changed",
+          "note": "Tests activation, failure and retry, deletion and a release with the real installer in practice mode."
+        },
+        {
+          "ref": "cloud/site/tests/server.test.js",
+          "change": "new",
+          "note": "New: checks the website server over real web requests."
+        }
+      ]
+    },
     {
       "title": "Open Lonora from a link",
       "request": "Activating a customer's account is one click, and the customer opens their Lonora from the website",

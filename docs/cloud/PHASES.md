@@ -76,6 +76,20 @@ through a setup link, answers every `--json` command, and a self-hosted install 
 
 ---
 
+## Phase W — The website, registration and approval (in progress, D46)
+
+The company website and the portal account. Until `loorksy/lonora-cloud` exists (D2, P0-T7), it is staged in `cloud/site/` of this repository. `cloud/` is outside every path the Lonora `Dockerfile` copies, so none of it ships in a customer image (Amendment 3 §7).
+
+| ID | Task | Acceptance criteria |
+|---|---|---|
+| PW-T1 | Website v04: v03 corrected to VISION and Amendments 1-3. Two modes, no limits, no Stop, plans as resource tiers (D13) with prices "announced at launch" (D14), BYOK, the app as the product. | Every claim traces to VISION or this plan; Arabic first; screenshots at 390 and 1280 in ar and en. |
+| PW-T2 | Registration: name, email, password, country, language, MT5 broker (optional), acceptance of the terms and the risk disclosure (versions recorded). Turnstile, honeypot, per-IP rate limit, no account enumeration. The new account is `pending`. | Tests: valid signup, duplicate email, bad input, bot, rate limit, foreign origin. |
+| PW-T3 | Portal sign-in and the account page: the status (pending, active, rejected, suspended); when active, "Open in the app" with the customer's instance address and setup link. This sign-in is the portal's only. It never opens the customer's Lonora (D7). | Tests: sessions (HttpOnly, Secure, SameSite), logout, wrong password, the status page per state. |
+| PW-T4 | Admin panel behind Cloudflare Access (staff identity, D25): list and search accounts; approve, activate (instance address and setup link), reject with a reason, suspend; CSV export; audit log of every staff action. | Tests: a request without a valid Access token is refused; every decision is logged; CSV cells cannot inject formulas. |
+| PW-T6 | (Replaced by PW-T7, D48.) One-click activation: «تفعيل» creates the customer's Hetzner server (D3), its `<handle>.<BASE_DOMAIN>` DNS record (D4/D5), and installs Lonora with the stock `install.sh` from a first-boot script. The server reports ready once, with a per-job secret, and is believed only when `/ready` answers on its domain. The account then turns active with the setup link. Failures undo the server and DNS and offer a retry. Manual activation stays as the fallback. | Tests with a fake Hetzner, Cloudflare and customer server: create, ready, a wrong secret, not ready, failure and retry, a cloud error, handles, delete with the server. Only the secret's hash is stored. |
+| PW-T7 | One server for everything (D48). `cloud/host/` runs the website (`server.mjs`: the same handlers, on SQLite), the shared Caddy (automatic TLS), PostgreSQL and SearXNG, and each customer as its own Compose project: server and worker, with the workspace and browser on demand at 1 GB each. «تفعيل» runs `customer.sh create` (database and role, the customer's own keys, Lonora, route) and turns the account active with the setup link; `customer.sh release` builds the image once and switches every customer. Staff sign in at Caddy instead of Cloudflare Access. **Status (2026-11-26):** built; 44 tests pass with `customer.sh` in dry-run mode; not yet run on the server. Open: Turnstile is still Cloudflare's; the workspace starts on request (`customer.sh workspace`), not when an agent first needs it; backups of the shared database. | Tests: activation writes the env file (mode 600) and the route and never prints a key or password; a failed attempt is undone and can be retried; deletion removes the installation; a release builds once and updates every customer; admin calls need the proxy's staff header. On the server: activation and a release each take under a minute, and memory is measured with the first customers. |
+| PW-T5 | The owner's runbook: Cloudflare account, D1, Turnstile, Access, secrets, deploy, export, deletion on request. | A dry run with the local test server follows it to the end. |
+
 ## Phase M — The Android app is the product (`lonorabot`, alongside Phases 2–4, D36)
 
 | ID | Task | Acceptance criteria |

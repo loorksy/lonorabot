@@ -85,6 +85,7 @@
     { "id": "ops", "label": "Scripts & command line", "kind": "script", "summary": "Install, dev and build scripts, agent evaluations, and the command used to run Lonora on a server.", "paths": ["scripts"] },
 
     { "id": "infra", "label": "Running on a server", "kind": "infra", "summary": "How Lonora is packaged and run on a server.", "paths": ["infra"] },
+    { "id": "infra.cloud", "parent": "infra", "label": "Lonora Cloud server", "kind": "service", "summary": "The company website and staff admin panel, and the one shared server that runs every customer's own Lonora.", "paths": ["cloud"] },
 
     { "id": "pg", "label": "Database (PostgreSQL)", "kind": "external", "summary": "Where everything is stored.", "packages": ["pypi:sqlalchemy", "pypi:alembic", "pypi:asyncpg"] },
     { "id": "ai", "label": "AI model providers", "kind": "external", "summary": "The outside AI services the agents think with: OpenAI, Anthropic, DeepSeek, Z.ai and OpenRouter.", "hosts": ["api.openai.com", "api.anthropic.com", "api.deepseek.com", "api.z.ai", "openrouter.ai", "openaipublic.blob.core.windows.net"] },
