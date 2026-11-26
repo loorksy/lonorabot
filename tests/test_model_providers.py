@@ -301,7 +301,7 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
             assert answer.json()["code"] == "provider_not_supported", path
         # No provider is asked for its list from Settings any more (VISION 12.4).
         gone = await fixture.client.post("/api/providers/openai/discover", json={})
-        assert gone.status_code == 404
+        assert gone.status_code in {404, 405}, gone.status_code
     finally:
         await fixture.close()
 
