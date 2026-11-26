@@ -1,6 +1,7 @@
 from typing import Any
 
 from lonora_contracts.runs import RunRequest
+from lonora_core.run_state import TERMINAL
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
 from lonora_db.messages import message_data
@@ -67,6 +68,22 @@ async def delegate_peer(context: ToolContext, agent_id: str, task: str) -> dict[
             ):
                 raise LonoraError("peer_intent_conflict", 409)
             return run_data(existing)
+        # The same request to the same agent from this run, while that work has not ended,
+        # is that work (11.5); ended work is sent again by a new request.
+        duplicate = await session.scalar(
+            select(RunRow)
+            .where(
+                RunRow.parent_run_id == parent.id,
+                RunRow.agent_id == agent_id,
+                RunRow.trigger == "peer",
+                RunRow.prompt == task,
+                RunRow.status.not_in(TERMINAL),
+            )
+            .order_by(RunRow.created_at, RunRow.id)
+            .limit(1)
+        )
+        if duplicate:
+            return {**run_data(duplicate), "duplicate": True}
         source = await owned_agent(session, context.owner_id, context.agent_id)
         request_messages: dict[str, MessageRow] = {}
         for side, thread_id in (("source", context.thread_id), ("target", thread.id)):
