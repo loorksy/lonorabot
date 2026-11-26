@@ -118,7 +118,7 @@ Run `LONORA_DATABASE_URL=<a PostgreSQL 16 server> bash scripts/gate.sh`. Only th
 - `pnpm --filter @lonora/web i18n`, with Arabic at 0 missing. The extraction rewrites the catalogs; when they had no local edits, the gate restores them afterwards, so it leaves the checkout as it found it.
 - `bash scripts/migrate.sh` on a fresh database. There must be exactly one alembic head.
 - Full pytest: `.venv/bin/python -m pytest -q tests`. It includes `tests/test_acceptance_scenario.py`, which runs `scripts/agent_eval/acceptance.py --offline`.
-- `python tests/run_foundation_checks.py --isolated-databases` (109 check scripts and 16 pytest files; each gets a fresh database). Five of the core tests of VISION 14.1.2 are check scripts there; the other six run in the full pytest. `tests/test_gate.py` fails if the gate stops running one of them, or if `ci.yml` gets a test list of its own.
+- `python tests/run_foundation_checks.py --isolated-databases` (109 check scripts and 16 pytest files; each gets a fresh database). Five of the core tests of VISION 14.1.2 are check scripts there; the other six run in the full pytest. `tests/test_gate.py` fails if the gate stops running one of them or filters the full pytest, if `tests/test_acceptance_scenario.py` stops running `acceptance.py --offline`, or if `ci.yml` gets a test list of its own.
 - Every TypeScript unit test: `pnpm exec tsx --test tests/web/*.test.ts tests/mobile/*.test.ts`.
 - The FULL Playwright web suite (`pnpm test:web`) and the FULL mobile suite (`pnpm test:mobile`), with `--trace off`. Each runs on a fresh database, one at a time, because the ports are fixed at 8830/8831.
 

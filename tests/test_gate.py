@@ -19,6 +19,8 @@ CI = ROOT / ".github/workflows/ci.yml"
 PYTEST = ["$PY", "-m", "pytest", "-q", "tests"]
 FOUNDATION = ["$PY", "tests/run_foundation_checks.py", "--isolated-databases"]
 CATALOG = "apps/web/src/i18n/locales/ar/messages.po"
+ACCEPTANCE = ROOT / "tests/test_acceptance_scenario.py"
+OFFLINE_RUN = "test_the_offline_run_passes_every_step_whose_feature_is_here"
 # The stubbed gate's database password: it must never reach a command line.
 PASSWORD = "gate-only-password"
 
@@ -169,6 +171,45 @@ def test_a_gate_that_drops_a_core_test_is_caught(tmp_path: Path, line: str, muta
     assert gate.count(line) == 1
     gate = gate.replace(line, mutated)
     assert gate_gaps(gate) + run_gaps(stubbed_run(tmp_path, gate))
+
+
+def acceptance_gaps(source: str) -> list[str]:
+    """Why the full pytest would not run ``acceptance.py --offline`` (roadmap B0), given the text
+    of tests/test_acceptance_scenario.py; empty when it would."""
+    runs = [
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == OFFLINE_RUN
+    ]
+    if len(runs) != 1:
+        return [f"tests/test_acceptance_scenario.py has no {OFFLINE_RUN}"]
+    marks = [ast.unparse(decorator) for decorator in runs[0].decorator_list]
+    gaps = [
+        f"{OFFLINE_RUN} is marked {mark}" for mark in marks if "skip" in mark or "xfail" in mark
+    ]
+    if "pytestmark" in source:
+        gaps.append("tests/test_acceptance_scenario.py marks every test")
+    body = ast.get_source_segment(source, runs[0]) or ""
+    if '"scripts/agent_eval/acceptance.py"' not in body or '"--offline"' not in body:
+        gaps.append(f"{OFFLINE_RUN} does not run scripts/agent_eval/acceptance.py --offline")
+    return gaps
+
+
+@pytest.mark.parametrize(
+    ("text", "mutated"),
+    [
+        (f"def {OFFLINE_RUN}", "def test_renamed"),
+        (f"def {OFFLINE_RUN}", f'@pytest.mark.skip(reason="later")\ndef {OFFLINE_RUN}'),
+        ('"--offline", ', ""),
+    ],
+)
+def test_the_full_run_holds_the_offline_acceptance_run(text: str, mutated: str) -> None:
+    # The gate has no step of its own for it: its full pytest runs it through this one test,
+    # on the fresh PostgreSQL database the gate gives it.
+    source = ACCEPTANCE.read_text(encoding="utf-8")
+    assert acceptance_gaps(source) == []
+    assert source.count(text) == 1
+    assert acceptance_gaps(source.replace(text, mutated))
 
 
 def test_the_gate_leaves_the_checkout_as_it_found_it(tmp_path: Path) -> None:

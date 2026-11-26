@@ -92,7 +92,8 @@ heads=$("$PY" -m alembic -c packages/db/alembic.ini heads | grep -c '(head)' || 
 [ "$heads" -eq 1 ] || { echo "expected one alembic head, found $heads"; exit 1; }
 
 # The full run includes tests/test_acceptance_scenario.py, which runs
-# scripts/agent_eval/acceptance.py --offline and holds its known defects strictly.
+# scripts/agent_eval/acceptance.py --offline and holds its known defects strictly
+# (tests/test_gate.py fails if it stops doing so).
 step "full pytest"
 "$PY" -m pytest -q tests
 
