@@ -911,6 +911,9 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
 # concern one model of the key; the first two every model it reaches.
 OWNER_ONLY_REASONS = ("auth", "billing", "permission", "model_not_found")
 PER_MODEL_REASONS = ("permission", "model_not_found")
+# A route that fails again after a success raises its item again, but pushes it at most
+# once in this time for the same cause and key.
+REPUSH_AFTER = timedelta(hours=24)
 
 
 async def credential_marker(session: AsyncSession, provider: str) -> str:
@@ -973,9 +976,14 @@ async def raise_model_access(
                 )
             )
         )
-        # One open item per route, cause and key; a later failure after it ended is new.
+        # One open item per route, cause and key; a later failure after it ended is new,
+        # and pushes only once a day has passed since the last one that pushed.
         if any(row.status != "suppressed" for row in earlier):
             continue
+        repeat = any(
+            not row.parameters.get("repeat") and row.created_at > utcnow() - REPUSH_AFTER
+            for row in earlier
+        )
         item = await raise_system_attention(
             session,
             owner_id,
@@ -989,6 +997,7 @@ async def raise_model_access(
                 "route": route,
                 "reason": reason,
                 "credential": credential,
+                **({"repeat": True} if repeat else {}),
             },
             agent_id=run.agent_id,
             thread_id=run.model_metadata.get("origin_thread_id") or thread.id,

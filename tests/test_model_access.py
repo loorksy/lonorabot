@@ -563,3 +563,36 @@ async def test_a_missing_model_ends_once_no_agent_would_try_it(task_db: Fixture)
     async with db.sessions() as session, session.begin():
         assert await withdraw_ended(session, owner) == 1
     assert [item.status for item in await items(db, owner)] == ["suppressed"]
+
+
+@pytest.mark.asyncio
+async def test_a_provider_failing_between_successes_pushes_once_a_day(task_db: Fixture) -> None:
+    from lonora_gateway.push import push_record
+
+    db, owner, agent, thread = task_db
+    await routed(db)
+    rejected = await provider_failure(db, ModelProviderError(FailureReason.AUTH, http_status=401))
+
+    async def fail_then_answer() -> None:
+        async with db.sessions() as session, session.begin():
+            await create_run(
+                session,
+                owner,
+                RunRequest(thread_id=thread, agent_id=agent, trigger="watch", prompt="Watch gold"),
+            )
+        await fail_next(db, rejected)
+        async with db.sessions() as session, session.begin():
+            await settle_model_access(session, owner, "openai", "primary-model")
+
+    await fail_then_answer()
+    await fail_then_answer()
+    first, second = sorted(await items(db, owner), key=lambda item: item.created_at)
+    async with db.sessions() as session:
+        # Each failure is an item of its own, but only the first pushes.
+        assert await push_record(session, first) == (first.id, None)
+        assert await push_record(session, second) is None
+    await pass_time(db, 25 * 60)
+    await fail_then_answer()
+    *_, third = sorted(await items(db, owner), key=lambda item: item.created_at)
+    async with db.sessions() as session:
+        assert await push_record(session, third) == (third.id, None)

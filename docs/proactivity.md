@@ -171,7 +171,8 @@ or a channel.
   every model it could use refused access (a rejected key, spent credit, a model the key
   may not use or that the provider does not have), the owner gets one
   `model_access_failed` item per provider route and cause, and its push (VISION 11.5,
-  Amendment 5). A rejected key or spent credit is the provider's route; a refused or
+  Amendment 5); a route that fails again after a success raises a new item, which pushes
+  only once a day has passed since the last push for that cause and key (`REPUSH_AFTER`). A rejected key or spent credit is the provider's route; a refused or
   missing model is that provider's model. The text is fixed: the provider's name and the
   failure family, never the provider's message; a reason read only from wording on a
   generic response raises nothing, and a failure the owner is waiting on (a conversation)
