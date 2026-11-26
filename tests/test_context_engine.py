@@ -985,7 +985,11 @@ async def test_dark_zone_between_summary_cursor_and_window_is_reported(task_db: 
         loaded = await history_context(session, thread, 130, 10, agent)
         gap = await history_gap(session, thread, 130, 10)
         none = await history_gap(session, thread, 130, 40)
-    assert len(loaded) == HISTORY_WINDOW and loaded[0].content == "message 31"
+    # A replayed owner turn ends with its date and origin; the agent's own turns carry none.
+    stamp = (start + timedelta(minutes=31)).strftime("%Y-%m-%d %H:%M")
+    assert len(loaded) == HISTORY_WINDOW
+    assert loaded[0].content == f"message 31\n[{stamp} UTC, owner]"
+    assert loaded[1].role == "assistant" and loaded[1].content == "message 32"
     assert gap is not None and (gap.first_seq, gap.last_seq, gap.count) == (11, 30, 20)
     assert "20 earlier messages" in gap.notice() and "sequence 11 to 30" in gap.notice()
     assert none is None
