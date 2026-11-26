@@ -290,6 +290,32 @@ def test_the_gateway_service_is_healthy_only_while_its_heartbeat_file_is_fresh()
     assert check["interval"] and check["retries"] and check["start_period"]
 
 
+def test_lonora_start_says_what_failed_when_a_service_never_turns_healthy(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    # Since the Gateway has a healthcheck, `up --wait` fails while it never turns healthy;
+    # the start then names what to check instead of ending on Compose's own error.
+    script = Path(__file__).resolve().parents[1] / "infra/compose/lonora"
+    stubs = (
+        "lock() { :; }; require_tools() { :; }; prepare_workspace() { :; }; compose() { :; }; "
+        "maintenance_off() { :; }; up_all() { return 1; }; wait_for() { return 0; }; "
+        "db_revision() { echo head; }; "
+    )
+    functions = (
+        "set -euo pipefail; CMD_NAME=lonora; MARKER=none; HELD_MARKER=none; RESTORE_MARKER=none; "
+        "source <(sed -n -e '/^say() {/p' -e '/^die() {/p' -e '/^cmd_start() {/,/^}/p' "
+        + str(script)
+        + "); "
+        + stubs
+        + "cmd_start"
+    )
+    done = subprocess.run(["bash", "-c", functions], cwd=tmp_path, capture_output=True, text=True)
+    assert done.returncode == 1
+    assert "sudo lonora status" in done.stderr and "/ready" not in done.stderr
+
+
 def watch_payload(**extra: Any) -> dict[str, Any]:
     return {
         "kind": "price",
