@@ -1,6 +1,7 @@
 # Trading expertise for Lonora's agents: skills, not fixed numbers (proposal)
 
 Audience: Lonora developers. The plain Arabic summary for the owner comes first.
+Status: TX1 and TX2 shipped (the 18 skills; built behaviour in `docs/trading-skills.md`). TX3 to TX6 are proposed.
 Lonora was read at `main` `d8193b98` (`/home/user/wt-agent/fxmain`), and AiChart at `1a1b5e0` (`/home/user/aichart`).
 Both were read only. Nothing was built, run or published.
 Inputs: `aichart-knowledge.md`, `aichart-learning.md`, `lonora-trading-knowledge.md`, `gap-memory.md`, the skills parts of
