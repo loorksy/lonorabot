@@ -25,12 +25,14 @@ from lonora_adapter_kit.types import ModelReply
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_automation.runner import dispatch_routines
 from lonora_contracts.domain import utcnow
+from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.attention import ATTENTION_KINDS
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.agent_permissions import permission_state
 from lonora_db.agent_state import agent_live_state
+from lonora_db.cancellation import cancel_run
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import QUARANTINE_AFTER, ItemGuard
@@ -64,7 +66,7 @@ from lonora_gateway.watchdog import Watchdog
 from lonora_tools.base import Tool
 from lonora_tools.context import RunDrain, ToolContext
 from lonora_tools.registry import ToolRegistry
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import OperationalError
 from test_task_runtime import task_db as task_db
 from test_tool_loop_execution import (
@@ -848,6 +850,79 @@ async def test_lease_renewal_gives_up_before_expiry_or_at_once_when_fenced(
     started = asyncio.get_running_loop().time()
     await asyncio.wait_for(executor.keep_lease(context, 3, lambda: lost.append(True)), 3)
     assert lost == [True] and asyncio.get_running_loop().time() - started < 1.5
+
+
+async def cancelled_by_owner(context: ToolContext) -> tuple[RunRow, int]:
+    """The owner cancels the Run; returns what the cancel wrote and the last event."""
+    async with context.db.sessions() as session, session.begin():
+        await cancel_run(session, context.owner_id, context.lease.run_id)
+    async with context.db.sessions() as session:
+        last = await session.scalar(select(func.max(EventRow.cursor)))
+    return await saved_run(context), int(last or 0)
+
+
+async def nothing_written_after(context: ToolContext, cancelled: RunRow, last: int) -> None:
+    """No write of the old lease landed after the cancel: the fence refused them all."""
+    run = await saved_run(context)
+    assert run.status == "cancelled" and run.updated_at == cancelled.updated_at
+    assert run.execution_state == cancelled.execution_state
+    async with context.db.sessions() as session:
+        later = list(
+            await session.scalars(
+                select(EventRow.kind).where(EventRow.run_id == run.id, EventRow.cursor > last)
+            )
+        )
+    assert later == []
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_during_a_long_model_call_stops_the_run_within_three_seconds(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    thinking = asyncio.Event()
+
+    async def reasoning(*_: Any, **__: Any) -> tuple[ModelReply, ModelSelection]:
+        # A reasoning model before its first token: no fenced write would notice a cancel.
+        thinking.set()
+        await asyncio.sleep(30)
+        return ModelReply(text="Too late."), ModelSelection(provider="openai", model="slow")
+
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", reasoning)
+    context = await conversation_run(task_db)
+    worker = asyncio.create_task(executor.execute_run(context, ToolRegistry([]), 120, 8))
+    await asyncio.wait_for(thinking.wait(), 5)
+    cancelled, last = await cancelled_by_owner(context)
+    clock = asyncio.get_running_loop().time
+    started = clock()
+    await asyncio.wait_for(worker, 5)
+    assert clock() - started < 3 and not worker.cancelled()
+    await nothing_written_after(context, cancelled, last)
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_never_cuts_a_change_past_before_effect(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started, writes = asyncio.Event(), list[int]()
+
+    async def write(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        # Longer than the watcher's period: a cut here would leave the change uncertain.
+        await asyncio.sleep(2.5)
+        writes.append(args["n"])
+        return {"version": args["n"]}
+
+    registry = ToolRegistry([Tool("fixture_write", "Write", Arguments, write, False)])
+    block = calls(("w1", "fixture_write", 1))
+    context = replace(await conversation_run(task_db, seeded(block)), drain=RunDrain())
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Saved.")))
+    worker = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    cancelled, last = await cancelled_by_owner(context)
+    await asyncio.wait_for(worker, 6)
+    # The change ran to its end; its result, written under the old fence, was refused.
+    assert writes == [1] and not worker.cancelled()
+    await nothing_written_after(context, cancelled, last)
 
 
 @pytest.mark.asyncio

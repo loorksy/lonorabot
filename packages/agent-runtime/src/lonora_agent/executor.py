@@ -19,7 +19,7 @@ from lonora_db.runs import (
     require_lease,
     run_data,
 )
-from lonora_db.schema import MessageRow, SteeringRow, ThreadRow, TradeApprovalRow
+from lonora_db.schema import MessageRow, RunRow, SteeringRow, ThreadRow, TradeApprovalRow
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_db.task_wait_settlement import settle_task_wait
@@ -43,6 +43,10 @@ log = logging.getLogger("lonora.executor")
 
 # Database failures a lease renewal retries before it gives the lease up.
 TRANSIENT_RENEWAL_ERRORS = (SQLAlchemyError, OSError, TimeoutError)
+# How often a running Run looks whether it was cancelled (VISION 4.6, 4.7, 7.1.5).
+WATCH_SECONDS = 2.0
+# How often a cancel noticed inside an effect looks again whether the effect ended.
+EFFECT_POLL_SECONDS = 0.2
 
 
 async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[], None]) -> None:
@@ -75,6 +79,44 @@ async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[]
                 return
             renewed = monotonic()
             break
+
+
+async def watch_fence(
+    context: ToolContext, worker: asyncio.Task[object] | None, lost: Callable[[], None]
+) -> None:
+    """Stop the Run within about two seconds once its fence moved (a cancel).
+
+    A cancel only moves the fence. Between fenced writes (a model thinking before its
+    first token, a long read, a backoff sleep) the Run would otherwise go on, spending
+    the owner's key, until its next lease renewal. A worker inside an effect is never
+    cut: the cancel takes effect once that call has returned, and the checkpoint of its
+    result is already refused by the moved fence.
+    """
+    while True:
+        await asyncio.sleep(WATCH_SECONDS)
+        try:
+            async with context.db.sessions() as session:
+                row = (
+                    await session.execute(
+                        select(RunRow.status, RunRow.lease_fence).where(
+                            RunRow.id == context.lease.run_id
+                        )
+                    )
+                ).one_or_none()
+        except TRANSIENT_RENEWAL_ERRORS:
+            # An outage is keep_lease's to judge.
+            continue
+        if (
+            row is not None
+            and row.lease_fence == context.lease.fence
+            and row.status in {"leased", "running"}
+        ):
+            continue
+        while True:
+            if context.drain is None or worker not in context.drain.effects:
+                lost()
+                return
+            await asyncio.sleep(EFFECT_POLL_SECONDS)
 
 
 def connection_failed(error: Exception) -> bool:
@@ -146,13 +188,17 @@ async def execute_run(
     correlation = diagnostic_run_id.set(context.lease.run_id)
     current = asyncio.current_task()
     lost_lease = asyncio.Event()
+    # Only the Run's own work is cancelled: once it ended, its outcome is being written
+    # (or discarded) and a cancel there would escape into the worker loop.
+    working = True
 
     def lose() -> None:
         lost_lease.set()
-        if current:
+        if current and working:
             current.cancel()
 
     heartbeat_task = asyncio.create_task(keep_lease(context, lease_seconds, lose))
+    watch_task = asyncio.create_task(watch_fence(context, current, lose))
     try:
         async with context.db.sessions() as session, session.begin():
             row = await require_lease(session, context.lease, lock=True)
@@ -349,6 +395,7 @@ async def execute_run(
                 await return_outcome(context.db, context.lease.run_id)
             return
     except ToolRetryScheduled:
+        working = False
 
         async def release(session: AsyncSession) -> None:
             row, _ = await locked_run_thread(session, context.lease)
@@ -401,12 +448,16 @@ async def execute_run(
         if not lost_lease.is_set():
             raise
     except LonoraError as error:
+        working = False
         if error.code != "stale_lease":
             await record_failure(context, registry, error.code, error)
     except Exception as error:
+        working = False
         log.error("run_failed type=%s", type(error).__name__)
         await record_failure(context, registry, "runtime_error")
     finally:
+        working = False
         heartbeat_task.cancel()
-        await asyncio.gather(heartbeat_task, return_exceptions=True)
+        watch_task.cancel()
+        await asyncio.gather(heartbeat_task, watch_task, return_exceptions=True)
         diagnostic_run_id.reset(correlation)
