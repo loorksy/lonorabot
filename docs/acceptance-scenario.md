@@ -60,7 +60,7 @@ export LONORA_DATABASE_URL=postgresql+asyncpg://lonora:ci-only-password@127.0.0.
 
 - **No model and no network.** Scripted model turns go through Lonora's real loop, the real tool handlers and the real MetaApi adapter, over the fake terminal of `scripts/agent_eval/broker.py`.
 - **The database.** The URL names a disposable `*_test` database. The run migrates it as a template, copies it for each step, and drops every copy.
-- **The full pytest run includes it:** `tests/test_acceptance_scenario.py` fails when a step whose feature is here fails. GitHub Actions do not run it; the local gate does.
+- **The full pytest run includes it:** `tests/test_acceptance_scenario.py` fails when a step whose feature is here fails. The local gate, `scripts/gate.sh`, runs it. `ci.yml` calls the same script, but GitHub Actions do not run on this repository.
 
 ## Live: a real model, run by the lead on the owner's server
 
