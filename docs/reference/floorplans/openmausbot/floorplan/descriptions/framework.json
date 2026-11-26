@@ -1,0 +1,272 @@
+{
+  "files": {
+    "server/openmausbot.ts": {
+      "name": "Server entry",
+      "description": "Runs the CLI main() and exits after flushing, closing quietly on a broken pipe."
+    },
+    "server/cli.ts": {
+      "name": "CLI and launcher",
+      "description": "Parses setup, serve, pair and service commands and restarts the server under the crash and restart-exit policy."
+    },
+    "server/index.ts": {
+      "name": "Server composition root",
+      "description": "Wires stores, runtime, bus, routes, SSE, timers and shutdown, and listens on loopback plus an optional tunnel socket."
+    },
+    "server/schema.ts": {
+      "name": "JSON parse helpers",
+      "description": "Parses JSON with BOM tolerance and formats the first zod issue as a short message."
+    },
+    "server/store.ts": {
+      "name": "Bot and room store",
+      "description": "Holds bots, rooms and threads in memory and saves them through registry commits with a chosen durability."
+    },
+    "server/registry-store.ts": {
+      "name": "JSON registry layout",
+      "description": "Writes bots.json and groups.json whole with fsync and rename, skipping unchanged text, behind a row-ready interface."
+    },
+    "server/atomic.ts": {
+      "name": "Atomic file writes",
+      "description": "Writes files via temp file, fsync and rename with owner-only mode and Windows rename retries."
+    },
+    "server/save-batch.ts": {
+      "name": "Batched saves",
+      "description": "Coalesces whole-file saves requested during one synchronous pass into one write when the pass ends."
+    },
+    "server/message-db.ts": {
+      "name": "Messages database",
+      "description": "Opens messages.db in WAL mode and creates message, thread-state, follow-up, receipt and notification tables."
+    },
+    "server/runtime/types.ts": {
+      "name": "Assignment types",
+      "description": "Defines the assignment record, statuses, origin, requester, assignee, modes and the TERMINAL set."
+    },
+    "server/runtime/runtime.ts": {
+      "name": "Job runtime engine",
+      "description": "Runs the assignment state machine: boot reconciliation, enqueue admission, budgets, tick, waits, wakes and cancel."
+    },
+    "server/runtime/store.ts": {
+      "name": "Runtime SQLite store",
+      "description": "Persists assignments, events and inbox rows in runtime.db with BEGIN IMMEDIATE transactions and savepoints."
+    },
+    "server/runtime-coordinator.ts": {
+      "name": "Runtime coordinator",
+      "description": "Opens runtime.db, sets depth and budget limits, imports legacy ledgers and exposes tick, pace and prune to the host."
+    },
+    "server/coordinator.ts": {
+      "name": "Coordinator interface",
+      "description": "Declares the coordinate_bots call shape, handoff views and the factory for the runtime coordinator."
+    },
+    "server/admission.ts": {
+      "name": "Admission rules",
+      "description": "Decides start, queue, steer or refuse per surface from supplied state, with no IO."
+    },
+    "server/handoff-ticks.ts": {
+      "name": "Runtime tick clock",
+      "description": "Schedules runtime ticks at 250 ms when busy, 10 s when parked and hourly when idle, with kick()."
+    },
+    "server/harness/bus.ts": {
+      "name": "Event bus",
+      "description": "Fans adapter events to listeners and appends redacted batches to per-thread NDJSON logs with overflow warnings."
+    },
+    "server/harness/http.ts": {
+      "name": "HTTP helpers",
+      "description": "Provides json replies with response hooks, body reading with limits and parsed-body checks."
+    },
+    "server/harness/registry.ts": {
+      "name": "Provider registry",
+      "description": "Builds and tracks provider driver instances, their probes, status and installs for the server."
+    },
+    "server/contracts.ts": {
+      "name": "Provider contracts",
+      "description": "Defines ProviderAdapter, its capability flags, runtime events and turn input types shared by drivers."
+    },
+    "server/live-turns.ts": {
+      "name": "Live turn tracker",
+      "description": "Tracks the running turn id per thread from turn.started and turn.completed events."
+    },
+    "server/agents-turn.ts": {
+      "name": "Agents turn env",
+      "description": "Derives the per-turn agents MCP environment from conversation facts so tool lists stay stable for caching."
+    },
+    "server/internal-turns.ts": {
+      "name": "Internal turn marks",
+      "description": "Marks threads whose running turn was started by the harness rather than a person's message."
+    },
+    "server/harness-capabilities.ts": {
+      "name": "Harness capability lines",
+      "description": "Describes tools gained or lost when a thread moves between drivers with and without the agents MCP."
+    },
+    "server/harness-mcp-token.ts": {
+      "name": "MCP token env names",
+      "description": "Names the per-family environment variable that carries each harness MCP bearer token."
+    },
+    "server/drivers/agents-bridge.ts": {
+      "name": "Tool bridge",
+      "description": "Lists a few tools plus find_tool and use_tool so hidden tools run under the same judgment as direct calls."
+    },
+    "server/turn-watchdog.ts": {
+      "name": "Turn watchdog",
+      "description": "Stops turns silent past stall limits, sparing parked turns and shell commands still using CPU."
+    },
+    "server/restart.ts": {
+      "name": "Restart policy",
+      "description": "Defines restart and crash exit codes, backoff table and the rule that decides whether a launcher starts again."
+    },
+    "server/crash-guard.ts": {
+      "name": "Crash guard",
+      "description": "Attributes uncaught errors to the owning turn, survives socket errors and exits with the crash code otherwise."
+    },
+    "server/graceful-shutdown.ts": {
+      "name": "Graceful shutdown",
+      "description": "Runs cleanup jobs concurrently under an eight-second deadline then calls the exit function."
+    },
+    "server/data-dir-lease.ts": {
+      "name": "Data dir lease",
+      "description": "Re-exports the shared lease protocol and a release-once helper used on every exit path."
+    },
+    "electron/data-dir-lease.mjs": {
+      "name": "Lease protocol",
+      "description": "Implements the data-directory lease file with atomic link, boot id and machine id checks shared by Electron and server."
+    },
+    "server/engine-stop.ts": {
+      "name": "Engine stop",
+      "description": "Ends an engine by closing stdin, then SIGTERM, then killing its remaining process tree within fixed grace times."
+    },
+    "server/engine-memory.ts": {
+      "name": "Engine memory gate",
+      "description": "Makes turns that need a new engine wait for memory and process room on Linux servers."
+    },
+    "server/machine-pressure.ts": {
+      "name": "Machine pressure",
+      "description": "Reads memory, CPU, steal and event-loop signals to say whether deferrable work should wait."
+    },
+    "server/routines.ts": {
+      "name": "Routine manager",
+      "description": "Stores routines and runs, ticks the scheduler, starts due runs and tracks run progress and recovery."
+    },
+    "server/routine-due.ts": {
+      "name": "Routine due times",
+      "description": "Computes when routines next need the machine for desktop wake holds and Cloud sleep checks."
+    },
+    "server/routine-catch-up.ts": {
+      "name": "Routine catch-up",
+      "description": "Runs the newest missed occurrence late within twelve hours and collapses older ones into a counted missed row."
+    },
+    "server/routine-recovery.ts": {
+      "name": "Routine failure recovery",
+      "description": "Maps run failures to retry, wait for limit reset or immediate failure with owner-facing causes."
+    },
+    "server/routine-ledger.ts": {
+      "name": "Occurrence ledger",
+      "description": "Appends one JSONL record per scheduled occurrence with state, reason, attempts and a machine lease."
+    },
+    "server/routine-restarts.ts": {
+      "name": "Routine restart pacing",
+      "description": "Throttles startup routines on headless servers and staggers reruns of runs a restart cut off."
+    },
+    "server/routine-run-limits.ts": {
+      "name": "Routine run limits",
+      "description": "Reads environment hours for default routine and goal run limits, bounded to 24 hours."
+    },
+    "server/host/check-backs.ts": {
+      "name": "Bot check-backs",
+      "description": "Persists times a bot chose to return to a chat and starts each at most once, late if missed."
+    },
+    "server/host/person-waits.ts": {
+      "name": "Person waits",
+      "description": "Derives when a conversation rests on an open card and notifies the person."
+    },
+    "server/host/proactive.ts": {
+      "name": "Proactive wiring",
+      "description": "Wires routine checks, the read-and-draft fence, the brief and the default watch routine."
+    },
+    "server/waits.ts": {
+      "name": "Bot waits",
+      "description": "Stores wait_until conditions on time, URL text, file change or process and probes them on a tick."
+    },
+    "server/due-timer.ts": {
+      "name": "Due timer",
+      "description": "Runs a callback when the earliest due time arrives, re-checking the wall clock to survive machine sleep."
+    },
+    "server/webhooks.ts": {
+      "name": "Webhook triggers",
+      "description": "Stores webhook triggers with sealed secrets and delivery receipts and builds provenance-labelled run input."
+    },
+    "server/webhook-ingress.ts": {
+      "name": "Webhook ingress",
+      "description": "Serves the webhook receiver on its own port or Unix socket with a 256 KB body limit."
+    },
+    "server/bot-link/protocol.ts": {
+      "name": "Bot link protocol",
+      "description": "Defines linked bot addresses and frames exchanged between a computer and its Cloud."
+    },
+    "server/bot-link/link.ts": {
+      "name": "Bot link",
+      "description": "Carries hand-offs and results between a person's computer and Cloud, acting once per assignment id."
+    },
+    "server/usage-ledger.ts": {
+      "name": "Usage ledger",
+      "description": "Appends per-turn usage rows with tokens, model, trigger and price under the data dir, never storing message text."
+    },
+    "server/usage-caps.ts": {
+      "name": "Usage caps",
+      "description": "Totals day and month spend by server and bot and reports which USD or token caps are reached."
+    },
+    "server/decision-log.ts": {
+      "name": "Decision log",
+      "description": "Appends redacted monthly NDJSON rows recording why tool calls were allowed, denied or carded."
+    },
+    "server/usage-trace/recorder.ts": {
+      "name": "Turn trace recorder",
+      "description": "Builds step and tool spans from runtime events and hands timing and outcome to the usage row."
+    },
+    "server/usage-trace/spans.ts": {
+      "name": "Trace spans",
+      "description": "Appends batched daily span lines with names, times and token counts and never arguments or outputs."
+    },
+    "server/sessions.ts": {
+      "name": "Sessions and pairing",
+      "description": "Issues single-use pairing codes, hashed-token sessions and stream tickets and persists them atomically."
+    },
+    "server/request-auth.ts": {
+      "name": "Request auth",
+      "description": "Authorizes loopback and session requests with owner or service trust, scopes and same-origin checks."
+    },
+    "server/enterprise.ts": {
+      "name": "Enterprise hook",
+      "description": "Loads the optional enterprise layer if present and reports the edition and license status."
+    },
+    "relay/src/main.ts": {
+      "name": "Relay entry",
+      "description": "Loads config, starts the relay and drains it on shutdown with a deadline."
+    },
+    "relay/src/server.ts": {
+      "name": "Relay server",
+      "description": "Routes host, data and phone WebSockets to handlers with connection caps and per-IP limits."
+    },
+    "relay/src/hosts.ts": {
+      "name": "Relay hosts",
+      "description": "Tracks each host's control socket, admitted phones and sessions and verifies host tokens."
+    },
+    "relay/src/splice.ts": {
+      "name": "Relay splice",
+      "description": "Joins phone and host data sockets with backpressure, throttling and heavy-session metering."
+    },
+    "relay/src/limits.ts": {
+      "name": "Relay limits",
+      "description": "Derives client keys from a trusted proxy header and provides IP and token-bucket limiters."
+    },
+    "cloudflare/control-plane/src/index.ts": {
+      "name": "Control plane routes",
+      "description": "Routes account, installation, tunnel, relay token and push requests in the Cloudflare Worker."
+    },
+    "connector/src/adopted-home.ts": {
+      "name": "Adopted home",
+      "description": "Attaches to a customer-run Docker Compose home to start, stop, back up and update it."
+    },
+    "electron/boot.mjs": {
+      "name": "Desktop boot",
+      "description": "Enables Node's compile cache then imports the Electron main module."
+    }
+  }
+}

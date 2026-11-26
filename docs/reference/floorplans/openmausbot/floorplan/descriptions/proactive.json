@@ -1,0 +1,160 @@
+{
+  "files": {
+    "server/routine-schedules.ts": {
+      "name": "Schedule types",
+      "description": "Defines once, daily, cron, interval and limit-reset schedules and computes their next occurrence."
+    },
+    "server/routine-run-gate.ts": {
+      "name": "Run preparation gate",
+      "description": "Holds a queued run while its computer is made ready and reports when it can start."
+    },
+    "server/routine-bounds.ts": {
+      "name": "Run clocks and limits",
+      "description": "Counts active work time per run and stops runs over their limit or busy-wait ceiling."
+    },
+    "server/routine-check-pacing.ts": {
+      "name": "Check pacing",
+      "description": "Limits AI runs started by checks to 24 a day with one in flight and failure backoff."
+    },
+    "server/routine-execution.ts": {
+      "name": "Run prompt builder",
+      "description": "Builds the do-this-now routine prompt with attachments and an untrusted previous-run carry-over."
+    },
+    "server/routine-waits.ts": {
+      "name": "Run waits",
+      "description": "Tracks a run's open approval or question, excludes the wait from limits and ends unanswered approvals."
+    },
+    "server/routine-health.ts": {
+      "name": "Routine health",
+      "description": "Summarizes each routine's latest outcome and consecutive failures without names or output."
+    },
+    "server/routine-holds.ts": {
+      "name": "Routine holds",
+      "description": "Turns routines off for a cause such as signed-out AI and restores them when the cause clears."
+    },
+    "server/routine-failure-spacing.ts": {
+      "name": "Failure spacing",
+      "description": "Spaces out scheduled runs of a routine that keeps failing instead of switching it off."
+    },
+    "server/routine-skips.ts": {
+      "name": "Counted skips",
+      "description": "Folds occurrences skipped for one cause into a single missed row with count and span."
+    },
+    "server/routine-no-start.ts": {
+      "name": "No-start spacing",
+      "description": "Spaces scheduled runs after a cloud computer repeatedly fails to start."
+    },
+    "server/routine-requests.ts": {
+      "name": "Routine requests",
+      "description": "Applies a bot's create, update, pause, resume, run or delete request at once with an undo card and receipt."
+    },
+    "server/app-triggers.ts": {
+      "name": "App event triggers",
+      "description": "Long-polls the connected-apps service, reconciles triggers and turns each app event into a merged routine run."
+    },
+    "server/app-trigger-host.ts": {
+      "name": "App trigger wiring",
+      "description": "Wires app-event triggers into the server with routes, bot tools and chat receipts."
+    },
+    "server/app-trigger-broker.ts": {
+      "name": "Event broker client",
+      "description": "Calls the connected-apps service to poll events, list inventory and bind or remove triggers."
+    },
+    "server/trigger-tools.ts": {
+      "name": "Trigger tool views",
+      "description": "Shows a bot its schedules, webhooks and app events with redacted instructions and recent runs."
+    },
+    "server/wait-host.ts": {
+      "name": "Wait host wiring",
+      "description": "Posts fired waits into chats, starts follow-up runs and proves a follow-up continues its own wait."
+    },
+    "server/notify.ts": {
+      "name": "Notification builder",
+      "description": "Builds bounded notifications per kind, staying quiet for disabled bots and empty results."
+    },
+    "server/mausbot-notifications.ts": {
+      "name": "Notification feed rules",
+      "description": "Classifies notification kinds as needs-you or fyi so only fyi can be marked read from chat."
+    },
+    "server/automation-reports.ts": {
+      "name": "Automation reports",
+      "description": "Posts a run's last reply to its chat unless it ends NOTHING NEW, and decides which runs need review."
+    },
+    "server/automation-destinations.ts": {
+      "name": "Result destinations",
+      "description": "Chooses the chat where a routine or outside event reports its runs."
+    },
+    "server/active-routines-context.ts": {
+      "name": "Active routines context",
+      "description": "Adds a bounded preview of a bot's own enabled automations to its prompt."
+    },
+    "server/host/starter-routine-wake.ts": {
+      "name": "Starter routine wake",
+      "description": "Wakes a plan-paused bot when its routine runs or is saved and tells the person once."
+    },
+    "server/host/default-watch.ts": {
+      "name": "Default watch",
+      "description": "Defines the Keep an eye on my day routine name, instructions and 15-minute interval."
+    },
+    "server/host/routine-checks.ts": {
+      "name": "Routine checks",
+      "description": "Reads Gmail and Calendar without AI, keeps cursors, and hands only items needing judgement to one run."
+    },
+    "server/host/check-plan.ts": {
+      "name": "Check planning",
+      "description": "Plans which mail and meetings are new, clashing, due a reminder or need prep."
+    },
+    "server/host/brief.ts": {
+      "name": "Daily brief",
+      "description": "Keeps one edited brief card per day, notifies once per update and posts a morning brief at a set time."
+    },
+    "server/host/check-back-host.ts": {
+      "name": "Check-back chat line",
+      "description": "Writes and rewrites the quiet activity line a check-back keeps in its conversation."
+    },
+    "server/routes/check-backs.ts": {
+      "name": "Check-back routes",
+      "description": "Serves the bot's check_back tool route and the person's Cancel route."
+    },
+    "server/read-and-draft.ts": {
+      "name": "Read-and-draft fence",
+      "description": "Confines unattended runs to reads and one reply draft by refusing every other request."
+    },
+    "server/board/dispatcher.ts": {
+      "name": "Board dispatcher",
+      "description": "Hands ready board items to free member bots and retries or fails unsettled ones."
+    },
+    "packages/phone-protocol/src/waits.ts": {
+      "name": "Wait kinds",
+      "description": "Defines the wait condition kinds and the 24 to 168 hour wait lifetime."
+    },
+    "shared/waits.ts": {
+      "name": "Waits re-export",
+      "description": "Re-exports the wait kinds from the phone protocol package."
+    },
+    "shared/check-back.ts": {
+      "name": "Check-back re-export",
+      "description": "Re-exports check-back line types and limits from the phone protocol package."
+    },
+    "packages/phone-protocol/src/routines.ts": {
+      "name": "Routine wire types",
+      "description": "Defines routine, run status, trigger source, access and delivery types plus default run limits."
+    },
+    "src/components/automations/AutomationPanel.tsx": {
+      "name": "Automation panel",
+      "description": "Shows one automation with status, recent runs and pause, edit, run, delete actions."
+    },
+    "src/components/routines/RoutineList.tsx": {
+      "name": "Routine list",
+      "description": "Lists routines with next-run state, paused-bot notes and an on/off switch."
+    },
+    "src/components/automations/LimitWarnings.tsx": {
+      "name": "Limit warnings",
+      "description": "Shows engines near their limit and moves due automations to after the reset."
+    },
+    "src/components/automations/actions.ts": {
+      "name": "Automation actions",
+      "description": "Calls the routine and webhook routes to toggle, run and delete an automation."
+    }
+  }
+}

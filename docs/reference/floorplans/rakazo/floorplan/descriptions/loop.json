@@ -1,0 +1,124 @@
+{
+  "files": {
+    "apps/api/src/threads/thread-stop.ts": {
+      "name": "Stop thread runs",
+      "description": "Cancels a thread's active runs and helpers under the thread lock and clears pending steering."
+    },
+    "apps/api/src/threads/runs.ts": {
+      "name": "Run activity list",
+      "description": "Lists active and recent runs per chat for the activity view, hiding background triggers."
+    },
+    "packages/adapters/src/runs/lifecycle/run-complete.ts": {
+      "name": "Run completion",
+      "description": "Finalizes a finished turn into a reply and enqueues memory retention and history compaction jobs."
+    },
+    "packages/adapters/src/runs/assembly/run-assembly.ts": {
+      "name": "Turn assembly pipeline",
+      "description": "Sequences records, history, model, tools and prompt loading into one assembled turn or undefined."
+    },
+    "packages/adapters/src/runs/assembly/run-assembly-history.ts": {
+      "name": "History and turn context",
+      "description": "Builds labelled thread history and loads memory, scratchpad, tickets and recalled memory for the turn."
+    },
+    "packages/adapters/src/runs/assembly/run-assembly-context.ts": {
+      "name": "Turn prompt builder",
+      "description": "Composes the user-turn prompt, current-time block and the history plus recall sent to the runtime."
+    },
+    "packages/adapters/src/runs/assembly/run-assembly-capabilities.ts": {
+      "name": "Model and tool selection",
+      "description": "Picks the turn's model and backups, prepares the computer and selects the tools offered to the run."
+    },
+    "packages/adapters/src/runs/assembly/run-model-fallbacks.ts": {
+      "name": "Backup model loader",
+      "description": "Loads the run's backup models, excluding the running model unless another account serves it."
+    },
+    "packages/adapters/src/runs/assembly/run-messages.ts": {
+      "name": "Lease-fenced event writes",
+      "description": "Wraps event appends with the run's owner and fence so a superseded attempt cannot write."
+    },
+    "packages/adapters/src/runs/assembly/run-instructions.prompt.ts": {
+      "name": "System prompt builder",
+      "description": "Assembles the system instructions from platform rules, bot instructions, tools, skills and reply guidance."
+    },
+    "packages/adapters/src/runs/turn/run-model-turn.ts": {
+      "name": "Model turn driver",
+      "description": "Builds the AgentRunRequest, runs the runtime, consumes its events and completes or fails the run."
+    },
+    "packages/adapters/src/runs/turn/run-turn.ts": {
+      "name": "Runtime event consumer",
+      "description": "Streams runtime events into thread progress events while checking the lease once a second."
+    },
+    "packages/adapters/src/runs/turn/run-turn-tools.ts": {
+      "name": "Tool call event handling",
+      "description": "Shows tool steps, appends agent.tool.called and stops a run caught in a repeating tool loop."
+    },
+    "packages/adapters/src/runs/turn/run-turn-images.ts": {
+      "name": "Turn images and steering",
+      "description": "Loads turn images and claims steering messages that join a running turn."
+    },
+    "packages/adapters/src/runs/tools/run-tools.ts": {
+      "name": "Tool dispatch",
+      "description": "Gates each tool call through refusal checks and approvals, then runs its handler and audits it."
+    },
+    "packages/adapters/src/runs/tools/run-tool-gate.ts": {
+      "name": "Tool call gate",
+      "description": "Decides whether a tool call runs, asks for approval, is auto-reviewed or refused, and records its effect."
+    },
+    "packages/adapters/src/runtime/pi/pi-runtime.ts": {
+      "name": "Pi agent runtime",
+      "description": "Drives the Pi agent loop and maps its events to runtime events with resume, steering and fallback handling."
+    },
+    "packages/adapters/src/runtime/pi/pi-runtime-fallback.ts": {
+      "name": "Model fallback stream",
+      "description": "Retries a model call with backoff, learns provider limits and switches to usable backup models."
+    },
+    "packages/adapters/src/runtime/pi/stream/pi-runtime-stream.ts": {
+      "name": "Reliable model stream",
+      "description": "Wraps provider streaming with header and idle timeouts, retry options and idle abort relabeling."
+    },
+    "packages/adapters/src/runtime/pi/tools/pi-runtime-tools.ts": {
+      "name": "Pi tool adapter",
+      "description": "Converts connector tools to Pi tools, handling argument prep, pauses, checkpoint capture and result clipping."
+    },
+    "packages/adapters/src/runtime/context/runtime-context.ts": {
+      "name": "Context policy",
+      "description": "Shapes the transcript before each model call, keeping a cache-stable prefix and rebuilding when it pays off."
+    },
+    "packages/adapters/src/runtime/context/history-compaction.ts": {
+      "name": "History compaction",
+      "description": "Selects compacted history and summarizes older thread messages in batches for the legacy strategy."
+    },
+    "packages/adapters/src/runtime/context/history-compaction.prompt.ts": {
+      "name": "Compaction prompts",
+      "description": "Holds the summarizer instructions and formats compacted summaries and recalled memory as untrusted data."
+    },
+    "packages/adapters/src/runtime/runtime-stream.ts": {
+      "name": "Runtime stream cleanup",
+      "description": "Aborts executor tool work before closing an interrupted runtime event iterator."
+    },
+    "packages/adapters/src/runtime/acp/acp-runtime.ts": {
+      "name": "ACP CLI runtime",
+      "description": "Runs a CLI agent over ACP, reusing the Pi tool adapter and shell stream helpers."
+    },
+    "packages/adapters/src/tasks/background-helpers.ts": {
+      "name": "Background helpers",
+      "description": "Starts subagent runs with a parallel cap and returns their results as follow-up runs."
+    },
+    "packages/db/src/threads/thread-steering.ts": {
+      "name": "Steering claim",
+      "description": "Claims queued steering messages for a running turn under the thread lock."
+    },
+    "packages/core/src/threads/thread-subscription.ts": {
+      "name": "Thread subscription client",
+      "description": "Recovers a durable event stream with cursor replay, backoff and idle-timeout detection for web and mobile."
+    },
+    "apps/web/src/pages/shell/chat/use-thread-sync.ts": {
+      "name": "Web thread sync",
+      "description": "Loads the open chat, applies live events to its snapshot and pages in older history."
+    },
+    "packages/adapter-kit/src/types.ts": {
+      "name": "Adapter contracts",
+      "description": "Defines the runtime request and event types, job payloads and the default context strategy."
+    }
+  }
+}

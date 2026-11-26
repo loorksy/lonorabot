@@ -1,0 +1,104 @@
+{
+  "files": {
+    "packages/core/src/bots/bot-messages.prompt.ts": {
+      "name": "Bot message prompts",
+      "description": "Renders teammate and group rosters, the wake prompt per intent and the deliberation guidance."
+    },
+    "packages/core/src/bots/bot-mentions.ts": {
+      "name": "Created-bot mentions",
+      "description": "Folds new-bot announcement messages into the same bot's next reply."
+    },
+    "packages/core/src/peers/peer-messages.ts": {
+      "name": "Peer transcript builder",
+      "description": "Builds per-peer conversations from sent and received bot-message blocks and unechoed replies."
+    },
+    "packages/core/src/peers/peer-exchanges.ts": {
+      "name": "Peer exchange lines",
+      "description": "Merges consecutive peer messages into one counted chip line and finds replies never echoed as sends."
+    },
+    "packages/core/src/peers/peer-history.ts": {
+      "name": "Peer history loader",
+      "description": "Pages a peer thread's history with per-page and total timeouts and cancellation."
+    },
+    "packages/core/src/composer/group-mentions.ts": {
+      "name": "Group mention routing",
+      "description": "Resolves which group members a message wakes from chips, @names and everyone aliases."
+    },
+    "packages/adapters/src/bots/group-handoff.ts": {
+      "name": "Group handoff",
+      "description": "Hands a group stage to another member in one transaction and loads group and roster prompts."
+    },
+    "packages/adapters/src/bots/group-post.ts": {
+      "name": "Post to group",
+      "description": "Posts a bot's message into one of its groups without waking any member."
+    },
+    "packages/adapters/src/bots/agent-connections.ts": {
+      "name": "Cross-owner agent links",
+      "description": "Requests and approves bot-to-bot connections across Spaces and routes messages over them."
+    },
+    "packages/adapters/src/tasks/background-helpers.prompt.ts": {
+      "name": "Subagent prompts",
+      "description": "Builds the helper brief, the untrusted result prompt and the start and limit notes."
+    },
+    "packages/adapters/src/runtime/pi/tools/pi-runtime-subagent.ts": {
+      "name": "Subagent limits",
+      "description": "Sets the four-helper parallel cap and clips a helper result to a character limit."
+    },
+    "packages/adapters/src/runs/tools/run-tools-messaging.ts": {
+      "name": "Messaging tool handlers",
+      "description": "Handles message_bot, handoff_to_bot, run_subagent and agent tools, including file passing."
+    },
+    "packages/adapters/src/runs/tools/run-tool-selection.ts": {
+      "name": "Tool selection per run",
+      "description": "Chooses offered tools by run type, hiding messaging, fleet and delegation tools where unsafe."
+    },
+    "packages/adapters/src/runs/lifecycle/user-progress.ts": {
+      "name": "Mid-turn progress",
+      "description": "Limits progress messages and derives a bot-message outcome from final or progress text."
+    },
+    "packages/adapters/src/runs/lifecycle/run-origin.ts": {
+      "name": "Delegated run origin",
+      "description": "Walks delegation links to the authorizing run and rejects cancelled or removed origins."
+    },
+    "packages/adapters/src/runs/assembly/silent-reply.ts": {
+      "name": "Silent reply sentinel",
+      "description": "Detects and strips the NO_RESPONSE reply so a run ends with no chat bubble."
+    },
+    "packages/adapters/src/runs/assembly/run-replies.prompt.ts": {
+      "name": "Reply guidance prompts",
+      "description": "Holds the guidance telling group members when to answer an unaddressed message."
+    },
+    "packages/adapters/src/runs/assembly/run-trust.ts": {
+      "name": "Run trust loaders",
+      "description": "Loads approval rules and the owner's own words, excluding bot and channel text."
+    },
+    "packages/adapters/src/tools/builtin-fleet.tool-definition.ts": {
+      "name": "Fleet tool definitions",
+      "description": "Declares message_bot, handoff_to_bot, post_to_group, run_subagent and fleet tools with schemas."
+    },
+    "packages/adapters/src/tools/schedule-tools.ts": {
+      "name": "Thread tool filter",
+      "description": "Removes message_bot in group threads and hides routine-only tools from routine runs."
+    },
+    "packages/db/src/spaces/groups.ts": {
+      "name": "Group repository",
+      "description": "Stores groups and members in call order and provides group locks and touch helpers."
+    },
+    "packages/db/src/spaces/cross-space-communication.ts": {
+      "name": "Cross-space check",
+      "description": "Locks two bots and allows messaging only in one Space or when both opted in."
+    },
+    "packages/contracts/src/threads/message-blocks.ts": {
+      "name": "Message block schema",
+      "description": "Defines message blocks including bot messages, handoffs, subagent cards and intents."
+    },
+    "apps/web/src/components/messages/SubagentCard.tsx": {
+      "name": "Subagent card",
+      "description": "Shows a helper's status, task and result in a foldable card with a stop button."
+    },
+    "apps/web/src/pages/settings/PeerMessagesOverlay.tsx": {
+      "name": "Peer messages overlay",
+      "description": "Shows a read-only full-screen transcript of one bot-to-bot exchange."
+    }
+  }
+}

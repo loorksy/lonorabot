@@ -1,0 +1,224 @@
+{
+  "files": {
+    "packages/contracts/src/threads/events.ts": {
+      "name": "Product event types",
+      "description": "Declares ProductEventType, the event envelope schema and the thinking-activity marker for thread streams."
+    },
+    "packages/contracts/src/threads/threads-rpc.ts": {
+      "name": "Threads RPC contract",
+      "description": "Declares threads and notifications procedures including subscribe, answer and alert event streams."
+    },
+    "packages/contracts/src/threads/thread-send.ts": {
+      "name": "Thread send input",
+      "description": "Validates send input: target, text, attachments, mentions, reply quote and client nonce."
+    },
+    "packages/contracts/src/threads/thread.ts": {
+      "name": "Chat alert schema",
+      "description": "Defines ChatAlert kinds, attention classification and message text and quote limits."
+    },
+    "packages/contracts/src/runs/runs.ts": {
+      "name": "Run contracts",
+      "description": "Lists run triggers, error kinds and computer error strings shared by server and clients."
+    },
+    "packages/contracts/src/models/model-roles.ts": {
+      "name": "Model role schemas",
+      "description": "Defines main, approval and computer model roles with primary, backups and deployment defaults."
+    },
+    "packages/contracts/src/models/models-rpc.ts": {
+      "name": "Models RPC contract",
+      "description": "Declares models procedures for roles, connect, probes and the OAuth begin, submit, complete, finish sequence."
+    },
+    "packages/core/src/messages/events.ts": {
+      "name": "Message projection from events",
+      "description": "Projects thread events into messages and reduces live progress and tool events into streaming blocks."
+    },
+    "packages/core/src/threads/thread-snapshot-events.ts": {
+      "name": "Snapshot event reducer",
+      "description": "Applies live events to a thread snapshot, shared by web and mobile."
+    },
+    "packages/core/src/runs/tool-activity.ts": {
+      "name": "Tool activity helpers",
+      "description": "Identifies which blocks count as tool activity and retired import setups."
+    },
+    "packages/core/src/runs/activity-sections.ts": {
+      "name": "Activity list sections",
+      "description": "Splits runs into needs-attention, working and unread sections for the Activity view."
+    },
+    "packages/core/src/asks/answerable-ask.ts": {
+      "name": "Answerable ask rules",
+      "description": "Decides which ask and tool-question cards a user can answer or dismiss right now."
+    },
+    "packages/core/src/asks/ask-kind.ts": {
+      "name": "Ask kind predicates",
+      "description": "Classifies ask blocks as secret or conversational and assigns option letters."
+    },
+    "packages/core/src/asks/ask-replies.ts": {
+      "name": "Ask reply linking",
+      "description": "Links typed user replies to the answered question card in the transcript."
+    },
+    "packages/core/src/asks/chat-app-asks.ts": {
+      "name": "Chat app ask text",
+      "description": "Renders pending questions and takeovers as plain text for 1:1 chat apps with an app link."
+    },
+    "packages/core/src/messaging/messaging-commands.ts": {
+      "name": "Owner chat commands",
+      "description": "Parses exact YES, NO, LEAVE and multilingual stop commands from the owner's verified chat."
+    },
+    "packages/core/src/messaging/messaging-providers.ts": {
+      "name": "Messaging provider names",
+      "description": "Maps messaging provider ids to user-facing names and connect methods."
+    },
+    "packages/core/src/messaging/messaging-requests.ts": {
+      "name": "Messaging requests",
+      "description": "Derives pending channel invites and connection requests for the settings panel."
+    },
+    "packages/core/src/messaging/messaging.prompt.ts": {
+      "name": "Messaging prompt notes",
+      "description": "Builds instruction notes and privacy blocks for bots reachable over chat apps and group channels."
+    },
+    "packages/core/src/calls/barge-in.ts": {
+      "name": "Call barge-in logic",
+      "description": "Decides when speech heard during playback interrupts a bot reply."
+    },
+    "packages/core/src/calls/call-session.ts": {
+      "name": "Call session helpers",
+      "description": "Builds call transcripts, send tracking and pending-secret detection for voice calls."
+    },
+    "packages/db/src/threads/thread-ask.ts": {
+      "name": "Ask answer commit",
+      "description": "Commits answers and dismissals to ask cards and retires waiting questions on typed replies."
+    },
+    "packages/adapters/src/notifications/expo-push.ts": {
+      "name": "Expo push sender",
+      "description": "Sends mobile pushes through Expo with retries, receipts and payload size caps."
+    },
+    "packages/adapters/src/runs/lifecycle/run-progress.ts": {
+      "name": "Run progress publisher",
+      "description": "Batches streamed text into thread.progress events and decides interim messages versus step notes."
+    },
+    "packages/adapters/src/messaging/messaging-platforms.ts": {
+      "name": "Messaging platform registry",
+      "description": "Lists chat platforms and mounts each when its environment settings are present."
+    },
+    "packages/adapters/src/messaging/messaging-delivery.ts": {
+      "name": "Messaging delivery",
+      "description": "Sends bot messages to chat apps with claims, backup jobs, timeouts and a consecutive-DM cap."
+    },
+    "packages/adapters/src/email/lifecycle-email.ts": {
+      "name": "Lifecycle email",
+      "description": "Schedules reminder emails with a 24 hour gap and a still-wanted check per kind."
+    },
+    "packages/adapters/src/voice/voice-providers.ts": {
+      "name": "Voice provider registry",
+      "description": "Lists the voice providers available to the factory, catalog and settings."
+    },
+    "packages/adapters/src/voice/voice-http.ts": {
+      "name": "Voice HTTP helpers",
+      "description": "Bounds speech audio and JSON response sizes and validates model ids for voice providers."
+    },
+    "apps/api/src/routes/shared.ts": {
+      "name": "Route stream helpers",
+      "description": "Provides withHeartbeats, mergeStreams and shared route constants such as heartbeat interval."
+    },
+    "apps/api/src/routes/onboarding.ts": {
+      "name": "Onboarding routes",
+      "description": "Implements survey, first bot and focus-choice onboarding procedures."
+    },
+    "apps/api/src/account/first-bot.ts": {
+      "name": "First bot creation",
+      "description": "Creates or reuses the Chief bot once per new account and posts the opening messages."
+    },
+    "apps/api/src/account/onboarding.ts": {
+      "name": "Seeded onboarding chat",
+      "description": "Seeds a greeting, focus choice and app-connect cards into the first thread with no model tokens."
+    },
+    "apps/web/src/pages/shell/chat/message-view.tsx": {
+      "name": "Message renderer",
+      "description": "Renders each message block kind to its card or bubble in the web transcript."
+    },
+    "apps/web/src/pages/shell/chat/chat-model-picker.tsx": {
+      "name": "Chat model picker",
+      "description": "Provides a searchable grouped model list as a settings row or compact composer button."
+    },
+    "apps/web/src/pages/shell/composer/composer-model-picker.tsx": {
+      "name": "Composer model picker",
+      "description": "Shows the opt-in model and thinking picker inside the message box."
+    },
+    "apps/web/src/pages/shell/use-browser-notifications.ts": {
+      "name": "Browser notifications hook",
+      "description": "Raises browser notifications for chat alerts when the page is hidden or unfocused."
+    },
+    "apps/web/src/lib/platform/browser-notifications.ts": {
+      "name": "Browser notification logic",
+      "description": "Builds notification text and runs the permission and delivery state machine."
+    },
+    "apps/web/src/lib/chat/tool-activity-preference.ts": {
+      "name": "Tool activity preference",
+      "description": "Stores the opt-in preference for showing tool activity cards."
+    },
+    "apps/web/src/lib/chat/tool-activity-view.ts": {
+      "name": "Tool card visibility",
+      "description": "Decides which blocks render as tool cards under the preference."
+    },
+    "apps/web/src/lib/calls/call-session.ts": {
+      "name": "Web call session",
+      "description": "Runs a voice call over the thread subscription with speech in and out."
+    },
+    "apps/web/src/lib/calls/dictation.ts": {
+      "name": "Dictation input",
+      "description": "Captures speech via browser recognition or server transcription with consent."
+    },
+    "apps/web/src/components/messages/ToolActivityDisclosure.tsx": {
+      "name": "Tool activity card",
+      "description": "Renders a collapsible list of tool steps that stays open while the run is live."
+    },
+    "apps/web/src/components/messages/McpAppCard.tsx": {
+      "name": "MCP app card",
+      "description": "Draws an MCP app in a sandboxed iframe with a derived CSP and limited host requests."
+    },
+    "apps/web/src/components/messages/SandboxedHtmlViewer.tsx": {
+      "name": "Sandboxed HTML viewer",
+      "description": "Previews agent HTML in an iframe under a locked-down CSP and link guard."
+    },
+    "apps/web/src/pages/onboarding/Onboarding.tsx": {
+      "name": "Onboarding page",
+      "description": "Routes a new user through survey, model connection and first bot creation."
+    },
+    "apps/web/src/pages/onboarding/model-step.tsx": {
+      "name": "Onboarding model step",
+      "description": "Renders provider, key or subscription sign-in and model choice during onboarding."
+    },
+    "apps/web/src/pages/settings/settings-nav.ts": {
+      "name": "Settings navigation",
+      "description": "Lists settings sections in nav order, gated by deployment features."
+    },
+    "apps/web/src/pages/settings/MessagingSettingsPanel.tsx": {
+      "name": "Messaging settings",
+      "description": "Shows chat-app links, polling and pending channel invites or connection requests."
+    },
+    "apps/web/src/pages/model-settings/model-settings-panel.tsx": {
+      "name": "Per-model settings",
+      "description": "Edits one model's capabilities and thinking level on its connection."
+    },
+    "apps/web/src/pwa/sw.ts": {
+      "name": "Service worker",
+      "description": "Registers the PWA service worker without any push handling."
+    },
+    "apps/mobile/lib/api/api-live.ts": {
+      "name": "Mobile live streams",
+      "description": "Reads thread, roster and call SSE streams over fetch with frame caps and idle timeout."
+    },
+    "apps/mobile/lib/thread/thread-live.ts": {
+      "name": "Mobile live subscription",
+      "description": "Subscribes to a chat while foregrounded and reduces events with the shared core reducer."
+    },
+    "apps/mobile/lib/notifications/push.ts": {
+      "name": "Mobile push registration",
+      "description": "Requests permission, mints an Expo token and registers it with the server."
+    },
+    "apps/desktop/src/preload/preload.cjs": {
+      "name": "Desktop preload bridge",
+      "description": "Exposes the rakazoDesktop bridge for clipboard, badge, OAuth, computer access and settings."
+    }
+  }
+}

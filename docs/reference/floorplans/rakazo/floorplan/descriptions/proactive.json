@@ -1,0 +1,148 @@
+{
+  "files": {
+    "packages/adapters/src/runs/wakeups/wakes.prompt.ts": {
+      "name": "Wake prompts",
+      "description": "Holds the canned prompts that resume a run when a ticket, purchase, video or cloud agent changes status."
+    },
+    "packages/adapters/src/routines/routine-triggers.ts": {
+      "name": "Routine event triggers",
+      "description": "Validates webhook, Git, chat and email trigger settings for a bot and stores its webhook key."
+    },
+    "packages/adapters/src/routines/routine-triggers.prompt.ts": {
+      "name": "Trigger prompt notes",
+      "description": "Holds the notes telling a bot where users find webhook keys and that a chat trigger replaces normal replies."
+    },
+    "packages/adapters/src/routines/routine-coalescing.ts": {
+      "name": "Timer tick coalescing",
+      "description": "Builds per-occurrence nonces and folds unstarted catch-up ticks of the same routine into one queued run."
+    },
+    "packages/adapters/src/routines/routine-failure-pause.ts": {
+      "name": "Failure auto-pause",
+      "description": "Pauses a routine after five identical consecutive failures and posts the reason in its chat."
+    },
+    "packages/adapters/src/routines/routine-backoff.ts": {
+      "name": "Account error backoff",
+      "description": "Pushes a routine's next run out with doubling gaps when the model account is refused, and releases it on reconnect."
+    },
+    "packages/adapters/src/routines/routine-lateness.ts": {
+      "name": "Late run detection",
+      "description": "Finds the occurrence a recurring run was due at when it started at least 15 minutes late."
+    },
+    "packages/adapters/src/routines/routine-lateness.prompt.ts": {
+      "name": "Late run instruction",
+      "description": "Tells a late scheduled run when it was due and when it started, in the routine's timezone."
+    },
+    "packages/adapters/src/routines/routine-run.prompt.ts": {
+      "name": "Routine run instruction",
+      "description": "Builds the instruction telling a scheduled run to do the work now and not reschedule itself."
+    },
+    "packages/adapters/src/routines/routine-conversation.prompt.ts": {
+      "name": "Due task handover",
+      "description": "Builds the prompt that hands a due scheduled task to the run already working in its chat."
+    },
+    "packages/adapters/src/routines/routine-watch.prompt.ts": {
+      "name": "Watch change note",
+      "description": "Builds the note appended to a routine prompt saying what changed since the last check."
+    },
+    "packages/adapters/src/routines/routine-watch.ts": {
+      "name": "Change watch checker",
+      "description": "Fingerprints files, commands, tools or HTTPS endpoints without a model and starts a run only when the reading changed."
+    },
+    "packages/contracts/src/routines/routine-watch.ts": {
+      "name": "Watch contract",
+      "description": "Defines the watch spec, five-minute minimum interval, quiet-check flag and stored last-check state."
+    },
+    "packages/adapters/src/routines/strategic-initiative.prompt.ts": {
+      "name": "Check-in prompt",
+      "description": "Builds the daily check-in prompt listing stale items and demanding NO_RESPONSE when nothing needs action."
+    },
+    "packages/adapters/src/routines/release-watch.ts": {
+      "name": "Release watch eval",
+      "description": "Provides emulated GitHub releases and diagnoses for the release-watch eval, not a runtime feature."
+    },
+    "packages/adapters/src/routines/routine-end.ts": {
+      "name": "Routine end dates",
+      "description": "Computes end-date rules and deletes or ends routines that pass their end or finish a one-time run."
+    },
+    "packages/adapters/src/routines/routine-notice.ts": {
+      "name": "Routine change notice",
+      "description": "Posts a text-free routine_event system row in the chat when a routine is created, edited or deleted."
+    },
+    "packages/adapters/src/routines/routine-thread.ts": {
+      "name": "Routine chat target",
+      "description": "Picks the group chat a routine runs in, or the bot's own chat when the group is gone."
+    },
+    "packages/adapters/src/routines/routine-target.ts": {
+      "name": "Schedule tool target",
+      "description": "Resolves whose routines a schedule tool call reaches, the bot's own or a managed bot's."
+    },
+    "packages/adapters/src/runs/lifecycle/run-notifications.ts": {
+      "name": "Run notifications",
+      "description": "Decides who gets a push or chat alert for a finished or failed run, honoring snooze and per-routine notify."
+    },
+    "packages/adapters/src/runs/lifecycle/chat-wait.ts": {
+      "name": "Chat busy wait",
+      "description": "Holds scheduled and bot-message runs while their chat is busy and hands a due routine to the working run."
+    },
+    "packages/core/src/runs/action-approval.ts": {
+      "name": "Action approval rules",
+      "description": "Lists tools needing approval, gates outside-text runs, and expires unattended approval cards after a timeout."
+    },
+    "packages/adapters/src/approvals/approval-expiry.ts": {
+      "name": "Approval card expiry",
+      "description": "Schedules and applies the auto-deny of an unanswered approval card from an unattended run."
+    },
+    "apps/api/src/webhooks/webhook.ts": {
+      "name": "Webhook route",
+      "description": "Authenticates a bot webhook by key or signature and delivers it to the bot's webhook-enabled routines."
+    },
+    "apps/api/src/webhooks/webhook-inbound.ts": {
+      "name": "Inbound delivery",
+      "description": "Loads the webhook target, builds the routine-plus-payload prompt and starts a webhook-trigger run."
+    },
+    "apps/api/src/email/email-inbound.ts": {
+      "name": "Inbound email",
+      "description": "Checks sender authenticity, stores mail in the bot inbox and starts matching email routines or an owner message."
+    },
+    "apps/api/src/messaging/messaging-inbound.ts": {
+      "name": "Inbound chat messages",
+      "description": "Wakes message-trigger routines from a linked chat app through the webhook delivery path."
+    },
+    "apps/api/src/routes/routines.ts": {
+      "name": "Routines RPC handlers",
+      "description": "Serves routine list, history, create, update, delete and test run over RPC with owner-only edits."
+    },
+    "apps/api/src/routines/routine-runs.ts": {
+      "name": "Routine run history",
+      "description": "Lists a routine's past runs with status, error, lateness and the first reply message."
+    },
+    "packages/contracts/src/routines/routines-rpc.ts": {
+      "name": "Routines RPC contract",
+      "description": "Declares the routine list, history, create, update, remove and testRun calls and their inputs."
+    },
+    "packages/core/src/routines/routine-runs.ts": {
+      "name": "Run history helpers",
+      "description": "Formats routine run times, lateness and merges history pages for clients."
+    },
+    "packages/core/src/routines/inbound-routine.ts": {
+      "name": "Inbound routine blocks",
+      "description": "Formats and parses the owner's routine prompt blocks that precede untrusted inbound payload text."
+    },
+    "packages/core/src/routines/routine-dispatch.ts": {
+      "name": "Schedule delay check",
+      "description": "Flags a routine whose next run is more than five minutes stale."
+    },
+    "packages/adapters/src/cloud-agents/cloud-agent-poll.ts": {
+      "name": "Cloud agent poller",
+      "description": "Polls a remote cloud agent under a lease and wakes the originating run when it changes."
+    },
+    "packages/db/src/threads/thread-reads.ts": {
+      "name": "Thread read state",
+      "description": "Reads per-thread read state, including which members have a chat snoozed."
+    },
+    "packages/db/src/billing/billing.ts": {
+      "name": "Billing access",
+      "description": "Decides whether a Space member's plan allows model use."
+    }
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "files": {
+    "packages/phone-protocol/src/wire.ts": {
+      "name": "Wire types",
+      "description": "Defines ServerFrame kinds, WireMessage kinds and cards that every client and the server share."
+    },
+    "shared/wire.ts": {
+      "name": "Wire re-export",
+      "description": "Re-exports the phone-protocol wire types so server and UI import one contract."
+    },
+    "packages/phone-protocol/src/runtime-events.ts": {
+      "name": "Runtime events",
+      "description": "Declares the normalised engine events for turns, items, text deltas, requests, errors and token usage."
+    },
+    "packages/phone-protocol/src/wire-tool.ts": {
+      "name": "Tool chip wire shape",
+      "description": "Describes the tool activity payload with summary, output, live step and error extras shown beside a transcript line."
+    },
+    "packages/phone-protocol/src/turn-progress.ts": {
+      "name": "Turn progress",
+      "description": "Defines the live-only status vocabulary: activity, redacted target, bytes and quiet state of a running tool call."
+    },
+    "packages/phone-protocol/src/ask-question.ts": {
+      "name": "Question card types",
+      "description": "Validates and limits structured questions and options an agent asks the person, with dismiss text."
+    },
+    "packages/phone-protocol/src/notification.ts": {
+      "name": "Notification wire shape",
+      "description": "Lists notification kinds and the payload carrying bot id, thread id, title and body."
+    },
+    "packages/phone-protocol/src/widget.ts": {
+      "name": "Chat widget schema",
+      "description": "Normalises bot-authored widget trees with hard size limits and a fixed icon list."
+    },
+    "packages/phone-protocol/src/sign-in-request.ts": {
+      "name": "Sign-in handoff card",
+      "description": "Types the card where a bot asks the person to sign in to a site, with need kinds and expiry."
+    },
+    "packages/phone-protocol/src/credential-request.ts": {
+      "name": "Credential card targets",
+      "description": "Fixes the credential targets an agent may request so it never chooses a config path."
+    },
+    "src/state/store.tsx": {
+      "name": "Client app store",
+      "description": "Applies each live frame to client state and sends approval decisions and card answers to the server."
+    },
+    "src/state/live-reply.ts": {
+      "name": "Streaming reply store",
+      "description": "Holds per-thread streamed assistant text outside React state until the saved message replaces it."
+    },
+    "src/state/turn-status.ts": {
+      "name": "Turn status store",
+      "description": "Tracks what each thread's running turn is doing from runtime frames for the working line."
+    },
+    "src/lib/tool-step-label.ts": {
+      "name": "Tool step labels",
+      "description": "Maps engine tool names to localized plain verbs for chips and the status line."
+    },
+    "src/components/PendingApproval.tsx": {
+      "name": "Pending approvals",
+      "description": "Finds unanswered approval cards and renders allow, deny, always-allow and cancel actions."
+    },
+    "src/components/ApprovalCard.tsx": {
+      "name": "Approval card",
+      "description": "Draws approval and request cards and their settled outcome and applied-change lines."
+    },
+    "src/components/AskCard.tsx": {
+      "name": "Ask card parts",
+      "description": "Provides choices, free-text reply, settled line and shared button styles for question cards."
+    },
+    "src/components/NowCard.tsx": {
+      "name": "Now card",
+      "description": "Renders the current steps of a turn with done, failed and now marks."
+    },
+    "src/components/ToolActivity.tsx": {
+      "name": "Tool activity chip",
+      "description": "Renders a tool step and lazily fetches its full clipped output when opened."
+    },
+    "src/components/ChatActivity.tsx": {
+      "name": "Chat activity switches",
+      "description": "Controls whether routine updates and finished tool entries show in the chat per device."
+    },
+    "src/components/ComposerQueuedMessages.tsx": {
+      "name": "Queued messages",
+      "description": "Shows queued messages and lets a quick second Enter steer the running turn."
+    },
+    "src/components/widget/widget-send.ts": {
+      "name": "Widget press sender",
+      "description": "Posts a widget button press to the bot messages route with an idempotent send id and revision."
+    },
+    "src/lib/notify.ts": {
+      "name": "Browser notifications",
+      "description": "Requests permission and shows browser notifications that open the exact bot thread."
+    },
+    "electron/desktop-notifications.mjs": {
+      "name": "Desktop notifications",
+      "description": "Shows notifications from the Electron main process and routes clicks to the right place."
+    },
+    "server/team-slack.ts": {
+      "name": "Team Slack contract",
+      "description": "Defines the signed Slack message and report contract between the Admin and a Cloud."
+    },
+    "server/phones/instructions.ts": {
+      "name": "Phone tool prompts",
+      "description": "Holds prompt text telling agents how to use the paired phone tools and that sends need a tap."
+    },
+    "packages/phone-protocol/src/reactions.ts": {
+      "name": "Reactions mapping",
+      "description": "Maps Slack, Telegram, Discord and WhatsApp reaction names to emoji."
+    },
+    "server/routes/secret-cards.ts": {
+      "name": "Secret card routes",
+      "description": "Accepts a secret into a credential card without echoing, logging or storing it on the card."
+    },
+    "server/routes/sign-in-cards.ts": {
+      "name": "Sign-in card routes",
+      "description": "Handles done, cancel and saved-login answers for site sign-in handoff cards."
+    },
+    "src/components/EngineSetup.tsx": {
+      "name": "Engine setup",
+      "description": "Chooses install, sign-in or API key setup per provider and drives the auth start, status and cancel calls."
+    },
+    "src/components/CliLoginCard.tsx": {
+      "name": "CLI login card",
+      "description": "Floats a one-click card above dialogs when a terminal login is waiting."
+    },
+    "src/components/ModelPicker.tsx": {
+      "name": "Model picker",
+      "description": "Lists models grouped by engine with effort controls and the per-bot and per-thread selection."
+    },
+    "src/components/ModelPickerFull.tsx": {
+      "name": "Full model list",
+      "description": "Renders model rows with provider, default and loaded tags and blocked reasons."
+    },
+    "src/components/SimpleModelMenu.tsx": {
+      "name": "Simple model menu",
+      "description": "Renders the compact model menu with favorites, thinking levels and sign-in prompts."
+    },
+    "src/components/keys/key-save.ts": {
+      "name": "Key saving",
+      "description": "Saves a credential to the desktop store or server config, write-only."
+    },
+    "src/lib/onboarding.ts": {
+      "name": "Onboarding state",
+      "description": "Holds onboarding record shape, beats and resume rules for the first-run welcome."
+    },
+    "src/components/onboarding/WelcomeFlow.tsx": {
+      "name": "Welcome flow",
+      "description": "Runs the first-run screens, pre-fills the name from the computer and saves completion."
+    },
+    "src/components/onboarding/ConnectAi.tsx": {
+      "name": "Connect AI step",
+      "description": "Lets a new user connect an AI during onboarding by reusing engine setup."
+    }
+  }
+}

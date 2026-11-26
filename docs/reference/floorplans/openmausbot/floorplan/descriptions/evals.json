@@ -1,0 +1,272 @@
+{
+  "files": {
+    "evals/types.ts": {
+      "name": "Scenario schemas",
+      "description": "Defines zod schemas for scripted turns, steps, assertions and scenarios, all pure data."
+    },
+    "evals/evals.test.ts": {
+      "name": "Tier 1 vitest gate",
+      "description": "Runs every scenario fixture against a fresh real server and fails with assertion details."
+    },
+    "evals/vitest.config.ts": {
+      "name": "Evals vitest config",
+      "description": "Pins repo root, server test setup file and serial file execution for the eval suite."
+    },
+    "evals/providers/mock/scripted-plan.ts": {
+      "name": "Scripted model plan",
+      "description": "Builds the per-bot plan file the fake engine replays, resolving @key bot references to live ids."
+    },
+    "evals/runners/run-evals.ts": {
+      "name": "Eval CLI entry",
+      "description": "Loads scenarios, dispatches --golden and --live, runs scenarios in order and writes JSON and markdown reports."
+    },
+    "evals/runners/run-scenario.ts": {
+      "name": "Scenario runner",
+      "description": "Boots a world, plays steps, freezes a snapshot, scores assertions and always tears the world down."
+    },
+    "evals/runners/base-world.ts": {
+      "name": "Base eval world",
+      "description": "Provides shared steps, evidence reading and snapshot freezing for every world over one real server."
+    },
+    "evals/runners/coordination-world.ts": {
+      "name": "Coordination world",
+      "description": "Launches the scripted verification server, creates bots, patches teams and runs routine and handoff steps."
+    },
+    "evals/runners/local-vm-world.ts": {
+      "name": "Local VM world",
+      "description": "Boots the real server with the in-repo VM fixture so computer-claim steps run without Podman."
+    },
+    "evals/runners/api.ts": {
+      "name": "Eval HTTP client",
+      "description": "Wraps fetch in a small client and polls state with deadline-bounded waitUntil instead of sleeps."
+    },
+    "evals/runners/run-skill-bench.ts": {
+      "name": "Skill bench runner",
+      "description": "Runs each fixture prompt with and without a skill through the scripted engine and builds the contrast report."
+    },
+    "evals/scorers/assertions.ts": {
+      "name": "Assertion scorers",
+      "description": "Scores each assertion kind as a pure function over the frozen world snapshot."
+    },
+    "evals/scorers/snapshot.ts": {
+      "name": "Snapshot types",
+      "description": "Types the frozen evidence a run leaves behind: turns, handoffs, threads, sends and observations."
+    },
+    "evals/scorers/skill-bench.ts": {
+      "name": "Skill bench scorer",
+      "description": "Computes arm pass rates, token estimates, per-assertion deltas and non-discriminating or high-variance flags."
+    },
+    "evals/reports/write-report.ts": {
+      "name": "Eval report writer",
+      "description": "Renders a markdown and a JSON report per run for release diffing."
+    },
+    "evals/golden/run-golden.ts": {
+      "name": "Golden replay runner",
+      "description": "Replays redacted golden fixtures and diffs each behavior trace against its committed baseline."
+    },
+    "evals/golden/run-golden-cli.ts": {
+      "name": "Golden CLI adapter",
+      "description": "Parses --scenario, --out and --update-baseline and maps the outcome to an exit code."
+    },
+    "evals/golden/golden.test.ts": {
+      "name": "Golden tests",
+      "description": "Checks fixtures carry provenance, pass leak scans, match the redactor byte for byte and replay to baseline."
+    },
+    "evals/golden/trace/behavior-trace.ts": {
+      "name": "Behavior trace",
+      "description": "Reduces a scenario run to tool order, argument keys, error flags, handoff tree and send admission."
+    },
+    "evals/golden/trace/diff-trace.ts": {
+      "name": "Trace differ",
+      "description": "Compares two behavior traces and returns one readable delta line per difference."
+    },
+    "evals/golden/redact/redact-thread.ts": {
+      "name": "Thread redactor",
+      "description": "Turns an exported real thread into a synthetic scenario with placeholders and aborts on any detected leak."
+    },
+    "evals/golden/redact/leak-scan.ts": {
+      "name": "Leak scanner",
+      "description": "Scans fixtures for emails, urls, paths, ips, secrets and hex blobs, reporting categories and never matched text."
+    },
+    "evals/live/types.ts": {
+      "name": "Live tier schemas",
+      "description": "Defines live scenario, invariant, threshold config and engine instance schemas for the opt-in tier."
+    },
+    "evals/live/live-suite.ts": {
+      "name": "Live suite logic",
+      "description": "Adapts live scenarios to tier-1 shape, scores checks and applies score and drift thresholds."
+    },
+    "evals/live/run-live.ts": {
+      "name": "Live tier runner",
+      "description": "Gates on OMB_EVAL_LIVE, runs scenarios on a real engine, calls the judge and compares to a baseline."
+    },
+    "evals/live/live-world.ts": {
+      "name": "Live eval world",
+      "description": "Runs the real server with one real engine and derives evidence rows from thread messages."
+    },
+    "evals/live/live-server.ts": {
+      "name": "Live server spawner",
+      "description": "Spawns the real server in a temp data dir with one configured engine and an allowlisted environment."
+    },
+    "evals/live/judge/judge.ts": {
+      "name": "Judge loader",
+      "description": "Loads checksum-pinned judge prompts, renders them and strictly parses the JSON verdict."
+    },
+    "evals/skill-bench/triggers.test.ts": {
+      "name": "Trigger set tests",
+      "description": "Checks trigger-set splits, unique ids and term presence; no router runs the set yet."
+    },
+    "evals/dream/score.ts": {
+      "name": "Dream scorer",
+      "description": "Grades a model's nightly-memory answer through the real parser and fact checks against expected and forbidden lines."
+    },
+    "evals/dream/run-dream.ts": {
+      "name": "Dream live runner",
+      "description": "Sends each dream case to a real model via its driver, gated on OMB_EVAL_LIVE, and reports score, time and cost."
+    },
+    "evals/dream/live.ts": {
+      "name": "Dream case loop",
+      "description": "Runs dream cases one at a time with the real dream prompt and scores failed calls as empty answers."
+    },
+    "evals/tool-choice/score.ts": {
+      "name": "Tool choice scorer",
+      "description": "Scores which tool a turn reached first, whether it looked it up and whether a forbidden tool was hit."
+    },
+    "evals/tool-choice/run-tool-choice.ts": {
+      "name": "Tool choice runner",
+      "description": "Runs real-model turns per case on a live server, reads activity rows and cost, and prints a summary."
+    },
+    "evals/tool-choice/context.ts": {
+      "name": "Tool list size probe",
+      "description": "Measures bytes of the agents tool list a Claude turn sends up front, whole versus deferred."
+    },
+    "evals/turn-routing/score.ts": {
+      "name": "Routing scorer",
+      "description": "Compares classifyTurn's tier with the labelled tier and labels misses cautious or eager."
+    },
+    "evals/turn-routing/score.test.ts": {
+      "name": "Routing tests",
+      "description": "Pins today's classifyTurn verdict counts and miss lists on the labelled cases."
+    },
+    "server/testing/setup.ts": {
+      "name": "Test setup",
+      "description": "Gives every test file a throwaway HOME and pins env flags so no test touches real data or network."
+    },
+    "server/testing/fakes-self-contained.test.ts": {
+      "name": "Fake isolation guard",
+      "description": "Fails when a subprocess fake imports anything outside server/testing."
+    },
+    "server/testing/room-handoff-agent.ts": {
+      "name": "Scripted room agent",
+      "description": "Plays scripted turns for the fake claude CLI through the real agents MCP proxy and logs evidence per turn."
+    },
+    "server/testing/fake-driver.ts": {
+      "name": "In-memory fake driver",
+      "description": "Provides a ProviderDriver whose events, snapshot failures and disposal a test controls directly."
+    },
+    "server/testing/stream-script.ts": {
+      "name": "Stream script helper",
+      "description": "Streams a marker-chosen scripted reply of words, thinking, a tool or a failure in timed chunks."
+    },
+    "server/testing/fake-claude-cli.ts": {
+      "name": "Fake Claude CLI",
+      "description": "Emulates the claude stream-json CLI with env-selected modes for failures, limits, resume, hooks and compaction."
+    },
+    "server/testing/live-reply-cases.ts": {
+      "name": "Streaming reply cases",
+      "description": "Defines marker-keyed scripted replies whose tokens let a check find each streamed message."
+    },
+    "server/testing/events.ts": {
+      "name": "Event recorder",
+      "description": "Records adapter events and resolves until(pred) when the proving event arrives, instead of sleeping."
+    },
+    "server/testing/fake-openai-live.ts": {
+      "name": "Fake OpenAI Live",
+      "description": "Serves a loopback stand-in for the OpenAI live-session HTTP and WebSocket API with failure injection."
+    },
+    "server/testing/fake-codex-app-server.ts": {
+      "name": "Fake Codex app server",
+      "description": "Emulates codex app-server JSON-RPC with env-selected modes for approvals, questions, crashes and limits."
+    },
+    "server/testing/fake-acp-cli.ts": {
+      "name": "Fake ACP CLI",
+      "description": "Emulates an Agent Client Protocol CLI with env-selected modes for streaming, auth, questions and delegation."
+    },
+    "server/testing/fake-claude-dump.test.ts": {
+      "name": "Capture integrity test",
+      "description": "Checks fake-CLI dump files stay complete JSON while another process writes them."
+    },
+    "server/admission-golden.test.ts": {
+      "name": "Admission golden tests",
+      "description": "Freezes every admission table so a policy change must be paired with a visible test edit."
+    },
+    "server/runtime-coordination.e2e.test.ts": {
+      "name": "Coordination e2e",
+      "description": "Scripts Chief and teammate turns by prompt match against a real server and checks assignments, events and restarts."
+    },
+    "server/drivers/claude.test.ts": {
+      "name": "Claude driver tests",
+      "description": "Spawns the fake claude CLI and asserts the canonical event stream, argv and env hygiene and interrupts."
+    },
+    "server/drivers/agents-catalog-wire.test.ts": {
+      "name": "Tool catalog goldens",
+      "description": "Pins the agents tools/list wire byte for byte per profile and budgets its size."
+    },
+    "server/system-prompt.test.ts": {
+      "name": "System prompt tests",
+      "description": "Checks prompt sections, the stable and volatile split and fixed prompt text."
+    },
+    "server/prompt-cache-prefix.e2e.test.ts": {
+      "name": "Prompt cache test",
+      "description": "Launches two threads of one bot and asserts they share the same system prompt prefix."
+    },
+    "server/turn-prompt-budget.test.ts": {
+      "name": "Prompt byte budget",
+      "description": "Limits each fixed prompt section to a two percent byte drift from its baseline."
+    },
+    "scripts/control-omb.ts": {
+      "name": "Control CLI and fixture",
+      "description": "Launches the fake-engine verification server and exposes the omb control commands tests drive."
+    },
+    "scripts/ci-linux-lanes.mjs": {
+      "name": "Linux CI lanes",
+      "description": "Runs the Linux vitest shards, evals and packaged smoke side by side with per-lane timeouts and logs."
+    },
+    "scripts/pre-push-check.mjs": {
+      "name": "Pre-push hook",
+      "description": "Runs lint and source guards on only the pushed files within a 30 second budget."
+    },
+    "scripts/ci-scope.mjs": {
+      "name": "CI scope selector",
+      "description": "Maps changed files to areas and selects which CI jobs, shards and lanes run."
+    },
+    "scripts/check-model-manifest.mjs": {
+      "name": "Model manifest check",
+      "description": "Validates the model manifest schema and requires updatedAt to advance when the file changes."
+    },
+    "scripts/release-ci.mjs": {
+      "name": "Release CI gate",
+      "description": "Waits for a green full-matrix CI run on the release commit or starts one in a release lane."
+    },
+    "scripts/capture-companion-fixtures.mjs": {
+      "name": "Companion fixture capture",
+      "description": "Records companion app test fixtures through a real harness and sidecar on the fake engine."
+    },
+    "scripts/verify-live-reply.ts": {
+      "name": "Streaming reply verifier",
+      "description": "Streams scripted reply cases through the real renderer per engine and checks each frame."
+    },
+    "scripts/testing/ci-retry-runner.ts": {
+      "name": "CI retry runner",
+      "description": "Gives listed flaky tests two retries in CI only and logs each retried test."
+    },
+    "scripts/testing/ci-retry-summary.mjs": {
+      "name": "Retry summary",
+      "description": "Reports tests that needed a retry in the job summary with an annotation each."
+    },
+    "vite.config.ts": {
+      "name": "Vite and vitest config",
+      "description": "Configures vitest workers, duration sharding, the retry runner and host-scaled timeouts."
+    }
+  }
+}

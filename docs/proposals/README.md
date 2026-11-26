@@ -20,3 +20,6 @@ VISION §7.3 تفرضها. إكمالها هو الخطوة الأولى.
 1. Workspace CLI order commands (VISION §7.3) — gap G4.
 2. The other agent environment gaps (G1, G2, G3, G5) and web research stages S1–S6 (`web-research.md`).
 3. MCP sign-in with OAuth, stages S1–S6 (`mcp-oauth.md`).
+
+| [roadmap-2026-11.md](roadmap-2026-11.md) | الخطة الشاملة بعد دراسة OpenMausBot وrakazo (مؤكدة) | عشر مشاكل يجب إصلاحها أولاً، ثم قدرات جديدة، وقرارات المالك الأربعة عشر |
+| [trading-expertise.md](trading-expertise.md) | خبرة التداول **مهاراتٍ للنموذج** بلا أرقام ثابتة (مؤكدة) | 18 مهارة، ومراجعة كل صفقة ودروس وإحصاءات تُعرض دليلاً لا قاعدة، ولا اختبار تاريخي ولا أقفال |

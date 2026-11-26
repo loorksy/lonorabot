@@ -1,0 +1,844 @@
+{
+ "$schema": "floorplan/architecture@1",
+ "audience": "developers",
+ "project": {
+  "name": "Rakazo",
+  "summary": "Open source self-hosted AI teammates with memory, routines and their own computers. A pnpm/turbo monorepo with a Hono API, worker, web, desktop and mobile clients, and an adapters package that holds the agent loop.",
+  "entrypoints": [
+   "apps/api/src/index.ts",
+   "apps/worker/src/index.ts",
+   "apps/web/src/main.tsx",
+   "packages/adapters/src/runs/executor/executor.ts"
+  ]
+ },
+ "nodes": [
+  {
+   "id": "clients",
+   "label": "Client apps",
+   "kind": "ui",
+   "summary": "Web, desktop, mobile and marketing front ends that talk to the API over oRPC.",
+   "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.mjs",
+    "**/*.test-support.ts",
+    "**/*.spec.ts",
+    "**/e2e/**"
+   ]
+  },
+  {
+   "id": "clients.web",
+   "label": "Web app",
+   "kind": "ui",
+   "summary": "Vite/React chat UI, including the model connection and subscription sign-in screens.",
+   "paths": [
+    "apps/web/**"
+   ],
+   "parent": "clients"
+  },
+  {
+   "id": "clients.web.models",
+   "label": "Model connect UI",
+   "kind": "feature",
+   "summary": "Model picker, provider settings forms and the subscription sign-in steps.",
+   "parent": "clients.web",
+   "paths": [
+    "apps/web/src/components/models/**",
+    "apps/web/src/lib/models/**"
+   ]
+  },
+  {
+   "id": "clients.mobile",
+   "label": "Mobile app",
+   "kind": "ui",
+   "summary": "Expo/React Native iOS and Android app with native modules, widgets and watch targets.",
+   "paths": [
+    "apps/mobile/**"
+   ],
+   "parent": "clients"
+  },
+  {
+   "id": "clients.desktop",
+   "label": "Desktop app",
+   "kind": "ui",
+   "summary": "Desktop shell around the web client with native helpers and release scripts.",
+   "paths": [
+    "apps/desktop/**"
+   ],
+   "parent": "clients"
+  },
+  {
+   "id": "clients.www",
+   "label": "Marketing site",
+   "kind": "ui",
+   "summary": "Astro site for rakazo.com; not part of the agent runtime.",
+   "paths": [
+    "apps/www/**"
+   ],
+   "parent": "clients"
+  },
+  {
+   "id": "api",
+   "label": "API and worker",
+   "kind": "service",
+   "summary": "Hono + oRPC server: sessions, threads, model connections, runs entrypoints.",
+   "paths": [
+    "apps/api/**"
+   ],
+   "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.mjs",
+    "**/*.test-support.ts",
+    "**/*.spec.ts",
+    "**/e2e/**"
+   ]
+  },
+  {
+   "id": "api.http",
+   "label": "HTTP and RPC plumbing",
+   "kind": "service",
+   "summary": "Router, request handling, drain, health, ingress, env parsing.",
+   "parent": "api",
+   "paths": [
+    "apps/api/src/http/**",
+    "apps/api/src/router.ts",
+    "apps/api/src/rpc-errors.ts",
+    "apps/api/src/index.ts",
+    "apps/api/src/env.ts",
+    "apps/api/src/router-test-support.ts",
+    "apps/api/src/log-unexpected-rpc-error.ts"
+   ]
+  },
+  {
+   "id": "api.threads",
+   "label": "Threads and runs routes",
+   "kind": "feature",
+   "summary": "Receives user messages, creates runs and serves thread history.",
+   "parent": "api",
+   "paths": [
+    "apps/api/src/threads/**",
+    "apps/api/src/routes/**"
+   ]
+  },
+  {
+   "id": "api.models",
+   "label": "Model connection routes",
+   "kind": "feature",
+   "summary": "RPC handlers for connecting providers, credentials and the model catalog.",
+   "parent": "api",
+   "paths": [
+    "apps/api/src/models/**",
+    "apps/api/src/routes/models.ts",
+    "apps/api/src/routes/model-role-errors.ts"
+   ]
+  },
+  {
+   "id": "api.auth",
+   "label": "API auth wiring",
+   "kind": "feature",
+   "summary": "Session lookup, hooks, trusted origins and admin checks for the API.",
+   "parent": "api",
+   "paths": [
+    "apps/api/src/auth/**"
+   ]
+  },
+  {
+   "id": "api.cli",
+   "label": "Admin CLI",
+   "kind": "script",
+   "summary": "Operator commands run against the API codebase.",
+   "parent": "api",
+   "paths": [
+    "apps/api/src/cli/**"
+   ]
+  },
+  {
+   "id": "worker",
+   "label": "Background worker",
+   "kind": "worker",
+   "summary": "Runs queued jobs and run wakeups outside the request path.",
+   "parent": "api",
+   "paths": [
+    "apps/worker/**"
+   ]
+  },
+  {
+   "id": "adapters",
+   "label": "Adapters and runtime",
+   "kind": "library",
+   "summary": "Everything that does work: the agent loop, model layer, tools, sandboxes and integrations.",
+   "paths": [
+    "packages/adapters/**"
+   ],
+   "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.mjs",
+    "**/*.test-support.ts",
+    "**/*.spec.ts",
+    "**/e2e/**"
+   ]
+  },
+  {
+   "id": "adapters.runs",
+   "label": "Run engine",
+   "kind": "feature",
+   "summary": "Turns one queued run into model turns and tool loops.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/runs/**"
+   ],
+   "exclude": [
+    "packages/adapters/src/runs/tools/**"
+   ]
+  },
+  {
+   "id": "adapters.runs.assembly",
+   "label": "Run assembly",
+   "kind": "feature",
+   "summary": "Builds history, instructions, tools and model for a run.",
+   "parent": "adapters.runs",
+   "paths": [
+    "packages/adapters/src/runs/assembly/**",
+    "packages/adapters/src/runs/labs-env.ts"
+   ]
+  },
+  {
+   "id": "adapters.runs.executor",
+   "label": "Run executor",
+   "kind": "feature",
+   "summary": "Picks up a run and drives it to completion.",
+   "parent": "adapters.runs",
+   "paths": [
+    "packages/adapters/src/runs/executor/**"
+   ]
+  },
+  {
+   "id": "adapters.runs.turn",
+   "label": "Turn and tool loop",
+   "kind": "feature",
+   "summary": "Model turn, tool step loop, pause and checkpoints.",
+   "parent": "adapters.runs",
+   "paths": [
+    "packages/adapters/src/runs/turn/**"
+   ]
+  },
+  {
+   "id": "adapters.runs.lifecycle",
+   "label": "Run lifecycle",
+   "kind": "feature",
+   "summary": "Attempts, completion, failure, recovery and progress of a run.",
+   "parent": "adapters.runs",
+   "paths": [
+    "packages/adapters/src/runs/lifecycle/**"
+   ]
+  },
+  {
+   "id": "adapters.runs.wakeups",
+   "label": "Wakeups and jobs",
+   "kind": "feature",
+   "summary": "Job queue and wakes that restart runs.",
+   "parent": "adapters.runs",
+   "paths": [
+    "packages/adapters/src/runs/wakeups/**"
+   ]
+  },
+  {
+   "id": "adapters.runtime",
+   "label": "Agent runtime",
+   "kind": "feature",
+   "summary": "Pi-based agent runtime, ACP runtime, context pruning and compaction.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/runtime/**"
+   ],
+   "exclude": [
+    "packages/adapters/src/runtime/pi/models/**",
+    "packages/adapters/src/runtime/pi/tools/**"
+   ]
+  },
+  {
+   "id": "adapters.models",
+   "label": "Model layer",
+   "kind": "feature",
+   "summary": "Provider selection, endpoints, credentials and the model catalog.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/models/**",
+    "packages/adapters/src/providers/cli-model/**",
+    "packages/adapters/src/providers/agent-cli/**"
+   ]
+  },
+  {
+   "id": "adapters.catalog",
+   "label": "Model catalog",
+   "kind": "feature",
+   "summary": "Live and bundled model lists per provider, availability and Codex catalog.",
+   "parent": "adapters.models",
+   "paths": [
+    "packages/adapters/src/runtime/pi/models/pi-catalog-availability.ts",
+    "packages/adapters/src/runtime/pi/models/pi-codex-catalog.ts",
+    "packages/adapters/src/runtime/pi/models/pi-live-*.ts",
+    "packages/adapters/src/runtime/pi/models/pi-models.ts",
+    "packages/adapters/src/runtime/pi/models/pi-model-compat.ts",
+    "packages/adapters/src/runtime/pi/models/pi-local-provider*.ts",
+    "packages/adapters/src/runtime/pi/models/pi-openai-compatible-provider.ts",
+    "packages/adapters/src/models/model-provider-registry.ts",
+    "packages/adapters/src/models/model-provider-allowlist.ts"
+   ]
+  },
+  {
+   "id": "adapters.signin",
+   "label": "Subscription sign-in",
+   "kind": "feature",
+   "summary": "OAuth for ChatGPT and Claude subscriptions, device code flow and credential resolution.",
+   "parent": "adapters.models",
+   "paths": [
+    "packages/adapters/src/runtime/pi/models/pi-oauth*.ts",
+    "packages/adapters/src/runtime/pi/models/pi-chatgpt-device-code.ts",
+    "packages/adapters/src/runtime/pi/models/pi-anthropic-oauth.ts",
+    "packages/adapters/src/runtime/pi/models/pi-credentials.ts",
+    "packages/adapters/src/runtime/pi/models/model-auth-resolution.ts",
+    "packages/adapters/src/runtime/pi/models/model-sign-in-log.ts",
+    "packages/adapters/src/models/model-credential*.ts",
+    "packages/adapters/src/models/model-secret.ts"
+   ]
+  },
+  {
+   "id": "adapters.tools",
+   "label": "Tools and permissions",
+   "kind": "feature",
+   "summary": "Built-in tools, tool gate, approvals and auto-review, MCP client.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/runs/tools/**",
+    "packages/adapters/src/tools/**",
+    "packages/adapters/src/approvals/**",
+    "packages/adapters/src/mcp/**",
+    "packages/adapters/src/runtime/pi/tools/**"
+   ]
+  },
+  {
+   "id": "adapters.computers",
+   "label": "Computers and sandboxes",
+   "kind": "feature",
+   "summary": "Per-bot computers: sandbox providers, screens, hosts.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/computers/**",
+    "packages/adapters/src/providers/computer/**",
+    "packages/adapters/src/browser/**"
+   ]
+  },
+  {
+   "id": "adapters.secrets",
+   "label": "Secrets",
+   "kind": "feature",
+   "summary": "Secret store, vault and per-run secrets.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/secrets/**",
+    "packages/adapters/src/providers/secret-store/**",
+    "packages/adapters/src/providers/key/**"
+   ]
+  },
+  {
+   "id": "adapters.integrations",
+   "label": "Integrations and channels",
+   "kind": "feature",
+   "summary": "Messaging, email, calls, voice, meetings, media and app integrations.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/integrations/**",
+    "packages/adapters/src/messaging/**",
+    "packages/adapters/src/email/**",
+    "packages/adapters/src/calls/**",
+    "packages/adapters/src/voice/**",
+    "packages/adapters/src/meetings/**",
+    "packages/adapters/src/media/**",
+    "packages/adapters/src/notifications/**",
+    "packages/adapters/src/webhooks/**",
+    "packages/adapters/src/personal-calendar/**",
+    "packages/adapters/src/cloud-agents/**",
+    "packages/adapters/src/providers/**"
+   ]
+  },
+  {
+   "id": "adapters.domain",
+   "label": "Domain services",
+   "kind": "feature",
+   "summary": "Bots, routines, memory, storage, billing and tasks backing the product.",
+   "parent": "adapters",
+   "paths": [
+    "packages/adapters/src/bots/**",
+    "packages/adapters/src/routines/**",
+    "packages/adapters/src/memory/**",
+    "packages/adapters/src/tasks/**",
+    "packages/adapters/src/storage/**",
+    "packages/adapters/src/billing/**",
+    "packages/adapters/src/payments/**",
+    "packages/adapters/src/network/**",
+    "packages/adapters/src/web/**"
+   ]
+  },
+  {
+   "id": "platform",
+   "label": "Shared packages",
+   "kind": "library",
+   "summary": "Domain logic, contracts, database, auth and UI kits shared by apps.",
+   "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.mjs",
+    "**/*.test-support.ts",
+    "**/*.spec.ts",
+    "**/e2e/**"
+   ]
+  },
+  {
+   "id": "platform.core",
+   "label": "Core domain",
+   "kind": "library",
+   "summary": "Pure domain logic including model providers, OAuth helpers, runs and messages.",
+   "parent": "platform",
+   "paths": [
+    "packages/core/**"
+   ]
+  },
+  {
+   "id": "platform.contracts",
+   "label": "Contracts",
+   "kind": "library",
+   "summary": "Zod/oRPC contracts shared by client and server.",
+   "parent": "platform",
+   "paths": [
+    "packages/contracts/**"
+   ]
+  },
+  {
+   "id": "platform.db",
+   "label": "Database",
+   "kind": "data",
+   "summary": "Prisma schema, migrations and repositories over Postgres.",
+   "parent": "platform",
+   "paths": [
+    "packages/db/**"
+   ]
+  },
+  {
+   "id": "platform.auth",
+   "label": "User auth",
+   "kind": "library",
+   "summary": "better-auth setup: passwords, passkeys, OIDC, social login and emails.",
+   "parent": "platform",
+   "paths": [
+    "packages/auth/**"
+   ]
+  },
+  {
+   "id": "platform.ui",
+   "label": "UI kits",
+   "kind": "library",
+   "summary": "Chat UI, web components, tokens, page kit and i18n.",
+   "parent": "platform",
+   "paths": [
+    "packages/chat-ui/**",
+    "packages/ui-web/**",
+    "packages/ui-tokens/**",
+    "packages/page-kit/**",
+    "packages/i18n/**"
+   ]
+  },
+  {
+   "id": "platform.kit",
+   "label": "Adapter kit and utilities",
+   "kind": "library",
+   "summary": "Adapter interfaces, logging and memory helpers.",
+   "parent": "platform",
+   "paths": [
+    "packages/adapter-kit/**",
+    "packages/logging/**",
+    "packages/memory/**"
+   ]
+  },
+  {
+   "id": "testing",
+   "label": "Tests and test kit",
+   "kind": "test",
+   "summary": "Unit tests, e2e specs, evals, model emulator and harnesses."
+  },
+  {
+   "id": "testing.kit",
+   "label": "Test kit and evals",
+   "kind": "test",
+   "summary": "Harnesses, evals, model emulator, screenshots and fixtures.",
+   "parent": "testing",
+   "paths": [
+    "packages/testkit/**"
+   ]
+  },
+  {
+   "id": "testing.e2e",
+   "label": "End-to-end specs",
+   "kind": "test",
+   "summary": "Playwright and device e2e suites.",
+   "parent": "testing",
+   "paths": [
+    "**/e2e/**"
+   ]
+  },
+  {
+   "id": "testing.unit",
+   "label": "Unit and integration tests",
+   "kind": "test",
+   "summary": "Co-located vitest and node tests.",
+   "parent": "testing",
+   "paths": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.mjs",
+    "**/*.test-support.ts",
+    "**/*.spec.ts"
+   ],
+   "exclude": [
+    "**/e2e/**"
+   ]
+  },
+  {
+   "id": "ops",
+   "label": "Infra and tooling",
+   "kind": "infra",
+   "summary": "Sandbox images, updater, CI actions, release scripts and repo checks.",
+   "paths": [
+    "infra/**",
+    "scripts/**",
+    ".github/**",
+    ".github/*/**",
+    ".agents/**",
+    ".agents/*/**",
+    ".pnpmfile.cjs",
+    "**/.pnpmfile.cjs",
+    "examples/**",
+    "docs/**",
+    "patches/**",
+    "*.config.ts",
+    ".pnpmfile.cjs"
+   ],
+   "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.mjs",
+    "**/*.test-support.ts",
+    "**/*.spec.ts",
+    "**/e2e/**"
+   ]
+  },
+  {
+   "id": "clients.mobile.ui",
+   "label": "Mobile screens and components",
+   "kind": "ui",
+   "summary": "Expo router screens and React Native components.",
+   "parent": "clients.mobile",
+   "paths": [
+    "apps/mobile/app/**",
+    "apps/mobile/components/**"
+   ]
+  },
+  {
+   "id": "clients.mobile.lib",
+   "label": "Mobile logic",
+   "kind": "library",
+   "summary": "Client state, RPC and helpers for the mobile app.",
+   "parent": "clients.mobile",
+   "paths": [
+    "apps/mobile/lib/**"
+   ]
+  },
+  {
+   "id": "clients.mobile.native",
+   "label": "Mobile native code",
+   "kind": "ui",
+   "summary": "Native modules, plugins and platform targets.",
+   "parent": "clients.mobile",
+   "paths": [
+    "apps/mobile/modules/**",
+    "apps/mobile/native/**",
+    "apps/mobile/plugins/**"
+   ]
+  },
+  {
+   "id": "adapters.runtime.pi",
+   "label": "Pi runtime",
+   "kind": "feature",
+   "summary": "Agent loop on pi-agent-core: sessions, history, streaming, usage, fallback.",
+   "parent": "adapters.runtime",
+   "paths": [
+    "packages/adapters/src/runtime/pi/**"
+   ]
+  },
+  {
+   "id": "adapters.runtime.acp",
+   "label": "ACP runtime",
+   "kind": "feature",
+   "summary": "Agent Client Protocol runtime for external coding agents.",
+   "parent": "adapters.runtime",
+   "paths": [
+    "packages/adapters/src/runtime/acp/**"
+   ]
+  },
+  {
+   "id": "adapters.runtime.context",
+   "label": "Context management",
+   "kind": "feature",
+   "summary": "History compaction, pruning and context selection.",
+   "parent": "adapters.runtime",
+   "paths": [
+    "packages/adapters/src/runtime/context/**"
+   ]
+  },
+  {
+   "id": "adapters.tools.gate",
+   "label": "Tool gate and built-ins",
+   "kind": "feature",
+   "summary": "Per-run tool selection, gate and built-in tool definitions.",
+   "parent": "adapters.tools",
+   "paths": [
+    "packages/adapters/src/runs/tools/**",
+    "packages/adapters/src/tools/**",
+    "packages/adapters/src/runtime/pi/tools/**"
+   ]
+  },
+  {
+   "id": "adapters.tools.approvals",
+   "label": "Approvals and auto-review",
+   "kind": "feature",
+   "summary": "Human approvals and model-based auto review of tool calls.",
+   "parent": "adapters.tools",
+   "paths": [
+    "packages/adapters/src/approvals/**"
+   ]
+  },
+  {
+   "id": "adapters.tools.mcp",
+   "label": "MCP client",
+   "kind": "feature",
+   "summary": "Remote MCP servers, transport, permissions and results.",
+   "parent": "adapters.tools",
+   "paths": [
+    "packages/adapters/src/mcp/**"
+   ]
+  },
+  {
+   "id": "adapters.computers.sandbox",
+   "label": "Sandbox providers",
+   "kind": "feature",
+   "summary": "Docker, E2B, Daytona and other sandbox backends.",
+   "parent": "adapters.computers",
+   "paths": [
+    "packages/adapters/src/providers/computer/**"
+   ]
+  },
+  {
+   "id": "adapters.integrations.providers",
+   "label": "Provider plugins",
+   "kind": "feature",
+   "summary": "Messaging, voice, memory, billing and other pluggable providers.",
+   "parent": "adapters.integrations",
+   "paths": [
+    "packages/adapters/src/providers/**"
+   ]
+  },
+  {
+   "id": "platform.core.models",
+   "label": "Core model logic",
+   "kind": "library",
+   "summary": "Provider list, OAuth helpers, probes and model settings forms.",
+   "parent": "platform.core",
+   "paths": [
+    "packages/core/src/models/**"
+   ]
+  },
+  {
+   "id": "api.messaging",
+   "label": "Inbound messaging",
+   "kind": "feature",
+   "summary": "Channel intake and routing of inbound messages.",
+   "parent": "api",
+   "paths": [
+    "apps/api/src/messaging/**"
+   ]
+  },
+  {
+   "id": "ext.models",
+   "label": "Model providers",
+   "kind": "external",
+   "summary": "OpenAI, Anthropic, Google, OpenRouter and other LLM APIs, via the pi-ai SDK.",
+   "packages": [
+    "npm:@earendil-works/pi-ai",
+    "npm:@earendil-works/pi-agent-core"
+   ],
+   "hosts": [
+    "api.openai.com",
+    "auth.openai.com",
+    "chatgpt.com",
+    "api.anthropic.com",
+    "claude.ai",
+    "platform.claude.com",
+    "openrouter.ai",
+    "generativelanguage.googleapis.com",
+    "aiplatform.googleapis.com",
+    "api.deepseek.com",
+    "api.deepinfra.com"
+   ]
+  },
+  {
+   "id": "ext.db",
+   "label": "Postgres",
+   "kind": "external",
+   "summary": "Primary database and job queue store.",
+   "packages": [
+    "npm:pg",
+    "npm:@prisma/client",
+    "npm:graphile-worker"
+   ]
+  },
+  {
+   "id": "ext.services",
+   "label": "Other services",
+   "kind": "external",
+   "summary": "MCP servers, sandbox providers, chat channels and Stripe-style APIs the adapters call.",
+   "packages": [
+    "npm:@modelcontextprotocol/sdk",
+    "npm:@e2b/desktop",
+    "npm:@daytona/sdk",
+    "npm:@kubernetes/client-node",
+    "npm:chat",
+    "npm:@chat-adapter/*"
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "agent-turn",
+   "title": "One agent turn",
+   "description": "From a user message to the reply.",
+   "steps": [
+    {
+     "node": "clients.web",
+     "note": "User sends a message in a thread."
+    },
+    {
+     "node": "apps/api/src/threads/runs.ts",
+     "note": "API creates a run for the thread."
+    },
+    {
+     "node": "adapters.runs.wakeups",
+     "note": "A job wakes the run on the worker."
+    },
+    {
+     "node": "packages/adapters/src/runs/executor/executor.ts",
+     "note": "Executor claims the run."
+    },
+    {
+     "node": "packages/adapters/src/runs/assembly/run-assembly.ts",
+     "note": "Assembles history, instructions, tools and model."
+    },
+    {
+     "node": "packages/adapters/src/runs/turn/run-turn.ts",
+     "note": "Runs the model turn."
+    },
+    {
+     "node": "packages/adapters/src/runtime/pi/pi-runtime.ts",
+     "note": "Pi runtime streams the model response."
+    },
+    {
+     "node": "ext.models",
+     "note": "Provider returns tokens and tool calls."
+    },
+    {
+     "node": "packages/adapters/src/runs/turn/tool-loop.ts",
+     "note": "Tool calls are gated, run, and fed back until done."
+    },
+    {
+     "node": "packages/adapters/src/runs/lifecycle/run-complete.ts",
+     "note": "Run completes and the reply is stored and delivered."
+    }
+   ]
+  },
+  {
+   "id": "signin",
+   "title": "Sign in with a ChatGPT or Claude subscription",
+   "steps": [
+    {
+     "node": "apps/web/src/components/models/SubscriptionSignInSteps.tsx",
+     "note": "User picks subscription sign-in."
+    },
+    {
+     "node": "apps/web/src/lib/models/use-model-oauth-signin.ts",
+     "note": "Hook starts and polls the sign-in."
+    },
+    {
+     "node": "apps/api/src/routes/models.ts",
+     "note": "RPC starts the OAuth flow."
+    },
+    {
+     "node": "packages/adapters/src/runtime/pi/models/pi-chatgpt-device-code.ts",
+     "note": "ChatGPT device code flow against auth.openai.com."
+    },
+    {
+     "node": "packages/adapters/src/runtime/pi/models/pi-anthropic-oauth.ts",
+     "note": "Claude subscription OAuth."
+    },
+    {
+     "node": "packages/adapters/src/runtime/pi/models/model-auth-resolution.ts",
+     "note": "Stored credential is resolved at run time and refreshed."
+    }
+   ]
+  }
+ ],
+ "tour": [
+  {
+   "node": "apps/api/src/index.ts",
+   "title": "API entrypoint",
+   "note": "Hono server that starts runs for user messages."
+  },
+  {
+   "node": "adapters.runs",
+   "title": "Run engine",
+   "note": "Where an agent turn is driven."
+  },
+  {
+   "node": "adapters.runtime",
+   "title": "Agent runtime",
+   "note": "Pi runtime streaming to models."
+  },
+  {
+   "node": "adapters.models",
+   "title": "Model layer",
+   "note": "Providers, endpoints and credentials."
+  },
+  {
+   "node": "adapters.catalog",
+   "title": "Model catalog",
+   "note": "How available models are listed."
+  },
+  {
+   "node": "adapters.signin",
+   "title": "Subscription sign-in",
+   "note": "OAuth for ChatGPT and Claude."
+  },
+  {
+   "node": "adapters.tools",
+   "title": "Tools and permissions",
+   "note": "Tool gate, approvals, MCP."
+  }
+ ],
+ "ignore": [
+  "**/pnpm-lock.yaml",
+  "apps/mobile/ios-*/**",
+  "**/*.generated.*",
+  "packages/db/prisma/migrations/**",
+  "**/node_modules/**"
+ ]
+}
