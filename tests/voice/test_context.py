@@ -13,6 +13,7 @@ from lonora_adapters.voice.realtime import OpenAILiveAdapter
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import AgentRow, MessageRow, ThreadRow, VoiceSessionRow
+from lonora_trading.authority_verdict import verdict_sentence
 from lonora_voice.context import (
     CONTEXT_AUTHORITY,
     CONTEXT_PREAMBLE,
@@ -182,6 +183,8 @@ async def test_selected_agent_profile_memory_scratchpad_and_chosen_history_only(
     configuration = await negotiate(workspace, monkeypatch)
     loaded = context(configuration)
     assert loaded["agent"] == profile
+    # The spoken leg reads the door's verdict for this agent in Ask, as the frame does.
+    assert verdict_sentence("new_risk", "needs_approval") in configuration["instructions"]
     assert loaded["memory"] == {
         "version": version,
         "content": "ذاكرة هذا الوكيل: أفضل التحليل الأسبوعي.",
