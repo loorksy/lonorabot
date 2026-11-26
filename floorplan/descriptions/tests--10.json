@@ -22,7 +22,7 @@
     },
     "tests/test_routine_overlap.py": {
       "name": "Routine overlap tests",
-      "description": "Automatic checks that routine runs do not pile up behind an unfinished run."
+      "description": "Automatic checks that routine runs do not pile up behind an unfinished run and that a late run is told it is late."
     },
     "tests/test_run_integrity.py": {
       "name": "Run integrity tests",

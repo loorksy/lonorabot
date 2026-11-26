@@ -1,13 +1,15 @@
-"""Routine runs do not stack (VISION 11.5, 11.6, 17).
+"""Routine runs do not stack, and a late run knows it is late (VISION 11.5, 11.6, 17, 5.2).
 
 A recurring routine whose earlier run is still queued (retry backoff included), leased or
 running gets no second run when it comes due: its schedule advances and the skipped
 occurrence is counted, and its next run carries the count. A run waiting for the owner's
-answer does not hold the schedule, and a one-shot always fires.
+answer does not hold the schedule, and a one-shot always fires. Every routine run carries
+when it was due and how many later occurrences were folded into it; one that starts more
+than 15 minutes after it was due is told so in one fixed server sentence (6.10).
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
@@ -113,6 +115,8 @@ async def test_a_running_routine_skips_its_ticks_and_its_next_run_carries_the_co
         assert await fire(fixture, made["id"])
         first, second = await runs_of(fixture, made["id"])
         assert second.model_metadata["skipped_occurrences"] == 2
+        assert second.model_metadata["missed_occurrences"] == 0
+        assert "scheduled_for" in second.model_metadata
         assert await skipped(fixture, made["id"]) == 0
         # The routine's history shows the count on the run that carried it.
         history = await routine_history(fixture.runtime.db, made["id"], fixture.owner)
@@ -202,6 +206,64 @@ async def test_a_one_shot_fires_even_while_an_earlier_run_of_it_is_queued():
 
 
 @pytest.mark.asyncio
+async def test_a_late_routine_run_is_told_when_it_was_due():
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.routine import BACKGROUND, wake_context
+    from lonora_contracts.domain import utcnow
+
+    fixture = await Fixture().open()
+    try:
+        late = await routine(fixture, "Late", interval_seconds=3600)
+        due = (utcnow() - timedelta(hours=3)).replace(microsecond=0)
+        await make_due(fixture, late["id"], due)
+        assert await fire(fixture, late["id"])
+        [run] = await runs_of(fixture, late["id"])
+        assert datetime.fromisoformat(run.model_metadata["scheduled_for"]) == due
+        # Fired once for 06:00; 07:00, 08:00 and 09:00 were folded into it.
+        assert run.model_metadata["missed_occurrences"] == 3
+        assert run.model_metadata["skipped_occurrences"] == 0
+        marker = wake_context(run)
+        assert BACKGROUND in marker
+        assert (
+            "This routine run is late: it was due at " + due.strftime("%Y-%m-%d %H:%M UTC")
+            in marker
+        )
+        assert "Later occurrences folded into it: 3." in marker
+        assert "Re-check what changed" in marker
+        # One that is a minute late is on time: the plain background wake.
+        prompt = await routine(fixture, "Prompt", interval_seconds=3600)
+        await make_due(fixture, prompt["id"], utcnow() - timedelta(minutes=1))
+        assert await fire(fixture, prompt["id"])
+        [run] = await runs_of(fixture, prompt["id"])
+        assert run.model_metadata["missed_occurrences"] == 0
+        assert wake_context(run) == (
+            "<wake trigger='routine' request='in_the_conversation_turn'>\n"
+            + BACKGROUND
+            + "\n</wake>"
+        )
+    finally:
+        await fixture.close()
+
+
+def test_missed_cron_occurrences_are_counted_up_to_a_bound():
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_db.routines import MISSED_COUNT_CAP, missed_occurrences
+
+    hourly = RoutineCreate(prompt="p", cron="0 * * * *")
+    due = datetime(2026, 11, 26, 6, tzinfo=UTC)
+    assert missed_occurrences(hourly, due, due + timedelta(hours=3, seconds=30)) == 3
+    assert missed_occurrences(hourly, due, due + timedelta(minutes=59)) == 0
+    # A minute-by-minute schedule after a month of downtime stops counting at the bound.
+    minutely = RoutineCreate(prompt="p", cron="* * * * *")
+    assert missed_occurrences(minutely, due, due + timedelta(days=30)) == MISSED_COUNT_CAP
+    every = RoutineCreate(prompt="p", interval_seconds=600)
+    assert missed_occurrences(every, due, due + timedelta(minutes=35)) == 3
+    once = RoutineCreate(prompt="p", run_at=datetime(2099, 1, 1, tzinfo=UTC))
+    assert missed_occurrences(once, due, due + timedelta(days=1)) == 0
+
+
+@pytest.mark.asyncio
 async def test_a_caller_cannot_set_the_routine_timing_of_a_run():
     database()
     from check_streaming import Fixture
@@ -220,9 +282,15 @@ async def test_a_caller_cannot_set_the_routine_timing_of_a_run():
                     thread_id=thread["id"],
                     agent_id=agent["id"],
                     trigger="routine",
-                    metadata={"skipped_occurrences": 9},
+                    metadata={
+                        "scheduled_for": "2026-01-01T00:00:00+00:00",
+                        "missed_occurrences": 9,
+                        "skipped_occurrences": 9,
+                    },
                 ),
             )
-            assert "skipped_occurrences" not in run.model_metadata
+            assert not {"scheduled_for", "missed_occurrences", "skipped_occurrences"} & set(
+                run.model_metadata
+            )
     finally:
         await fixture.close()

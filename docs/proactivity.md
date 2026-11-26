@@ -59,21 +59,31 @@ is the agent's earliest conversation; a routine on such a thread moves to a new 
 thread of its own. A routine or watch run still in flight in a converted thread reports
 to the agent's conversation, like the runs the new code queues.
 
-## Routine timing: no stacking (11.5, 17)
+## Routine timing: no stacking, honest lateness (11.5, 17, 5.2)
 
 `enqueue_routine` in `lonora_db/routines.py` fires a due routine in its own transaction.
 
 - **No stacking.** While a run of the routine in its work thread is `queued` (a run in
   retry backoff, for example during a model outage, is queued too), `leased` or
   `running`, a due tick creates no run. The schedule advances as after a run, and the
-  skipped occurrence is counted on the routine (`ln_routines.skipped_occurrences`). A
+  skipped occurrences are counted on the routine (`ln_routines.skipped_occurrences`). A
   run waiting for the owner's answer (`waiting_input`) does not hold the schedule: an
   unanswered question never stops a routine. A one-shot always fires. This is not a
   limit (P1): the routine fires on its schedule again once the earlier run has ended.
-- **What the run carries.** The next run carries the count as `skipped_occurrences`, in
-  server-only metadata that `create_run` strips from every caller, and the routine's
-  count starts again from zero. The routine's history shows it on that run
+- **Missed occurrences.** Missed schedules collapse into one wake; a burst is never
+  replayed after downtime, a suspension, `lonora quiesce` or an update window. A cron
+  collapse is counted up to 1000 occurrences.
+- **What the run carries.** Each routine run carries, in server-only metadata that
+  `create_run` strips from every caller: `scheduled_for` (the occurrence it fires),
+  `missed_occurrences` (the later occurrences folded into it) and `skipped_occurrences`
+  (those skipped before it while its earlier run was unfinished; the routine's count
+  then starts again from zero). The routine's history shows them on each run
   (`model_metadata`).
+- **The late sentence.** A routine run whose context is built more than 15 minutes after
+  `scheduled_for` gets one fixed server sentence in its `<wake>` frame
+  (`late_routine_note` in `lonora_agent/context/routine.py`): when it was due, when it
+  started, how many later occurrences were folded into it, and to re-check what changed
+  before acting. There is no fixed catch-up window: the agent judges what is stale (5.1).
 
 ## Silence when there is nothing (11.5)
 
