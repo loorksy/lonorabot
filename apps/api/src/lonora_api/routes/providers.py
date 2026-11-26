@@ -30,7 +30,7 @@ async def providers(
     credentials = ProviderCredentials(rt.db, rt.services(owner.id).secrets)
     listed: list[dict[str, object]] = []
     for provider in PROVIDERS:
-        if provider in OWNER_ENDPOINT or (provider in SIGN_IN and not sign_in_enabled()):
+        if provider in OWNER_ENDPOINT:
             continue
         item: dict[str, object] = {
             "id": provider,
@@ -38,7 +38,12 @@ async def providers(
         }
         if provider in SIGN_IN:
             # The signed-in ChatGPT account and whether its plan is in use (never a token).
-            item["sign_in"] = await credentials.sign_in().status()
+            # With the sign-in turned off it is listed only while a sign-in holds tokens,
+            # so the owner can still sign out.
+            status = await credentials.sign_in().status()
+            if not sign_in_enabled() and not status["signed_in"]:
+                continue
+            item["sign_in"] = status
         listed.append(item)
     return listed
 

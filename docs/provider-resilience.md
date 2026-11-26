@@ -54,11 +54,17 @@ The owner's ChatGPT plan (`openai_chatgpt`, Sign in with ChatGPT,
 `lonora_providers/chatgpt_sign_in.py`) gives the router an access token instead of a
 key: `ProviderCredentials.connection` returns a fresh one for every request and renews
 it in its last minute, one caller at a time under a Postgres advisory lock that re-reads
-the stored copy, since each renewal rotates the refresh token. A renewal OpenAI refuses
-(`invalid_grant`, `refresh_token_reused` and the other terminal codes) clears the tokens
-and fails the candidate as `auth` (`model_credentials_rejected`: the owner signs in
-again); any other renewal failure keeps them and fails it as transient. Either way the
-router passes to the next candidate, as for a request that failed. The plan's own
+the stored copy, since each renewal rotates the refresh token. In each process only the
+caller that renews holds a database connection; the others wait for it without one. A
+renewal OpenAI refuses (`invalid_grant`, `refresh_token_reused` and the other terminal
+codes) clears the tokens and fails the candidate as `auth` (`model_credentials_rejected`:
+the owner signs in again); `invalid_client` also drops the issued client id, so the next
+sign-in registers anew. Any other renewal failure keeps the tokens: the process tries
+again only after 30 seconds (`REFRESH_BACKOFF`), and until then the saved token answers
+while it is still valid, or the candidate fails at once as transient, with no request to
+OpenAI. Either way the router passes to the next candidate, as for a request that failed.
+The account's model list is read at most every 15 minutes, by one caller (the read is
+claimed first), and never written back after a sign-out. The plan's own
 answers are classified by code in the table above: its usage limit is `billing`, so the
 next model answers, and when none does the run's failure names the plan
 (`failure.provider`), which the clients show as "ChatGPT plan limit reached" with

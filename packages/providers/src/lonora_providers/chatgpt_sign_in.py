@@ -17,9 +17,13 @@ Storage (4.3): the credential and the pending attempt are encrypted values of sc
 ``provider`` (``openai_chatgpt``, ``openai_chatgpt_pending``), out of the workspace; the
 host id and the account's models are settings. Refreshes rotate the refresh token, so they
 run under one advisory lock per owner, which re-reads the stored copy and replaces the
-token set in the same transaction. Provider text is never kept, shown or logged.
+token set in the same transaction. In each process one caller refreshes at a time (the
+others wait without a database connection), and a transient failure holds further
+attempts back for ``REFRESH_BACKOFF`` seconds while the saved token is still used if it
+is valid. Provider text is never kept, shown or logged.
 """
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -71,6 +75,9 @@ FLAG = "LONORA_CHATGPT_SIGN_IN"
 PENDING_SECONDS = 15 * 60
 # The access token is renewed before its last minute.
 REFRESH_MARGIN = 60
+# After a transient refresh failure, the next attempt in this process waits this long
+# (OpenAI: "bounded backoff for temporary failures").
+REFRESH_BACKOFF = 30.0
 # The account's models are read again at most this often while the plan is used.
 MODELS_SECONDS = 15 * 60
 CLOCK_LEEWAY = 30
@@ -89,7 +96,8 @@ TERMINAL_REFRESH = frozenset(
 
 def sign_in_enabled() -> bool:
     """``LONORA_CHATGPT_SIGN_IN`` (default on). Lonora Cloud sets it off until OpenAI
-    approves it for remotely hosted apps (M8); off, nothing offers or uses the sign-in."""
+    approves it for remotely hosted apps (M8); off, nothing offers or uses the sign-in, and
+    only sign-out still works on a sign-in made before."""
     value = os.environ.get(FLAG) or dotenv_values(".env").get(FLAG) or "on"
     return value.strip().lower() not in {"off", "0", "false", "no"}
 
@@ -108,12 +116,34 @@ class Unreachable(Exception):
     """OpenAI did not answer, or answered with more than an answer can be."""
 
 
+# Per process and owner: the refresh gate (bound to the loop it serves), and the refresh
+# token a transient failure holds back, until when, and why.
+_gates: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Lock]] = {}
+_held: dict[str, tuple[str, float, FailureReason]] = {}
+
+
+def _refresh_gate(owner_id: str) -> asyncio.Lock:
+    """One refresh at a time for the owner in this process; the advisory lock orders the
+    processes."""
+    loop = asyncio.get_running_loop()
+    gate = _gates.get(owner_id)
+    if gate is None or gate[0] is not loop:
+        gate = _gates[owner_id] = (loop, asyncio.Lock())
+    return gate[1]
+
+
+def _fingerprint(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 @dataclass(frozen=True)
 class Credential:
     """One registration: the issued client id and host, the verified account, and its
-    tokens (none after sign-out or a refused refresh; ``sign_in_again`` says which)."""
+    tokens (none after sign-out or a refused refresh; ``sign_in_again`` says which). No
+    client id: OpenAI no longer accepts the registration (``invalid_client``), so the next
+    sign-in registers anew, for the same account."""
 
-    client_id: str
+    client_id: str | None
     host_id: str
     subject: str | None = None
     email: str | None = None
@@ -197,6 +227,12 @@ def _string(value: Any, limit: int = 65536) -> str | None:
     return value if isinstance(value, str) and 0 < len(value) <= limit else None
 
 
+def _models_stale(plan: dict[str, Any]) -> bool:
+    """A signed-in account's models last read (or tried) 15 minutes ago or more."""
+    last = max(float(plan.get("read_at") or 0), float(plan.get("tried_at") or 0))
+    return bool(plan.get("subject")) and time.time() - last >= MODELS_SECONDS
+
+
 class ChatGptSignIn:
     """The owner's ChatGPT registration on this installation."""
 
@@ -239,12 +275,16 @@ class ChatGptSignIn:
         return saved is not None and saved.plan
 
     async def status(self) -> dict[str, Any]:
-        """What the settings list shows: the account, plan use, and whether to sign in again."""
+        """What the settings list shows: the account, whether the plan is in use, whether to
+        sign in again, and whether a sign-in holds tokens (Sign out is offered then, even
+        with the sign-in turned off)."""
         saved = await self.credential()
+        enabled = sign_in_enabled()
         return {
             "email": saved.email if saved and saved.subject else None,
-            "plan": bool(saved and saved.plan),
-            "sign_in_again": bool(saved and saved.sign_in_again),
+            "plan": enabled and bool(saved and saved.plan),
+            "sign_in_again": enabled and bool(saved and saved.sign_in_again),
+            "signed_in": bool(saved and (saved.refresh_token or saved.access_token)),
         }
 
     # OpenAI ---------------------------------------------------------------------------
@@ -396,23 +436,26 @@ class ChatGptSignIn:
         await settings.put(session, HOST_SETTING, {"host_id": host})
         return host
 
-    async def start(self, card_id: str) -> dict[str, Any]:
+    async def start(self, card_id: str, *, new_account: bool = False) -> dict[str, Any]:
         """The authorization address for one attempt, its state kept encrypted for 15
         minutes. A registered account signs in with its issued id and its hints; plan use
-        declined before asks for consent again."""
+        declined before asks for consent again; a registration OpenAI no longer accepts
+        registers anew. ``new_account`` is the owner's "Use a different ChatGPT account":
+        a new registration, which replaces the saved one only once it is verified.
+        ``account`` names the registered account this attempt continues, if any."""
         require_enabled()
         state, nonce, verifier = (secrets.token_urlsafe(32) for _ in range(3))
         expires = time.time() + PENDING_SECONDS
         async with self.db.sessions() as session, session.begin():
             await _lock(session, self.store.owner_id)
             host = await self._host_id(session)
-            saved = await self._saved(session)
+            saved = None if new_account else await self._saved(session)
             client = saved.client_id if saved else None
             params = {"client_id": client or DYNAMIC_CLIENT}
             if client is None:
                 params["agent_name_hint"] = AGENT_NAME
             params["ext_agent_host_id"] = host
-            if saved and saved.id_token:
+            if saved and client and saved.id_token:
                 params["id_token_hint"] = saved.id_token
             if saved and saved.email:
                 params["login_hint"] = saved.email
@@ -437,6 +480,7 @@ class ChatGptSignIn:
                 "client_id": client,
                 "subject": saved.subject if saved else None,
                 "host_id": host,
+                "new_account": new_account,
                 "expires_at": expires,
             }
             await self.store.write_in_session(session, PENDING, json.dumps(pending), "provider")
@@ -445,6 +489,7 @@ class ChatGptSignIn:
         return {
             "authorization_url": AUTHORIZE_URL + "?" + urlencode(params, quote_via=quote),
             "expires_at": datetime.fromtimestamp(expires, UTC).isoformat(),
+            "account": saved.email if saved and saved.subject else None,
         }
 
     async def _take_pending(self, card_id: str, state: str) -> dict[str, Any]:
@@ -489,6 +534,9 @@ class ChatGptSignIn:
         code = _string(params.get("code"), 4096)
         if code is None:
             raise LonoraError("chatgpt_sign_in_failed", 502)
+        # A new registration's issued id, kept when the exchange does not complete: the next
+        # attempt signs in with it, so no second client is registered.
+        issued = None if pending["client_id"] else client
         try:
             keys = await self._keys()
             status, body = await self._call(
@@ -504,18 +552,24 @@ class ChatGptSignIn:
                 },
             )
         except Unreachable:
+            await self._keep_client(issued, pending)
             raise LonoraError("chatgpt_unreachable", 503) from None
+        except LonoraError:
+            # OpenAI's keys could not be read: the code was not even sent.
+            await self._keep_client(issued, pending)
+            raise
         if status != 200:
+            if body.get("error") != "invalid_client":
+                await self._keep_client(issued, pending)
             if body.get("error") == "invalid_grant":
-                # A used or expired code: the next attempt keeps this issued id, so no
-                # second client is registered.
-                await self._keep_client(client, pending["host_id"])
+                # A used or expired code.
                 raise LonoraError("chatgpt_sign_in_code_expired", 409)
             log.warning("chatgpt_exchange_refused status=%s", status)
             raise LonoraError("chatgpt_sign_in_failed", 502)
         try:
             tokens = self._tokens(body)
         except ValueError:
+            await self._keep_client(issued, pending)
             raise LonoraError("chatgpt_sign_in_failed", 502) from None
         subject, email = self._identity(tokens["id_token"], client, keys, pending["nonce"])
         if pending["subject"] and subject != pending["subject"]:
@@ -526,9 +580,14 @@ class ChatGptSignIn:
             await _lock(session, self.store.owner_id)
             current = await self._saved(session)
             if current is not None and current.subject is not None:
-                if current.subject != subject:
+                if pending.get("new_account"):
+                    # The owner chose another account, now verified: the registration it
+                    # replaces is signed out first (OpenAI's sign-out, then its tokens go).
+                    if current.refresh_token and not await self._revoke(current):
+                        log.warning("chatgpt_revocation_unconfirmed")
+                elif current.subject != subject:
                     raise LonoraError("chatgpt_other_account", 409)
-                if current.client_id != client:
+                elif current.client_id is not None and current.client_id != client:
                     raise LonoraError("chatgpt_client_mismatch", 409)
             await self._save(
                 session,
@@ -555,26 +614,75 @@ class ChatGptSignIn:
             raise LonoraError("chatgpt_plan_use_declined", 409)
         return {"email": email, "offered": offered}
 
-    async def _keep_client(self, client: str, host: str) -> None:
+    async def _keep_client(self, client: str | None, pending: dict[str, Any]) -> None:
+        """A new registration's issued id, saved where no registration holds one: none yet,
+        or the same account's after OpenAI stopped accepting it. A verified registration is
+        never replaced here, nor given another account's id."""
+        if client is None:
+            return
         async with self.db.sessions() as session, session.begin():
             await _lock(session, self.store.owner_id)
-            if await self._saved(session) is None:
-                await self._save(session, Credential(client_id=client, host_id=host))
+            saved = await self._saved(session)
+            if saved is None:
+                await self._save(session, Credential(client_id=client, host_id=pending["host_id"]))
+            elif saved.client_id is None and not pending.get("new_account"):
+                await self._save(session, replace(saved, client_id=client))
 
     # Using the plan -----------------------------------------------------------------
 
     async def access_token(self) -> str:
-        """A fresh access token, renewed under the lock when it is in its last minute.
-        Not signed in (or plan use not allowed): ``model_not_configured``. A refused
-        refresh clears the tokens and fails as rejected credentials; any other failure
-        keeps them and fails as a transient outage."""
+        """A fresh access token, renewed when it is in its last minute. Not signed in (or
+        plan use not allowed): ``model_not_configured``. In this process one caller renews
+        at a time and the others wait without a database connection; across processes the
+        advisory lock orders renewals (``_refresh``)."""
         if not sign_in_enabled():
             raise LonoraError("model_not_configured", 409)
-        saved = await self.credential()
-        token = self._current(saved)
+        token = self._current(await self.credential())
         if token is not None:
             return token
+        async with _refresh_gate(self.store.owner_id):
+            # Renewed (or failed) while this caller waited.
+            saved = await self.credential()
+            token = self._current(saved) or self._held_back(cast(Credential, saved))
+            if token is not None:
+                return token
+            return await self._refresh()
+
+    def _held_back(self, saved: Credential) -> str | None:
+        """After a transient failure renewing this refresh token, no new attempt until its
+        backoff ends: the saved token while it is still valid, else the failure at once."""
+        held = _held.get(self.store.owner_id)
+        now = time.time()
+        if (
+            held is None
+            or held[1] <= now
+            or held[0] != _fingerprint(cast(str, saved.refresh_token))
+        ):
+            return None
+        if saved.expires_at > now:
+            return cast(str, saved.access_token)
+        raise ModelProviderError(
+            held[2], retry_after=held[1] - now, provider_type="chatgpt_refresh_held_back"
+        )
+
+    def _hold_back(self, saved: Credential, error: ModelProviderError) -> str:
+        """A transient refresh failure: the tokens stay, the next attempt waits
+        ``REFRESH_BACKOFF`` seconds, and the saved token answers while it is valid."""
+        until = time.time() + REFRESH_BACKOFF
+        fingerprint = _fingerprint(cast(str, saved.refresh_token))
+        _held[self.store.owner_id] = (fingerprint, until, error.reason)
+        if saved.expires_at > time.time():
+            return cast(str, saved.access_token)
+        error.retry_after = REFRESH_BACKOFF
+        raise error
+
+    async def _refresh(self) -> str:
+        """Renew under the advisory lock, re-reading the stored copy inside it; the new set
+        replaces the old in the same transaction. A refused refresh clears the tokens and
+        fails as rejected credentials; ``invalid_client`` also drops the issued id, so the
+        next sign-in registers anew. Any other failure keeps them (``_hold_back``)."""
         failure: ModelProviderError | None = None
+        token: str | None = None
         async with self.db.sessions() as session, session.begin():
             await _lock(session, self.store.owner_id)
             saved = await self._saved(session)
@@ -598,15 +706,18 @@ class ChatGptSignIn:
                     TOKEN_URL,
                     data={
                         "grant_type": "refresh_token",
-                        "client_id": saved.client_id,
+                        "client_id": cast(str, saved.client_id),
                         "refresh_token": saved.refresh_token,
                         "resource": RESOURCE,
                     },
                 )
             except (Unreachable, LonoraError):
-                raise ModelProviderError(
-                    FailureReason.CONNECTION, provider_type="chatgpt_refresh_unreachable"
-                ) from None
+                return self._hold_back(
+                    saved,
+                    ModelProviderError(
+                        FailureReason.CONNECTION, provider_type="chatgpt_refresh_unreachable"
+                    ),
+                )
             if status != 200:
                 error = body.get("error")
                 code: Any = (
@@ -618,20 +729,32 @@ class ChatGptSignIn:
                         FailureReason.AUTH, http_status=status, provider_type=cast(str, code)
                     )
                 elif code == "invalid_client":
-                    raise ModelProviderError(
+                    # OpenAI no longer accepts this registration, and only a new one fixes
+                    # it: the tokens go, and the next sign-in registers the same account anew.
+                    await self._save(
+                        session, replace(saved.cleared(sign_in_again=True), client_id=None)
+                    )
+                    failure = ModelProviderError(
                         FailureReason.AUTH, http_status=status, provider_type="invalid_client"
                     )
                 else:
-                    raise ModelProviderError(
-                        FailureReason.OVERLOADED if status >= 429 else FailureReason.SERVER_ERROR,
-                        http_status=status,
-                        provider_type="chatgpt_refresh_failed",
+                    return self._hold_back(
+                        saved,
+                        ModelProviderError(
+                            FailureReason.OVERLOADED
+                            if status >= 429
+                            else FailureReason.SERVER_ERROR,
+                            http_status=status,
+                            provider_type="chatgpt_refresh_failed",
+                        ),
                     )
             else:
                 try:
                     tokens = self._tokens(body, saved)
                     if body.get("id_token") is not None:
-                        subject, _ = self._identity(tokens["id_token"], saved.client_id, keys, None)
+                        subject, _ = self._identity(
+                            tokens["id_token"], cast(str, saved.client_id), keys, None
+                        )
                         if subject != saved.subject:
                             raise ValueError()
                 except (ValueError, LonoraError):
@@ -643,6 +766,7 @@ class ChatGptSignIn:
                 else:
                     renewed = replace(saved, **tokens)
                     await self._save(session, renewed)
+                    _held.pop(self.store.owner_id, None)
                     if not renewed.plan:
                         failure = ModelProviderError(
                             FailureReason.PERMISSION, provider_type="chatgpt_plan_use_off"
@@ -671,21 +795,37 @@ class ChatGptSignIn:
         return None
 
     async def keep_models_fresh(self, access_token: str) -> None:
-        """Read the account's models again when the last read is 15 minutes old; a failed
-        read keeps what was read before."""
+        """Read the account's models again when the last read is 15 minutes old. The read
+        is claimed first (``tried_at``, under the row's lock), so one caller reads per
+        window; what it read is saved under the advisory lock, only while the same account
+        is still signed in. A failed read keeps what was read before."""
         async with self.db.sessions() as session:
             plan = await SettingsRepository().get(session, PLAN_MODELS)
-        last = max(float(plan.get("read_at") or 0), float(plan.get("tried_at") or 0))
-        if not plan.get("subject") or time.time() - last < MODELS_SECONDS:
+        if not _models_stale(plan):
             return
-        offered = await self._offered(access_token)
         async with self.db.sessions() as session, session.begin():
+            row = await session.get(
+                SettingRow, PLAN_MODELS, with_for_update=True, populate_existing=True
+            )
+            if row is None or not _models_stale(row.payload):
+                return
+            subject = row.payload["subject"]
+            await SettingsRepository().put(
+                session, PLAN_MODELS, {**row.payload, "tried_at": time.time()}
+            )
+        offered = await self._offered(access_token)
+        if offered is None:
+            return
+        async with self.db.sessions() as session, session.begin():
+            await _lock(session, self.store.owner_id)
+            saved = await self._saved(session)
             settings = SettingsRepository()
             plan = await settings.get(session, PLAN_MODELS, fresh=True)
-            update: dict[str, Any] = {"tried_at": time.time()}
-            if offered is not None:
-                update.update(offered=offered, read_at=time.time())
-            await settings.put(session, PLAN_MODELS, {**plan, **update})
+            if saved is None or saved.subject != subject or plan.get("subject") != subject:
+                return  # Signed out, or another account signed in, meanwhile.
+            await settings.put(
+                session, PLAN_MODELS, {**plan, "offered": offered, "read_at": time.time()}
+            )
 
     async def refuse_model(self, model: str) -> None:
         """A model ChatGPT refused for this account at run time: hidden from its list until
@@ -727,7 +867,7 @@ class ChatGptSignIn:
                     data={
                         "token": cast(str, saved.refresh_token),
                         "token_type_hint": "refresh_token",
-                        "client_id": saved.client_id,
+                        "client_id": cast(str, saved.client_id),
                     },
                 )
             except Unreachable:

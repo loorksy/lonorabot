@@ -1,12 +1,14 @@
 """Sign in with ChatGPT from the Secret card (VISION Amendment 4; proposal section 4.4).
 
-``start`` gives the card OpenAI's authorization address for one attempt. The owner signs
-in in the browser, which then lands on OpenAI's loopback callback, an address that does not
-open on a server: the owner pastes it into the card and ``finish`` checks it, exchanges its
-code and verifies the account, with no lock held, before the card settles the way a saved
-key does (the router record, the default model, the agent woken). Sign-out revokes the
-session at OpenAI and clears the tokens either way. With ``LONORA_CHATGPT_SIGN_IN=off``
-every route answers ``chatgpt_sign_in_unavailable``.
+``start`` gives the card OpenAI's authorization address for one attempt (or, on the
+owner's "Use a different ChatGPT account", a new registration). The owner signs in in the
+browser, which then lands on OpenAI's loopback callback, an address that does not open on
+a server: the owner pastes it into the card and ``finish`` checks it, exchanges its code
+and verifies the account, with no lock held, before the card settles the way a saved key
+does (the router record, the default model, the agent woken). Both answer only while the
+card waits. Sign-out revokes the session at OpenAI and clears the tokens either way. With
+``LONORA_CHATGPT_SIGN_IN=off`` start and finish answer ``chatgpt_sign_in_unavailable``;
+sign-out still works, so a sign-in made before is never left at rest.
 """
 
 from typing import Any
@@ -17,7 +19,12 @@ from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
 from lonora_db.model_credentials import CONNECTION_SETTING
-from lonora_db.owner_actions import continue_after_card, owned_card, owner_action_data
+from lonora_db.owner_actions import (
+    continue_after_card,
+    live_status,
+    owned_card,
+    owner_action_data,
+)
 from lonora_db.schema import OwnerActionRow, SecretRow
 from lonora_db.transactions import SettingsRepository
 from lonora_providers.catalog import read_catalog
@@ -30,6 +37,12 @@ from .model_router import answer_unconfigured
 from .secret_cards import pending_card, settle_saved
 
 router = APIRouter()
+
+
+class ChatGptStart(Contract):
+    """The owner's "Use a different ChatGPT account": a new registration, not the saved one."""
+
+    new_account: bool = False
 
 
 class ChatGptFinish(Contract):
@@ -45,26 +58,34 @@ def sign_in(request: Request, owner: OwnerIdentity) -> ChatGptSignIn:
     )
 
 
-def chatgpt_card(row: OwnerActionRow) -> None:
+async def waiting_chatgpt_card(
+    request: Request, owner: OwnerIdentity, card_id: str
+) -> OwnerActionRow:
+    """The owner's ChatGPT Secret card while it waits: a card no longer pending is never
+    replayed, so nothing is started, exchanged or saved for it."""
+    async with runtime(request).db.sessions() as session:
+        row = await owned_card(session, owner.id, card_id)
     if (
         row.kind != "secret"
         or row.payload.get("connect") != "model_provider"
         or row.payload["details"].get("provider") != PROVIDER
     ):
         raise LonoraError("owner_action_not_chatgpt", 409)
+    if live_status(row) != "pending":
+        raise LonoraError("owner_action_already_decided", 409)
+    return row
 
 
 @router.post("/owner-actions/{card_id}/chatgpt/start")
 async def start(
-    request: Request, card_id: str, owner: OwnerIdentity = Depends(require_owner)
+    request: Request,
+    card_id: str,
+    body: ChatGptStart | None = None,
+    owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     require_enabled()
-    async with runtime(request).db.sessions() as session:
-        row = await owned_card(session, owner.id, card_id)
-    chatgpt_card(row)
-    if row.status != "pending":
-        raise LonoraError("owner_action_already_decided", 409)
-    return await sign_in(request, owner).start(card_id)
+    await waiting_chatgpt_card(request, owner, card_id)
+    return await sign_in(request, owner).start(card_id, new_account=bool(body and body.new_account))
 
 
 @router.post("/owner-actions/{card_id}/chatgpt/finish")
@@ -76,8 +97,7 @@ async def finish(
 ) -> dict[str, Any]:
     require_enabled()
     rt = runtime(request)
-    async with rt.db.sessions() as session:
-        chatgpt_card(await owned_card(session, owner.id, card_id))
+    await waiting_chatgpt_card(request, owner, card_id)
     # OpenAI is asked with no lock held; the card settles after.
     account = await sign_in(request, owner).finish(card_id, body.address)
     # Lonora's listed plan models the account offers; unknown when its list was not read.
@@ -120,5 +140,6 @@ async def finish(
 async def sign_out(
     request: Request, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
-    require_enabled()
+    # Always offered, the sign-in turned off included: a sign-in made before is revoked
+    # and cleared rather than left at rest.
     return await sign_in(request, owner).sign_out()
