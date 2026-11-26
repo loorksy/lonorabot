@@ -654,9 +654,16 @@ async def test_the_gateway_tells_its_runs_to_hand_back_before_it_drains(
         return False
 
     seen: list[bool] = []
+    guarded: list[object] = []
 
-    async def draining(tasks: list[asyncio.Task[None]], *_: Any, **__: Any) -> None:
+    async def draining(
+        tasks: list[asyncio.Task[None]],
+        grace_seconds: float = 0,
+        deadline_seconds: float = 0,
+        effects: object = (),
+    ) -> None:
         seen.append(gateway.run_drain.requested)
+        guarded.append(effects)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -676,6 +683,8 @@ async def test_the_gateway_tells_its_runs_to_hand_back_before_it_drains(
     # Every worker hands its Runs the Gateway's one signal, set before the drain starts.
     assert given and all(drain is gateway.run_drain for drain in given)
     assert seen == [True]
+    # The backstop spares the workers inside an effect: the set the Runs enter themselves.
+    assert len(guarded) == 1 and guarded[0] is gateway.run_drain.effects
 
 
 @pytest.mark.asyncio

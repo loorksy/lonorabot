@@ -243,7 +243,8 @@ passkey, so nothing is left looking active while it can no longer run:
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
   ended episodes after a restart; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; the hand-back of a Run at its next step
-  boundary after a slow read or a change, and the Gateway's signal set before it drains;
+  boundary after a slow read or a change, and the Gateway's signal set before it drains,
+  with the set of workers inside an effect handed to its backstop;
   a cancel that races a hand-back, which ends the Run and is no failure of the worker;
   the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
   run and relay drains share one deadline below the stop grace; a cancel that stops a
