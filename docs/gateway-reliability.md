@@ -244,6 +244,7 @@ passkey, so nothing is left looking active while it can no longer run:
   ended episodes after a restart; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; the hand-back of a Run at its next step
   boundary after a slow read or a change, and the Gateway's signal set before it drains;
+  a cancel that races a hand-back, which ends the Run and is no failure of the worker;
   the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
   run and relay drains share one deadline below the stop grace; a cancel that stops a
   long model call within 3 s and waits for a change past `before_effect`, even when a

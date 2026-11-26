@@ -1115,6 +1115,31 @@ async def test_a_draining_gateway_never_starts_a_call_or_a_model_turn(
 
 
 @pytest.mark.asyncio
+async def test_a_cancel_that_races_a_hand_back_is_no_worker_failure(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stopping = RunDrain()
+    stopping.requested = True
+    context = replace(await conversation_run(task_db), drain=stopping)
+    model = Script(ModelReply(text="Never asked."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    real = executor.locked_run_thread
+    cancels: list[tuple[RunRow, int]] = []
+
+    async def cancelled_first(session: Any, lease: Lease) -> tuple[RunRow, ThreadRow]:
+        if not cancels:
+            # The owner's cancel lands between the hand-back's checkpoint and its release.
+            cancels.append(await cancelled_by_owner(context))
+        return await real(session, lease)
+
+    monkeypatch.setattr(executor, "locked_run_thread", cancelled_first)
+    # The release the moved fence refuses is discarded, not raised into the worker loop.
+    await executor.execute_run(context, ToolRegistry([]), 120, 8)
+    assert len(cancels) == 1 and model.requests == []
+    await nothing_written_after(context, *cancels[0])
+
+
+@pytest.mark.asyncio
 async def test_the_backstop_never_cuts_a_change_past_before_effect(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:

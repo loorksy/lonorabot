@@ -468,7 +468,13 @@ async def execute_run(
                 },
             )
 
-        await final_commit(context, lease_seconds, lost_lease, release)
+        try:
+            await final_commit(context, lease_seconds, lost_lease, release)
+        except LonoraError as error:
+            # A cancel that raced the hand-back moved the fence first: as in the other
+            # branches, a stale lease ends the Run here and is no failure of the worker.
+            if error.code != "stale_lease":
+                raise
     except TaskSuspended:
         return
     except asyncio.CancelledError:
