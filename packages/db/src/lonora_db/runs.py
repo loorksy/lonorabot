@@ -518,15 +518,18 @@ async def fail_run(
     read_only_names: set[str] | None = None,
     reason: str | None = None,
     retry_after: float | None = None,
+    provider: str | None = None,
 ) -> None:
-    """``reason`` and ``retry_after`` are the provider's classified reason and its
-    ``Retry-After`` hint, when the failure came from a model provider."""
+    """``reason``, ``retry_after`` and ``provider`` are the provider's classified reason,
+    its ``Retry-After`` hint and its id, when the failure came from a model provider."""
     row = await require_lease(session, lease, lock=True)
     row.status = "failed"
     settle_stream(row, "failed")
     row.error_code = code
     failure = RunFailure(
-        family=failure_family(code, reason), retry_after_seconds=retry_after_seconds(retry_after)
+        family=failure_family(code, reason),
+        retry_after_seconds=retry_after_seconds(retry_after),
+        provider=provider,
     ).model_dump()
     row.model_metadata = {**row.model_metadata, "failure": failure}
     row.updated_at = utcnow()

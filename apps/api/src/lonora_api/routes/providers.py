@@ -4,8 +4,9 @@ from lonora_contracts.model_catalog import ProviderCredential
 from lonora_contracts.model_routing import ProviderId
 from lonora_core.user_error import LonoraError
 from lonora_providers.catalog import read_catalog
+from lonora_providers.chatgpt_sign_in import sign_in_enabled
 from lonora_providers.credentials import ProviderCredentials
-from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS
+from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS, SIGN_IN
 
 from ..middleware.auth import require_owner, runtime
 from .model_router import answer_unconfigured
@@ -27,11 +28,19 @@ async def providers(
 ) -> list[dict[str, object]]:
     rt = runtime(request)
     credentials = ProviderCredentials(rt.db, rt.services(owner.id).secrets)
-    return [
-        {"id": provider, "configured": await credentials.configured(provider)}
-        for provider in PROVIDERS
-        if provider not in OWNER_ENDPOINT
-    ]
+    listed: list[dict[str, object]] = []
+    for provider in PROVIDERS:
+        if provider in OWNER_ENDPOINT or (provider in SIGN_IN and not sign_in_enabled()):
+            continue
+        item: dict[str, object] = {
+            "id": provider,
+            "configured": await credentials.configured(provider),
+        }
+        if provider in SIGN_IN:
+            # The signed-in ChatGPT account and whether its plan is in use (never a token).
+            item["sign_in"] = await credentials.sign_in().status()
+        listed.append(item)
+    return listed
 
 
 @router.put("/{provider}/credential")
@@ -41,6 +50,9 @@ async def save_credential(
     provider: ProviderId = Depends(settings_provider),
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, bool]:
+    if provider in SIGN_IN:
+        # The ChatGPT plan takes no key: the owner signs in on its Secret card.
+        raise LonoraError("chatgpt_sign_in_required", 409)
     await runtime(request).services(owner.id).secrets.write(provider, body.api_key, "provider")
     # With a key the router can choose a model: what failed for lack of one is retried.
     await answer_unconfigured(request, owner)

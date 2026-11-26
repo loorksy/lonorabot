@@ -38,6 +38,8 @@ export type RunFailure = {
   family: "quota" | "rate" | "timeout" | "model" | "other";
   /** The provider's own Retry-After hint, counted from the failure; null without one. */
   retry_after_seconds: number | null;
+  /** The provider that failed, when a model provider did ("openai_chatgpt": the plan). */
+  provider?: string | null;
 };
 
 export type Run = {

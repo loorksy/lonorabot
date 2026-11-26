@@ -17,6 +17,8 @@ from lonora_db.owner_actions import card_facts, live_status, propose
 from lonora_db.runs import require_lease
 from lonora_db.schema import OwnerActionRow, RunRow, ThreadRow
 from lonora_db.transactions import owned_thread
+from lonora_providers.chatgpt_sign_in import sign_in_enabled
+from lonora_providers.registry import SIGN_IN
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
@@ -69,6 +71,9 @@ async def card_scope(context: ToolContext, session: AsyncSession) -> tuple[RunRo
 
 async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     proposal = OwnerActionProposal.model_validate(args)
+    if proposal.target == "model_provider" and proposal.name in SIGN_IN and not sign_in_enabled():
+        # This installation does not offer Sign in with ChatGPT (M8): an API key does.
+        raise LonoraError("chatgpt_sign_in_unavailable", 409)
     if proposal.kind == "trading_mode":
         proposal = await mandate_target(context, proposal)
     async with context.db.sessions() as session, session.begin():
@@ -106,7 +111,8 @@ def tools() -> list[Tool]:
             "server), news_feed or economic_calendar (name; for these three the owner types "
             "the address, which may carry a key, and a server's optional token), "
             "brave_search (web search key) or model_provider (name: the provider id; for "
-            "openai_compatible the owner types the base URL with the key); a trading "
+            "openai_compatible the owner types the base URL with the key; openai_chatgpt "
+            "signs in with ChatGPT to use the owner's ChatGPT plan, with no key); a trading "
             "account is broker_connect. Any other "
             "credential: label and secret_fields, each a key (the name it is saved under), a "
             "label, and secret false only for a value safe to show while typed; write the "

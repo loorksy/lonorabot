@@ -1,6 +1,7 @@
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.model_credentials import SIGN_IN_CREDENTIALS, sign_in_tokens
 from lonora_db.schema import SecretRow
 from lonora_db.secrets import BROKER, WORKSPACE, delete_secret, require_scope
 from lonora_security.secrets import SHORTEST_SECRET, SecretCipher
@@ -68,7 +69,9 @@ class EncryptedSecretStore:
         marker shows (VISION.md 7.2.6): the workspace, integration and provider scopes.
         Not the broker scope: only the execution door and provisioning read it (7.2.3),
         and neither sends bytes back through the workspace. A name another scope already
-        holds is shown with its scope (``integration:NAME``), so no value is dropped."""
+        holds is shown with its scope (``integration:NAME``), so no value is dropped. A
+        sign-in's credential is one JSON value: each of its tokens is scanned on its own
+        (``openai_chatgpt:access_token``)."""
         async with self.db.sessions() as session:
             rows = (
                 await session.scalars(
@@ -79,8 +82,12 @@ class EncryptedSecretStore:
             ).all()
         values: dict[str, str] = {}
         for row in rows:
+            value = self.cipher.decrypt(row.ciphertext)
+            if row.scope == "provider" and row.name in SIGN_IN_CREDENTIALS:
+                values.update(sign_in_tokens(row.name, value))
+                continue
             name = row.name if row.name not in values else row.scope + ":" + row.name
-            values[name] = self.cipher.decrypt(row.ciphertext)
+            values[name] = value
         return values
 
     async def write(self, name: str, value: str, scope: str) -> str:

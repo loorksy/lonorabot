@@ -323,6 +323,11 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
             answer = await fixture.client.request(method, path, json=body)
             assert answer.status_code == 404, path
             assert answer.json()["code"] == "provider_not_supported", path
+        # The ChatGPT plan takes no key: the owner signs in on its Secret card.
+        key = await fixture.client.put(
+            "/api/providers/openai_chatgpt/credential", json={"api_key": KEY}
+        )
+        assert key.status_code == 409 and key.json()["code"] == "chatgpt_sign_in_required"
         # No provider is asked for its list from Settings any more (VISION 12.4).
         gone = await fixture.client.post("/api/providers/openai/discover", json={})
         assert gone.status_code in {404, 405}, gone.status_code

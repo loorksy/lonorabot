@@ -1,5 +1,7 @@
+import json
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +14,27 @@ from .transactions import SettingsRepository
 # by this id, never by a workspace name, so a secret an agent or a script saved under
 # OPENAI_API_KEY is not the router's key.
 CONNECTION_SETTING = "model_provider:"
+# A provider connected by the owner's sign-in keeps one JSON credential in scope
+# ``provider`` under its id (``lonora_providers.chatgpt_sign_in``). The scan of workspace
+# output (VISION 7.2.6) knows each of its tokens as a value of its own.
+SIGN_IN_CREDENTIALS = frozenset({"openai_chatgpt"})
+SIGN_IN_TOKENS = ("access_token", "refresh_token", "id_token")
+
+
+def sign_in_tokens(name: str, value: str) -> dict[str, str]:
+    """The tokens of a sign-in credential, each under ``name:field``."""
+    try:
+        record: Any = json.loads(value)
+    except ValueError:
+        return {}
+    if not isinstance(record, dict):
+        return {}
+    fields = cast(dict[str, Any], record)
+    return {
+        name + ":" + field: token
+        for field in SIGN_IN_TOKENS
+        if isinstance(token := fields.get(field), str) and token
+    }
 
 
 @dataclass(frozen=True)

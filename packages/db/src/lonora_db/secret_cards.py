@@ -61,6 +61,9 @@ CONNECTING: dict[str, tuple[tuple[tuple[str, str, bool, bool], ...], str]] = {
 }
 # An OpenAI-compatible endpoint's card also asks for its base URL, typed with the key.
 ENDPOINT_FIELDS = (("URL", "server_url", True, False), ("API_KEY", "api_key", True, True))
+# The ChatGPT plan's card has no field: it signs in with ChatGPT instead of taking a key
+# (Amendment 4), and saves nothing under a workspace name.
+SIGN_IN_PROVIDERS = {"openai_chatgpt": "ChatGPT"}
 # The name the owner reads for a fixed model provider; an endpoint is shown by its URL.
 PROVIDER_NAMES = {
     "anthropic": "Anthropic",
@@ -111,6 +114,9 @@ def secret_card_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, A
         details = {"provider": provider}
         if provider in PROVIDER_NAMES:
             details["name"] = PROVIDER_NAMES[provider]
+        elif provider in SIGN_IN_PROVIDERS:
+            details["name"] = SIGN_IN_PROVIDERS[provider]
+            asked = ()
         else:
             asked = ENDPOINT_FIELDS
         return subject_of(target, provider), {
@@ -262,6 +268,8 @@ async def secret_facts(
         facts["saves_as"] = keys
         facts["replaces"] = [key for key in keys if key in saved]
     elif payload["connect"] == "model_provider":
+        if payload["details"]["provider"] in SIGN_IN_PROVIDERS:
+            return facts  # A sign-in: no value is saved under a workspace name.
         # One name, the provider's usual one; saving replaces the key saved there.
         name = PROVIDER_KEY_NAMES[payload["details"]["provider"]]
         held = await session.scalar(
@@ -400,6 +408,19 @@ def saved_prompt(row: OwnerActionRow) -> str:
         )
     if target == "model_provider":
         provider = row.payload["details"]["provider"]
+        if provider in SIGN_IN_PROVIDERS:
+            offered = row.result.get("models")
+            listed = (
+                f"{offered} of Lonora's listed ChatGPT models are available with this plan."
+                if isinstance(offered, int)
+                else "The plan's models could not be read yet; say so."
+            )
+            return (
+                "The owner signed in with ChatGPT on your Secret card: eligible requests can "
+                "now use the owner's ChatGPT plan, managed in ChatGPT settings. Lonora holds "
+                f"the sign-in and you never see it. {listed} Call model_list and tell the "
+                "owner in one line which models became available."
+            )
         catalog, key = row.result.get("catalog"), row.result.get("key")
         if key == "rejected":
             return (

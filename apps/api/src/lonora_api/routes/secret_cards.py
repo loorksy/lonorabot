@@ -49,7 +49,7 @@ from lonora_db.secret_cards import card_values, free_names, save_values, secret_
 from lonora_db.secrets import BROKER, WORKSPACE
 from lonora_db.transactions import SettingsRepository
 from lonora_providers.key_check import REJECTED, check_key
-from lonora_providers.registry import OWNER_ENDPOINT, model_adapter
+from lonora_providers.registry import OWNER_ENDPOINT, SIGN_IN, model_adapter
 from lonora_security.network import compatible_endpoint, endpoint_sha256
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,6 +87,9 @@ async def save_secret(
     async with rt.db.sessions() as session:
         peek = await owned_card(session, owner.id, card_id)
     target = peek.payload.get("connect") if peek.kind == "secret" else None
+    if target == "model_provider" and peek.payload["details"]["provider"] in SIGN_IN:
+        # This card signs in with ChatGPT (``chatgpt_sign_in``); it takes no value.
+        raise LonoraError("chatgpt_sign_in_required", 409)
     catalog: list[ModelDescriptor] | None = None
     checked = "unchecked"
     if target == "model_provider" and live_status(peek) == "pending":

@@ -1,9 +1,12 @@
-"""Guard for mandate 12.2 and P4: model access stays on API keys and one engine.
+"""Guard for mandate 12.2 and P4: model access stays on API keys, a provider's official
+sign-in for third-party software, and one engine.
 
 Lonora's own code and deployment must not contain:
 
 - a subscription login or OAuth token flow of an AI platform (Claude Pro/Max/Ultra,
-  ChatGPT, Grok or others), including reading another client's stored login;
+  ChatGPT, Grok or others), including reading another client's stored login, except
+  OpenAI's official Sign in with ChatGPT for open-source apps (VISION Amendment 4): its
+  sign-in host appears only in the sign-in module, and only on its official paths;
 - another vendor's CLI client id;
 - a call to a private vendor endpoint, and no model adapter calls a host other than
   the providers' public API hosts or the owner's own endpoint;
@@ -73,7 +76,6 @@ RULES: dict[str, tuple[str, ...]] = {
         r"\.claude/\.credentials\.json|claudeAiOauth|Claude Code-credentials",
         r"""["']\.credentials\.json["']""",  # the same file joined from parts
         r"\.codex/auth\.json",
-        r"auth\.openai\.com",
         r"(chatgpt\.com|chat\.openai\.com)/(backend-api|auth|api/auth)",
         r"(accounts|auth)\.x\.ai",
         r"grok\.com/(rest|api)",
@@ -95,6 +97,17 @@ RULES: dict[str, tuple[str, ...]] = {
         # A name bound to the program, so that argv[0] in a variable is still found.
         r"""\b\w+\s*[:=]\s*["'](?:[\w./-]*/)?(claude|codex)["']""",
     ),
+}
+# OpenAI's sign-in host: only the official sign-in module names it, and only on the paths
+# OpenAI documents for the open-source flow (proposal section 4.2).
+SIGN_IN_MODULE = "packages/providers/src/lonora_providers/chatgpt_sign_in.py"
+SIGN_IN_HOST = re.compile(r"auth\.openai\.com(/[^\s\"'`)<>]*)?", re.IGNORECASE)
+SIGN_IN_PATHS = {
+    None,
+    "/api/accounts/authorize",
+    "/api/accounts/oauth/token",
+    "/.well-known/jwks.json",
+    "/.well-known/openid-configuration",
 }
 PATTERNS = [
     (kind, re.compile(pattern, re.IGNORECASE | re.MULTILINE))
@@ -153,6 +166,11 @@ def findings(path: str, text: str) -> list[str]:
     found: list[tuple[int, str, str]] = []
     for kind, pattern in PATTERNS:
         found.extend((match.start(), kind, match.group(0)) for match in pattern.finditer(text))
+    found.extend(
+        (match.start(), LOGIN, match.group(0))
+        for match in SIGN_IN_HOST.finditer(text)
+        if path != SIGN_IN_MODULE or match.group(1) not in SIGN_IN_PATHS
+    )
     if DEPENDENCY_FILES.search(path):
         found.extend(
             (match.start(), ENGINE, match.group(0).strip("\"' /"))
@@ -217,8 +235,22 @@ def caught(kind: str, sample: str, path: str = "packages/core/src/lonora_core/x.
         (LOGIN, '"https://claude.com/cai/oauth/authorize"', None),
         (LOGIN, '"https://api.anthropic.com/api/oauth/claude_cli/create_api_key"', None),
         (LOGIN, "url = 'https://chatgpt.com/backend-api/codex'", None),
+        # OpenAI's sign-in host outside the sign-in module, or off its official paths.
+        (LOGIN, 'TOKEN = "https://auth.openai.com/api/accounts/oauth/token"', None),
+        (
+            LOGIN,
+            'URL = "https://auth.openai.com/oauth/token"',
+            "packages/providers/src/lonora_providers/chatgpt_sign_in.py",
+        ),
+        (
+            LOGIN,
+            'URL = "https://auth.openai.com/api/accounts/authorize/codex"',
+            "packages/providers/src/lonora_providers/chatgpt_sign_in.py",
+        ),
         (LOGIN, "run('claude setup-token')", None),
         (CLIENT_ID, 'CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"', None),
+        (CLIENT_ID, 'client_id = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"', None),
+        (PRIVATE, '"https://chatgpt.com/backend-api/wham/usage"', None),
         (PRIVATE, 'BASE = "https://chatgpt.example/backend-api/codex"', None),
         (ENGINE, "from claude_agent_sdk import query", None),
         (ENGINE, 'import { query } from "@anthropic-ai/claude-agent-sdk";', None),
@@ -257,12 +289,30 @@ def test_each_rule_catches_what_it_names(kind: str, sample: str, path: str | Non
         ("RUN npm i -g @anthropic-ai/claude-code", "infra/workspace/Dockerfile"),
         ('"@anthropic-ai/claude-code"', "infra/workspace/tools.json"),
         ('route = "/auth/setup-token"', None),
+        # The official sign-in, in its module (Amendment 4), and ChatGPT's usage page.
+        (
+            'TOKEN_URL = "https://auth.openai.com/api/accounts/oauth/token"',
+            "packages/providers/src/lonora_providers/chatgpt_sign_in.py",
+        ),
+        (
+            'JWKS_URL = "https://auth.openai.com/.well-known/jwks.json"',
+            "packages/providers/src/lonora_providers/chatgpt_sign_in.py",
+        ),
+        ('"https://chatgpt.com/settings/usage"', "packages/core/src/agent-model.ts"),
+        ('client_id: "dynamic_agent_client"', None),
         ('provider = "anthropic"', None),
         ('family = "claude-sonnet-4-5"', None),
     ],
 )
 def test_ordinary_use_and_workspace_tooling_are_not_flagged(sample: str, path: str | None) -> None:
     assert not findings(path or "packages/core/src/lonora_core/x.py", sample)
+
+
+def test_the_sign_in_module_names_only_openais_official_sign_in_paths() -> None:
+    text = (ROOT / SIGN_IN_MODULE).read_text(encoding="utf-8")
+    named = {match.group(1) for match in SIGN_IN_HOST.finditer(text)}
+    assert named == SIGN_IN_PATHS
+    assert SIGN_IN_MODULE in scanned_files()
 
 
 def test_lonoras_code_has_no_subscription_login_private_endpoint_or_other_engine() -> None:
