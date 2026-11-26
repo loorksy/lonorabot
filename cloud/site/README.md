@@ -25,7 +25,7 @@ It lives here only until `loorksy/lonora-cloud` exists (D2). Nothing under `clou
    ```
    sudo docker run --rm -it caddy:2.10-alpine caddy hash-password
    ```
-5. **إعدادات الموقع** في `/srv/lonora/site.env` (لا يقرؤها غير الجذر): `SITE_ORIGIN=https://lonora.app`، `BASE_DOMAIN=lonora.app`، `ADMIN_EMAILS=` (البريد نفسه، وبينها فاصلة)، `TURNSTILE_SITE_KEY` و`TURNSTILE_SECRET`، و`TERMS_VERSION` و`RISK_VERSION` و`PRIVACY_VERSION`.
+5. **إعدادات الموقع** في `/srv/lonora/site.env` (لا يقرؤها غير الجذر): `SITE_ORIGIN=https://lonora.app`، `BASE_DOMAIN=lonora.app`، `ADMIN_EMAILS=` (البريد نفسه، وبينها فاصلة)، و`TERMS_VERSION` و`RISK_VERSION` و`PRIVACY_VERSION`.
 6. **التشغيل:**
    ```
    sudo /srv/lonora/src/cloud/host/customer.sh init
@@ -67,7 +67,7 @@ The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`;
 
 - Staff sign in at Caddy (`basic_auth` on `/admin` and `/api/admin`). Caddy passes the name in `X-Staff-Email` and removes that header from every other request; the site also checks it against `ADMIN_EMAILS`.
 - Customers are separated by database role (`REVOKE ALL … FROM PUBLIC`), by their own keys, and by container names on the shared networks. The database network has no route out. Each workspace runs behind its own network guard on its own fixed-size disk and cannot reach this host's addresses.
-- Registration, sign-in, sessions, headers and logs work as before: same-origin POSTs, Turnstile, honeypot, rate limits, no account enumeration, hashed `__Host-` session tokens, and no body, email, password or token in any log. Turnstile is still Cloudflare's bot check (an open point under D48).
+- Registration, sign-in, sessions, headers and logs work as before: same-origin POSTs, honeypot, rate limits, no account enumeration, hashed `__Host-` session tokens, and no body, email, password or token in any log. Cloudflare Turnstile is off by default (D48: no Cloudflare); setting `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` turns it back on. Signups still wait for staff approval (D46).
 
 ### Tests
 

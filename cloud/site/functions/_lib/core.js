@@ -90,10 +90,12 @@ export async function rateLimited(env, route, keyPart, limit, windowSeconds) {
   return Number(row?.count ?? 1) > limit;
 }
 
-// Cloudflare Turnstile. Without a configured secret every request is refused, so a misconfigured
-// deployment never accepts bots silently.
+// Cloudflare Turnstile, optional (D48: no Cloudflare by default). Without TURNSTILE_SECRET the
+// check is off and the honeypot, rate limits and staff approval (D46) stand alone; with it set,
+// a missing or failed token is refused.
 export async function turnstileOk(env, token, ip) {
-  if (!env.TURNSTILE_SECRET || typeof token !== "string" || token.length === 0 || token.length > 2048) return false;
+  if (!env.TURNSTILE_SECRET) return true;
+  if (typeof token !== "string" || token.length === 0 || token.length > 2048) return false;
   const body = new FormData();
   body.append("secret", env.TURNSTILE_SECRET);
   body.append("response", token);

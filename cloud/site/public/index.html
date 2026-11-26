@@ -2328,7 +2328,6 @@ html[dir="rtl"] .wtag{padding:4px 9px 4px 11px}
     credentials:['البريد أو كلمة المرور غير صحيحة.', 'The email or password is incorrect.'],
     server:['حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.', 'Something went wrong. Try again in a moment.'],
     preview:['معاينة — الخادم غير متصل. لم يُرسل شيء.', 'Preview — the server is not connected. Nothing was sent.'],
-    tsOff:['التحقق غير مهيّأ على هذا الخادم بعد، فلن يُقبل الطلب.', "Verification isn't set up on this server yet, so requests will be refused."],
     tsFail:['تعذّر تحميل التحقق. حدّث الصفحة وحاول مرة أخرى.', "The verification couldn't load. Reload the page and try again."],
     noReason:['لم يُذكر سبب.', 'No reason was given.']
   };
@@ -2401,7 +2400,7 @@ html[dir="rtl"] .wtag{padding:4px 9px 4px 11px}
     if(!box || !LIVE || TS.ids[slot] !== undefined) return;
     siteKey().then(function(key){
       if(key === undefined) return;            // the server can't be reached: the preview note says so
-      if(!key){ tsNote(slot, 'tsOff'); return; }
+      if(!key) return;                         // no verification on this server (D48 default)
       return loadTs().then(function(ts){
         if(TS.ids[slot] !== undefined) return;
         tsNote(slot, '');
@@ -2416,7 +2415,7 @@ html[dir="rtl"] .wtag{padding:4px 9px 4px 11px}
     }).catch(function(){ tsNote(slot, 'tsFail'); });
   }
   function resetTs(slot){ TS.tokens[slot] = ''; if(window.turnstile && TS.ids[slot] !== undefined){ try{ window.turnstile.reset(TS.ids[slot]); }catch(e){} } }
-  // a token is needed whenever the widget is (or should be) there; without a site key the server answers "challenge"
+  // a token is needed only when the server has a site key; without one the check is off
   function tsMissing(slot){ return !!TS.key && !TS.tokens[slot]; }
 
   /* ---------- create your account: POST /api/register ---------- */

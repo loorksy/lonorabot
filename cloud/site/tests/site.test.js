@@ -69,9 +69,9 @@ describe("registration", () => {
     assert.equal((await call(env, "POST", "/api/register", { json: goodSignup({ turnstile: undefined }) })).status, 400);
   });
 
-  test("without a Turnstile secret every signup is refused", async () => {
+  test("without a Turnstile secret the check is off and signup still works", async () => {
     env = makeEnv({ TURNSTILE_SECRET: "" });
-    assert.equal((await call(env, "POST", "/api/register", { json: goodSignup() })).status, 400);
+    assert.equal((await call(env, "POST", "/api/register", { json: goodSignup({ turnstile: undefined }) })).status, 202);
   });
 
   test("another origin, or no origin, is refused", async () => {
