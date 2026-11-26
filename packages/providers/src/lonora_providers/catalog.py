@@ -2,8 +2,10 @@
 
 Every provider's models are the shipped list (``models.json``, ``lonora_core.model_list``),
 except the owner's own OpenAI-compatible endpoint: its models are the owner's, read from
-the endpoint and stored as ``catalog:openai_compatible``. No other provider is asked for
-its models, and nothing else is stored. A listed model is ``verified``: it serves text
+the endpoint and stored as ``catalog:openai_compatible``. The ChatGPT plan's are the
+shipped list less the models the signed-in account does not offer or refused at run time
+(``PLAN_MODELS``, kept by ``chatgpt_sign_in``); what the account names beyond the list is
+never added. No other provider is asked for its models, and nothing else is stored. A listed model is ``verified``: it serves text
 with tools (Rakazo runs every listed model with agent tools), images when its entry takes
 them, and reasoning when its entry reasons, within the window and output the entry states.
 A model is available to an agent when its provider is connected and its catalog lists it.
@@ -22,7 +24,12 @@ from lonora_db.transactions import SettingsRepository
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .registry import OWNER_ENDPOINT
+from .registry import OWNER_ENDPOINT, SIGN_IN
+
+# The signed-in ChatGPT account's models: ``offered`` (the slugs its model list shows, or
+# None before it was read) and ``refused`` (models ChatGPT refused for it at run time),
+# with the account's ``subject``; reset by each sign-in and by sign-out.
+PLAN_MODELS = "chatgpt_models"
 
 
 def list_source() -> str:
@@ -38,8 +45,7 @@ def listed_models(provider: str) -> list[ModelDescriptor]:
 @cache
 def _listed(provider: str) -> tuple[ModelDescriptor, ...]:
     source = list_source()
-    # Built without validation: the import and its test check the data, and a provider
-    # is listed before its connection exists (openai_chatgpt is not a ProviderId yet).
+    # Built without validation: the import and its test check the data.
     return tuple(
         ModelDescriptor.model_construct(
             id=entry["id"],
@@ -61,7 +67,16 @@ def _listed(provider: str) -> tuple[ModelDescriptor, ...]:
 
 
 async def provider_catalog(session: AsyncSession, provider: str) -> list[ModelDescriptor]:
-    """The models of one provider: the shipped list, or the owner endpoint's stored one."""
+    """The models of one provider: the shipped list, the owner endpoint's stored one, or
+    for the ChatGPT plan the shipped list as the signed-in account offers it."""
+    if provider in SIGN_IN:
+        plan = await SettingsRepository().get(session, PLAN_MODELS)
+        offered, refused = plan.get("offered"), set(plan.get("refused", []))
+        return [
+            item
+            for item in listed_models(provider)
+            if (offered is None or item.id in offered) and item.id not in refused
+        ]
     if provider not in OWNER_ENDPOINT:
         return listed_models(provider)
     payload = await SettingsRepository().get(session, "catalog:" + provider)

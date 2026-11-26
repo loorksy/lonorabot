@@ -117,6 +117,7 @@ class ModelProviderError(LonoraError):
         output_limit: int | None = None,
         provider_type: str | None = None,
         inferred: bool = False,
+        param: str | None = None,
     ):
         code, status = CODES[reason]
         super().__init__(code, status, diagnostic_type=provider_type)
@@ -125,6 +126,12 @@ class ModelProviderError(LonoraError):
         self.retry_after = retry_after
         self.output_limit = output_limit
         self.inferred = inferred
+        # The request field the provider names (``error.param``), only when it is a field
+        # path: logged with the code, never the provider's text.
+        self.param = param
+        # The provider whose candidate failed, set by the router: the owner's error card
+        # names the ChatGPT plan's own limit (Amendment 4).
+        self.provider: str | None = None
 
 
 def reason_of(error: LonoraError) -> FailureReason | None:
@@ -382,6 +389,21 @@ def error_details(payload: Any) -> tuple[str, str, str, int | None]:
     )
 
 
+# A field path such as ``model`` or ``tools[0].type``; anything else is not logged.
+_PARAM = re.compile(r"[A-Za-z0-9_.\[\]-]{1,100}")
+
+
+def error_param(payload: Any) -> str | None:
+    """``error.param`` of an OpenAI-shaped error, when it is a field path."""
+    if not isinstance(payload, dict):
+        return None
+    body = cast(dict[str, Any], payload)
+    nested = body.get("error")
+    error: dict[str, Any] = cast(dict[str, Any], nested) if isinstance(nested, dict) else body
+    param = error.get("param")
+    return param if isinstance(param, str) and _PARAM.fullmatch(param) else None
+
+
 def _has(text: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in text for pattern in patterns)
 
@@ -512,6 +534,7 @@ def classify_failure(
         output_limit=output_limit,
         provider_type=kind or code or None,
         inferred=inferred,
+        param=error_param(payload),
     )
 
 
