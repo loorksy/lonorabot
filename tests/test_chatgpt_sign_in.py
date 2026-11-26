@@ -18,7 +18,7 @@ import os
 import time
 from collections.abc import AsyncIterator
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
@@ -31,6 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
 from lonora_adapter_kit.types import ModelMessage, ModelReply
+from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.usage import TokenUsage
 from lonora_core.user_error import LonoraError
@@ -145,7 +146,7 @@ class FakeOpenAI:
         if self.response_error is not None:
             status, payload = self.response_error
             return httpx.Response(status, json=payload)
-        events = [
+        events: list[dict[str, Any]] = [
             {"type": "response.output_text.delta", "delta": "Hello"},
             {"type": "response.completed", "response": {"id": "r1", "usage": {}}},
         ]
@@ -176,7 +177,7 @@ async def world(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]
     monkeypatch.delenv(signin.FLAG, raising=False)
     fake = FakeOpenAI()
     fixture = await Fixture().open()
-    store = fixture.runtime.services(fixture.owner).secrets
+    store = cast(EncryptedSecretStore, fixture.runtime.services(fixture.owner).secrets)
     settings = SettingsRepository()
     async with fixture.runtime.db.sessions() as session, session.begin():
         routing = await settings.get(session, "model_routing")
@@ -228,7 +229,7 @@ async def card(world: dict[str, Any]) -> str:
 async def start(world: dict[str, Any], card_id: str) -> str:
     started = await world["fixture"].client.post(f"/api/owner-actions/{card_id}/chatgpt/start")
     assert started.status_code == 200, started.text
-    authorization = started.json()["authorization_url"]
+    authorization: str = started.json()["authorization_url"]
     world["fake"].nonce = parse_qs(urlsplit(authorization).query)["nonce"][0]
     return authorization
 
@@ -339,7 +340,9 @@ async def test_first_registration_connects_the_plan_from_the_card(
     # scan of workspace output knows each token as a value of its own.
     workspace = await world["store"].workspace_values()
     scanned = await world["store"].scanned_values()
-    id_token = json.loads(world["store"].cipher.decrypt(row.ciphertext))["id_token"]
+    saved = await world["sign_in"].credential()
+    assert saved is not None and saved.id_token is not None
+    id_token = saved.id_token
     assert scanned["openai_chatgpt:access_token"] == access
     assert scanned["openai_chatgpt:refresh_token"] == refresh
     assert scanned["openai_chatgpt:id_token"] == id_token
@@ -619,6 +622,15 @@ async def test_each_plan_error_is_classified_and_never_shown(
     assert alone.value.code == lonora and alone.value.provider == "openai_chatgpt"
 
 
+def plan_factory(fake: FakeOpenAI) -> Any:
+    """The registered adapters, talking to the fake OpenAI."""
+
+    def factory(provider: str, key: str, base_url: str | None = None) -> Any:
+        return PROVIDERS[provider](key, fake.http())
+
+    return factory
+
+
 class Fallback:
     """The next provider in the chain, answering at once."""
 
@@ -639,7 +651,7 @@ async def test_a_model_the_plan_refuses_leaves_the_accounts_list(world: dict[str
     router = GlobalModelRouter(
         world["fixture"].runtime.db,
         ProviderCredentials(world["fixture"].runtime.db, world["store"]),
-        lambda provider, key, base_url=None: PROVIDERS[provider](key, fake.http()),
+        plan_factory(fake),
     )
     with pytest.raises(ModelProviderError):
         await router.complete(

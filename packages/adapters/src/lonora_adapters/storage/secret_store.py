@@ -50,6 +50,24 @@ class EncryptedSecretStore:
                 raise LonoraError("secret_scope_forbidden", 403)
             return self.cipher.decrypt(row.ciphertext)
 
+    async def read_named_in_session(
+        self, session: AsyncSession, name: str, scope: str
+    ) -> str | None:
+        """The value saved under this name and scope, read in the caller's transaction (a
+        sign-in's credential, re-read under its lock); None when none is saved."""
+        if scope == BROKER:
+            raise LonoraError("secret_scope_forbidden", 403)
+        row = await session.scalar(
+            select(SecretRow)
+            .where(
+                SecretRow.owner_id == self.owner_id,
+                SecretRow.scope == scope,
+                SecretRow.name == name,
+            )
+            .execution_options(populate_existing=True)
+        )
+        return self.cipher.decrypt(row.ciphertext) if row else None
+
     async def workspace_values(self) -> dict[str, str]:
         """Every workspace secret by name: what agents use by name in the workspace
         (VISION.md 7.2.4, 7.2.5). Only the workspace scope: a broker, provider or

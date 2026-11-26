@@ -206,16 +206,7 @@ class ChatGptSignIn:
     # Storage ------------------------------------------------------------------------
 
     async def _value(self, session: AsyncSession, name: str) -> str | None:
-        row = await session.scalar(
-            select(SecretRow)
-            .where(
-                SecretRow.owner_id == self.store.owner_id,
-                SecretRow.scope == "provider",
-                SecretRow.name == name,
-            )
-            .execution_options(populate_existing=True)
-        )
-        return self.store.cipher.decrypt(row.ciphertext) if row else None
+        return await self.store.read_named_in_session(session, name, "provider")
 
     async def _saved(self, session: AsyncSession) -> Credential | None:
         return credential_of(await self._value(session, PROVIDER))
