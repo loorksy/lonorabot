@@ -34,6 +34,7 @@ from sqlalchemy import select
 from .base import Tool
 from .context import ToolContext
 from .source_trust import owner_named, refusal
+from .terminal import scan
 
 # Feeds fetched at once in a read of every feed. It paces requests; it drops no feed.
 FEED_CONCURRENCY = 10
@@ -155,7 +156,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             " The read ran out of time before these feeds answered; read each alone by its "
             "feed_id: " + ", ".join(cut) + "."
         )
-    return {
+    read_feeds: dict[str, Any] = {
         "feeds": [
             {
                 "feed_id": row.id,
@@ -173,6 +174,11 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         if not rows
         else guidance,
     }
+    if any(not row.payload.get("url") for row in rows):
+        # A feed read from its stored address sent it (it may carry a token, and a feed's
+        # self link repeats it): scanned with the values as they are now (7.2.6).
+        return (await scan(context)).data(read_feeds)
+    return read_feeds
 
 
 async def subscribe(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

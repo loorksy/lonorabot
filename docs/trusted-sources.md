@@ -128,7 +128,13 @@ operator declared it. The order is:
    that becomes read-only later still needs the write tier, because its review said
    otherwise. A `write_nonfinancial` call stores an effect receipt keyed by the call, so
    a replayed call returns its recorded result and never sends twice. Uncertain calls are
-   not resent (the existing `mcp_execute` classification).
+   not resent (the existing `mcp_execute` classification). Every result passes the
+   owner's secret scan before that receipt is written and before the model reads it: a
+   stored value the server writes back (its own token, plain or in base64) arrives as
+   `[secret:NAME]` (VISION.md 7.2.6), and the result is marked `_provenance:
+   third_party`, as every web, feed and other third-party result is. The scan is read
+   after the token and before the call is sent, so a store that cannot be read sends
+   nothing (never a sent call reported as failed, which would invite a resend).
 
 Tool names must follow the MCP naming rule (`[A-Za-z0-9_./-]`, at most 128); other names
 and unsupported schemas are left out of a review, so the owner never sees remote text
@@ -142,6 +148,9 @@ read of its tools (the preview) adds what it reads without dropping a title alre
 so a tool the server stops titling keeps its known title. A server trusted before titles
 were kept has none: its sheet on Web reads them once from the server when it opens, if the
 server is on; a server with titles kept is never contacted by opening its sheet.
+Agents read the kept titles in `capabilities_list`, through the owner's secret scan as it
+stands then: a stored value a server put in a title arrives as `[secret:NAME]` (VISION.md
+7.2.6), a value saved after the title was kept included.
 
 A server is trusted in one of two ways:
 

@@ -108,6 +108,10 @@
       "name": "Thesis contracts tests",
       "description": "Automatic checks for thesis contracts."
     },
+    "tests/test_third_party_secrets.py": {
+      "name": "Third-party secret scan tests",
+      "description": "Automatic checks that results from outside tools never show a saved secret."
+    },
     "tests/test_thread_preferences.py": {
       "name": "Thread preferences tests",
       "description": "Automatic checks for thread preferences."
@@ -115,6 +119,10 @@
     "tests/test_tool_argument_guidance.py": {
       "name": "Tool argument guidance tests",
       "description": "Automatic checks for tool argument guidance."
+    },
+    "tests/test_tool_call_ids.py": {
+      "name": "Tool call id tests",
+      "description": "Automatic checks that every tool call in a run gets its own id."
     },
     "tests/test_tool_discovery.py": {
       "name": "Tool discovery tests",

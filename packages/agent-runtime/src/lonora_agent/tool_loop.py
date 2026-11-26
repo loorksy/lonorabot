@@ -49,6 +49,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
 from lonora_db.tasks import OWNER_ATTENTION, report_task_degraded
+from lonora_session.idempotency import stable_id
 from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -217,6 +218,41 @@ def selection_metadata(
         "visual_diagnostics": reply.provider_metadata.get("visual_diagnostics", []),
         "suggested_reply": reply.provider_metadata.get("suggested_reply"),
     }
+
+
+def unique_call_ids(
+    reply: ModelReply,
+    messages: list[ModelMessage],
+    run_id: str,
+    turn: int,
+    state: dict[str, Any],
+) -> ModelReply:
+    """Every call of the reply with an id no other call of this Run has.
+
+    Stored results, effect receipts and Trade Approval ids derive from the call id, so an
+    empty id, one repeated in the reply or one already in the transcript would answer a
+    new call from an earlier call's record. Such a call gets ``call:{turn}:{index}`` of
+    this Run, and the checkpoint keeps the provider's own id under it
+    (``state["provider_call_ids"]``); an id that is already unique is kept, so earlier
+    checkpoints and receipts still match. Every provider adapter is covered here, the
+    Responses adapter included.
+    """
+    used = {call.id for message in messages for call in message.tool_calls}
+    used |= {message.tool_call_id for message in messages if message.tool_call_id}
+    calls: list[ToolCall] = []
+    replaced: dict[str, str] = {}
+    for index, call in enumerate(reply.tool_calls):
+        if not call.id or call.id in used:
+            identity = stable_id(run_id, f"call:{turn}:{index}")
+            replaced[identity] = call.id
+            call = call.model_copy(update={"id": identity})
+        used.add(call.id)
+        calls.append(call)
+    if not replaced:
+        return reply
+    log.info("tool_call_ids_replaced count=%s", len(replaced))
+    state["provider_call_ids"] = {**state.get("provider_call_ids", {}), **replaced}
+    return reply.model_copy(update={"tool_calls": calls})
 
 
 # Subagents delegate at most two levels deep; a few extra hops guard bad data.
@@ -642,6 +678,9 @@ async def execute_tool_loop(
         else:
             state["rich_content"] = reply.rich_content
         state["rounds"] = int(state.get("rounds", 0)) + 1
+        # Counted across budget epochs, so no two turns of the Run share a number.
+        turn = int(state.get("prior_attempt_rounds", 0)) + state["rounds"]
+        reply = unique_call_ids(reply, messages, context.lease.run_id, turn, state)
         state["selection"] = selection_metadata(selection, reply, turn_capability)
         log.info(
             "model_turn_completed timings=%s visual_errors=%s",

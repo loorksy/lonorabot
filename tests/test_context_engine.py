@@ -52,6 +52,7 @@ from lonora_providers.catalog import list_source
 from lonora_providers.context import ContextLimits, context_limits, prepare_context
 from lonora_providers.model_windows import FAMILY_SOURCE
 from lonora_providers.router import GlobalModelRouter
+from lonora_security.secrets import SecretScan
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -910,7 +911,14 @@ async def test_new_run_gets_historical_timestamped_tool_evidence(task_db: Fixtur
             )
         )
     async with db.sessions() as session:
-        evidence = await recent_tool_evidence(session, agent, thread, "current-run", "gold XAUUSD")
+        evidence = await recent_tool_evidence(
+            session,
+            agent,
+            thread,
+            "current-run",
+            "gold XAUUSD",
+            AsyncMock(return_value=SecretScan({})),
+        )
     text = evidence.observations
     assert "not live market or broker truth" in text
     # Third-party page text is kept apart, for the retrieved_untrusted section only.
@@ -927,9 +935,13 @@ async def test_new_run_gets_historical_timestamped_tool_evidence(task_db: Fixtur
     assert trade_entry["identities"]["operation_id"] == "op-9"
     assert trade_entry["time_basis"] == "run_last_updated"
     async with db.sessions() as session:
-        assert await recent_tool_evidence(session, "other-agent", thread, "current", "x") == (
-            RunEvidence()
+        unread = AsyncMock()
+        evidence = await recent_tool_evidence(
+            session, "other-agent", thread, "current", "x", unread
         )
+        assert evidence == RunEvidence()
+        # With nothing to show, the owner's secrets are not read.
+        unread.assert_not_awaited()
 
 
 @pytest.mark.asyncio

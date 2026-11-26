@@ -41,6 +41,7 @@ from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
+from .terminal import scan
 
 # Manifest source -> where the Skill came from (lonora_agent.skills.provenance).
 PROVENANCE = {
@@ -302,6 +303,10 @@ async def listing(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     report = await capability_report(
         context.db, context.owner_id, infrastructure_of(context), for_agent=True
     )
+    # It carries text servers and repositories wrote (an MCP server's own tool titles, a
+    # Skill's title), kept from earlier reads: no stored value reaches agents through it,
+    # one saved since included (7.2.6).
+    report = (await scan(context)).data(report)
     return {
         **report,
         # The exact timeframes and indicators the chart and market tools accept.
