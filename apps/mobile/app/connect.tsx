@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, Text } from "react-native";
 import { SheetHeader } from "../components/sheet-header";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
@@ -13,6 +13,14 @@ export default function Connect() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Closed before the switch finished («Not now», back): nothing more happens on its behalf.
+  const open = useRef(true);
+  useEffect(
+    () => () => {
+      open.current = false;
+    },
+    [],
+  );
   if (!ready) return <Loading />;
   const link = parseConnectLink(params.server, params.token);
   return (
@@ -44,6 +52,7 @@ export default function Connect() {
                 setBusy(true);
                 void changeServer(link.server)
                   .then(() => {
+                    if (!open.current) return;
                     holdSetupToken(link.server, link.token);
                     router.replace("/sign-in");
                   })
