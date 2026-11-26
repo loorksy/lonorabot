@@ -16,12 +16,16 @@ run, provider, model and the provider's `TokenUsage` (`input_tokens`, `output_to
 Cost is priced at read time from `lonora_core.model_pricing` (USD per million uncached
 input, cached input and output tokens), whose prices are Lonora's model list's (VISION
 12.4; `PRICES_AS_OF` names the package it was imported from). Old rows are priced the
-same way as new ones; nothing is stored per row.
+same way as new ones; nothing is stored per row. So a model a release's list no longer
+holds becomes unpriced, its past usage included (for example `claude-sonnet-4` and
+`claude-opus-4-1`, which the 1.6.0 list does not hold), while its token counts stay.
 
 - Anthropic reports `input_tokens` without the cache reads; the OpenAI-compatible APIs
   (OpenAI, DeepSeek, Z.ai, OpenRouter) include the cached tokens in `prompt_tokens`. The
   dashboard normalizes: `input_tokens` is every prompt token, cached included, and
-  cached tokens are priced once, at the cached rate.
+  cached tokens are priced once, at the cached rate. A listed model without a cache-read
+  price (zero in the list) prices a request that has cached tokens as unknown, never as
+  free.
 - A model the list does not hold, or lists without a price, has no cost: `cost_usd` sums
   the priced requests and `unpriced_requests` counts the rest. Every provider's listed
   models are priced, OpenRouter's by its own ids; the owner's own endpoint is never

@@ -73,9 +73,18 @@ def test_prices_come_from_the_model_list_and_unknown_models_have_none():
     )
     # Only Anthropic's dated ids are its listed model; another provider's snapshot is
     # unpriced unless the list holds it.
-    assert model_price("openai", "gpt-4o-2024-05-13") == ModelPrice(5, 0, 15)
+    assert model_price("openai", "gpt-4o-2024-05-13") == ModelPrice(5, None, 15)
     assert model_price("openai", "gpt-4o-2024-02-01") is None
     assert model_price("openai", "gpt-4o-mini") != model_price("openai", "gpt-4o")
+
+
+def test_cached_tokens_without_a_cached_price_are_unknown_never_free():
+    # The list states no cache-read price for these (zero): their cached tokens have no
+    # price, so a request that has some is unpriced; one without them is priced.
+    assert near(usage_cost("openai", "gpt-4o-2024-05-13", 1_000_000, 1_000_000, 0), 20.0)
+    assert usage_cost("openai", "gpt-4o-2024-05-13", 1_000_000, 0, 1) is None
+    assert usage_cost("openai", "gpt-5-pro", 1_000_000, 0, 900_000) is None
+    assert usage_cost("openrouter", "amazon/nova-2-lite-v1", 1_000_000, 0, 1_000_000) is None
 
 
 # --- Windows and CSV -----------------------------------------------------------------
