@@ -146,7 +146,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
   function card(a) {
     const reason = el("textarea", { rows: "2", maxlength: "500", placeholder: "السبب (يراه العميل)" });
     const url = el("input", { type: "url", inputmode: "url", placeholder: "https://name.lonora.app", dir: "ltr" });
-    const link = el("input", { type: "url", inputmode: "url", placeholder: "رابط الإعداد الأول (اختياري)", dir: "ltr" });
+    const link = el("input", { type: "url", inputmode: "url", placeholder: "رابط الإعداد الأول", dir: "ltr" });
     const acts = el("div", { class: "actions" });
     if (a.status === "pending") acts.append(el("div", { class: "line" }, action(a, "approve", null, "btn primary")));
     if (a.status === "pending" || a.status === "approved") {

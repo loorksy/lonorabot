@@ -92,7 +92,7 @@ export async function startProvisioning(env, account, handle, staff) {
     .bind(job.id, account.id, handle, `lonora-${handle}`, now, now)
     .run();
   const { password_hash: hash } = await env.DB.prepare("SELECT password_hash FROM accounts WHERE id = ?").bind(account.id).first();
-  const out = await host(env, ["create", handle], `${account.email}\n${hash}\n`);
+  const out = await host(env, ["create", handle, "--owner-on-stdin"], `${account.email}\n${hash}\n`);
   const url = /^instance_url=(https:\/\/[a-z0-9.-]+\/)$/m.exec(out.stdout)?.[1];
   if (out.ok && url) {
     await env.DB.prepare("UPDATE provision_jobs SET status = 'ready', updated_at = ? WHERE id = ?").bind(nowIso(), job.id).run();

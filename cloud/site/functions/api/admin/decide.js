@@ -63,8 +63,9 @@ export async function onRequestPost({ request, env, data }) {
   if (body.action === "activate") {
     instanceUrl = httpsUrl(body.instance_url);
     if (!instanceUrl) return json({ ok: false, error: "instance_url" }, 400);
-    setupLink = body.setup_link ? httpsUrl(body.setup_link) : null;
-    if (body.setup_link && !setupLink) return json({ ok: false, error: "setup_link" }, 400);
+    // An installation made by hand gets its owner only through its setup link (D7).
+    setupLink = httpsUrl(body.setup_link);
+    if (!setupLink) return json({ ok: false, error: "setup_link" }, 400);
   }
   const changed = await env.DB.prepare(
     "UPDATE accounts SET status = ?, reason = ?, instance_url = ?, setup_link = ?, decided_at = ?, decided_by = ? WHERE id = ? AND status = ?",

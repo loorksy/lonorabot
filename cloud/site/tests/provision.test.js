@@ -66,7 +66,7 @@ describe("one-click activation on the host", () => {
 
   test("the website account becomes the owner, and its password hash is never printed", () => {
     const hash = account().password_hash;
-    const out = spawnSync("bash", [SCRIPT, "--dry-run", "create", "dan"], {
+    const out = spawnSync("bash", [SCRIPT, "--dry-run", "create", "dan", "--owner-on-stdin"], {
       encoding: "utf8", input: `sara@example.com\n${hash}\n`, env: { ...process.env, LONORA_HOST_HOME: home },
     });
     assert.equal(out.status, 0, out.stderr);
@@ -74,11 +74,16 @@ describe("one-click activation on the host", () => {
     assert.match(out.stderr, /would run: docker compose .* exec -T api lonora-api --import-owner\n/);
     assert.ok(!out.stdout.includes(hash) && !out.stderr.includes(hash));
     // Anything else on stdin changes nothing (exit 73, so the site undoes nothing).
-    const bad = spawnSync("bash", [SCRIPT, "--dry-run", "create", "eve"], {
+    const bad = spawnSync("bash", [SCRIPT, "--dry-run", "create", "eve", "--owner-on-stdin"], {
       encoding: "utf8", input: "sara@example.com\nnot-a-hash\n", env: { ...process.env, LONORA_HOST_HOME: home },
     });
     assert.equal(bad.status, 73);
     assert.ok(!fs.existsSync(path.join(home, "customers/eve")));
+    // By hand, without the flag, stdin is never read, and the setup link is printed.
+    const byHand = spawnSync("bash", [SCRIPT, "--dry-run", "create", "fay"], {
+      encoding: "utf8", input: `sara@example.com\n${hash}\n`, env: { ...process.env, LONORA_HOST_HOME: home },
+    });
+    assert.match(byHand.stdout, /^setup_link=https:\/\/fay\.lonora\.test\/#token=/);
   });
 
   test("a release is built once and switches every customer", () => {

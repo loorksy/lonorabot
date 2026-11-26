@@ -208,7 +208,12 @@ describe("admin panel", () => {
   test("every decision is in the audit log with the staff email", async () => {
     const id = row().id;
     await staff("POST", "/api/admin/decide", { json: { id, action: "approve" } });
-    await staff("POST", "/api/admin/decide", { json: { id, action: "activate", instance_url: "https://sara.lonora.app" } });
+    // By hand, the setup link is required: it is the only way the installation gets its owner (D7).
+    const bare = await staff("POST", "/api/admin/decide", { json: { id, action: "activate", instance_url: "https://sara.lonora.app" } });
+    assert.equal(bare.status, 400);
+    await staff("POST", "/api/admin/decide", {
+      json: { id, action: "activate", instance_url: "https://sara.lonora.app", setup_link: "https://sara.lonora.app/#token=abc" },
+    });
     await staff("POST", "/api/admin/decide", { json: { id, action: "suspend", reason: "non-payment" } });
     await staff("POST", "/api/admin/decide", { json: { id, action: "reinstate" } });
     const log = await (await staff("GET", "/api/admin/audit", { query: `?account=${id}` })).json();
