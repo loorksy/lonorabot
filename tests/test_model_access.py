@@ -28,6 +28,7 @@ from lonora_contracts.model_routing import (
     RoutingPolicy,
 )
 from lonora_contracts.runs import Lease, RunRequest
+from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import agent_model_key
 from lonora_db.attention import attention_view, settle_model_access, withdraw_ended
 from lonora_db.client import Database
@@ -47,6 +48,7 @@ from lonora_gateway.push import PUSH_CODES
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
+from test_model_context import FixtureCredentials
 from test_provider_resilience import Scripted
 from test_task_runtime import task_db as task_db
 
@@ -57,11 +59,28 @@ USER = [ModelMessage(role="user", content="Review gold")]
 NO_TOOLS = cast(ToolRegistry, SimpleNamespace(tools={}))
 
 
-async def routed(db: Database) -> None:
+async def routed(db: Database, *backups: ModelSelection) -> None:
     async with db.sessions() as session, session.begin():
         await SettingsRepository().put(
             session, "model_routing", RoutingPolicy(unified=PRIMARY).model_dump(mode="json")
         )
+        await SettingsRepository().put(
+            session,
+            "model_backups",
+            {"choices": [item.model_dump(mode="json") for item in backups]},
+        )
+
+
+class KeysFor(FixtureCredentials):
+    """A key for these providers only: the router passes over the others as unconfigured."""
+
+    def __init__(self, *providers: str) -> None:
+        self.providers = set(providers)
+
+    async def resolve(self, provider: str) -> str:
+        if provider not in self.providers:
+            raise LonoraError("model_not_configured", 409)
+        return await super().resolve(provider)
 
 
 async def routine(db: Database, owner: str, agent: str, thread: str) -> str:
@@ -91,6 +110,18 @@ async def provider_failure(db: Database, *outcomes: Any) -> ModelProviderError:
     fake = Scripted(**{"primary-model": list(outcomes)})
     with pytest.raises(ModelProviderError) as caught:
         await fake.router(db).complete(Capability.BACKGROUND, USER, [], choices=[PRIMARY])
+    return caught.value
+
+
+async def chain_failure(
+    db: Database, choices: list[ModelSelection], credentials: KeysFor, *outcomes: Any
+) -> ModelProviderError:
+    """What the real router raises for this chain, with keys only for some providers."""
+    fake = Scripted(**{"primary-model": list(outcomes)})
+    with pytest.raises(ModelProviderError) as caught:
+        await fake.router(db, credentials).complete(
+            Capability.BACKGROUND, USER, [], choices=choices
+        )
     return caught.value
 
 
@@ -240,6 +271,8 @@ async def test_an_agent_on_a_different_working_provider_keeps_running(task_db: F
             SettingRow(key=agent_model_key(owner, other.id), payload=record.model_dump(mode="json"))
         )
         other_id, desk_id = other.id, desk.id
+    # Working: its provider has a key (one with none could not answer either).
+    await save_key(db, owner, "deepseek")
     second = await routine(db, owner, other_id, desk_id)
     await due_again(db, first)
     assert await dispatch_routines(db) == 1
@@ -349,3 +382,60 @@ async def test_a_model_access_failure_pushes_once_naming_the_provider(task_db: F
     assert body == attention_text(
         "model_access_failed", "ar", {"reason": "auth", "provider_name": "OpenAI"}
     )
+
+
+@pytest.mark.asyncio
+async def test_a_backup_with_no_key_does_not_keep_the_routine_failing(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, thread = task_db
+    monkeypatch.delenv("LONORA_DEEPSEEK_API_KEY", raising=False)
+    await routed(db, OTHER)
+    routine_id = await routine(db, owner, agent, thread)
+    assert await dispatch_routines(db) == 1
+    # The router passes over the backup, which has no key, and the primary key is rejected.
+    error = await chain_failure(
+        db,
+        [PRIMARY, OTHER],
+        KeysFor("openai"),
+        ModelProviderError(FailureReason.AUTH, http_status=401),
+    )
+    assert [(provider, failed.reason) for provider, _, failed in error.failures] == [
+        ("openai", FailureReason.AUTH),
+        ("deepseek", FailureReason.NOT_CONFIGURED),
+    ]
+    await fail_next(db, error)
+    assert len(await items(db, owner)) == 1
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    assert len(await routine_runs(db, routine_id)) == 1
+    # A key saved for the backup gives the routine a model that may answer.
+    await save_key(db, owner, "deepseek")
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_model_past_the_routers_cap_does_not_keep_the_routine_failing(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    # Six distinct models of one provider (a repeat takes no place), then a seventh that the
+    # router never tries although its provider has a key.
+    backups = [ModelSelection(provider="openai", model=f"backup-{n}") for n in range(5)]
+    await routed(db, PRIMARY, *backups, OTHER)
+    await save_key(db, owner, "deepseek")
+    routine_id = await routine(db, owner, agent, thread)
+    assert await dispatch_routines(db) == 1
+    error = await chain_failure(
+        db,
+        [PRIMARY, *backups, OTHER],
+        KeysFor("openai", "deepseek"),
+        ModelProviderError(FailureReason.AUTH, http_status=401),
+    )
+    assert {provider for provider, _, _ in error.failures} == {"openai"}
+    assert len(error.failures) == 6
+    await fail_next(db, error)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    assert len(await routine_runs(db, routine_id)) == 1

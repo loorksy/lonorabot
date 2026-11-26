@@ -107,6 +107,22 @@ async def model_candidates(
     return ordered, record
 
 
+# Distinct candidates one request may try, primary included.
+MAXIMUM_CANDIDATES = 6
+
+
+def tried_candidates(ordered: Iterable[ModelSelection]) -> list[ModelSelection]:
+    """The models the router tries for text work, of ``model_candidates``' list: each one
+    once, in order, at most ``MAXIMUM_CANDIDATES``."""
+    seen: set[tuple[str, str]] = set()
+    tried: list[ModelSelection] = []
+    for item in ordered:
+        if (item.provider, item.model) not in seen:
+            seen.add((item.provider, item.model))
+            tried.append(item)
+    return tried[:MAXIMUM_CANDIDATES]
+
+
 def same_choice(record: AgentModelRecord, preference: AgentModelPreference) -> bool:
     return record.preference == preference
 

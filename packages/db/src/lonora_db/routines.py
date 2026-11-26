@@ -192,21 +192,26 @@ async def earlier_run_unfinished(session: AsyncSession, row: RoutineRow) -> bool
 
 
 async def model_access_refused(session: AsyncSession, row: RoutineRow) -> bool:
-    """Whether every model the routine's agent could use for background work has a standing
-    ``model_access_failed`` item (P1-08): its Run could only fail the same way again."""
-    from .agent_models import model_candidates
+    """Whether the routine's Run could only fail the same way again (P1-08): every model the
+    router would try for the agent's background work has a standing ``model_access_failed``
+    item or a provider with no key, and at least one has an item."""
+    from .agent_models import model_candidates, tried_candidates
     from .attention import refused_routes
+    from .model_credentials import has_key
 
     refused = await refused_routes(session, row.owner_id)
     if not refused:
         return False
-    chain, _ = await model_candidates(
+    ordered, _ = await model_candidates(
         session, Capability.BACKGROUND, owner_id=row.owner_id, agent_id=row.agent_id
     )
-    return bool(chain) and all(
-        choice.provider in refused or choice.provider + ":" + choice.model in refused
-        for choice in chain
-    )
+    covered = False
+    for choice in tried_candidates(ordered):
+        if choice.provider in refused or choice.provider + ":" + choice.model in refused:
+            covered = True
+        elif await has_key(session, choice.provider):
+            return False
+    return covered
 
 
 async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
