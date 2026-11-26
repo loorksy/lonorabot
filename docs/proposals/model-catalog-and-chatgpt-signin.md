@@ -131,6 +131,13 @@ and nothing is retried that could repeat an external effect (a model request has
 
 ## 4. Sign in with ChatGPT
 
+**Status: Shipped** (`lonora_providers/chatgpt_sign_in.py`, `routes/chatgpt_sign_in.py`, `packages/core/src/chatgpt-plan.ts`,
+`tests/test_chatgpt_sign_in.py` against a fake OpenAI). Where the build differs from the text below: Android opens
+OpenAI's sign-in in the system browser (`Linking`; a Custom Tab would need `expo-web-browser`, not a dependency);
+the run's failure names the provider that failed (`failure.provider`), so a plan limit is shown as the plan's; a
+returning sign-in with another ChatGPT account is refused (one registration per installation). The first live
+sign-in is still the owner's.
+
 ### 4.1 What the owner sees
 
 1. The owner asks Lonora to use their ChatGPT plan, or picks ChatGPT on the provider list. The agent opens the Secret

@@ -30,6 +30,10 @@ curl -fsS http://127.0.0.1:8000/ready
 
 افتح إعدادات النظام لإضافة مفاتيح المزودين إلى مخزن الخادم المشفر واختيار التوجيه العالمي. المزودون المعتمدون: OpenAI وAnthropic وDeepSeek وZ.ai وOpenRouter. نماذج كل مزود قائمة ثابتة تأتي مع Lonora وتتغير مع إصداراته فقط (قائمة Rakazo من حزمة `@earendil-works/pi-ai` 1.6.0)؛ لا يُسأل أي مزود عن قائمة نماذجه، إلا نقطة النهاية المتوافقة مع OpenAI التي يملكها المالك. إنشاء الوكيل يحتاج الاسم والصورة واللون فقط؛ تعليماته مستقلة، وإعداد النماذج عالمي.
 
+بدل المفتاح، يمكن استخدام اشتراك ChatGPT Plus أو Pro الخاص بالمالك عبر تسجيل الدخول الرسمي من OpenAI ‏(Sign in with ChatGPT) على بطاقة البيانات السرية في المحادثة: يتابع المالك إلى OpenAI، ثم يلصق في البطاقة عنوان الصفحة التي لا تفتح بعد الموافقة. تُحفظ الرموز مشفّرة على الخادم ولا يراها أي وكيل، ويُدار الاستخدام من إعدادات ChatGPT. لا يُتاح اشتراك Claude ‏(Free وPro وMax وUltra) لأن Anthropic لا تسمح بذلك لتطبيقات أخرى؛ مفتاح Anthropic API متاح. `LONORA_CHATGPT_SIGN_IN=off` يوقف تسجيل الدخول (يكتبه Lonora Cloud إلى أن توافق OpenAI عليه).
+
+Instead of a key, the owner's ChatGPT Plus or Pro plan can be used through OpenAI's official Sign in with ChatGPT on the Secret card in chat: the owner continues to OpenAI, then pastes into the card the address of the page that does not open after approving. The tokens are kept encrypted on the server, no agent sees them, and usage is managed in ChatGPT settings. Claude subscriptions (Free, Pro, Max, Ultra) are not offered, because Anthropic does not permit them in other apps; Anthropic API keys are. `LONORA_CHATGPT_SIGN_IN=off` turns the sign-in off (Lonora Cloud sets it until OpenAI approves it).
+
 [مسار الصوت](docs/GPT_LIVE.md) يستخدم GPT-Live وWebRTC مباشرةً؛ يتطلب مفتاح OpenAI يملك وصولًا إلى Live API، وتُفوّض المهام إلى نفس وكيل Lonora والمحادثة والأدوات. يتطلب التداول حساب MetaApi فعليًا أو بيانات محاكاة مستوردة صراحة. ضوابط OFF/ON والإيقاف الطارئ وسجل العمليات والمصالحة تُطبق على الخادم. لا يتضمن المشروع مفاتيح مزود أو حساب وسيط أو بيانات أسعار افتراضية.
 
 ## تطبيق Expo

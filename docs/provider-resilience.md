@@ -48,6 +48,25 @@ for every Agent. The patterns are narrow for the same reason: a missing model
 needs the word "model" in the phrase, and bare "billing" or "authentication"
 is not enough.
 
+## The ChatGPT plan's credential
+
+The owner's ChatGPT plan (`openai_chatgpt`, Sign in with ChatGPT,
+`lonora_providers/chatgpt_sign_in.py`) gives the router an access token instead of a
+key: `ProviderCredentials.connection` returns a fresh one for every request and renews
+it in its last minute, one caller at a time under a Postgres advisory lock that re-reads
+the stored copy, since each renewal rotates the refresh token. A renewal OpenAI refuses
+(`invalid_grant`, `refresh_token_reused` and the other terminal codes) clears the tokens
+and fails the candidate as `auth` (`model_credentials_rejected`: the owner signs in
+again); any other renewal failure keeps them and fails it as transient. Either way the
+router passes to the next candidate, as for a request that failed. The plan's own
+answers are classified by code in the table above: its usage limit is `billing`, so the
+next model answers, and when none does the run's failure names the plan
+(`failure.provider`), which the clients show as "ChatGPT plan limit reached" with
+Manage usage. For `subscription_sharing_unsupported_capability` the log line carries
+`error.param`, never the provider's text; a model the plan refuses for the account
+(missing for it, or `error.param` `model`) leaves the account's list until the next
+sign-in.
+
 ## No model configured is not an outage
 
 `model_not_configured` means there is nothing to ask: no route, no backup, no model
