@@ -68,6 +68,12 @@ def main() -> None:
         if len(wheels) != 1:
             raise SystemExit("Expected exactly one production wheel")
         with ZipFile(wheels[0]) as wheel:
+            # Lonora's model list (VISION 12.4) is package data: pricing and the catalog
+            # read it from the installed package.
+            shipped = ROOT / "packages/providers/src/lonora_providers/models.json"
+            listed = "lonora_providers/models.json"
+            if listed not in wheel.namelist() or wheel.read(listed) != shipped.read_bytes():
+                raise SystemExit("The wheel does not ship Lonora's model list as checked in")
             for name in wheel.namelist():
                 marker = ".data/data/share/lonora/"
                 if marker not in name or name.endswith("/"):
@@ -92,7 +98,8 @@ def main() -> None:
             assert len(load_constitution()) == 7
             validate_system_policy(set(load_tools().tools))
     print(
-        "Production wheel ships valid operating policy/manifest; installed fallback loads all mandatory rules"
+        "Production wheel ships valid operating policy/manifest and the model list;"
+        " installed fallback loads all mandatory rules"
     )
 
 

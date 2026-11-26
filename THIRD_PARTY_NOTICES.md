@@ -264,8 +264,9 @@ THE SOFTWARE.
 
 Source: the npm package `@earendil-works/pi-ai` 1.6.0 (https://github.com/earendil-works/pi,
 `packages/ai`), the model data Rakazo pins (VISION Amendment 4).
-License: MIT (the package's `license`; author Mario Zechner). The npm package ships no
-licence file; the MIT permission notice is reproduced below.
+License: MIT (the package's `license`). Copyright (c) Mario Zechner, the package's
+`author`; the package states no copyright line or year of its own. The npm package
+ships no licence file; the MIT permission notice is reproduced below.
 
 Adapted portions: the model entries of `dist/providers/data/{anthropic,openai,openai-codex,
 deepseek,zai,openrouter}.json` (id, name, wire, context window, maximum output, inputs,
