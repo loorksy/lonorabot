@@ -530,7 +530,9 @@ async def test_a_follow_up_is_background_when_its_parent_is():
         await returned_helper(fixture, agent, routine, "completed", "CPI printed 3.1%.")
         [follow_up] = await follow_ups(fixture, routine.id)
         assert follow_up.model_metadata["background"] is True
-        assert follow_up.prompt.startswith("Use the returned peer outcome to finish the background")
+        assert follow_up.prompt.startswith(
+            "Use the returned peer outcomes to finish the background"
+        )
         complete, requests = router("")
         await execute(fixture, follow_up, complete)
         row = await reload(fixture, follow_up.id)
@@ -544,7 +546,7 @@ async def test_a_follow_up_is_background_when_its_parent_is():
         await returned_helper(fixture, agent, user_run, "completed", "CPI printed 3.1%.")
         [answer] = await follow_ups(fixture, user_run.id)
         assert "background" not in answer.model_metadata
-        assert answer.prompt == "Use the returned peer outcome to complete the owner's request."
+        assert answer.prompt == "Use the returned peer outcomes to complete the owner's request."
         # An owner run is never offered an empty reply; a blank one is nudged for an answer.
         complete, requests = router(" ", "CPI came in at 3.1%.")
         await execute(fixture, answer, complete)
@@ -572,8 +574,13 @@ async def test_the_background_mark_is_set_only_by_the_server():
                     "agent_id": agent["id"],
                     "thread_id": conversation["id"],
                     "trigger": trigger,
-                    # Nor can a caller name the hidden thread of a Run's helpers.
-                    "metadata": {"background": True, "outcome_thread_id": conversation["id"]},
+                    # Nor can a caller name the hidden thread of a Run's helpers, or
+                    # outcomes its follow-up would read.
+                    "metadata": {
+                        "background": True,
+                        "outcome_thread_id": conversation["id"],
+                        "held_outcome_message_ids": [conversation["id"]],
+                    },
                 },
             )
             assert created["background"] is False
@@ -581,6 +588,7 @@ async def test_the_background_mark_is_set_only_by_the_server():
                 row = await session.get(RunRow, created["id"])
                 assert row is not None and "background" not in row.model_metadata
                 assert "outcome_thread_id" not in row.model_metadata
+                assert "held_outcome_message_ids" not in row.model_metadata
             await ended(fixture, row, status="cancelled")
     finally:
         await fixture.close()
@@ -720,22 +728,34 @@ async def test_a_helper_of_ended_background_work_posts_no_card():
 async def test_helpers_of_ended_background_work_share_one_follow_up():
     database()
     from check_streaming import Fixture
+    from lonora_agent.collaboration.outcome_return import return_outcome
 
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Fan-in desk")
         conversation = (await fixture.conversation(agent))["id"]
-        # A watch set in the chat has ended; two helpers bring something back. One
-        # background follow-up reads both, out of the owner's sight (P1-09, 11.5).
+        # A watch set in the chat has ended; its helpers bring something back. One
+        # background follow-up reads them all, out of the owner's sight (P1-09, 11.5): it
+        # starts when the helper still at work returns, and a later one steers it.
         watch = await make_run(fixture, agent, conversation, "watch")
+        copper = await make_run(
+            fixture, agent, await work_thread(fixture, agent), "subagent", parent_run_id=watch.id
+        )
         await ended(fixture, watch)
         gold = await returned_helper(fixture, agent, watch, "completed", "Gold held 2,400.")
+        assert await follow_ups(fixture, watch.id) == []
+        await ended(fixture, copper, result="Copper held 4.")
+        await return_outcome(fixture.runtime.db, copper.id)
+        [follow_up] = await follow_ups(fixture, watch.id)
         silver = await returned_helper(fixture, agent, watch, "completed", "Silver held 30.")
         assert await contents(fixture, conversation) == []
-        [follow_up] = await follow_ups(fixture, watch.id)
+        assert [row.id for row in await follow_ups(fixture, watch.id)] == [follow_up.id]
         assert follow_up.model_metadata["background"] is True
+        assert follow_up.prompt.startswith(
+            "Use the returned peer outcomes to finish the background"
+        )
         steered = await steered_text(fixture, follow_up.id)
-        assert gold.id in steered and silver.id in steered
+        assert all(helper.id in steered for helper in (gold, copper, silver)), steered
     finally:
         await fixture.close()
 
@@ -1715,7 +1735,7 @@ async def test_a_failed_helper_of_work_the_owner_spoke_to_is_still_reported():
         assert any(failed.id in text for text in await contents(fixture, conversation))
         [follow_up] = await follow_ups(fixture, watch.id)
         assert "background" not in follow_up.model_metadata
-        assert follow_up.prompt == "Use the returned peer outcome to complete the owner's request."
+        assert follow_up.prompt == "Use the returned peer outcomes to complete the owner's request."
     finally:
         await fixture.close()
 

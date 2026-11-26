@@ -55,8 +55,8 @@ skips another.
 ## Per-item isolation
 
 Inside a step, every item is isolated by `ItemGuard` (`lonora_db/item_failures.py`):
-routines, automatic task retries, activation reviews, task waits, outcome returns,
-attention events and items, watches, channel integrations and opportunities. Each item runs in its own transaction and has its
+routines, automatic task retries, activation reviews, task waits, outcome returns and
+held helper outcomes (`fan_in`), attention events and items, watches, channel integrations and opportunities. Each item runs in its own transaction and has its
 own time limit (45 s; 100 s for a channel integration's batch of deliveries), well
 below the step's timeout. An item that raises, or hangs past its limit (code
 `timeout`), is recorded in `ln_item_failures` (kind, item, failure count, code, next
