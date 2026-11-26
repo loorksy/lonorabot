@@ -252,6 +252,15 @@ export const labels = {
     "اكتملت جولات هذا التعاون. اذكر الوكلاء في رسالة جديدة لبدء تعاون جديد.",
     "This collaboration has used all its rounds. Mention the agents in a new message to start a new one.",
   ],
+  // The card of a request between two agents, worded as Web's PeerCard.
+  peerCollaboration: ["تعاون الوكلاء", "Agent collaboration"],
+  peerAgent: ["الوكيل", "Agent"],
+  peerQueued: ["في الانتظار", "Queued"],
+  peerWorking: ["يعمل…", "Working…"],
+  peerCompleted: ["اكتملت", "Completed"],
+  peerFailed: ["فشلت", "Failed"],
+  peerCancelled: ["أُلغيت", "Cancelled"],
+  peerLimited: ["توقف عند حد العمل", "Stopped at its work limit"],
   input_answer_expired: [
     "لم يعد هذا السؤال ينتظر إجابة",
     "This question is no longer waiting for an answer",

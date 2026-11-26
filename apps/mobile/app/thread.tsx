@@ -9,6 +9,7 @@ import type {
   MessageReaction,
   OwnerAction,
   ReactionEmoji,
+  Resource,
   Run,
   Thread,
   ThreadUpdatedPayload,
@@ -27,6 +28,7 @@ import {
   mergeOwnerAction,
   needsTimeSeparator,
   parseCommand,
+  peersByMessage,
   projectRunEvents,
   retryableFailure,
   runStatusText,
@@ -161,6 +163,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
   const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
   const [receipts, setReceipts] = useState<ExecutionReceipt[]>([]);
+  // Exchanges between agents that this conversation shows (sender's or recipient's side).
+  const [peers, setPeers] = useState<Resource[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   // Background runs working in a hidden thread that asked here: only their questions show.
   const [asking, setAsking] = useState<Run[]>([]);
@@ -372,8 +376,20 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           api
             .get<ExecutionReceipt[]>(`/trading/receipts?thread_id=${encodeURIComponent(id)}`)
             .catch(() => [] as ExecutionReceipt[]),
+          // As on Web, a failed read keeps the peer cards already drawn.
+          api
+            .get<Resource[]>(`/peer-messages?thread_id=${encodeURIComponent(id)}`)
+            .catch(() => null),
         ]).then(
-          ([nextFiles, nextApprovals, collaboration, refreshedAgents, nextCards, nextReceipts]) => {
+          ([
+            nextFiles,
+            nextApprovals,
+            collaboration,
+            refreshedAgents,
+            nextCards,
+            nextReceipts,
+            nextPeers,
+          ]) => {
             if (
               !stillLive() ||
               !conversationCache.current(scope) ||
@@ -420,6 +436,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               }),
             );
             setReceipts(nextReceipts);
+            if (nextPeers) setPeers(nextPeers);
             setError(null);
           },
         );
@@ -451,6 +468,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setApprovals(cached?.approvals ?? []);
     setOwnerActions([]);
     setReceipts([]);
+    setPeers([]);
     setCollaborationActive(cached?.collaborationActive ?? false);
     setCollaborationSessionId(cached?.collaborationSessionId);
     const savedDraft = composerDraft(outboxKey);
@@ -902,17 +920,20 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       live = false;
     };
   }, [around, id, dropReactionOverrides]);
-  // Messages drawn as a question's card instead of their rich content (MessageBubble
-  // `body`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
+  const peerCards = useMemo(() => peersByMessage(peers), [peers]);
+  // Messages drawn as a peer's or a question's card instead of their rich content
+  // (MessageBubble `peer` and `body`): a slot in them is not drawn, so it never hides a
+  // fixed card's row (10.2.3).
   const undrawn = useMemo(
     () =>
-      new Set(
-        runs
+      new Set([
+        ...peerCards.keys(),
+        ...runs
           .flatMap((run) => run.input_requests ?? [])
           .filter((request) => request.choices.length)
           .map((request) => request.message_id),
-      ),
-    [runs],
+      ]),
+    [peerCards, runs],
   );
   // An operation is drawn only by the server's fixed cards: its receipt once the broker
   // confirms it, its Settle card while the outcome is unknown (v38, as on Web); no order line.
@@ -1616,6 +1637,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   if (item.kind === "approval") return approvalCard(item.approval);
                   const message = item.message;
                   const question = questions.get(message.id);
+                  const peer = peerCards.get(message.id);
                   const previous =
                     visibleMessages[visibleMessages.findIndex((row) => row.id === message.id) - 1];
                   const responseRun = message.id.startsWith("preview:")
@@ -1685,6 +1707,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                             : undefined
                         }
                         onCancelUploads={(nonce) => cancelOutgoingUploads(outboxKey, nonce)}
+                        peer={peer}
+                        peerRun={runs.find((run) => run.id === peer?.payload.run_id)}
                         body={
                           question?.choices.length ? (
                             <ConversationQuestion request={question} onAnswer={answerQuestion} />

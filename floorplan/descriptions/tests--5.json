@@ -128,6 +128,10 @@
       "name": "Owner knowledge tests",
       "description": "Automatic checks for owner knowledge."
     },
+    "tests/mobile/peer-card.spec.mjs": {
+      "name": "Agent collaboration card tests (phone)",
+      "description": "Automatic checks that the phone shows a request between agents and its result with who asked whom, the status and the link."
+    },
     "tests/mobile/question-card.spec.mjs": {
       "name": "Question card tests",
       "description": "Automatic checks for question card."

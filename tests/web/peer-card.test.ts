@@ -97,13 +97,21 @@ test("a bare cancellation shows only its status; a cancellation with words keeps
   );
 });
 
-test("Web draws the card from the core helpers", () => {
+test("Web and Mobile draw the card from the same helpers", () => {
   const read = (path: string) => readFileSync(path, "utf8");
-  assert.match(read("apps/web/src/conversation/Cards.tsx"), /\bpeerCard\(/);
-  assert.match(read("apps/web/src/conversation/Conversation.tsx"), /\bpeersByMessage\(/);
-  // The rules live in core only: the client never reads the exchange's sides itself.
-  assert.doesNotMatch(
-    read("apps/web/src/conversation/Cards.tsx"),
-    /source_agent_id|target_agent_id|source_message_id/,
-  );
+  for (const path of [
+    "apps/web/src/conversation/Cards.tsx",
+    "apps/mobile/components/peer-card.tsx",
+  ])
+    assert.match(read(path), /\bpeerCard\(/, path);
+  for (const path of ["apps/web/src/conversation/Conversation.tsx", "apps/mobile/app/thread.tsx"])
+    assert.match(read(path), /\bpeersByMessage\(/, path);
+  // The rules live in core only: no client reads the exchange's sides itself.
+  for (const path of [
+    "apps/web/src/conversation/Cards.tsx",
+    "apps/mobile/components/peer-card.tsx",
+    "apps/mobile/components/message-bubble.tsx",
+  ])
+    assert.doesNotMatch(read(path), /source_agent_id|target_agent_id|source_message_id/, path);
+  assert.match(read("apps/mobile/app/thread.tsx"), /\/peer-messages\?thread_id=/);
 });

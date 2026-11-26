@@ -1,4 +1,4 @@
-import type { Agent, Artifact, Message } from "@lonora/contracts";
+import type { Agent, Artifact, Message, Resource, Run } from "@lonora/contracts";
 import { callPart, commandPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -17,6 +17,7 @@ import {
   nativeRichImageIds,
 } from "./native-rich-response";
 import { NativeSymbol } from "./native-symbol";
+import { PeerCard } from "./peer-card";
 import { UploadRing } from "./upload-ring";
 
 const COMMAND_LABELS = {
@@ -28,6 +29,8 @@ const COMMAND_LABELS = {
 export function MessageBubble({
   message,
   body,
+  peer,
+  peerRun,
   agent,
   files,
   onArtifact,
@@ -62,6 +65,10 @@ export function MessageBubble({
   mark?: "superseded" | "not_run" | null;
   message: Message;
   body?: ReactNode;
+  /** The exchange between two agents this message belongs to: drawn as its card, as on Web. */
+  peer?: Resource;
+  /** The asked agent's run, when this conversation has it: its live status. */
+  peerRun?: Run;
   agent?: Agent;
   files: Artifact[];
   onArtifact: (id: string) => void;
@@ -237,6 +244,8 @@ export function MessageBubble({
             </Text>
           ) : null}
         </View>
+      ) : peer ? (
+        <PeerCard message={message} peer={peer} run={peerRun} onChartLink={onChartLink} />
       ) : (
         (body ??
         (rich ? (
