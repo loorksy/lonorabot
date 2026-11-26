@@ -66,11 +66,20 @@ def peer_text(content: str) -> str:
 
 
 def is_owner_message(message: ModelMessage) -> bool:
-    """User-role conversation input, excluding runtime notices, observations and peers."""
+    """User-role conversation input, excluding runtime notices, observations and peers.
+
+    A delegated request (a routine's, Task's or subagent's prompt) is not the owner's."""
     return (
         message.role == "user"
         and message.context_origin == "conversation"
         and not message.content.startswith(PEER_PREFIX)
+    )
+
+
+def is_request(message: ModelMessage) -> bool:
+    """Where the current request starts: the owner's message or a delegated request."""
+    return is_owner_message(message) or (
+        message.role == "user" and message.context_origin == "delegated_request"
     )
 
 

@@ -335,7 +335,7 @@ def request_evidence(messages: list[ModelMessage]) -> dict[str, Evidence]:
         (
             i
             for i, m in enumerate(messages)
-            if m.role == "user" and m.context_origin == "conversation"
+            if m.role == "user" and m.context_origin in ("conversation", "delegated_request")
         ),
         default=-1,
     )

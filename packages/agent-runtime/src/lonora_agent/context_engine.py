@@ -459,6 +459,8 @@ def speaker(message: ModelMessage, *, delegated: bool = False) -> str:
     """
     if message.role != "user":
         return message.role
+    if message.context_origin == "delegated_request":
+        return "requesting_agent"
     if message.context_origin != "conversation":
         return "runtime"
     if message.content.startswith(PEER_PREFIX):
@@ -473,7 +475,7 @@ def request_anchor(history: Sequence[ModelMessage], *, delegated: bool = False) 
             index
             for index in range(len(history) - 1, -1, -1)
             if history[index].role == "user"
-            and history[index].context_origin == "conversation"
+            and history[index].context_origin in ("conversation", "delegated_request")
             and speaker(history[index], delegated=delegated) != "peer_agent"
         ),
         None,

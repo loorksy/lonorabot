@@ -19,7 +19,7 @@ from .runtime_notices import (
     append_notice,
     attention_message,
     attention_notice,
-    is_owner_message,
+    is_request,
 )
 from .stop_gates import StopGateVerdict, task_progress, task_stop_gate
 from .uncertain_outcome import append_line, append_uncertain_line
@@ -102,7 +102,7 @@ def attention_outcome(state: dict[str, Any], question: dict[str, Any]) -> LoopOu
 def latest_answer(messages: list[ModelMessage]) -> str:
     """The best held answer: the newest assistant prose since the owner's request."""
     for message in reversed(messages):
-        if is_owner_message(message):
+        if is_request(message):
             break
         if message.role == "assistant" and message.content.strip():
             return message.content.strip()

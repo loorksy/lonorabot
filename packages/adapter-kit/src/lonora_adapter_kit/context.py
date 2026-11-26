@@ -280,7 +280,8 @@ def govern_context(
         (
             index
             for index in range(len(blocks) - 1, -1, -1)
-            if blocks[index][0].role == "user" and blocks[index][0].context_origin == "conversation"
+            if blocks[index][0].role == "user"
+            and blocks[index][0].context_origin in {"conversation", "delegated_request"}
         ),
         None,
     )

@@ -15,7 +15,7 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 
-from .runtime_notices import is_owner_message
+from .runtime_notices import is_request
 
 _STARTED_KEY = "owner_started"
 _START_KEY = "owner_request_start"
@@ -46,9 +46,7 @@ def record_request_start(state: dict[str, Any], trigger: str, messages: list[Mod
     """On a Run's first entry: whether the owner started it and where its request begins."""
     if _STARTED_KEY in state:
         return
-    last = next(
-        (i for i in range(len(messages) - 1, -1, -1) if is_owner_message(messages[i])), None
-    )
+    last = next((i for i in range(len(messages) - 1, -1, -1) if is_request(messages[i])), None)
     state[_STARTED_KEY] = trigger in OWNER_TRIGGERS and last is not None
     state[_START_KEY] = last if last is not None else len(messages)
 

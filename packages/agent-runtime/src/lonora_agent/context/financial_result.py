@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 
-from ..runtime_notices import is_owner_message
+from ..runtime_notices import is_request
 
 FINANCIAL_CALLS = {"trade_execute", "trade_close_positions"}
 
@@ -80,7 +80,7 @@ def unverified_financial_result(messages: list[ModelMessage], locale: str) -> st
     for message in reversed(messages):
         # Runtime notices, observations and another agent's words (a steered helper
         # outcome) are not a new owner request.
-        if is_owner_message(message):
+        if is_request(message):
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue
@@ -141,7 +141,7 @@ def unsettled_wait_result(messages: list[ModelMessage], locale: str) -> str | No
     for message in reversed(messages):
         # Runtime notices, observations and another agent's words are not a new owner
         # request.
-        if is_owner_message(message):
+        if is_request(message):
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue
