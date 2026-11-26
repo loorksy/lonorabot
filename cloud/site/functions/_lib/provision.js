@@ -9,8 +9,8 @@
 //   CLOUDFLARE_ZONE_ID       var: that zone's id
 //   BASE_DOMAIN              var: e.g. lonora.app, so a customer is sara.lonora.app
 //   SERVER_TYPE / SERVER_LOCATION / SERVER_IMAGE   vars: defaults cpx31 / fsn1 / ubuntu-24.04
-//   LONORA_VERSION           var: the image tag every new install pins, e.g. main or v0.3.0
-//   GHCR_USER / GHCR_TOKEN   optional: a read-only package token when the image is private
+//   LONORA_VERSION           var: the branch, tag or commit of the public Lonora repository every
+//                            new install builds, e.g. main, v0.3.0 or a full commit id
 //   HETZNER_SSH_KEY          optional var: the name of a Hetzner SSH key staff may use
 // Without HETZNER_TOKEN, CLOUDFLARE_DNS_TOKEN, CLOUDFLARE_ZONE_ID and BASE_DOMAIN, provisioning is
 // off and staff activate by hand with an address and a setup link.
@@ -61,10 +61,16 @@ export async function chooseHandle(env, account, requested) {
 
 const shellQuote = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
 
-// The server's first-boot script. It installs Docker, runs the stock Lonora installer for the
-// customer's own domain, waits until Lonora answers /ready, and reports back once with the
-// one-time bootstrap token that the setup link carries. Nothing else of the server is sent.
-export function cloudInit({ jobId, secret, callback, domain, version, ghcrUser, ghcrToken }) {
+// The public repository every customer server builds Lonora from. No published image is needed:
+// GitHub Actions is not available, so each new server builds its own image from this source with
+// the stock build-from-source.sh, then installs it by digest with the stock installer.
+export const SOURCE_REPO = "https://github.com/loorksy/lonorabot.git";
+
+// The server's first-boot script. It installs Docker and git, fetches LONORA_VERSION of the public
+// repository, builds the image on the server, runs the stock Lonora installer for the customer's own
+// domain, waits until Lonora answers /ready, and reports back once with the one-time bootstrap token
+// that the setup link carries. Nothing else of the server is sent.
+export function cloudInit({ jobId, secret, callback, domain, version }) {
   return `#!/bin/bash
 set -euo pipefail
 JOB=${shellQuote(jobId)}
@@ -80,11 +86,15 @@ JSON
 trap 'report failed install_failed ""' ERR
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -y -q ca-certificates curl gpg
+apt-get install -y -q ca-certificates curl gpg git
 curl -fsSL https://get.docker.com | sh
-${ghcrToken ? `printf '%s' ${shellQuote(ghcrToken)} | docker login ghcr.io -u ${shellQuote(ghcrUser || "lonora")} --password-stdin` : "true"}
-docker run --rm --entrypoint cat "ghcr.io/loorksy/lonorabot:$VERSION" /app/deploy/infra/compose/install.sh > /root/lonora-install.sh
-bash /root/lonora-install.sh --domain "$DOMAIN" --version "$VERSION" --home /opt/lonora
+SRC=/opt/lonora-src
+rm -rf "$SRC" && git init -q "$SRC"
+git -C "$SRC" fetch -q --depth 1 ${shellQuote(SOURCE_REPO)} "$VERSION"
+git -C "$SRC" checkout -q FETCH_HEAD
+DIGEST=$(bash "$SRC/infra/compose/build-from-source.sh" --source "$SRC" --project lonora --cpus 3 --memory 6g | sed -n 's/^build: Digest: //p')
+test -n "$DIGEST"
+bash "$SRC/infra/compose/install.sh" --domain "$DOMAIN" --version "$DIGEST" --home /opt/lonora
 for i in $(seq 1 90); do
   if curl -fsS -m 10 "https://$DOMAIN/ready" >/dev/null; then
     TOKEN=$(grep '^LONORA_BOOTSTRAP_TOKEN=' /opt/lonora/.env | cut -d= -f2-)
@@ -157,7 +167,7 @@ export async function startProvisioning(env, account, handle, staff, origin) {
         image: env.SERVER_IMAGE || "ubuntu-24.04",
         user_data: cloudInit({
           jobId, secret, callback: `${origin}/api/provision/callback`, domain,
-          version: env.LONORA_VERSION || "main", ghcrUser: env.GHCR_USER, ghcrToken: env.GHCR_TOKEN,
+          version: env.LONORA_VERSION || "main",
         }),
         labels: { lonora: "customer", account: account.id },
         ...(env.HETZNER_SSH_KEY ? { ssh_keys: [env.HETZNER_SSH_KEY] } : {}),
@@ -195,8 +205,9 @@ export async function startProvisioning(env, account, handle, staff, origin) {
 }
 
 // A job still installing after this long is failed, and its server removed, the next time staff
-// look at the list (Pages Functions have no timer; the admin list runs this).
-export const INSTALL_TIMEOUT_MS = 45 * 60_000;
+// look at the list (Pages Functions have no timer; the admin list runs this). The server builds the
+// image itself first, so this leaves room for the build.
+export const INSTALL_TIMEOUT_MS = 75 * 60_000;
 
 export async function expireStaleJobs(env) {
   const cutoff = new Date(Date.now() - INSTALL_TIMEOUT_MS).toISOString();

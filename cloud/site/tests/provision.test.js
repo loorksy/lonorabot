@@ -138,7 +138,10 @@ describe("one-click activation", () => {
   test("the first-boot script quotes every value and never prints the secret's hash", () => {
     const script = cloudInit({ jobId: "j1", secret: "s'1", callback: "https://x/cb", domain: "d.lonora.test", version: "v1" });
     assert.match(script, /SECRET='s'\\''1'/);
-    assert.match(script, /--domain "\$DOMAIN" --version "\$VERSION" --home \/opt\/lonora/);
+    assert.match(script, /fetch -q --depth 1 'https:\/\/github\.com\/loorksy\/lonorabot\.git' "\$VERSION"/);
+    assert.match(script, /build-from-source\.sh" --source "\$SRC"/);
+    assert.match(script, /--domain "\$DOMAIN" --version "\$DIGEST" --home \/opt\/lonora/);
+    assert.doesNotMatch(script, /ghcr\.io/);
     assert.match(script, /https:\/\/\$DOMAIN\/ready/);
   });
 });

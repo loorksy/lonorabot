@@ -21,7 +21,7 @@ CLOUDFLARE_ZONE_ID = "REPLACE_WITH_ZONE_ID"
 SERVER_TYPE = "cpx31"                        # Hetzner type for a new customer (8 GB, D13 Starter)
 SERVER_LOCATION = "fsn1"                     # one EU region to start (D12)
 SERVER_IMAGE = "ubuntu-24.04"
-LONORA_VERSION = "main"                      # the Lonora image tag every new install pins
+LONORA_VERSION = "main"                      # branch, tag or full commit id every new install builds
 
 [[d1_databases]]
 binding = "DB"

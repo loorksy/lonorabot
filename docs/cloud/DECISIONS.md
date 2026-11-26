@@ -64,6 +64,7 @@ here in the same pull request. "Blocks" names the first task that cannot start w
 | ID | Decision | Recommendation | Why | Blocks | Status |
 |---|---|---|---|---|---|
 | D46 | How customers sign up at launch | **Normal registration on the website, then approval by staff.** A visitor creates an account (name, email, password, country, language, acceptance of the terms and the risk disclosure). The account is `pending` until staff approve it in the admin panel. Staff then activate it once the customer's dedicated Lonora exists, which is manual provisioning until Phase 3 automates it. Until activation nothing is provisioned and nothing is charged. Staff can also reject or suspend an account, and every decision is logged. | Owner: «يسجل طبيعي لكن الموافقة والتفعيل من لوحة الادمن». It allows selling before billing and automated provisioning exist, and lets the company choose who it serves (D20, D21). | Phase W | Confirmed (2026-11-25) |
+| D47 | Where a new customer server gets Lonora | **It builds Lonora itself from the public repository** at `LONORA_VERSION` (a pinned commit), with the stock `build-from-source.sh`, then installs that image by digest. No published image is needed. | Owner: GitHub billing cannot be fixed, so do not rely on GitHub Actions. The repository is public, so the server needs no token. A build adds about 15-30 minutes to activation. | PW-T6 | Confirmed (2026-11-26) |
 
 ## Commercial
 

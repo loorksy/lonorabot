@@ -68,13 +68,13 @@ It lives in `cloud/site/` of this repository only until `loorksy/lonora-cloud` e
    npx wrangler pages secret put CLOUDFLARE_DNS_TOKEN --project-name lonora-site
    ```
    وضع Zone ID للنطاق في `CLOUDFLARE_ZONE_ID`، والنطاق في `BASE_DOMAIN`.
-3. **صورة Lonora منشورة:** `ghcr.io/loorksy/lonorabot:<الإصدار>`، وهذا يحتاج أن يعمل GitHub Actions. اجعل الحزمة عامة (Public)، أو ضع مفتاح قراءة في `GHCR_USER` و`GHCR_TOKEN`. اكتب الإصدار في `LONORA_VERSION`.
+3. **الإصدار:** اكتب في `LONORA_VERSION` الفرع أو الوسم أو رقم الالتزام الكامل من مستودع Lonora العام. لا يلزم GitHub Actions: كل خادم جديد يبني Lonora بنفسه من المصدر، ويستغرق ذلك عادة بين 15 و30 دقيقة. رقم الالتزام الكامل يضمن أن كل العملاء الجدد على النسخة نفسها.
 
 **ما يجري خلف الزر:**
 - يُعطى الخادم سرّاً خاصاً به عند إنشائه، ولا يُحفظ عندنا إلا بصمته.
 - يرسل الخادم بلاغاً واحداً حين يجهز، ولا نصدّقه حتى يجيب Lonora فعلاً على عنوانه.
 - إن فشل شيء، يُحذف الخادم وسجل النطاق، ويعود الحساب إلى «تمت الموافقة» مع سبب الفشل، ويظهر زر **إعادة المحاولة**.
-- المحاولة التي تتجاوز 45 دقيقة تُلغى بنفس الطريقة.
+- المحاولة التي تتجاوز 75 دقيقة تُلغى بنفس الطريقة.
 - حذف حساب له خادم يطلب منك تأكيد حذف الخادم أيضاً.
 - الشركة لا تدخل إلى نسخة العميل بعد ذلك أبداً (التعديل 3، البند 3): كلمة مروره ومفاتيحه يضعها هو داخلها.
 
@@ -155,17 +155,17 @@ npm test
 With these settings, **"Activate in one click"** in the panel does everything:
 1. It creates a Hetzner server for the customer.
 2. It points `<handle>.<BASE_DOMAIN>` at the server through the Cloudflare API.
-3. The server's first-boot script installs Docker and runs the stock installer: `install.sh --domain <handle>.<BASE_DOMAIN> --version <LONORA_VERSION>`.
+3. The server's first-boot script installs Docker and git, fetches `LONORA_VERSION` (a branch, tag or full commit id) of the public repository, builds the image on the server with `infra/compose/build-from-source.sh`, and runs the stock installer with that image's digest: `install.sh --domain <handle>.<BASE_DOMAIN> --version <digest>`. No published image and no GitHub Actions are needed.
 4. When Lonora answers `https://<handle>.<BASE_DOMAIN>/ready`, the server reports once to `/api/provision/callback`, with its per-job secret and the one-time bootstrap token. The control plane checks `/ready` itself, then marks the account active with the address and the setup link `https://<handle>.<BASE_DOMAIN>/#token=…`.
 
 **Settings:**
 - Secrets: `HETZNER_TOKEN` (Read & Write, the fleet project) and `CLOUDFLARE_DNS_TOKEN` (Zone › DNS › Edit on the customer zone only).
 - Vars: `CLOUDFLARE_ZONE_ID`, `BASE_DOMAIN`, `SERVER_TYPE`, `SERVER_LOCATION`, `SERVER_IMAGE`, `LONORA_VERSION`.
-- Optional: `GHCR_USER`, `GHCR_TOKEN` (a read-only token when the image is private) and `HETZNER_SSH_KEY`.
-- The image `ghcr.io/loorksy/lonorabot:<LONORA_VERSION>` must exist, so CI has to run (PHASES.md P0-T10).
+- Optional: `HETZNER_SSH_KEY`.
+- Pin `LONORA_VERSION` to a full commit id so every new customer gets the same build. The build takes about 15-30 minutes on the default server type.
 
 **Failure handling:**
-- A provider error, a failed install, or an attempt older than 45 minutes removes the server and the DNS record. The account returns to `approved` with the error, and "Retry" appears.
+- A provider error, a failed build or install, or an attempt older than 75 minutes removes the server and the DNS record. The account returns to `approved` with the error, and "Retry" appears.
 - Deleting an account that has a server requires confirming the server's removal.
 - Only the SHA-256 of each per-job secret is stored.
 - The setup link works once, because onboarding consumes the bootstrap token.
