@@ -71,7 +71,7 @@ async def test_sse_ready_precedes_events_and_closes_source(monkeypatch: pytest.M
 
 
 def test_sse_ping_period_fits_well_inside_the_client_idle_timeout():
-    # Web and mobile reconnect after 45 s without any frame (B3).
+    # The web client reconnects after 45 s without any frame (B3).
     assert 15 <= events.PING_SECONDS <= 20
 
 

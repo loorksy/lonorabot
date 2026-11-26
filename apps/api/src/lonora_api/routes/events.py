@@ -16,7 +16,7 @@ from ..middleware.auth import require_owner, runtime
 
 router = APIRouter(prefix="/events")
 AUTH_REFRESH_SECONDS = 5
-# A visible frame on a quiet stream; web and mobile reconnect after 45 s without any frame.
+# A visible frame on a quiet stream; the web client reconnects after 45 s without any frame.
 PING_SECONDS = 15
 MAX_CURSOR = 2**63 - 1
 
