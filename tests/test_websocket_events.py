@@ -107,11 +107,24 @@ def test_native_ping_period_fits_well_inside_the_client_idle_timeout():
     assert 15 <= events.PING_SECONDS <= 20
 
 
+class QuietSocket(Socket):
+    """Tells the test when the second ping went out."""
+
+    def __init__(self, auth: Any):
+        super().__init__(auth)
+        self.two_pings = asyncio.Event()
+
+    async def send_json(self, value: dict[str, Any]) -> None:
+        await super().send_json(value)
+        if self.sent.count({"type": "ping"}) >= 2:
+            self.two_pings.set()
+
+
 @pytest.mark.asyncio
 async def test_quiet_native_stream_pings_on_schedule_without_a_cursor(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    socket = Socket({"token": "test-session", "cursor": 5})
+    socket = QuietSocket({"token": "test-session", "cursor": 5})
     ping = {"type": "ping"}
 
     async def authorize(_session: Any, _token: str | None):
@@ -120,8 +133,7 @@ async def test_quiet_native_stream_pings_on_schedule_without_a_cursor(
     async def source(_db: Any, _owner: str, after: int) -> AsyncGenerator[dict[str, Any], None]:
         assert after == 5
         # The ledger stays quiet until two pings went out; then one event and the end.
-        while socket.sent.count(ping) < 2:
-            await asyncio.sleep(0.005)
+        await socket.two_pings.wait()
         yield {"cursor": 6, "kind": "message.created", "payload": {}}
 
     async def guarded(
