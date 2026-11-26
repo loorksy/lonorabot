@@ -251,12 +251,14 @@ passkey, so nothing is left looking active while it can no longer run:
   boundary after a slow read or a change, and the Gateway's signal set before it drains,
   with the set of workers inside an effect handed to its backstop;
   a cancel that races a hand-back, which ends the Run and is no failure of the worker;
-  the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
-  run and relay drains share one deadline below the stop grace; a cancel that stops a
-  long model call within 3 s and waits for a change past `before_effect`, even when a
-  lease renewal falls inside that change, with no write after it;
+  a lease renewal refused as stale inside a change, which waits for it as the watcher does;
   a database restart, a deadlock, too many connections or a full pool at the final commit
   retried, and a statement error there not;
+  the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
+  run and relay drains share one deadline below the stop grace; a cancel that stops a
+  long model call within 3 s and waits for a change past `before_effect`, with no write
+  after it;
+  a transient error at the final commit;
   durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.
