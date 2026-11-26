@@ -159,6 +159,10 @@
     "tests/web/agent-alert.spec.mjs": {
       "name": "Agent alert tests",
       "description": "Automatic checks for agent alert."
+    },
+    "tests/web/setup-link.test.ts": {
+      "name": "Setup link tests",
+      "description": "Checks that only well-formed setup codes are taken from a link and that the code is read once."
     }
   }
 }

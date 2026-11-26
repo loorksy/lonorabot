@@ -683,6 +683,18 @@ export const labels = {
   newGroup: ["مجموعة جديدة", "New group"],
   signIn: ["تسجيل الدخول", "Sign in"],
   server: ["عنوان خادم Lonora", "Lonora server URL"],
+  connectTitle: ["الاتصال بـ Lonora الخاص بك", "Connect to your Lonora"],
+  connectAsk: ["هل تريد ربط التطبيق بهذا الخادم؟", "Connect the app to this server?"],
+  connectHint: [
+    "هذا عنوان نسختك الخاصة من Lonora. بعد الربط تنشئ حسابك أو تدخل إليه، وكلمة مرورك تبقى لك وحدك.",
+    "This is the address of your own Lonora. After connecting you create or sign in to your account there; your password stays yours alone.",
+  ],
+  connectConfirm: ["اتصال", "Connect"],
+  connectCancel: ["ليس الآن", "Not now"],
+  connectInvalid: [
+    "رابط الاتصال غير صالح. افتح الرابط من صفحة حسابك مرة أخرى، أو أدخل العنوان من «عنوان خادم Lonora».",
+    "This connect link is not valid. Open it again from your account page, or enter the address under “Lonora server URL”.",
+  ],
   email: ["البريد الإلكتروني", "Email"],
   password: ["كلمة المرور", "Password"],
   serverHint: ["استخدم عنوان خادمك.", "Use your server address."],

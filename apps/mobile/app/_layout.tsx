@@ -54,6 +54,7 @@ export default function Layout() {
                       <ThemedStack>
                         <Stack.Screen name="(tabs)" />
                         <Stack.Screen name="sign-in" />
+                        <Stack.Screen name="connect" options={{ presentation: "modal" }} />
                         <Stack.Screen name="agents" />
                         <Stack.Screen name="archived" />
                         <Stack.Screen name="thread" />

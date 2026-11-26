@@ -119,6 +119,10 @@
     "apps/mobile/app/thread.tsx": {
       "name": "Conversation screen",
       "description": "The main chat screen where the owner talks to an agent; the largest screen in the app."
+    },
+    "apps/mobile/app/connect.tsx": {
+      "name": "Connect from a link",
+      "description": "Asks the owner to confirm the server a Lonora link points to, then switches the app to it and opens sign-in."
     }
   }
 }

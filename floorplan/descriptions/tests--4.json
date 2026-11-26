@@ -159,6 +159,10 @@
     "tests/mobile/capabilities.spec.mjs": {
       "name": "Capabilities tests",
       "description": "Automatic checks for capabilities."
+    },
+    "tests/mobile/connect-link.test.ts": {
+      "name": "Connect link tests",
+      "description": "Checks which server addresses a Lonora link may point to and that its setup code is handed over once."
     }
   }
 }

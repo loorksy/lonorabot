@@ -159,6 +159,10 @@
     "apps/mobile/lib/session-lifecycle.ts": {
       "name": "Session teardown",
       "description": "Closes the device-side resources when a session ends."
+    },
+    "apps/mobile/lib/connect-link.ts": {
+      "name": "Connect link checks",
+      "description": "Accepts only safe server addresses from a Lonora link and holds its setup code in memory until sign-in uses it."
     }
   }
 }

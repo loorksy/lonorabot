@@ -1,9 +1,10 @@
 import { brand } from "@lonora/ui-tokens";
 import { Redirect } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
 import { onboardingStatus } from "../lib/api";
+import { takeSetupToken } from "../lib/connect-link";
 import { useSession } from "../lib/session";
 
 export default function SignIn() {
@@ -51,9 +52,16 @@ export default function SignIn() {
   }, [ready, owner, address, recheck]);
   const pending = checked?.address !== address;
   const setup = !pending && checked?.initialized === false;
+  // A connect link's setup token (lonora://connect…&token=) fills the setup form once.
+  const linked = useRef<string | null | undefined>(undefined);
+  if (linked.current === undefined) linked.current = takeSetupToken();
   // The setup token is kept only while the setup form is shown.
   useEffect(() => {
     if (!setup) setToken("");
+    else if (linked.current) {
+      setToken(linked.current);
+      linked.current = null;
+    }
   }, [setup]);
   if (!ready) return <Loading />;
   if (owner) return <Redirect href="/" />;
