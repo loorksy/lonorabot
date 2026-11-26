@@ -50,7 +50,7 @@
     },
     "apps/web/src/main.tsx": {
       "name": "Web app entry",
-      "description": "Starts the web app."
+      "description": "Starts the web app; first it wipes a setup link's one-time code from the address bar."
     },
     "apps/web/src/pages/ActivityList.tsx": {
       "name": "Activity list",

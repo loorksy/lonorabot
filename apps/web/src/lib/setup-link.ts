@@ -1,6 +1,7 @@
 // The one-time setup link of a new installation: https://<host>/#token=<bootstrap token>
 // (docs/cloud PHASES.md P1-T4). The token sits in the URL fragment, which browsers never send to
-// the server, and the first-run screen removes it from the address bar and history at once.
+// the server, and the app removes it from the address bar and history as soon as it starts
+// (main.tsx), whether or not the first-run step is the screen that opens.
 
 const TOKEN = /^[A-Za-z0-9_-]{20,128}$/;
 

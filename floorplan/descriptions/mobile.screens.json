@@ -110,7 +110,7 @@
     },
     "apps/mobile/app/sign-in.tsx": {
       "name": "Sign-in screen",
-      "description": "Signs the owner in."
+      "description": "Signs the owner in, or sets up a new server's owner; a confirmed Lonora link's setup code fills that form, only for the server the link named."
     },
     "apps/mobile/app/skills.tsx": {
       "name": "Skills screen",

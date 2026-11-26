@@ -29,7 +29,22 @@
         {
           "ref": "apps/mobile/app/sign-in.tsx",
           "change": "changed",
-          "note": "Fills the setup code from the link into the owner-setup form, once and only for the linked server; it drops the code if the address is changed to another server, and clears it whenever that form is not shown."
+          "note": "Fills the setup code from the link into the owner-setup form, once and only for the linked server. It reads a newly confirmed link each time it comes into view, so a link confirmed while sign-in is open fills that form too."
+        },
+        {
+          "ref": "apps/web/src/main.tsx",
+          "change": "changed",
+          "note": "Wipes a setup link's one-time code from the address bar when the app starts, so it never stays there when the first-run step does not open."
+        },
+        {
+          "ref": "tests/web/setup-link.spec.mjs",
+          "change": "new",
+          "note": "New: browser checks that a setup link's code leaves the address bar on an installation that already has its owner, and while the owner is signed in."
+        },
+        {
+          "ref": "tests/mobile/first-run.spec.mjs",
+          "change": "changed",
+          "note": "Adds checks that a confirmed Lonora link fills the setup code, from a fresh start and while sign-in is already open."
         }
       ]
     }
