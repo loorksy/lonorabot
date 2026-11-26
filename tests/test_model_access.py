@@ -439,3 +439,58 @@ async def test_a_model_past_the_routers_cap_does_not_keep_the_routine_failing(
     await due_again(db, routine_id)
     assert await dispatch_routines(db) == 0
     assert len(await routine_runs(db, routine_id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_held_one_shot_stays_due_and_fires_once_released(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    await fail_next(
+        db, await provider_failure(db, ModelProviderError(FailureReason.AUTH, http_status=401))
+    )
+    due = utcnow() - timedelta(seconds=5)
+    async with db.sessions() as session, session.begin():
+        shot = RoutineRow(
+            owner_id=owner,
+            agent_id=agent,
+            thread_id=thread,
+            prompt="Check gold at 9",
+            run_at=due,
+            next_run_at=due,
+        )
+        session.add(shot)
+        await session.flush()
+        shot_id = shot.id
+    assert await dispatch_routines(db) == 0
+    async with db.sessions() as session:
+        held = await session.get(RoutineRow, shot_id)
+        assert held is not None and held.enabled and held.last_run_at is None
+    await save_key(db, owner, "openai")
+    assert await dispatch_routines(db) == 1
+    [run] = await routine_runs(db, shot_id)
+    # It runs late, and its run knows when it was due.
+    assert run.model_metadata["scheduled_for"] == due.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_a_held_tick_counts_as_skipped(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    routine_id = await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    await fail_next(
+        db, await provider_failure(db, ModelProviderError(FailureReason.AUTH, http_status=401))
+    )
+    for _ in range(2):
+        await due_again(db, routine_id)
+        assert await dispatch_routines(db) == 0
+    async with db.sessions() as session:
+        held = await session.get(RoutineRow, routine_id)
+        assert held is not None and held.skipped_occurrences == 2
+    await save_key(db, owner, "openai")
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+    runs = sorted(await routine_runs(db, routine_id), key=lambda run: run.created_at)
+    assert runs[-1].model_metadata["skipped_occurrences"] == 2

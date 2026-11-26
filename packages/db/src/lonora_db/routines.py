@@ -148,7 +148,7 @@ async def due_routines(session: AsyncSession, limit: int = 30) -> list[tuple[str
 async def enqueue_one(session: AsyncSession, routine_id: str) -> bool:
     """Enqueue one routine in its own transaction, if it is still due and unclaimed.
 
-    False when it is not, or when its earlier run is unfinished and the tick is skipped."""
+    False when it is not, or when its tick is skipped or held (``enqueue_routine``)."""
     now = utcnow()
     row = await session.scalar(
         due_query(now)
@@ -215,12 +215,14 @@ async def model_access_refused(session: AsyncSession, row: RoutineRow) -> bool:
 
 
 async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
-    """Fire one due routine; False when its earlier run is unfinished and the tick is skipped.
+    """Fire one due routine; False when its earlier run is unfinished and the tick is
+    skipped, or while its run could only fail on refused model access (held).
 
-    A skipped tick creates no run: the schedule advances as after a run, and the skipped
-    occurrences are counted. The next run carries, in server-only metadata, when it was
-    due (``scheduled_for``), the later occurrences folded into it (``missed_occurrences``)
-    and the occurrences skipped before it (``skipped_occurrences``). A one-shot always fires.
+    A skipped or held tick creates no run: the schedule advances as after a run, and the
+    skipped occurrences are counted. The next run carries, in server-only metadata, when it
+    was due (``scheduled_for``), the later occurrences folded into it
+    (``missed_occurrences``) and the occurrences skipped before it
+    (``skipped_occurrences``). A one-shot is never skipped; while held it stays due.
     """
     due = row.next_run_at if row.next_run_at.tzinfo else row.next_run_at.replace(tzinfo=UTC)
     missed = 0
@@ -242,11 +244,12 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             row.skipped_occurrences += 1 + missed
             return False
     if await model_access_refused(session, row):
-        # Held until the owner saves a key or a run on that route succeeds: the tick has
-        # advanced and no Run is created. A one-shot counts as fired, as a failed run would.
+        # Held until the cause is fixed (``model_access_refused``): no Run is created. A
+        # recurring routine's tick has advanced and counts as skipped; a one-shot stays
+        # due and fires once released.
         log.info("routine_held code=model_access_failed")
-        if row.run_at is not None:
-            row.enabled, row.last_run_at = False, now
+        if row.run_at is None:
+            row.skipped_occurrences += 1 + missed
         return False
     run = await create_run(
         session,

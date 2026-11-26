@@ -84,7 +84,7 @@ to the agent's conversation, like the runs the new code queues.
   `started_at` (its first `running` transition, recorded once by `mark_routine_started`
   in `execute_run`), `missed_occurrences` (the later occurrences folded into it) and
   `skipped_occurrences` (every occurrence skipped while an earlier run was unfinished,
-  since the routine's last run and across a pause or a schedule change; the routine's
+  or held while model access was refused, since the routine's last run and across a pause or a schedule change; the routine's
   count then starts again from zero). The routine's history shows them on each run
   (`model_metadata`).
 - **The late sentence.** A routine run that started more than 15 minutes after
@@ -179,9 +179,10 @@ or a channel.
   provider, or when a run that a model of that route answered completes. While it
   stands, a due routine whose agent has no model left outside the refused routes (of the
   models the router tries: each once, at most six; one whose provider has no key counts as
-  refused, as the router passes over it) advances without a run (`model_access_refused` in `lonora_db/routines.py`; a one-shot
-  counts as fired, as its failed run would). Nothing is limited (P1): those runs could
-  only fail. Watches keep evaluating without a model.
+  refused, as the router passes over it) advances without a run (`model_access_refused`
+  in `lonora_db/routines.py`) and counts as skipped; a one-shot stays due and fires once
+  the hold ends. Nothing is limited (P1): those runs could only fail. Watches keep
+  evaluating without a model.
 - **Channels.** A webhook integration without a thread never forwards a work thread's
   messages; the conversation copy is sent once. Telegram carries only the 11.4 alerts.
 - **Kept on purpose.** A run that sent an order whose result is not verified always says
