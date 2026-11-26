@@ -139,7 +139,7 @@ init() {
     id lonora-site >/dev/null 2>&1 || run useradd --system --home-dir "$HOME_DIR/site" --shell /usr/sbin/nologin lonora-site
     run chown lonora-site "$HOME_DIR/run" "$HOME_DIR/site"
     chmod 755 "$HOME_DIR" "$HOME_DIR/run" "$HOME_DIR/caddy" "$HOME_DIR/caddy/customers"
-    chmod 644 "$HOME_DIR/caddy/staff"
+    chmod 600 "$HOME_DIR/caddy/staff"
     run docker compose -f "$HOST/compose.yml" --env-file "$HOME_DIR/host.env" up -d --wait
     # The website may run exactly two commands as root: create and remove a customer.
     printf 'lonora-site ALL=(root) NOPASSWD: %s create *, %s remove *\n' "$HOST/customer.sh" "$HOST/customer.sh" |
