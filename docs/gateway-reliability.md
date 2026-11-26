@@ -150,12 +150,23 @@ pruned.
 
 ## Drain and lease renewal
 
-On SIGTERM the gateway stops claiming, lets running work finish for up to 25 s and then
-cancels it. It then returns every lease it still holds to the queue (`release_leases`):
-status `queued`, fence kept. A late write from the old lease is still rejected, the
-checkpoint and its in-flight markers are untouched, and the next gateway resumes the
-work at once instead of after `run_lease_seconds`. A release is a clean hand-over and
-does not count as a crash recovery.
+On SIGTERM the gateway stops claiming and tells every Run it executes to hand back
+(`RunDrain`, read through `ToolContext.drain`). A Run checks it at its step boundaries: the
+top of each round, before each tool segment, and before each model turn or final report.
+There it checkpoints, records `environment.retry = {not_before: now, reason_code:
+gateway_drained}` and releases its worker the way a Task continuation does
+(`ToolRetryScheduled`): status `queued`, fence and checkpoint kept, no intent marker left.
+The next gateway continues from that checkpoint at once, and the claim does not count as
+a crash recovery; the status line shows the Run as queued, not as a retry. The signal
+never interrupts a call already started (a read, or a change past `before_effect`): the
+call ends within its own deadline and the Run hands back right after it.
+
+Work still running after 25 s is cancelled. The gateway then returns every lease it
+still holds to the queue (`release_leases`): status `queued`, fence kept. A late write
+from the old lease is still rejected, the checkpoint and its in-flight markers are
+untouched, and the next gateway resumes the work at once instead of after
+`run_lease_seconds`. A release is a clean hand-over and does not count as a crash
+recovery.
 
 A Run renews its lease every third of the lease length (`keep_lease`). A transient
 database error (dropped connection, failover, timeout, or a renewal that hangs) is
@@ -208,7 +219,9 @@ passkey, so nothing is left looking active while it can no longer run:
   claims fail goes stale; the stall threshold; readiness; recovery-count quarantine and
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
   ended episodes after a restart; coalesced quarantine notices and the kept critical
-  alert; drain release and lease renewal; a transient error at the final commit;
+  alert; drain release and lease renewal; the hand-back of a Run at its next step
+  boundary after a slow read or a change, and the Gateway's signal set before it drains;
+  a transient error at the final commit;
   durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.

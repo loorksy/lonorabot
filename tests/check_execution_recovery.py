@@ -3,15 +3,18 @@
 Exercises crash-before-send recovery, interruption after submission (Owner addendum §6
 step 7), scoped blocking against reduce-only admission on an uncertain market, degraded/
 disconnected recovery, owner settlement through the fixed Settle card,
-target-state reconciliation of modify/cancel operations, verification rechecks and an
-approved close-all whose exits never wait on one another. No live broker, MetaApi key or
-real order is involved.
+target-state reconciliation of modify/cancel operations, verification rechecks, an
+approved close-all whose exits never wait on one another, and a stopping Gateway's drain,
+which hands each Run back at a step boundary. No live broker, MetaApi key or real order is
+involved.
 """
 
 import asyncio
+import json
 import os
 import sys
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -19,26 +22,34 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
-from lonora_adapter_kit.types import ToolCall
+from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.brokers.simulation import SimulationBroker
+from lonora_agent.executor import execute_run
 from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
+from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.owner_actions import CARD_ATTESTATION
+from lonora_contracts.runs import Lease
 from lonora_contracts.trading import OperationResolution, TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.runs import claim_next
 from lonora_db.schema import (
     AgentRow,
     BrokerSessionRow,
     EventRow,
     OwnerActionRow,
+    RunRow,
     TradingAccountRow,
     TradingJournalRow,
 )
 from lonora_db.trading_journal import persist_result, release_reservation
 from lonora_session.idempotency import stable_id
+from lonora_tools.base import Tool
+from lonora_tools.context import RunDrain, ToolContext
 from lonora_tools.loader import load_tools
+from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 from lonora_trading.broker_recovery import reconcile_broker_account
 from lonora_trading.execution import ExecutionService
 from lonora_trading.journal import journal_data
@@ -48,6 +59,7 @@ from lonora_trading.reconciliation import (
     reconcile_ambiguous,
     send_lock_key,
 )
+from pydantic import BaseModel
 from settle_card import settle_by_card, settle_card
 from sqlalchemy import delete, select, text
 
@@ -173,6 +185,24 @@ class UnobservableBroker(SimulationBroker):
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
     ) -> TradeResult:
         raise AssertionError("Recovery must never send")
+
+
+class NoArguments(BaseModel):
+    pass
+
+
+class ScriptedModel:
+    """Scripted model turns in place of the provider router; keeps what each request held."""
+
+    def __init__(self, *replies: ModelReply):
+        self.replies = list(replies)
+        self.requests: list[list[ModelMessage]] = []
+
+    async def __call__(
+        self, context: Any, messages: list[ModelMessage], *_: Any, **__: Any
+    ) -> tuple[ModelReply, ModelSelection]:
+        self.requests.append([message.model_copy(deep=True) for message in messages])
+        return self.replies.pop(0), ModelSelection(provider="openai", model="scripted")
 
 
 def instrument(symbol: str) -> dict[str, Any]:
@@ -901,6 +931,95 @@ async def main() -> None:
         assert entry["code"] == "broker_reconciliation_required", entry
         print(
             "PASS agent requests close, cancel and tighten on an uncertain market, while entries, wider stops and cancelling a protective order there stay blocked"
+        )
+
+        # 9. A stopping Gateway hands each Run back at its next step boundary, with fence
+        # and checkpoint kept, instead of cancelling it wherever it is (P1-10).
+        drained = await fixture.agent("Recovery drain", supervised=True)
+        drained_thread = await fixture.conversation(drained)
+
+        async def handed_back(run_id: str, fence: int) -> RunRow:
+            async with db.sessions() as session:
+                row = await session.get(RunRow, run_id)
+            assert row is not None and row.status == "queued" and row.lease_fence == fence
+            environment = row.execution_state["environment"]
+            assert environment["retry"]["reason_code"] == "gateway_drained"
+            # No intent marker survives: the next claim sees nothing uncertain.
+            assert "inflight_calls" not in environment and "inflight" not in environment
+            return row
+
+        async def next_claim(run_id: str) -> ToolContext:
+            async with db.sessions() as session, session.begin():
+                # Runs the earlier cases left queued (a card's follow-up, a closed trade's
+                # wake) are claimed first, as the next Gateway would; they stay leased.
+                claimed: RunRow | None = None
+                for _ in range(20):
+                    claimed = await claim_next(session, "recovery-next-gateway", 120)
+                    if claimed is None or claimed.id == run_id:
+                        break
+                assert claimed is not None and claimed.id == run_id
+                # A hand-back is not a crash recovery.
+                assert claimed.recovery_count == 0
+                claimed.status = "running"
+                lease = Lease(
+                    run_id=run_id, owner="recovery-next-gateway", fence=claimed.lease_fence
+                )
+            return services.tool_context(
+                drained["id"], drained_thread["id"], lease, fixture.settings.artifact_root
+            )
+
+        def tool_results(row: RunRow) -> dict[str, Any]:
+            return {
+                str(item["tool_call_id"]): json.loads(item["content"])
+                for item in row.execution_state["messages"]
+                if item["role"] == "tool"
+            }
+
+        read_started, reads = asyncio.Event(), list[int]()
+
+        async def slow_read(_: ToolContext, __: dict[str, Any]) -> dict[str, Any]:
+            read_started.set()
+            await asyncio.sleep(0.5)
+            reads.append(1)
+            return {"spread": "1"}
+
+        # The agent's skills name real tools: the fixture read joins the real registry.
+        reader = ToolRegistry(
+            [
+                *(tool for name, tool in registry.tools.items() if name not in BRIDGE_TOOLS),
+                Tool("fixture_slow_read", "Slow read", NoArguments, slow_read, True),
+            ]
+        )
+        stopping = RunDrain()
+        context = replace(
+            await fixture.lease(await fixture.run(drained, drained_thread)), drain=stopping
+        )
+        model = ScriptedModel(
+            ModelReply(
+                tool_calls=[ToolCall(id="drain-read", name="fixture_slow_read", arguments={})]
+            ),
+            ModelReply(text="The spread is one point."),
+        )
+        with patch("lonora_agent.tool_loop.model_turn", model):
+            running = asyncio.create_task(execute_run(context, reader, 120, 8))
+            await asyncio.wait_for(read_started.wait(), 30)
+            stopping.requested = True
+            await asyncio.wait_for(running, 30)
+            row = await handed_back(context.lease.run_id, context.lease.fence)
+            # The read ended within its own deadline; no model turn started after the stop.
+            assert reads == [1] and len(model.requests) == 1
+            assert tool_results(row) == {"drain-read": {"ok": True, "spread": "1"}}
+            await execute_run(await next_claim(row.id), reader, 120, 8)
+        async with db.sessions() as session:
+            row = await session.get(RunRow, context.lease.run_id)
+        assert row is not None and row.status == "completed", row and row.status
+        # The next Gateway continued from the same checkpoint: the read was not repeated.
+        assert reads == [1] and row.result == "The spread is one point."
+        assert [item.tool_call_id for item in model.requests[1] if item.role == "tool"] == [
+            "drain-read"
+        ]
+        print(
+            "PASS a drain hands a Run back after its slow read at the next step boundary, with no uncertain marker, and the next claim continues from the same checkpoint"
         )
     finally:
         async with db.sessions() as session, session.begin():

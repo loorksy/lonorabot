@@ -7,6 +7,7 @@ PostgreSQL foreign keys and are skipped on SQLite.
 
 import asyncio
 import os
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -28,6 +29,7 @@ from lonora_core.attention import ATTENTION_KINDS
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.agent_permissions import permission_state
+from lonora_db.agent_state import agent_live_state
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import QUARANTINE_AFTER, ItemGuard
@@ -58,12 +60,22 @@ from lonora_gateway.liveness import Liveness, StepLiveness, StepSpec, supervise_
 from lonora_gateway.runtime import OwnerServices
 from lonora_gateway.shutdown import drain
 from lonora_gateway.watchdog import Watchdog
-from lonora_tools.context import ToolContext
+from lonora_tools.base import Tool
+from lonora_tools.context import RunDrain, ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 from test_task_runtime import task_db as task_db
-from test_tool_loop_execution import Script, conversation_run, saved_run
+from test_tool_loop_execution import (
+    Arguments,
+    Script,
+    calls,
+    context_for,
+    conversation_run,
+    results,
+    saved_run,
+    seeded,
+)
 
 Fixture = tuple[Database, str, str, str]
 POSTGRES = bool(os.environ.get("LONORA_TASK_TEST_DATABASE_URL"))
@@ -611,6 +623,45 @@ async def test_the_gateway_releases_its_leases_when_it_drains(
     assert heartbeat and heartbeat.state == "stopped"
 
 
+@pytest.mark.asyncio
+async def test_the_gateway_tells_its_runs_to_hand_back_before_it_drains(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(service, "STEPS", ())
+    gateway = service.Gateway(
+        cast(Database, SimpleNamespace()), "unused-key", tmp_path, maximum_subagents=0
+    )
+    given: list[RunDrain | None] = []
+
+    async def dispatch(*_: Any, drain: RunDrain | None = None, **__: Any) -> bool:
+        given.append(drain)
+        return False
+
+    seen: list[bool] = []
+
+    async def draining(tasks: list[asyncio.Task[None]], *_: Any, **__: Any) -> None:
+        seen.append(gateway.run_drain.requested)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def nothing(*_: Any, **__: Any) -> Any:
+        return None
+
+    monkeypatch.setattr(service, "dispatch_one", dispatch)
+    monkeypatch.setattr(service, "drain", draining)
+    monkeypatch.setattr(service, "write_heartbeat", nothing)
+    monkeypatch.setattr(service, "release_leases", nothing)
+    serving = asyncio.create_task(gateway.serve())
+    await asyncio.sleep(0.05)
+    assert not gateway.run_drain.requested
+    gateway.request_stop()
+    await asyncio.wait_for(serving, 5)
+    # Every worker hands its Runs the Gateway's one signal, set before the drain starts.
+    assert given and all(drain is gateway.run_drain for drain in given)
+    assert seen == [True]
+
+
 def test_every_gateway_iteration_is_a_scheduled_step(tmp_path: Path) -> None:
     # start() schedules STEPS only: an iteration without a StepSpec never runs in production.
     gateway = service.Gateway(
@@ -735,6 +786,117 @@ async def test_a_transient_error_at_the_final_commit_still_completes_the_run(
         )
     # The failed attempt was rolled back: the answer is in the conversation once.
     assert [reply.content for reply in replies] == ["Gold is flat."]
+
+
+async def handed_back(context: ToolContext) -> RunRow:
+    """The Run a draining Gateway released at a step boundary: queued, fence and
+    checkpoint kept, no intent marker left behind."""
+    run = await saved_run(context)
+    assert run.status == "queued" and run.lease_expires_at is None
+    assert run.lease_fence == context.lease.fence and run.error_code is None
+    environment = run.execution_state["environment"]
+    assert environment["retry"]["reason_code"] == "gateway_drained"
+    assert "inflight_calls" not in environment and "inflight" not in environment
+    async with context.db.sessions() as session:
+        released = await session.scalar(
+            select(EventRow)
+            .where(EventRow.run_id == run.id, EventRow.kind == "run.retry_scheduled")
+            .order_by(EventRow.cursor.desc())
+            .limit(1)
+        )
+    assert released and released.payload["reason_code"] == "gateway_drained"
+    return run
+
+
+async def resumed(fixture: Fixture, run_id: str) -> ToolContext:
+    """The next claim of a released Run: a new fence, and no recovery counted."""
+    db, *_ = fixture
+    async with db.sessions() as session, session.begin():
+        claimed = await claim_next(session, "gw-next", 120)
+        assert claimed and claimed.id == run_id and claimed.recovery_count == 0
+        claimed.status = "running"
+        lease = Lease(run_id=run_id, owner="gw-next", fence=claimed.lease_fence)
+    return context_for(fixture, lease, claimed.thread_id)
+
+
+@pytest.mark.asyncio
+async def test_a_draining_gateway_hands_a_run_back_after_its_slow_read(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, _ = task_db
+    started, reads = asyncio.Event(), list[int]()
+
+    async def slow_read(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        await asyncio.sleep(0.3)
+        reads.append(args["n"])
+        return {"price": 2300}
+
+    registry = ToolRegistry([Tool("fixture_read", "Read", Arguments, slow_read, True)])
+    stopping = RunDrain()
+    context = replace(await conversation_run(task_db), drain=stopping)
+    model = Script(
+        ModelReply(tool_calls=calls(("r1", "fixture_read", 1))), ModelReply(text="Gold at 2300.")
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    running = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    stopping.requested = True
+    await asyncio.wait_for(running, 5)
+    # The read ended within its own deadline; no model turn started after the signal.
+    run = await handed_back(context)
+    assert reads == [1] and len(model.requests) == 1
+    assert results(run) == {"r1": {"ok": True, "price": 2300}}
+    async with db.sessions() as session:
+        live = await agent_live_state(session, owner, agent)
+    # Handed back is not a retry after a failure: the status line says nothing of one.
+    assert live.runtime_waits == [] and live.phase != "recovering"
+    # The next claim continues from the same checkpoint: the read is not repeated.
+    await executor.execute_run(await resumed(task_db, run.id), registry, 120, 8)
+    done = await saved_run(context)
+    assert done.status == "completed" and done.result == "Gold at 2300." and reads == [1]
+    request, _ = model.requests[1]
+    assert [item.tool_call_id for item in request if item.role == "tool"] == ["r1"]
+
+
+@pytest.mark.asyncio
+async def test_a_draining_gateway_never_starts_a_call_or_a_model_turn(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started, writes = asyncio.Event(), list[int]()
+
+    async def write(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        await asyncio.sleep(0.3)
+        writes.append(args["n"])
+        return {"version": args["n"]}
+
+    registry = ToolRegistry([Tool("fixture_write", "Write", Arguments, write, False)])
+    stopping = RunDrain()
+    block = calls(("w1", "fixture_write", 1), ("w2", "fixture_write", 2))
+    context = replace(await conversation_run(task_db, seeded(block)), drain=stopping)
+    model = Script(ModelReply(text="Both saved."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    running = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    stopping.requested = True
+    await asyncio.wait_for(running, 5)
+    # The change already past before_effect ran to its end; the next one never started.
+    run = await handed_back(context)
+    assert writes == [1] and model.requests == []
+    assert results(run) == {"w1": {"ok": True, "version": 1}}
+    assert [call["id"] for call in run.execution_state["pending"]] == ["w2"]
+    # A Run that starts while the Gateway drains hands back before anything runs.
+    other = replace(await resumed(task_db, run.id), drain=stopping)
+    await executor.execute_run(other, registry, 120, 8)
+    await handed_back(other)
+    assert writes == [1] and model.requests == []
+    # The next Gateway runs the second change once and never repeats the first.
+    stopping.requested = False
+    await executor.execute_run(await resumed(task_db, run.id), registry, 120, 8)
+    done = await saved_run(context)
+    assert done.status == "completed" and writes == [1, 2]
+    assert set(results(done)) == {"w1", "w2"} and len(model.requests) == 1
 
 
 # A retired Super Bot request keeps the id of the goal it named, as a value.
@@ -1113,7 +1275,7 @@ async def test_a_worker_whose_every_claim_fails_goes_stale_and_is_reported(
     db, owner, *_ = task_db
     calls = [0]
 
-    async def broken(*_: Any) -> bool:
+    async def broken(*_: Any, **__: Any) -> bool:
         calls[0] += 1
         raise RuntimeError("poison row in the claim query")
 

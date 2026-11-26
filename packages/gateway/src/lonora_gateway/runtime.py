@@ -15,7 +15,7 @@ from lonora_market.runtime import MarketRuntime
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.cli_token import CommandTokens
-from lonora_tools.context import ToolContext
+from lonora_tools.context import RunDrain, ToolContext
 from lonora_trading.execution import ExecutionService
 from lonora_workspace.client import WorkspaceClient as Workspace
 
@@ -97,6 +97,7 @@ class OwnerServices:
         depth: int = 0,
         maximum_subagents: int = 4,
         run_model: ModelSelection | None = None,
+        drain: RunDrain | None = None,
     ) -> ToolContext:
         return ToolContext(
             self.db,
@@ -120,6 +121,7 @@ class OwnerServices:
             searxng_url=self.searxng_url,
             browser_url=self.browser_url,
             run_model=run_model,
+            drain=drain,
         )
 
     async def close(self) -> None:

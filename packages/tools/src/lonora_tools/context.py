@@ -21,6 +21,17 @@ if TYPE_CHECKING:
     from .cli_token import CommandTokens
 
 
+class RunDrain:
+    """What a stopping Gateway tells the Runs it executes (docs/gateway-reliability.md).
+
+    Once ``requested``, every Run hands back to the queue at its next step boundary, with
+    its fence and checkpoint kept; a call already started runs to its end first.
+    """
+
+    def __init__(self) -> None:
+        self.requested = False
+
+
 @dataclass(frozen=True)
 class ToolContext:
     db: Database
@@ -51,6 +62,8 @@ class ToolContext:
     # The model this Run was started on (a subagent's chosen model); it leads the
     # Agent's own model chain, which stays behind it as the fallback.
     run_model: ModelSelection | None = None
+    # The Gateway's drain signal; None outside a Gateway worker.
+    drain: RunDrain | None = None
 
     @property
     def effect_key(self) -> str:

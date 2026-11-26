@@ -19,6 +19,7 @@ from lonora_db.owner import get_owner
 from lonora_db.task_recovery import retry_due_tasks
 from lonora_db.task_wait import resume_ready_waits
 from lonora_security.secrets import SecretScan
+from lonora_tools.context import RunDrain
 from lonora_tools.loader import load_tools
 from lonora_tools.terminal import owner_scan
 from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
@@ -141,6 +142,9 @@ class Gateway:
         self.voice_tasks: dict[str, asyncio.Task[None]] = {}
         self.identity = process_identity()
         self.stop = asyncio.Event()
+        # Shared with every Run this Gateway executes: set, each hands back at its next
+        # step boundary instead of being cancelled wherever it is.
+        self.run_drain = RunDrain()
         self.state = GatewayState.STARTING
         self.services: dict[str, OwnerServices] = {}
         self.relay = BrokerRelay(db, self.service)
@@ -171,6 +175,7 @@ class Gateway:
                     self.searxng_url,
                     self.browser_url,
                     self.mcp_owner_trust,
+                    drain=self.run_drain,
                 )
             except Exception as error:
                 # A worker whose every claim fails is not live: its record goes stale,
@@ -506,6 +511,7 @@ class Gateway:
         self.state = GatewayState.RUNNING
         loops = self.start()
         await self.stop.wait()
+        self.run_drain.requested = True
         self.state = GatewayState.DRAINING
         await write_heartbeat(self.db, self.identity, self.state.value, self.liveness.snapshot())
         await drain(loops)
