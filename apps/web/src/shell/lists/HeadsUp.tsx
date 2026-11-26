@@ -12,7 +12,7 @@ import {
   textDirection,
 } from "@lonora/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAttentionLabels } from "../../components/ai/AttentionInbox";
+import { useAttentionTitle } from "../../components/ai/AttentionInbox";
 import { api, isRequestCancelled } from "../../lib/api";
 import { useAttention } from "../../providers/AttentionProvider";
 import { useClient } from "../../providers/ClientProvider";
@@ -111,7 +111,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   const data = useShellData();
   const lists = useLists();
   const attention = useAttention();
-  const labels = useAttentionLabels();
+  const title = useAttentionTitle();
   const nav = useNavigation();
   const [banner, setBanner] = useState<Banner | null>(null);
   const [phase, setPhase] = useState<"in" | "out">("out");
@@ -126,7 +126,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     rows: lists.rows,
     agents: data.agents,
     current: currentThreadId,
-    labels,
+    title,
     quiet,
     off: offAgents,
   });
@@ -134,7 +134,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     rows: lists.rows,
     agents: data.agents,
     current: currentThreadId,
-    labels,
+    title,
     quiet,
     off: offAgents,
   };
@@ -184,7 +184,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     }
   }, [events, show]);
   useEffect(() => {
-    const { rows, labels } = live.current;
+    const { rows, title } = live.current;
     for (const item of attention.items) {
       if (announced.current.has(item.id)) continue;
       announced.current.add(item.id);
@@ -202,7 +202,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       if (row)
         show(
           row,
-          item.parameters.summary || labels[item.code],
+          item.parameters.summary || title(item.code, item.parameters),
           isBrokerHealth(item.code) ? recoveryPath(item.parameters.account_id) : undefined,
         );
     }

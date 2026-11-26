@@ -339,6 +339,20 @@ export const labels = {
     "رفض مزوّد النموذج العمل في الخلفية",
     "A model provider refused background work",
   ],
+  attentionModelKeyRejected: ["رفض {provider} مفتاح النموذج", "Model key rejected by {provider}"],
+  attentionModelCreditSpent: [
+    "نفد الرصيد أو انتهت الخطة لدى {provider}",
+    "Credit spent or plan ended at {provider}",
+  ],
+  attentionModelNotAllowed: [
+    "لا يسمح مفتاح {provider} بهذا النموذج",
+    "Model not allowed for the key at {provider}",
+  ],
+  attentionModelGone: [
+    "لم يعد {provider} يقدّم هذا النموذج",
+    "Model no longer offered by {provider}",
+  ],
+  attentionModelEndpoint: ["نقطة الاتصال المتوافقة مع OpenAI", "your OpenAI-compatible endpoint"],
   attentionItemQuarantined: [
     "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
     "A background item was paused after repeated errors; everything else keeps running",

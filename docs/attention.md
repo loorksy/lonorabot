@@ -89,7 +89,9 @@ projection with no model: `GET /attention/view` (`attention_view`, `AttentionVie
 - It lists, newest first:
   - the open, still-current items of the owner's events above (Trade Approval, Settle,
     Secret and Mandate cards, broker health problems, Lonora's stopped background work,
-    a model provider refusing background work);
+    a model provider refusing background work, whose row carries the failure family
+    (`reason`) and the provider's fixed name (`provider_name`), so both clients name
+    them in its line);
   - Tasks that need the owner's review (`task_review`);
   - every run in a conversation that waits on the owner's answer to its question
     (`waiting_input` with a pending input request), as `owner_question`;

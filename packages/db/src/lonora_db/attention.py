@@ -826,6 +826,15 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
                 group_id=item.parameters.get("group_id"),
                 code=code,
                 symbol=item.parameters.get("symbol"),
+                # A refused model names its provider and failure family (fixed text).
+                **(
+                    {
+                        "reason": item.parameters.get("reason"),
+                        "provider_name": item.parameters.get("provider_name"),
+                    }
+                    if code == "model_access_failed"
+                    else {}
+                ),
                 seen=item.status == "seen",
                 created_at=item.created_at,
             )

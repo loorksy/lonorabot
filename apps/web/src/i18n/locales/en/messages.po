@@ -3,6 +3,26 @@ msgstr ""
 "Language: en\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
+#: src/components/ai/AttentionInbox.tsx:70
+msgid "Credit spent or plan ended at {provider}"
+msgstr "Credit spent or plan ended at {provider}"
+
+#: src/components/ai/AttentionInbox.tsx:69
+msgid "Model key rejected by {provider}"
+msgstr "Model key rejected by {provider}"
+
+#: src/components/ai/AttentionInbox.tsx:72
+msgid "Model no longer offered by {provider}"
+msgstr "Model no longer offered by {provider}"
+
+#: src/components/ai/AttentionInbox.tsx:71
+msgid "Model not allowed for the key at {provider}"
+msgstr "Model not allowed for the key at {provider}"
+
+#: src/components/ai/AttentionInbox.tsx:67
+msgid "your OpenAI-compatible endpoint"
+msgstr "your OpenAI-compatible endpoint"
+
 #. placeholder {0}: list.name
 #: src/shell/lists/ListSheets.tsx:354
 msgid "«{0}» deleted"

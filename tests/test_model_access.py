@@ -209,6 +209,8 @@ async def test_a_rejected_key_raises_one_item_and_the_next_ticks_create_no_run(
     assert [(row["kind"], row["code"]) for row in view] == [
         ("background_health", "model_access_failed")
     ]
+    # Web and mobile name the provider and the failure family in the line itself.
+    assert (view[0]["reason"], view[0]["provider_name"]) == ("auth", "OpenAI")
     for _ in range(3):
         await due_again(db, routine_id)
         assert await dispatch_routines(db) == 0

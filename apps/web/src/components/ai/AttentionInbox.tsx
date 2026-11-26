@@ -4,6 +4,7 @@ import {
   type AttentionCode,
   type AttentionPolicy,
   isBrokerHealth,
+  type ModelAccessReason,
 } from "@lonora/contracts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -46,6 +47,33 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     model_access_failed: t`A model provider refused background work`,
   };
 }
+/** What an item says, said precisely where its parameters allow: a refused model names its
+ * provider and the failure family (never the provider's message), and a late background
+ * service whether new requests are waiting. */
+export function useAttentionTitle(): (
+  code: AttentionCode,
+  details: {
+    reason?: ModelAccessReason | null;
+    provider_name?: string | null;
+    reason_code?: string;
+  },
+) => string {
+  const { t } = useLingui();
+  const labels = useAttentionLabels();
+  return (code, details) => {
+    if (code === "gateway_degraded" && details.reason_code === "runs_delayed")
+      return t`New requests are waiting longer than usual to start`;
+    if (code !== "model_access_failed" || !details.reason) return labels[code];
+    const provider = details.provider_name || t`your OpenAI-compatible endpoint`;
+    const families: Record<ModelAccessReason, string> = {
+      auth: t`Model key rejected by ${provider}`,
+      billing: t`Credit spent or plan ended at ${provider}`,
+      permission: t`Model not allowed for the key at ${provider}`,
+      model_not_found: t`Model no longer offered by ${provider}`,
+    };
+    return families[details.reason] ?? labels[code];
+  };
+}
 export function AttentionInbox({
   agents,
   compact = false,
@@ -73,7 +101,7 @@ export function AttentionInbox({
       active = false;
     };
   }, [compact]);
-  const labels = useAttentionLabels();
+  const title = useAttentionTitle();
   if (compact && !items.length) return null;
   return (
     <section aria-label={t`Notifications`} data-testid="attention-inbox">
@@ -120,12 +148,7 @@ export function AttentionInbox({
       {(compact ? items.slice(0, 3) : items).map((item) => (
         <article key={item.id} className="tpl-activity-run" data-attention-id={item.id}>
           <div>
-            <p>
-              {/* Running late because the workers are behind, not a stalled step. */}
-              {item.code === "gateway_degraded" && item.parameters.reason_code === "runs_delayed"
-                ? t`New requests are waiting longer than usual to start`
-                : labels[item.code]}
-            </p>
+            <p>{title(item.code, item.parameters)}</p>
             <p dir="auto">{agents.find((agent) => agent.id === item.agent_id)?.name}</p>
             {item.code === "agent_notification" && item.parameters.summary && (
               <p dir="auto" data-testid="attention-summary">

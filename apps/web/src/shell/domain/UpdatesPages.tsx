@@ -2,7 +2,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AttentionViewRow } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
-import { useAttentionLabels } from "../../components/ai/AttentionInbox";
+import { useAttentionTitle } from "../../components/ai/AttentionInbox";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useAttention } from "../../providers/AttentionProvider";
@@ -18,7 +18,7 @@ import { useLoad } from "./hooks";
 export function UpdatesPage() {
   const data = useShellData();
   const nav = useNavigation();
-  const labels = useAttentionLabels();
+  const label = useAttentionTitle();
   const attention = useAttention();
   const toast = useToast();
   const rows = useLoad(() => api.get<AttentionViewRow[]>("/attention/view"), "attention-view");
@@ -34,7 +34,7 @@ export function UpdatesPage() {
     row.kind === "owner_question"
       ? t`A question is waiting for your answer`
       : row.code
-        ? labels[row.code]
+        ? label(row.code, row)
         : "";
   const open = (row: AttentionViewRow) => {
     // Opening an item reads it: an alert then leaves the view, a card or a Task review stays
