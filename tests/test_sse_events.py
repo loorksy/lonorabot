@@ -70,6 +70,11 @@ async def test_sse_ready_precedes_events_and_closes_source(monkeypatch: pytest.M
     assert closed.is_set()
 
 
+def test_sse_ping_period_fits_well_inside_the_client_idle_timeout():
+    # Web and mobile reconnect after 45 s without any frame (B3).
+    assert 15 <= events.PING_SECONDS <= 20
+
+
 @pytest.mark.asyncio
 async def test_idle_sse_heartbeats_and_revocation_close_without_events(
     monkeypatch: pytest.MonkeyPatch,
@@ -83,7 +88,7 @@ async def test_idle_sse_heartbeats_and_revocation_close_without_events(
 
     monkeypatch.setattr(events, "runtime", get_runtime)
     monkeypatch.setattr(events, "AUTH_REFRESH_SECONDS", 0.01)
-    monkeypatch.setattr(events, "KEEPALIVE_SECONDS", 0.01)
+    monkeypatch.setattr(events, "PING_SECONDS", 0.01)
 
     async def authorize(_session: Any, token: str | None):
         assert token == "test-session-only"
@@ -103,7 +108,10 @@ async def test_idle_sse_heartbeats_and_revocation_close_without_events(
     iterator = events.event_lines(cast(Request, request), "owner", 0)
     assert "event: ready" in await anext(iterator)
     async with asyncio.timeout(1):
-        assert await anext(iterator) == ": keepalive\n\n"
+        # A named event with data, so EventSource dispatches it (an SSE comment is invisible
+        # to it), and no `id:` field, so Last-Event-ID and the replay cursor never move.
+        for _ in range(2):
+            assert await anext(iterator) == "event: ping\ndata: {}\n\n"
         revoked = True
         with pytest.raises(StopAsyncIteration):
             await anext(iterator)
