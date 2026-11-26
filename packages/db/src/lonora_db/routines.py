@@ -277,7 +277,7 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
     if await model_access_refused(session, row, now):
         # Held until the cause is fixed (``model_access_refused``): no Run is created. A
         # recurring routine's tick has advanced and counts as skipped; a one-shot stays
-        # due and fires once released.
+        # due and fires once released, or as the next try.
         log.info("routine_held code=model_access_failed")
         if row.run_at is None:
             row.skipped_occurrences += 1 + missed

@@ -189,8 +189,9 @@ or a channel, except the owner's item when a model provider refused it (below; A
   minutes after the newest item, then each wait twice the last, at most a day:
   `RETRY_FIRST`, `RETRY_LONGEST`), so a cause fixed outside Lonora (credit topped up, the
   model allowed, the deployment's key replaced) ends the hold: if a model answers, the
-  items it disproves end; if it fails the same way, nothing new is raised. Nothing is
-  limited (P1): the held runs could only fail. Watches keep evaluating without a model.
+  items it disproves end; if it fails the same way, nothing new is raised (a one-shot that
+  was that try has fired, and its failed run is its trace). Nothing is limited (P1): the
+  held runs could only fail. Watches keep evaluating without a model.
 - **Channels.** A webhook integration without a thread never forwards a work thread's
   messages; the conversation copy is sent once. Telegram carries only the 11.4 alerts.
 - **Kept on purpose.** A run that sent an order whose result is not verified always says
