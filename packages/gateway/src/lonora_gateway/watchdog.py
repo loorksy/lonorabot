@@ -23,7 +23,7 @@ from lonora_db.item_failures import blocked, failure_code
 from lonora_db.owner_actions import awaiting_owner_answer
 from lonora_db.pauses import claimable_while_paused
 from lonora_db.routines import not_fired_one_shot
-from lonora_db.runs import MAX_RUN_RECOVERIES, aware, quarantine_run
+from lonora_db.runs import MAX_RUN_RECOVERIES, aware, quarantine_run, submission_waits
 from lonora_db.schema import (
     AgentRow,
     AttentionRow,
@@ -317,9 +317,11 @@ class Watchdog:
                         # Waiting since it was queued, or since its retry came due.
                         RunRow.updated_at < cutoff,
                         or_(retry_at.is_(None), retry_at < cutoff.isoformat()),
-                        # As the claim: a paused agent's work waits for the owner, and a
-                        # Run waits behind its own conversation's running turn.
+                        # As the claim: a paused agent's work waits for the owner, a card
+                        # submission behind its agent's earlier unfinished Runs (Rule Q),
+                        # and a Run behind its own conversation's running turn.
                         or_(AgentRow.paused.is_(False), claimable_while_paused()),
+                        ~submission_waits(),
                         ~exists(
                             select(turn.id).where(
                                 turn.thread_id == RunRow.thread_id,

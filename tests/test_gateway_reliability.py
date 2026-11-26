@@ -636,6 +636,39 @@ async def test_an_owner_message_left_queued_opens_one_episode_until_it_is_claime
 
 
 @pytest.mark.asyncio
+async def test_a_card_submission_behind_an_open_question_is_not_delayed(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    waited = utcnow() - timedelta(seconds=90)
+    async with db.sessions() as session, session.begin():
+        session.add(
+            RunRow(
+                thread_id=thread,
+                agent_id=agent,
+                status="waiting_input",
+                created_at=waited - timedelta(minutes=1),
+                updated_at=waited - timedelta(minutes=1),
+            )
+        )
+        session.add(
+            RunRow(
+                thread_id=thread,
+                agent_id=agent,
+                model_metadata={"ui_submit_origin": {"message_id": "m1"}},
+                created_at=waited,
+                updated_at=waited,
+            )
+        )
+    # The claim keeps it behind the question it answers (Rule Q); no worker is behind.
+    async with db.sessions() as session, session.begin():
+        assert await claim_next(session, "worker-test", 120) is None
+    watchdog = Watchdog(db, Liveness(), set())
+    assert await watchdog.delayed_runs() == 0
+    assert await system_items(db, owner, "gateway_degraded") == []
+
+
+@pytest.mark.asyncio
 async def test_a_fired_one_shot_switched_back_on_is_not_an_overdue_wake(
     task_db: Fixture,
 ) -> None:

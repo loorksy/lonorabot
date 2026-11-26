@@ -124,7 +124,10 @@ from the others.
   item per episode (`reason_code: runs_delayed`, with the `count` and `oldest_seconds`
   when it opened), withdrawn once none is left waiting. A run waiting out its retry
   backoff counts from when the retry came due; a paused agent's work waits for the
-  owner, and a run behind its own conversation's running turn waits for that turn. Every pass while runs are delayed logs `run.queue_delayed` with the count and
+  owner, a card submission waits behind its agent's earlier unfinished runs in the
+  thread (an open question, a retry backoff: the claim's Rule Q, `submission_waits`), and
+  a run behind its own conversation's running turn waits for that turn: none of these
+  counts. Every pass while runs are delayed logs `run.queue_delayed` with the count and
   the oldest wait, and `run.queue_recovered` once they are claimed. The web shows the
   item as "New requests are waiting longer than usual to start".
 - **Aging operations.** A live operation still `reserved`, `submitted` or `ambiguous`
