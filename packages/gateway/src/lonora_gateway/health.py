@@ -70,6 +70,8 @@ async def tell_owner_if_stopped(
         last = await last_heartbeat(session)
     if now - max(last or since, since) < STOPPED_AFTER:
         return False
+    # A first pass places the push cursor where no Gateway ever did, before the item.
+    await dispatch_push(db, owner.id, cipher, transport)
     async with db.sessions() as session, session.begin():
         # One item per stop, named by the last heartbeat seen before it.
         await raise_system_attention(

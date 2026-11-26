@@ -134,3 +134,13 @@ async def test_the_api_pushes_a_stopped_gateway_once(task_db: Fixture) -> None:
     await heartbeat(db, utcnow())
     assert not await tell_owner_if_stopped(db, long_ago, CIPHER, expo)
     assert len(expo.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_gateway_that_never_ran_still_reaches_the_phone(task_db: Fixture) -> None:
+    db, owner_id, *_ = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    # No Gateway ever placed the push cursor: the API's first pass must not skip the stop.
+    expo = FakeExpo(db)
+    assert await tell_owner_if_stopped(db, utcnow() - timedelta(hours=1), CIPHER, expo)
+    assert [message["body"] for message in expo.sent] == [attention_text("gateway_stopped", "ar")]
