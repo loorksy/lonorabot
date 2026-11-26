@@ -28,6 +28,7 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_tools.loader import load_tools
+from lonora_tools.message import send as peer_send
 from sqlalchemy import func, select
 
 
@@ -197,7 +198,11 @@ async def fan_in() -> None:
         context = await f.lease(parent)
         a = await delegate_peer(context.for_call("fan-a"), first["id"], "Read source A")
         b = await delegate_peer(context.for_call("fan-b"), second["id"], "Read source B")
-        c = await delegate_peer(context.for_call("fan-c"), third["id"], "Read source C")
+        # Through the tool: its result tells the requester the outcome comes back on its own.
+        c = await peer_send(
+            context.for_call("fan-c"), {"agent_id": third["id"], "task": "Read source C"}
+        )
+        assert c["next"].startswith("The outcome returns here on its own")
         # The same request to the same agent, while the first is not done, is the first (P3-06).
         again = await delegate_peer(context.for_call("fan-a-again"), first["id"], "Read source A")
         assert again["id"] == a["id"] and again["duplicate"] is True and "duplicate" not in a
