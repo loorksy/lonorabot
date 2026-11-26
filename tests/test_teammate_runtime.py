@@ -230,6 +230,7 @@ def model_context(complete: Any) -> ToolContext:
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
             locale="ar",
+            timezone="UTC",
         ),
     )
 
@@ -447,6 +448,7 @@ async def test_each_turn_gets_current_scoped_inventory_without_rewriting_checkpo
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
             locale="ar",
+            timezone="UTC",
         ),
     )
     for _ in range(2):

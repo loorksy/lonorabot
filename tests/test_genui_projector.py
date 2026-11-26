@@ -286,8 +286,7 @@ def test_v2_prompt_block_is_bounded_generated_and_the_only_one() -> None:
     assert "{vocabulary}" not in block and "{teaching}" not in block and "<!--" not in block
     assert capabilities().block() == (
         "<lonora_ui_capabilities>\nintents: ask, alert.create, alert.off\ndelivery: app\n"
-        "go: market, tasks, usage, files, agents\n"
-        "timezone: UTC\n</lonora_ui_capabilities>"
+        "go: market, tasks, usage, files, agents\n</lonora_ui_capabilities>"
     )
 
 

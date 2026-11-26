@@ -54,6 +54,8 @@ class ToolContext:
     # The language of server-written owner text in this Run (conversation_locale, read at
     # its start): fallbacks, outcome lines and card failure text. Model input stays English.
     locale: str = "ar"
+    # The owner's time zone (his reach-me setting), read at the Run's start for its clock.
+    timezone: str = "UTC"
 
     @property
     def effect_key(self) -> str:

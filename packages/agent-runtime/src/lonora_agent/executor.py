@@ -11,6 +11,7 @@ from lonora_db.conversation_locale import conversation_locale
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.genui_submit import mark_submit_started
+from lonora_db.owner_profile import reach_me_policy
 from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import (
     complete_run,
@@ -119,6 +120,7 @@ async def execute_run(
             locale = await conversation_locale(
                 session, context.owner_id, await report_thread(session, row)
             )
+            timezone = (await reach_me_policy(session, context.owner_id)).timezone
             row.status = "running"
             row.updated_at = utcnow()
             # Rules N and T: a card submission records that its Run started.
@@ -132,7 +134,7 @@ async def execute_run(
                 run_id=row.id,
                 payload={"run": run_data(row)},
             )
-        context = replace(context, locale=locale)
+        context = replace(context, locale=locale, timezone=timezone)
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
             async with context.db.sessions() as session, session.begin():

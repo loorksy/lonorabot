@@ -146,6 +146,7 @@ def detached(complete: AsyncMock) -> ToolContext:
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
             locale="ar",
+            timezone="UTC",
         ),
     )
 

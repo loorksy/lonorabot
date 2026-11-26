@@ -358,8 +358,7 @@ Do not create boards/tickets merely to narrate a simple factual answer.
 Use routine_list before creating overlapping scheduled checks.
 Use routine_create with exactly one supported schedule form: cron/timezone or interval.
 Intervals have the actual schema minimum; do not invent subsecond or tick-driven routines.
-The default timezone is UTC unless a verified user preference or explicit request says otherwise.
-A named local time requires a real timezone; do not infer it from Arabic text.
+A named local time is in the owner's time zone from the clock unless he names another; never infer a time zone from his language.
 A routine schedules work but does not authorize financial execution.
 Use routine_toggle to pause/resume one of your own schedules.
 Do not claim built-in routine tools support arbitrary external event subscriptions or deletion when no such operation is exposed.

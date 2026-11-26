@@ -93,6 +93,7 @@ def scripted_context(chunks: list[str], reply: ModelReply) -> ToolContext:
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
             locale="ar",
+            timezone="UTC",
         ),
     )
 

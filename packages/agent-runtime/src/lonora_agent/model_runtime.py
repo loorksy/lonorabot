@@ -18,7 +18,7 @@ from .context.financial_result import (
     unverified_financial_result,
 )
 from .context.image_observations import prepare_image_observations
-from .context.team import refresh_routing_context
+from .context.team import clock_block, refresh_routing_context
 from .failure_view import failure_view
 from .progress import progress
 from .public_stream import PublicStream
@@ -89,6 +89,11 @@ async def model_turn(
             role="system",
             context_origin="runtime_context",
             content=VisualReplyProjector(context, messages).capabilities.block(),
+        )
+    )
+    request_messages.append(
+        ModelMessage(
+            role="system", context_origin="runtime_context", content=clock_block(context.timezone)
         )
     )
     if context_view is not None:

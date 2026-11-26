@@ -80,6 +80,8 @@ async def test_native_fragments_publish_safe_prefix_before_completion_with_bound
             thread_id="thread",
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
+            locale="ar",
+            timezone="UTC",
         ),
     )
     reply, _ = await model_runtime.model_turn(

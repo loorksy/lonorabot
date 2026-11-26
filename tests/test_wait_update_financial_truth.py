@@ -89,6 +89,7 @@ async def test_wait_prose_cannot_publish_premature_or_private_financial_claims(
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
             locale="ar",
+            timezone="UTC",
         ),
     )
     monkeypatch.setattr(model_runtime, "refresh_routing_context", AsyncMock())
