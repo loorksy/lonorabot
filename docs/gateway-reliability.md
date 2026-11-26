@@ -183,11 +183,12 @@ database error (dropped connection, failover, timeout, or a renewal that hangs) 
 retried until shortly before the lease would expire; only a fenced `stale_lease`, an unknown error or running out of
 lease time stops the Run.
 
-A Run also reads its own status and fence every 2 s (`watch_fence`). A cancel (the owner's,
-or Lonora's `cancel_run`) only moves the fence, so without this a Run between fenced writes
+A Run also reads its own fence every 2 s (`watch_fence`). A cancel (the owner's, or
+Lonora's `cancel_run`) only moves the fence, so without this a Run between fenced writes
 (a model still thinking before its first token, a long read, a backoff sleep) went on
 until its next renewal. It now stops within about 2 s, and nothing it writes after the
-cancel is accepted. A cancel noticed inside an effect takes effect once that call has
+cancel is accepted. The Run's own completion or release keeps the fence, so the writing
+of its outcome is never cut. A cancel noticed inside an effect takes effect once that call has
 returned, and the checkpoint of its result is refused by the moved fence: a cancel never
 cuts a send.
 

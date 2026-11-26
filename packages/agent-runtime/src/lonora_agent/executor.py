@@ -96,21 +96,15 @@ async def watch_fence(
         await asyncio.sleep(WATCH_SECONDS)
         try:
             async with context.db.sessions() as session:
-                row = (
-                    await session.execute(
-                        select(RunRow.status, RunRow.lease_fence).where(
-                            RunRow.id == context.lease.run_id
-                        )
-                    )
-                ).one_or_none()
+                fence = await session.scalar(
+                    select(RunRow.lease_fence).where(RunRow.id == context.lease.run_id)
+                )
         except TRANSIENT_RENEWAL_ERRORS:
             # An outage is keep_lease's to judge.
             continue
-        if (
-            row is not None
-            and row.lease_fence == context.lease.fence
-            and row.status in {"leased", "running"}
-        ):
+        # Only a cancel (or a newer claim) moves the fence; the Run's own completion or
+        # release keeps it, so the writing of its outcome is never cut.
+        if fence == context.lease.fence:
             continue
         while True:
             if context.drain is None or worker not in context.drain.effects:
@@ -391,6 +385,7 @@ async def execute_run(
             )
             if ending == "again":
                 continue
+            working = False
             if ending == "completed":
                 await return_outcome(context.db, context.lease.run_id)
             return
