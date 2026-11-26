@@ -34,6 +34,7 @@ export async function onRequestPost({ request, env, data }) {
     const picked = await chooseHandle(env, account, body.handle);
     if (picked.error) return json({ ok: false, error: picked.error }, 400);
     const out = await startProvisioning(env, account, picked.handle, data.staff);
+    if (out.error === "bad_state") return json({ ok: false, error: "bad_state" }, 409);
     return json(out.ok ? { ok: true, status: "active", handle: out.handle } : { ok: false, error: out.error, message: out.message }, out.ok ? 200 : 502);
   }
   if (body.action === "delete") {

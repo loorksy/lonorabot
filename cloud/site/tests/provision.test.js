@@ -95,6 +95,13 @@ describe("one-click activation on the host", () => {
     assert.ok(fs.existsSync(path.join(home, "customers/sara/.env")));
   });
 
+  test("two overlapping activations make one installation and one job", async () => {
+    const [a, b] = await Promise.all([activate(), activate()]);
+    assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+    assert.equal(env.DB.raw.prepare("SELECT count(*) n FROM provision_jobs").get().n, 1);
+    assert.equal(account().status, "active");
+  });
+
   test("handles are unique, valid and never reserved", async () => {
     assert.equal(validHandle("admin"), false);
     assert.equal(validHandle("a"), false);

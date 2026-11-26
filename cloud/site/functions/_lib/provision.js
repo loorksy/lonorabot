@@ -74,13 +74,18 @@ export async function deprovision(env, job) {
 export async function startProvisioning(env, account, handle, staff) {
   const job = { id: randomToken(16), handle };
   const now = nowIso();
+  // Claim the account first: of two overlapping activations only one moves it to provisioning,
+  // and only that one creates a job.
+  const claimed = await env.DB.prepare(
+    "UPDATE accounts SET status = 'provisioning', handle = ?, decided_at = ?, decided_by = ? WHERE id = ? AND status IN ('pending', 'approved')",
+  )
+    .bind(handle, now, staff, account.id)
+    .run();
+  if (claimed.meta?.changes !== 1) return { ok: false, error: "bad_state" };
   await env.DB.prepare(
     "INSERT INTO provision_jobs (id, account_id, handle, status, server_id, created_at, updated_at) VALUES (?, ?, ?, 'creating', ?, ?, ?)",
   )
     .bind(job.id, account.id, handle, `lonora-${handle}`, now, now)
-    .run();
-  await env.DB.prepare("UPDATE accounts SET status = 'provisioning', handle = ?, decided_at = ?, decided_by = ? WHERE id = ?")
-    .bind(handle, now, staff, account.id)
     .run();
   const out = await host(env, ["create", handle]);
   const link = /^setup_link=(https:\/\/[a-z0-9.-]+\/#token=[A-Za-z0-9_-]{20,128})$/m.exec(out.stdout)?.[1];
