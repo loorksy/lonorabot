@@ -263,6 +263,30 @@ def test_http_failures_classify_into_stable_codes(
 
 
 @pytest.mark.parametrize(
+    ("code", "status", "reason"),
+    [
+        ("subscription_sharing_usage_limit_exceeded", 429, FailureReason.BILLING),
+        ("subscription_sharing_user_not_eligible", 403, FailureReason.PERMISSION),
+        ("subscription_sharing_route_not_supported", 403, FailureReason.PERMISSION),
+        ("chatpass_v2_scope_not_authorized", 403, FailureReason.PERMISSION),
+        ("chatpass_v2_invalid_authorization_context", 403, FailureReason.PERMISSION),
+        ("subscription_sharing_invalid_user", 401, FailureReason.AUTH),
+        ("subscription_sharing_unsupported_capability", 400, FailureReason.FORMAT_ERROR),
+        ("subscription_sharing_usage_unavailable", 503, FailureReason.OVERLOADED),
+        ("subscription_sharing_user_unavailable", 503, FailureReason.OVERLOADED),
+    ],
+)
+def test_the_chatgpt_plan_error_codes_map_to_the_taxonomy(
+    code: str, status: int, reason: FailureReason
+) -> None:
+    body = json.dumps({"error": {"code": code, "message": "provider text", "param": "tools"}})
+    error = response_failure(status, body, {})
+    assert error.reason is reason and not error.inferred
+    # Provider text is never kept; only the code is.
+    assert "provider text" not in repr(vars(error))
+
+
+@pytest.mark.parametrize(
     ("message", "reason"),
     [
         # Loose wording that once took a model or key offline for 15 minutes.

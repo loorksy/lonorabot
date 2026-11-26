@@ -18,11 +18,11 @@ stays one of the stable codes Runs, Tasks and clients already read.
 
 | Reason | Typical source | Code |
 | --- | --- | --- |
-| `auth` | 401, `authentication_error`, `invalid_api_key`, a 403 with invalid-key wording | `model_credentials_rejected` |
-| `permission` | Anthropic `permission_error`, any other 403 without billing, content or invalid-key wording | `model_access_denied` |
-| `billing` | 402, `insufficient_quota`, "credit balance", "exceeded your current quota" | `model_billing_exhausted` |
+| `auth` | 401, `authentication_error`, `invalid_api_key`, a 403 with invalid-key wording, the ChatGPT plan's `subscription_sharing_invalid_user` | `model_credentials_rejected` |
+| `permission` | Anthropic `permission_error`, the ChatGPT plan's `subscription_sharing_user_not_eligible`, `subscription_sharing_route_not_supported` and `chatpass_v2_*`, any other 403 without billing, content or invalid-key wording | `model_access_denied` |
+| `billing` | 402, `insufficient_quota`, "credit balance", "exceeded your current quota", the ChatGPT plan's `subscription_sharing_usage_limit_exceeded` | `model_billing_exhausted` |
 | `rate_limit` | 429, `rate_limit_error` | `model_rate_limited` |
-| `overloaded` | 503/529, `overloaded_error`, overload wording on 429 | `model_provider_unavailable` |
+| `overloaded` | 503/529, `overloaded_error`, overload wording on 429, the ChatGPT plan's `subscription_sharing_usage_unavailable` and `subscription_sharing_user_unavailable` | `model_provider_unavailable` |
 | `server_error` | other 5xx, `api_error`, untyped stream error events | `model_provider_unavailable` |
 | `timeout` | read/connect timeout, 408/504 | `model_provider_unavailable` |
 | `connection` | transport errors, a stream that closed before its end marker | `model_provider_unavailable` |
@@ -31,7 +31,7 @@ stays one of the stable codes Runs, Tasks and clients already read.
 | `content_policy` | content filters, `refusal`/`content_filter` stops | `model_content_blocked` |
 | `output_limit` | "max_tokens … > N, which is the maximum", "at most N completion tokens" | `model_request_rejected` |
 | `truncated` | `max_tokens`/`length` stop with tool calls or no text | `model_output_truncated` |
-| `format_error` | other 4xx | `model_request_rejected` |
+| `format_error` | other 4xx, the ChatGPT plan's `subscription_sharing_unsupported_capability` | `model_request_rejected` |
 | `invalid_response` | malformed body or stream | `model_response_invalid` |
 
 Classification order: a decisive provider type or code, then the HTTP status
