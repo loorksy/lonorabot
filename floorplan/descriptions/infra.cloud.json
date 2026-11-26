@@ -1,0 +1,92 @@
+{
+  "files": {
+    "cloud/host/customer.sh": {
+      "name": "Customer installer",
+      "description": "The one command staff and the website use on the shared server: it sets up the server, builds each new Lonora version once and moves every customer to it, and creates or removes one customer's own Lonora with its own database, keys and web address."
+    },
+    "cloud/host/server.mjs": {
+      "name": "Website server",
+      "description": "Runs the company website and the staff admin panel on the shared server, sends each request to the right page or handler, and keeps the accounts in a small database file."
+    },
+    "cloud/site/functions/_lib/core.js": {
+      "name": "Website helpers",
+      "description": "Shared pieces of the website: password hashing, sessions, the bot check, rate limits, input checks, and recognising staff signed in at the server's front door."
+    },
+    "cloud/site/functions/_lib/provision.js": {
+      "name": "One-click activation",
+      "description": "When staff press Activate, asks the shared server to create the customer's own Lonora, then turns the account active with its one-time setup link; on failure it undoes the attempt so staff can retry."
+    },
+    "cloud/site/functions/_middleware.js": {
+      "name": "Security headers",
+      "description": "Adds the browser security rules to every page and answer of the website."
+    },
+    "cloud/site/functions/api/admin/_middleware.js": {
+      "name": "Staff-only gate",
+      "description": "Lets only signed-in staff on the allowed list reach the admin actions."
+    },
+    "cloud/site/functions/api/admin/accounts.js": {
+      "name": "Account list for staff",
+      "description": "Lists and searches sign-ups for staff, with counts per status and each account's latest activation attempt."
+    },
+    "cloud/site/functions/api/admin/audit.js": {
+      "name": "Decision log",
+      "description": "Shows staff the log of every decision taken on accounts."
+    },
+    "cloud/site/functions/api/admin/decide.js": {
+      "name": "Staff decisions",
+      "description": "Carries out a staff decision on an account: approve, activate (in one click or by hand), reject, suspend, reinstate, or delete on the person's request together with their Lonora."
+    },
+    "cloud/site/functions/api/admin/export.js": {
+      "name": "Account export",
+      "description": "Downloads every account as a spreadsheet file, made safe so no cell can run as a formula."
+    },
+    "cloud/site/functions/api/config.js": {
+      "name": "Public settings",
+      "description": "Gives the website pages the one public setting they need, the bot check's site key."
+    },
+    "cloud/site/functions/api/login.js": {
+      "name": "Website sign-in",
+      "description": "Signs a customer in to their website account (not to their Lonora), with limits on repeated attempts."
+    },
+    "cloud/site/functions/api/logout.js": {
+      "name": "Website sign-out",
+      "description": "Ends the customer's website session in this browser."
+    },
+    "cloud/site/functions/api/me.js": {
+      "name": "My account",
+      "description": "Tells a signed-in customer the status of their account and, once active, the address of their Lonora and its setup link."
+    },
+    "cloud/site/functions/api/register.js": {
+      "name": "Registration",
+      "description": "Creates a new account that waits for staff approval, without revealing whether an email is already registered."
+    },
+    "cloud/site/public/admin/index.html": {
+      "name": "Admin panel page",
+      "description": "The staff page for reviewing sign-ups, activating a customer's Lonora in one click, and rejecting, suspending, exporting or deleting accounts."
+    },
+    "cloud/site/public/index.html": {
+      "name": "Company website",
+      "description": "The public Lonora Cloud website in Arabic and English, with sign-up, sign-in and the customer's account page."
+    },
+    "cloud/site/schema.sql": {
+      "name": "Website tables",
+      "description": "The tables of the website's database: accounts, sessions, the decision log, rate limits and activation attempts."
+    },
+    "cloud/site/tests/harness.js": {
+      "name": "Website test kit",
+      "description": "Runs the website's handlers through the real server code with an in-memory database and a stand-in bot check."
+    },
+    "cloud/site/tests/provision.test.js": {
+      "name": "Activation tests",
+      "description": "Checks one-click activation with the real customer installer in practice mode: the customer's own keys stay in their file, failures are undone, deletion removes the installation, and a new version is built once for everyone."
+    },
+    "cloud/site/tests/server.test.js": {
+      "name": "Website server tests",
+      "description": "Checks the website server over real web requests: pages, security headers, routing, size limits and the staff-only gate."
+    },
+    "cloud/site/tests/site.test.js": {
+      "name": "Website tests",
+      "description": "Checks registration, sign-in, sessions and the admin panel's decisions, log and export."
+    }
+  }
+}

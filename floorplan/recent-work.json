@@ -1,1 +1,20 @@
-{ "tasks": [] }
+{
+  "updatedAt": "2026-11-26T18:30:00Z",
+  "tasks": [
+    {
+      "title": "Lonora Cloud on one server",
+      "request": "Rework the website and activation for one Hostinger server that holds the website, the admin panel and every customer (D48), with the least code",
+      "summary": "The website now runs on the shared server itself instead of Cloudflare, with the same handlers. Activate creates the customer's own Lonora there in under a minute, and each new version is built once and every customer moved to it. Removed: the Cloudflare settings file, the Hetzner and Cloudflare provisioning and the server's ready callback. Tested in practice mode only; not yet run on the real server.",
+      "items": [
+        { "ref": "infra.cloud", "change": "new", "note": "New on the map: the website, the admin panel and the shared server's tools for customers." },
+        { "ref": "cloud/host/customer.sh", "change": "new", "note": "New: creates, updates and removes one customer's Lonora with its own database, keys and address, and builds each version once for all customers." },
+        { "ref": "cloud/host/server.mjs", "change": "new", "note": "New: serves the website and admin panel on the server and runs the existing handlers unchanged in shape." },
+        { "ref": "cloud/site/functions/_lib/provision.js", "change": "changed", "note": "Activate now asks the shared server for the customer's Lonora instead of renting a Hetzner server and a Cloudflare address." },
+        { "ref": "cloud/site/functions/_lib/core.js", "change": "changed", "note": "Staff are recognised from the server's own sign-in instead of Cloudflare Access." },
+        { "ref": "cloud/site/functions/api/admin/decide.js", "change": "changed", "note": "One click now ends with an active account; deleting removes the customer's installation." },
+        { "ref": "cloud/site/tests/provision.test.js", "change": "changed", "note": "Tests activation, failure and retry, deletion and a release with the real installer in practice mode." },
+        { "ref": "cloud/site/tests/server.test.js", "change": "new", "note": "New: checks the website server over real web requests." }
+      ]
+    }
+  ]
+}
