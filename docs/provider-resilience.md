@@ -18,20 +18,20 @@ stays one of the stable codes Runs, Tasks and clients already read.
 
 | Reason | Typical source | Code |
 | --- | --- | --- |
-| `auth` | 401, `authentication_error`, `invalid_api_key`, a 403 with invalid-key wording | `model_credentials_rejected` |
-| `permission` | Anthropic `permission_error`, any other 403 without billing, content or invalid-key wording | `model_access_denied` |
-| `billing` | 402, `insufficient_quota`, "credit balance", "exceeded your current quota" | `model_billing_exhausted` |
+| `auth` | 401, `authentication_error`, `invalid_api_key`, a 403 with invalid-key wording, the ChatGPT plan's `subscription_sharing_invalid_user` | `model_credentials_rejected` |
+| `permission` | Anthropic `permission_error`, the ChatGPT plan's `subscription_sharing_user_not_eligible`, `subscription_sharing_route_not_supported` and `chatpass_v2_*`, any other 403 without billing, content or invalid-key wording | `model_access_denied` |
+| `billing` | 402, `insufficient_quota`, "credit balance", "exceeded your current quota", the ChatGPT plan's `subscription_sharing_usage_limit_exceeded` | `model_billing_exhausted` |
 | `rate_limit` | 429, `rate_limit_error` | `model_rate_limited` |
-| `overloaded` | 503/529, `overloaded_error`, overload wording on 429 | `model_provider_unavailable` |
+| `overloaded` | 503/529, `overloaded_error`, overload wording on 429, the ChatGPT plan's `subscription_sharing_usage_unavailable` and `subscription_sharing_user_unavailable` | `model_provider_unavailable` |
 | `server_error` | other 5xx, `api_error`, untyped stream error events | `model_provider_unavailable` |
 | `timeout` | read/connect timeout, 408/504 | `model_provider_unavailable` |
-| `connection` | transport errors, a stream that closed before its end marker | `model_provider_unavailable` |
+| `connection` | transport errors, a stream that closed before its end marker (`response.completed` or `response.incomplete` on the Responses API) | `model_provider_unavailable` |
 | `context_overflow` / `payload_too_large` | "prompt is too long", `context_length_exceeded`, 413 | `context_limit_exceeded` |
 | `model_not_found` | 404, `not_found_error`, "the model … does not exist" | `model_endpoint_unavailable` |
 | `content_policy` | content filters, `refusal`/`content_filter` stops | `model_content_blocked` |
 | `output_limit` | "max_tokens … > N, which is the maximum", "at most N completion tokens" | `model_request_rejected` |
-| `truncated` | `max_tokens`/`length` stop with tool calls or no text | `model_output_truncated` |
-| `format_error` | other 4xx | `model_request_rejected` |
+| `truncated` | `max_tokens`/`length` stop, or an incomplete Responses reply (`response.incomplete`), with tool calls or no text | `model_output_truncated` |
+| `format_error` | other 4xx, a Responses `invalid_request_error` stream event (read as its HTTP 400), the ChatGPT plan's `subscription_sharing_unsupported_capability` | `model_request_rejected` |
 | `invalid_response` | malformed body or stream | `model_response_invalid` |
 
 Classification order: a decisive provider type or code, then the HTTP status
@@ -48,6 +48,31 @@ for every Agent. The patterns are narrow for the same reason: a missing model
 needs the word "model" in the phrase, and bare "billing" or "authentication"
 is not enough.
 
+## The ChatGPT plan's credential
+
+The owner's ChatGPT plan (`openai_chatgpt`, Sign in with ChatGPT,
+`lonora_providers/chatgpt_sign_in.py`) gives the router an access token instead of a
+key: `ProviderCredentials.connection` returns a fresh one for every request and renews
+it in its last minute, one caller at a time under a Postgres advisory lock that re-reads
+the stored copy, since each renewal rotates the refresh token. In each process only the
+caller that renews holds a database connection; the others wait for it without one. A
+renewal OpenAI refuses (`invalid_grant`, `refresh_token_reused` and the other terminal
+codes) clears the tokens and fails the candidate as `auth` (`model_credentials_rejected`:
+the owner signs in again); `invalid_client` also drops the issued client id, so the next
+sign-in registers anew. Any other renewal failure keeps the tokens: the process tries
+again only after 30 seconds (`REFRESH_BACKOFF`), and until then the saved token answers
+while it is still valid, or the candidate fails at once as transient, with no request to
+OpenAI. Either way the router passes to the next candidate, as for a request that failed.
+The account's model list is read at most every 15 minutes, by one caller (the read is
+claimed first), and never written back after a sign-out. The plan's own
+answers are classified by code in the table above: its usage limit is `billing`, so the
+next model answers, and when none does the run's failure names the plan
+(`failure.provider`), which the clients show as "ChatGPT plan limit reached" with
+Manage usage. For `subscription_sharing_unsupported_capability` the log line carries
+`error.param`, never the provider's text; a model the plan refuses for the account
+(missing for it, or `error.param` `model`) leaves the account's list until the next
+sign-in.
+
 ## No model configured is not an outage
 
 `model_not_configured` means there is nothing to ask: no route, no backup, no model
@@ -58,20 +83,30 @@ a provider failure, and it is never shown as one.
   provider key exists, the router chooses a model once and records it as the unified
   route in `model_routing` (`lonora_providers/default_model.py`), so Settings show it
   and the owner changes it there like their own choice. Providers are taken in registry
-  order; each one's own catalog is read (and stored), and the first family of
-  `PREFERRED_FAMILIES` that catalog lists is taken: the exact id, else its newest dated
-  snapshot. An id the provider does not list is never chosen, so a stale preference
-  chooses nothing rather than a model that does not exist. Speech routes, a
-  consultation's named models, and reads of the route (the model card, `model_list`)
-  never choose. An owner's own route, backup or assigned model is never replaced, and
+  order and the first connected one's default (`DEFAULT_MODELS`: `gpt-6.2-sol`,
+  `claude-sonnet-5-5`, `deepseek-v4-pro`, `glm-5.3`, `anthropic/claude-sonnet-5.5`) is
+  taken. No provider is asked for its models: a default is chosen only while Lonora's model
+  list holds it (VISION 12.4), so a stale default chooses nothing rather than a model that
+  does not exist. Each key is checked by the status of its listing alone
+  (`key_check.check_key`): a key the provider rejects (401, 403), such as a stale
+  `LONORA_OPENAI_API_KEY`, is passed over for the next provider's, a key that could not be
+  checked counts, and if every key is rejected the rejection is raised. A Secret card key
+  the provider rejected chooses nothing and re-queues nothing. The owner's own endpoint
+  has no default Lonora could know: its models are read (and stored) and the first one it
+  lists is taken. Speech routes, a consultation's named models, and reads of the route
+  (the model card, `model_list`) never choose. An owner's own route, backup or assigned model is never replaced, and
   custom routing is never filled in. A search that chose nothing is not repeated for
   60 seconds, and concurrent first requests choose once.
-- **Nothing to choose.** No key, or no listed family: the Run fails with
+- **Nothing to choose.** No key, or no listed default: the Run fails with
   `model_not_configured`. The Web error card then reads «لم يُضبط نموذج بعد» with the
   existing notice («اربط مزودًا واختر نموذجًا…») and one action that opens the model
   settings, where the provider keys are; Mobile shows the same state in its Run line.
   The outage card («النموذج غير متاح حاليًا») is for a provider that could not be reached.
-- **A provider that cannot be asked** while the default is being chosen is passed over
+- **No model that reads images.** An agent's own model that the list holds for text only
+  does not take an image turn; when nothing else is routed for vision (a Vision route or a
+  backup that reads images), the Run fails with `model_lacks_vision`, not
+  `model_not_configured`, and both clients say a model that can read images is needed.
+- **An owner endpoint that cannot be asked** while the default is being chosen is passed over
   for the next one; if none gives a model, its own classified failure is raised, so an
   outage backs off and retries like any other, and a rejected key reads as a rejected
   key.
@@ -146,9 +181,9 @@ metadata.
 
 The default `output_tokens` is 16,384. Each request asks for that, bounded by
 the model's documented maximum (the catalog's `maximum_output_tokens`, which
-the Anthropic Models API now provides together with the window, else a family
-table in `model_windows.py`), by a quarter of the window, and by 8,192 when no
-maximum is known. Requests without streaming stay at or below 16,384.
+Lonora's model list states for every model it holds, else a family table in
+`model_windows.py`), by a quarter of the window, and by 8,192 when no maximum is
+known. Requests without streaming stay at or below 16,384.
 
 Adapters read the stop reason before trusting any tool input:
 
@@ -161,6 +196,10 @@ Adapters read the stop reason before trusting any tool input:
 - A rejected budget (`output_limit`) is retried once with the provider's stated
   maximum (or half), which is remembered for that model in the process.
 - `refusal`/`content_filter` stops raise `content_policy`.
+- OpenAI's Responses API (`lonora_adapters/models/openai_responses.py`) reports the
+  same through its terminal event: `response.incomplete` is a `length` stop (a
+  `content_filter` one when it says so), and a refusal part in the answer is a
+  `refusal` stop. Tool arguments are parsed only after `response.completed`.
 
 ## A Run that outlasts the router
 
@@ -216,8 +255,10 @@ Adapters read the stop reason before trusting any tool input:
 
 Only the owner assigns an agent's model: from the agent's settings, or in chat, where an
 agent applies it when the owner's own message names the model (lead decision Q20 (a)).
-Any text model of a connected provider's catalog is assignable; there is no list of
-allowed models and no Automatic / Fixed mode. A new agent starts on Lonora's current
+Any model of Lonora's list (VISION 12.4) whose provider is connected is assignable (for
+the owner's own endpoint, any model it lists); there is no list of allowed models and no
+Automatic / Fixed mode. An agent whose saved model a later release no longer lists keeps
+it; the pickers and `model_request` offer only listed models. A new agent starts on Lonora's current
 model (VISION 3.1.2) until the owner assigns another. Choosing a model never grants
 authority: permissions, approvals and every execution boundary stay the agent's whatever
 model answers. A change touches only the agent's model record; tool results, memory,
@@ -243,8 +284,8 @@ replaces them; `primary: null` returns the agent to the owner's default model, w
 and Mobile offer as "Back to your default model". Every change emits
 `agent.model.updated` with the model, who chose it and how (`owner_settings`,
 `model_request`, `inherited_from_lonora`). `GET …/model/summary` is what the model card
-shows: the record, the model answering now, the models the owner can pick (text models
-in the catalogs of providers with a key) and this agent's usage over 30 days. Migration
+shows: the record, the model answering now, the models the owner can pick (the listed
+models of providers with a key) and this agent's usage over 30 days. Migration
 `0131_agent_model_owner_only` removed the stored modes, the allowed list and the model
 cards.
 
@@ -284,11 +325,11 @@ helpers) takes `model` and `agent_id` (Lonora only, for another agent).
 
 ### Helpers and second opinions
 
-`subagent_spawn(task, model)` starts a temporary helper on any catalog model of a
+`subagent_spawn(task, model)` starts a temporary helper on any listed model of a
 connected provider (otherwise `subagent_model_not_available`). The model is stored in the
 helper Run's metadata, reaches its `ToolContext.run_model` at dispatch, and leads the
 router chain, with the agent's own chain behind it. `consult_model` asks one of the
-agent's routed models, or any catalog model of a connected provider it names, other than
+agent's routed models, or any listed model of a connected provider it names, other than
 the one answering. Both record usage as before.
 
 ### Usage per agent (owner decision D4)
@@ -302,7 +343,7 @@ enforcement is not planned (D4).
 
 A read-only tool (intelligence chapter) that sends a bounded evidence pack the
 Agent writes (question ≤ 4,000 characters, evidence ≤ 24,000) to another
-model: one the Agent names (from its candidates or any catalog model of a connected
+model: one the Agent names (from its candidates or any listed model of a connected
 provider), or the first candidate that is not the model it is using. The consulted model gets no
 tools, no conversation and no authority; markup in the pack is made inert.
 The critique (≤ 8,000 characters) returns as an advisory observation. There is
@@ -323,10 +364,17 @@ Nothing waits for agreement and nothing executes on its advice.
 - A change applies only when the owner's words name the model; a name the server does
   not recognize (an Arabic transliteration such as "أوبس") changes nothing, and the owner
   names it again or picks it in the agent's settings.
-- The model picker lists every discovered model of a connected provider; catalogs
-  that do not report capabilities (OpenAI) include non-chat models.
+- The model picker lists every listed model of a connected provider, with the
+  capabilities, window and output maximum the list states; the owner's own endpoint
+  lists its models without them. The list holds chat models only: the voice route pickers
+  offer OpenAI's speech models (`gpt-live-1`, `gpt-live-1-mini`, `gpt-4o-mini-transcribe`,
+  `whisper-1`, `gpt-4o-mini-tts`, `tts-1`) while OpenAI is connected, and the semantic
+  memory picker OpenAI's embedding models (`text-embedding-3-small`, `-large`); a saved
+  choice keeps working.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured
-  per adapter.
+  per adapter. OpenAI's reasoning items are not sent back: requests are
+  stateless (`store: false`) and Lonora's history keeps an assistant's text and
+  tool calls only.
 - There is no spend cap (owner decision D4); usage is shown per agent.
 - The output family table must follow provider documentation as models change.
 

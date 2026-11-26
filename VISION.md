@@ -812,6 +812,36 @@ mandate:
     website is only the account portal (subscription, payment, account). Once the app offers every owner capability of
     the web client (section 13), the web client may be switched off for customers; the API the app uses stays.
 
+### Amendment 4 (2026-11-26): signing in with a model subscription, and Lonora's fixed model list
+
+The owner decided that a model provider may also be connected with the owner's own subscription, beside API keys, as
+Rakazo and OpenMausBot do («نحتاج الى اضافة نظام استخدام اشتراك openai و anthropic مباشر بدل api key و يمكن اضافة api
+key ايظن»), and that Lonora offers a fixed, pre-installed list of models instead of lists read from the providers
+(«قائمة المودلات الموجودة في lonora مثبتة مسبقا مثل rakazo», «استخدم نفس قائمة rakazo»). The specification is
+`docs/proposals/model-catalog-and-chatgpt-signin.md`. The following replaces or adds to the mandate:
+
+1. **P8 reads:** "Model providers use the owner's API keys, or the owner's own subscription through a provider's
+   official sign-in for third-party software (section 12)."
+2. **12.1 is replaced by:** "Model access uses the owner's API keys, or the owner's own subscription where the
+   provider officially lets third-party software use it, through the existing adapters and router: Anthropic, OpenAI
+   (an API key, or Sign in with ChatGPT for the ChatGPT plan), DeepSeek, OpenRouter, Z.ai and OpenAI-compatible
+   endpoints. Lonora makes no assumption about the plan behind a key."
+3. **12.2, first item, is replaced by:** "subscription logins or OAuth tokens of any AI platform, except a provider's
+   official sign-in for third-party software. Today that is OpenAI's Sign in with ChatGPT in its open-source flow
+   (dynamic client registration, the public Responses API). Claude subscriptions (Free, Pro, Max, Ultra) are not
+   offered: Anthropic does not permit third-party software to offer Claude.ai login or to route requests through plan
+   credentials." The other items of 12.2 stay: another vendor's CLI client id, private vendor endpoints, and Claude Code
+   or the Claude Agent SDK as Lonora's engine remain prohibited.
+4. **12.4 is added:** "**The model list.** Lonora ships one fixed list of models in its code: Rakazo's list (the
+   `@earendil-works/pi-ai` 1.6.0 catalog Rakazo pins) for the providers Lonora supports. A model is available when its
+   provider is connected and the list holds it; a subscription may offer fewer of its models. Lonora reads no
+   provider's model list, except the owner's own OpenAI-compatible endpoint, whose models are the owner's. The list
+   changes only with a Lonora release." 12.3 stays: the owner assigns any available model to any agent from chat.
+5. **Amendment 3, item 4,** reads "Model access stays the owner's own keys or subscriptions (section 12); the operator
+   sells no model access." Until OpenAI approves Lonora Cloud for Sign in with ChatGPT (OpenAI requires an application
+   from paid or remotely hosted apps), Lonora Cloud installations offer API keys only; self-hosted installations offer
+   the sign-in.
+
 ### Amendment 5 (2026-11-26): a sixth push kind, for Lonora's own background work
 
 The owner decided that a stopped background worker, and background work that fails because its model provider refuses

@@ -96,6 +96,10 @@
       "name": "Remove old workspace data",
       "description": "Drops the former analytical-workspace data that nothing reads any more."
     },
+    "packages/db/migrations/versions/0201_fixed_model_list.py": {
+      "name": "Remove stored model lists",
+      "description": "Deletes the model lists once read from providers, whose models now come from Lonora's own list."
+    },
     "packages/db/src/lonora_db/__init__.py": {
       "name": "Database package",
       "description": "Marks the database code as one package; holds no logic of its own."

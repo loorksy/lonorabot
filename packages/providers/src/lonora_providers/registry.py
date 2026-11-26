@@ -4,13 +4,15 @@ from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapters.models.anthropic import AnthropicAdapter
 from lonora_adapters.models.compatible_endpoint import CompatibleEndpointAdapter
 from lonora_adapters.models.deepseek import DeepSeekAdapter
-from lonora_adapters.models.openai import OpenAIAdapter
+from lonora_adapters.models.openai_responses import ChatGptPlanAdapter, OpenAIResponsesAdapter
 from lonora_adapters.models.openrouter import OpenRouterAdapter
 from lonora_adapters.models.zai import ZaiAdapter
 from lonora_core.user_error import LonoraError
 
 PROVIDERS: dict[str, Callable[..., ModelAdapter]] = {
-    "openai": OpenAIAdapter,
+    "openai": OpenAIResponsesAdapter,
+    # OpenAIResponsesAdapter(chatgpt_plan=True): the owner's ChatGPT plan (Amendment 4).
+    "openai_chatgpt": ChatGptPlanAdapter,
     "anthropic": AnthropicAdapter,
     "deepseek": DeepSeekAdapter,
     "zai": ZaiAdapter,
@@ -19,6 +21,8 @@ PROVIDERS: dict[str, Callable[..., ModelAdapter]] = {
 }
 # Providers whose base URL is the owner's, not fixed in the adapter.
 OWNER_ENDPOINT = frozenset({"openai_compatible"})
+# Providers connected by the owner's sign-in, not a key (``chatgpt_sign_in``).
+SIGN_IN = frozenset({"openai_chatgpt"})
 
 
 def model_adapter(provider: str, api_key: str, base_url: str | None = None) -> ModelAdapter:

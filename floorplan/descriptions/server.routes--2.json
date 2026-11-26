@@ -1,5 +1,9 @@
 {
   "files": {
+    "apps/api/src/lonora_api/routes/chatgpt_sign_in.py": {
+      "name": "ChatGPT sign-in routes",
+      "description": "Gives a waiting Secret card OpenAI's sign-in address (or a new account's), takes the address the owner pastes back and settles the card like a saved key, telling the agent which model now answers, and signs the ChatGPT plan out, even with the sign-in turned off."
+    },
     "apps/api/src/lonora_api/routes/messages.py": {
       "name": "Messages",
       "description": "Reads a conversation's history for the owner, sends a new message, lets the owner unlock a sent card to edit it, and sets or clears a quick reaction."
@@ -34,7 +38,7 @@
     },
     "apps/api/src/lonora_api/routes/providers.py": {
       "name": "AI providers",
-      "description": "Lists the AI model providers, saves a provider's key, lists its models, and discovers the models a provider offers."
+      "description": "Lists the AI model providers, saves a provider's key, and lists its models from Lonora's list."
     },
     "apps/api/src/lonora_api/routes/push_devices.py": {
       "name": "Push registration",
@@ -58,7 +62,7 @@
     },
     "apps/api/src/lonora_api/routes/secret_cards.py": {
       "name": "Secret card",
-      "description": "Handles the single submit of a Secret card: it stores the typed values as workspace secrets, sets up the connection or model key that uses them, and confirms it in the conversation."
+      "description": "Handles the single submit of a Secret card: it stores the typed values as workspace secrets, sets up the connection or model key that uses them (checking the key first), and confirms it in the conversation."
     },
     "apps/api/src/lonora_api/routes/tasks.py": {
       "name": "Tasks",

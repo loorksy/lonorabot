@@ -106,13 +106,21 @@ async def test_failed_run_reports_its_family_and_retries_once_after_the_wait():
         assert original["failure"] is None
         await failed(fixture, run_id, "model_rate_limited", reason="rate_limit", retry=29.5)
         run = await fixture.request("GET", f"/runs/{run_id}")
-        assert run["failure"] == {"family": "rate", "retry_after_seconds": 30}
+        assert run["failure"] == {
+            "family": "rate",
+            "retry_after_seconds": 30,
+            "provider": None,
+        }
         async with fixture.runtime.db.sessions() as session:
             event = await session.scalar(
                 select(EventRow).where(EventRow.run_id == run_id, EventRow.kind == "run.failed")
             )
         assert event is not None
-        assert event.payload["failure"] == {"family": "rate", "retry_after_seconds": 30}
+        assert event.payload["failure"] == {
+            "family": "rate",
+            "retry_after_seconds": 30,
+            "provider": None,
+        }
         # During the provider's wait the retry says how long is left; nothing is created.
         early = await post(fixture, f"/runs/{run_id}/retry")
         assert early.status_code == 409 and early.json()["code"] == "run_retry_too_early"

@@ -34,7 +34,9 @@ supervisors panel, a support desk, operations and reliability, security and comp
   restore tests, workspace snapshots, monitoring, a status page and support in Arabic and English.
 
 **What the customer brings**
-- Model API keys (BYOK, VISION §12, D6), entered in chat inside their Lonora.
+- Model API keys (BYOK, VISION §12, D6), entered in chat inside their Lonora; or their own ChatGPT plan through
+  Sign in with ChatGPT once OpenAI approves Lonora Cloud for remotely hosted apps (until then Cloud runs with
+  `LONORA_CHATGPT_SIGN_IN=off`, Amendment 4). Claude subscriptions are not offered.
 - Their MetaTrader account number, server and password, as their broker gave them. **No MetaApi account and no
   token**: the company's MetaApi account provides the connection and the company pays for it (D27, §3.8).
 - Optionally a Telegram bot token.

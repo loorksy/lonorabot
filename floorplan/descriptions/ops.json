@@ -60,6 +60,10 @@
       "name": "The gate",
       "description": "Runs every check before a merge or a release: the build, translations, all tests on fresh databases and both app suites."
     },
+    "scripts/import_model_catalog.py": {
+      "name": "Import the model list",
+      "description": "Writes Lonora's fixed model list from the model data package Rakazo uses, read as data only."
+    },
     "scripts/install.ps1": {
       "name": "Install (Windows)",
       "description": "Sets up Lonora for local development on Windows."

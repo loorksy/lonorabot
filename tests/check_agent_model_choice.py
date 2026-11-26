@@ -4,7 +4,7 @@ Exercises the owner's model API, ``model_request`` (applied at once only when th
 typed message this run answers names the model; otherwise refused with nothing changed and
 no card), Lonora assigning another agent's model on the owner's words, a new agent
 starting on Lonora's current model (3.1.2), ``subagent_spawn`` and ``consult_model`` on any
-catalog model of a connected provider, and per-agent usage. A change touches only the
+listed model of a connected provider (VISION 12.4), and per-agent usage. A change touches only the
 model choice: no other record changes and nothing is repeated. No real provider is
 called; a scripted adapter answers.
 """
@@ -21,22 +21,25 @@ from lonora_contracts.usage import TokenUsage
 from lonora_core.user_error import LonoraError
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import Base, EventRow, OwnerActionRow, RunRow
-from lonora_db.transactions import SettingsRepository
 from lonora_gateway.run_dispatch import run_model_choice
 from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
+from lonora_providers.catalog import listed_models as listed
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
 from lonora_tools.provenance import mark_external_content
 from sqlalchemy import func, select
 
-DEFAULT = ModelSelection(provider="openai", model="gpt-default-test")
-SONNET = ModelSelection(provider="anthropic", model="claude-sonnet-test")
-OPUS = ModelSelection(provider="anthropic", model="claude-opus-test")
+# Models of Lonora's list (VISION 12.4); the first of their names in list order, so a
+# name finds them first.
+DEFAULT = ModelSelection(provider="openai", model="gpt-6.2-sol")
+SONNET = ModelSelection(provider="anthropic", model="claude-sonnet-5-5")
+OPUS = ModelSelection(provider="anthropic", model="claude-opus-4-5")
 # In a connected provider's catalog, and in no route, backup or list of the owner's.
-HAIKU = ModelSelection(provider="anthropic", model="claude-haiku-test")
-UNCONNECTED = ModelSelection(provider="deepseek", model="deepseek-chat")
+HAIKU = ModelSelection(provider="anthropic", model="claude-haiku-4-5")
+# Listed, but its provider is not connected.
+UNCONNECTED = ModelSelection(provider="deepseek", model="deepseek-v4-pro")
 # Records a change may touch; every other table must stay exactly as it was.
 CHANGE_TABLES = {"ln_settings", "ln_events", "ln_effect_receipts"}
 REFUSED = "model_assignment_requires_owner_message"
@@ -73,25 +76,6 @@ async def main() -> None:
             await fixture.request(
                 "PUT", f"/providers/{provider}/credential", {"api_key": "explicit-test-key-1234"}
             )
-        async with db.sessions() as session, session.begin():
-            catalogs = {"openai": [DEFAULT], "anthropic": [SONNET, OPUS, HAIKU]}
-            for provider, models in catalogs.items():
-                await SettingsRepository().put(
-                    session,
-                    "catalog:" + provider,
-                    {
-                        "models": [
-                            {
-                                "id": item.model,
-                                "provider": provider,
-                                "name": item.model.replace("-test", "").title(),
-                                "source": "explicit-fixture",
-                            }
-                            for item in models
-                        ]
-                    },
-                )
-
         # 1. The owner's API: no mode, no allowed list; every catalog model to pick.
         gone = await fixture.client.get("/api/settings/models/allowed")
         assert gone.status_code in {404, 405}, gone.status_code
@@ -101,12 +85,10 @@ async def main() -> None:
         summary = await fixture.request("GET", path + "/summary")
         assert "mode" not in summary["record"] and "allowed" not in summary
         assert summary["current"]["model"] == DEFAULT.model
-        assert {item["model"] for item in summary["available"]} == {
-            DEFAULT.model,
-            SONNET.model,
-            OPUS.model,
-            HAIKU.model,
-        }
+        # Every listed model of the connected providers, and only those.
+        assert [(item["provider"], item["model"]) for item in summary["available"]] == [
+            (provider, item.id) for provider in ("openai", "anthropic") for item in listed(provider)
+        ]
         assert summary["usage"]["requests"] == 0
         refused_mode = await fixture.client.put(
             "/api" + path, json={"mode": "fixed", "primary": SONNET.model_dump()}
@@ -276,7 +258,7 @@ async def main() -> None:
         assert (await record())["preference"]["primary"] == OPUS.model_dump()
         await finish(unrelated)
         # Once the run reads third-party content, the owner's words no longer stand.
-        read = await owner_says("Use claude-sonnet-test", agent, thread)
+        read = await owner_says("Use claude-sonnet-5-5", agent, thread)
         async with db.sessions() as session, session.begin():
             await mark_external_content(session, read.lease.run_id, "web_fetch")
         assert (await call(read, {"model": SONNET.model_dump()}))["code"] == REFUSED
@@ -289,7 +271,7 @@ async def main() -> None:
         peer = await fixture.agent("Other agent")
         peer_thread = await fixture.conversation(peer)
         told_peer = await owner_says(
-            "Put the model chooser on claude-sonnet-test", peer, peer_thread
+            "Put the model chooser on claude-sonnet-5-5", peer, peer_thread
         )
         try:
             await call(told_peer, {"model": SONNET.model_dump(), "agent_id": agent["id"]})
@@ -307,7 +289,7 @@ async def main() -> None:
         routed = await call(vague, {"model": DEFAULT.model_dump(), "agent_id": agent["id"]})
         assert routed["code"] == REFUSED, routed
         await finish(vague)
-        told = await owner_says("Put the model chooser on gpt-default-test", lonora, lonora_thread)
+        told = await owner_says("Put the model chooser on gpt-6.2-sol", lonora, lonora_thread)
         routed = await call(told, {"model": DEFAULT.model_dump(), "agent_id": agent["id"]})
         assert routed["changed"] is True, routed
         moved = await record()
@@ -325,10 +307,10 @@ async def main() -> None:
         )
         assert "mode" not in facts and "allowed" not in facts, facts
         assert facts["answering"]["model"] == DEFAULT.model and facts["chosen_by"] == "owner"
-        assert facts["matches"][0] == {**OPUS.model_dump(), "name": "Claude-Opus"}
+        assert facts["matches"][0] == {**OPUS.model_dump(), "name": "Claude Opus 4.5 (latest)"}
         guessed = await call(context, {"model": {"provider": "anthropic", "model": "claude-haiku"}})
         assert guessed["code"] == "model_not_in_catalog", guessed
-        assert guessed["closest"][0] == {**HAIKU.model_dump(), "name": "Claude-Haiku"}
+        assert guessed["closest"][0] == {**HAIKU.model_dump(), "name": "Claude Haiku 4.5 (latest)"}
         print("PASS model_list shows the model answering now and exact ids by name")
 
         # 8. (f) A new agent Lonora creates with no model named starts on Lonora's current
@@ -386,7 +368,7 @@ async def main() -> None:
         await fixture.request("PUT", f"/agents/{lonora['id']}/model", {"primary": None})
         print("PASS a new agent starts on Lonora's current model, as a snapshot")
 
-        # 9. A helper on any catalog model of a connected provider, first in its chain.
+        # 9. A helper on any listed model of a connected provider, first in its chain.
         refused = await registry.execute(
             ToolCall(
                 id="spawn-" + uuid4().hex,
@@ -418,7 +400,7 @@ async def main() -> None:
         assert route.choices[0] == HAIKU and DEFAULT in route.choices
         print("PASS a helper starts on any available model, its agent's chain behind")
 
-        # 10. consult_model asks any catalog model of a connected provider it names.
+        # 10. consult_model asks any listed model of a connected provider it names.
         consulted: list[list[ModelSelection]] = []
 
         class Recording:

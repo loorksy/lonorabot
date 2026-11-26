@@ -999,9 +999,9 @@ async def adapter_complete(provider: str, stream: bool, stop: str, **options: An
     import httpx
     from lonora_adapter_kit.types import ModelMessage
     from lonora_adapters.models.anthropic import AnthropicAdapter
-    from lonora_adapters.models.openai import OpenAIAdapter
+    from lonora_adapters.models.deepseek import DeepSeekAdapter
 
-    adapter_type: Any = AnthropicAdapter if provider == "anthropic" else OpenAIAdapter
+    adapter_type: Any = AnthropicAdapter if provider == "anthropic" else DeepSeekAdapter
 
     async def delta(_: str) -> None:
         return None
@@ -1020,7 +1020,7 @@ async def adapter_complete(provider: str, stream: bool, stop: str, **options: An
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+@pytest.mark.parametrize("provider", ["anthropic", "deepseek"])
 @pytest.mark.parametrize("stream", [False, True])
 async def test_an_empty_normal_stop_is_a_reply_only_where_silence_is_allowed(
     provider: str, stream: bool

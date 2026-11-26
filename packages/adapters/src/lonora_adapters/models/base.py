@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any, cast
 
 import httpx
@@ -105,7 +105,7 @@ class BaseModelAdapter:
 
     async def stream_request(
         self, path: str, payload: dict[str, Any], headers: dict[str, str] | None = None
-    ) -> AsyncIterator[dict[str, Any]]:
+    ) -> AsyncGenerator[dict[str, Any]]:
         request_headers = {**self.auth_headers(), **(headers or {})}
         try:
             async with self.client.stream(

@@ -117,6 +117,7 @@ class ModelProviderError(LonoraError):
         output_limit: int | None = None,
         provider_type: str | None = None,
         inferred: bool = False,
+        param: str | None = None,
     ):
         code, status = CODES[reason]
         super().__init__(code, status, diagnostic_type=provider_type)
@@ -128,6 +129,12 @@ class ModelProviderError(LonoraError):
         # Set by the router when its whole chain failed: each candidate's provider, model
         # and failure, so background work can tell which routes refused access.
         self.failures: tuple[tuple[str, str, ModelProviderError], ...] = ()
+        # The request field the provider names (``error.param``), only when it is a field
+        # path: logged with the code, never the provider's text.
+        self.param = param
+        # The provider whose candidate failed, set by the router: the owner's error card
+        # names the ChatGPT plan's own limit (Amendment 4).
+        self.provider: str | None = None
 
 
 def reason_of(error: LonoraError) -> FailureReason | None:
@@ -268,7 +275,17 @@ _TYPED: dict[str, FailureReason] = {
     "context_length_exceeded": FailureReason.CONTEXT_OVERFLOW,
     "content_filter": FailureReason.CONTENT_POLICY,
     "content_policy_violation": FailureReason.CONTENT_POLICY,
+    # The ChatGPT plan's Responses error codes (OpenAI's Sign in with ChatGPT errors).
+    "subscription_sharing_usage_limit_exceeded": FailureReason.BILLING,
+    "subscription_sharing_user_not_eligible": FailureReason.PERMISSION,
+    "subscription_sharing_route_not_supported": FailureReason.PERMISSION,
+    "subscription_sharing_invalid_user": FailureReason.AUTH,
+    "subscription_sharing_unsupported_capability": FailureReason.FORMAT_ERROR,
+    "subscription_sharing_usage_unavailable": FailureReason.OVERLOADED,
+    "subscription_sharing_user_unavailable": FailureReason.OVERLOADED,
 }
+# The plan's signed permission context did not authorize the request.
+_PERMISSION_PREFIX = "chatpass_v2_"
 _OUTPUT_LIMIT_PATTERNS = (
     re.compile(r"at most (\d+) (?:completion|output) tokens"),
     re.compile(r">\s*(\d+),? which is the maximum"),
@@ -375,6 +392,21 @@ def error_details(payload: Any) -> tuple[str, str, str, int | None]:
     )
 
 
+# A field path such as ``model`` or ``tools[0].type``; anything else is not logged.
+_PARAM = re.compile(r"[A-Za-z0-9_.\[\]-]{1,100}")
+
+
+def error_param(payload: Any) -> str | None:
+    """``error.param`` of an OpenAI-shaped error, when it is a field path."""
+    if not isinstance(payload, dict):
+        return None
+    body = cast(dict[str, Any], payload)
+    nested = body.get("error")
+    error: dict[str, Any] = cast(dict[str, Any], nested) if isinstance(nested, dict) else body
+    param = error.get("param")
+    return param if isinstance(param, str) and _PARAM.fullmatch(param) else None
+
+
 def _has(text: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in text for pattern in patterns)
 
@@ -467,6 +499,8 @@ def classify_failure(
     text = " ".join(part for part in (kind, code, message) if part).lower()[:_MESSAGE_LIMIT]
     effective = status if status is not None else numeric
     typed = _TYPED.get(code) or _TYPED.get(kind)
+    if typed is None and code.startswith(_PERMISSION_PREFIX):
+        typed = FailureReason.PERMISSION
     output_limit: int | None = None
     inferred = False
     if typed is not None and (effective is None or effective >= 400):
@@ -503,6 +537,7 @@ def classify_failure(
         output_limit=output_limit,
         provider_type=kind or code or None,
         inferred=inferred,
+        param=error_param(payload),
     )
 
 

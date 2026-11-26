@@ -71,6 +71,7 @@ ROUTES = (
     "opportunities",
     "owner_actions",
     "secret_cards",
+    "chatgpt_sign_in",
     "tasks",
     "collaboration",
     "watches",

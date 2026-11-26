@@ -72,7 +72,7 @@ async def consult(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     current = state.get("selection")
     current_model = cast(dict[str, Any], current) if isinstance(current, dict) else None
     routed = await route(Capability.REASONING, owner_id=context.owner_id, agent_id=context.agent_id)
-    # Your own chain; any other model of a connected provider's catalog when named.
+    # Your own chain; any other listed model of a connected provider when named.
     alternatives = [item for item in routed.choices if not _same(item, current_model)]
     configured = [item.model_dump(mode="json") for item in alternatives]
     if params.model is not None:

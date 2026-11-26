@@ -38,6 +38,9 @@ class RunFailure(Contract):
 
     family: Literal["quota", "rate", "timeout", "model", "other"]
     retry_after_seconds: int | None = Field(default=None, ge=0)
+    # The provider that failed, when a model provider did: the ChatGPT plan's own limit
+    # is named as the plan's (Amendment 4).
+    provider: str | None = None
 
 
 class RunRequest(Contract):

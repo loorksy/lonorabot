@@ -8,7 +8,11 @@ from .domain import Contract
 
 # "openai_compatible" is an endpoint the owner names by its base URL (vLLM, Ollama, a
 # gateway): an API key and that URL, through the OpenAI-compatible adapter.
-ProviderId = Literal["openai", "anthropic", "deepseek", "zai", "openrouter", "openai_compatible"]
+# "openai_chatgpt" is the owner's ChatGPT plan, connected with Sign in with ChatGPT
+# (VISION Amendment 4): no key, so it has no name below.
+ProviderId = Literal[
+    "openai", "openai_chatgpt", "anthropic", "deepseek", "zai", "openrouter", "openai_compatible"
+]
 # A model provider's key is the owner's workspace secret under the provider's usual
 # environment-variable name (lead decision Q14 (b)), the name a command-line tool
 # expects (12.2). The router reads it on the server.

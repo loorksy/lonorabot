@@ -173,6 +173,7 @@ async def record_failure(
                 read_only_names={tool.name for tool in registry.tools.values() if tool.read_only},
                 reason=provider.reason.value if provider else None,
                 retry_after=provider.retry_after if provider else None,
+                provider=provider.provider if provider else None,
             )
             if provider is not None:
                 await raise_model_access(

@@ -10,8 +10,9 @@ import httpx
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_adapters.models.anthropic import AnthropicAdapter
+from lonora_adapters.models.compatible_endpoint import CompatibleEndpointAdapter
 from lonora_adapters.models.deepseek import DeepSeekAdapter
-from lonora_adapters.models.openai import OpenAIAdapter
+from lonora_adapters.models.openai_responses import OpenAIResponsesAdapter
 from lonora_adapters.models.openrouter import OpenRouterAdapter
 from lonora_adapters.models.zai import ZaiAdapter
 from lonora_agent.context.image_observations import (
@@ -112,10 +113,10 @@ def test_hydration_is_bounded_and_after_complete_block_and_revalidated():
 
 @pytest.mark.parametrize(
     "adapter_type",
-    [OpenAIAdapter, AnthropicAdapter, DeepSeekAdapter, ZaiAdapter, OpenRouterAdapter],
+    [OpenAIResponsesAdapter, AnthropicAdapter, DeepSeekAdapter, ZaiAdapter, OpenRouterAdapter],
 )
 def test_all_provider_http_payloads_contain_pixels_after_tool_results(
-    adapter_type: type[OpenAIAdapter]
+    adapter_type: type[OpenAIResponsesAdapter]
     | type[AnthropicAdapter]
     | type[DeepSeekAdapter]
     | type[ZaiAdapter]
@@ -140,6 +141,31 @@ def test_all_provider_http_payloads_contain_pixels_after_tool_results(
                 ]
                 assert base64.b64decode(blocks[-1]["source"]["data"]) == png
                 return httpx.Response(200, json={"content": [{"type": "text", "text": "seen"}]})
+            if adapter_type is OpenAIResponsesAdapter:
+                items = payload["input"]
+                # Calls and results as Responses items, then the observations' pixels.
+                assert [item.get("type", item.get("role")) for item in items[:4]] == [
+                    "function_call",
+                    "function_call",
+                    "function_call_output",
+                    "function_call_output",
+                ]
+                parts = [part for item in items[4:] for part in item["content"]]
+                assert {item["role"] for item in items[4:]} == {"user"}
+                assert [part["type"] for part in parts] == [
+                    "input_text",
+                    "input_image",
+                    "input_text",
+                    "input_image",
+                ]
+                assert base64.b64decode(parts[-1]["image_url"].split(",")[1]) == png
+                events: list[dict[str, Any]] = [
+                    {"type": "response.output_text.delta", "delta": "seen"},
+                    {"type": "response.completed", "response": {"id": "r", "usage": {}}},
+                ]
+                return httpx.Response(
+                    200, text="".join("data: " + json.dumps(e) + "\n\n" for e in events)
+                )
             wire = payload["messages"]
             # Both observations reach OpenAI-compatible wires as one user turn of parts.
             assert [m["role"] for m in wire] == ["assistant", "tool", "tool", "user"]
@@ -262,6 +288,10 @@ def test_actual_router_fallback_preserves_owner_and_image_exchange_or_rejects() 
         async def resolve(self, provider: str) -> str:
             return "scripted-only-key"
 
+        async def connection(self, provider: str) -> tuple[str, str | None]:
+            # The owner's endpoint: the one provider whose catalog is its own listing.
+            return "scripted-only-key", "https://llm.example.test/v1"
+
     async def check() -> None:
         db = Database.connect("sqlite+aiosqlite:///:memory:")
         clients: list[httpx.AsyncClient] = []
@@ -272,14 +302,16 @@ def test_actual_router_fallback_preserves_owner_and_image_exchange_or_rejects() 
             async with db.sessions() as session, session.begin():
                 for key, value in {
                     "model_routing": RoutingPolicy(
-                        unified=ModelSelection(provider="openai", model="large")
+                        unified=ModelSelection(provider="openai_compatible", model="large")
                     ).model_dump(mode="json"),
-                    "model_backups": {"choices": [{"provider": "openai", "model": "small"}]},
-                    "catalog:openai": {
+                    "model_backups": {
+                        "choices": [{"provider": "openai_compatible", "model": "small"}]
+                    },
+                    "catalog:openai_compatible": {
                         "models": [
                             ModelDescriptor(
                                 id=name,
-                                provider="openai",
+                                provider="openai_compatible",
                                 name=name,
                                 context_window=window,
                                 source="scripted:catalog",
@@ -300,10 +332,10 @@ def test_actual_router_fallback_preserves_owner_and_image_exchange_or_rejects() 
                     json={"choices": [{"message": {"content": "Inspected current pixels only"}}]},
                 )
 
-            def factory(provider: str, key: str) -> ModelAdapter:
+            def factory(provider: str, key: str, base_url: str) -> ModelAdapter:
                 client = httpx.AsyncClient(transport=httpx.MockTransport(response))
                 clients.append(client)
-                return OpenAIAdapter(key, client)
+                return CompatibleEndpointAdapter(key, base_url, client)
 
             old = exchange()
             current = exchange()

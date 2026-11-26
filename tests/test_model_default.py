@@ -1,13 +1,17 @@
 """The no-model state: a fresh install answers, and says the truth when it cannot.
 
-With a provider key and no routing, the router chooses a model the provider's own
-catalog lists, by a fixed preference, and records it as the routing. With nothing to
-choose from it raises ``model_not_configured`` (never an outage), and the replies that
-failed for that reason are queued again, in order, once the owner connects a model.
+With a provider key and no routing, the router chooses that provider's default model
+from Lonora's list (VISION 12.4) and records it as the routing; no provider is asked
+for its models, except the owner's own endpoint, whose first listed model is taken. A
+key the provider rejects is passed over for the next provider's.
+With nothing to choose from it raises ``model_not_configured`` (never an outage), and
+the replies that failed for that reason are queued again, in order, once the owner
+connects a model.
 """
 
 from typing import Any
 
+import httpx
 import pytest
 from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
@@ -17,10 +21,12 @@ from lonora_contracts.model_routing import Capability, ModelSelection, RoutingPo
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.run_retry import retry_unconfigured
-from lonora_db.schema import MessageRow, RunRow
-from lonora_providers.catalog import read_catalog
+from lonora_db.schema import MessageRow, RunRow, SettingRow
+from lonora_providers import default_model
+from lonora_providers.catalog import list_source, listed_models, read_catalog
 from lonora_providers.credentials import ProviderCredentials
-from lonora_providers.default_model import preferred_model
+from lonora_providers.default_model import DEFAULT_MODELS
+from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS
 from lonora_providers.router import GlobalModelRouter
 from lonora_providers.routing_policy import read_policy
 from lonora_session.idempotency import stable_id
@@ -30,6 +36,7 @@ from test_model_context import settings
 from test_task_runtime import task_db as task_db
 
 USER = [ModelMessage(role="user", content="مرحبا")]
+ENDPOINT = "https://llm.example.test/v1"
 
 
 class Keys(ProviderCredentials):
@@ -43,12 +50,18 @@ class Keys(ProviderCredentials):
             raise LonoraError("model_not_configured", 409)
         return "fixture-not-a-real-key"
 
+    async def connection(self, provider: str) -> tuple[str, str | None]:
+        return await self.resolve(provider), ENDPOINT if provider in OWNER_ENDPOINT else None
+
 
 class Provider:
-    """One provider's account: the models its catalog lists, or the failure it answers."""
+    """One provider's account: it answers turns, and the owner's endpoint lists its
+    models (or answers a failure). ``discovered`` counts every request for a list."""
 
-    def __init__(self, provider: str, models: list[str], failure: LonoraError | None = None):
-        self.provider, self.models, self.failure = provider, models, failure
+    def __init__(
+        self, provider: str, models: list[str] | None = None, failure: LonoraError | None = None
+    ):
+        self.provider, self.models, self.failure = provider, models or [], failure
         self.discovered = 0
         self.asked: list[str] = []
 
@@ -74,32 +87,25 @@ class Provider:
 def router(db: Database, keys: Keys, *accounts: Provider) -> GlobalModelRouter:
     by_name = {account.provider: account for account in accounts}
 
-    def factory(provider: str, _: str) -> ModelAdapter:
+    def factory(provider: str, _: str, base_url: str | None = None) -> ModelAdapter:
         return by_name[provider]
 
     return GlobalModelRouter(db, keys, factory)
 
 
-def test_the_preference_picks_only_models_the_catalog_lists() -> None:
-    families = ("claude-sonnet-5", "claude-sonnet-4-5")
-    # A dated snapshot is the family; the newest snapshot wins.
-    assert (
-        preferred_model(
-            [
-                "claude-opus-4-5-20251101",
-                "claude-sonnet-4-5-20250929",
-                "claude-sonnet-4-5-20250801",
-            ],
-            families,
-        )
-        == "claude-sonnet-4-5-20250929"
-    )
-    # The exact id wins over its snapshots, and an earlier family over a later one.
-    assert preferred_model(["gpt-5-mini-2025-08-07", "gpt-5-mini"], ("gpt-5-mini",)) == "gpt-5-mini"
-    assert preferred_model(["claude-sonnet-4-5", "claude-sonnet-5"], families) == "claude-sonnet-5"
-    # Another model that only shares the prefix is not the family.
-    assert preferred_model(["gpt-5-mini", "gpt-5-codex", "gpt-5.4"], ("gpt-5",)) is None
-    assert preferred_model([], families) is None
+def test_each_provider_defaults_to_a_strong_model_of_the_list() -> None:
+    # The owner's choice of defaults (VISION Amendment 4, M4), one per fixed provider.
+    assert DEFAULT_MODELS == {
+        "openai": "gpt-6.2-sol",
+        "openai_chatgpt": "gpt-6.1-sol",
+        "anthropic": "claude-sonnet-5-5",
+        "deepseek": "deepseek-v4-pro",
+        "zai": "glm-5.3",
+        "openrouter": "anthropic/claude-sonnet-5.5",
+    }
+    assert set(DEFAULT_MODELS) == set(PROVIDERS) - OWNER_ENDPOINT
+    for provider, model in DEFAULT_MODELS.items():
+        assert model in {item.id for item in listed_models(provider)}, (provider, model)
 
 
 @pytest.mark.asyncio
@@ -109,63 +115,123 @@ async def test_a_fresh_install_with_a_key_answers_and_records_its_choice(
     # Voice routes the owner already set stay as they are.
     voice = {"stt": {"provider": "openai", "model": "whisper-1"}}
     await settings(router_db, {"model_routing": {"mode": "unified", "routes": voice}})
-    openai = Provider("openai", ["whisper-1", "gpt-5-mini", "gpt-5"])
-    zai = Provider("zai", ["glm-4.6"])
+    openai, zai = Provider("openai"), Provider("zai")
     route = router(router_db, Keys("openai", "zai"), openai, zai)
     reply, selection = await route.complete(Capability.CONVERSATION, USER, [])
-    assert reply.text and selection == ModelSelection(provider="openai", model="gpt-5-mini")
-    assert openai.asked == ["gpt-5-mini"] and zai.discovered == 0
+    assert reply.text and selection == ModelSelection(provider="openai", model="gpt-6.2-sol")
+    assert openai.asked == ["gpt-6.2-sol"] and zai.asked == []
     # The choice is the routing, so Settings show it and the next request reads it.
     policy = await read_policy(router_db)
     assert policy.unified == selection and policy.mode == "unified"
     assert policy.routes[Capability.STT].model == "whisper-1"
-    assert [item.id for item in await read_catalog(router_db, "openai")] == openai.models
     await route.complete(Capability.BACKGROUND, USER, [])
-    assert openai.discovered == 1
+    # No provider was asked for its models, and none of their lists was stored: the
+    # catalog is Lonora's list.
+    assert openai.discovered == 0 and zai.discovered == 0
+    assert [item.id for item in await read_catalog(router_db, "openai")] == [
+        item.id for item in listed_models("openai")
+    ]
+    async with router_db.sessions() as session:
+        assert await session.get(SettingRow, "catalog:openai") is None
 
 
 @pytest.mark.asyncio
-async def test_a_deepseek_key_chooses_a_model_its_current_catalog_lists(
+async def test_a_deepseek_key_chooses_its_default_with_the_lists_window(
     router_db: Database,
 ) -> None:
-    """A fresh install with only a DeepSeek key, whose catalog lists the current ids
-    (seen in production, 2026-11): a model is chosen, never "not configured"."""
-    from lonora_providers.model_windows import family_output, family_window
-
-    deepseek = Provider("deepseek", ["deepseek-flash", "deepseek-v4-pro"])
+    """A fresh install with only a DeepSeek key (production, 2026-11): a model is chosen,
+    never "not configured", and it is sized by the window the list states."""
+    deepseek = Provider("deepseek")
     route = router(router_db, Keys("deepseek"), deepseek)
     reply, selection = await route.complete(Capability.CONVERSATION, USER, [])
     assert reply.text
     assert selection == ModelSelection(provider="deepseek", model="deepseek-v4-pro")
-    assert deepseek.asked == ["deepseek-v4-pro"]
-    # A catalog with only the other id still chooses it.
-    assert preferred_model(["deepseek-flash"], ("deepseek-v4-pro", "deepseek-flash")) == (
-        "deepseek-flash"
+    assert deepseek.asked == ["deepseek-v4-pro"] and deepseek.discovered == 0
+    limits = await route.context_limits(Capability.CONVERSATION)
+    assert limits.window == 1_000_000 and limits.capacity_source == list_source()
+
+
+@pytest.mark.asyncio
+async def test_providers_are_taken_in_registry_order_and_only_a_listed_default_is_chosen(
+    router_db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    accounts = (Provider("zai"), Provider("anthropic"))
+    _, selection = await router(router_db, Keys("zai", "anthropic"), *accounts).complete(
+        Capability.CONVERSATION, USER, []
     )
-    # Their windows are not documented here: they stay unknown, so the policy's limits
-    # apply until the provider states one (never a guessed number).
-    for model in ("deepseek-flash", "deepseek-v4-pro"):
-        assert family_window(model) is None and family_output(model) is None
+    assert selection == ModelSelection(provider="anthropic", model="claude-sonnet-5-5")
+    # A default the list no longer holds is never chosen: the next provider's is.
+    await settings(router_db, {"model_routing": {}})
+    monkeypatch.setitem(DEFAULT_MODELS, "anthropic", "claude-sonnet-unlisted")
+    _, selection = await router(router_db, Keys("zai", "anthropic"), *accounts).complete(
+        Capability.CONVERSATION, USER, []
+    )
+    assert selection == ModelSelection(provider="zai", model="glm-5.3")
+
+
+class KeyStatuses:
+    """Real adapters on fake providers, each answering its key check with a status."""
+
+    def __init__(self, **statuses: int) -> None:
+        self.statuses = statuses
+        self.seen: list[tuple[str, str, str]] = []
+
+    def __call__(self, provider: str, key: str, base_url: str | None = None) -> ModelAdapter:
+        def answer(request: httpx.Request) -> httpx.Response:
+            self.seen.append((provider, request.method, request.url.path))
+            return httpx.Response(self.statuses[provider], json={"data": [{"id": "unlisted"}]})
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(answer))
+        return PROVIDERS[provider](key, client)
 
 
 @pytest.mark.asyncio
-async def test_the_next_provider_is_used_when_the_first_lists_no_preferred_model(
+async def test_a_rejected_key_is_passed_over_for_the_next_providers_working_one(
     router_db: Database,
 ) -> None:
-    openai = Provider("openai", ["text-embedding-3-small"])
-    zai = Provider("zai", ["glm-4.6", "glm-4.5v"])
-    route = router(router_db, Keys("openai", "zai"), openai, zai)
-    _, selection = await route.complete(Capability.CONVERSATION, USER, [])
-    assert selection == ModelSelection(provider="zai", model="glm-4.6")
+    # A stale OpenAI key (an old LONORA_OPENAI_API_KEY) never takes the route from a
+    # working Anthropic key.
+    statuses = KeyStatuses(openai=401, anthropic=200)
+    keys = Keys("openai", "anthropic")
+    chosen = await default_model.choose_default_model(router_db, keys, statuses)
+    assert chosen == ModelSelection(provider="anthropic", model="claude-sonnet-5-5")
+    assert (await read_policy(router_db)).unified == chosen
+    # One status-only request per key; nothing the providers list is kept.
+    assert statuses.seen == [("openai", "GET", "/v1/models"), ("anthropic", "GET", "/v1/models")]
+    async with router_db.sessions() as session:
+        assert await session.get(SettingRow, "catalog:anthropic") is None
 
 
 @pytest.mark.asyncio
-async def test_without_a_key_or_a_known_model_the_state_is_not_configured(
+async def test_a_key_that_could_not_be_checked_is_used(router_db: Database) -> None:
+    statuses = KeyStatuses(openai=503, anthropic=200)
+    chosen = await default_model.choose_default_model(
+        router_db, Keys("openai", "anthropic"), statuses
+    )
+    assert chosen == ModelSelection(provider="openai", model="gpt-6.2-sol")
+    assert statuses.seen == [("openai", "GET", "/v1/models")]
+
+
+@pytest.mark.asyncio
+async def test_only_rejected_keys_choose_nothing_and_say_the_key_was_rejected(
     router_db: Database,
 ) -> None:
+    statuses = KeyStatuses(openai=401, anthropic=403)
+    with pytest.raises(ModelProviderError) as raised:
+        await default_model.choose_default_model(router_db, Keys("openai", "anthropic"), statuses)
+    assert raised.value.code == "model_credentials_rejected"
+    assert (await read_policy(router_db)).unified is None
+
+
+@pytest.mark.asyncio
+async def test_without_a_key_or_a_listed_model_the_state_is_not_configured(
+    router_db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(DEFAULT_MODELS, "openai", "gpt-unlisted")
     for route in (
         router(router_db, Keys()),
-        router(router_db, Keys("openai"), Provider("openai", ["text-embedding-3-small"])),
+        router(router_db, Keys("openai"), Provider("openai")),
+        router(router_db, Keys("openai_compatible"), Provider("openai_compatible")),
     ):
         with pytest.raises(LonoraError) as raised:
             await route.complete(Capability.CONVERSATION, USER, [])
@@ -177,25 +243,42 @@ async def test_without_a_key_or_a_known_model_the_state_is_not_configured(
 
 
 @pytest.mark.asyncio
-async def test_an_unreachable_provider_is_reported_as_unreachable_not_as_unconfigured(
+async def test_the_owners_endpoint_answers_with_the_first_model_it_lists(
+    router_db: Database,
+) -> None:
+    endpoint = Provider("openai_compatible", ["llama-4", "qwen-4"])
+    route = router(router_db, Keys("openai_compatible"), endpoint)
+    _, selection = await route.complete(Capability.CONVERSATION, USER, [])
+    assert selection == ModelSelection(provider="openai_compatible", model="llama-4")
+    assert endpoint.discovered == 1
+    # Its own list is its catalog: the owner's models.
+    assert [item.id for item in await read_catalog(router_db, "openai_compatible")] == [
+        "llama-4",
+        "qwen-4",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_an_unreachable_endpoint_is_reported_as_unreachable_not_as_unconfigured(
     router_db: Database,
 ) -> None:
     outage = ModelProviderError(FailureReason.CONNECTION)
-    route = router(router_db, Keys("openai"), Provider("openai", [], outage))
+    down = Provider("openai_compatible", failure=outage)
+    route = router(router_db, Keys("openai_compatible"), down)
     with pytest.raises(ModelProviderError) as raised:
         await route.complete(Capability.CONVERSATION, USER, [])
     assert raised.value.code == "model_provider_unavailable"
     assert (await read_policy(router_db)).unified is None
-    # A provider that answers is still used when another one is down.
-    zai = Provider("zai", ["glm-4.6"])
-    route = router(router_db, Keys("openai", "zai"), Provider("openai", [], outage), zai)
+    # A connected provider answers before the endpoint is asked at all.
+    down = Provider("openai_compatible", failure=outage)
+    route = router(router_db, Keys("zai", "openai_compatible"), Provider("zai"), down)
     _, selection = await route.complete(Capability.CONVERSATION, USER, [])
-    assert selection.provider == "zai"
+    assert selection.provider == "zai" and down.discovered == 0
 
 
 @pytest.mark.asyncio
 async def test_only_a_text_request_chooses_and_a_read_never_does(router_db: Database) -> None:
-    openai = Provider("openai", ["gpt-5-mini"])
+    openai = Provider("openai")
     route = router(router_db, Keys("openai"), openai)
     # Reading the route (the model card, model_list) changes nothing.
     with pytest.raises(LonoraError) as raised:
@@ -208,17 +291,17 @@ async def test_only_a_text_request_chooses_and_a_read_never_does(router_db: Data
     # A consultation names its own models.
     with pytest.raises(LonoraError):
         await route.complete(Capability.CONVERSATION, USER, [], choices=[])
-    assert openai.discovered == 0 and (await read_policy(router_db)).unified is None
+    assert openai.asked == [] and (await read_policy(router_db)).unified is None
 
 
 @pytest.mark.asyncio
 async def test_the_owners_own_models_are_never_replaced(router_db: Database) -> None:
-    chosen = ModelSelection(provider="zai", model="glm-4.6")
+    chosen = ModelSelection(provider="zai", model="glm-4.7")
     await settings(router_db, {"model_backups": {"choices": [chosen.model_dump(mode="json")]}})
-    openai, zai = Provider("openai", ["gpt-5-mini"]), Provider("zai", ["glm-4.6"])
+    openai, zai = Provider("openai"), Provider("zai")
     route = router(router_db, Keys("openai", "zai"), openai, zai)
     _, selection = await route.complete(Capability.CONVERSATION, USER, [])
-    assert selection == chosen and openai.discovered == 0
+    assert selection == chosen and openai.asked == []
     assert (await read_policy(router_db)) == RoutingPolicy()
 
 
@@ -349,18 +432,18 @@ async def test_an_agent_in_full_is_not_answered_late_by_itself(
 async def test_custom_routes_are_never_filled_in_and_a_fruitless_search_is_not_repeated(
     router_db: Database,
 ) -> None:
-    custom = {"mode": "custom", "routes": {"conversation": {"provider": "zai", "model": "glm-4.6"}}}
+    custom = {"mode": "custom", "routes": {"conversation": {"provider": "zai", "model": "glm-5.3"}}}
     await settings(router_db, {"model_routing": custom})
-    openai = Provider("openai", ["gpt-5-mini"])
-    route = router(router_db, Keys("openai", "zai"), openai, Provider("zai", ["glm-4.6"]))
+    openai = Provider("openai")
+    route = router(router_db, Keys("openai", "zai"), openai, Provider("zai"))
     with pytest.raises(LonoraError):
         await route.complete(Capability.VISION, USER, [])
-    assert openai.discovered == 0
+    assert openai.asked == []
     assert (await read_policy(router_db)).model_dump(mode="json")["unified"] is None
-    # A key whose catalog lists nothing preferred is asked once, not on every request.
+    # An endpoint that lists nothing is asked once, not on every request.
     await settings(router_db, {"model_routing": {}})
-    empty = Provider("openai", ["text-embedding-3-small"])
-    route = router(router_db, Keys("openai"), empty)
+    empty = Provider("openai_compatible")
+    route = router(router_db, Keys("openai_compatible"), empty)
     for _ in range(3):
         with pytest.raises(LonoraError):
             await route.context_limits(Capability.CONVERSATION)
@@ -370,13 +453,23 @@ async def test_custom_routes_are_never_filled_in_and_a_fruitless_search_is_not_r
 
 
 @pytest.mark.asyncio
-async def test_concurrent_first_requests_choose_once(router_db: Database) -> None:
+async def test_concurrent_first_requests_choose_once(
+    router_db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import asyncio
 
-    openai = Provider("openai", ["gpt-5-mini"])
-    route = router(router_db, Keys("openai"), openai)
+    chosen: list[ModelSelection | None] = []
+    choose = default_model.choose_default_model
+
+    async def counted(*args: Any) -> ModelSelection | None:
+        chosen.append(await choose(*args))
+        return chosen[-1]
+
+    monkeypatch.setattr("lonora_providers.router.choose_default_model", counted)
+    endpoint = Provider("openai_compatible", ["llama-4"])
+    route = router(router_db, Keys("openai_compatible"), endpoint)
     await asyncio.gather(*(route.complete(Capability.CONVERSATION, USER, []) for _ in range(5)))
-    assert openai.discovered == 1
+    assert len(chosen) == 1 and endpoint.discovered == 1
 
 
 @pytest.mark.asyncio

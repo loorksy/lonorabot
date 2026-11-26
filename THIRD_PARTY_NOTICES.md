@@ -260,6 +260,39 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
+## Model list (@earendil-works/pi-ai)
+
+Source: the npm package `@earendil-works/pi-ai` 1.6.0 (https://github.com/earendil-works/pi,
+`packages/ai`), the model data Rakazo pins (VISION Amendment 4).
+License: MIT (the package's `license`). Copyright (c) Mario Zechner, the package's
+`author`; the package states no copyright line or year of its own. The npm package
+ships no licence file; the MIT permission notice is reproduced below.
+
+Adapted portions: the model entries of `dist/providers/data/{anthropic,openai,openai-codex,
+deepseek,zai,openrouter}.json` (id, name, wire, context window, maximum output, inputs,
+reasoning and list prices), converted by `scripts/import_model_catalog.py` into
+`packages/providers/src/lonora_providers/models.json`. Modifications: chat models only,
+OpenRouter's `:batch` ids dropped, `openai-codex` named `openai_chatgpt`, fields renamed and
+sorted. The data is read as JSON; no code of the package is included or run.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 ## Pair icons (nvstly/icons)
 
 Source: https://github.com/nvstly/icons ("Ticker Logos (Stocks, Cryptocurrencies, & Forex)"),

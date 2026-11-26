@@ -48,6 +48,7 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_db.transactions import SettingsRepository
+from lonora_providers.catalog import list_source
 from lonora_providers.context import ContextLimits, context_limits, prepare_context
 from lonora_providers.model_windows import FAMILY_SOURCE
 from lonora_providers.router import GlobalModelRouter
@@ -147,20 +148,19 @@ async def test_router_reports_limits_of_its_primary_model(router_db: Database) -
         await SettingsRepository().put(
             session,
             "model_routing",
-            RoutingPolicy(unified=ModelSelection(provider="openai", model="big")).model_dump(
+            RoutingPolicy(unified=ModelSelection(provider="openai", model="gpt-5")).model_dump(
                 mode="json"
             ),
         )
-        await SettingsRepository().put(
-            session,
-            "catalog:openai",
-            {"models": [descriptor(400_000, "big").model_dump(mode="json")]},
-        )
+    # The window and output maximum are Lonora's list's (VISION 12.4).
     derived = await GlobalModelRouter(router_db, FixtureCredentials()).context_limits(
         Capability.CONVERSATION
     )
-    assert derived.window == 400_000
-    assert derived.input_tokens == 400_000 - 8192 - 8000
+    assert derived.window == 400_000 and derived.capacity_source == list_source()
+    # A documented maximum output (128000) lifts the unknown-model cap: the policy's
+    # output budget is reserved.
+    assert derived.output_tokens == ModelContextPolicy().output_tokens == 16384
+    assert derived.input_tokens == 400_000 - 16384 - 8000
 
 
 # --- 2. Trust separation: one escaping helper, shedding by priority -----------------

@@ -64,9 +64,13 @@
       "name": "Reply same-thread check",
       "description": "Makes sure a reply is in the same conversation as the message it replies to."
     },
+    "packages/core/src/lonora_core/model_list.py": {
+      "name": "Model list file",
+      "description": "Reads the fixed model list Lonora ships, so prices and the providers' catalog share one copy."
+    },
     "packages/core/src/lonora_core/model_pricing.py": {
       "name": "Model prices",
-      "description": "Holds the public list prices used to show usage cost."
+      "description": "Gives the list prices from Lonora's model list, used to show usage cost."
     },
     "packages/core/src/lonora_core/model_routing.py": {
       "name": "Model selection",

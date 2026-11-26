@@ -28,7 +28,7 @@ async def spawn_subagent(
         if existing:
             return run_data(existing)
         if model is not None and not await model_available(context, model):
-            # Any model of a connected provider's catalog; model_list finds exact ids.
+            # Any listed model of a connected provider; model_list finds exact ids.
             return {"ok": False, "code": "subagent_model_not_available"}
         count = await session.scalar(
             select(func.count())
