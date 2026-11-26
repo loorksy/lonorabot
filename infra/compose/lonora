@@ -989,7 +989,7 @@ cmd_start() {
     compose up -d --wait db
     compose run --rm migrate
     maintenance_off
-    up_all
+    up_all || die 'A service did not turn healthy (the Gateway is healthy while its heartbeat is fresh). Check: sudo lonora status; sudo lonora logs gateway'
     wait_for /ready || die "Services started but /ready did not pass within ${READY_TIMEOUT}s. Check: sudo lonora logs api"
     say "Lonora is running; /ready passes (migration $(db_revision))."
 }

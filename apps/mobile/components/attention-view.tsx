@@ -8,7 +8,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Text, View } from "react-native";
 import { api } from "../lib/api";
-import { attentionLabels } from "../lib/attention-labels";
+import { attentionTitle } from "../lib/attention-labels";
 import { useSession } from "../lib/session";
 import { textDirection } from "../lib/text-direction";
 import { Button, colors, ErrorNotice } from "./ui";
@@ -61,7 +61,7 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
         >
           <Text style={{ color: colors.foreground, textAlign: align }}>
             {/* Each code says which item it is, as on the web; a waiting question has none. */}
-            {t(row.code ? attentionLabels[row.code] : "attentionOwnerQuestion")}
+            {row.code ? attentionTitle(t, row.code, row) : t("attentionOwnerQuestion")}
           </Text>
           {row.summary ? (
             <Text

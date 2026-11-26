@@ -8,10 +8,10 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
 from lonora_core.user_error import LonoraError
-from sqlalchemy import ColumnElement, Select, exists, or_, select
+from sqlalchemy import ColumnElement, Select, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .runs import create_run
+from .runs import aware, create_run
 from .schema import AgentRow, RoutineRow, RunRow
 from .threads import background_origin, create_thread
 from .transactions import owned_agent
@@ -148,7 +148,7 @@ async def due_routines(session: AsyncSession, limit: int = 30) -> list[tuple[str
 async def enqueue_one(session: AsyncSession, routine_id: str) -> bool:
     """Enqueue one routine in its own transaction, if it is still due and unclaimed.
 
-    False when it is not, or when its earlier run is unfinished and the tick is skipped."""
+    False when it is not, or when its tick is skipped or held (``enqueue_routine``)."""
     now = utcnow()
     row = await session.scalar(
         due_query(now)
@@ -191,31 +191,69 @@ async def earlier_run_unfinished(session: AsyncSession, row: RoutineRow) -> bool
     )
 
 
-async def model_access_refused(session: AsyncSession, row: RoutineRow) -> bool:
-    """Whether every model the routine's agent could use for background work has a standing
-    ``model_access_failed`` item (P1-08): its Run could only fail the same way again."""
-    from .agent_models import model_candidates
+# While routines are held, one is still let through now and then, so a cause fixed outside
+# Lonora (credit topped up, the model allowed, the deployment's key replaced) ends the hold:
+# the first try after the router's own 15-minute bench of a refused key, each later one
+# twice as long after the last, at most a day apart.
+RETRY_FIRST = timedelta(minutes=15)
+RETRY_LONGEST = timedelta(hours=24)
+
+
+async def model_access_refused(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
+    """Whether the routine's Run could only fail the same way again (P1-08): every model the
+    router would try for the agent's background work has a standing ``model_access_failed``
+    item or a provider with no key, at least one has an item, and no try is due.
+
+    A try is a routine Run of the agent let through while the items stand
+    (``RETRY_FIRST`` after the newest of them, then each wait doubled from the last try,
+    at most ``RETRY_LONGEST``). If it fails the same way it raises nothing new: its items
+    still stand. If a model answers, the items it disproves end, and the routines fire."""
+    from .agent_models import model_candidates, tried_candidates
     from .attention import refused_routes
+    from .model_credentials import has_key
 
     refused = await refused_routes(session, row.owner_id)
     if not refused:
         return False
-    chain, _ = await model_candidates(
+    ordered, _ = await model_candidates(
         session, Capability.BACKGROUND, owner_id=row.owner_id, agent_id=row.agent_id
     )
-    return bool(chain) and all(
-        choice.provider in refused or choice.provider + ":" + choice.model in refused
-        for choice in chain
-    )
+    raised: list[datetime] = []
+    for choice in tried_candidates(ordered):
+        found = [
+            refused[route]
+            for route in (choice.provider, choice.provider + ":" + choice.model)
+            if route in refused
+        ]
+        if found:
+            raised.append(max(found))
+        elif await has_key(session, choice.provider):
+            return False
+    if not raised:
+        return False
+    since = aware(max(raised))
+    tries, last = (
+        await session.execute(
+            select(func.count(RunRow.id), func.max(RunRow.created_at)).where(
+                RunRow.agent_id == row.agent_id,
+                RunRow.trigger == "routine",
+                RunRow.created_at > since,
+            )
+        )
+    ).one()
+    wait = min(RETRY_LONGEST, RETRY_FIRST * 2 ** min(int(tries), 7))
+    return now < aware(last or since) + wait
 
 
 async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
-    """Fire one due routine; False when its earlier run is unfinished and the tick is skipped.
+    """Fire one due routine; False when its earlier run is unfinished and the tick is
+    skipped, or while its run could only fail on refused model access (held).
 
-    A skipped tick creates no run: the schedule advances as after a run, and the skipped
-    occurrences are counted. The next run carries, in server-only metadata, when it was
-    due (``scheduled_for``), the later occurrences folded into it (``missed_occurrences``)
-    and the occurrences skipped before it (``skipped_occurrences``). A one-shot always fires.
+    A skipped or held tick creates no run: the schedule advances as after a run, and the
+    skipped occurrences are counted. The next run carries, in server-only metadata, when it
+    was due (``scheduled_for``), the later occurrences folded into it
+    (``missed_occurrences``) and the occurrences skipped before it
+    (``skipped_occurrences``). A one-shot is never skipped; while held it stays due.
     """
     due = row.next_run_at if row.next_run_at.tzinfo else row.next_run_at.replace(tzinfo=UTC)
     missed = 0
@@ -236,12 +274,13 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             # routine fires on its schedule once the earlier run has ended.
             row.skipped_occurrences += 1 + missed
             return False
-    if await model_access_refused(session, row):
-        # Held until the owner saves a key or a run on that route succeeds: the tick has
-        # advanced and no Run is created. A one-shot counts as fired, as a failed run would.
+    if await model_access_refused(session, row, now):
+        # Held until the cause is fixed (``model_access_refused``): no Run is created. A
+        # recurring routine's tick has advanced and counts as skipped; a one-shot stays
+        # due and fires once released, or as the next try.
         log.info("routine_held code=model_access_failed")
-        if row.run_at is not None:
-            row.enabled, row.last_run_at = False, now
+        if row.run_at is None:
+            row.skipped_occurrences += 1 + missed
         return False
     run = await create_run(
         session,

@@ -11,6 +11,7 @@ connected provider is assignable (``lonora_providers.catalog``). A new agent sta
 (``inherit_lead_model``, VISION 3.1.2) until the owner assigns another.
 """
 
+from collections.abc import Iterable
 from hashlib import sha256
 from typing import Literal
 
@@ -103,6 +104,22 @@ async def model_candidates(
         *(ModelSelection.model_validate(item) for item in backups.get("choices", [])),
     ]
     return ordered, record
+
+
+# Distinct candidates one request may try, primary included.
+MAXIMUM_CANDIDATES = 6
+
+
+def tried_candidates(ordered: Iterable[ModelSelection]) -> list[ModelSelection]:
+    """The models the router tries for text work, of ``model_candidates``' list: each one
+    once, in order, at most ``MAXIMUM_CANDIDATES``."""
+    seen: set[tuple[str, str]] = set()
+    tried: list[ModelSelection] = []
+    for item in ordered:
+        if (item.provider, item.model) not in seen:
+            seen.add((item.provider, item.model))
+            tried.append(item)
+    return tried[:MAXIMUM_CANDIDATES]
 
 
 def same_choice(record: AgentModelRecord, preference: AgentModelPreference) -> bool:

@@ -4,7 +4,9 @@
 // shows on its agent's row.
 import assert from "node:assert/strict";
 import test from "node:test";
+import { attentionTitle } from "../../apps/mobile/lib/attention-labels";
 import { attentionBanner, messageBanner } from "../../apps/mobile/lib/heads-up";
+import { translate } from "../../apps/mobile/lib/i18n";
 import type { Event } from "../../packages/contracts/src";
 
 const row = (id: string, fields: Record<string, unknown> = {}) =>
@@ -167,4 +169,25 @@ test("urgent items: old ones stay quiet, a group's shows on its row, a broker ou
   assert.equal(outage?.text, "Broker lost");
   // Any other urgent item with no row of its own shows nowhere.
   assert.equal(attentionBanner(item({ agent_id: "zz" }), context), null);
+});
+
+test("a refused model names its provider and the failure family, in both languages", () => {
+  const en = (label: Parameters<typeof translate>[1]) => translate("en", label);
+  const ar = (label: Parameters<typeof translate>[1]) => translate("ar", label);
+  const named = { reason: "auth" as const, provider_name: "OpenAI" };
+  assert.equal(attentionTitle(en, "model_access_failed", named), "Model key rejected by OpenAI");
+  assert.equal(attentionTitle(ar, "model_access_failed", named), "رفض OpenAI مفتاح النموذج");
+  assert.equal(
+    attentionTitle(en, "model_access_failed", { reason: "billing", provider_name: null }),
+    "Credit spent or plan ended at your OpenAI-compatible endpoint",
+  );
+  // Without a family it says what it always said; other items keep their own line.
+  assert.equal(
+    attentionTitle(en, "model_access_failed", {}),
+    "A model provider refused background work",
+  );
+  assert.equal(
+    attentionTitle(en, "gateway_stopped", named),
+    "Lonora's background service has stopped",
+  );
 });

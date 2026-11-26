@@ -35,6 +35,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError, SQLAlchemyError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .collaboration.outcome_return import return_outcome
@@ -50,7 +51,10 @@ log = logging.getLogger("lonora.executor")
 TRANSIENT_RENEWAL_ERRORS = (SQLAlchemyError, OSError, TimeoutError)
 # How often a running Run looks whether it was cancelled (VISION 4.6, 4.7, 7.1.5).
 WATCH_SECONDS = 2.0
-# How often a cancel noticed inside an effect looks again whether the effect ended.
+# SQLSTATE classes of a failure of the database rather than of the statement (PostgreSQL,
+# appendix A): a Run's final commit is retried after one of them (database_failed).
+TRANSIENT_SQLSTATES = ("08", "40", "53", "57", "58")
+# How often a lost lease noticed inside an effect looks again whether the effect ended.
 EFFECT_POLL_SECONDS = 0.2
 
 
@@ -86,16 +90,14 @@ async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[]
             break
 
 
-async def watch_fence(
-    context: ToolContext, worker: asyncio.Task[object] | None, lost: Callable[[], None]
-) -> None:
+async def watch_fence(context: ToolContext, lost: Callable[[], None]) -> None:
     """Stop the Run within about two seconds once its fence moved (a cancel).
 
     A cancel only moves the fence. Between fenced writes (a model thinking before its
     first token, a long read, a backoff sleep) the Run would otherwise go on, spending
-    the owner's key, until its next lease renewal. A worker inside an effect is never
-    cut: the cancel takes effect once that call has returned, and the checkpoint of its
-    result is already refused by the moved fence.
+    the owner's key, until its next lease renewal. ``lost`` never cuts a worker inside
+    an effect (``execute_run``): the cancel takes effect once that call has returned, and
+    the checkpoint of its result is already refused by the moved fence.
     """
     while True:
         await asyncio.sleep(WATCH_SECONDS)
@@ -109,21 +111,30 @@ async def watch_fence(
             continue
         # Only a cancel (or a newer claim) moves the fence; the Run's own completion or
         # release keeps it, so the writing of its outcome is never cut.
-        if fence == context.lease.fence:
-            continue
-        while True:
-            if context.drain is None or worker not in context.drain.effects:
-                lost()
-                return
-            await asyncio.sleep(EFFECT_POLL_SECONDS)
+        if fence != context.lease.fence:
+            lost()
+            return
 
 
-def connection_failed(error: Exception) -> bool:
-    """A database failure of the connection (a drop, a failover, a timeout), not of the
-    statement: worth another attempt of the same transaction."""
-    return isinstance(error, OSError | TimeoutError | OperationalError | InterfaceError) or (
-        isinstance(error, DBAPIError) and error.connection_invalidated
-    )
+def database_failed(error: Exception) -> bool:
+    """A failure of the database, not of the statement: worth another attempt of the same
+    transaction.
+
+    asyncpg reaches SQLAlchemy as a plain ``DBAPIError`` for most of these, so its SQLSTATE
+    decides: a connection exception (08), a rollback such as a deadlock or a serialization
+    failure (40), insufficient resources such as too many connections (53), an operator's
+    intervention such as a restart or a failover (57) or a system error (58). A full pool
+    is SQLAlchemy's ``TimeoutError``, not the builtin one. A constraint, a bad value or any
+    other error of the statement would fail every attempt and is never retried.
+    """
+    if isinstance(error, DBAPIError):
+        sqlstate = getattr(error.orig, "sqlstate", None)
+        return (
+            error.connection_invalidated
+            or isinstance(error, OperationalError | InterfaceError)
+            or (isinstance(sqlstate, str) and sqlstate.startswith(TRANSIENT_SQLSTATES))
+        )
+    return isinstance(error, OSError | TimeoutError | PoolTimeoutError)
 
 
 async def final_commit[Committed](
@@ -133,12 +144,13 @@ async def final_commit[Committed](
     write: Callable[[AsyncSession], Awaitable[Committed]],
 ) -> Committed:
     """A Run's final transaction (its completion, its wait for the owner, its release),
-    retried like a lease renewal after a transient database error while the lease holds.
+    retried like a lease renewal after a failure of the database (``database_failed``)
+    while the lease holds.
 
     ``keep_lease`` goes on renewing meanwhile and sets ``lost`` once it gives the lease
-    up; a fenced ``stale_lease`` or any other error is never retried. The fence makes a
-    second commit impossible: a retry after a commit whose answer was lost finds the Run
-    no longer leased.
+    up; a fenced ``stale_lease`` or an error of the statement is never retried. The fence
+    makes a second commit impossible: a retry after a commit whose answer was lost finds
+    the Run no longer leased.
     """
     margin = lease_seconds / 6
     failed_at: float | None = None
@@ -149,7 +161,7 @@ async def final_commit[Committed](
         except Exception as error:
             failed_at = monotonic() if failed_at is None else failed_at
             if (
-                not connection_failed(error)
+                not database_failed(error)
                 or lost.is_set()
                 or monotonic() - failed_at >= lease_seconds - margin
             ):
@@ -201,14 +213,34 @@ async def execute_run(
     # Only the Run's own work is cancelled: once it ended, its outcome is being written
     # (or discarded) and a cancel there would escape into the worker loop.
     working = True
+    cutting: asyncio.Task[None] | None = None
+
+    async def cut_after_effect() -> None:
+        while True:
+            if context.drain is None or current not in context.drain.effects:
+                if current and working:
+                    current.cancel()
+                return
+            await asyncio.sleep(EFFECT_POLL_SECONDS)
 
     def lose() -> None:
+        """The lease is lost (a cancel, a newer claim, renewal out of time): stop the Run.
+
+        Whoever noticed it (the fence watcher or a lease renewal), a worker inside an
+        effect, from ``before_effect`` of a call that is not read-only until its result is
+        checkpointed, is never cut: it stops once that call has returned (VISION 6.3).
+        """
+        nonlocal cutting
         lost_lease.set()
-        if current and working:
+        if not (current and working) or cutting is not None:
+            return
+        if context.drain is not None and current in context.drain.effects:
+            cutting = asyncio.create_task(cut_after_effect())
+        else:
             current.cancel()
 
     heartbeat_task = asyncio.create_task(keep_lease(context, lease_seconds, lose))
-    watch_task = asyncio.create_task(watch_fence(context, current, lose))
+    watch_task = asyncio.create_task(watch_fence(context, lose))
     try:
         async with context.db.sessions() as session, session.begin():
             row = await require_lease(session, context.lease, lock=True)
@@ -467,7 +499,13 @@ async def execute_run(
                 },
             )
 
-        await final_commit(context, lease_seconds, lost_lease, release)
+        try:
+            await final_commit(context, lease_seconds, lost_lease, release)
+        except LonoraError as error:
+            # A cancel that raced the hand-back moved the fence first: as in the other
+            # branches, a stale lease ends the Run here and is no failure of the worker.
+            if error.code != "stale_lease":
+                raise
     except TaskSuspended:
         return
     except asyncio.CancelledError:
@@ -483,7 +521,8 @@ async def execute_run(
         await record_failure(context, registry, "runtime_error")
     finally:
         working = False
-        heartbeat_task.cancel()
-        watch_task.cancel()
-        await asyncio.gather(heartbeat_task, watch_task, return_exceptions=True)
+        helpers = [heartbeat_task, watch_task, *([cutting] if cutting else [])]
+        for helper in helpers:
+            helper.cancel()
+        await asyncio.gather(*helpers, return_exceptions=True)
         diagnostic_run_id.reset(correlation)

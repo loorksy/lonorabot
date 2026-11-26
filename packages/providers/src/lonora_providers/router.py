@@ -31,7 +31,7 @@ from lonora_contracts.model_routing import (
     ModelSelection,
 )
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import model_candidates
+from lonora_db.agent_models import MAXIMUM_CANDIDATES, model_candidates
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
@@ -57,8 +57,6 @@ from .resilience import (
 
 log = logging.getLogger("lonora.model_router")
 
-# Distinct candidates one request may try, primary included.
-MAXIMUM_CANDIDATES = 6
 # After no default model could be chosen, how long before the providers are asked again.
 UNCHOOSABLE_SECONDS = 60.0
 # A request without streaming keeps its budget where an HTTP read cannot stall.

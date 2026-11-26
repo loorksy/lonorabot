@@ -21,7 +21,12 @@ conversation, never in a chat of its own.
   cards, owner cards, journal entries and new watches are placed there (`report_thread`).
 - **Its further work.** A Task the run starts reports to the conversation
   (`task_start` uses `report_thread`), and when the run hands work to a peer and finishes
-  first, the follow-up run keeps the origin and its non-empty result is copied too.
+  first, the follow-up run keeps the origin and its non-empty result is copied too. A
+  finished run has one follow-up for its helpers' outcomes: one that returns while another
+  helper is still at work waits for it, and one that returns while the follow-up has not
+  ended joins it (`HELD_OUTCOMES`). A helper that waits for the owner, or for its paused
+  agent's resume, holds back no answer: the next pass of the `outcomes` step starts the
+  follow-up without it. A paused requester's follow-up waits for its own resume (4.7.1).
 - **Watches.** A watch set in a chat keeps that chat and runs there. A watch set up
   outside any chat (for example through `POST /watches` without a thread) gets a hidden
   work thread and reports to the agent's conversation exactly like a routine.
@@ -84,7 +89,7 @@ to the agent's conversation, like the runs the new code queues.
   `started_at` (its first `running` transition, recorded once by `mark_routine_started`
   in `execute_run`), `missed_occurrences` (the later occurrences folded into it) and
   `skipped_occurrences` (every occurrence skipped while an earlier run was unfinished,
-  since the routine's last run and across a pause or a schedule change; the routine's
+  or held while model access was refused, since the routine's last run and across a pause or a schedule change; the routine's
   count then starts again from zero). The routine's history shows them on each run
   (`model_metadata`).
 - **The late sentence.** A routine run that started more than 15 minutes after
@@ -101,7 +106,8 @@ to the agent's conversation, like the runs the new code queues.
 A scheduled or background run with nothing new posts nothing. The agent decides what is
 new; the server makes sure that an empty background run leaves nothing in a
 conversation, the attention list or a channel, and a failed one nothing in a conversation
-or a channel.
+or a channel, except the owner's item when a model provider refused it (below; Amendment
+5), which also reaches the phone and Telegram.
 
 - **Background runs** (`is_background` in `lonora_core/run_state.py`): the triggers
   `routine`, `watch` (opportunity wakes included), `broker_event` (an agent's wake for
@@ -141,9 +147,10 @@ or a channel.
   partial text remains where it ran, even in a chat. The mobile run strip leaves failed
   background runs out (`run.background`), except a failure only the owner can fix (its
   family `model` or `quota`: a rejected key, an unknown model, spent credit), which is
-  news. Web shows a failure only under the owner's own message, as before. Background work that may end silent in a
-  conversation (a watch set in a chat, `lonora wake`, a webhook) reads its helpers'
-  outcomes out of the owner's sight: each goes to a hidden thread of that work
+  news. Web shows a failure only under the owner's own message, as before, and a
+  background failure only the owner can fix as its `model_access_failed` attention line.
+  Background work that may end silent in a conversation (a watch set in a chat, `lonora
+  wake`, a webhook) reads its helpers' outcomes out of the owner's sight: each goes to a hidden thread of that work
   (`outcome_thread_id`) and reaches the run, or its follow-up, only by steering, in the
   data frame of another agent's words (6.10). A background follow-up takes no message of
   the conversation as its own input: no quote and no attachment of the owner's latest
@@ -171,16 +178,25 @@ or a channel.
   every model it could use refused access (a rejected key, spent credit, a model the key
   may not use or that the provider does not have), the owner gets one
   `model_access_failed` item per provider route and cause, and its push (VISION 11.5,
-  Amendment 5). A rejected key or spent credit is the provider's route; a refused or
+  Amendment 5); a route that fails again after a success raises a new item, which pushes
+  only once a day has passed since the last push for that cause and key (`REPUSH_AFTER`). A rejected key or spent credit is the provider's route; a refused or
   missing model is that provider's model. The text is fixed: the provider's name and the
   failure family, never the provider's message; a reason read only from wording on a
   generic response raises nothing, and a failure the owner is waiting on (a conversation)
   shows its own error instead. The item ends when the owner saves another key for that
-  provider, or when a run that a model of that route answered completes. While it
-  stands, a due routine whose agent has no model left outside the refused routes
-  advances without a run (`model_access_refused` in `lonora_db/routines.py`; a one-shot
-  counts as fired, as its failed run would). Nothing is limited (P1): those runs could
-  only fail. Watches keep evaluating without a model.
+  provider, or when a run that a model of that route answered completes; a refused or
+  missing model also once no agent would try it any more (the owner chose another). While it
+  stands, a due routine whose agent has no model left outside the refused routes (of the
+  models the router tries: each once, at most six; one whose provider has no key counts as
+  refused, as the router passes over it) advances without a run (`model_access_refused`
+  in `lonora_db/routines.py`) and counts as skipped; a one-shot stays due and fires once
+  the hold ends. One routine run of the agent still goes through now and then (15
+  minutes after the newest item, then each wait twice the last, at most a day:
+  `RETRY_FIRST`, `RETRY_LONGEST`), so a cause fixed outside Lonora (credit topped up, the
+  model allowed, the deployment's key replaced) ends the hold: if a model answers, the
+  items it disproves end; if it fails the same way, nothing new is raised (a one-shot that
+  was that try has fired, and its failed run is its trace). Nothing is limited (P1): the
+  held runs could only fail. Watches keep evaluating without a model.
 - **Channels.** A webhook integration without a thread never forwards a work thread's
   messages; the conversation copy is sent once. Telegram carries only the 11.4 alerts.
 - **Kept on purpose.** A run that sent an order whose result is not verified always says

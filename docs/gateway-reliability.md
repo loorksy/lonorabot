@@ -55,8 +55,8 @@ skips another.
 ## Per-item isolation
 
 Inside a step, every item is isolated by `ItemGuard` (`lonora_db/item_failures.py`):
-routines, automatic task retries, activation reviews, task waits, outcome returns,
-attention events and items, watches, channel integrations and opportunities. Each item runs in its own transaction and has its
+routines, automatic task retries, activation reviews, task waits, outcome returns and
+held helper outcomes (`fan_in`), attention events and items, watches, channel integrations and opportunities. Each item runs in its own transaction and has its
 own time limit (45 s; 100 s for a channel integration's batch of deliveries), well
 below the step's timeout. An item that raises, or hangs past its limit (code
 `timeout`), is recorded in `ln_item_failures` (kind, item, failure count, code, next
@@ -124,7 +124,10 @@ from the others.
   item per episode (`reason_code: runs_delayed`, with the `count` and `oldest_seconds`
   when it opened), withdrawn once none is left waiting. A run waiting out its retry
   backoff counts from when the retry came due; a paused agent's work waits for the
-  owner, and a run behind its own conversation's running turn waits for that turn. Every pass while runs are delayed logs `run.queue_delayed` with the count and
+  owner, a card submission waits behind its agent's earlier unfinished runs in the
+  thread (an open question, a retry backoff: the claim's Rule Q, `submission_waits`), and
+  a run behind its own conversation's running turn waits for that turn: none of these
+  counts. Every pass while runs are delayed logs `run.queue_delayed` with the count and
   the oldest wait, and `run.queue_recovered` once they are claimed. The web shows the
   item as "New requests are waiting longer than usual to start".
 - **Aging operations.** A live operation still `reserved`, `submitted` or `ambiguous`
@@ -195,7 +198,12 @@ gateway_drained}` and releases its worker the way a Task continuation does
 The next gateway continues from that checkpoint at once, and the claim does not count as
 a crash recovery; the status line shows the Run as queued, not as a retry. The signal
 never interrupts a call already started (a read, or a change past `before_effect`): the
-call ends within its own deadline and the Run hands back right after it.
+call ends within its own deadline and the Run hands back right after it. The calls of the
+same model turn that had not started stay pending in the checkpoint and run on the next
+Gateway without a new model turn, as after a crash, however long the stop lasts (an
+update, a suspended Cloud installation). Each keeps its operation id, so nothing is sent
+twice, and the door's checks at send apply then: preflight, and the stale-target check of
+a close or a modify. A new entry has no price-drift check outside a Trade Approval card.
 
 After 25 s a backstop cancels a worker still busy, a model stream or a read that does
 not end (`BACKSTOP_SECONDS`). It never cancels a worker inside an effect: from
@@ -224,15 +232,19 @@ Lonora's `cancel_run`) only moves the fence, so without this a Run between fence
 (a model still thinking before its first token, a long read, a backoff sleep) went on
 until its next renewal. It now stops within about 2 s, and nothing it writes after the
 cancel is accepted. The Run's own completion or release keeps the fence, so the writing
-of its outcome is never cut. A cancel noticed inside an effect takes effect once that call has
-returned, and the checkpoint of its result is refused by the moved fence: a cancel never
-cuts a send.
+of its outcome is never cut. A lost lease noticed inside an effect, by this watcher or by a
+renewal refused as stale, takes effect once that call has returned, and the checkpoint of
+its result is refused by the moved fence: a cancel never cuts a send.
 
 A Run's final transaction (its completion, its wait for the owner's answer, its release
-back to the queue) is retried the same way after a dropped connection, a failover or a
-timeout, while the lease holds (`final_commit`); any other error still fails the Run. A
-Run whose answer was ready is therefore not recorded as failed by a database blip, and
-the fence makes a second commit impossible.
+back to the queue) is retried the same way after a failure of the database rather than of
+the statement, while the lease holds (`final_commit`): a dropped connection, a restart or
+a failover, a deadlock or a serialization failure, too many connections, a timeout or a
+full pool. asyncpg reports most of these as a plain driver error, so its SQLSTATE class
+decides (08, 40, 53, 57 or 58). An error of the statement itself (a constraint, a bad
+value) would fail every attempt and still fails the Run. A Run whose answer was ready is
+therefore not recorded as failed by a database blip, and the fence makes a second commit
+impossible.
 
 ## Durable records
 
@@ -276,7 +288,12 @@ passkey, so nothing is left looking active while it can no longer run:
   ended episodes after a restart; an owner message left queued opening one delayed-runs
   episode until it is claimed; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; the hand-back of a Run at its next step
-  boundary after a slow read or a change, and the Gateway's signal set before it drains;
+  boundary after a slow read or a change, and the Gateway's signal set before it drains,
+  with the set of workers inside an effect handed to its backstop;
+  a cancel that races a hand-back, which ends the Run and is no failure of the worker;
+  a lease renewal refused as stale inside a change, which waits for it as the watcher does;
+  a database restart, a deadlock, too many connections or a full pool at the final commit
+  retried, and a statement error there not;
   the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
   run and relay drains share one deadline below the stop grace; a cancel that stops a
   long model call within 3 s and waits for a change past `before_effect`, with no write

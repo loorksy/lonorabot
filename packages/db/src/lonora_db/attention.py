@@ -15,6 +15,7 @@ from lonora_contracts.attention import (
     OwnerNotifyRequest,
 )
 from lonora_contracts.domain import utcnow
+from lonora_contracts.model_routing import Capability
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
 from lonora_core.broker_health import GRACED as GENERIC
 from lonora_core.broker_health import broker_problem, outage
@@ -123,10 +124,12 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
     if row.code == "gateway_stopped":
         return not await gateway_running(session)
     if row.code == "model_access_failed":
-        # A new key for that provider ends it: the next background run tries again.
-        return row.parameters.get("credential") == await credential_marker(
-            session, str(row.parameters.get("provider", ""))
-        )
+        # A new key for that provider ends it: the next background run tries again. A
+        # refused or missing model also ends once no agent would try it any more.
+        provider, model = str(row.parameters.get("provider", "")), row.parameters.get("model")
+        if row.parameters.get("credential") != await credential_marker(session, provider):
+            return False
+        return model is None or await model_in_use(session, row.owner_id, provider, str(model))
     if row.code == "approval_required":
         approval = await session.get(TradeApprovalRow, row.parameters.get("approval_id", ""))
         return (
@@ -823,6 +826,15 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
                 group_id=item.parameters.get("group_id"),
                 code=code,
                 symbol=item.parameters.get("symbol"),
+                # A refused model names its provider and failure family (fixed text).
+                **(
+                    {
+                        "reason": item.parameters.get("reason"),
+                        "provider_name": item.parameters.get("provider_name"),
+                    }
+                    if code == "model_access_failed"
+                    else {}
+                ),
                 seen=item.status == "seen",
                 created_at=item.created_at,
             )
@@ -908,6 +920,9 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
 # concern one model of the key; the first two every model it reaches.
 OWNER_ONLY_REASONS = ("auth", "billing", "permission", "model_not_found")
 PER_MODEL_REASONS = ("permission", "model_not_found")
+# A route that fails again after a success raises its item again, but pushes it at most
+# once in this time for the same cause and key.
+REPUSH_AFTER = timedelta(hours=24)
 
 
 async def credential_marker(session: AsyncSession, provider: str) -> str:
@@ -915,6 +930,21 @@ async def credential_marker(session: AsyncSession, provider: str) -> str:
     written (a rotation keeps the id), or the deployment's own key. Never its value."""
     saved = await saved_key(session, provider)
     return saved.secret_id + "@" + saved.updated_at.isoformat() if saved else "deployment"
+
+
+async def model_in_use(session: AsyncSession, owner_id: str, provider: str, model: str) -> bool:
+    """Whether some agent of the owner would still try this model for background work."""
+    from .agent_models import model_candidates, tried_candidates
+    from .schema import AgentRow
+
+    agents = await session.scalars(select(AgentRow.id).where(AgentRow.owner_id == owner_id))
+    for agent_id in list(agents):
+        ordered, _ = await model_candidates(
+            session, Capability.BACKGROUND, owner_id=owner_id, agent_id=agent_id
+        )
+        if any((c.provider, c.model) == (provider, model) for c in tried_candidates(ordered)):
+            return True
+    return False
 
 
 def access_route(provider: str, model: str, reason: str) -> str:
@@ -955,9 +985,14 @@ async def raise_model_access(
                 )
             )
         )
-        # One open item per route, cause and key; a later failure after it ended is new.
+        # One open item per route, cause and key; a later failure after it ended is new,
+        # and pushes only once a day has passed since the last one that pushed.
         if any(row.status != "suppressed" for row in earlier):
             continue
+        repeat = any(
+            not row.parameters.get("repeat") and row.created_at > utcnow() - REPUSH_AFTER
+            for row in earlier
+        )
         item = await raise_system_attention(
             session,
             owner_id,
@@ -971,6 +1006,7 @@ async def raise_model_access(
                 "route": route,
                 "reason": reason,
                 "credential": credential,
+                **({"repeat": True} if repeat else {}),
             },
             agent_id=run.agent_id,
             thread_id=run.model_metadata.get("origin_thread_id") or thread.id,
@@ -1005,9 +1041,9 @@ async def settle_model_access(
     return withdrawn
 
 
-async def refused_routes(session: AsyncSession, owner_id: str) -> set[str]:
-    """The provider routes with a standing ``model_access_failed`` item: a provider (every
-    model of its key), or a provider and model."""
+async def refused_routes(session: AsyncSession, owner_id: str) -> dict[str, datetime]:
+    """The provider routes with a standing ``model_access_failed`` item, each with when its
+    newest one was raised: a provider (every model of its key), or a provider and model."""
     rows = await session.scalars(
         select(AttentionRow).where(
             AttentionRow.owner_id == owner_id,
@@ -1015,9 +1051,14 @@ async def refused_routes(session: AsyncSession, owner_id: str) -> set[str]:
             AttentionRow.status.in_(["pending", "ready", "seen"]),
         )
     )
-    return {
-        str(row.parameters.get("route")) for row in rows if await mandatory_current(session, row)
-    }
+    routes: dict[str, datetime] = {}
+    for row in rows:
+        route = str(row.parameters.get("route"))
+        if await mandatory_current(session, row) and (
+            route not in routes or row.created_at > routes[route]
+        ):
+            routes[route] = row.created_at
+    return routes
 
 
 async def mandate_already_shown(session: AsyncSession, card: OwnerActionRow) -> bool:

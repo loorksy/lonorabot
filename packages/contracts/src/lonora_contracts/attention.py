@@ -40,6 +40,9 @@ AttentionCode = Literal[
     "model_access_failed",
 ]
 AttentionStatus = Literal["pending", "ready", "seen", "suppressed"]
+# Why a model provider refused background work (``model_access_failed``): a rejected key,
+# spent credit, a model the key may not use, or one the provider does not have.
+ModelAccessReason = Literal["auth", "billing", "permission", "model_not_found"]
 
 # The events of mandate 11.4 (six kinds since Amendment 5) that need the owner, by code:
 # each is one item, ready at once and withdrawn when its card ends or its problem clears.
@@ -111,6 +114,10 @@ class AttentionViewRow(Contract):
     symbol: str | None = None
     # An agent's alert: its plain summary for the owner (the agent's words).
     summary: str | None = None
+    # A refused model (model_access_failed): the failure family and the provider's fixed
+    # name (None for an OpenAI-compatible endpoint), never the provider's message.
+    reason: ModelAccessReason | None = None
+    provider_name: str | None = None
     # The owner has already looked at it: the item was opened, or the question's
     # conversation was read up to it. Such a row stays listed but lights no dot.
     seen: bool = False

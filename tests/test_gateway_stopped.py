@@ -7,8 +7,10 @@ a heartbeat is fresh again. Needs PostgreSQL (LONORA_TASK_TEST_DATABASE_URL): th
 cursor reads the published event order.
 """
 
+import asyncio
 import os
 from datetime import datetime, timedelta
+from typing import Any
 
 import pytest
 from lonora_bus.attention import attention_text
@@ -144,3 +146,30 @@ async def test_a_gateway_that_never_ran_still_reaches_the_phone(task_db: Fixture
     expo = FakeExpo(db)
     assert await tell_owner_if_stopped(db, utcnow() - timedelta(hours=1), CIPHER, expo)
     assert [message["body"] for message in expo.sent] == [attention_text("gateway_stopped", "ar")]
+
+
+@pytest.mark.asyncio
+async def test_the_api_starts_the_watch_and_it_outlives_a_failed_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import lonora_api.health as api_health
+    from lonora_api.app import create_app
+    from lonora_api.env import get_settings
+
+    calls: list[datetime] = []
+    passed = asyncio.Event()
+
+    async def told(db: Database, since: datetime, cipher: Any, transport: Any) -> bool:
+        calls.append(since)
+        if len(calls) == 1:
+            raise RuntimeError("database away for a moment")
+        passed.set()
+        return False
+
+    monkeypatch.setattr(api_health, "WATCH_SECONDS", 0.01)
+    monkeypatch.setattr(api_health, "tell_owner_if_stopped", told)
+    app = create_app(get_settings().model_copy(update={"chart_renderer_root": None}))
+    # The API's lifespan starts the watch; one failed pass does not end it.
+    async with app.router.lifespan_context(app):
+        await asyncio.wait_for(passed.wait(), timeout=10)
+    assert len(calls) >= 2 and len(set(calls)) == 1

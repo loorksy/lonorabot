@@ -5,6 +5,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunFailure, RunRequest
 from lonora_core.run_state import (
     BACKGROUND_KEY,
+    HELD_OUTCOMES,
     OUTCOME_THREAD,
     OWNER_SPOKE,
     assert_transition,
@@ -13,7 +14,7 @@ from lonora_core.run_state import (
 )
 from lonora_core.runtime_failure import failure_family, retry_after_seconds
 from lonora_core.user_error import LonoraError
-from sqlalchemy import and_, exists, or_, select
+from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -210,9 +211,11 @@ async def create_run(
                 # only admission marks the owner's words reaching it.
                 BACKGROUND_KEY,
                 OWNER_SPOKE,
-                # Only ``outcome_thread`` names the hidden thread of a Run's helpers.
+                # Only ``outcome_thread`` names the hidden thread of a Run's helpers,
+                # and only ``return_outcome`` holds their outcomes.
                 OUTCOME_THREAD,
                 *ROUTINE_TIMING,
+                HELD_OUTCOMES,
             }
         },
     )
@@ -242,6 +245,26 @@ async def create_run(
     return row
 
 
+def submission_waits() -> ColumnElement[bool]:
+    """Rule Q as a condition on ``RunRow``: a card submission's Run starts only after every
+    earlier Run of its agent in the thread has ended, so it never overtakes work in retry
+    backoff, an open question or an approved trade waiting for its execution
+    (docs/genui.md)."""
+    earlier = aliased(RunRow)
+    return and_(
+        RunRow.model_metadata["ui_submit_origin"].as_string().is_not(None),
+        exists(
+            select(earlier.id).where(
+                earlier.thread_id == RunRow.thread_id,
+                earlier.agent_id == RunRow.agent_id,
+                earlier.id != RunRow.id,
+                earlier.created_at < RunRow.created_at,
+                earlier.status.not_in(["completed", "failed", "cancelled"]),
+            )
+        ),
+    )
+
+
 async def claim_next(
     session: AsyncSession, worker_id: str, lease_seconds: int, lane: str | None = None
 ) -> RunRow | None:
@@ -263,23 +286,7 @@ async def claim_next(
     # service. ISO UTC values are written only by the runtime under its fence.
     retry_at = RunRow.execution_state["environment"]["retry"]["not_before"].as_string()
     eligible = and_(eligible, or_(retry_at.is_(None), retry_at <= now.isoformat()))
-    # Rule Q: a card submission's Run starts only after every earlier Run of its agent in
-    # the thread has ended, so it never overtakes work in retry backoff, an open question
-    # or an approved trade waiting for its execution (docs/genui.md).
-    earlier = aliased(RunRow)
-    behind = exists(
-        select(earlier.id).where(
-            earlier.thread_id == RunRow.thread_id,
-            earlier.agent_id == RunRow.agent_id,
-            earlier.id != RunRow.id,
-            earlier.created_at < RunRow.created_at,
-            earlier.status.not_in(["completed", "failed", "cancelled"]),
-        )
-    )
-    eligible = and_(
-        eligible,
-        or_(RunRow.model_metadata["ui_submit_origin"].as_string().is_(None), ~behind),
-    )
+    eligible = and_(eligible, ~submission_waits())
     if lane == "conversation":
         eligible = and_(
             eligible,

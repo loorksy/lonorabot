@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
@@ -64,3 +65,12 @@ async def saved_key(session: AsyncSession, provider: str) -> SavedKey | None:
         return None
     row, url = max(candidates, key=lambda item: item[0].updated_at)
     return SavedKey(row.id, url, row.updated_at)
+
+
+async def has_key(session: AsyncSession, provider: str) -> bool:
+    """Whether the router finds a key for the provider: one the owner saved, or the
+    deployment's ``LONORA_<PROVIDER>_API_KEY`` in the services' environment. Without
+    one the router passes over the provider as unconfigured."""
+    return await saved_key(session, provider) is not None or bool(
+        os.environ.get("LONORA_" + provider.upper() + "_API_KEY")
+    )
