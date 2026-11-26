@@ -116,6 +116,10 @@
       "name": "Tool argument guidance tests",
       "description": "Automatic checks for tool argument guidance."
     },
+    "tests/test_tool_call_ids.py": {
+      "name": "Tool call id tests",
+      "description": "Automatic checks that every tool call in a run gets its own id."
+    },
     "tests/test_tool_discovery.py": {
       "name": "Tool discovery tests",
       "description": "Automatic checks for tool discovery."

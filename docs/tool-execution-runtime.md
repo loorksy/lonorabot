@@ -233,6 +233,14 @@ Receipts, ambiguous financial route records and same-operation reconciliation
 keep their priority over all of this. Checkpoints written by the previous
 single-slot code resume unchanged.
 
+Every receipt, stored result and Trade Approval id is keyed by the call id, so
+each call of a Run has its own. Before a reply is checkpointed, the loop gives a
+call whose provider id is empty, repeated in the reply or already in the
+transcript the id `stable_id(run_id, "call:{turn}:{index}")` (`unique_call_ids`,
+for every provider adapter); the provider's id is kept in the reply's
+`provider_metadata.provider_call_ids`. An id that is already unique is kept, so
+earlier checkpoints and receipts still match.
+
 A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
 `class` is one of input, resolution, connection, permission, provider, internal
 (`environment.error_class`, from the recovery category). An operation the executor
