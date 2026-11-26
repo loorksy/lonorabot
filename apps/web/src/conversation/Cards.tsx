@@ -5,11 +5,14 @@ import type { InputAnswer, InputRequest, Journal } from "@lonora/contracts";
 import {
   type ActivityCall,
   activityCallLabel,
+  chatgptText,
   financialBoundaryError,
+  MANAGE_USAGE_URL,
   type OrderLineState,
   orderLineAction,
   orderLineState,
   peerOutcome,
+  planLimitReached,
 } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useEffect, useState } from "react";
@@ -68,8 +71,13 @@ export function AgentErrorCard({
   const left = until ? Math.max(0, Math.ceil((until - now) / 1000)) : 0;
   // No model is configured: nothing is down, and the fix is in the model settings.
   const unset = run.error_code === "model_not_configured";
+  // The ChatGPT plan's own limit: named as the plan's, with Manage usage (Amendment 4).
+  const plan = planLimitReached(
+    (run as Run & { failure?: { family?: string; provider?: string | null } }).failure,
+  );
+  const planText = chatgptText(i18n.locale);
   const title = {
-    quota: t`The model provider's quota ran out`,
+    quota: plan ? planText.planLimitTitle : t`The model provider's quota ran out`,
     rate: t`Too many requests in a short time`,
     timeout: t`The reply timed out`,
     model: unset ? t`No model is set up yet` : t`The model is not available right now`,
@@ -77,7 +85,9 @@ export function AgentErrorCard({
   }[family];
   const text = {
     // Q22 (D4): Lonora sets no spend cap; the refusal is the provider's own quota.
-    quota: t`The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets.`,
+    quota: plan
+      ? planText.planLimitLine
+      : t`The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets.`,
     rate: t`Many requests were sent within a minute. Wait a little, then try again.`,
     timeout: t`The reply did not arrive in time; the connection may be weak.`,
     model: unset
@@ -85,7 +95,7 @@ export function AgentErrorCard({
       : t`The model provider could not be reached. Try another model or retry shortly.`,
     other: userError({ code: run.error_code }),
   }[family];
-  const fix =
+  const action =
     family === "quota"
       ? t`View usage`
       : unset
@@ -93,6 +103,8 @@ export function AgentErrorCard({
         : family === "model"
           ? t`Change the model`
           : null;
+  // The plan's limit is reviewed in ChatGPT settings › Usage, not in Lonora's usage view.
+  const fix = plan ? planText.manageUsage : action;
   return (
     <div className="err-card" role="alert" data-failure={family}>
       <div className="err-top">
@@ -107,7 +119,15 @@ export function AgentErrorCard({
       {family !== "other" && (
         <div className="err-actions">
           {fix && (
-            <button type="button" className="btn primary small" onClick={() => onFix(family)}>
+            <button
+              type="button"
+              className="btn primary small"
+              onClick={() =>
+                plan
+                  ? window.open(MANAGE_USAGE_URL, "_blank", "noopener,noreferrer")
+                  : onFix(family)
+              }
+            >
               {fix}
             </button>
           )}

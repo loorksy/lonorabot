@@ -1,7 +1,14 @@
 import type { Agent, AgentModelChange, AgentModelSummary } from "@lonora/contracts";
-import { agentModelLines, agentModelText, offersDefaultModel } from "@lonora/core";
+import {
+  agentModelLines,
+  agentModelText,
+  chatgptText,
+  MANAGE_USAGE_URL,
+  offersDefaultModel,
+  usesChatGptPlan,
+} from "@lonora/core";
 import { useCallback, useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Linking, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { SettingsGroup, SettingsRow } from "./settings-group";
@@ -64,6 +71,13 @@ export function AgentModelSettings({ agent }: { agent: Agent }) {
             {line}
           </Text>
         ))}
+        {usesChatGptPlan(summary) && (
+          <SettingsRow
+            testID="agent-model-manage-usage"
+            title={chatgptText(locale).manageUsage}
+            onPress={() => void Linking.openURL(MANAGE_USAGE_URL).catch(() => undefined)}
+          />
+        )}
         {offersDefaultModel(summary) && (
           <SettingsRow
             testID="agent-model-default"

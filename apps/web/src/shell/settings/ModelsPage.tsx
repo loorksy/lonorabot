@@ -64,7 +64,8 @@ export function ModelsPage() {
       readRouting(),
       api.get<Configured[]>("/providers"),
     ]);
-    const connected = providers.filter((provider) =>
+    // The ChatGPT plan's models too, as its signed-in account offers them.
+    const connected = [...providers, "openai_chatgpt" as Provider].filter((provider) =>
       configured.some((item) => item.id === provider && item.configured),
     );
     return [routing, await Promise.all(connected.map(readModels)), configured] as const;

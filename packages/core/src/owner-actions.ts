@@ -17,6 +17,7 @@ import type {
   OwnerActionDecision,
   TradingMode,
 } from "@lonora/contracts";
+import { type ChatGptSignInForm, chatgptError, chatgptText, isChatGptCard } from "./chatgpt-plan";
 import { tradeActionLabels } from "./trade-action-labels";
 import { isolate, listSeparator, readinessTime } from "./trading-readiness";
 
@@ -435,6 +436,9 @@ export type OwnerActionSpec = {
   buttons: OwnerActionButton[];
   /** A Secret card's form while it waits (submitted by the client itself). */
   secret: SecretForm | null;
+  /** A ChatGPT plan card's sign-in while it waits: Continue with ChatGPT, then the pasted
+   * address (``startChatGptSignIn``, ``finishChatGptSignIn``). */
+  signIn: ChatGptSignInForm | null;
   passkey: boolean;
   /** The settled line ("Signed. It trades on its own inside this grant.", "This card expired. Nothing changed."). */
   outcome: string | null;
@@ -490,7 +494,7 @@ export function ownerActionStatus(card: OwnerAction, locale: string): string {
   }[card.status];
 }
 
-function settledLine(card: OwnerAction, text: OwnerActionText, _lang: Language): string | null {
+function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
     return card.kind === "supervision_paused" ? text.keptPaused : text.cancelled;
@@ -519,6 +523,12 @@ function settledLine(card: OwnerAction, text: OwnerActionText, _lang: Language):
                 : purpose === "connect"
                   ? text.brokerSaved
                   : text.brokerSending;
+        if (isChatGptCard(card)) {
+          const plan = chatgptText(lang);
+          return card.result.account
+            ? fill(plan.connected, { account: isolate(card.result.account) })
+            : plan.connectedNoAccount;
+        }
         return card.facts.secret?.connect ? text.connected : text.secretSaved;
       }
       case "settle_operation":
@@ -744,6 +754,7 @@ export function ownerActionCard(
   let buttons: OwnerActionButton[] = [];
   const options: OwnerActionOption[] = [];
   let form: SecretForm | null = null;
+  let signIn: ChatGptSignInForm | null = null;
   const pair = (confirm: string, cancel: string): OwnerActionButton[] => [
     { key: "confirm", label: confirm, decision: "confirm", primary: true },
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
@@ -911,6 +922,16 @@ export function ownerActionCard(
           })),
           submit: text.secretSave,
         };
+      } else if (secret && isChatGptCard(card)) {
+        // The Secret card with a sign-in in place of the key field: the paste step is said
+        // before it happens, since OpenAI's callback page does not open on a server.
+        const plan = chatgptText(lang);
+        title = plan.title;
+        lines.push(plan.plan, plan.stepSignIn, plan.stepPaste);
+        if (secret.agent_name)
+          lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
+        hint = plan.hint;
+        signIn = { continue: plan.continue, address: plan.address, submit: plan.connect };
       } else if (secret) {
         // The label, field labels and details are the agent's words; every other word is ours.
         if (secret.label) lines.push(isolate(secret.label));
@@ -953,6 +974,7 @@ export function ownerActionCard(
     options: pending ? options : [],
     buttons: pending ? buttons : [],
     secret: pending ? form : null,
+    signIn: pending ? signIn : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),
   };
@@ -1126,5 +1148,5 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
 /** Owner text for a card decision's refusal, shared by Web and Mobile; null if not one. */
 export function ownerActionError(code: string | null | undefined, locale: string): string | null {
   const entry = code ? errors[code] : undefined;
-  return entry ? entry[language(locale)] : null;
+  return entry ? entry[language(locale)] : chatgptError(code, locale);
 }

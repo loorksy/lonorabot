@@ -208,6 +208,10 @@ export type OwnerAction = {
     integration_id?: string;
     /** A saved Secret card: the keys saved and where; never a value. */
     saved?: string[];
+    /** A ChatGPT plan card: the signed-in account's email, and how many of Lonora's listed
+     * plan models it offers (null when its list could not be read). */
+    account?: string | null;
+    models?: number | null;
     /** A broker card: how provisioning stands (9.2). "connected": the terminal answered a
      * read; "linked": saved, but the broker login is not confirmed. */
     provisioning?: "pending" | "deploying" | "reading" | "connected" | "linked" | "failed";

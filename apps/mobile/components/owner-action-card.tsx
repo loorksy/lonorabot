@@ -1,5 +1,6 @@
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
+  finishChatGptSignIn,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -9,10 +10,11 @@ import {
   ownerActionText,
   rereadOwnerAction,
   type SecretForm,
+  startChatGptSignIn,
   submitSecret,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { ApiError } from "../lib/api-error";
 import { deviceProof, deviceSupported } from "../lib/device-proof";
@@ -52,10 +54,16 @@ export function OwnerActionCard({
   const [supported, setSupported] = useState<boolean | null>(null);
   // A Secret card's form: values stay here until posted to the card's route, then clear.
   const [values, setValues] = useState<Record<string, string>>({});
+  // The ChatGPT plan card: the address the browser lands on, pasted after Continue.
+  const [signingIn, setSigningIn] = useState(false);
+  const [address, setAddress] = useState("");
   // Typed values never outlive the form: Not now, or a save on another device, clears them.
   const open = row.status === "pending";
   useEffect(() => {
-    if (!open) setValues({});
+    if (!open) {
+      setValues({});
+      setAddress("");
+    }
   }, [open]);
   const pending = useRef(false);
   const supersededBy = row.superseded_by;
@@ -141,6 +149,25 @@ export function OwnerActionCard({
       setValues({});
       // The values go only to the card's own route, which stores them encrypted.
       onChange(await submitSecret((path, body) => api.post<OwnerAction>(path, body), row.id, sent));
+    });
+  // Continue with ChatGPT: OpenAI's sign-in opens in the browser; the card then asks for the
+  // address the browser lands on, which goes only to the card's own route.
+  const continueWithChatGpt = () =>
+    run(async () => {
+      const started = await startChatGptSignIn(
+        (path, body) => api.post<{ authorization_url: string; expires_at: string }>(path, body),
+        row.id,
+      );
+      await Linking.openURL(started.authorization_url);
+      setSigningIn(true);
+    });
+  const finishSignIn = () =>
+    run(async () => {
+      const sent = address;
+      setAddress("");
+      onChange(
+        await finishChatGptSignIn((path, body) => api.post<OwnerAction>(path, body), row.id, sent),
+      );
     });
   const register = () =>
     run(async () => {
@@ -291,6 +318,39 @@ export function OwnerActionCard({
             }
             onPress={() => void save(spec.secret as SecretForm)}
           />
+        </View>
+      ) : null}
+      {spec.signIn ? (
+        <View testID="owner-action-form-chatgpt" style={{ gap: 8 }}>
+          <Button
+            label={spec.signIn.continue}
+            secondary={signingIn}
+            disabled={busy}
+            onPress={() => void continueWithChatGpt()}
+          />
+          {signingIn ? (
+            <>
+              <Field
+                label={spec.signIn.address}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                importantForAutofill="no"
+                textContentType="none"
+                keyboardType="url"
+                value={address}
+                editable={!busy}
+                style={{ textAlign: "left", writingDirection: "ltr" }}
+                onChangeText={setAddress}
+              />
+              <Button
+                label={spec.signIn.submit}
+                disabled={busy || !address.trim()}
+                onPress={() => void finishSignIn()}
+              />
+            </>
+          ) : null}
         </View>
       ) : null}
       {blocked ? (
