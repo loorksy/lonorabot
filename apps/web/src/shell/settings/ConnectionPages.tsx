@@ -604,8 +604,8 @@ export function ProvidersPage() {
 }
 
 /* The provider form (route `provider`): the provider, the API key (show/hide), «اختبار الاتصال»
-   (POST /providers/{id}/test: lists the models without storing the key) and save (the key is
-   stored encrypted, then the catalog is discovered). */
+   (POST /providers/{id}/test: whether the provider accepts the key, nothing stored) and save
+   (the key is stored encrypted; the models are Lonora's list, VISION 12.4). */
 export function ProviderFormPage({ initial }: { initial?: string }) {
   if (initial !== undefined && !Object.hasOwn(PROVIDER_NAMES, initial)) return <NotFoundPage />;
   return <ProviderForm initial={initial} />;
@@ -637,9 +637,6 @@ function ProviderForm({ initial }: { initial?: string }) {
           await api.put(`/providers/${encodeURIComponent(provider)}/credential`, {
             api_key: key(form),
           });
-          await api
-            .post(`/providers/${encodeURIComponent(provider)}/discover`, {})
-            .catch(() => undefined);
           clearDirty();
           toast(t`Saved`, { type: "success" });
           nav.go("/app/providers", { replace: true });
@@ -708,14 +705,10 @@ function ProviderForm({ initial }: { initial?: string }) {
           setBusy(true);
           setTest(null);
           try {
-            const result = await api.post<{ models: string[] }>(
-              `/providers/${encodeURIComponent(provider)}/test`,
-              {
-                api_key: key(form),
-              },
-            );
-            const count = result.models.length;
-            setTest({ ok: true, text: t`The connection works · ${count} models available` });
+            await api.post(`/providers/${encodeURIComponent(provider)}/test`, {
+              api_key: key(form),
+            });
+            setTest({ ok: true, text: t`The connection works` });
           } catch (error) {
             setTest({ ok: false, text: userError(error) });
           } finally {
