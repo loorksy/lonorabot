@@ -961,6 +961,30 @@ async def test_agent_preference_orders_candidates_and_never_needs_a_migration(
 
 
 @pytest.mark.asyncio
+async def test_an_agent_whose_only_model_reads_no_images_is_told_so_not_unconfigured(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, _ = task_db
+    # Z.ai's default, inherited from Lonora's model: the list holds it for text only.
+    glm = ModelSelection(provider="zai", model="glm-5.3")
+    await settings(db, {"model_routing": RoutingPolicy(unified=glm).model_dump(mode="json")})
+    async with db.sessions() as session, session.begin():
+        await change_agent_model(session, owner, agent, AgentModelChange(primary=glm))
+    router = Scripted().router(db)
+    route = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id=agent)
+    assert route.choices == [glm]
+    # A model is configured; one that sees the image is not, and the code says which.
+    with pytest.raises(LonoraError) as caught:
+        await router.route(Capability.VISION, owner_id=owner, agent_id=agent)
+    assert caught.value.code == "model_lacks_vision"
+    # A model that reads images, routed for vision, takes the image turn.
+    sonnet = ModelSelection(provider="anthropic", model="claude-sonnet-5-5")
+    await settings(db, {"model_backups": {"choices": [sonnet.model_dump(mode="json")]}})
+    vision = await router.route(Capability.VISION, owner_id=owner, agent_id=agent)
+    assert vision.choices == [sonnet]
+
+
+@pytest.mark.asyncio
 async def test_a_run_choice_leads_and_the_owners_model_is_backed_by_the_global_routes(
     task_db: Fixture,
 ) -> None:

@@ -195,6 +195,7 @@ class GlobalModelRouter:
         if run_choice:
             owned.add((run_choice.provider, run_choice.model))
         seen: set[tuple[str, str]] = set()
+        text_only = False
         for selection in ordered:
             identity = (selection.provider, selection.model)
             if identity in seen:
@@ -202,12 +203,15 @@ class GlobalModelRouter:
             if identity in owned and not agent_route_applies(
                 capability, route.descriptor(selection)
             ):
+                text_only = text_only or capability is Capability.VISION
                 continue
             seen.add(identity)
             route.choices.append(selection)
         del route.choices[MAXIMUM_CANDIDATES:]
         if not route.choices:
-            raise LonoraError("model_not_configured", 409)
+            # The Agent's own models read no images and nothing else is routed for them:
+            # a model is configured, one that sees is not.
+            raise LonoraError("model_lacks_vision" if text_only else "model_not_configured", 409)
         return route
 
     async def usable_route(

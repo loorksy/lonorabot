@@ -77,6 +77,10 @@ a provider failure, and it is never shown as one.
   existing notice («اربط مزودًا واختر نموذجًا…») and one action that opens the model
   settings, where the provider keys are; Mobile shows the same state in its Run line.
   The outage card («النموذج غير متاح حاليًا») is for a provider that could not be reached.
+- **No model that reads images.** An agent's own model that the list holds for text only
+  does not take an image turn; when nothing else is routed for vision (a Vision route or a
+  backup that reads images), the Run fails with `model_lacks_vision`, not
+  `model_not_configured`, and both clients say a model that can read images is needed.
 - **An owner endpoint that cannot be asked** while the default is being chosen is passed over
   for the next one; if none gives a model, its own classified failure is raised, so an
   outage backs off and retries like any other, and a rejected key reads as a rejected

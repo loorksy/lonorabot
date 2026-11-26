@@ -785,6 +785,10 @@ export const labels = {
     "لم يُضبط نموذج بعد. اربط مزودًا واختر نموذجًا من إعدادات النماذج في الويب.",
     "No model is set up yet. Connect a provider and choose a model in the Web model settings.",
   ],
+  model_lacks_vision: [
+    "لا يقرأ أي من نماذج هذا الوكيل الصور. اختر نموذجًا يقرؤها للرؤية، أو أضفه نموذجًا احتياطيًا، من إعدادات النماذج في الويب.",
+    "None of this agent’s models can read images. Choose a model that can for Vision, or add one as a backup, in the Web model settings.",
+  ],
   model_access_denied: [
     "لا يمكن لمفتاح API هذا استخدام النموذج المحدد. اختر نموذجًا آخر أو تحقق من صلاحيات النماذج في حساب المزود.",
     "This API key cannot use the selected model. Choose another model or check the provider account’s model access.",

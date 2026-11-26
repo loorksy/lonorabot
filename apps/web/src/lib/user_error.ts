@@ -80,6 +80,8 @@ export function userError(error: unknown, fallback?: string) {
       return t`The setup code is incorrect.`;
     case "model_not_configured":
       return t`Connect a provider and choose a global model in Settings.`;
+    case "model_lacks_vision":
+      return t`None of this agent’s models can read images. Choose a model that can for Vision, or add one as a backup, in Settings.`;
     case "model_rate_limited":
       return t`The model provider rate limit was reached. Try again shortly.`;
     case "model_credentials_rejected":
