@@ -71,7 +71,10 @@ export function PeerCard({
         {who(card.to)}
       </View>
       {card.body !== null ? <Markdown content={card.body} onChartLink={onChartLink} /> : null}
-      <Text accessibilityLiveRegion="polite" style={{ color: shell.secondary, fontSize: 12 }}>
+      <Text
+        accessibilityLiveRegion="polite"
+        style={{ color: shell.secondary, fontSize: 12, textAlign: rtl ? "right" : "left" }}
+      >
         {t(STATUS[card.status])}
       </Text>
     </View>
