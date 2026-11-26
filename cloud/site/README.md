@@ -50,6 +50,34 @@ It lives in `cloud/site/` of this repository only until `loorksy/lonora-cloud` e
 
    الخادم يتحقق من توقيع Access في كل طلب إدارة، فلا يكفي معرفة الرابط.
 
+### التفعيل بضغطة واحدة (خادم لكل عميل تلقائياً)
+
+حين تضبط هذه الإعدادات يصير زر **«تفعيل بضغطة واحدة»** في اللوحة يقوم بكل شيء:
+1. ينشئ خادماً جديداً للعميل في Hetzner.
+2. يربط الاسم الفرعي `اسمه.lonora.app` بالخادم في Cloudflare.
+3. يثبّت Lonora عليه ببرنامج التثبيت الرسمي.
+4. حين يجيب Lonora على عنوانه، يتفعّل الحساب وحده، ويظهر للعميل «افتح في التطبيق» مع رابط الإعداد الأول. الرابط يعمل مرة واحدة.
+
+**ما تحتاجه:**
+1. **حساب Hetzner Cloud:** أنشئ مشروعاً للعملاء، ثم من Security › API Tokens مفتاحاً بصلاحية Read & Write:
+   ```
+   npx wrangler pages secret put HETZNER_TOKEN --project-name lonora-site
+   ```
+2. **مفتاح Cloudflare API:** من My Profile › API Tokens، بصلاحية Zone › DNS › Edit على نطاق العملاء فقط:
+   ```
+   npx wrangler pages secret put CLOUDFLARE_DNS_TOKEN --project-name lonora-site
+   ```
+   وضع Zone ID للنطاق في `CLOUDFLARE_ZONE_ID`، والنطاق في `BASE_DOMAIN`.
+3. **صورة Lonora منشورة:** `ghcr.io/loorksy/lonorabot:<الإصدار>`، وهذا يحتاج أن يعمل GitHub Actions. اجعل الحزمة عامة (Public)، أو ضع مفتاح قراءة في `GHCR_USER` و`GHCR_TOKEN`. اكتب الإصدار في `LONORA_VERSION`.
+
+**ما يجري خلف الزر:**
+- يُعطى الخادم سرّاً خاصاً به عند إنشائه، ولا يُحفظ عندنا إلا بصمته.
+- يرسل الخادم بلاغاً واحداً حين يجهز، ولا نصدّقه حتى يجيب Lonora فعلاً على عنوانه.
+- إن فشل شيء، يُحذف الخادم وسجل النطاق، ويعود الحساب إلى «تمت الموافقة» مع سبب الفشل، ويظهر زر **إعادة المحاولة**.
+- المحاولة التي تتجاوز 45 دقيقة تُلغى بنفس الطريقة.
+- حذف حساب له خادم يطلب منك تأكيد حذف الخادم أيضاً.
+- الشركة لا تدخل إلى نسخة العميل بعد ذلك أبداً (التعديل 3، البند 3): كلمة مروره ومفاتيحه يضعها هو داخلها.
+
 ### كل يوم
 
 - **مراجعة الحسابات:** افتح `https://lonora.app/admin`.
@@ -70,10 +98,11 @@ It lives in `cloud/site/` of this repository only until `loorksy/lonora-cloud` e
 ```
 npm test
 ```
-34 اختباراً تغطي:
+44 اختباراً تغطي:
 - التسجيل، والبريد المكرر، والحقول الخاطئة، والروبوت، والإغراق، والمصدر الغريب؛
 - الدخول والجلسات وتسجيل الخروج؛
 - لوحة الإدارة: رفض أي طلب بلا توقيع Access صحيح، والقرارات، والسجل، والحذف، والتصدير.
+- التفعيل بضغطة واحدة: إنشاء الخادم والنطاق، وبلاغ الجاهزية، والفشل، وإعادة المحاولة.
 
 ### ما زال مسودة
 
@@ -121,6 +150,27 @@ npm test
 
    The functions verify the Access JWT on every admin call (signature, audience, issuer, expiry, allowed email).
 
+### One-click activation (a dedicated server per customer)
+
+With these settings, **"Activate in one click"** in the panel does everything:
+1. It creates a Hetzner server for the customer.
+2. It points `<handle>.<BASE_DOMAIN>` at the server through the Cloudflare API.
+3. The server's first-boot script installs Docker and runs the stock installer: `install.sh --domain <handle>.<BASE_DOMAIN> --version <LONORA_VERSION>`.
+4. When Lonora answers `https://<handle>.<BASE_DOMAIN>/ready`, the server reports once to `/api/provision/callback`, with its per-job secret and the one-time bootstrap token. The control plane checks `/ready` itself, then marks the account active with the address and the setup link `https://<handle>.<BASE_DOMAIN>/#token=…`.
+
+**Settings:**
+- Secrets: `HETZNER_TOKEN` (Read & Write, the fleet project) and `CLOUDFLARE_DNS_TOKEN` (Zone › DNS › Edit on the customer zone only).
+- Vars: `CLOUDFLARE_ZONE_ID`, `BASE_DOMAIN`, `SERVER_TYPE`, `SERVER_LOCATION`, `SERVER_IMAGE`, `LONORA_VERSION`.
+- Optional: `GHCR_USER`, `GHCR_TOKEN` (a read-only token when the image is private) and `HETZNER_SSH_KEY`.
+- The image `ghcr.io/loorksy/lonorabot:<LONORA_VERSION>` must exist, so CI has to run (PHASES.md P0-T10).
+
+**Failure handling:**
+- A provider error, a failed install, or an attempt older than 45 minutes removes the server and the DNS record. The account returns to `approved` with the error, and "Retry" appears.
+- Deleting an account that has a server requires confirming the server's removal.
+- Only the SHA-256 of each per-job secret is stored.
+- The setup link works once, because onboarding consumes the bootstrap token.
+- After that the company has no access to the customer's Lonora (Amendment 3 §3).
+
 ### Daily use
 
 - **Review:**
@@ -154,4 +204,4 @@ npm test
 
 ### Tests
 
-`npm test` runs 34 tests with Node's built-in test runner. They use an in-memory SQLite in place of D1, and stub Turnstile and Access.
+`npm test` runs 44 tests with Node's built-in test runner. They use an in-memory SQLite in place of D1, and stub Turnstile, Access, Hetzner, the Cloudflare DNS API and the customer servers.

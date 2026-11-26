@@ -14,6 +14,14 @@ ADMIN_EMAILS = "owner@example.com"           # comma-separated staff allowed in 
 TERMS_VERSION = "draft-2026-11-25"
 RISK_VERSION = "draft-2026-11-25"
 PRIVACY_VERSION = "draft-2026-11-25"
+# One-click activation (PW-T6). Provisioning is off until all four of HETZNER_TOKEN and
+# CLOUDFLARE_DNS_TOKEN (secrets), CLOUDFLARE_ZONE_ID and BASE_DOMAIN are set.
+BASE_DOMAIN = "lonora.app"                   # a customer becomes <handle>.lonora.app
+CLOUDFLARE_ZONE_ID = "REPLACE_WITH_ZONE_ID"
+SERVER_TYPE = "cpx31"                        # Hetzner type for a new customer (8 GB, D13 Starter)
+SERVER_LOCATION = "fsn1"                     # one EU region to start (D12)
+SERVER_IMAGE = "ubuntu-24.04"
+LONORA_VERSION = "main"                      # the Lonora image tag every new install pins
 
 [[d1_databases]]
 binding = "DB"

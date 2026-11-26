@@ -63,6 +63,38 @@ export async function accessJwt(email, { aud = AUD, iss = `https://${TEAM}`, exp
   return `${head}.${body}.${b64url(new Uint8Array(sig))}`;
 }
 
+// Fake Hetzner, Cloudflare DNS and customer servers, recording every call (cloud.calls).
+export const cloud = { calls: [], failServer: false, failDns: false, ready: true, nextServer: 100, nextDns: 1 };
+export function resetCloud() {
+  Object.assign(cloud, { calls: [], failServer: false, failDns: false, ready: true, nextServer: 100, nextDns: 1 });
+}
+function cloudFetch(u, init = {}) {
+  const method = init.method || "GET";
+  const body = init.body ? JSON.parse(init.body) : null;
+  if (u.startsWith("https://api.hetzner.cloud/v1/servers")) {
+    cloud.calls.push({ api: "hetzner", method, url: u, body, auth: init.headers?.authorization });
+    if (method === "POST") {
+      if (cloud.failServer) return new Response(JSON.stringify({ error: { message: "server limit reached" } }), { status: 403 });
+      const id = cloud.nextServer++;
+      return new Response(JSON.stringify({ server: { id, public_net: { ipv4: { ip: `192.0.2.${id % 250}` } } } }), { status: 201 });
+    }
+    if (method === "DELETE") return new Response(JSON.stringify({ action: {} }), { status: 200 });
+  }
+  if (u.startsWith("https://api.cloudflare.com/client/v4/zones/")) {
+    cloud.calls.push({ api: "cloudflare", method, url: u, body, auth: init.headers?.authorization });
+    if (method === "POST") {
+      if (cloud.failDns) return new Response(JSON.stringify({ success: false, errors: [{ message: "record exists" }] }), { status: 400 });
+      return new Response(JSON.stringify({ success: true, result: { id: `rec${cloud.nextDns++}` } }), { status: 200 });
+    }
+    if (method === "DELETE") return new Response(JSON.stringify({ success: true }), { status: 200 });
+  }
+  if (/^https:\/\/[a-z0-9-]+\.lonora\.test\/ready$/.test(u)) {
+    cloud.calls.push({ api: "instance", method, url: u });
+    return new Response("{}", { status: cloud.ready ? 200 : 503 });
+  }
+  return null;
+}
+
 // Replaces global fetch: Turnstile passes for the token "good", Access serves the test key.
 export async function installFetch() {
   const { publicKey } = await keys();
@@ -75,6 +107,8 @@ export async function installFetch() {
       return new Response(JSON.stringify({ success: token === "good" }));
     }
     if (u === `https://${TEAM}/cdn-cgi/access/certs`) return new Response(JSON.stringify({ keys: [jwk] }));
+    const c = cloudFetch(u, init);
+    if (c) return c;
     throw new Error(`unexpected fetch ${u}`);
   };
 }
@@ -105,6 +139,7 @@ const ROUTES = {
   "POST /api/admin/decide": ["../functions/api/admin/decide.js", "onRequestPost", true],
   "GET /api/admin/export": ["../functions/api/admin/export.js", "onRequestGet", true],
   "GET /api/admin/audit": ["../functions/api/admin/audit.js", "onRequestGet", true],
+  "POST /api/provision/callback": ["../functions/api/provision/callback.js", "onRequestPost"],
 };
 
 // call(env, "POST", "/api/register", {json, headers, cookie, origin, ip}) -> Response

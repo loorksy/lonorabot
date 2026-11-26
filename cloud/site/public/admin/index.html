@@ -83,16 +83,21 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
 <script>
 (() => {
   const STATUS = {
-    pending: "بانتظار الموافقة", approved: "تمت الموافقة", active: "مُفعَّل", rejected: "مرفوض", suspended: "موقوف",
+    pending: "بانتظار الموافقة", approved: "تمت الموافقة", provisioning: "قيد التجهيز", active: "مُفعَّل", rejected: "مرفوض", suspended: "موقوف",
   };
   const USES = { watch: "مراقبة", trade: "تداول", analysis: "تحليل", news: "أخبار", brief: "التقرير الصباحي", other: "غير ذلك" };
   const ERRORS = {
     staff_only: "هذه اللوحة للموظفين فقط. ادخل عبر Cloudflare Access.", bad_state: "حالة الحساب تغيّرت؛ حدّث القائمة.",
     reason_required: "اكتب السبب؛ سيراه العميل.", instance_url: "عنوان النسخة يجب أن يبدأ بـ https://",
     setup_link: "رابط الإعداد يجب أن يبدأ بـ https://", not_found: "الحساب غير موجود.", origin: "طلب من مصدر آخر.",
+    handle: "الاسم الفرعي: أحرف إنجليزية صغيرة وأرقام وشرطة، من 3 إلى 30، ويبدأ بحرف.", handle_taken: "هذا الاسم الفرعي مستخدم.",
+    server_exists: "لهذا الحساب خادم؛ أكّد حذف الخادم أيضاً.", provision_failed: "تعذّر التجهيز.", deprovision_failed: "تعذّر حذف الخادم.",
   };
   let status = "pending";
   let counts = {};
+  let provisioning = false;
+  let baseDomain = "";
+  const JOB = { creating: "إنشاء الخادم", installing: "تثبيت Lonora", ready: "جاهز", failed: "فشل", removed: "أُزيل" };
   const $ = (s) => document.querySelector(s);
   const el = (tag, attrs = {}, ...kids) => {
     const n = document.createElement(tag);
@@ -111,7 +116,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
   async function api(path, body) {
     const res = await fetch(path, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" } : { credentials: "same-origin" });
     const out = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(ERRORS[out.error] || "تعذّر الطلب، حاول مرة أخرى.");
+    if (!res.ok) throw new Error([ERRORS[out.error] || "تعذّر الطلب، حاول مرة أخرى.", out.message].filter(Boolean).join(" "));
     return out;
   }
 
@@ -127,11 +132,15 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
       const btn = e.currentTarget; btn.disabled = true;
       try {
         const body = { id: a.id, action: label, ...(extra ? extra() : {}) };
-        if (label === "delete" && !confirm("حذف الحساب نهائياً بطلب صاحبه؟ لا يمكن التراجع.")) { btn.disabled = false; return; }
+        if (label === "delete") {
+          const hasServer = a.job && a.job.status !== "removed" && a.job.server_id;
+          if (!confirm(hasServer ? "حذف الحساب نهائياً بطلب صاحبه، مع حذف خادمه ونسخته بكل بياناتها؟ لا يمكن التراجع." : "حذف الحساب نهائياً بطلب صاحبه؟ لا يمكن التراجع.")) { btn.disabled = false; return; }
+          if (hasServer) body.remove_server = true;
+        }
         await api("/api/admin/decide", body);
         toast("تم."); await load();
       } catch (err) { toast(err.message, true); btn.disabled = false; }
-    } }, { approve: "موافقة", activate: "تفعيل", reject: "رفض", suspend: "إيقاف", reinstate: "إعادة التفعيل", delete: "حذف بطلبه" }[label]);
+    } }, { approve: "موافقة", activate: provisioning && !(extra && extra.manual) ? "تفعيل بضغطة واحدة" : "تفعيل", retry: "إعادة المحاولة", reject: "رفض", suspend: "إيقاف", reinstate: "إعادة التفعيل", delete: "حذف بطلبه" }[label]);
   }
 
   function card(a) {
@@ -141,7 +150,18 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     const acts = el("div", { class: "actions" });
     if (a.status === "pending") acts.append(el("div", { class: "line" }, action(a, "approve", null, "btn primary")));
     if (a.status === "pending" || a.status === "approved") {
-      acts.append(el("div", { class: "line" }, url, link, action(a, "activate", () => ({ instance_url: url.value.trim(), setup_link: link.value.trim() || undefined }), "btn primary")));
+      if (provisioning) {
+        // One click: the server, its domain and Lonora are created; the account turns active by itself.
+        const handle = el("input", { type: "text", dir: "ltr", maxlength: "30", placeholder: a.handle || "الاسم الفرعي (اختياري، يُقترح من البريد)" });
+        const failedBefore = a.job && a.job.status === "failed";
+        acts.append(el("div", { class: "line" }, handle, el("span", { class: "meta ltr" }, `.${baseDomain}`),
+          action(a, failedBefore ? "retry" : "activate", () => ({ handle: handle.value.trim() || undefined }), "btn primary")));
+        const manual = el("details", {}, el("summary", {}, "تفعيل يدوي بعنوان نسخة جاهزة"),
+          el("div", { class: "line" }, url, link, action(a, "activate", () => ({ manual: true, instance_url: url.value.trim(), setup_link: link.value.trim() || undefined }))));
+        acts.append(manual);
+      } else {
+        acts.append(el("div", { class: "line" }, url, link, action(a, "activate", () => ({ instance_url: url.value.trim(), setup_link: link.value.trim() || undefined }), "btn primary")));
+      }
       acts.append(el("div", { class: "line" }, reason, action(a, "reject", () => ({ reason: reason.value }), "btn danger")));
     }
     if (a.status === "active") acts.append(el("div", { class: "line" }, reason, action(a, "suspend", () => ({ reason: reason.value }), "btn danger")));
@@ -164,6 +184,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
         el("dt", {}, "الاستخدام"), el("dd", {}, (a.uses || []).map((u) => USES[u] || u).join("، ") || "—"),
         el("dt", {}, "الوثائق"), el("dd", { class: "ltr" }, `${a.terms_version} · ${a.risk_version} · ${a.privacy_version}`),
         el("dt", {}, "عنوان النسخة"), el("dd", { class: "ltr" }, a.instance_url || "—"),
+        el("dt", {}, "التجهيز"), el("dd", {}, a.job ? `${JOB[a.job.status] || a.job.status}${a.job.error ? ` · ${a.job.error}` : ""}${a.job.ipv4 ? ` · ${a.job.ipv4}` : ""} · ${date(a.job.updated_at)}` : "—"),
         el("dt", {}, "القرار"), el("dd", {}, a.decided_by ? `${date(a.decided_at)} · ${a.decided_by}` : "—"),
         el("dt", {}, "السبب"), el("dd", {}, a.reason || "—")),
       acts, el("div", { class: "meta" }, "السجل"), log);
@@ -177,7 +198,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     try {
       const q = $("#q").value.trim();
       const out = await api(`/api/admin/accounts?status=${status}${q ? `&q=${encodeURIComponent(q)}` : ""}`);
-      counts = out.counts; tabs();
+      counts = out.counts; provisioning = out.provisioning === true; baseDomain = out.base_domain || ""; tabs();
       list.replaceChildren(...(out.accounts.length ? out.accounts.map(card) : [el("p", { class: "empty" }, "لا حسابات في هذه الحالة.")]));
     } catch (err) {
       tabs(); list.replaceChildren(el("p", { class: "note" }, location.protocol === "file:" ? "معاينة: الخادم غير متصل." : err.message));
@@ -188,6 +209,8 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
   $("#q").addEventListener("input", () => { clearTimeout(load.t); load.t = setTimeout(load, 300); });
   $("#export").addEventListener("click", () => { location.href = "/api/admin/export"; });
   tabs(); load();
+  // While an account is being prepared, refresh every 20 seconds.
+  setInterval(() => { if (status === "provisioning" || (counts.provisioning || 0) > 0) load(); }, 20000);
 })();
 </script>
 </body>

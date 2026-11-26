@@ -4,12 +4,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
+  handle TEXT UNIQUE,
   country TEXT NOT NULL,
   lang TEXT NOT NULL CHECK (lang IN ('ar', 'en')),
   broker TEXT,
   uses TEXT NOT NULL DEFAULT '[]',
   password_hash TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'active', 'rejected', 'suspended')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'provisioning', 'active', 'rejected', 'suspended')),
   instance_url TEXT,
   setup_link TEXT,
   reason TEXT,
@@ -42,3 +43,18 @@ CREATE TABLE IF NOT EXISTS rate (
   count INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 );
+-- One-click activation: each attempt to create a customer's dedicated Lonora (PW-T6).
+CREATE TABLE IF NOT EXISTS provision_jobs (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+  handle TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('creating', 'installing', 'ready', 'failed', 'removed')),
+  secret_hash TEXT NOT NULL,
+  server_id TEXT,
+  ipv4 TEXT,
+  dns_record_id TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS provision_jobs_account ON provision_jobs (account_id, created_at);
