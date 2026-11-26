@@ -15,6 +15,7 @@ from lonora_contracts.attention import (
     OwnerNotifyRequest,
 )
 from lonora_contracts.domain import utcnow
+from lonora_contracts.model_routing import Capability
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
 from lonora_core.broker_health import GRACED as GENERIC
 from lonora_core.broker_health import broker_problem, outage
@@ -123,10 +124,12 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
     if row.code == "gateway_stopped":
         return not await gateway_running(session)
     if row.code == "model_access_failed":
-        # A new key for that provider ends it: the next background run tries again.
-        return row.parameters.get("credential") == await credential_marker(
-            session, str(row.parameters.get("provider", ""))
-        )
+        # A new key for that provider ends it: the next background run tries again. A
+        # refused or missing model also ends once no agent would try it any more.
+        provider, model = str(row.parameters.get("provider", "")), row.parameters.get("model")
+        if row.parameters.get("credential") != await credential_marker(session, provider):
+            return False
+        return model is None or await model_in_use(session, row.owner_id, provider, str(model))
     if row.code == "approval_required":
         approval = await session.get(TradeApprovalRow, row.parameters.get("approval_id", ""))
         return (
@@ -915,6 +918,21 @@ async def credential_marker(session: AsyncSession, provider: str) -> str:
     written (a rotation keeps the id), or the deployment's own key. Never its value."""
     saved = await saved_key(session, provider)
     return saved.secret_id + "@" + saved.updated_at.isoformat() if saved else "deployment"
+
+
+async def model_in_use(session: AsyncSession, owner_id: str, provider: str, model: str) -> bool:
+    """Whether some agent of the owner would still try this model for background work."""
+    from .agent_models import model_candidates, tried_candidates
+    from .schema import AgentRow
+
+    agents = await session.scalars(select(AgentRow.id).where(AgentRow.owner_id == owner_id))
+    for agent_id in list(agents):
+        ordered, _ = await model_candidates(
+            session, Capability.BACKGROUND, owner_id=owner_id, agent_id=agent_id
+        )
+        if any((c.provider, c.model) == (provider, model) for c in tried_candidates(ordered)):
+            return True
+    return False
 
 
 def access_route(provider: str, model: str, reason: str) -> str:

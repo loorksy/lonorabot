@@ -176,7 +176,8 @@ or a channel.
   failure family, never the provider's message; a reason read only from wording on a
   generic response raises nothing, and a failure the owner is waiting on (a conversation)
   shows its own error instead. The item ends when the owner saves another key for that
-  provider, or when a run that a model of that route answered completes. While it
+  provider, or when a run that a model of that route answered completes; a refused or
+  missing model also once no agent would try it any more (the owner chose another). While it
   stands, a due routine whose agent has no model left outside the refused routes (of the
   models the router tries: each once, at most six; one whose provider has no key counts as
   refused, as the router passes over it) advances without a run (`model_access_refused`

@@ -537,3 +537,29 @@ async def test_a_held_routine_is_tried_again_after_a_growing_wait(task_db: Fixtu
         assert await settle_model_access(session, owner, "openai", "primary-model") == 1
     await due_again(db, routine_id)
     assert await dispatch_routines(db) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_missing_model_ends_once_no_agent_would_try_it(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    await fail_next(
+        db,
+        await provider_failure(
+            db, ModelProviderError(FailureReason.MODEL_NOT_FOUND, http_status=404)
+        ),
+    )
+    assert len(await items(db, owner)) == 1
+    # The owner chooses another model, as the item asks.
+    newer = ModelSelection(provider="openai", model="newer-model")
+    async with db.sessions() as session, session.begin():
+        await SettingsRepository().put(
+            session, "model_routing", RoutingPolicy(unified=newer).model_dump(mode="json")
+        )
+    async with db.sessions() as session:
+        assert [row["code"] for row in await attention_view(session, owner)] == []
+    async with db.sessions() as session, session.begin():
+        assert await withdraw_ended(session, owner) == 1
+    assert [item.status for item in await items(db, owner)] == ["suppressed"]
