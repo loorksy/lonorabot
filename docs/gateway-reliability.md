@@ -186,8 +186,29 @@ stuck.
 
 ## Drain and lease renewal
 
-On SIGTERM the gateway stops claiming, lets running work finish for up to 25 s and then
-cancels it. It then returns every lease it still holds to the queue (`release_leases`):
+On SIGTERM the gateway stops claiming and tells every Run it executes to hand back
+(`RunDrain`, read through `ToolContext.drain`). A Run checks it at its step boundaries: the
+top of each round, before each tool segment, and before each model turn or final report.
+There it checkpoints, records `environment.retry = {not_before: now, reason_code:
+gateway_drained}` and releases its worker the way a Task continuation does
+(`ToolRetryScheduled`): status `queued`, fence and checkpoint kept, no intent marker left.
+The next gateway continues from that checkpoint at once, and the claim does not count as
+a crash recovery; the status line shows the Run as queued, not as a retry. The signal
+never interrupts a call already started (a read, or a change past `before_effect`): the
+call ends within its own deadline and the Run hands back right after it.
+
+After 25 s a backstop cancels a worker still busy, a model stream or a read that does
+not end (`BACKSTOP_SECONDS`). It never cancels a worker inside an effect: from
+`before_effect` of a call that is not read-only until that call's result is
+checkpointed, the worker is in `RunDrain.effects`, so a send is never cut and its journal
+entry never left open by the drain; the call ends within its own deadline and the Run
+then hands back. The run drain and the drain of relayed requests (an owner's order) run
+at the same time, inside one shutdown deadline of 50 s (`SHUTDOWN_SECONDS`, the only
+point where anything still running is cancelled). That deadline sits below the 60 s
+stop grace of the container (`stop_grace_period`) and of systemd (`TimeoutStopSec`), so
+the gateway always gets to the next steps before it is killed.
+
+The gateway then returns every lease it still holds to the queue (`release_leases`):
 status `queued`, fence kept. A late write from the old lease is still rejected, the
 checkpoint and its in-flight markers are untouched, and the next gateway resumes the
 work at once instead of after `run_lease_seconds`. A release is a clean hand-over and
@@ -197,6 +218,21 @@ A Run renews its lease every third of the lease length (`keep_lease`). A transie
 database error (dropped connection, failover, timeout, or a renewal that hangs) is
 retried until shortly before the lease would expire; only a fenced `stale_lease`, an unknown error or running out of
 lease time stops the Run.
+
+A Run also reads its own fence every 2 s (`watch_fence`). A cancel (the owner's, or
+Lonora's `cancel_run`) only moves the fence, so without this a Run between fenced writes
+(a model still thinking before its first token, a long read, a backoff sleep) went on
+until its next renewal. It now stops within about 2 s, and nothing it writes after the
+cancel is accepted. The Run's own completion or release keeps the fence, so the writing
+of its outcome is never cut. A cancel noticed inside an effect takes effect once that call has
+returned, and the checkpoint of its result is refused by the moved fence: a cancel never
+cuts a send.
+
+A Run's final transaction (its completion, its wait for the owner's answer, its release
+back to the queue) is retried the same way after a dropped connection, a failover or a
+timeout, while the lease holds (`final_commit`); any other error still fails the Run. A
+Run whose answer was ready is therefore not recorded as failed by a database blip, and
+the fence makes a second commit impossible.
 
 ## Durable records
 
@@ -239,7 +275,12 @@ passkey, so nothing is left looking active while it can no longer run:
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
   ended episodes after a restart; an owner message left queued opening one delayed-runs
   episode until it is claimed; coalesced quarantine notices and the kept critical
-  alert; drain release and lease renewal; durable records, delete refusal and the
+  alert; drain release and lease renewal; the hand-back of a Run at its next step
+  boundary after a slow read or a change, and the Gateway's signal set before it drains;
+  the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
+  run and relay drains share one deadline below the stop grace; a cancel that stops a
+  long model call within 3 s and waits for a change past `before_effect`, with no write
+  after it; a transient error at the final commit; durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.
 - `tests/test_gateway_reliability.py` also checks that the heartbeat refreshes the

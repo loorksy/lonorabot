@@ -7,6 +7,7 @@ PostgreSQL foreign keys and are skipped on SQLite.
 
 import asyncio
 import os
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,14 +20,19 @@ import lonora_gateway.attention as attention
 import lonora_gateway.service as service
 import lonora_market.watchers as watchers
 import pytest
+import yaml
+from lonora_adapter_kit.types import ModelReply
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_automation.runner import dispatch_routines
 from lonora_contracts.domain import utcnow
+from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.attention import ATTENTION_KINDS
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.agent_permissions import permission_state
+from lonora_db.agent_state import agent_live_state
+from lonora_db.cancellation import cancel_run
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import QUARANTINE_AFTER, ItemGuard
@@ -43,6 +49,7 @@ from lonora_db.schema import (
     GatewayRow,
     ItemFailureRow,
     MarketWatchRow,
+    MessageRow,
     RoutineRow,
     RunRow,
     SettingRow,
@@ -56,10 +63,22 @@ from lonora_gateway.liveness import Liveness, StepLiveness, StepSpec, supervise_
 from lonora_gateway.runtime import OwnerServices
 from lonora_gateway.shutdown import drain
 from lonora_gateway.watchdog import Watchdog
-from lonora_tools.context import ToolContext
-from sqlalchemy import select, update
+from lonora_tools.base import Tool
+from lonora_tools.context import RunDrain, ToolContext
+from lonora_tools.registry import ToolRegistry
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import OperationalError
 from test_task_runtime import task_db as task_db
+from test_tool_loop_execution import (
+    Arguments,
+    Script,
+    calls,
+    context_for,
+    conversation_run,
+    results,
+    saved_run,
+    seeded,
+)
 
 Fixture = tuple[Database, str, str, str]
 POSTGRES = bool(os.environ.get("LONORA_TASK_TEST_DATABASE_URL"))
@@ -701,6 +720,140 @@ async def test_the_gateway_releases_its_leases_when_it_drains(
     assert heartbeat and heartbeat.state == "stopped"
 
 
+@pytest.mark.asyncio
+async def test_the_gateway_tells_its_runs_to_hand_back_before_it_drains(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(service, "STEPS", ())
+    gateway = service.Gateway(
+        cast(Database, SimpleNamespace()), "unused-key", tmp_path, maximum_subagents=0
+    )
+    given: list[RunDrain | None] = []
+
+    async def dispatch(*_: Any, drain: RunDrain | None = None, **__: Any) -> bool:
+        given.append(drain)
+        return False
+
+    seen: list[bool] = []
+
+    async def draining(tasks: list[asyncio.Task[None]], *_: Any, **__: Any) -> None:
+        seen.append(gateway.run_drain.requested)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def nothing(*_: Any, **__: Any) -> Any:
+        return None
+
+    monkeypatch.setattr(service, "dispatch_one", dispatch)
+    monkeypatch.setattr(service, "drain", draining)
+    monkeypatch.setattr(service, "write_heartbeat", nothing)
+    monkeypatch.setattr(service, "release_leases", nothing)
+    serving = asyncio.create_task(gateway.serve())
+    await asyncio.sleep(0.05)
+    assert not gateway.run_drain.requested
+    gateway.request_stop()
+    await asyncio.wait_for(serving, 5)
+    # Every worker hands its Runs the Gateway's one signal, set before the drain starts.
+    assert given and all(drain is gateway.run_drain for drain in given)
+    assert seen == [True]
+
+
+@pytest.mark.asyncio
+async def test_the_backstop_cancels_a_busy_worker_but_never_one_inside_an_effect() -> None:
+    effects: set[asyncio.Task[Any]] = set()
+    finished: list[str] = []
+
+    async def streaming() -> None:
+        # A model stream that does not end: the backstop is what stops it.
+        await asyncio.sleep(60)
+
+    async def sending() -> None:
+        effects.add(cast(asyncio.Task[Any], asyncio.current_task()))
+        try:
+            await asyncio.sleep(0.6)
+        finally:
+            effects.discard(cast(asyncio.Task[Any], asyncio.current_task()))
+        finished.append("sent")
+
+    async def stuck() -> None:
+        effects.add(cast(asyncio.Task[Any], asyncio.current_task()))
+        await asyncio.sleep(60)
+
+    clock = asyncio.get_running_loop().time
+    busy, effect = asyncio.create_task(streaming()), asyncio.create_task(sending())
+    started = clock()
+    await drain([busy, effect], 0.1, 5, effects)
+    # The send ran to its own end long after the backstop; the stream was cut at it.
+    assert busy.cancelled() and not effect.cancelled() and finished == ["sent"]
+    assert 0.5 < clock() - started < 2
+    # Only the one shutdown deadline cuts an effect that never ends.
+    hung = asyncio.create_task(stuck())
+    started = clock()
+    await drain([hung], 0.1, 0.5, effects)
+    assert hung.cancelled() and 0.4 < clock() - started < 1.5
+
+
+@pytest.mark.asyncio
+async def test_shutdown_releases_leases_inside_one_deadline_below_the_stop_grace(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db, owner, agent, thread = task_db
+    monkeypatch.setattr(service, "STEPS", ())
+    monkeypatch.setattr(service, "BACKSTOP_SECONDS", 0.2)
+    monkeypatch.setattr(service, "SHUTDOWN_SECONDS", 1.0)
+    gateway = service.Gateway(db, "unused-key", tmp_path, maximum_subagents=0)
+
+    async def busy(lane: str | None = None, name: str = "worker") -> None:
+        # A worker inside a model call that does not end before the backstop.
+        await asyncio.sleep(60)
+
+    answered: list[str] = []
+
+    async def order() -> None:
+        # An owner's relayed order that needs longer than the backstop.
+        await asyncio.sleep(0.5)
+        answered.append("order")
+
+    monkeypatch.setattr(gateway, "worker_loop", busy)
+    async with db.sessions() as session, session.begin():
+        run = await create_run(
+            session, owner, RunRequest(thread_id=thread, agent_id=agent, prompt="drain me")
+        )
+    async with db.sessions() as session, session.begin():
+        assert await claim_next(session, gateway.identity, 120)
+    serving = asyncio.create_task(gateway.serve())
+    await asyncio.sleep(0.05)
+    gateway.relay.tasks.add(asyncio.create_task(order()))
+    # A request that never ends gives up at the shutdown deadline, not after it.
+    gateway.relay.tasks.add(asyncio.create_task(asyncio.sleep(60)))
+    clock = asyncio.get_running_loop().time
+    started = clock()
+    gateway.request_stop()
+    await asyncio.wait_for(serving, 5)
+    # The run drain and the relay drain ran at the same time, inside the one deadline.
+    assert clock() - started < 1.6 and answered == ["order"]
+    async with db.sessions() as session:
+        row = await session.get(RunRow, run.id)
+    assert row and row.status == "queued" and row.lease_fence == 1
+    for task in gateway.relay.tasks:
+        task.cancel()
+
+
+def test_the_stop_grace_leaves_room_after_the_shutdown_deadline() -> None:
+    root = Path(__file__).resolve().parents[1]
+    compose = yaml.safe_load((root / "infra/compose/docker-compose.prod.yml").read_text())
+    grace = compose["services"]["gateway"]["stop_grace_period"]
+    unit = (root / "infra/systemd/lonora-gateway.service").read_text()
+    timeout = next(
+        line.split("=", 1)[1] for line in unit.splitlines() if line.startswith("TimeoutStopSec=")
+    )
+    assert service.BACKSTOP_SECONDS < service.SHUTDOWN_SECONDS
+    # Releasing leases and closing connections still fit before Docker or systemd kills.
+    for seconds in (int(grace.removesuffix("s")), int(timeout)):
+        assert seconds >= service.SHUTDOWN_SECONDS + 10
+
+
 def test_every_gateway_iteration_is_a_scheduled_step(tmp_path: Path) -> None:
     # start() schedules STEPS only: an iteration without a StepSpec never runs in production.
     gateway = service.Gateway(
@@ -791,6 +944,253 @@ async def test_lease_renewal_gives_up_before_expiry_or_at_once_when_fenced(
     started = asyncio.get_running_loop().time()
     await asyncio.wait_for(executor.keep_lease(context, 3, lambda: lost.append(True)), 3)
     assert lost == [True] and asyncio.get_running_loop().time() - started < 1.5
+
+
+async def cancelled_by_owner(context: ToolContext) -> tuple[RunRow, int]:
+    """The owner cancels the Run; returns what the cancel wrote and the last event."""
+    async with context.db.sessions() as session, session.begin():
+        await cancel_run(session, context.owner_id, context.lease.run_id)
+    async with context.db.sessions() as session:
+        last = await session.scalar(select(func.max(EventRow.cursor)))
+    return await saved_run(context), int(last or 0)
+
+
+async def nothing_written_after(context: ToolContext, cancelled: RunRow, last: int) -> None:
+    """No write of the old lease landed after the cancel: the fence refused them all."""
+    run = await saved_run(context)
+    assert run.status == "cancelled" and run.updated_at == cancelled.updated_at
+    assert run.execution_state == cancelled.execution_state
+    async with context.db.sessions() as session:
+        later = list(
+            await session.scalars(
+                select(EventRow.kind).where(EventRow.run_id == run.id, EventRow.cursor > last)
+            )
+        )
+    assert later == []
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_during_a_long_model_call_stops_the_run_within_three_seconds(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    thinking = asyncio.Event()
+
+    async def reasoning(*_: Any, **__: Any) -> tuple[ModelReply, ModelSelection]:
+        # A reasoning model before its first token: no fenced write would notice a cancel.
+        thinking.set()
+        await asyncio.sleep(30)
+        return ModelReply(text="Too late."), ModelSelection(provider="openai", model="slow")
+
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", reasoning)
+    context = await conversation_run(task_db)
+    worker = asyncio.create_task(executor.execute_run(context, ToolRegistry([]), 120, 8))
+    await asyncio.wait_for(thinking.wait(), 5)
+    cancelled, last = await cancelled_by_owner(context)
+    clock = asyncio.get_running_loop().time
+    started = clock()
+    await asyncio.wait_for(worker, 5)
+    assert clock() - started < 3 and not worker.cancelled()
+    await nothing_written_after(context, cancelled, last)
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_never_cuts_a_change_past_before_effect(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started, writes = asyncio.Event(), list[int]()
+
+    async def write(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        # Longer than the watcher's period: a cut here would leave the change uncertain.
+        await asyncio.sleep(2.5)
+        writes.append(args["n"])
+        return {"version": args["n"]}
+
+    registry = ToolRegistry([Tool("fixture_write", "Write", Arguments, write, False)])
+    block = calls(("w1", "fixture_write", 1))
+    context = replace(await conversation_run(task_db, seeded(block)), drain=RunDrain())
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Saved.")))
+    worker = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    cancelled, last = await cancelled_by_owner(context)
+    await asyncio.wait_for(worker, 6)
+    # The change ran to its end; its result, written under the old fence, was refused.
+    assert writes == [1] and not worker.cancelled()
+    await nothing_written_after(context, cancelled, last)
+
+
+@pytest.mark.asyncio
+async def test_a_transient_error_at_the_final_commit_still_completes_the_run(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = await conversation_run(task_db)
+    monkeypatch.setattr(
+        "lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Gold is flat."))
+    )
+    real = executor.complete_run
+    attempts: list[int] = []
+
+    async def flaky(session: Any, lease: Lease, answer: str, metadata: dict[str, Any]) -> bool:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise OperationalError("UPDATE ln_runs", {}, ConnectionResetError("reset"))
+        return await real(session, lease, answer, metadata)
+
+    monkeypatch.setattr(executor, "complete_run", flaky)
+    await executor.execute_run(context, ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed" and run.result == "Gold is flat.", run.error_code
+    assert len(attempts) == 2
+    async with context.db.sessions() as session:
+        replies = list(
+            await session.scalars(
+                select(MessageRow).where(
+                    MessageRow.thread_id == context.thread_id, MessageRow.role == "assistant"
+                )
+            )
+        )
+    # The failed attempt was rolled back: the answer is in the conversation once.
+    assert [reply.content for reply in replies] == ["Gold is flat."]
+
+
+async def handed_back(context: ToolContext) -> RunRow:
+    """The Run a draining Gateway released at a step boundary: queued, fence and
+    checkpoint kept, no intent marker left behind."""
+    run = await saved_run(context)
+    assert run.status == "queued" and run.lease_expires_at is None
+    assert run.lease_fence == context.lease.fence and run.error_code is None
+    environment = run.execution_state["environment"]
+    assert environment["retry"]["reason_code"] == "gateway_drained"
+    assert "inflight_calls" not in environment and "inflight" not in environment
+    async with context.db.sessions() as session:
+        released = await session.scalar(
+            select(EventRow)
+            .where(EventRow.run_id == run.id, EventRow.kind == "run.retry_scheduled")
+            .order_by(EventRow.cursor.desc())
+            .limit(1)
+        )
+    assert released and released.payload["reason_code"] == "gateway_drained"
+    return run
+
+
+async def resumed(fixture: Fixture, run_id: str) -> ToolContext:
+    """The next claim of a released Run: a new fence, and no recovery counted."""
+    db, *_ = fixture
+    async with db.sessions() as session, session.begin():
+        claimed = await claim_next(session, "gw-next", 120)
+        assert claimed and claimed.id == run_id and claimed.recovery_count == 0
+        claimed.status = "running"
+        lease = Lease(run_id=run_id, owner="gw-next", fence=claimed.lease_fence)
+    return context_for(fixture, lease, claimed.thread_id)
+
+
+@pytest.mark.asyncio
+async def test_a_draining_gateway_hands_a_run_back_after_its_slow_read(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, _ = task_db
+    started, reads = asyncio.Event(), list[int]()
+
+    async def slow_read(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        await asyncio.sleep(0.3)
+        reads.append(args["n"])
+        return {"price": 2300}
+
+    registry = ToolRegistry([Tool("fixture_read", "Read", Arguments, slow_read, True)])
+    stopping = RunDrain()
+    context = replace(await conversation_run(task_db), drain=stopping)
+    model = Script(
+        ModelReply(tool_calls=calls(("r1", "fixture_read", 1))), ModelReply(text="Gold at 2300.")
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    running = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    stopping.requested = True
+    await asyncio.wait_for(running, 5)
+    # The read ended within its own deadline; no model turn started after the signal.
+    run = await handed_back(context)
+    assert reads == [1] and len(model.requests) == 1
+    assert results(run) == {"r1": {"ok": True, "price": 2300}}
+    async with db.sessions() as session:
+        live = await agent_live_state(session, owner, agent)
+    # Handed back is not a retry after a failure: the status line says nothing of one.
+    assert live.runtime_waits == [] and live.phase != "recovering"
+    # The next claim continues from the same checkpoint: the read is not repeated.
+    await executor.execute_run(await resumed(task_db, run.id), registry, 120, 8)
+    done = await saved_run(context)
+    assert done.status == "completed" and done.result == "Gold at 2300." and reads == [1]
+    request, _ = model.requests[1]
+    assert [item.tool_call_id for item in request if item.role == "tool"] == ["r1"]
+
+
+@pytest.mark.asyncio
+async def test_a_draining_gateway_never_starts_a_call_or_a_model_turn(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started, writes = asyncio.Event(), list[int]()
+
+    async def write(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        await asyncio.sleep(0.3)
+        writes.append(args["n"])
+        return {"version": args["n"]}
+
+    registry = ToolRegistry([Tool("fixture_write", "Write", Arguments, write, False)])
+    stopping = RunDrain()
+    block = calls(("w1", "fixture_write", 1), ("w2", "fixture_write", 2))
+    context = replace(await conversation_run(task_db, seeded(block)), drain=stopping)
+    model = Script(ModelReply(text="Both saved."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    running = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    stopping.requested = True
+    await asyncio.wait_for(running, 5)
+    # The change already past before_effect ran to its end; the next one never started.
+    run = await handed_back(context)
+    assert writes == [1] and model.requests == []
+    assert results(run) == {"w1": {"ok": True, "version": 1}}
+    assert [call["id"] for call in run.execution_state["pending"]] == ["w2"]
+    # A Run that starts while the Gateway drains hands back before anything runs.
+    other = replace(await resumed(task_db, run.id), drain=stopping)
+    await executor.execute_run(other, registry, 120, 8)
+    await handed_back(other)
+    assert writes == [1] and model.requests == []
+    # The next Gateway runs the second change once and never repeats the first.
+    stopping.requested = False
+    await executor.execute_run(await resumed(task_db, run.id), registry, 120, 8)
+    done = await saved_run(context)
+    assert done.status == "completed" and writes == [1, 2]
+    assert set(results(done)) == {"w1", "w2"} and len(model.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_backstop_never_cuts_a_change_past_before_effect(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started, writes = asyncio.Event(), list[int]()
+
+    async def write(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        # Longer than the backstop: a cut here would leave the change uncertain.
+        await asyncio.sleep(0.6)
+        writes.append(args["n"])
+        return {"version": args["n"]}
+
+    registry = ToolRegistry([Tool("fixture_write", "Write", Arguments, write, False)])
+    stopping = RunDrain()
+    block = calls(("w1", "fixture_write", 1))
+    context = replace(await conversation_run(task_db, seeded(block)), drain=stopping)
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Saved.")))
+    worker = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    await asyncio.wait_for(started.wait(), 5)
+    assert stopping.effects == {worker}
+    stopping.requested = True
+    await drain([worker], 0.1, 5, stopping.effects)
+    # The change ran to its end, its result was checkpointed, then the Run handed back.
+    assert not worker.cancelled() and writes == [1] and stopping.effects == set()
+    run = await handed_back(context)
+    assert results(run) == {"w1": {"ok": True, "version": 1}}
 
 
 # A retired Super Bot request keeps the id of the goal it named, as a value.
@@ -1169,7 +1569,7 @@ async def test_a_worker_whose_every_claim_fails_goes_stale_and_is_reported(
     db, owner, *_ = task_db
     calls = [0]
 
-    async def broken(*_: Any) -> bool:
+    async def broken(*_: Any, **__: Any) -> bool:
         calls[0] += 1
         raise RuntimeError("poison row in the claim query")
 

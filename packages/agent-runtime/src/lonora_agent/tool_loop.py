@@ -40,9 +40,11 @@ from functools import partial
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
+from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.run_state import is_background, may_end_silent
+from lonora_core.runtime_failure import DRAIN_REASON
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
@@ -132,6 +134,25 @@ async def persist(
     state["pending"] = [call.model_dump(mode="json") for call in pending]
     async with context.db.sessions() as session, session.begin():
         await checkpoint(session, context.lease, state)
+
+
+async def hand_back_if_draining(
+    context: ToolContext, state: dict[str, Any], save: Callable[[], Awaitable[None]]
+) -> None:
+    """At a step boundary of a stopping Gateway: checkpoint and release this worker.
+
+    The Run goes back to the queue the way a Task continuation does, with its fence and
+    checkpoint kept, and the next claim is not counted as a recovery. It refuses and
+    decides nothing: the next Gateway continues from this checkpoint.
+    """
+    if context.drain is None or not context.drain.requested:
+        return
+    environment_state(state)["retry"] = {
+        "not_before": utcnow().isoformat(),
+        "reason_code": DRAIN_REASON,
+    }
+    await save()
+    raise ToolRetryScheduled()
 
 
 async def compact_for_turn(
@@ -434,6 +455,7 @@ async def execute_tool_loop(
     while True:
         await cancellation_checkpoint(context)
         await task_checkpoint(context)
+        await hand_back_if_draining(context, state, save)
         # At a limit: owner input buys a new budget, a Task takes another slice,
         # otherwise the final report ends the pass.
         limit = slice_limit(state, maximum_rounds)
@@ -486,9 +508,16 @@ async def execute_tool_loop(
                 break
             if retry_pending(state, pending[0]):
                 raise ToolRetryScheduled()
-            outcome = await run_and_record_segment(
-                context, registry, state, messages, pending, exposure, scope, save
-            )
+            # A call already started ran to its end; the next one waits for the next Gateway.
+            await hand_back_if_draining(context, state, save)
+            try:
+                outcome = await run_and_record_segment(
+                    context, registry, state, messages, pending, exposure, scope, save
+                )
+            finally:
+                if context.drain is not None:
+                    # Its effect, if any, is recorded in the checkpoint now.
+                    context.drain.leave_effect()
             if outcome is not None:
                 return outcome
             if halt_reason(state):
@@ -504,6 +533,8 @@ async def execute_tool_loop(
         await assert_skill_authority(
             context, registry, active_ids=cast(list[str], state["instruction_skill_ids"])
         )
+        # No model turn (nor the final report) starts while the Gateway drains.
+        await hand_back_if_draining(context, state, save)
         # Only the last slice ends the Run; earlier Task slices continue later.
         per_slice = int(cast(dict[str, Any], state["task_continuation"])["rounds_per_slice"])
         final_limit = per_slice * MAXIMUM_SLICES if task_run else limit

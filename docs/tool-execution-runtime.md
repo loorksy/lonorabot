@@ -233,6 +233,14 @@ Receipts, ambiguous financial route records and same-operation reconciliation
 keep their priority over all of this. Checkpoints written by the previous
 single-slot code resume unchanged.
 
+A stopping Gateway never needs this recovery for a Run that reaches a step boundary:
+at the top of each round, before each segment and before each model turn the loop
+checks `ToolContext.drain` and, once it is set, checkpoints and hands the Run back to
+the queue (`gateway_drained`) with no marker left. A call already started is never cut
+by that signal; the Run hands back right after it. From `before_effect` of a call that
+is not read-only until its result is checkpointed, the drain's backstop does not cancel
+the worker either (`docs/gateway-reliability.md`).
+
 A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
 `class` is one of input, resolution, connection, permission, provider, internal
 (`environment.error_class`, from the recovery category). An operation the executor

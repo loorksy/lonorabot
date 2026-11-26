@@ -6,6 +6,9 @@ from typing import Literal
 # ``environment.retry.reason_code`` of a Run backing off after every model
 # candidate failed (a read retry has its own reason, or none).
 MODEL_RETRY_REASON = "model_provider_retry"
+# ``environment.retry.reason_code`` of a Run a stopping Gateway handed back at a step
+# boundary: it is not waiting out any failure, the next Gateway continues it at once.
+DRAIN_REASON = "gateway_drained"
 
 TRANSIENT_READ_CODES = frozenset(
     {

@@ -10,7 +10,8 @@ EnvironmentFile=/opt/lonora/.env
 ExecStart=/opt/lonora/.venv/bin/lonora-gateway
 Restart=on-failure
 RestartSec=5
-TimeoutStopSec=40
+# Above the Gateway's 50 s shutdown deadline (lonora_gateway/shutdown.py).
+TimeoutStopSec=60
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true

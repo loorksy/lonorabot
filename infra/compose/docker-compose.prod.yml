@@ -101,7 +101,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    stop_grace_period: 40s
+    # Above the Gateway's 50 s shutdown deadline (lonora_gateway/shutdown.py), so its leases
+    # are always released and its connections closed before Docker kills it.
+    stop_grace_period: 60s
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
   searxng:

@@ -7,7 +7,7 @@ from lonora_contracts.agent_state import AgentLiveState, CurrentWork
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market_health import as_of
 from lonora_core.run_state import is_conversational
-from lonora_core.runtime_failure import MODEL_RETRY_REASON
+from lonora_core.runtime_failure import DRAIN_REASON, MODEL_RETRY_REASON
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import stable_id
 from sqlalchemy import and_, exists, func, or_, select
@@ -495,7 +495,8 @@ async def agent_live_state(
     for run in runs:
         environment = run.execution_state.get("environment", {})
         retry, wait = environment.get("retry"), environment.get("wait")
-        if run.status == "queued" and retry:
+        # A Run a stopping Gateway handed back waits for no retry: it is simply queued.
+        if run.status == "queued" and retry and retry.get("reason_code") != DRAIN_REASON:
             # A model outage backoff is not a tool read retry; clients say which.
             kind = "model_retry" if retry.get("reason_code") == MODEL_RETRY_REASON else "read_retry"
             runtime_waits.append({"run_id": run.id, "kind": kind, "retry_at": retry["not_before"]})

@@ -19,6 +19,7 @@ from lonora_db.owner import get_owner
 from lonora_db.task_recovery import retry_due_tasks
 from lonora_db.task_wait import resume_ready_waits
 from lonora_security.secrets import SecretScan
+from lonora_tools.context import RunDrain
 from lonora_tools.loader import load_tools
 from lonora_tools.terminal import owner_scan
 from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
@@ -33,15 +34,12 @@ from .liveness import Liveness, StepSpec, supervise_step
 from .process_identity import process_identity
 from .run_dispatch import dispatch_one
 from .runtime import OwnerServices
-from .shutdown import drain, release_leases
+from .shutdown import BACKSTOP_SECONDS, SHUTDOWN_SECONDS, drain, release_leases
 from .supervisor import supervise
 from .wake_dispatch import dispatch_market_wakes
 from .watchdog import Watchdog
 
 log = logging.getLogger("lonora.gateway")
-
-# How long a stopping Gateway waits for relayed requests in flight (an owner's order).
-RELAY_DRAIN_SECONDS = 30
 
 # Every maintenance step is its own supervised task with its own interval, iteration
 # timeout and liveness record: a step that raises or hangs never stops another one.
@@ -144,6 +142,9 @@ class Gateway:
         self.voice_tasks: dict[str, asyncio.Task[None]] = {}
         self.identity = process_identity()
         self.stop = asyncio.Event()
+        # Shared with every Run this Gateway executes: set, each hands back at its next
+        # step boundary instead of being cancelled wherever it is.
+        self.run_drain = RunDrain()
         self.state = GatewayState.STARTING
         self.services: dict[str, OwnerServices] = {}
         self.relay = BrokerRelay(db, self.service)
@@ -174,6 +175,7 @@ class Gateway:
                     self.searxng_url,
                     self.browser_url,
                     self.mcp_owner_trust,
+                    drain=self.run_drain,
                 )
             except Exception as error:
                 # A worker whose every claim fails is not live: its record goes stale,
@@ -512,10 +514,16 @@ class Gateway:
         self.state = GatewayState.RUNNING
         loops = self.start()
         await self.stop.wait()
+        self.run_drain.requested = True
         self.state = GatewayState.DRAINING
         await write_heartbeat(self.db, self.identity, self.state.value, self.liveness.snapshot())
-        await drain(loops)
-        await self.relay.drain(RELAY_DRAIN_SECONDS)
+        # Runs hand back at their next step boundary while relayed requests (an owner's
+        # order above all) finish: both at once, inside one deadline below the stop grace.
+        runs = asyncio.create_task(
+            drain(loops, BACKSTOP_SECONDS, SHUTDOWN_SECONDS, self.run_drain.effects)
+        )
+        await self.relay.drain(SHUTDOWN_SECONDS, runs)
+        await runs
         # Leases this process still holds go back to the queue with their fence kept,
         # so the next gateway resumes that work at once instead of after lease expiry.
         await release_leases(self.db, self.identity)
