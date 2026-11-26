@@ -28,6 +28,10 @@
       "name": "Full management tool guidance tests",
       "description": "Automatic checks for full management tool guidance."
     },
+    "tests/test_gate.py": {
+      "name": "Gate tests",
+      "description": "Automatic checks that the gate runs every core safety test and that CI runs the gate."
+    },
     "tests/test_gateway_reliability.py": {
       "name": "Gateway reliability tests",
       "description": "Automatic checks for gateway reliability."

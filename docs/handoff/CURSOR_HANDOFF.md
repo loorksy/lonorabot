@@ -57,7 +57,7 @@ anything newer on the branches named below was done after it, so check `git log`
   - that `lonora-analysis.service` is still active.
 
 ### GitHub
-- CI does NOT run on this repository: jobs end in about 1 s, most likely a billing or minutes problem. The local gate in section 3 is the only gate.
+- CI does NOT run on this repository: jobs end in about 1 s, most likely a billing or minutes problem. The local gate in section 3, `scripts/gate.sh`, is the only gate. `.github/workflows/ci.yml` only sets up the tools and calls that same script, for the day CI runs again.
 - **Open PRs:** only `#180` and `#162`, both old W-AUTH work. Close them without merging once R2 lands (see `docs/handoff/wauth-plan.md` §2). Each comment you post on GitHub ends with an attribution footer.
 
 ### Branches in flight (pushed; check each one's latest commit)
@@ -113,14 +113,17 @@ anything newer on the branches named below was done after it, so check `git log`
 
 ## 3. The gate (run it in full before every merge to main)
 
-Use PostgreSQL 16 with a fresh database per run. Take the env values from `.github/workflows/ci.yml`; they are CI-only dummy values.
+Run `LONORA_DATABASE_URL=<a PostgreSQL 16 server> bash scripts/gate.sh`. Only the URL's server and role are used: the role must be allowed to create databases, and the gate makes a fresh database for each step that needs one and drops them all at the end. The gate sets its own CI-only dummy values (Fernet key, bootstrap token) and puts every `packages/*/src` and `apps/*/src` of the checkout on `PYTHONPATH`. Its header lists the one-time setup. It stops at the first failure and runs, in this order:
+- `bash scripts/build.sh`: ruff, ruff format, pyright strict, the tool reference and manifest check (`export_agent_tool_reference.py --check`), the GenUI catalog check and the policy distribution, then pnpm lint, check and build.
+- `pnpm --filter @lonora/web i18n`, which refreshes the catalogs in place, with Arabic at 0 missing.
 - `bash scripts/migrate.sh` on a fresh database. There must be exactly one alembic head.
-- Full pytest: `.venv/bin/python -m pytest -q tests`, with `PYTHONPATH` set to every `packages/*/src` and `apps/*/src`.
-- `python tests/run_foundation_checks.py --isolated-databases` (83+ checks; each needs a fresh database).
-- `bash scripts/build.sh`: ruff, ruff format, pyright strict, policy distribution, then pnpm lint, check and build.
-- `pnpm --filter @lonora/web i18n`, with Arabic at 0 missing.
-- Manifest, whenever `lonora.md`, a frame or a tool description changes. Run `PYTHONPATH=$(ls -d packages/*/src | tr '\n' ':') .venv/bin/python scripts/export_agent_tool_reference.py`, then the same with `--check`. Mind the `lonora.md` chapter budgets.
-- The FULL Playwright web suite (`pnpm test:web`) and the FULL mobile suite (`pnpm test:mobile`). Each runs on a fresh database, one at a time, because the ports are fixed at 8830/8831. Pass `--trace off`.
+- Full pytest: `.venv/bin/python -m pytest -q tests`. It includes `tests/test_acceptance_scenario.py`, which runs `scripts/agent_eval/acceptance.py --offline`.
+- `python tests/run_foundation_checks.py --isolated-databases` (109 check scripts and 16 pytest files; each gets a fresh database). Five of the core tests of VISION 14.1.2 are check scripts there; the other six run in the full pytest. `tests/test_gate.py` fails if the gate stops running one of them, or if `ci.yml` gets a test list of its own.
+- Every TypeScript unit test: `pnpm exec tsx --test tests/web/*.test.ts tests/mobile/*.test.ts`.
+- The FULL Playwright web suite (`pnpm test:web`) and the FULL mobile suite (`pnpm test:mobile`), with `--trace off`. Each runs on a fresh database, one at a time, because the ports are fixed at 8830/8831.
+
+Rules around it:
+- Manifest, whenever `lonora.md`, a frame or a tool description changes: regenerate it with `PYTHONPATH=$(ls -d packages/*/src | tr '\n' ':') .venv/bin/python scripts/export_agent_tool_reference.py` before the gate checks it. Mind the `lonora.md` chapter budgets.
 - A flaky test is fixed at its root cause. Never skip it, retry it or raise its timeout.
 
 ## 4. Decisions already taken (do not reopen)
@@ -159,7 +162,7 @@ Use PostgreSQL 16 with a fresh database per run. Take the env values from `.gith
   - LD2: modify_order is counted that way.
   - LD3: the Secret card is counted with its actual labels, and the "replaces" line counts against HARD_LIMIT.
   - "Approved, awaiting the broker" uses the wait tone, never ok.
-- **Gate Fernet key:** the local gate uses the 44-character fixture named in `docs/acceptance-scenario.md`. The longer value in `.github/workflows/ci.yml` is not a valid Fernet key, so it is not used.
+- **Gate Fernet key:** the gate uses the 44-character fixture named in `docs/acceptance-scenario.md`; `scripts/gate.sh` sets it, and `ci.yml` carries no key of its own.
 
 ## 5. Useful facts
 

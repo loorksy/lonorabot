@@ -31,7 +31,7 @@ All file:line references are to origin/main **de1e2827** (fetched 2026-11-19) un
 - `bash scripts/migrate.sh`
 - `python tests/run_foundation_checks.py --isolated-databases`
 - the 11 core tests of 14.1.2
-- `pnpm exec tsx --test …` (ci.yml:829)
+- `pnpm exec tsx --test …` (the list was at ci.yml:829 then; `scripts/gate.sh` now runs every TypeScript unit test)
 - `python tests/check_clients.py`
 - `python tests/check_streaming.py`
 - `pnpm test:web` and `pnpm test:mobile`
