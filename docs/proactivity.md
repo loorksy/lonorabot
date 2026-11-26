@@ -59,6 +59,22 @@ is the agent's earliest conversation; a routine on such a thread moves to a new 
 thread of its own. A routine or watch run still in flight in a converted thread reports
 to the agent's conversation, like the runs the new code queues.
 
+## Routine timing: no stacking (11.5, 17)
+
+`enqueue_routine` in `lonora_db/routines.py` fires a due routine in its own transaction.
+
+- **No stacking.** While a run of the routine in its work thread is `queued` (a run in
+  retry backoff, for example during a model outage, is queued too), `leased` or
+  `running`, a due tick creates no run. The schedule advances as after a run, and the
+  skipped occurrence is counted on the routine (`ln_routines.skipped_occurrences`). A
+  run waiting for the owner's answer (`waiting_input`) does not hold the schedule: an
+  unanswered question never stops a routine. A one-shot always fires. This is not a
+  limit (P1): the routine fires on its schedule again once the earlier run has ended.
+- **What the run carries.** The next run carries the count as `skipped_occurrences`, in
+  server-only metadata that `create_run` strips from every caller, and the routine's
+  count starts again from zero. The routine's history shows it on that run
+  (`model_metadata`).
+
 ## Silence when there is nothing (11.5)
 
 A scheduled or background run with nothing new posts nothing. The agent decides what is

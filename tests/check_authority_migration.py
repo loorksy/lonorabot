@@ -591,29 +591,34 @@ async def general_shapes(db: Database, owner_id: str, account_id: str) -> dict[s
             ("owner", None, "owner"),
             ("lonora", lonora.id, "agent"),
         ):
-            routine = RoutineRow(
-                owner_id=owner_id,
-                agent_id=gold.id,
-                thread_id=conversation.id,
-                prompt="check",
-                interval_seconds=3600,
-                enabled=False,
-                next_run_at=utcnow(),
+            # The columns of the release before 0128; later migrations add others.
+            routine_id = str(uuid4())
+            await session.execute(
+                text(
+                    "INSERT INTO ln_routines (id, owner_id, agent_id, thread_id, prompt,"
+                    " interval_seconds, timezone, enabled, next_run_at) VALUES"
+                    " (:id, :owner, :agent, :thread, 'check', 3600, 'UTC', false, :at)"
+                ),
+                {
+                    "id": routine_id,
+                    "owner": owner_id,
+                    "agent": gold.id,
+                    "thread": conversation.id,
+                    "at": utcnow(),
+                },
             )
-            session.add(routine)
-            await session.flush()
             session.add(
                 SupervisionHoldRow(
                     owner_id=owner_id,
                     holder_agent_id=holder,
                     agent_id=gold.id,
                     target_kind="routine",
-                    target_id=routine.id,
+                    target_id=routine_id,
                     source=source,
                     created_at=utcnow(),
                 )
             )
-            ids["routine_" + name] = routine.id
+            ids["routine_" + name] = routine_id
         # A team agent's pause of an agent and of a watch, still open.
         team_paused = await new_agent("team_paused", paused=True)
         team_watch = watch(owner_id, gold.id, conversation.id, code="watch_paused")
@@ -944,8 +949,9 @@ async def second_upgrade(db: Database, owner_id: str, account_id: str, ids: dict
         stored = await level(session, owner_id, ids["stored"])
         assert stored is not None and stored["revision"] == 4
     heads = alembic("heads").strip().splitlines()
-    # 0129 repeats the grant-card delete. The mode migration under test stays 0128.
-    assert heads == ["0129_grant_cards_gone (head)"], heads
+    # 0129 repeats the grant-card delete and 0130 adds a routine column. The mode migration
+    # under test stays 0128.
+    assert heads == ["0130_routine_skipped_occurrences (head)"], heads
     print(
         "PASS a second upgrade shows no second card; the method line follows the owner's language"
     )

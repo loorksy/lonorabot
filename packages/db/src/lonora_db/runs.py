@@ -28,6 +28,10 @@ from .transactions import owned_agent, owned_thread
 # Crash recoveries a Run gets before the watchdog quarantines it instead of re-leasing it.
 MAX_RUN_RECOVERIES = 5
 
+# Only ``enqueue_routine`` writes how many occurrences of a routine's schedule were skipped
+# before a routine Run, while the routine's earlier run was unfinished.
+ROUTINE_TIMING = ("skipped_occurrences",)
+
 
 def aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
@@ -207,6 +211,7 @@ async def create_run(
                 OWNER_SPOKE,
                 # Only ``outcome_thread`` names the hidden thread of a Run's helpers.
                 OUTCOME_THREAD,
+                *ROUTINE_TIMING,
             }
         },
     )
