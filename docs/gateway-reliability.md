@@ -118,6 +118,15 @@ from the others.
 - **Overdue wakes.** Routines and timer waits more than five minutes past due raise one
   `gateway_degraded` item per episode (`reason_code: wakes_overdue`), unless a stalled
   scheduler step already reported it.
+- **Delayed runs.** A Run someone waits on (the owner's message in a conversation or a
+  group, or a broker event, Lonora's system-alert wake included) that has been queued,
+  due and unclaimed for more than 60 s (`QUEUE_DELAY`) raises one `gateway_degraded`
+  item per episode (`reason_code: runs_delayed`, with the `count` and `oldest_seconds`
+  when it opened), withdrawn once none is left waiting. A run waiting out its retry
+  backoff counts from when the retry came due; a paused agent's work waits for the
+  owner, and a run behind its own conversation's running turn waits for that turn. Every pass while runs are delayed logs `run.queue_delayed` with the count and
+  the oldest wait, and `run.queue_recovered` once they are claimed. The web shows the
+  item as "New requests are waiting longer than usual to start".
 - **Aging operations.** A live operation still `reserved`, `submitted` or `ambiguous`
   fifteen minutes after it was submitted raises exactly one `operation_unresolved`
   item ("A trade still has no confirmed broker result"). It is never resent. An
@@ -147,6 +156,33 @@ The heartbeat is its own step: it writes the liveness of every step and worker t
 younger than 45 s and none of its critical steps is stalled; otherwise 503, with the
 stalled step names. Gateway rows whose last heartbeat is more than seven days old are
 pruned.
+
+## Seen from outside
+
+Everything above runs inside the gateway, so it cannot notice the gateway itself being
+stuck.
+
+- **Loop-stall guard.** A plain thread (`stall_guard` in `lonora_worker/main.py`)
+  watches a timestamp the event loop updates every second. When the loop has not run
+  for 120 s (`STALL_SECONDS`, above the longest legitimate synchronous section), it
+  writes `gateway_loop_stalled` and every thread's stack to stderr (`faulthandler`) and
+  exits with code 70. Docker's `restart: unless-stopped` and systemd's
+  `Restart=on-failure` then start it again; neither fires for a process that is alive
+  but stuck. A restart is safe: leases are fenced, and an uncertain send is reconciled
+  and never resent (VISION 6.3).
+- **Container healthcheck.** Each heartbeat refreshes `.runtime/gateway-alive`
+  (`LIVENESS_FILE` in `lonora_worker/health.py`), and the `gateway` service of
+  `infra/compose/docker-compose.prod.yml` is healthy only while that file is at most
+  60 s old. A stuck loop, a dead process or a heartbeat that cannot reach the database
+  lets it age. `lonora status` and the Cloud host agent read this service state, and
+  `lonora update` and `start` wait for it.
+- **The owner is told.** The API, a separate process that keeps running, checks every
+  30 s (`watch_gateway`). Once no Gateway heartbeat has been fresh for 3 minutes
+  (`STOPPED_AFTER`, longer than a stuck Gateway takes to restart itself, and counted from
+  the API's own start at the earliest, so an update tells nobody), it raises one
+  `gateway_stopped` item per stop and sends its push (VISION 11.4, Amendment 5). Web and
+  mobile show it in «يحتاج انتباهك» while no heartbeat is fresh
+  ([attention.md](attention.md)).
 
 ## Drain and lease renewal
 
@@ -201,10 +237,19 @@ passkey, so nothing is left looking active while it can no longer run:
   reconciliation and liveness is persisted; a hung iteration times out; a worker whose
   claims fail goes stale; the stall threshold; readiness; recovery-count quarantine and
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
-  ended episodes after a restart; coalesced quarantine notices and the kept critical
+  ended episodes after a restart; an owner message left queued opening one delayed-runs
+  episode until it is claimed; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.
+- `tests/test_gateway_reliability.py` also checks that the heartbeat refreshes the
+  file the `gateway` service's healthcheck reads.
+- `tests/test_gateway_stopped.py`: a stale heartbeat shows the stopped-worker line and a
+  fresh one removes it; a quick restart or an API that just started tells nobody; a
+  cleanly stopped or never started Gateway is a stopped worker; the API pushes a stop
+  once and nothing while a Gateway runs.
+- `tests/test_worker_stall_guard.py`: a process whose loop is blocked exits with code 70
+  and writes its stacks; one whose loop keeps running is left alone.
 - `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the
   grant list, the permission frame and the trade path agree.
 - `tests/check_durable_records.py` (fresh PostgreSQL): the migration's constraints,

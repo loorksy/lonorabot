@@ -119,8 +119,11 @@ class Gateway:
         browser_url: str | None = None,
         mcp_owner_trust: bool = True,
         expo_access_token: str | None = None,
+        liveness_file: Path | None = None,
     ):
         self.db, self.key, self.root = db, key, artifact_root
+        # Refreshed by each heartbeat for the container's healthcheck (lonora_worker.health).
+        self.liveness_file = liveness_file
         self.chart_visual = chart_visual
         self.mcp_declarations = mcp_declarations
         # Old snapshots that cannot be read, set aside until a restart (workspace_move.py).
@@ -213,6 +216,9 @@ class Gateway:
 
     async def heartbeat(self) -> None:
         await write_heartbeat(self.db, self.identity, self.state.value, self.liveness.snapshot())
+        if self.liveness_file is not None:
+            self.liveness_file.parent.mkdir(parents=True, exist_ok=True)
+            self.liveness_file.touch()
 
     async def owners(self) -> None:
         async with self.db.sessions() as session:

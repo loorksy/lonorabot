@@ -243,6 +243,34 @@ async def test_readiness_needs_a_fresh_heartbeat_and_no_stalled_critical_step(
     assert (await gateway_health(db))["ready"] is False
 
 
+@pytest.mark.asyncio
+async def test_the_heartbeat_refreshes_the_file_the_container_healthcheck_reads(
+    task_db: Fixture, tmp_path: Path
+) -> None:
+    db, *_ = task_db
+    alive = tmp_path / "state" / "gateway-alive"
+    gateway = service.Gateway(db, "unused-key", tmp_path, liveness_file=alive)
+    await gateway.heartbeat()
+    first = alive.stat().st_mtime
+    os.utime(alive, (first - 600, first - 600))
+    await gateway.heartbeat()
+    assert alive.stat().st_mtime > first - 600
+
+
+def test_the_gateway_service_is_healthy_only_while_its_heartbeat_file_is_fresh() -> None:
+    import yaml
+    from lonora_worker.health import LIVENESS_FILE
+
+    # A stuck loop, a dead process or a heartbeat that cannot reach the database lets the
+    # file age, and the container turns unhealthy.
+    compose = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / "infra/compose/docker-compose.prod.yml").read_text()
+    )
+    check = compose["services"]["gateway"]["healthcheck"]
+    assert "/app/" + str(LIVENESS_FILE) in " ".join(check["test"])
+    assert check["interval"] and check["retries"] and check["start_period"]
+
+
 def watch_payload(**extra: Any) -> dict[str, Any]:
     return {
         "kind": "price",
@@ -490,7 +518,7 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
     stalled = liveness.register(StepSpec("reconcile", 10, 300))
     stalled.registered_at = utcnow() - timedelta(hours=1)
     watchdog = Watchdog(db, liveness, set())
-    quiet = {"steps": 0, "runs": 0, "overdue": 0, "operations": 0, "ended": 0}
+    quiet = {"steps": 0, "runs": 0, "overdue": 0, "delayed": 0, "operations": 0, "ended": 0}
     assert await watchdog.tick() == {**quiet, "steps": 1, "overdue": 1, "operations": 1}
     # One item per operation and per episode: a second pass raises nothing new.
     assert await watchdog.tick() == quiet
@@ -518,6 +546,72 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
     }
     assert statuses == {"step_stalled": "suppressed", "wakes_overdue": "ready"}
     assert [item.status for item in await system_items(db, owner, "operation_unresolved")] == [
+        "suppressed"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_an_owner_message_left_queued_opens_one_episode_until_it_is_claimed(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    waited = utcnow() - timedelta(seconds=61)
+    async with db.sessions() as session, session.begin():
+        message = await create_run(
+            session, owner, RunRequest(thread_id=thread, agent_id=agent, prompt="Gold now?")
+        )
+        message.created_at = message.updated_at = waited
+        # Background work and a run waiting out its retry backoff are not delayed.
+        work = ThreadRow(owner_id=owner, agent_id=agent, title="Routine", purpose="work")
+        session.add(work)
+        await session.flush()
+        session.add(
+            RunRow(
+                thread_id=work.id,
+                agent_id=agent,
+                trigger="routine",
+                created_at=waited,
+                updated_at=waited,
+            )
+        )
+        later = (utcnow() + timedelta(minutes=5)).isoformat()
+        retrying = ThreadRow(owner_id=owner, agent_id=agent, title="Retrying")
+        session.add(retrying)
+        await session.flush()
+        session.add(
+            RunRow(
+                thread_id=retrying.id,
+                agent_id=agent,
+                execution_state={"environment": {"retry": {"not_before": later}}},
+                created_at=waited,
+                updated_at=waited,
+            )
+        )
+        # Waiting behind its own conversation's running turn is not the workers' delay.
+        busy = ThreadRow(owner_id=owner, agent_id=agent, title="Busy")
+        session.add(busy)
+        await session.flush()
+        session.add(
+            RunRow(
+                thread_id=busy.id,
+                agent_id=agent,
+                status="running",
+                lease_expires_at=utcnow() + timedelta(minutes=2),
+            )
+        )
+        session.add(RunRow(thread_id=busy.id, agent_id=agent, created_at=waited, updated_at=waited))
+    watchdog = Watchdog(db, Liveness(), set())
+    assert await watchdog.delayed_runs() == 1
+    assert await watchdog.delayed_runs() == 0  # One item per episode.
+    [item] = await system_items(db, owner, "gateway_degraded")
+    assert item.parameters["reason_code"] == "runs_delayed"
+    assert item.parameters["count"] == 1 and item.parameters["oldest_seconds"] >= 61
+    async with db.sessions() as session, session.begin():
+        claimed = await claim_next(session, "worker-test", 120)
+        assert claimed is not None and claimed.id == message.id
+    assert await watchdog.delayed_runs() == 0
+    assert "delayed" not in watchdog.episodes
+    assert [row.status for row in await system_items(db, owner, "gateway_degraded")] == [
         "suppressed"
     ]
 

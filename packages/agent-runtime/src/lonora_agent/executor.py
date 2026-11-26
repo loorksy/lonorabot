@@ -6,6 +6,7 @@ from time import monotonic
 from lonora_adapter_kit.model_errors import ModelProviderError
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
+from lonora_db.attention import raise_model_access, settle_model_access
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.genui_submit import mark_submit_started
@@ -80,7 +81,8 @@ async def record_failure(
 ) -> None:
     """Fail the Run with ``code``; once its lease is lost the failure is discarded.
 
-    A provider error adds its classified reason and ``Retry-After`` hint (Q22).
+    A provider error adds its classified reason and ``Retry-After`` hint (Q22). Background
+    work whose every model refused access raises the owner's item for each route (P1-08).
     """
     provider = error if isinstance(error, ModelProviderError) else None
     try:
@@ -93,6 +95,15 @@ async def record_failure(
                 reason=provider.reason.value if provider else None,
                 retry_after=provider.retry_after if provider else None,
             )
+            if provider is not None:
+                await raise_model_access(
+                    session,
+                    context.lease.run_id,
+                    [
+                        (name, model, failed.reason.value, failed.inferred)
+                        for name, model, failed in provider.failures
+                    ],
+                )
         await return_outcome(context.db, context.lease.run_id)
     except LonoraError:
         log.info("stale_failure_discarded")
@@ -292,6 +303,13 @@ async def execute_run(
                         run_id=row.id,
                     )
                     return
+                # A model answered: the access failures it disproves end (P1-08).
+                await settle_model_access(
+                    session,
+                    context.owner_id,
+                    outcome.metadata.get("provider"),
+                    outcome.metadata.get("model"),
+                )
                 complete = await complete_run(
                     session, context.lease, outcome.text, outcome.metadata
                 )

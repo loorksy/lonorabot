@@ -6,7 +6,7 @@
     },
     "packages/db/src/lonora_db/attention.py": {
       "name": "Attention store",
-      "description": "Decides and records what needs the owner's attention and delivers it under the reach-me rules."
+      "description": "Decides and records what needs the owner's attention and delivers it under the reach-me rules, including a notice when a model provider refuses an agent's background work."
     },
     "packages/db/src/lonora_db/authority_lock.py": {
       "name": "Money authority lock",
@@ -67,6 +67,10 @@
     "packages/db/src/lonora_db/execution_receipts.py": {
       "name": "Execution receipts store",
       "description": "Posts and reads the receipt for each broker-confirmed trade."
+    },
+    "packages/db/src/lonora_db/gateways.py": {
+      "name": "Is a worker running",
+      "description": "Tells from the workers' heartbeats whether one is running now and when one was last heard from."
     },
     "packages/db/src/lonora_db/generated_artifacts.py": {
       "name": "Generated image linking",

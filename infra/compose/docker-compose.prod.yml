@@ -93,6 +93,14 @@ services:
     cpu_shares: 2048
     depends_on:
       api: {condition: service_healthy}
+    # Healthy while every heartbeat keeps refreshing its file (lonora_worker/health.py): a
+    # stuck loop, a dead process or a heartbeat that cannot reach the database lets it age.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(time.time() - os.stat('/app/.runtime/gateway-alive').st_mtime > 60)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     stop_grace_period: 40s
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]

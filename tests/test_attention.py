@@ -175,6 +175,8 @@ def test_the_owner_events_have_one_code_set() -> None:
         "secret_request",
         "mandate_card",
         "broker_health",
+        # Amendment 5: Lonora's own background work stopped.
+        "background_health",
     }
     assert "owner_action.updated" in ATTENTION_KINDS
     assert not {"broker.degraded", "broker.recovered"} & ATTENTION_KINDS

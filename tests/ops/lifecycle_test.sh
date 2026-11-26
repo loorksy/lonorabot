@@ -294,7 +294,8 @@ code="$(post_status)"
 [[ "$code" != 503 ]] || fail 'owner writes refused while the new Gateway runs'
 status=0; wait "$updater" || status=$?
 [[ "$status" == 1 ]] || { show "$work/broken.log"; fail "broken update exit status $status"; }
-grep -q 'Rolling back (/ready health gate)' "$work/broken.log" || { show "$work/broken.log"; fail 'failure point'; }
+# Its Gateway never refreshes the heartbeat file, so it never turns healthy.
+grep -q 'Rolling back (Gateway start)' "$work/broken.log" || { show "$work/broken.log"; fail 'failure point'; }
 grep -q 'Rolled back to' "$work/broken.log" || { show "$work/broken.log"; fail 'rollback message'; }
 [[ "$(pinned)" == "$(digest_of v2)" ]] || fail 'rollback restores the v2 pin'
 [[ "$(revision)" == "$base_head" ]] || fail 'rollback restores the schema revision'

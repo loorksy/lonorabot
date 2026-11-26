@@ -1,7 +1,9 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from lonora_contracts.domain import ThreadCreate, utcnow
+from lonora_contracts.model_routing import Capability
 from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
@@ -13,6 +15,8 @@ from .runs import create_run
 from .schema import AgentRow, RoutineRow, RunRow
 from .threads import background_origin, create_thread
 from .transactions import owned_agent
+
+log = logging.getLogger("lonora.routines")
 
 
 def next_run(request: RoutineCreate, after: datetime) -> datetime:
@@ -187,6 +191,24 @@ async def earlier_run_unfinished(session: AsyncSession, row: RoutineRow) -> bool
     )
 
 
+async def model_access_refused(session: AsyncSession, row: RoutineRow) -> bool:
+    """Whether every model the routine's agent could use for background work has a standing
+    ``model_access_failed`` item (P1-08): its Run could only fail the same way again."""
+    from .agent_models import model_candidates
+    from .attention import refused_routes
+
+    refused = await refused_routes(session, row.owner_id)
+    if not refused:
+        return False
+    chain, _ = await model_candidates(
+        session, Capability.BACKGROUND, owner_id=row.owner_id, agent_id=row.agent_id
+    )
+    return bool(chain) and all(
+        choice.provider in refused or choice.provider + ":" + choice.model in refused
+        for choice in chain
+    )
+
+
 async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
     """Fire one due routine; False when its earlier run is unfinished and the tick is skipped.
 
@@ -214,6 +236,13 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             # routine fires on its schedule once the earlier run has ended.
             row.skipped_occurrences += 1 + missed
             return False
+    if await model_access_refused(session, row):
+        # Held until the owner saves a key or a run on that route succeeds: the tick has
+        # advanced and no Run is created. A one-shot counts as fired, as a failed run would.
+        log.info("routine_held code=model_access_failed")
+        if row.run_at is not None:
+            row.enabled, row.last_run_at = False, now
+        return False
     run = await create_run(
         session,
         row.owner_id,

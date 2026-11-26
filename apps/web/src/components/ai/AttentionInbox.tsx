@@ -42,6 +42,8 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     agent_notification: t`Your agent alerted you`,
     secret_requested: t`Your agent needs a secret from you`,
     mandate_proposed: t`A Mandate card is waiting for your tap`,
+    gateway_stopped: t`Lonora's background service has stopped`,
+    model_access_failed: t`A model provider refused background work`,
   };
 }
 export function AttentionInbox({
@@ -118,7 +120,12 @@ export function AttentionInbox({
       {(compact ? items.slice(0, 3) : items).map((item) => (
         <article key={item.id} className="tpl-activity-run" data-attention-id={item.id}>
           <div>
-            <p>{labels[item.code]}</p>
+            <p>
+              {/* Running late because the workers are behind, not a stalled step. */}
+              {item.code === "gateway_degraded" && item.parameters.reason_code === "runs_delayed"
+                ? t`New requests are waiting longer than usual to start`
+                : labels[item.code]}
+            </p>
             <p dir="auto">{agents.find((agent) => agent.id === item.agent_id)?.name}</p>
             {item.code === "agent_notification" && item.parameters.summary && (
               <p dir="auto" data-testid="attention-summary">

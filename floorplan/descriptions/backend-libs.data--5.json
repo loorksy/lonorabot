@@ -34,7 +34,7 @@
     },
     "packages/db/src/lonora_db/routines.py": {
       "name": "Routines store",
-      "description": "Creates, schedules, enqueues and quarantines the owner's scheduled routines."
+      "description": "Creates, schedules, enqueues and quarantines the owner's scheduled routines, and holds a routine whose every model has refused access until the owner fixes it."
     },
     "packages/db/src/lonora_db/run_retry.py": {
       "name": "Retry a run",

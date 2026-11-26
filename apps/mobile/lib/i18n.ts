@@ -331,6 +331,14 @@ export const labels = {
   attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
   attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
   attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
+  attentionGatewayStopped: [
+    "توقفت خدمة الخلفية في لونورا",
+    "Lonora's background service has stopped",
+  ],
+  attentionModelAccessFailed: [
+    "رفض مزوّد النموذج العمل في الخلفية",
+    "A model provider refused background work",
+  ],
   attentionItemQuarantined: [
     "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
     "A background item was paused after repeated errors; everything else keeps running",
