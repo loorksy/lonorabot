@@ -67,6 +67,9 @@ def wire_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
 
 class OpenAICompatibleAdapter(BaseModelAdapter):
     provider: ProviderId
+    # The wires (pi-ai's ``api``) of the models of Lonora's list this adapter serves:
+    # Chat Completions (``/chat/completions``).
+    wires = frozenset({"openai-completions"})
 
     async def complete(
         self,

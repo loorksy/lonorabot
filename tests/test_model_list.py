@@ -40,15 +40,6 @@ from test_model_context import settings
 ROOT = Path(__file__).resolve().parents[1]
 LIST = ROOT / "packages/providers/src/lonora_providers/models.json"
 FIXED = sorted(set(PROVIDERS) - OWNER_ENDPOINT)
-# The wires each provider's adapter speaks (pi-ai's ``api``).
-WIRES = {
-    "anthropic": {"anthropic-messages"},
-    "openai": {"openai-responses"},
-    "openai_chatgpt": {"openai-codex-responses"},
-    "deepseek": {"openai-completions"},
-    "zai": {"openai-completions"},
-    "openrouter": {"openai-completions", "anthropic-messages"},
-}
 ENTRY = {
     "id",
     "name",
@@ -72,6 +63,19 @@ def importer() -> Any:
 
 def shipped() -> dict[str, Any]:
     return json.loads(LIST.read_text(encoding="utf-8"))
+
+
+# The wires (pi-ai's ``api``) the import accepts for each provider (M5).
+WIRES: dict[str, set[str]] = importer().WIRES
+# M5: OpenAI's listed models are served by the Responses adapter (spec section 3), built
+# beside this change. Until it is registered, the OpenAI adapter posts to
+# /chat/completions, where the Responses-only entries (the -pro and codex models) do not
+# answer: this change merges with that adapter, and this mark goes with it.
+RESPONSES_PENDING = pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="the OpenAI adapter registered here speaks Chat Completions, not openai-responses",
+)
 
 
 def test_the_list_has_its_shape_and_its_source() -> None:
@@ -128,6 +132,21 @@ def test_each_provider_lists_the_models_rakazo_lists() -> None:
         "reasoning": True,
         "cost": {"input": 2, "output": 10, "cache_read": 0.1, "cache_write": 2.5},
     }
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        pytest.param(provider, marks=RESPONSES_PENDING) if provider == "openai" else provider
+        for provider in sorted(set(WIRES) & set(PROVIDERS))
+    ],
+)
+def test_every_listed_model_is_served_by_its_registered_adapter(provider: str) -> None:
+    # The wires the adapter itself declares, not a copy of the import's table: a wire
+    # the import accepts, or an entry brings, is one the registered adapter speaks.
+    spoken = getattr(PROVIDERS[provider], "wires")
+    listed = {entry["wire"] for entry in shipped()["providers"][provider]}
+    assert listed <= spoken and WIRES[provider] <= spoken, (provider, listed, spoken)
 
 
 def test_the_import_keeps_chat_models_maps_providers_and_refuses_another_wire(

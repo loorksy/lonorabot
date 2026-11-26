@@ -28,7 +28,9 @@ PROVIDERS = {
     "zai": "zai",
     "openrouter": "openrouter",
 }
-# The wires (pi-ai's ``api``) each provider's adapter speaks.
+# The wires (pi-ai's ``api``) each provider's adapter speaks (M5: OpenAI's on the
+# Responses API); tests/test_model_list.py checks them against the wires each registered
+# adapter declares.
 WIRES = {
     "anthropic": {"anthropic-messages"},
     "openai": {"openai-responses"},
