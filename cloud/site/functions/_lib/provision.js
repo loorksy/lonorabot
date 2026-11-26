@@ -1,8 +1,9 @@
 // One-click activation on the shared host (docs/cloud/DECISIONS.md D48, PHASES.md PW-T7): staff press
 // «تفعيل», and the host script cloud/host/customer.sh creates the customer's own installation on this
 // server: its database and role in the shared PostgreSQL, its env file with its own keys, its Lonora
-// (server and worker) from the current release image, and its route in the shared proxy. It answers
-// with the one-time setup link once Lonora is ready, and the account turns active with it.
+// (server and worker) from the current release image, and its route in the shared proxy. The account
+// that asked for it becomes its owner with the password it signed up with, so the customer signs up
+// once; the account turns active with the address once Lonora is ready.
 //
 // Settings: HOST_SCRIPT (the path of customer.sh; run with sudo -n), and HOST_DRY_RUN=1 for tests and
 // smoke runs (the script then prints its Docker and system commands instead of running them).
@@ -51,14 +52,17 @@ export async function chooseHandle(env, account, requested) {
   return { error: "handle_taken" };
 }
 
-// Runs customer.sh. Its stdout carries only the result line; its stderr is progress, never a secret.
-function host(env, args) {
+// Runs customer.sh, with ``input`` on its stdin. Its stdout carries only the result line; its stderr is
+// progress, never a secret.
+function host(env, args, input = "") {
   const [cmd, ...rest] = env.HOST_DRY_RUN === "1" ? [env.HOST_SCRIPT, "--dry-run", ...args] : ["sudo", "-n", env.HOST_SCRIPT, ...args];
   return new Promise((resolve) => {
-    execFile(cmd, rest, { timeout: 5 * 60_000 }, (err, stdout, stderr) => {
+    const child = execFile(cmd, rest, { timeout: 5 * 60_000 }, (err, stdout, stderr) => {
       const lines = `${stderr || ""}\n${err && !stderr ? err.message : ""}`.trim().split("\n");
       resolve({ ok: !err, code: err?.code, stdout: String(stdout), error: lines[lines.length - 1].slice(0, 300) });
     });
+    child.stdin.on("error", () => {}); // a script that exits without reading it
+    child.stdin.end(input);
   });
 }
 
@@ -87,17 +91,18 @@ export async function startProvisioning(env, account, handle, staff) {
   )
     .bind(job.id, account.id, handle, `lonora-${handle}`, now, now)
     .run();
-  const out = await host(env, ["create", handle]);
-  const link = /^setup_link=(https:\/\/[a-z0-9.-]+\/#token=[A-Za-z0-9_-]{20,128})$/m.exec(out.stdout)?.[1];
-  if (out.ok && link) {
+  const { password_hash: hash } = await env.DB.prepare("SELECT password_hash FROM accounts WHERE id = ?").bind(account.id).first();
+  const out = await host(env, ["create", handle, "--owner-on-stdin"], `${account.email}\n${hash}\n`);
+  const url = /^instance_url=(https:\/\/[a-z0-9.-]+\/)$/m.exec(out.stdout)?.[1];
+  if (out.ok && url) {
     await env.DB.prepare("UPDATE provision_jobs SET status = 'ready', updated_at = ? WHERE id = ?").bind(nowIso(), job.id).run();
-    await env.DB.prepare("UPDATE accounts SET status = 'active', instance_url = ?, setup_link = ?, reason = NULL WHERE id = ? AND status = 'provisioning'")
-      .bind(`${new URL(link).origin}/`, link, account.id)
+    await env.DB.prepare("UPDATE accounts SET status = 'active', instance_url = ?, setup_link = NULL, reason = NULL WHERE id = ? AND status = 'provisioning'")
+      .bind(url, account.id)
       .run();
     await audit(env, staff, "activated", account.id, { handle });
     return { ok: true, handle };
   }
-  const message = out.ok ? "create: no setup link" : `create: ${out.error}`;
+  const message = out.ok ? "create: no address" : `create: ${out.error}`;
   if (out.code === 73) {
     // customer.sh changed nothing (the handle is already installed, or the host was busy): nothing is
     // undone, and the job names no installation, so deleting this account never removes another's.

@@ -3,12 +3,15 @@
 #
 #   customer.sh [--dry-run] init                    shared services, the website, its sudo rule
 #   customer.sh [--dry-run] release <git-ref>       build the release image once, switch every customer
-#   customer.sh [--dry-run] create <handle>         a customer's database, keys, Lonora and route
+#   customer.sh [--dry-run] create <handle> [--owner-on-stdin]   a customer's database, keys, Lonora and route
 #   customer.sh [--dry-run] update <handle>         one customer onto the current release image
 #   customer.sh [--dry-run] remove <handle>         everything of that customer, its data included
 #   customer.sh [--dry-run] workspace <handle> start|stop   its workspace and browser, on demand
 #
-# create prints one line on stdout, setup_link=https://<handle>.<BASE_DOMAIN>/#token=…, for the site.
+# create --owner-on-stdin (the site) reads the website account that asked for it on stdin (its email,
+# then its password hash, one per line) and makes it the owner, so the customer signs in with the
+# password they signed up with; it then prints one line on stdout, instance_url=https://<handle>.<BASE_DOMAIN>/.
+# Run by hand without it, create prints setup_link=https://<handle>.<BASE_DOMAIN>/#token=… instead.
 # Progress goes to stderr and never holds a secret: the database password and the encryption key
 # exist only in the customer's env file (mode 600). --dry-run prints every Docker and system command
 # instead of running it; files are still written under LONORA_HOST_HOME (use a scratch folder).
@@ -48,7 +51,10 @@ host_addresses() { { ip -o addr show scope global 2>/dev/null | awk '{print $4}'
 create() {
     [[ ! -e "$dir" ]] || refuse "$handle already exists; choose another handle."
     [[ -s "$HOME_DIR/release.env" ]] || die "No release yet: run customer.sh release <git-ref>."
-    local password token
+    local password token owner=""
+    [[ "${1:-}" != --owner-on-stdin ]] || owner="$(head -c 512)"
+    [[ -z "$owner" || "$owner" =~ ^[^[:space:]@]+@[^[:space:]@]+$'\n'pbkdf2-sha256\$[0-9]+\$[0-9a-f]+\$[0-9a-f]{64}$'\n'?$ ]] ||
+        refuse "The owner on stdin is not an email and a website password hash."
     password="$(secret 24)" token="$(secret 32)"
     mkdir -p "$dir/workspace"
     cat >"$dir/.env" <<EOF
@@ -73,6 +79,10 @@ EOF
     run touch "$dir/workspace/.lonora-workspace-disk"
     say "Starting Lonora for $domain."
     compose up -d --wait --wait-timeout 240 api gateway
+    if [[ -n "$owner" ]]; then
+        say "Making the website account the owner of this Lonora."
+        compose exec -T api lonora-api --import-owner <<<"$owner"
+    fi
     printf '%s {\n\timport customer %s-api\n}\n' "$domain" "$project" >"$HOME_DIR/caddy/customers/$handle.caddy"
     chmod 644 "$HOME_DIR/caddy/customers/$handle.caddy"
     reload_proxy
@@ -80,7 +90,7 @@ EOF
         until curl -fs -m 5 -o /dev/null "https://$domain/ready"; do ((SECONDS < 270)) || die "https://$domain/ready did not answer."; sleep 2; done
     fi
     say "Ready: https://$domain"
-    printf 'setup_link=https://%s/#token=%s\n' "$domain" "$token"
+    if [[ -n "$owner" ]]; then printf 'instance_url=https://%s/\n' "$domain"; else printf 'setup_link=https://%s/#token=%s\n' "$domain" "$token"; fi
 }
 
 update() {
@@ -161,7 +171,7 @@ init() {
 case "${1:-}" in
     init) lock 60; init ;;
     release) release "${2:-}" ;;
-    create | update | remove) customer "${2:-}"; lock 60; "$1" ;;
+    create | update | remove) customer "${2:-}"; lock 60; "$1" "${@:3}" ;;
     workspace) customer "${2:-}"; lock 60; workspace "${3:-}" ;;
     *) sed -n '4,9p' "$0" >&2; exit 2 ;;
 esac

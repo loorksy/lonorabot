@@ -32,14 +32,14 @@ const setting = (handle, name) => envFile(handle).match(new RegExp(`^${name}=(.*
 const script = (...args) => spawnSync("bash", [SCRIPT, "--dry-run", ...args], { encoding: "utf8", env: { ...process.env, LONORA_HOST_HOME: home } });
 
 describe("one-click activation on the host", () => {
-  test("one click creates the customer's installation and activates the account with its setup link", async () => {
+  test("one click creates the customer's installation and activates the account, with no second sign-up", async () => {
     const res = await activate();
     assert.equal(res.status, 200);
     assert.deepEqual(await res.json(), { ok: true, status: "active", handle: "sara" });
     const a = account();
     assert.equal(a.status, "active");
     assert.equal(a.instance_url, "https://sara.lonora.test/");
-    assert.equal(a.setup_link, `https://sara.lonora.test/#token=${setting("sara", "LONORA_BOOTSTRAP_TOKEN")}`);
+    assert.equal(a.setup_link, null); // the account is its owner: the customer signs in with the same password
     assert.deepEqual([job().status, job().server_id], ["ready", "lonora-sara"]);
     // Its own key and database, in a file only root can read; and its route in the proxy.
     assert.equal(fs.statSync(path.join(home, "customers/sara/.env")).mode & 0o777, 0o600);
@@ -62,6 +62,28 @@ describe("one-click activation on the host", () => {
     assert.notEqual(script("create", "bob").status, 0); // never twice
     assert.notEqual(script("create", "../etc").status, 0);
     assert.ok(!fs.existsSync(path.join(home, "etc")));
+  });
+
+  test("the website account becomes the owner, and its password hash is never printed", () => {
+    const hash = account().password_hash;
+    const out = spawnSync("bash", [SCRIPT, "--dry-run", "create", "dan", "--owner-on-stdin"], {
+      encoding: "utf8", input: `sara@example.com\n${hash}\n`, env: { ...process.env, LONORA_HOST_HOME: home },
+    });
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stdout, "instance_url=https://dan.lonora.test/\n");
+    assert.match(out.stderr, /would run: docker compose .* exec -T api lonora-api --import-owner\n/);
+    assert.ok(!out.stdout.includes(hash) && !out.stderr.includes(hash));
+    // Anything else on stdin changes nothing (exit 73, so the site undoes nothing).
+    const bad = spawnSync("bash", [SCRIPT, "--dry-run", "create", "eve", "--owner-on-stdin"], {
+      encoding: "utf8", input: "sara@example.com\nnot-a-hash\n", env: { ...process.env, LONORA_HOST_HOME: home },
+    });
+    assert.equal(bad.status, 73);
+    assert.ok(!fs.existsSync(path.join(home, "customers/eve")));
+    // By hand, without the flag, stdin is never read, and the setup link is printed.
+    const byHand = spawnSync("bash", [SCRIPT, "--dry-run", "create", "fay"], {
+      encoding: "utf8", input: `sara@example.com\n${hash}\n`, env: { ...process.env, LONORA_HOST_HOME: home },
+    });
+    assert.match(byHand.stdout, /^setup_link=https:\/\/fay\.lonora\.test\/#token=/);
   });
 
   test("a release is built once and switches every customer", () => {
