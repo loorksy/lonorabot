@@ -1,4 +1,4 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,6 +11,7 @@ from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_db.workspace_given import GivenValues
 from lonora_providers.router import GlobalModelRouter
+from lonora_security.secrets import SecretScan
 from lonora_session.idempotency import stable_id
 from lonora_trading.execution import ExecutionService
 from lonora_workspace.client import WorkspaceClient
@@ -51,6 +52,9 @@ class ToolContext:
     # The model this Run was started on (a subagent's chosen model); it leads the
     # Agent's own model chain, which stays behind it as the fallback.
     run_model: ModelSelection | None = None
+    # The owner's secret scan of third-party results, read once for this Run and shared
+    # by its calls (``terminal.run_scan``).
+    scans: dict[str, SecretScan] = field(default_factory=dict[str, SecretScan])
 
     @property
     def effect_key(self) -> str:

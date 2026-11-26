@@ -64,8 +64,9 @@ class EncryptedSecretStore:
         return {row.name: self.cipher.decrypt(row.ciphertext) for row in rows}
 
     async def scanned_values(self) -> dict[str, str]:
-        """Every stored value the scan of workspace output replaces, by the name its
-        marker shows (VISION.md 7.2.6): the workspace, integration and provider scopes.
+        """Every stored value the scan of workspace output and of third-party tool results
+        replaces, by the name its marker shows (VISION.md 7.2.6): the workspace,
+        integration and provider scopes.
         Not the broker scope: only the execution door and provisioning read it (7.2.3),
         and neither sends bytes back through the workspace. A name another scope already
         holds is shown with its scope (``integration:NAME``), so no value is dropped."""

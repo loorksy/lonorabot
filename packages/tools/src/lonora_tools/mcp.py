@@ -21,6 +21,7 @@ writing and the server offers no tool that can trade or move money. Credentials 
 the server.
 """
 
+import asyncio
 import hashlib
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -51,6 +52,7 @@ from sqlalchemy import select
 from .base import Tool
 from .context import ToolContext
 from .source_trust import owner_named, refusal
+from .terminal import scan
 
 
 class McpList(Contract):
@@ -451,6 +453,9 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         }
     finally:
         await adapter.close()
+    # The server may echo the token it was just sent: scanned with the values as they
+    # are now, before the receipt keeps it (7.2.6).
+    result = await asyncio.to_thread((await scan(context)).data, result)
     if grant.trust_id is not None:
         async with context.db.sessions() as session, session.begin():
             await mark_used(session, grant.trust_id)

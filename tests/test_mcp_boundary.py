@@ -72,10 +72,15 @@ def context(*, declarations: tuple[McpToolDeclaration, ...] = (), **config: Any)
         counters["decrypted"] += 1
         return "private-integration-token"
 
+    async def scanned() -> dict[str, str]:
+        return {"RESEARCH_TOKEN": "private-integration-token"}
+
     return SimpleNamespace(
         owner_id="owner",
         db=SimpleNamespace(sessions=sessions),
-        secrets=SimpleNamespace(read=decrypt),
+        secrets=SimpleNamespace(read=decrypt, scanned_values=scanned),
+        workspace_given=None,
+        cli_tokens=None,
         mcp_declarations=declarations,
         # Operator declarations only (the deny override); owner trust is covered by
         # tests/test_trusted_sources.py against PostgreSQL.

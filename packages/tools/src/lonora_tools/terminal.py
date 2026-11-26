@@ -68,10 +68,11 @@ async def owner_scan(
     secrets: SecretStore, given: GivenValues | None, tokens: CommandTokens | None
 ) -> SecretScan:
     """The one scan of every byte that comes back from the workspace (7.2.6), on every road:
-    tool results and the `lonora` CLI's notify and wake text. Every stored value but the
-    broker's (workspace, integration, provider: W-ENV's `scanned_values`), every value
-    given to a workspace command in the last 30 days (rotated and deleted ones included),
-    and every agent's CLI token."""
+    tool results and the `lonora` CLI's notify and wake text, and of every result a
+    third-party tool returns (``run_scan``). Every stored value but the broker's
+    (workspace, integration, provider: W-ENV's `scanned_values`), every value given to a
+    workspace command in the last 30 days (rotated and deleted ones included), and every
+    agent's CLI token."""
     values = await secrets.scanned_values()
     once = await given.values() if given else []
     issued = await tokens.values() if tokens else []
@@ -84,6 +85,15 @@ async def owner_scan(
 
 async def scan(context: ToolContext) -> SecretScan:
     return await owner_scan(context.secrets, context.workspace_given, context.cli_tokens)
+
+
+async def run_scan(context: ToolContext) -> SecretScan:
+    """``scan``, read once for the Run: every third-party result passes it
+    (``ToolRegistry.execute``). A workspace command reads it again, since an agent's
+    first command is issued its CLI token."""
+    if "owner" not in context.scans:
+        context.scans["owner"] = await scan(context)
+    return context.scans["owner"]
 
 
 async def ordinary_run(context: ToolContext) -> bool:
@@ -126,6 +136,7 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
         if context.cli_tokens
         else None
     )
+    context.scans.clear()
     result = await client(context).run(
         await scan(context),
         context.agent_id,

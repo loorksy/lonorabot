@@ -104,6 +104,10 @@
       "name": "Thesis contracts tests",
       "description": "Automatic checks for thesis contracts."
     },
+    "tests/test_third_party_secrets.py": {
+      "name": "Third-party secret scan tests",
+      "description": "Automatic checks that results from outside tools never show a saved secret."
+    },
     "tests/test_thread_preferences.py": {
       "name": "Thread preferences tests",
       "description": "Automatic checks for thread preferences."
