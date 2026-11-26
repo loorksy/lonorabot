@@ -200,15 +200,21 @@ def selection_metadata(
 
 
 def unique_call_ids(
-    reply: ModelReply, messages: list[ModelMessage], run_id: str, turn: int
+    reply: ModelReply,
+    messages: list[ModelMessage],
+    run_id: str,
+    turn: int,
+    state: dict[str, Any],
 ) -> ModelReply:
     """Every call of the reply with an id no other call of this Run has.
 
     Stored results, effect receipts and Trade Approval ids derive from the call id, so an
     empty id, one repeated in the reply or one already in the transcript would answer a
     new call from an earlier call's record. Such a call gets ``call:{turn}:{index}`` of
-    this Run; an id that is already unique is kept, so earlier checkpoints and receipts
-    still match. Every provider adapter is covered here, the Responses adapter included.
+    this Run, and the checkpoint keeps the provider's own id under it
+    (``state["provider_call_ids"]``); an id that is already unique is kept, so earlier
+    checkpoints and receipts still match. Every provider adapter is covered here, the
+    Responses adapter included.
     """
     used = {call.id for message in messages for call in message.tool_calls}
     used |= {message.tool_call_id for message in messages if message.tool_call_id}
@@ -224,8 +230,8 @@ def unique_call_ids(
     if not replaced:
         return reply
     log.info("tool_call_ids_replaced count=%s", len(replaced))
-    metadata = {**reply.provider_metadata, "provider_call_ids": replaced}
-    return reply.model_copy(update={"tool_calls": calls, "provider_metadata": metadata})
+    state["provider_call_ids"] = {**state.get("provider_call_ids", {}), **replaced}
+    return reply.model_copy(update={"tool_calls": calls})
 
 
 # Subagents delegate at most two levels deep; a few extra hops guard bad data.
@@ -643,7 +649,7 @@ async def execute_tool_loop(
         state["rounds"] = int(state.get("rounds", 0)) + 1
         # Counted across budget epochs, so no two turns of the Run share a number.
         turn = int(state.get("prior_attempt_rounds", 0)) + state["rounds"]
-        reply = unique_call_ids(reply, messages, context.lease.run_id, turn)
+        reply = unique_call_ids(reply, messages, context.lease.run_id, turn, state)
         state["selection"] = selection_metadata(selection, reply, turn_capability)
         log.info(
             "model_turn_completed timings=%s visual_errors=%s",

@@ -68,6 +68,10 @@ async def test_an_empty_or_repeated_provider_id_never_answers_a_new_call(
     assert not any("tool_result_identity_conflict" in content for content in contents)
     # An id the provider made unique is kept, so earlier checkpoints still match.
     assert "unique-provider-id" in proposed and "call_0" in proposed
+    # The checkpoint keeps the provider's own id of every call given a new one.
+    kept = run.execution_state["provider_call_ids"]
+    assert set(kept) == set(proposed) - {"call_0", "unique-provider-id"}
+    assert sorted(kept.values()) == ["", "", "call_0", "call_0"]
 
 
 @pytest.mark.asyncio
