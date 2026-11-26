@@ -110,7 +110,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/context/history.py": {
       "name": "History context",
-      "description": "Adds past messages to the agent's context, labelling other agents' messages and card data as information, never as the owner's orders."
+      "description": "Adds past messages to the agent's context, labelling other agents' messages and card data as information, never as the owner's orders; each owner, card or peer turn ends with its date and origin."
     },
     "packages/agent-runtime/src/lonora_agent/context/image_observations.py": {
       "name": "Image context",
@@ -122,7 +122,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/context/permissions.py": {
       "name": "Permission context",
-      "description": "Tells the agent, every turn, what it is currently allowed to do, from verified state only."
+      "description": "Tells the agent, every turn, its trading mode, whether it is paused, and one sentence per kind of trade request saying what the execution door does with it."
     },
     "packages/agent-runtime/src/lonora_agent/context/picture.py": {
       "name": "Account picture",
@@ -138,7 +138,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/context/run_evidence.py": {
       "name": "Earlier-run evidence",
-      "description": "Carries bounded, timestamped evidence from the agent's earlier runs into this one."
+      "description": "Carries bounded, timestamped evidence from the agent's earlier runs into this one, keeping failed and possibly-done actions, marked to check before any repeat."
     },
     "packages/agent-runtime/src/lonora_agent/context/scratchpad.py": {
       "name": "Scratchpad context",
@@ -150,7 +150,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/context/team.py": {
       "name": "Team context",
-      "description": "Adds the team and routing details to a lead agent's context."
+      "description": "Adds the team and routing details to the agent's context, and the clock (UTC, the owner's time zone, local time and weekday) that ends every request."
     },
     "packages/agent-runtime/src/lonora_agent/continuation.py": {
       "name": "Task continuation",

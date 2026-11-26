@@ -36,6 +36,48 @@
           "note": ""
         }
       ]
+    },
+    {
+      "title": "Agent prompts: the door's verdict, effect stages, a clock and dated history (PA4, PA5, PA7, PA8)",
+      "request": "The agent never claims an action happened without a record, is told what the server actually does with a trade, knows the time, and sees when earlier messages were written.",
+      "summary": "The permission note now gives the mode, pause and one sentence per kind of trade request, computed beside the execution door from what the door reads, so a Full agent on a voice call is no longer told to wait for approval. Alerts, workspace commands, action cards and agent creation report what actually happened, and a failed or uncertain action is carried into later runs. Every request ends with the clock in UTC and the owner's time zone, and replayed owner, card and peer turns carry their date and origin.",
+      "items": [
+        {
+          "ref": "packages/trading/src/lonora_trading/authority_verdict.py",
+          "change": "New: what the door does with new risk, risk reduction and another's ticket.",
+          "note": "The door's own code is unchanged; one test compares the two."
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/context/permissions.py",
+          "change": "Renders mode, pause, observe-only and the verdict sentences; the grant data and repeated rules are gone.",
+          "note": ""
+        },
+        {
+          "ref": "packages/voice/src/lonora_voice/sessions.py",
+          "change": "The voice call's instructions use the same new-risk verdict sentence.",
+          "note": ""
+        },
+        {
+          "ref": "packages/tools/src/lonora_tools/incoming_call.py",
+          "change": "An alert's effect and note follow whether it showed, waits or was kept back.",
+          "note": ""
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/context/run_evidence.py",
+          "change": "Keeps failed and uncertain actions from earlier runs.",
+          "note": "Uncertain ones are marked to check before any repeat."
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/context/team.py",
+          "change": "The clock that ends every request; the routing note no longer carries a changing read time.",
+          "note": ""
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/context/history.py",
+          "change": "Replayed owner, card and peer turns end with their date and origin.",
+          "note": "The agent's own turns carry none."
+        }
+      ]
     }
   ]
 }
