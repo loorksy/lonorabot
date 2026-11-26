@@ -11,14 +11,14 @@ a signed webhook's text likewise, as the section ``webhook``.
 
 A routine run that starts more than 15 minutes after it was due is told so in one fixed
 sentence built from server values only: when it was due, when it started, and how many
-later occurrences were folded into it.
+later occurrences were folded into it. The start is recorded once, at the run's first
+``running`` transition, so every head the run builds says the same.
 """
 
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from lonora_adapter_kit.context_sections import ContextSection
-from lonora_contracts.domain import utcnow
 from lonora_core.run_state import is_background
 from lonora_db.routines import MISSED_COUNT_CAP
 from lonora_db.schema import RunRow
@@ -61,14 +61,16 @@ LATE_AFTER = timedelta(minutes=15)
 def late_routine_note(run: RunRow) -> str:
     """The late sentence (5.2, 17): due time, start time and folded count, all server values.
 
-    The start time is when this context is built: the run's start, or a later wake of the
-    same run, which rebuilds the head (``refresh_context_head``)."""
+    The start is the run's first ``running`` transition (``mark_routine_started``), never the
+    time this context is built: a later wake of the same run, which rebuilds the head
+    (``refresh_context_head``), repeats the same sentence or none."""
     if run.trigger != "routine":
         return ""
-    stored = run.model_metadata.get("scheduled_for")
-    if not isinstance(stored, str):
+    scheduled, began = run.model_metadata.get("scheduled_for"), run.model_metadata.get("started_at")
+    if not isinstance(scheduled, str) or not isinstance(began, str):
         return ""
-    due, started = datetime.fromisoformat(stored).astimezone(UTC), utcnow()
+    due = datetime.fromisoformat(scheduled).astimezone(UTC)
+    started = datetime.fromisoformat(began).astimezone(UTC)
     if started - due <= LATE_AFTER:
         return ""
     missed = int(run.model_metadata.get("missed_occurrences", 0))

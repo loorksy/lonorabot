@@ -5,12 +5,14 @@ running gets no second run when it comes due: its schedule advances and the skip
 occurrence is counted, and its next run carries the count. A run waiting for the owner's
 answer does not hold the schedule, and a one-shot always fires. Every routine run carries
 when it was due and how many later occurrences were folded into it; one that starts more
-than 15 minutes after it was due is told so in one fixed server sentence (6.10).
+than 15 minutes after it was due is told so in one fixed server sentence (6.10). The start
+is recorded once, so a later wake of the run repeats the same sentence or none.
 """
 
 import os
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 
@@ -60,6 +62,17 @@ async def set_run(fixture: Any, run_id: str, status: str, **values: Any) -> None
         run.status = status
         for key, value in values.items():
             setattr(run, key, value)
+
+
+async def start(fixture: Any, run_id: str, at: datetime) -> None:
+    """The run's first ``running`` transition, as ``execute_run`` records it."""
+    from lonora_db.routines import mark_routine_started
+    from lonora_db.schema import RunRow
+
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        run = await session.get(RunRow, run_id, with_for_update=True)
+        assert run is not None
+        mark_routine_started(run, at)
 
 
 async def skipped(fixture: Any, routine_id: str) -> int:
@@ -223,10 +236,18 @@ async def test_a_late_routine_run_is_told_when_it_was_due():
         # Fired once for 06:00; 07:00, 08:00 and 09:00 were folded into it.
         assert run.model_metadata["missed_occurrences"] == 3
         assert run.model_metadata["skipped_occurrences"] == 0
+        # It started an hour after it was due; its head is built later still. The sentence
+        # names the start, not the time the head is built.
+        began = due + timedelta(hours=1)
+        await start(fixture, run.id, began)
+        [run] = await runs_of(fixture, late["id"])
         marker = wake_context(run)
         assert BACKGROUND in marker
         assert (
-            "This routine run is late: it was due at " + due.strftime("%Y-%m-%d %H:%M UTC")
+            "This routine run is late: it was due at "
+            + due.strftime("%Y-%m-%d %H:%M UTC")
+            + " and started at "
+            + began.strftime("%Y-%m-%d %H:%M UTC")
             in marker
         )
         assert "Later occurrences folded into it: 3." in marker
@@ -235,6 +256,8 @@ async def test_a_late_routine_run_is_told_when_it_was_due():
         prompt = await routine(fixture, "Prompt", interval_seconds=3600)
         await make_due(fixture, prompt["id"], utcnow() - timedelta(minutes=1))
         assert await fire(fixture, prompt["id"])
+        [run] = await runs_of(fixture, prompt["id"])
+        await start(fixture, run.id, utcnow())
         [run] = await runs_of(fixture, prompt["id"])
         assert run.model_metadata["missed_occurrences"] == 0
         assert wake_context(run) == (
@@ -284,13 +307,72 @@ async def test_a_caller_cannot_set_the_routine_timing_of_a_run():
                     trigger="routine",
                     metadata={
                         "scheduled_for": "2026-01-01T00:00:00+00:00",
+                        "started_at": "2026-01-01T09:00:00+00:00",
                         "missed_occurrences": 9,
                         "skipped_occurrences": 9,
                     },
                 ),
             )
-            assert not {"scheduled_for", "missed_occurrences", "skipped_occurrences"} & set(
-                run.model_metadata
+            assert not {
+                "scheduled_for",
+                "started_at",
+                "missed_occurrences",
+                "skipped_occurrences",
+            } & set(run.model_metadata)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_on_time_run_woken_40_minutes_later_is_not_told_it_is_late():
+    """The owner answers an on-time routine run's question 40 minutes after it started. The
+    head rebuilt for that wake keeps the run's own start, so it carries no late sentence."""
+    database()
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ModelReply
+    from lonora_agent.executor import execute_run
+    from lonora_contracts.domain import utcnow
+    from lonora_contracts.model_routing import ModelSelection
+    from lonora_tools.loader import load_tools
+    from test_background_questions import ask, send
+
+    fixture = await Fixture().open()
+    try:
+        made = await routine(fixture, "Woken", interval_seconds=3600)
+        due = (utcnow() - timedelta(minutes=41)).replace(microsecond=0)
+        await make_due(fixture, made["id"], due)
+        assert await fire(fixture, made["id"])
+        [run] = await runs_of(fixture, made["id"])
+        data = {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
+        # It started a minute after it was due and asked the owner.
+        began = due + timedelta(minutes=1)
+        with patch("lonora_agent.executor.utcnow", return_value=began):
+            question = (await ask(fixture, data))["input_request"]
+        # Now, forty minutes later, the owner answers and the run wakes.
+        status, body = await send(
+            fixture,
+            question["thread_id"],
+            "أبقِها",
+            input_answer={"run_id": run.id, "question_id": question["id"], "choice_id": "hold"},
+            reply_to=question["message_id"],
+        )
+        assert status < 300, body
+        context = await fixture.lease(data)
+        system: list[str] = []
+
+        async def complete(_capability: Any, messages: list[Any], *_: Any, **__: Any) -> Any:
+            system.extend(str(item.content) for item in messages if item.role == "system")
+            return ModelReply(text="Kept."), ModelSelection(
+                provider="openai", model="routine-overlap-fixture"
             )
+
+        with patch.object(context.router, "complete", complete):
+            await execute_run(context, load_tools(), 120, 4)
+        assert "<wake trigger='routine'" in "\n".join(system)
+        assert not any("This routine run is late" in text for text in system)
+        [run] = await runs_of(fixture, made["id"])
+        assert run.status == "completed"
+        # The wake's own running transition kept the first start.
+        assert datetime.fromisoformat(run.model_metadata["started_at"]) == began
     finally:
         await fixture.close()

@@ -29,8 +29,9 @@ from .transactions import owned_agent, owned_thread
 MAX_RUN_RECOVERIES = 5
 
 # Only ``enqueue_routine`` writes when a routine Run was due and how many occurrences of its
-# schedule were folded into it or skipped before it; the late-run sentence reads them.
-ROUTINE_TIMING = ("scheduled_for", "missed_occurrences", "skipped_occurrences")
+# schedule were folded into it or skipped before it, and only ``mark_routine_started`` when
+# it started; the late-run sentence reads them.
+ROUTINE_TIMING = ("scheduled_for", "started_at", "missed_occurrences", "skipped_occurrences")
 
 
 def aware(value: datetime) -> datetime:

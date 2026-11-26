@@ -156,6 +156,14 @@ async def disable_routine(session: AsyncSession, routine_id: str) -> bool:
     return True
 
 
+def mark_routine_started(run: RunRow, now: datetime) -> None:
+    """A routine Run's first ``running`` transition, recorded once (``started_at``): its late
+    sentence names this start on every context head the Run builds, so a later wake repeats
+    the same sentence or none."""
+    if run.trigger == "routine" and "started_at" not in run.model_metadata:
+        run.model_metadata = {**run.model_metadata, "started_at": now.isoformat()}
+
+
 async def earlier_run_unfinished(session: AsyncSession, row: RoutineRow) -> bool:
     """A run of this routine in its work thread is queued (a retry backoff included),
     leased or running. One waiting for the owner's answer does not hold the schedule."""
