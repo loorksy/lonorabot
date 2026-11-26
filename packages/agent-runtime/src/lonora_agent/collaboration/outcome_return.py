@@ -2,7 +2,14 @@ from typing import Any, cast
 
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import RunRequest
-from lonora_core.run_state import ACTIVE, OUTCOME_THREAD, TERMINAL, is_background, may_end_silent
+from lonora_core.run_state import (
+    ACTIVE,
+    HELD_OUTCOMES,
+    OUTCOME_THREAD,
+    TERMINAL,
+    is_background,
+    may_end_silent,
+)
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
@@ -10,6 +17,7 @@ from lonora_db.messages import message_data
 from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import create_run, inherited_authority, outcome_status
 from lonora_db.schema import (
+    AgentRow,
     EffectReceiptRow,
     MessageRow,
     PeerMessageRow,
@@ -19,9 +27,10 @@ from lonora_db.schema import (
     TicketRow,
 )
 from lonora_db.threads import create_thread, origin_read_threads, wake_origin
-from sqlalchemy import String, exists, literal, or_, select
+from sqlalchemy import ColumnElement, String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 
 def outcome_receipt(run_id: str, fence: int) -> str:
@@ -214,42 +223,25 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 payload=message_data(message),
             )
             if (
-                not deliver(session, parent, message, hidden)
+                not attach_outcome(session, parent, message, hidden)
                 and parent.status == "completed"
                 and not child.model_metadata.get("collaboration_session_id")
             ):
                 # One continuation per finished requester (3.1.5, 11.5): an outcome joins
-                # the follow-up that has not ended yet, so one answer reads every outcome.
+                # the follow-up that has not ended yet, or waits for the requester's
+                # helpers still at work, so one answer reads every outcome.
                 live = await live_follow_up(session, parent)
                 if live is not None:
-                    deliver(session, live, message, hidden)
+                    attach_outcome(session, live, message, hidden)
                 elif child.status != "cancelled":
-                    continuation = await create_run(
-                        session,
-                        thread.owner_id,
-                        RunRequest(
-                            thread_id=thread.id,
-                            agent_id=parent.agent_id,
-                            trigger="follow_up",
-                            parent_run_id=parent.id,
-                            prompt="Use the returned peer outcome to finish the background work "
-                            "that asked for it."
-                            if may_end_silent(
-                                is_background(parent.trigger, parent.model_metadata),
-                                parent.execution_state,
-                            )
-                            else "Use the returned peer outcome to complete the owner's request.",
-                            # A follow-up keeps an observe-only requester's narrowing, so it
-                            # never asks the owner to approve a trade the executor refuses.
-                            metadata={
-                                "depth": parent.model_metadata.get("depth", 0),
-                                **inherited_authority(parent),
-                                **wake_origin(parent),
-                            },
-                        ),
-                    )
-                    if hidden:
-                        session.add(SteeringRow(run_id=continuation.id, message_id=message.id))
+                    held = list(parent.model_metadata.get(HELD_OUTCOMES) or [])
+                    parent.model_metadata = {
+                        **parent.model_metadata,
+                        HELD_OUTCOMES: [*held, message.id],
+                    }
+        if parent and thread and parent.status == "completed":
+            # The last helper to settle starts the follow-up, whatever it brought back.
+            await release_held_outcomes(session, thread, parent)
         from lonora_db.collaboration import record_outcome
 
         if returned_message:
@@ -305,7 +297,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
             )
 
 
-def deliver(session: AsyncSession, run: RunRow, message: MessageRow, hidden: bool) -> bool:
+def attach_outcome(session: AsyncSession, run: RunRow, message: MessageRow, hidden: bool) -> bool:
     """Give a returned outcome to ``run`` if it has not ended: a queued run reads it before
     its first turn, a started one by steering. False when ``run`` has ended."""
     if run.status == "queued":
@@ -323,6 +315,71 @@ def deliver(session: AsyncSession, run: RunRow, message: MessageRow, hidden: boo
     else:
         return False
     return True
+
+
+def helpers_at_work(parent_id: Any) -> ColumnElement[bool]:
+    """A peer or helper of ``parent_id`` still working toward its outcome. One that waits
+    for the owner (a question, a takeover) or for its paused agent's resume is not, nor
+    is a collaboration participant: its outcome answers its round."""
+    helper, agent = aliased(RunRow), aliased(AgentRow)
+    return exists(
+        select(helper.id)
+        .join(agent, agent.id == helper.agent_id)
+        .where(
+            helper.parent_run_id == parent_id,
+            helper.trigger.in_(["peer", "subagent"]),
+            helper.status.in_(["queued", "leased", "running"]),
+            helper.model_metadata["collaboration_session_id"].as_string().is_(None),
+            agent.paused.is_(False),
+        )
+    )
+
+
+async def release_held_outcomes(session: AsyncSession, thread: ThreadRow, parent: RunRow) -> None:
+    """Start the one follow-up of a finished requester (``parent``, locked after its
+    ``thread``) whose helpers' outcomes are held, once none of its helpers is still at
+    work (P1-09). This is a fan-in, not a cap: it waits as long as they work. A paused
+    requester's follow-up waits for its resume (4.7.1); the ``outcomes`` step starts it."""
+    held = parent.model_metadata.get(HELD_OUTCOMES)
+    requester = await session.get(AgentRow, parent.agent_id)
+    if (
+        not held
+        or requester is None
+        or requester.paused
+        or await session.scalar(select(helpers_at_work(parent.id)))
+    ):
+        return
+    background = may_end_silent(
+        is_background(parent.trigger, parent.model_metadata), parent.execution_state
+    )
+    continuation = await create_run(
+        session,
+        thread.owner_id,
+        RunRequest(
+            thread_id=thread.id,
+            agent_id=parent.agent_id,
+            trigger="follow_up",
+            parent_run_id=parent.id,
+            prompt="Use the returned peer outcomes to finish the background work that "
+            "asked for them."
+            if background
+            else "Use the returned peer outcomes to complete the owner's request.",
+            # A follow-up keeps an observe-only requester's narrowing, so it never asks
+            # the owner to approve a trade the executor refuses.
+            metadata={
+                "depth": parent.model_metadata.get("depth", 0),
+                **inherited_authority(parent),
+                **wake_origin(parent),
+            },
+        ),
+    )
+    if background and thread.purpose != "work":
+        # The cards are in the work's hidden thread (11.5): read before its first turn.
+        for message_id in held:
+            session.add(SteeringRow(run_id=continuation.id, message_id=message_id))
+    parent.model_metadata = {
+        key: value for key, value in parent.model_metadata.items() if key != HELD_OUTCOMES
+    }
 
 
 async def live_follow_up(session: AsyncSession, parent: RunRow) -> RunRow | None:
@@ -427,7 +484,9 @@ async def report_to_origin(
 
 
 async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
-    """Repair the commit/return crash window and cancelled queued children, at most 20 per tick."""
+    """Repair the commit/return crash window and cancelled queued children, then start the
+    follow-up of held outcomes whose last helper stopped short of one (it waits for the
+    owner, or its agent was paused), at most 20 of each per tick."""
     receipt = literal("outcome:") + RunRow.id + literal(":") + sql_cast(RunRow.lease_fence, String)
     async with db.sessions() as session:
         identifiers = list(
@@ -458,4 +517,42 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
             await return_outcome(db, identifier)
 
         await guard.run(identifier, owner_id, deliver)
-    return len(identifiers) - guard.errors
+    async with db.sessions() as session:
+        waiting = list(
+            await session.execute(
+                select(RunRow.id, ThreadRow.owner_id)
+                .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
+                .join(AgentRow, AgentRow.id == RunRow.agent_id)
+                .where(
+                    RunRow.status == "completed",
+                    RunRow.model_metadata[HELD_OUTCOMES].as_string().is_not(None),
+                    # A paused requester's follow-up waits for its resume (4.7.1).
+                    AgentRow.paused.is_(False),
+                    ~helpers_at_work(RunRow.id),
+                    ~blocked("fan_in", RunRow.id),
+                )
+                .order_by(RunRow.updated_at, RunRow.id)
+                .limit(min(max(limit, 1), 20))
+            )
+        )
+    fan_in = ItemGuard(db, "fan_in")
+    await fan_in.prepare(identifier for identifier, _ in waiting)
+    for identifier, owner_id in waiting:
+
+        async def release(identifier: str = identifier) -> None:
+            async with db.sessions() as session, session.begin():
+                parent = await session.get(RunRow, identifier)
+                if parent is None:
+                    return
+                # Lock order of every outcome return: the thread, then its run.
+                thread = await session.get(
+                    ThreadRow, parent.thread_id, with_for_update=True, populate_existing=True
+                )
+                parent = await session.get(
+                    RunRow, identifier, with_for_update=True, populate_existing=True
+                )
+                if thread and parent:
+                    await release_held_outcomes(session, thread, parent)
+
+        await fan_in.run(identifier, owner_id, release)
+    return len(identifiers) - guard.errors + len(waiting) - fan_in.errors

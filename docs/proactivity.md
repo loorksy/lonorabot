@@ -21,7 +21,12 @@ conversation, never in a chat of its own.
   cards, owner cards, journal entries and new watches are placed there (`report_thread`).
 - **Its further work.** A Task the run starts reports to the conversation
   (`task_start` uses `report_thread`), and when the run hands work to a peer and finishes
-  first, the follow-up run keeps the origin and its non-empty result is copied too.
+  first, the follow-up run keeps the origin and its non-empty result is copied too. A
+  finished run has one follow-up for its helpers' outcomes: one that returns while another
+  helper is still at work waits for it, and one that returns while the follow-up has not
+  ended joins it (`HELD_OUTCOMES`). A helper that waits for the owner, or for its paused
+  agent's resume, holds back no answer: the next pass of the `outcomes` step starts the
+  follow-up without it. A paused requester's follow-up waits for its own resume (4.7.1).
 - **Watches.** A watch set in a chat keeps that chat and runs there. A watch set up
   outside any chat (for example through `POST /watches` without a thread) gets a hidden
   work thread and reports to the agent's conversation exactly like a routine.
