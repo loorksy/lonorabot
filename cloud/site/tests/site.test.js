@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
 import { csvCell } from "../functions/api/admin/export.js";
-import { accessJwt, call, goodSignup, installFetch, makeEnv } from "./harness.js";
+import { call, goodSignup, installFetch, makeEnv, staff as staffCall } from "./harness.js";
 
 let env;
 const logs = [];
@@ -18,10 +18,7 @@ async function signIn(email = "sara@example.com", password = "correct horse batt
   return { res, cookie };
 }
 
-async function staff(method, path, opts = {}) {
-  const jwt = await accessJwt("staff@lonora.test");
-  return call(env, method, path, { ...opts, headers: { "cf-access-jwt-assertion": jwt, ...(opts.headers || {}) } });
-}
+const staff = (method, path, opts = {}) => staffCall(env, method, path, opts);
 
 const row = (email = "sara@example.com") => env.DB.raw.prepare("SELECT * FROM accounts WHERE email = ?").get(email);
 
@@ -153,17 +150,12 @@ describe("admin panel", () => {
     await call(env, "POST", "/api/register", { json: goodSignup() });
   });
 
-  test("admin endpoints refuse requests without a valid Access token", async () => {
+  test("admin endpoints refuse requests without a signed-in staff email", async () => {
     assert.equal((await call(env, "GET", "/api/admin/accounts")).status, 403);
-    const wrongAud = await accessJwt("staff@lonora.test", { aud: "other" });
-    assert.equal((await call(env, "GET", "/api/admin/accounts", { headers: { "cf-access-jwt-assertion": wrongAud } })).status, 403);
-    const expired = await accessJwt("staff@lonora.test", { exp: 1 });
-    assert.equal((await call(env, "GET", "/api/admin/accounts", { headers: { "cf-access-jwt-assertion": expired } })).status, 403);
-    const stranger = await accessJwt("stranger@lonora.test");
-    assert.equal((await call(env, "GET", "/api/admin/accounts", { headers: { "cf-access-jwt-assertion": stranger } })).status, 403);
-    const good = await accessJwt("staff@lonora.test");
-    const tampered = `${good.split(".").slice(0, 2).join(".")}.${good.split(".")[2].replace(/^./, (c) => (c === "A" ? "B" : "A"))}`;
-    assert.equal((await call(env, "GET", "/api/admin/accounts", { headers: { "cf-access-jwt-assertion": tampered } })).status, 403);
+    assert.equal((await call(env, "GET", "/api/admin/accounts", { headers: { "x-staff-email": "stranger@lonora.test" } })).status, 403);
+    assert.equal((await call(env, "POST", "/api/admin/decide", { json: { id: row().id, action: "approve" } })).status, 403);
+    assert.equal(row().status, "pending");
+    assert.equal((await call(env, "GET", "/api/admin/accounts", { headers: { "x-staff-email": "STAFF@lonora.test" } })).status, 200);
   });
 
   test("staff list pending accounts with counts and search", async () => {

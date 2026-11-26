@@ -1,5 +1,5 @@
 -- Lonora Cloud website: portal accounts waiting for staff approval (D46).
--- Applied with: wrangler d1 execute lonora_site --remote --file=schema.sql
+-- cloud/host/server.mjs applies it to its SQLite database at every start.
 CREATE TABLE IF NOT EXISTS accounts (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
@@ -43,16 +43,14 @@ CREATE TABLE IF NOT EXISTS rate (
   count INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 );
--- One-click activation: each attempt to create a customer's dedicated Lonora (PW-T6).
+-- One-click activation: each attempt to create a customer's installation on the host (PW-T7, D48).
+-- server_id is the customer's Compose project there (lonora-<handle>).
 CREATE TABLE IF NOT EXISTS provision_jobs (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
   handle TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('creating', 'installing', 'ready', 'failed', 'removed')),
-  secret_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('creating', 'ready', 'failed', 'removed')),
   server_id TEXT,
-  ipv4 TEXT,
-  dns_record_id TEXT,
   error TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

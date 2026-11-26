@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Readex+Pro:wght@300..600&display=swap" rel="stylesheet">
 <style>
 /* Lonora Cloud admin panel: staff approve, activate, reject and suspend accounts (docs/cloud D46, PW-T4).
-   It sits behind Cloudflare Access; the API checks the Access token again on every call. */
+   Staff sign in at the proxy (cloud/host/Caddyfile); the API checks the staff email again on every call. */
 :root{
   --bg:#07080B;--surface:#15161B;--surface-2:#1A1C22;--ink:#F7F5EF;--ink-2:#C5C8D1;--muted:#8B919E;
   --line:rgba(247,245,239,.08);--line-2:rgba(247,245,239,.14);--accent:#22E3A8;--accent-a16:rgba(34,227,168,.16);
@@ -87,17 +87,17 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
   };
   const USES = { watch: "مراقبة", trade: "تداول", analysis: "تحليل", news: "أخبار", brief: "التقرير الصباحي", other: "غير ذلك" };
   const ERRORS = {
-    staff_only: "هذه اللوحة للموظفين فقط. ادخل عبر Cloudflare Access.", bad_state: "حالة الحساب تغيّرت؛ حدّث القائمة.",
+    staff_only: "هذه اللوحة للموظفين فقط. ادخل ببريدك وكلمة مرور الموظف.", bad_state: "حالة الحساب تغيّرت؛ حدّث القائمة.",
     reason_required: "اكتب السبب؛ سيراه العميل.", instance_url: "عنوان النسخة يجب أن يبدأ بـ https://",
     setup_link: "رابط الإعداد يجب أن يبدأ بـ https://", not_found: "الحساب غير موجود.", origin: "طلب من مصدر آخر.",
     handle: "الاسم الفرعي: أحرف إنجليزية صغيرة وأرقام وشرطة، من 3 إلى 30، ويبدأ بحرف.", handle_taken: "هذا الاسم الفرعي مستخدم.",
-    server_exists: "لهذا الحساب خادم؛ أكّد حذف الخادم أيضاً.", provision_failed: "تعذّر التجهيز.", deprovision_failed: "تعذّر حذف الخادم.",
+    server_exists: "لهذا الحساب نسخة Lonora؛ أكّد حذفها أيضاً.", provision_failed: "تعذّر التجهيز.", deprovision_failed: "تعذّر حذف النسخة.",
   };
   let status = "pending";
   let counts = {};
   let provisioning = false;
   let baseDomain = "";
-  const JOB = { creating: "إنشاء الخادم", installing: "تثبيت Lonora", ready: "جاهز", failed: "فشل", removed: "أُزيل" };
+  const JOB = { creating: "تجهيز النسخة", ready: "جاهز", failed: "فشل", removed: "أُزيل" };
   const $ = (s) => document.querySelector(s);
   const el = (tag, attrs = {}, ...kids) => {
     const n = document.createElement(tag);
@@ -134,7 +134,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
         const body = { id: a.id, action: label, ...(extra ? extra() : {}) };
         if (label === "delete") {
           const hasServer = a.job && a.job.status !== "removed" && a.job.server_id;
-          if (!confirm(hasServer ? "حذف الحساب نهائياً بطلب صاحبه، مع حذف خادمه ونسخته بكل بياناتها؟ لا يمكن التراجع." : "حذف الحساب نهائياً بطلب صاحبه؟ لا يمكن التراجع.")) { btn.disabled = false; return; }
+          if (!confirm(hasServer ? "حذف الحساب نهائياً بطلب صاحبه، مع حذف نسخته بكل بياناتها؟ لا يمكن التراجع." : "حذف الحساب نهائياً بطلب صاحبه؟ لا يمكن التراجع.")) { btn.disabled = false; return; }
           if (hasServer) body.remove_server = true;
         }
         await api("/api/admin/decide", body);
@@ -151,7 +151,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     if (a.status === "pending") acts.append(el("div", { class: "line" }, action(a, "approve", null, "btn primary")));
     if (a.status === "pending" || a.status === "approved") {
       if (provisioning) {
-        // One click: the server, its domain and Lonora are created; the account turns active by itself.
+        // One click: the customer's Lonora is created on the host; the account turns active with its setup link.
         const handle = el("input", { type: "text", dir: "ltr", maxlength: "30", placeholder: a.handle || "الاسم الفرعي (اختياري، يُقترح من البريد)" });
         const failedBefore = a.job && a.job.status === "failed";
         acts.append(el("div", { class: "line" }, handle, el("span", { class: "meta ltr" }, `.${baseDomain}`),
@@ -184,7 +184,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
         el("dt", {}, "الاستخدام"), el("dd", {}, (a.uses || []).map((u) => USES[u] || u).join("، ") || "—"),
         el("dt", {}, "الوثائق"), el("dd", { class: "ltr" }, `${a.terms_version} · ${a.risk_version} · ${a.privacy_version}`),
         el("dt", {}, "عنوان النسخة"), el("dd", { class: "ltr" }, a.instance_url || "—"),
-        el("dt", {}, "التجهيز"), el("dd", {}, a.job ? `${JOB[a.job.status] || a.job.status}${a.job.error ? ` · ${a.job.error}` : ""}${a.job.ipv4 ? ` · ${a.job.ipv4}` : ""} · ${date(a.job.updated_at)}` : "—"),
+        el("dt", {}, "التجهيز"), el("dd", {}, a.job ? `${JOB[a.job.status] || a.job.status}${a.job.error ? ` · ${a.job.error}` : ""} · ${date(a.job.updated_at)}` : "—"),
         el("dt", {}, "القرار"), el("dd", {}, a.decided_by ? `${date(a.decided_at)} · ${a.decided_by}` : "—"),
         el("dt", {}, "السبب"), el("dd", {}, a.reason || "—")),
       acts, el("div", { class: "meta" }, "السجل"), log);

@@ -33,12 +33,12 @@ export async function onRequestPost({ request, env, data }) {
     if (!["pending", "approved"].includes(account.status)) return json({ ok: false, error: "bad_state", status: account.status }, 409);
     const picked = await chooseHandle(env, account, body.handle);
     if (picked.error) return json({ ok: false, error: picked.error }, 400);
-    const out = await startProvisioning(env, account, picked.handle, data.staff, env.SITE_ORIGIN || new URL(request.url).origin);
-    return json(out.ok ? { ok: true, status: "provisioning", handle: out.handle } : { ok: false, error: out.error, message: out.message }, out.ok ? 200 : 502);
+    const out = await startProvisioning(env, account, picked.handle, data.staff);
+    return json(out.ok ? { ok: true, status: "active", handle: out.handle } : { ok: false, error: out.error, message: out.message }, out.ok ? 200 : 502);
   }
   if (body.action === "delete") {
-    // A server created for this account is removed first, so nothing keeps running or billing.
-    if (lastJob && lastJob.status !== "removed" && (lastJob.server_id || lastJob.dns_record_id)) {
+    // The customer's installation is removed first, so nothing of it keeps running.
+    if (lastJob && lastJob.status !== "removed" && lastJob.server_id) {
       if (body.remove_server !== true) return json({ ok: false, error: "server_exists" }, 409);
       try {
         await deprovision(env, lastJob);

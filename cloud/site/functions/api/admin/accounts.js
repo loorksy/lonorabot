@@ -24,7 +24,7 @@ export async function onRequestGet({ request, env }) {
   }
   const accounts = [];
   for (const a of results) {
-    const job = await env.DB.prepare("SELECT id, handle, status, server_id, ipv4, error, created_at, updated_at FROM provision_jobs WHERE account_id = ? ORDER BY created_at DESC LIMIT 1").bind(a.id).first();
+    const job = await env.DB.prepare("SELECT id, handle, status, server_id, error, created_at, updated_at FROM provision_jobs WHERE account_id = ? ORDER BY created_at DESC LIMIT 1").bind(a.id).first();
     accounts.push({ ...a, uses: JSON.parse(a.uses || "[]"), job: job || null });
   }
   return json({ ok: true, accounts, counts, provisioning: provisioningEnabled(env), base_domain: env.BASE_DOMAIN || null });

@@ -1,4 +1,5 @@
-// Shared helpers for the Lonora Cloud website functions (Cloudflare Pages Functions, D1).
+// Shared helpers for the Lonora Cloud website functions (Pages-style handlers that cloud/host/server.mjs
+// runs, with its D1-compatible SQLite database).
 // Nothing here logs a request body, an email, a password or a token.
 
 const enc = new TextEncoder();
@@ -70,8 +71,9 @@ export function sameOrigin(request, env) {
   return origin !== null && origin === allowed;
 }
 
+// The reverse proxy (cloud/host/Caddyfile) sets X-Real-IP to the connecting address.
 export function clientIp(request) {
-  return request.headers.get("cf-connecting-ip") || "0.0.0.0";
+  return request.headers.get("x-real-ip") || "0.0.0.0";
 }
 
 // Fixed-window counter in D1, keyed by a hash of the route and the client address.
@@ -174,57 +176,16 @@ export function validateRegistration(body) {
   return { value: { email, name, password: body.password, country, lang: body.lang, broker, uses } };
 }
 
-// Cloudflare Access: the admin panel and /api/admin/* sit behind an Access application. The JWT
-// in Cf-Access-Jwt-Assertion is verified here as well (defence in depth): signature against the
-// team's certs, audience, issuer, expiry, and the email against ADMIN_EMAILS.
-let certCache = { at: 0, keys: [] };
-
-function b64urlToBytes(s) {
-  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "="));
-  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
-}
-
-export async function staffEmail(request, env) {
-  const jwt = request.headers.get("cf-access-jwt-assertion");
-  if (!jwt || !env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return null;
-  const parts = jwt.split(".");
-  if (parts.length !== 3) return null;
-  let header;
-  let claims;
-  try {
-    header = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0])));
-    claims = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
-  } catch {
-    return null;
-  }
-  if (header.alg !== "RS256") return null;
-  if (Date.now() - certCache.at > 3600_000 || !certCache.keys.some((k) => k.kid === header.kid)) {
-    try {
-      const res = await fetch(`https://${env.ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`);
-      certCache = { at: Date.now(), keys: (await res.json()).keys || [] };
-    } catch {
-      return null;
-    }
-  }
-  const jwk = certCache.keys.find((k) => k.kid === header.kid);
-  if (!jwk) return null;
-  const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-  const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, b64urlToBytes(parts[2]), enc.encode(`${parts[0]}.${parts[1]}`));
-  if (!ok) return null;
-  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (!aud.includes(env.ACCESS_AUD)) return null;
-  if (claims.iss !== `https://${env.ACCESS_TEAM_DOMAIN}`) return null;
-  if (typeof claims.exp !== "number" || claims.exp * 1000 < Date.now()) return null;
-  const email = String(claims.email || "").toLowerCase();
+// Staff sign in at the reverse proxy (basic_auth on /admin and /api/admin in cloud/host/Caddyfile), which
+// passes the signed-in name in X-Staff-Email and drops that header from every other request. The site
+// listens only to the proxy. The name must also be one of ADMIN_EMAILS.
+export function staffEmail(request, env) {
+  const email = String(request.headers.get("x-staff-email") || "").toLowerCase();
   const allowed = String(env.ADMIN_EMAILS || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  return allowed.includes(email) ? email : null;
-}
-
-export function _resetCertCache() {
-  certCache = { at: 0, keys: [] };
+  return email && allowed.includes(email) ? email : null;
 }
 
 // The account fields a customer sees about themselves. The setup link shows only while active.
