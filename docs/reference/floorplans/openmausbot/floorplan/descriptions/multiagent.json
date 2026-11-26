@@ -1,0 +1,124 @@
+{
+  "files": {
+    "server/runtime/envelope.ts": {
+      "name": "Delegated turn envelope",
+      "description": "Composes the harness-written brief, report, question and resume text a bot reads, escaping any model text that imitates it."
+    },
+    "server/runtime/invariants.ts": {
+      "name": "Runtime invariants",
+      "description": "Checks stored assignments and events for orphaned, double-reported, duplicate or unreplayable rows."
+    },
+    "server/runtime/handoff-limits.ts": {
+      "name": "Total turn limits",
+      "description": "Sets the 300-turn and 5-failures-in-a-row caps per request tree, overridable by two environment variables."
+    },
+    "server/runtime/status-reply.ts": {
+      "name": "Acknowledgement filter",
+      "description": "Lets a small model decide whether a teammate's reply is a bare acknowledgement so the requester is not woken."
+    },
+    "server/runtime/capabilities.ts": {
+      "name": "Engine capability table",
+      "description": "Lists per-engine flags for native resume, auto review, edits and full access that the level rule reads."
+    },
+    "server/drivers/agents-thread-post-tool.ts": {
+      "name": "Thread post tool",
+      "description": "Posts one message into an existing thread, optionally waking a run there, with a delivery id for dedupe."
+    },
+    "server/drivers/agents-devs-tools.ts": {
+      "name": "Bug report tool",
+      "description": "Sends a person's bug report from a bot to the developer team through an internal route."
+    },
+    "server/peer-provenance.ts": {
+      "name": "Peer provenance notes",
+      "description": "Builds the notes that label relayed bot text, quotes the person's request and escapes imitations of harness notes."
+    },
+    "server/provenance-label.ts": {
+      "name": "Provenance label format",
+      "description": "Formats the From who, what and authority note and defines the three authority values every non-owner line carries."
+    },
+    "server/peer-roster.ts": {
+      "name": "Peer roster and reach",
+      "description": "Decides which bots can reach and manage each other, resolves teammate names and ids and renders the roster prompt."
+    },
+    "server/chief-of-staff.ts": {
+      "name": "Chief of Staff prompt",
+      "description": "Builds the lead agent's system prompt: delegation rules, specialist creation, incident handling and team roster."
+    },
+    "server/chief-level.ts": {
+      "name": "Chief powers check",
+      "description": "Decides whether a bot holds Chief powers and which role tools its tool list shows."
+    },
+    "server/room-post-budget.ts": {
+      "name": "Room post breaker",
+      "description": "Refuses duplicate, ring, over-rate and unanswered bot room posts and closes the room for five minutes on a loop."
+    },
+    "server/same-name-mentions.ts": {
+      "name": "Same-name mention check",
+      "description": "Refuses a line or bot post that @-tags a name several room members share unless one was picked."
+    },
+    "server/room-routing-members.ts": {
+      "name": "Routable room members",
+      "description": "Filters room members into available, goal and routable sets and picks the default responder when routing is auto."
+    },
+    "server/room-steer-addressee.ts": {
+      "name": "Room steer addressing",
+      "description": "Decides whether a queued room line is meant for the speaking bot, using mentions and the room lead."
+    },
+    "server/room-context.ts": {
+      "name": "Room context tracker",
+      "description": "Tracks each member's context size in a room and decides when to compact it at a threshold of the window."
+    },
+    "server/decider/room-routing.ts": {
+      "name": "Room responder decider",
+      "description": "Asks a small model which member should answer a room message, falling back below 0.6 confidence or on failure."
+    },
+    "shared/room-mentions.ts": {
+      "name": "Mention resolver",
+      "description": "Resolves @names in a line to bots, treating shared names as ambiguous unless picked from the @ list."
+    },
+    "server/host/starter-caps.ts": {
+      "name": "Starter plan caps",
+      "description": "Refuses hand-offs to paused bots or beyond the plan's running and waiting task slots, with retry-free wording."
+    },
+    "server/host/usage-cap-gate.ts": {
+      "name": "Usage cap gate",
+      "description": "Checks spend and token caps before turns and hand-offs and tells the handing bot why work was refused."
+    },
+    "server/host/handoff-status.ts": {
+      "name": "Hand-off status lines",
+      "description": "Projects assignment rows into the Sent to status line without exposing the work's words or private chat titles."
+    },
+    "server/host/handed-line.ts": {
+      "name": "Handed-work chat line",
+      "description": "Keeps one quiet activity line in a bot's main chat for work a teammate handed it, folded and bounded."
+    },
+    "server/host/delegated-level.ts": {
+      "name": "Delegated level passing",
+      "description": "Applies a Chief conversation's approval level down each hand-off hop, in threads and rooms alike."
+    },
+    "server/host/question-routing.ts": {
+      "name": "Question routing",
+      "description": "Routes a bot's or Chief's message into a parked question or running turn as an addition with the right authority."
+    },
+    "server/section-context.ts": {
+      "name": "Department context",
+      "description": "Stores department-wide context text that agents cannot write, keyed by stable section memory keys."
+    },
+    "server/host/handoff-requests.ts": {
+      "name": "Sign-in handoff cards",
+      "description": "Creates the sign-in or handoff card a bot asks the person to act on, with expiry and supersession."
+    },
+    "src/components/HandoffStatusChip.tsx": {
+      "name": "Hand-off status chip",
+      "description": "Renders a hand-off's state as a small chip on the Sent to row and the working conversation."
+    },
+    "src/components/SidebarBotActivity.tsx": {
+      "name": "Sidebar bot activity",
+      "description": "Lists each bot's threads in the sidebar with busy, waiting and unread state and hand-off status text."
+    },
+    "shared/handoff-status.ts": {
+      "name": "Hand-off status types",
+      "description": "Re-exports the phone protocol's hand-off status types shared by server and clients."
+    }
+  }
+}

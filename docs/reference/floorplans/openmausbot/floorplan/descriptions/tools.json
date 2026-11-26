@@ -1,0 +1,152 @@
+{
+  "files": {
+    "shared/approval-mode.ts": {
+      "name": "Approval modes",
+      "description": "Re-exports the approval level definitions from the phone-protocol package."
+    },
+    "packages/phone-protocol/src/approval-mode.ts": {
+      "name": "Approval levels",
+      "description": "Defines ask, edits, auto, full and custom levels and which engines support each."
+    },
+    "packages/phone-protocol/src/outbound.ts": {
+      "name": "Outbound tool classifier",
+      "description": "Classifies tool names as sends or payments by action verbs, failing closed for raw API tools."
+    },
+    "packages/phone-protocol/src/tool-scope.ts": {
+      "name": "Tool scope rules",
+      "description": "Parses and evaluates allow/deny selectors for native and MCP tools per bot."
+    },
+    "shared/tool-scope.ts": {
+      "name": "Tool scope export",
+      "description": "Re-exports tool scope parsing and matching from phone-protocol."
+    },
+    "shared/outbound.ts": {
+      "name": "Outbound export",
+      "description": "Re-exports the outbound tool classifier from phone-protocol."
+    },
+    "shared/tool-surface.ts": {
+      "name": "Tool surface kinds",
+      "description": "Maps tool names to browser or computer surfaces for screen-touching detection."
+    },
+    "server/auto-approve.ts": {
+      "name": "Approval verdict rules",
+      "description": "Decides in fixed order whether the server answers a permission request or leaves a card."
+    },
+    "server/safety-floor.ts": {
+      "name": "Shell never-list",
+      "description": "Lexes shell lines and flags recursive deletes of root or home, disk writes and fork bombs."
+    },
+    "server/safety-floor-gate.ts": {
+      "name": "Safety floor gate",
+      "description": "Denies never-list commands before any automatic allow and logs the decision."
+    },
+    "server/permission-proxy.ts": {
+      "name": "Permission prompt proxy",
+      "description": "Runs as a stdio MCP server for Claude Code and forwards approvals and questions to the broker socket."
+    },
+    "server/drivers/chat-tool-approval.ts": {
+      "name": "Chat approval cards",
+      "description": "Holds pending approval cards for chat runtimes with timeouts, session grants and floor checks."
+    },
+    "server/drivers/permission-command.ts": {
+      "name": "Shell request parsing",
+      "description": "Builds exact command descriptors from engine requests and checks the safety floor before self-answering."
+    },
+    "server/drivers/claude-hooks.ts": {
+      "name": "Claude hook settings",
+      "description": "Builds the private settings hooks that run the harness helper on Claude Code tool events."
+    },
+    "server/drivers/codex-approval-config.ts": {
+      "name": "Codex approval config",
+      "description": "Validates Codex approval policies and refuses sandbox levels looser than requested."
+    },
+    "server/command-allowlist.ts": {
+      "name": "Saved command rules",
+      "description": "Stores and validates exact command, directory and engine grants, rejecting commands that hold credentials."
+    },
+    "server/always-allow.ts": {
+      "name": "Always-allow lists",
+      "description": "Caps per-bot and per-thread grant lists and cascades removals to every thread."
+    },
+    "server/agent-tool-policy.ts": {
+      "name": "Read-only agent tools",
+      "description": "Lists reviewed read-only agents tools and attaches read-only annotations to them."
+    },
+    "server/mcp-gate.ts": {
+      "name": "MCP gate proxy",
+      "description": "Wraps an upstream MCP server with tool scope, schema fitting, result trimming and spill."
+    },
+    "server/mcp-gate-config.ts": {
+      "name": "MCP gate config",
+      "description": "Builds gate mount settings, result budgets and per-server limits for each turn."
+    },
+    "server/mcp-registry.ts": {
+      "name": "MCP server registry",
+      "description": "Defines stored stdio and remote MCP server entries with vault secret pointers and budgets."
+    },
+    "server/mcp-bridge.ts": {
+      "name": "MCP stdio bridge",
+      "description": "Spawns and supervises stdio MCP processes with liveness probes and inactivity timeouts."
+    },
+    "server/mcp-http.ts": {
+      "name": "Remote MCP client",
+      "description": "Speaks MCP over HTTP to remote servers without logging header values."
+    },
+    "server/mcp-oauth.ts": {
+      "name": "MCP OAuth sign-in",
+      "description": "Runs OAuth for MCP servers with one pending sign-in per server and constant-time state checks."
+    },
+    "server/mcp-app-observer.ts": {
+      "name": "MCP app observer",
+      "description": "Reports MCP App views seen by the gate or proxy without delaying relayed calls."
+    },
+    "server/mcp-bot-rules.ts": {
+      "name": "MCP bot rules",
+      "description": "Defines which MCP server fields a bot may not change and who owns a server."
+    },
+    "server/mcp-schema-validator.ts": {
+      "name": "MCP schema validator",
+      "description": "Validates tool arguments with strict Ajv options and no external reference fetching."
+    },
+    "server/mcp-result-budget.ts": {
+      "name": "MCP result budget",
+      "description": "Limits how much of one MCP tool result enters the model context."
+    },
+    "server/tool-groups.ts": {
+      "name": "Tool groups off",
+      "description": "Tells a bot which tool groups the person turned off and lists available groups."
+    },
+    "server/tool-count-limit.ts": {
+      "name": "Tool count limit",
+      "description": "Caps how many tools each MCP server lists for providers with a tool limit."
+    },
+    "server/connector-verdict.ts": {
+      "name": "Connector call verdict",
+      "description": "Denies unrecognized connector call shapes and limits Composio code sandboxes to Full access."
+    },
+    "server/own-file-reads.ts": {
+      "name": "Own-file reads",
+      "description": "Recognizes plain read-only commands inside a bot's own folders so they need no approval."
+    },
+    "server/routes/internal-tools.ts": {
+      "name": "Internal tool routes",
+      "description": "Serves the agents tools' internal HTTP calls behind the per-turn capability bearer."
+    },
+    "server/redact.ts": {
+      "name": "Secret redaction",
+      "description": "Masks credential-like keys and text in logs, records and decision rows."
+    },
+    "server/browser/prompt.ts": {
+      "name": "Browser prompt",
+      "description": "Describes agent_browser tools and tells the model to treat page content as untrusted."
+    },
+    "server/cloud-browser/guards.ts": {
+      "name": "Cloud browser guards",
+      "description": "Rejects local-scheme URLs such as file, chrome and devtools in the cloud browser."
+    },
+    "server/skill-fetch.ts": {
+      "name": "Skill GitHub fetch",
+      "description": "Fetches skill folders from GitHub with validated frontmatter and size limits."
+    }
+  }
+}

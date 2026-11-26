@@ -1,0 +1,156 @@
+{
+  "files": {
+    "packages/memory/src/index.ts": {
+      "name": "Markdown memory store",
+      "description": "Stores per-bot and per-Space memory documents in Postgres with revisions and optimistic-concurrency commits."
+    },
+    "packages/adapters/src/memory/memory-tools.ts": {
+      "name": "Memory edit logic",
+      "description": "Applies add, replace and remove operations atomically with a 4 KB cap, fuzzy entry matching and tool filtering by provider."
+    },
+    "packages/adapters/src/memory/memory-context.ts": {
+      "name": "Memory loader",
+      "description": "Reads bot and shared memory for a run and moves entries past their end date into ARCHIVE.md first."
+    },
+    "packages/adapters/src/memory/memory-context.prompt.ts": {
+      "name": "Memory prompt renderer",
+      "description": "Renders memory documents into an escaped durable_memory block under a 32 KB budget, bot scope first."
+    },
+    "packages/adapters/src/memory/memory-expiry.ts": {
+      "name": "Memory entry stamps",
+      "description": "Stamps entries with saved and end dates and splits out those whose end date has passed."
+    },
+    "packages/adapters/src/memory/memory-providers.ts": {
+      "name": "Memory provider registry",
+      "description": "Lists the five external memory providers a Space can connect, in the order offered."
+    },
+    "packages/adapters/src/memory/memory-provider-descriptor.ts": {
+      "name": "Memory provider contract",
+      "description": "Defines what each memory provider supplies: settings form, endpoint checks, credential target and factory."
+    },
+    "packages/adapters/src/memory/memory-provider-factory.ts": {
+      "name": "Memory provider resolver",
+      "description": "Resolves a Space's saved provider config and decrypted credentials into a semantic memory client."
+    },
+    "packages/adapters/src/memory/conversation-memory.ts": {
+      "name": "Conversation learning",
+      "description": "Sends finished chat turns to the memory provider with capped transcripts and purges them after a chat clear."
+    },
+    "packages/adapters/src/runs/tools/run-tools-memory.ts": {
+      "name": "Memory tool handlers",
+      "description": "Runs remember, recall, save, forget, reflect, search_history and read_history for a run with server-set scope."
+    },
+    "packages/adapters/src/tools/builtin-memory.tool-definition.ts": {
+      "name": "Memory tool schemas",
+      "description": "Declares search_history, read_history, email and the four semantic memory tool schemas offered to the model."
+    },
+    "packages/adapters/src/tools/builtin-conversation.tool-definition.ts": {
+      "name": "Conversation tool schemas",
+      "description": "Declares the remember tool with its add, replace and remove operations and the shared flag."
+    },
+    "packages/contracts/src/bots/bot-memory.ts": {
+      "name": "Memory contracts",
+      "description": "Defines MEMORY.md and ARCHIVE.md paths, the 4 KB bot cap and the prompt budget schemas."
+    },
+    "packages/contracts/src/models/model-connections.ts": {
+      "name": "Model connection contracts",
+      "description": "Defines cache capability fields (retention, minimum tokens, costs) a model connection can declare."
+    },
+    "packages/db/src/bots/memory-config.ts": {
+      "name": "Memory scope resolver",
+      "description": "Resolves a bot's effective memory scope from its own setting or the Space default."
+    },
+    "packages/db/src/history/history-retrieval.ts": {
+      "name": "History search",
+      "description": "Searches and reads earlier messages by keyword with full-text matching, scope limits and paging."
+    },
+    "packages/adapters/src/runtime/context/context-pruning.ts": {
+      "name": "Context pruning",
+      "description": "Drops stale page-state results and old tool images when the transcript is rebuilt."
+    },
+    "packages/adapters/src/runtime/context/history-replay.prompt.ts": {
+      "name": "History replay notes",
+      "description": "Provides short notes used when replaying history: conversation start, dropped images, missing tools."
+    },
+    "packages/adapters/src/runtime/context/reported-context-window.ts": {
+      "name": "Context window sniffing",
+      "description": "Parses context size from OpenAI-compatible server errors so the window can be lowered."
+    },
+    "packages/adapters/src/runtime/context/context-selection.ts": {
+      "name": "Context selection",
+      "description": "Chooses which message groups fit the token budget, shortens tool results and tracks cache warmth."
+    },
+    "packages/adapters/src/runtime/context/runtime-context.prompt.ts": {
+      "name": "Context notes",
+      "description": "Holds snapshot catalogue text and the markers used when tool results or images are shortened."
+    },
+    "packages/adapters/src/runtime/context/scratchpad-context.ts": {
+      "name": "Scratchpad renderer",
+      "description": "Renders open scratchpad items into a 4 KB prompt block, sharing space between notes."
+    },
+    "packages/adapters/src/runtime/context/scratchpad-context.prompt.ts": {
+      "name": "Scratchpad prompt text",
+      "description": "Holds the preamble and hint strings framing the open scratchpad block as data."
+    },
+    "packages/adapters/src/runtime/context/history-speakers.ts": {
+      "name": "History speaker labels",
+      "description": "Labels who said each message in shared spaces and strips brackets so names cannot fake labels."
+    },
+    "packages/adapters/src/runs/assembly/run-assembly-records.ts": {
+      "name": "Run records loader",
+      "description": "Loads the bot, thread, history window, skills, memory config and trust flags a run needs."
+    },
+    "packages/adapters/src/runs/assembly/prompt-version.ts": {
+      "name": "Prompt version hash",
+      "description": "Hashes all authored prompts, tool text and context settings into a version stored on each run."
+    },
+    "packages/adapters/src/runs/assembly/checkpoint-answer-history.ts": {
+      "name": "Checkpoint answer history",
+      "description": "Restores question-card answers into history for a resumed paused turn."
+    },
+    "packages/adapters/src/runtime/pi/pi-runtime-history.ts": {
+      "name": "Pi history replay",
+      "description": "Converts stored history into provider messages, replaying tool steps without reusing signatures."
+    },
+    "packages/adapters/src/runtime/pi/usage/pi-cache-retention.ts": {
+      "name": "Cache retention rules",
+      "description": "Validates prompt-cache retention modes per provider API and maps long retention to one-hour writes."
+    },
+    "packages/adapters/src/tools/skill-tools.ts": {
+      "name": "Skill tools",
+      "description": "Implements skill_read, skill_create, skill_update and skill_delete over stored SKILL.md documents."
+    },
+    "packages/adapters/src/tools/builtin-skills.prompt.ts": {
+      "name": "Builtin skills",
+      "description": "Defines the read-only Rakazo documentation skill pointing at fixed docs URLs."
+    },
+    "packages/core/src/skills/agent-skill.ts": {
+      "name": "Skill format",
+      "description": "Parses and builds SKILL.md files and expands /Name and @Name skill references in prompts."
+    },
+    "packages/core/src/skills/agent-skill.prompt.ts": {
+      "name": "Skill catalogue prompt",
+      "description": "Formats the skills catalogue instruction and the forced-skill prompt wrapper."
+    },
+    "packages/adapters/src/bots/teaching-session.ts": {
+      "name": "Skill teaching session",
+      "description": "Records a human demonstration on a bot's computer and turns it into a saved taught skill."
+    },
+    "packages/adapters/src/integrations/plugin-skill-resources.ts": {
+      "name": "Plugin skill files",
+      "description": "Identifies SKILL.md folders and companion text files in a plugin, read as text only."
+    },
+    "packages/adapters/src/bots/agent-import-settings.ts": {
+      "name": "Agent import mapping",
+      "description": "Maps an imported OpenClaw, Hermes or Grok agent's routines and skills into Rakazo settings."
+    },
+    "packages/adapters/src/tasks/scratchpad-tools.ts": {
+      "name": "Scratchpad store",
+      "description": "Defines scratchpad item statuses, limits and listing of a bot's open work items."
+    },
+    "packages/adapters/src/tasks/ticket-context.ts": {
+      "name": "Ticket context",
+      "description": "Finds ticket references in the prompt and renders them into a 4 KB data block."
+    }
+  }
+}
