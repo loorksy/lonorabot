@@ -591,6 +591,9 @@ class RoutineRow(Base):
     enabled: Mapped[bool] = mapped_column(default=True)
     next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Occurrences that came due while an earlier run of the routine was unfinished; the
+    # next run carries the count and resets it (``enqueue_routine``).
+    skipped_occurrences: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class SettingRow(Base):

@@ -10,6 +10,7 @@ from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.genui_submit import mark_submit_started
 from lonora_db.rich_response import validated_rich_content
+from lonora_db.routines import mark_routine_started
 from lonora_db.runs import (
     complete_run,
     fail_run,
@@ -117,6 +118,8 @@ async def execute_run(
             row.updated_at = utcnow()
             # Rules N and T: a card submission records that its Run started.
             await mark_submit_started(session, row)
+            # A routine Run records its first start, which its late sentence names.
+            mark_routine_started(row, row.updated_at)
             emit(
                 session,
                 context.owner_id,

@@ -159,6 +159,10 @@
     "packages/db/migrations/versions/0129_grant_cards_gone.py": {
       "name": "Remove grant cards",
       "description": "Removes the grant card kind."
+    },
+    "packages/db/migrations/versions/0130_routine_skipped_occurrences.py": {
+      "name": "Routine skip count",
+      "description": "Adds the count of routine occurrences skipped while an earlier run was still working."
     }
   }
 }

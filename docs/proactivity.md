@@ -59,6 +59,43 @@ is the agent's earliest conversation; a routine on such a thread moves to a new 
 thread of its own. A routine or watch run still in flight in a converted thread reports
 to the agent's conversation, like the runs the new code queues.
 
+## Routine timing: no stacking, honest lateness (11.5, 17, 5.2)
+
+`enqueue_routine` in `lonora_db/routines.py` fires a due routine in its own transaction.
+
+- **No stacking.** While a run of the routine in its work thread is `queued` (a run in
+  retry backoff, for example during a model outage, is queued too), `leased` or
+  `running`, a due tick creates no run. The schedule advances as after a run, and the
+  skipped occurrences are counted on the routine (`ln_routines.skipped_occurrences`). A
+  run waiting for the owner's answer (`waiting_input`) does not hold the schedule: an
+  unanswered question never stops a routine. A one-shot always fires. This is not a
+  limit (P1): the routine fires on its schedule again once the earlier run has ended.
+  A run held for financial reconciliation (past its crash-recovery cap with a trade
+  whose outcome is not known yet, `quarantine_run`) stays `leased` or `running`, so it
+  holds its routine until the reconciler settles that trade; the owner already has an
+  item for the aging operation. The watchdog then fails the run, and the routine fires
+  on its next tick.
+- **Missed occurrences.** Missed schedules collapse into one wake; a burst is never
+  replayed after downtime, a suspension, `lonora quiesce` or an update window. A
+  collapse, cron or interval, is counted up to 1000 occurrences (`MISSED_COUNT_CAP`): a
+  count at that bound is a lower bound, and so is a skipped count that includes one.
+- **What the run carries.** Each routine run carries, in server-only metadata that
+  `create_run` strips from every caller: `scheduled_for` (the occurrence it fires),
+  `started_at` (its first `running` transition, recorded once by `mark_routine_started`
+  in `execute_run`), `missed_occurrences` (the later occurrences folded into it) and
+  `skipped_occurrences` (every occurrence skipped while an earlier run was unfinished,
+  since the routine's last run and across a pause or a schedule change; the routine's
+  count then starts again from zero). The routine's history shows them on each run
+  (`model_metadata`).
+- **The late sentence.** A routine run that started more than 15 minutes after
+  `scheduled_for` gets one fixed server sentence in its `<wake>` frame
+  (`late_routine_note` in `lonora_agent/context/routine.py`): when it was due, when it
+  started (`started_at`), how many later occurrences were folded into it ("at least" at
+  the bound), and to re-check what changed before acting. A later wake of the same run
+  (the owner's answer, steering, a timer) rebuilds its head with the same sentence or
+  none: a run that started on time and then waited, in retry backoff or for the owner,
+  is not late. There is no fixed catch-up window: the agent judges what is stale (5.1).
+
 ## Silence when there is nothing (11.5)
 
 A scheduled or background run with nothing new posts nothing. The agent decides what is
