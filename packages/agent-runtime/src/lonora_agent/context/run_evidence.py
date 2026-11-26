@@ -8,15 +8,19 @@ identity, labelled historical: what was known then, never live broker truth.
 Results of tools that return third-party or other-model content (web pages,
 search excerpts, MCP servers, repositories, stored files, calendar feeds,
 consulted models, delegated Agents) are returned separately so the builder can
-label them retrieved and untrusted, like recalled evidence.
+label them retrieved and untrusted, like recalled evidence. Both pass the owner's secret
+scan as they are shown: a checkpoint written before results were scanned, or before a
+value in it was saved as a secret, never brings that value into a new Run (7.2.6).
 """
 
 import json
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
 from lonora_db.schema import RunRow
+from lonora_security.secrets import SecretScan
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -119,16 +123,23 @@ class _Entry:
     observed_at: str
     matched: bool
     payload: dict[str, Any]
+    # In full: shown only through the owner's scan, which runs before either is cut.
+    arguments: str
+    result: dict[str, Any]
 
 
 def _terms(query: str) -> set[str]:
     return {term.casefold() for term in re.findall(r"[\w.#/-]{3,}", query)}
 
 
-def _preview(result: dict[str, Any]) -> str:
+def _cut(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _preview(result: dict[str, Any], scan: SecretScan | None = None) -> str:
     visible = {key: value for key, value in result.items() if not key.startswith("_")}
     text = json.dumps(visible, ensure_ascii=False, separators=(",", ":"), default=str)
-    return text if len(text) <= PREVIEW_CHARS else text[:PREVIEW_CHARS] + "…"
+    return _cut(scan.text(text) if scan else text, PREVIEW_CHARS)
 
 
 def _entries(run: RunRow, terms: set[str]) -> list[_Entry]:
@@ -178,9 +189,6 @@ def _entries(run: RunRow, terms: set[str]) -> list[_Entry]:
         stamp = observed.get(identifier)
         payload: dict[str, Any] = {
             "tool": name,
-            "arguments": argument_text
-            if len(argument_text) <= ARGUMENT_CHARS
-            else argument_text[:ARGUMENT_CHARS] + "…",
             "observed_at": stamp if isinstance(stamp, str) else run.updated_at.isoformat(),
             "time_basis": "observed" if isinstance(stamp, str) else "run_last_updated",
             "run_id": run.id,
@@ -192,25 +200,31 @@ def _entries(run: RunRow, terms: set[str]) -> list[_Entry]:
             }
         if isinstance(result.get("result_ref"), str):
             payload["result_ref"] = result["result_ref"]
-        payload["result"] = _preview(result)
-        haystack = (name + " " + argument_text + " " + payload["result"]).casefold()
+        haystack = (name + " " + argument_text + " " + _preview(result)).casefold()
         entries.append(
             _Entry(
                 name + ":" + argument_text,
                 str(payload["observed_at"]),
                 effect or any(term in haystack for term in terms),
                 payload,
+                argument_text,
+                result,
             )
         )
     return entries
 
 
-def _render(note: str, entries: list[_Entry], limit_chars: int) -> str:
+def _render(note: str, entries: list[_Entry], limit_chars: int, scan: SecretScan) -> str:
     ranked = sorted(entries, key=lambda entry: (entry.matched, entry.observed_at))
     lines: list[str] = []
     size = len(note)
     for entry in reversed(ranked):
-        line = json.dumps(entry.payload, ensure_ascii=False, separators=(",", ":"))
+        shown = {
+            **entry.payload,
+            "arguments": _cut(scan.text(entry.arguments), ARGUMENT_CHARS),
+            "result": _preview(entry.result, scan),
+        }
+        line = json.dumps(shown, ensure_ascii=False, separators=(",", ":"))
         if len(lines) >= EVIDENCE_ENTRIES or size + len(line) + 1 > limit_chars:
             break
         lines.append(line)
@@ -219,8 +233,14 @@ def _render(note: str, entries: list[_Entry], limit_chars: int) -> str:
 
 
 async def recent_tool_evidence(
-    session: AsyncSession, agent_id: str, thread_id: str, current_run_id: str, query: str
+    session: AsyncSession,
+    agent_id: str,
+    thread_id: str,
+    current_run_id: str,
+    query: str,
+    scan: Callable[[], Awaitable[SecretScan]],
 ) -> RunEvidence:
+    """``scan`` is the owner's secret scan, read only when there is evidence to show."""
     runs = (
         await session.scalars(
             select(RunRow)
@@ -241,9 +261,12 @@ async def recent_tool_evidence(
             # The newest observation of the same call supersedes older ones.
             if entry.key not in newest or entry.observed_at > newest[entry.key].observed_at:
                 newest[entry.key] = entry
+    if not newest:
+        return RunEvidence()
+    found = await scan()
     first_party = [entry for entry in newest.values() if not is_external(entry.payload["tool"])]
     external = [entry for entry in newest.values() if is_external(entry.payload["tool"])]
     return RunEvidence(
-        _render(EVIDENCE_NOTE, first_party, EVIDENCE_CHARS),
-        _render(EXTERNAL_NOTE, external, EXTERNAL_CHARS),
+        _render(EVIDENCE_NOTE, first_party, EVIDENCE_CHARS, found),
+        _render(EXTERNAL_NOTE, external, EXTERNAL_CHARS, found),
     )

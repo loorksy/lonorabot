@@ -240,6 +240,10 @@ Results of tools that return third-party, other-model or stored content
 result in its own Run is never promoted to a more trusted label. A registry test
 makes every catalog tool take a side, so a new tool cannot silently default to the
 first-party label.
+Both sections pass the owner's secret scan as the context is built (read once, and
+only when there is evidence to show), before any argument or preview is cut: a
+checkpoint written before third-party results were scanned, or before a value in it was
+saved as a secret, shows `[secret:NAME]` (VISION.md 7.2.6).
 
 ## The summary/window dark zone
 

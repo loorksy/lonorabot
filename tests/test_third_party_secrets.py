@@ -5,9 +5,9 @@ result of a tool whose content someone other than the owner wrote passes the own
 secret scan before it reaches the model, a stored tool result or an effect receipt, and is
 marked as data (``_provenance``). The scan is read before the call is sent. A tool that
 sent a stored value scans its answer again with the values as they are now. An MCP
-server's kept tool titles reach agents only through the scan. The database cases run on
-the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``); servers,
-pages, feeds and stores are scripted.
+server's kept tool titles reach agents only through the scan. So do the results earlier
+Runs checkpointed. The database cases run on the real migrated PostgreSQL schema (skipped
+without ``LONORA_DATABASE_URL``); servers, pages, feeds and stores are scripted.
 """
 
 import base64
@@ -20,11 +20,11 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from lonora_adapter_kit.types import ToolCall
+from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.market import CalendarEvent
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import ArtifactRow, EffectReceiptRow
+from lonora_db.schema import ArtifactRow, EffectReceiptRow, RunRow
 from lonora_security.runtime_storage import confined_path
 from lonora_security.secrets import SecretScan
 from lonora_tools import feeds, market_analysis, mcp, search
@@ -443,4 +443,54 @@ async def test_a_tool_title_carrying_a_stored_value_reaches_agents_as_the_marker
     finally:
         if connection_id:
             await fixture.request("DELETE", "/mcp/" + connection_id)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_earlier_runs_evidence_enters_a_new_run_scanned() -> None:
+    """Results checkpointed before this scan existed, or before their value was saved as a
+    secret, reach a new Run's context only through the owner's scan."""
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.builder import build_context
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Evidence")
+        thread = await fixture.conversation(agent)
+        value = "evidence-key-" + uuid4().hex
+        page = ToolCall(id="w1", name="web_fetch", arguments={"url": "https://example.test/k"})
+        quote = ToolCall(id="q1", name="market_quote", arguments={"symbol": "XAUUSD"})
+        messages = [
+            ModelMessage(role="user", content="Read the page"),
+            ModelMessage(role="assistant", content="", tool_calls=[page, quote]),
+            ModelMessage(
+                role="tool",
+                tool_call_id="w1",
+                content=json.dumps({"ok": True, "content": f"The key is {value}."}),
+            ),
+            ModelMessage(
+                role="tool",
+                tool_call_id="q1",
+                content=json.dumps({"ok": True, "bid": 2391.4, "note": value}),
+            ),
+        ]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                RunRow(
+                    thread_id=thread["id"],
+                    agent_id=agent["id"],
+                    status="completed",
+                    execution_state={"messages": [m.model_dump(mode="json") for m in messages]},
+                )
+            )
+        context = await fixture.lease(await fixture.run(agent, thread))
+        name = "EVIDENCE_KEY_" + uuid4().hex[:8].upper()
+        # Saved after both results were checkpointed.
+        await context.secrets.write(name, value, "workspace")
+        shown = "\n".join(message.content for message in await build_context(context))
+        assert value not in shown
+        # Both the retrieved page and the first-party observation.
+        assert shown.count(f"[secret:{name}]") == 2, shown[-2000:]
+    finally:
         await fixture.close()

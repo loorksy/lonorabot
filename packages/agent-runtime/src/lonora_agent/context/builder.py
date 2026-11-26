@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Awaitable
+from functools import partial
 from time import perf_counter
 
 from lonora_adapter_kit.context_sections import ContextSection, context_message
@@ -23,6 +24,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.provenance import mark_external_content
 from lonora_tools.registry import ToolRegistry
+from lonora_tools.terminal import run_scan
 
 from ..context_engine import resolve_limits
 from ..progress import progress
@@ -254,7 +256,9 @@ async def build_context(
         )
         evidence = await timed(
             "run_evidence",
-            recent_tool_evidence(session, agent.id, thread.id, run.id, query),
+            recent_tool_evidence(
+                session, agent.id, thread.id, run.id, query, partial(run_scan, context)
+            ),
         )
         sections = [
             ContextSection(
