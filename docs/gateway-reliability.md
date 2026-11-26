@@ -159,7 +159,12 @@ gateway_drained}` and releases its worker the way a Task continuation does
 The next gateway continues from that checkpoint at once, and the claim does not count as
 a crash recovery; the status line shows the Run as queued, not as a retry. The signal
 never interrupts a call already started (a read, or a change past `before_effect`): the
-call ends within its own deadline and the Run hands back right after it.
+call ends within its own deadline and the Run hands back right after it. The calls of the
+same model turn that had not started stay pending in the checkpoint and run on the next
+Gateway without a new model turn, as after a crash, however long the stop lasts (an
+update, a suspended Cloud installation). Each keeps its operation id, so nothing is sent
+twice, and the door's checks at send apply then: preflight, and the stale-target check of
+a close or a modify. A new entry has no price-drift check outside a Trade Approval card.
 
 After 25 s a backstop cancels a worker still busy, a model stream or a read that does
 not end (`BACKSTOP_SECONDS`). It never cancels a worker inside an effect: from
