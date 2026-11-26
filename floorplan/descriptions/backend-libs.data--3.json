@@ -96,6 +96,10 @@
       "name": "Remove old workspace data",
       "description": "Drops the former analytical-workspace data that nothing reads any more."
     },
+    "packages/db/migrations/versions/0201_fixed_model_list.py": {
+      "name": "Remove stored model lists",
+      "description": "Deletes the model lists once read from providers, whose models now come from Lonora's own list."
+    },
     "packages/db/src/lonora_db/__init__.py": {
       "name": "Database package",
       "description": "Marks the database code as one package; holds no logic of its own."
@@ -134,7 +138,7 @@
     },
     "packages/db/src/lonora_db/agent_models.py": {
       "name": "Agent model store",
-      "description": "Stores each agent's chosen model and matches names to the providers' catalogs."
+      "description": "Stores each agent's chosen model and finds the listed models closest to a name."
     },
     "packages/db/src/lonora_db/agent_on_its_own.py": {
       "name": "Agents trading alone",

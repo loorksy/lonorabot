@@ -9,8 +9,8 @@
       "description": "Reports whether a verified model supports a given capability."
     },
     "packages/providers/src/lonora_providers/catalog.py": {
-      "name": "Model catalog store",
-      "description": "Reads and saves the list of a provider's models."
+      "name": "Model list",
+      "description": "Gives each provider's models from Lonora's fixed list, and the owner's own server's models from what it listed."
     },
     "packages/providers/src/lonora_providers/context.py": {
       "name": "Request sizing",
@@ -22,11 +22,15 @@
     },
     "packages/providers/src/lonora_providers/default_model.py": {
       "name": "Default model",
-      "description": "Chooses the model a fresh install answers with before the owner picks one."
+      "description": "Chooses the model a fresh install answers with before the owner picks one: each provider's set default from the list."
     },
     "packages/providers/src/lonora_providers/discovery.py": {
-      "name": "Model discovery",
-      "description": "Asks a provider for its current models and saves them."
+      "name": "Owner server's models",
+      "description": "Asks the owner's own model server which models it has and saves them; no other provider is asked."
+    },
+    "packages/providers/src/lonora_providers/key_check.py": {
+      "name": "Key check",
+      "description": "Checks whether a provider accepts a typed key, by the answer's status alone, without reading its models."
     },
     "packages/providers/src/lonora_providers/model_windows.py": {
       "name": "Model size table",

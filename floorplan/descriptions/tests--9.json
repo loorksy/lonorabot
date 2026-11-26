@@ -24,6 +24,10 @@
       "name": "Model default tests",
       "description": "Automatic checks for model default."
     },
+    "tests/test_model_list.py": {
+      "name": "Model list tests",
+      "description": "Automatic checks for model list."
+    },
     "tests/test_model_provider_card.py": {
       "name": "Model provider card tests",
       "description": "Automatic checks for model provider card."

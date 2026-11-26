@@ -58,20 +58,22 @@ a provider failure, and it is never shown as one.
   provider key exists, the router chooses a model once and records it as the unified
   route in `model_routing` (`lonora_providers/default_model.py`), so Settings show it
   and the owner changes it there like their own choice. Providers are taken in registry
-  order; each one's own catalog is read (and stored), and the first family of
-  `PREFERRED_FAMILIES` that catalog lists is taken: the exact id, else its newest dated
-  snapshot. An id the provider does not list is never chosen, so a stale preference
-  chooses nothing rather than a model that does not exist. Speech routes, a
+  order and the first connected one's default (`DEFAULT_MODELS`: `gpt-6.2-sol`,
+  `claude-sonnet-5-5`, `deepseek-v4-pro`, `glm-5.3`, `anthropic/claude-sonnet-5.5`) is
+  taken. No provider is asked: a default is chosen only while Lonora's model list holds it
+  (VISION 12.4), so a stale default chooses nothing rather than a model that does not
+  exist. The owner's own endpoint has no default Lonora could know: its models are read
+  (and stored) and the first one it lists is taken. Speech routes, a
   consultation's named models, and reads of the route (the model card, `model_list`)
   never choose. An owner's own route, backup or assigned model is never replaced, and
   custom routing is never filled in. A search that chose nothing is not repeated for
   60 seconds, and concurrent first requests choose once.
-- **Nothing to choose.** No key, or no listed family: the Run fails with
+- **Nothing to choose.** No key, or no listed default: the Run fails with
   `model_not_configured`. The Web error card then reads «لم يُضبط نموذج بعد» with the
   existing notice («اربط مزودًا واختر نموذجًا…») and one action that opens the model
   settings, where the provider keys are; Mobile shows the same state in its Run line.
   The outage card («النموذج غير متاح حاليًا») is for a provider that could not be reached.
-- **A provider that cannot be asked** while the default is being chosen is passed over
+- **An owner endpoint that cannot be asked** while the default is being chosen is passed over
   for the next one; if none gives a model, its own classified failure is raised, so an
   outage backs off and retries like any other, and a rejected key reads as a rejected
   key.
@@ -146,9 +148,9 @@ metadata.
 
 The default `output_tokens` is 16,384. Each request asks for that, bounded by
 the model's documented maximum (the catalog's `maximum_output_tokens`, which
-the Anthropic Models API now provides together with the window, else a family
-table in `model_windows.py`), by a quarter of the window, and by 8,192 when no
-maximum is known. Requests without streaming stay at or below 16,384.
+Lonora's model list states for every model it holds, else a family table in
+`model_windows.py`), by a quarter of the window, and by 8,192 when no maximum is
+known. Requests without streaming stay at or below 16,384.
 
 Adapters read the stop reason before trusting any tool input:
 
@@ -216,8 +218,10 @@ Adapters read the stop reason before trusting any tool input:
 
 Only the owner assigns an agent's model: from the agent's settings, or in chat, where an
 agent applies it when the owner's own message names the model (lead decision Q20 (a)).
-Any text model of a connected provider's catalog is assignable; there is no list of
-allowed models and no Automatic / Fixed mode. A new agent starts on Lonora's current
+Any model of Lonora's list (VISION 12.4) whose provider is connected is assignable (for
+the owner's own endpoint, any model it lists); there is no list of allowed models and no
+Automatic / Fixed mode. An agent whose saved model a later release no longer lists keeps
+it; the pickers and `model_request` offer only listed models. A new agent starts on Lonora's current
 model (VISION 3.1.2) until the owner assigns another. Choosing a model never grants
 authority: permissions, approvals and every execution boundary stay the agent's whatever
 model answers. A change touches only the agent's model record; tool results, memory,
@@ -243,8 +247,8 @@ replaces them; `primary: null` returns the agent to the owner's default model, w
 and Mobile offer as "Back to your default model". Every change emits
 `agent.model.updated` with the model, who chose it and how (`owner_settings`,
 `model_request`, `inherited_from_lonora`). `GET …/model/summary` is what the model card
-shows: the record, the model answering now, the models the owner can pick (text models
-in the catalogs of providers with a key) and this agent's usage over 30 days. Migration
+shows: the record, the model answering now, the models the owner can pick (the listed
+models of providers with a key) and this agent's usage over 30 days. Migration
 `0131_agent_model_owner_only` removed the stored modes, the allowed list and the model
 cards.
 
@@ -284,11 +288,11 @@ helpers) takes `model` and `agent_id` (Lonora only, for another agent).
 
 ### Helpers and second opinions
 
-`subagent_spawn(task, model)` starts a temporary helper on any catalog model of a
+`subagent_spawn(task, model)` starts a temporary helper on any listed model of a
 connected provider (otherwise `subagent_model_not_available`). The model is stored in the
 helper Run's metadata, reaches its `ToolContext.run_model` at dispatch, and leads the
 router chain, with the agent's own chain behind it. `consult_model` asks one of the
-agent's routed models, or any catalog model of a connected provider it names, other than
+agent's routed models, or any listed model of a connected provider it names, other than
 the one answering. Both record usage as before.
 
 ### Usage per agent (owner decision D4)
@@ -302,7 +306,7 @@ enforcement is not planned (D4).
 
 A read-only tool (intelligence chapter) that sends a bounded evidence pack the
 Agent writes (question ≤ 4,000 characters, evidence ≤ 24,000) to another
-model: one the Agent names (from its candidates or any catalog model of a connected
+model: one the Agent names (from its candidates or any listed model of a connected
 provider), or the first candidate that is not the model it is using. The consulted model gets no
 tools, no conversation and no authority; markup in the pack is made inert.
 The critique (≤ 8,000 characters) returns as an advisory observation. There is
@@ -323,8 +327,11 @@ Nothing waits for agreement and nothing executes on its advice.
 - A change applies only when the owner's words name the model; a name the server does
   not recognize (an Arabic transliteration such as "أوبس") changes nothing, and the owner
   names it again or picks it in the agent's settings.
-- The model picker lists every discovered model of a connected provider; catalogs
-  that do not report capabilities (OpenAI) include non-chat models.
+- The model picker lists every listed model of a connected provider, with the
+  capabilities, window and output maximum the list states; the owner's own endpoint
+  lists its models without them. The list holds chat models only: speech (STT, TTS, live
+  voice) and embedding models are not in it, so the route and embedding pickers offer
+  none of them; a saved choice keeps working.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured
   per adapter.
 - There is no spend cap (owner decision D4); usage is shown per agent.

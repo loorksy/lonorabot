@@ -34,7 +34,7 @@
     },
     "apps/api/src/lonora_api/routes/providers.py": {
       "name": "AI providers",
-      "description": "Lists the AI model providers, saves a provider's key, lists its models, and discovers the models a provider offers."
+      "description": "Lists the AI model providers, saves a provider's key, and lists its models from Lonora's list."
     },
     "apps/api/src/lonora_api/routes/push_devices.py": {
       "name": "Push registration",
@@ -58,7 +58,7 @@
     },
     "apps/api/src/lonora_api/routes/secret_cards.py": {
       "name": "Secret card",
-      "description": "Handles the single submit of a Secret card: it stores the typed values as workspace secrets, sets up the connection or model key that uses them, and confirms it in the conversation."
+      "description": "Handles the single submit of a Secret card: it stores the typed values as workspace secrets, sets up the connection or model key that uses them (checking the key first), and confirms it in the conversation."
     },
     "apps/api/src/lonora_api/routes/tasks.py": {
       "name": "Tasks",

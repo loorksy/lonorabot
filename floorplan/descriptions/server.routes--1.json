@@ -82,7 +82,7 @@
     },
     "apps/api/src/lonora_api/routes/connection_tests.py": {
       "name": "Test a connection",
-      "description": "Checks that a model provider, an outside AI connection or a broker works before the owner saves it, without storing anything."
+      "description": "Checks that a model provider accepts a key, or that an outside AI connection or a broker works, before the owner saves it, without storing anything."
     },
     "apps/api/src/lonora_api/routes/device_authority.py": {
       "name": "Trusted devices",

@@ -11,9 +11,11 @@ and says so whenever something is left out or condensed.
 `lonora_providers.context.context_limits` derives one request's budget from the
 resolved model:
 
-- **Window.** The provider catalog's `context_window` wins. The direct Anthropic,
-  OpenAI, DeepSeek and Z.ai listings do not report one, so a conservative family
-  table (`lonora_providers/model_windows.py`) fills the gap. A key matches only at
+- **Window.** The catalog's `context_window` wins: Lonora's model list states one for
+  every model it holds (VISION 12.4; capacity source `lonora_model_list:pi-ai@1.6.0`).
+  For a model it does not hold (the owner's own endpoint, whose listing may omit it, or
+  a saved model a release dropped) a conservative family table
+  (`lonora_providers/model_windows.py`) fills the gap. A key matches only at
   an id boundary (end, `-`, `:` or `@`), longest key first: `gpt-4` covers
   `gpt-4-0613` but not `gpt-4.5-preview` (its own 128k entry), and `glm-4.5` does
   not claim the 64k `glm-4.5v`. Otherwise capacity is reported as `unknown` and

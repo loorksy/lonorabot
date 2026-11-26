@@ -14,17 +14,19 @@ run, provider, model and the provider's `TokenUsage` (`input_tokens`, `output_to
 `cached_tokens`) in the JSON payload, with `owner_id`, `agent_id` and `created_at`.
 
 Cost is priced at read time from `lonora_core.model_pricing` (USD per million uncached
-input, cached input and output tokens, recorded on `PRICES_AS_OF`). Old rows are priced
-the same way as new ones; nothing is stored per row.
+input, cached input and output tokens), whose prices are Lonora's model list's (VISION
+12.4; `PRICES_AS_OF` names the package it was imported from). Old rows are priced the
+same way as new ones; nothing is stored per row.
 
 - Anthropic reports `input_tokens` without the cache reads; the OpenAI-compatible APIs
   (OpenAI, DeepSeek, Z.ai, OpenRouter) include the cached tokens in `prompt_tokens`. The
   dashboard normalizes: `input_tokens` is every prompt token, cached included, and
   cached tokens are priced once, at the cached rate.
-- A model the table does not name has no cost: `cost_usd` sums the priced requests and
-  `unpriced_requests` counts the rest. Only a dated snapshot of a listed model is priced
-  as that model; a variant (`-mini`, `-pro`, a new version) needs its own row.
-  OpenRouter ids are not priced.
+- A model the list does not hold, or lists without a price, has no cost: `cost_usd` sums
+  the priced requests and `unpriced_requests` counts the rest. Every provider's listed
+  models are priced, OpenRouter's by its own ids; the owner's own endpoint is never
+  priced. Only an Anthropic dated snapshot of a listed model is priced as that model; a
+  variant (`-mini`, `-pro`, a new version) needs its own entry.
 - Not modelled (the shown cost is a lower bound): cache writes (not recorded by the
   adapters), long-context premium tiers, batch/priority tiers and fast mode.
 
