@@ -900,8 +900,11 @@ async def test_a_cancel_during_a_long_model_call_stops_the_run_within_three_seco
 
 
 @pytest.mark.asyncio
+# 120 s: the watcher notices the cancel. 3 s: a lease renewal (every second, as every 40 s
+# in production) also falls inside the change and is refused as stale.
+@pytest.mark.parametrize("lease_seconds", [120, 3])
 async def test_a_cancel_never_cuts_a_change_past_before_effect(
-    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch, lease_seconds: int
 ) -> None:
     started, writes = asyncio.Event(), list[int]()
 
@@ -916,7 +919,7 @@ async def test_a_cancel_never_cuts_a_change_past_before_effect(
     block = calls(("w1", "fixture_write", 1))
     context = replace(await conversation_run(task_db, seeded(block)), drain=RunDrain())
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Saved.")))
-    worker = asyncio.create_task(executor.execute_run(context, registry, 120, 8))
+    worker = asyncio.create_task(executor.execute_run(context, registry, lease_seconds, 8))
     await asyncio.wait_for(started.wait(), 5)
     cancelled, last = await cancelled_by_owner(context)
     await asyncio.wait_for(worker, 6)

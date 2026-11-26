@@ -188,9 +188,9 @@ Lonora's `cancel_run`) only moves the fence, so without this a Run between fence
 (a model still thinking before its first token, a long read, a backoff sleep) went on
 until its next renewal. It now stops within about 2 s, and nothing it writes after the
 cancel is accepted. The Run's own completion or release keeps the fence, so the writing
-of its outcome is never cut. A cancel noticed inside an effect takes effect once that call has
-returned, and the checkpoint of its result is refused by the moved fence: a cancel never
-cuts a send.
+of its outcome is never cut. A lost lease noticed inside an effect, by this watcher or by a
+renewal refused as stale, takes effect once that call has returned, and the checkpoint of
+its result is refused by the moved fence: a cancel never cuts a send.
 
 A Run's final transaction (its completion, its wait for the owner's answer, its release
 back to the queue) is retried the same way after a dropped connection, a failover or a
@@ -242,8 +242,8 @@ passkey, so nothing is left looking active while it can no longer run:
   boundary after a slow read or a change, and the Gateway's signal set before it drains;
   the backstop that cuts a busy worker but never one inside an effect; a shutdown whose
   run and relay drains share one deadline below the stop grace; a cancel that stops a
-  long model call within 3 s and waits for a change past `before_effect`, with no write
-  after it;
+  long model call within 3 s and waits for a change past `before_effect`, even when a
+  lease renewal falls inside that change, with no write after it;
   a transient error at the final commit;
   durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
