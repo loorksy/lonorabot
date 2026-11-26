@@ -1,10 +1,12 @@
 """The one gate, scripts/gate.sh: it runs every core test of VISION 14.1.2, and CI runs it."""
 
 import ast
+import os
 import re
 import shlex
+import subprocess
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import pytest
 import yaml
@@ -16,6 +18,9 @@ CI = ROOT / ".github/workflows/ci.yml"
 # The gate's two commands that run the core tests: the whole suite, and the check scripts.
 PYTEST = ["$PY", "-m", "pytest", "-q", "tests"]
 FOUNDATION = ["$PY", "tests/run_foundation_checks.py", "--isolated-databases"]
+CATALOG = "apps/web/src/i18n/locales/ar/messages.po"
+# The stubbed gate's database password: it must never reach a command line.
+PASSWORD = "gate-only-password"
 
 
 def core_tests() -> list[str]:
@@ -57,10 +62,85 @@ def gate_gaps(gate: str) -> list[str]:
     return gaps
 
 
-def test_the_gate_runs_every_core_test_of_14_1_2() -> None:
+class Run(NamedTuple):
+    code: int
+    output: str
+    calls: list[str]
+    changed: str
+
+
+def stubbed_run(tmp_path: Path, gate: str) -> Run:
+    """Run the gate text ``gate`` in a scratch checkout where each tool it calls is a stub.
+
+    Every stub records its name and arguments; the Python stub also answers the database
+    helper and alembic, and the pnpm stub's extraction moves a line reference in the Arabic
+    catalog, as Lingui does. ``changed`` lists the tracked files the run left modified.
+    """
+    tree, calls = tmp_path / "checkout", tmp_path / "calls"
+    record = '#!/bin/sh\necho "$(basename "$0") $*" >> "$GATE_CALLS"\n'
+    python = (
+        '[ "$1" != - ] || cat > /dev/null\n'
+        'case "$*" in *" create "*) echo postgresql://gate@localhost/fresh_test ;;'
+        ' *" heads") echo "0001 (head)" ;; esac\n'
+    )
+    files = {
+        "scripts/gate.sh": gate,
+        "scripts/build.sh": record,
+        "scripts/migrate.sh": record,
+        ".venv/bin/python": record + python,
+        "bin/pnpm": record + f'case "$*" in *" i18n") echo "#: moved.tsx:2" >> {CATALOG} ;; esac\n',
+        CATALOG: 'msgid "Hello"\nmsgstr "مرحبا"\n',
+    }
+    for name, text in files.items():
+        path = tree / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        path.chmod(0o755)
+    calls.touch()
+    for git in (["init", "-q"], ["add", "-A"]):
+        subprocess.run(["git", *git], cwd=tree, check=True)
+    environment = {
+        **os.environ,
+        "PATH": f"{tree / 'bin'}{os.pathsep}{os.environ['PATH']}",
+        "LONORA_DATABASE_URL": f"postgresql+asyncpg://gate:{PASSWORD}@localhost/gate",
+        "GATE_CALLS": str(calls),
+    }
+    done = subprocess.run(
+        ["bash", "scripts/gate.sh"],
+        cwd=tree,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=60,
+    )
+    changed = subprocess.run(
+        ["git", "diff", "--name-only"], cwd=tree, capture_output=True, text=True, check=True
+    ).stdout
+    return Run(
+        done.returncode, done.stdout, calls.read_text(encoding="utf-8").splitlines(), changed
+    )
+
+
+def run_gaps(run: Run) -> list[str]:
+    """Why a stubbed run of the gate did not run every core test; empty when it did."""
+    # The Python stub records itself as "python", where the gate wrote "$PY".
+    gaps = [
+        f"never ran {' '.join(command)}"
+        for command in (PYTEST, FOUNDATION)
+        if " ".join(["python", *command[1:]]) not in run.calls
+    ]
+    if run.code != 0 or not run.output.rstrip().endswith("== gate passed"):
+        gaps.append(f"stopped before its last step (exit {run.code}): {run.output[-1500:]}")
+    return gaps
+
+
+def test_the_gate_runs_every_core_test_of_14_1_2(tmp_path: Path) -> None:
     names = core_tests()
     assert len(names) == 11, names
-    assert gate_gaps(GATE.read_text(encoding="utf-8")) == []
+    gate = GATE.read_text(encoding="utf-8")
+    assert gate_gaps(gate) == []
+    assert run_gaps(stubbed_run(tmp_path, gate)) == []
     checks = foundation_checks()
     for name in names:
         assert (ROOT / "tests" / name).is_file(), name
@@ -81,12 +161,14 @@ def test_the_gate_runs_every_core_test_of_14_1_2() -> None:
         ('"$PY" -m pytest -q tests', '"$PY" -m pytest -q tests -knot_financial'),
         ('"$PY" -m pytest -q tests', '"$PY" -m pytest -q tests || true'),
         ('"$PY" tests/run_foundation_checks.py', ': "$PY" tests/run_foundation_checks.py'),
+        ('step "full pytest"', 'exit 0\nstep "full pytest"'),
     ],
 )
-def test_a_gate_that_drops_a_core_test_is_caught(line: str, mutated: str) -> None:
+def test_a_gate_that_drops_a_core_test_is_caught(tmp_path: Path, line: str, mutated: str) -> None:
     gate = GATE.read_text(encoding="utf-8")
     assert gate.count(line) == 1
-    assert gate_gaps(gate.replace(line, mutated))
+    gate = gate.replace(line, mutated)
+    assert gate_gaps(gate) + run_gaps(stubbed_run(tmp_path, gate))
 
 
 def test_ci_runs_the_gate_and_keeps_no_list_of_its_own() -> None:
