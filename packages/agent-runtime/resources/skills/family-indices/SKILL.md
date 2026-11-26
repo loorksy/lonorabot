@@ -27,9 +27,9 @@ charges show in account_history; otherwise say it is unknown.
 
 ## How the CFD is priced
 
-- A cash CFD carries financing per night and dividend adjustments: on an ex-dividend
-  date a long is debited, a short credited, and price drops by the dividend, which is
-  not a move against your thesis.
+- A cash CFD carries financing per night and, apart from it, dividend adjustments: on
+  an ex-dividend date price drops by the dividend, a long is credited and a short
+  debited to offset it, so the drop is not a move against your thesis.
 - A futures-based CFD rolls at expiry: price jumps by the gap between contracts and
   positions may be adjusted. Find the roll date before a multi-day hold.
 
