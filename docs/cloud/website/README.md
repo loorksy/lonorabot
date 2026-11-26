@@ -1,7 +1,7 @@
 # Lonora website
 
 - `Lonora_Website_v03.html`: the v03 prototype, kept unchanged.
-- `cloud/site/public/index.html`: **v04**, served by the Cloudflare Pages project in `cloud/site/` (Phase W, PW-T1 to PW-T3).
+- `cloud/site/public/index.html`: **v04**, served by `cloud/host/server.mjs` on the Lonora Cloud server (Phase W, PW-T1 to PW-T3, D48).
 
 v04 is v03 made true to the product, with normal registration that waits for staff approval. It keeps v03's tokens,
 fonts, 3D world, layout and motion. It is still Arabic first, with English through `.ar` and `.en` spans.
@@ -20,7 +20,7 @@ fonts, 3D world, layout and motion. It is still Arabic first, with English throu
 | The plans page is «الباقات» / Plans, at route `#plans` (`#levels` still opens it). It shows Starter, Pro, Max and Enterprise with server size, workspace (memory, CPU, disk), storage, backups and snapshots, included MT5 connections (1, 2, 5; more later for a monthly fee), support and a custom domain on Max. Prices read "Announced at launch". The monthly/yearly toggle is removed. There are no rows for agents, watches, models, voice minutes or owners. "Most chosen" and "Lonora for teams" (a shared Lonora, roles) are replaced by an Enterprise section. The sizes are marked provisional. | D13 (sizes from PLAN §5.1), D14, D18, D28; Amendment 3 §4 |
 | No promises. Removed "Ready in a minute", "wakes within a minute", "around the clock", "fills the order", "Thousands of private spaces" and "No copy keeps it". The product balance card now carries "Illustrative example, not real performance". The trading risk note and a footer line say there is no guarantee of profit, of execution or of uninterrupted service. | Owner brief for v04 |
 | Security page: your own isolated Lonora; we can't sign in to it or read your keys or conversations; the broker password passes once to MetaApi; nothing new reaches your broker on Ask without your approval; every execution has a broker receipt; encrypted backups; export and delete; your own model key. | Amendment 3 §3, §10; VISION 10.3 |
-| The legal pages are drafts pending counsel, with a banner and the draft version `draft-2026-11-25` (the same value as `TERMS_VERSION` in `wrangler.toml`). | D19 to D21 |
+| The legal pages are drafts pending counsel, with a banner and the draft version `draft-2026-11-25` (the same value as `TERMS_VERSION` in the site's settings, `site.env`). | D19 to D21 |
 
 ## Registration and the account (D46, D7)
 
