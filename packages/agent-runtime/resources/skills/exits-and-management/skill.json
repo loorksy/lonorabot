@@ -1,0 +1,19 @@
+{
+  "id": "exits-and-management",
+  "version": "1.0.0",
+  "title": "Exits and Management",
+  "description": "Lonora exits-and-management trading knowledge.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "explicit",
+    "triggers": []
+  },
+  "risk_class": "read_only",
+  "required_capabilities": [],
+  "required_tools": [],
+  "dependencies": [],
+  "conflicts": [],
+  "priority": 50,
+  "context_budget": 6000
+}

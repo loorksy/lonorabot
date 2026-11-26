@@ -156,6 +156,10 @@
       "name": "Trading readiness tests",
       "description": "Automatic checks for trading readiness."
     },
+    "tests/test_trading_skills.py": {
+      "name": "Trading skills tests",
+      "description": "Automatic checks that the eighteen trading skills keep their authoring contract."
+    },
     "tests/test_trial_creations.py": {
       "name": "Trial creations tests",
       "description": "Automatic checks for trial creations."
