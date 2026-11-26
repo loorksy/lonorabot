@@ -14,7 +14,16 @@
 		Referrer-Policy "same-origin"
 		Permissions-Policy "microphone=(self), camera=()"
 	}
-	reverse_proxy {args[0]}:8000
+	# As in infra/compose/Caddyfile.prod: chat events are flushed at once.
+	@event_stream path /api/events/stream
+	handle @event_stream {
+		reverse_proxy {args[0]}:8000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		reverse_proxy {args[0]}:8000
+	}
 }
 
 {$SITE_DOMAIN} {

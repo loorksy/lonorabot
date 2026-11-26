@@ -71,4 +71,4 @@ The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`;
 
 ### Tests
 
-`npm test` runs 43 tests with Node's built-in runner: the site through `server.mjs` with an in-memory SQLite, and activation with the real `customer.sh` in dry-run mode (`--dry-run` prints every Docker and system command instead of running it; files go to `LONORA_HOST_HOME`). Turnstile is stubbed. The legal texts are drafts until counsel reviews them (D20).
+`npm test` runs 44 tests with Node's built-in runner: the site through `server.mjs` with an in-memory SQLite, and activation with the real `customer.sh` in dry-run mode (`--dry-run` prints every Docker and system command instead of running it; files go to `LONORA_HOST_HOME`). Turnstile is stubbed. The legal texts are drafts until counsel reviews them (D20).

@@ -23,6 +23,7 @@ HOST="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_REPO=https://github.com/loorksy/lonorabot.git
 say() { printf 'customer: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
+refuse() { say "$*"; exit 73; } # exit 73: nothing was changed, so the site has nothing to undo
 run() { if $DRY; then say "would run: $*"; else "$@"; fi; }
 run_in() { if $DRY; then cat >/dev/null; fi; run "$@"; } # the same, for a command that reads stdin
 secret() { head -c "$1" /dev/urandom | base64 | tr -d '\n=' | tr '+/' '-_'; }
@@ -31,8 +32,8 @@ secret() { head -c "$1" /dev/urandom | base64 | tr -d '\n=' | tr '+/' '-_'; }
 . "$HOME_DIR/host.env"
 : "${BASE_DOMAIN:?set BASE_DOMAIN in host.env}"
 mkdir -p "$HOME_DIR/customers" "$HOME_DIR/caddy/customers"
-exec 9>"$HOME_DIR/.lock"
-flock 9
+# One change to the host at a time. release takes it only after its build, so activations go on meanwhile.
+lock() { exec 9>"$HOME_DIR/.lock"; flock -w "$1" 9 || refuse 'Busy: another customer.sh command (a release?) is running; try again shortly.'; }
 
 customer() { # $1 handle: the names of one customer
     [[ "$1" =~ ^[a-z][a-z0-9-]{1,28}[a-z0-9]$ && "$1" != *--* ]] || die "Not a valid handle: $1"
@@ -45,7 +46,7 @@ reload_proxy() { run docker exec lonora-caddy caddy reload --config /etc/caddy/C
 host_addresses() { { ip -o addr show scope global 2>/dev/null | awk '{print $4}' | sed 's#/.*##'; hostname -I 2>/dev/null | tr ' ' '\n'; } | grep -E '^[0-9a-fA-F:.]+$' | sort -u | tr '\n' ' ' || true; }
 
 create() {
-    [[ ! -e "$dir" ]] || die "$handle already exists; remove it first."
+    [[ ! -e "$dir" ]] || refuse "$handle already exists; choose another handle."
     [[ -s "$HOME_DIR/release.env" ]] || die "No release yet: run customer.sh release <git-ref>."
     local password token
     password="$(secret 24)" token="$(secret 32)"
@@ -67,7 +68,7 @@ EOF
     say "Creating the workspace disk (${WORKSPACE_DISK:-10g})."
     run fallocate -l "${WORKSPACE_DISK:-10g}" "$dir/workspace.img"
     run mkfs.ext4 -q -F -m 0 "$dir/workspace.img"
-    printf '%s %s ext4 loop,nodev,nosuid 0 0\n' "$dir/workspace.img" "$dir/workspace" | run_in tee -a /etc/fstab >/dev/null
+    printf '%s %s ext4 loop,nodev,nosuid,nofail 0 0\n' "$dir/workspace.img" "$dir/workspace" | run_in tee -a /etc/fstab >/dev/null
     run mount "$dir/workspace"
     run touch "$dir/workspace/.lonora-workspace-disk"
     say "Starting Lonora for $domain."
@@ -75,9 +76,8 @@ EOF
     printf '%s {\n\timport customer %s-api\n}\n' "$domain" "$project" >"$HOME_DIR/caddy/customers/$handle.caddy"
     chmod 644 "$HOME_DIR/caddy/customers/$handle.caddy"
     reload_proxy
-    if ! $DRY; then
-        local i
-        for i in $(seq 1 60); do curl -fs -m 5 -o /dev/null "https://$domain/ready" && break; ((i < 60)) || die "https://$domain/ready did not answer."; sleep 2; done
+    if ! $DRY; then # the site stops waiting at 300 s
+        until curl -fs -m 5 -o /dev/null "https://$domain/ready"; do ((SECONDS < 270)) || die "https://$domain/ready did not answer."; sleep 2; done
     fi
     say "Ready: https://$domain"
     printf 'setup_link=https://%s/#token=%s\n' "$domain" "$token"
@@ -88,8 +88,7 @@ update() {
     local running
     running="$(compose ps --services --status running | grep -E '^(workspace-net|workspace|browser)$' | tr '\n' ' ' || true)"
     # shellcheck disable=SC2086 # one word per running on-demand service
-    compose up -d --wait api gateway $running
-    say "$handle runs the current release."
+    compose up -d --wait api gateway $running && say "$handle runs the current release."
 }
 
 remove() {
@@ -113,7 +112,9 @@ workspace() {
 }
 
 release() {
-    local ref="${1:?usage: customer.sh release <git-ref>}" src="$HOME_DIR/build" digest="127.0.0.1:5055/lonora@sha256:dry-run" d
+    local ref="${1:?usage: customer.sh release <git-ref>}" src="$HOME_DIR/build" digest="127.0.0.1:5055/lonora@sha256:dry-run" d failed=""
+    exec 8>"$HOME_DIR/.build-lock"
+    flock -n 8 || die 'A release is already being built.'
     rm -rf "$src"
     run git init -q "$src"
     run git -C "$src" fetch -q --depth 1 "$SOURCE_REPO" "$ref"
@@ -123,12 +124,14 @@ release() {
         digest="$(bash "$src/infra/compose/build-from-source.sh" --source "$src" --project lonora-cloud --cpus 2 --memory 3g | sed -n 's/^build: Digest: //p')"
     fi
     [[ -n "$digest" ]] || die 'The build printed no digest.'
+    lock 900
     printf 'LONORA_IMAGE=%s\n' "$digest" >"$HOME_DIR/release.env"
     for d in "$HOME_DIR"/customers/*/; do
         [[ -d "$d" ]] || continue
         customer "$(basename "$d")"
-        update
+        update || failed+=" $handle"
     done
+    [[ -z "$failed" ]] || die "Release $ref: $digest. Not switched:$failed (customer.sh update <handle>)."
     say "Release $ref: $digest"
 }
 
@@ -152,9 +155,9 @@ init() {
 }
 
 case "${1:-}" in
-    init) init ;;
+    init) lock 60; init ;;
     release) release "${2:-}" ;;
-    create | update | remove) customer "${2:-}"; "$1" ;;
-    workspace) customer "${2:-}"; workspace "${3:-}" ;;
+    create | update | remove) customer "${2:-}"; lock 60; "$1" ;;
+    workspace) customer "${2:-}"; lock 60; workspace "${3:-}" ;;
     *) sed -n '4,9p' "$0" >&2; exit 2 ;;
 esac

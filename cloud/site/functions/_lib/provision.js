@@ -57,7 +57,7 @@ function host(env, args) {
   return new Promise((resolve) => {
     execFile(cmd, rest, { timeout: 5 * 60_000 }, (err, stdout, stderr) => {
       const lines = `${stderr || ""}\n${err && !stderr ? err.message : ""}`.trim().split("\n");
-      resolve({ ok: !err, stdout: String(stdout), error: lines[lines.length - 1].slice(0, 300) });
+      resolve({ ok: !err, code: err?.code, stdout: String(stdout), error: lines[lines.length - 1].slice(0, 300) });
     });
   });
 }
@@ -93,10 +93,16 @@ export async function startProvisioning(env, account, handle, staff) {
     return { ok: true, handle };
   }
   const message = out.ok ? "create: no setup link" : `create: ${out.error}`;
-  try {
-    await deprovision(env, job);
-  } catch {
-    // Left for staff: customer.sh remove <handle>.
+  if (out.code === 73) {
+    // customer.sh changed nothing (the handle is already installed, or the host was busy): nothing is
+    // undone, and the job names no installation, so deleting this account never removes another's.
+    await env.DB.prepare("UPDATE provision_jobs SET server_id = NULL WHERE id = ?").bind(job.id).run();
+  } else {
+    try {
+      await deprovision(env, job);
+    } catch {
+      // Left for staff: customer.sh remove <handle>.
+    }
   }
   await env.DB.prepare("UPDATE provision_jobs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?").bind(message, nowIso(), job.id).run();
   await env.DB.prepare("UPDATE accounts SET status = 'approved' WHERE id = ? AND status = 'provisioning'").bind(account.id).run();

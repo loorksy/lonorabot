@@ -85,6 +85,16 @@ describe("one-click activation on the host", () => {
     assert.equal(account().status, "active");
   });
 
+  test("an activation never removes an installation it did not make", async () => {
+    assert.equal(script("create", "sara").status, 0); // made by hand, so no account holds the handle
+    const res = await activate();
+    assert.equal(res.status, 502);
+    assert.match((await res.json()).message, /sara already exists; choose another handle/);
+    assert.deepEqual([job().status, job().server_id], ["failed", null]);
+    assert.equal((await staff(env, "POST", "/api/admin/decide", { json: { id: account().id, action: "delete" } })).status, 200);
+    assert.ok(fs.existsSync(path.join(home, "customers/sara/.env")));
+  });
+
   test("handles are unique, valid and never reserved", async () => {
     assert.equal(validHandle("admin"), false);
     assert.equal(validHandle("a"), false);

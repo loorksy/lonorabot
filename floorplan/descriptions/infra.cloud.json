@@ -2,7 +2,7 @@
   "files": {
     "cloud/host/customer.sh": {
       "name": "Customer installer",
-      "description": "The one command staff and the website use on the shared server: it sets up the server, builds each new Lonora version once and moves every customer to it, and creates or removes one customer's own Lonora with its own database, keys and web address."
+      "description": "The one command staff and the website use on the shared server: it sets up the server, builds each new Lonora version once and moves every customer to it, and creates or removes one customer's own Lonora with its own database, keys and web address. It never touches a customer that already exists, and activations go on while a version is being built."
     },
     "cloud/host/server.mjs": {
       "name": "Website server",
@@ -14,7 +14,7 @@
     },
     "cloud/site/functions/_lib/provision.js": {
       "name": "One-click activation",
-      "description": "When staff press Activate, asks the shared server to create the customer's own Lonora, then turns the account active with its one-time setup link; on failure it undoes the attempt so staff can retry."
+      "description": "When staff press Activate, asks the shared server to create the customer's own Lonora, then turns the account active with its one-time setup link; on failure it undoes what the attempt made, never an installation that was already there, so staff can retry."
     },
     "cloud/site/functions/_middleware.js": {
       "name": "Security headers",
@@ -78,7 +78,7 @@
     },
     "cloud/site/tests/provision.test.js": {
       "name": "Activation tests",
-      "description": "Checks one-click activation with the real customer installer in practice mode: the customer's own keys stay in their file, failures are undone, deletion removes the installation, and a new version is built once for everyone."
+      "description": "Checks one-click activation with the real customer installer in practice mode: the customer's own keys stay in their file, failures are undone, an existing installation is never removed by another account, deletion removes the installation, and a new version is built once for everyone."
     },
     "cloud/site/tests/server.test.js": {
       "name": "Website server tests",
