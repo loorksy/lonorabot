@@ -15,6 +15,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
+from test_task_runtime import task_db as task_db
 
 
 def database() -> None:
@@ -376,3 +377,78 @@ async def test_an_on_time_run_woken_40_minutes_later_is_not_told_it_is_late():
         assert datetime.fromisoformat(run.model_metadata["started_at"]) == began
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_run_held_for_reconciliation_holds_its_routine_until_it_is_settled(
+    task_db: tuple[Any, str, str, str],
+):
+    """A run past its crash-recovery cap with an uncertain trade is held, never failed: its
+    routine skips (and counts) its ticks until the reconciler settles that trade."""
+    from lonora_contracts.domain import utcnow
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_db.routines import create_routine, enqueue_routine
+    from lonora_db.runs import MAX_RUN_RECOVERIES, claim_next
+    from lonora_db.schema import RoutineRow, RunRow, TradingJournalRow
+    from lonora_gateway.liveness import Liveness
+    from lonora_gateway.watchdog import Watchdog
+    from sqlalchemy import select
+
+    db, owner, agent, _ = task_db
+    async with db.sessions() as session, session.begin():
+        made = await create_routine(
+            session, owner, agent, RoutineCreate(prompt="Check gold", interval_seconds=60)
+        )
+        routine_id = made.id
+
+    async def tick() -> bool:
+        async with db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, routine_id, with_for_update=True)
+            assert row is not None
+            now = utcnow()
+            row.next_run_at = now - timedelta(seconds=1)
+            return await enqueue_routine(session, row, now)
+
+    async def routine_runs() -> list[Any]:
+        async with db.sessions() as session:
+            return list(
+                await session.scalars(
+                    select(RunRow).where(RunRow.trigger == "routine").order_by(RunRow.created_at)
+                )
+            )
+
+    assert await tick()
+    [first] = await routine_runs()
+    # Its worker crashes holding the lease until the recovery cap, after sending a trade.
+    for _ in range(MAX_RUN_RECOVERIES + 1):
+        async with db.sessions() as session, session.begin():
+            claimed = await claim_next(session, "gw-crash", 60)
+            assert claimed and claimed.id == first.id
+            claimed.lease_expires_at = utcnow() - timedelta(seconds=1)
+    async with db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id="op-routine-held",
+                owner_id=owner,
+                account_id="acc",
+                request_hash="h",
+                request={"symbol": "XAUUSD"},
+                status="submitted",
+                submitted_at=utcnow(),
+                result={"details": {"execution": {"run_id": first.id, "agent_id": agent}}},
+            )
+        )
+    watchdog = Watchdog(db, Liveness(), set())
+    assert await watchdog.recovered_runs() == 0
+    # Held for reconciliation: no run beside it, and the tick is counted.
+    assert not await tick()
+    assert [run.id for run in await routine_runs()] == [first.id]
+    async with db.sessions() as session, session.begin():
+        journal = await session.get(TradingJournalRow, "op-routine-held")
+        assert journal
+        journal.status = "confirmed"
+    # Settled: the watchdog fails the run, and the routine fires on its next tick.
+    assert await watchdog.recovered_runs() == 1
+    assert await tick()
+    held, second = await routine_runs()
+    assert held.status == "failed" and second.model_metadata["skipped_occurrences"] == 1

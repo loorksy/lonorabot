@@ -70,6 +70,11 @@ to the agent's conversation, like the runs the new code queues.
   run waiting for the owner's answer (`waiting_input`) does not hold the schedule: an
   unanswered question never stops a routine. A one-shot always fires. This is not a
   limit (P1): the routine fires on its schedule again once the earlier run has ended.
+  A run held for financial reconciliation (past its crash-recovery cap with a trade
+  whose outcome is not known yet, `quarantine_run`) stays `leased` or `running`, so it
+  holds its routine until the reconciler settles that trade; the owner already has an
+  item for the aging operation. The watchdog then fails the run, and the routine fires
+  on its next tick.
 - **Missed occurrences.** Missed schedules collapse into one wake; a burst is never
   replayed after downtime, a suspension, `lonora quiesce` or an update window. A cron
   collapse is counted up to 1000 occurrences.
