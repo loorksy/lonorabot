@@ -271,9 +271,51 @@ async def fan_in() -> None:
         await f.close()
 
 
+async def beside_collaboration() -> None:
+    f = await Fixture().open()
+    try:
+        host, first, second = (
+            await f.agent("Beside host"),
+            await f.agent("Beside A"),
+            await f.agent("Beside B"),
+        )
+        thread = await f.conversation(host)
+        async with f.runtime.db.sessions() as session, session.begin():
+            sent = await send_message(
+                session,
+                f.owner,
+                thread["id"],
+                MessageCreate(
+                    content="Compare the evidence", mention_agent_ids=[first["id"], second["id"]]
+                ),
+            )
+            collaboration = await current_session(session, f.owner, thread["id"])
+            assert collaboration
+            participant = await session.get(
+                RunRow, collaboration.state["participants"][0]["run_ids"][0]
+            )
+            assert participant is not None
+            participant_id, target, subject = (
+                participant.id,
+                participant.agent_id,
+                participant.prompt,
+            )
+        context = await f.lease(
+            {"id": sent["run_ids"][0], "agent_id": host["id"], "thread_id": thread["id"]}
+        )
+        # A collaboration participant answers its round, not a plain request: the same
+        # words sent with peer_send are a request of their own.
+        plain = await delegate_peer(context.for_call("beside-peer"), target, subject)
+        assert plain["id"] != participant_id and "duplicate" not in plain
+        print("PASS a plain peer request is never a collaboration participant's duplicate")
+    finally:
+        await f.close()
+
+
 async def checks() -> None:
     await main()
     await fan_in()
+    await beside_collaboration()
 
 
 if __name__ == "__main__":

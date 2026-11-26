@@ -69,7 +69,8 @@ async def delegate_peer(context: ToolContext, agent_id: str, task: str) -> dict[
                 raise LonoraError("peer_intent_conflict", 409)
             return run_data(existing)
         # The same request to the same agent from this run, while that work has not ended,
-        # is that work (11.5); ended work is sent again by a new request.
+        # is that work (11.5); ended work is sent again by a new request. A collaboration
+        # participant is no such request: its outcome answers its round, not this one.
         duplicate = await session.scalar(
             select(RunRow)
             .where(
@@ -78,6 +79,7 @@ async def delegate_peer(context: ToolContext, agent_id: str, task: str) -> dict[
                 RunRow.trigger == "peer",
                 RunRow.prompt == task,
                 RunRow.status.not_in(TERMINAL),
+                RunRow.model_metadata["collaboration_session_id"].as_string().is_(None),
             )
             .order_by(RunRow.created_at, RunRow.id)
             .limit(1)
