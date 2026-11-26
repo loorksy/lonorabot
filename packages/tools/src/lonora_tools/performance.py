@@ -31,10 +31,16 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "market_performance_read",
-            "Your results from broker-confirmed closes: per judgment label of the opening "
-            "order, the count and net realized P&L per account currency; plus a count per "
-            "management label. unpriced counts closes whose P&L the broker deals do not give; "
-            "they add nothing to the net, and a null net means none is known.",
+            "Your results from broker-confirmed closes, per group_by (default the judgment "
+            "label of the opening order) and account currency: the count; outcomes (wins, "
+            "losses and flat by the sign of the net P&L, of the priced trades); the net "
+            "realized P&L; and r in units of each trade's initial risk (n trades with an R, "
+            "mean (the expectancy), sum, mean_win, mean_loss; unknown counts the others by "
+            "reason). unpriced counts closes whose P&L the broker deals do not give; they add "
+            "nothing to the net, and a null net means none is known. since sets the window. "
+            "scope team combines every agent's closes; Lonora sees them per agent_id, with "
+            "null for the owner's own tickets. Plus a count per management label of your own. "
+            "Measured facts for you to weigh, not rules.",
             PerformanceRead,
             performance,
             True,

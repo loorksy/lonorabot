@@ -1,6 +1,58 @@
 {
-  "updatedAt": "2026-11-26T20:00:00Z",
+  "updatedAt": "2026-11-26T22:00:00Z",
   "tasks": [
+    {
+      "title": "Trade results in units of risk",
+      "request": "Give the agents honest numbers about their closed trades, measured from the broker, to learn from: the result of each trade in units of the risk it started with, and statistics by kind of setup, instrument, session and side",
+      "summary": "When a trade closes, the agent now gets its entry and exit prices, its first stop and target, and its result in units of the risk it started with; when that can't be known (no stop, missing prices, no price move) it is left empty with the reason, never guessed. The agent's results now show wins out of how many trades and the average result in risk units, grouped the way it asks, over the period it chooses, and for the whole team when it asks. Lonora sees each agent's results and the owner's own trades separately. The weekly report facts carry the same numbers.",
+      "items": [
+        {
+          "ref": "packages/trading/src/lonora_trading/trade_r.py",
+          "change": "new",
+          "note": "New: works out each closed trade's prices, starting stop and result in risk units from the broker's records and the order journal, and only reads them."
+        },
+        {
+          "ref": "packages/trading/src/lonora_trading/close_wake.py",
+          "change": "changed",
+          "note": "The message an agent gets when its trade closes carries those facts; it still never repeats text the agent wrote on its orders."
+        },
+        {
+          "ref": "packages/trading/src/lonora_trading/statistics.py",
+          "change": "changed",
+          "note": "Results show wins out of how many, money and risk units per group, for one agent or the team."
+        },
+        {
+          "ref": "packages/contracts/src/lonora_contracts/execution_quality.py",
+          "change": "changed",
+          "note": "The results question can now ask for a grouping, a start date and the team."
+        },
+        {
+          "ref": "packages/tools/src/lonora_tools/performance.py",
+          "change": "changed",
+          "note": "The agent's results tool explains the new numbers and choices."
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/context/picture.py",
+          "change": "changed",
+          "note": "The account summary an agent reads when it wakes explains the new numbers as facts to weigh, not rules."
+        },
+        {
+          "ref": "packages/trading/src/lonora_trading/weekly_report.py",
+          "change": "changed",
+          "note": "The weekly report facts add the agent's results for the week and since it started."
+        },
+        {
+          "ref": "tests/test_trade_r.py",
+          "change": "new",
+          "note": "New: checks the risk-unit results for stops on the order or set later, no stop, partial exits, adds, costs and a reversal."
+        },
+        {
+          "ref": "tests/test_performance_summary.py",
+          "change": "changed",
+          "note": "Checks the groupings and what Lonora and a team agent each see of the team."
+        }
+      ]
+    },
     {
       "title": "Lonora Cloud server: safety fixes",
       "request": "Check the findings of a review of the one-server rework and fix the real ones with small changes",

@@ -38,7 +38,7 @@
     },
     "packages/trading/src/lonora_trading/close_wake.py": {
       "name": "Closed-trade wake",
-      "description": "When a trade closes, wakes the agent that owned the position so it can write a short self-review."
+      "description": "When a trade closes, wakes the agent that owned the position with the trade's facts, including its result in units of its starting risk, so it can write a short self-review."
     },
     "packages/trading/src/lonora_trading/closed_trades.py": {
       "name": "Closed-trade ledger",
@@ -142,7 +142,7 @@
     },
     "packages/trading/src/lonora_trading/statistics.py": {
       "name": "Trade statistics",
-      "description": "Works out an agent's results grouped by the kind of judgment, from broker-confirmed closed trades."
+      "description": "Works out an agent's results from broker-confirmed closed trades, grouped by kind of judgment, instrument, session or side: wins out of how many, money, and results in units of starting risk, for the agent alone or for the whole team."
     },
     "packages/trading/src/lonora_trading/target_state.py": {
       "name": "Target-state receipt",
@@ -151,6 +151,10 @@
     "packages/trading/src/lonora_trading/ticket_transfer.py": {
       "name": "Ticket transfer",
       "description": "Moves a deleted agent's open positions and pending orders to Lonora, and wakes Lonora about them."
+    },
+    "packages/trading/src/lonora_trading/trade_r.py": {
+      "name": "Trade results in risk units",
+      "description": "Works out a closed trade's entry and exit prices, its first stop and target, and its result in units of the risk it started with, from the broker's records; when that can't be known it says why instead of guessing."
     },
     "packages/trading/src/lonora_trading/verification.py": {
       "name": "Effect verification",

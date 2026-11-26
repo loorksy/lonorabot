@@ -144,6 +144,10 @@
       "name": "Trade identity tests",
       "description": "Automatic checks for trade identity."
     },
+    "tests/test_trade_r.py": {
+      "name": "Trade risk-unit tests",
+      "description": "Automatic checks that a trade's result in units of its starting risk is worked out right, and that the wake message after a close carries no text the agent wrote."
+    },
     "tests/test_trade_symbol_strictness.py": {
       "name": "Trade symbol strictness tests",
       "description": "Automatic checks for trade symbol strictness."
