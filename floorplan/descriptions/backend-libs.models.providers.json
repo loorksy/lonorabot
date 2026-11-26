@@ -26,7 +26,7 @@
     },
     "packages/providers/src/lonora_providers/default_model.py": {
       "name": "Default model",
-      "description": "Chooses the model a fresh install answers with before the owner picks one: each provider's set default from the list, skipping a provider whose key it rejects."
+      "description": "Chooses the model a fresh install answers with before the owner picks one: the ChatGPT plan first, then each provider's set default from the list, skipping a provider whose key it rejects; after a ChatGPT sign-in it moves a model Lonora chose, never the owner's, to the plan."
     },
     "packages/providers/src/lonora_providers/discovery.py": {
       "name": "Owner server's models",
@@ -54,7 +54,7 @@
     },
     "packages/providers/src/lonora_providers/routing_policy.py": {
       "name": "Routing policy store",
-      "description": "Reads and saves the rules for which model answers."
+      "description": "Reads and saves the rules for which model answers; saving them makes them the owner's, not Lonora's choice."
     }
   }
 }

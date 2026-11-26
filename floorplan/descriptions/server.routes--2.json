@@ -2,7 +2,7 @@
   "files": {
     "apps/api/src/lonora_api/routes/chatgpt_sign_in.py": {
       "name": "ChatGPT sign-in routes",
-      "description": "Gives the Secret card OpenAI's sign-in address, takes the address the owner pastes back and settles the card like a saved key, and signs the ChatGPT plan out."
+      "description": "Gives a waiting Secret card OpenAI's sign-in address (or a new account's), takes the address the owner pastes back and settles the card like a saved key, telling the agent which model now answers, and signs the ChatGPT plan out, even with the sign-in turned off."
     },
     "apps/api/src/lonora_api/routes/messages.py": {
       "name": "Messages",

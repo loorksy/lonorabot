@@ -134,9 +134,16 @@ and nothing is retried that could repeat an external effect (a model request has
 **Status: Shipped** (`lonora_providers/chatgpt_sign_in.py`, `routes/chatgpt_sign_in.py`, `packages/core/src/chatgpt-plan.ts`,
 `tests/test_chatgpt_sign_in.py` against a fake OpenAI). Where the build differs from the text below: Android opens
 OpenAI's sign-in in the system browser (`Linking`; a Custom Tab would need `expo-web-browser`, not a dependency);
-the run's failure names the provider that failed (`failure.provider`), so a plan limit is shown as the plan's; a
-returning sign-in with another ChatGPT account is refused (one registration per installation). The first live
-sign-in is still the owner's.
+the run's failure names the provider that failed (`failure.provider`), so a plan limit is shown as the plan's; one
+registration is active per installation: a returning sign-in with another ChatGPT account is refused, and the card's
+**Use a different ChatGPT account** registers a new one (`dynamic_agent_client`), which replaces the saved registration
+only once verified, after the saved one is signed out at OpenAI (no account picker keeps the old one for later); a
+renewal answered `invalid_client` clears the tokens and drops the issued id, so the next sign-in registers the same
+account anew; a new registration's issued id is kept whenever its exchange does not complete; start and finish answer
+only while the card waits; sign-out works with the sign-in turned off. Where Lonora chose the model (no unified model,
+or its own default the owner never changed), the sign-in moves it to the plan's default, and with nothing chosen the
+plan comes before a key; a model the owner chose stays, and the agent is told it still answers on that provider and
+offers the plan's models. The first live sign-in is still the owner's.
 
 ### 4.1 What the owner sees
 
@@ -184,7 +191,9 @@ sign-in is still the owner's.
   serialized by a Postgres advisory lock per credential, the stored copy is re-read inside the lock, and the new token
   set replaces the old one in the same transaction. `invalid_grant`, `invalid_refresh_token`, `token_expired`,
   `refresh_token_expired`, `refresh_token_invalidated`, `refresh_token_reused` → the tokens are cleared (the issued id
-  and host id stay) and the owner is asked to sign in again; any other failure keeps the tokens.
+  and host id stay) and the owner is asked to sign in again; `invalid_client` → the same, and the issued id is dropped
+  so the next sign-in registers anew; any other failure keeps the tokens, and the next attempt waits a bounded
+  backoff (30 s per process) while the saved token answers as long as it is valid.
 - **Sign out:** `POST` the `revocation_endpoint` from `https://auth.openai.com/.well-known/openid-configuration` with
   `token=<refresh>`, `token_type_hint=refresh_token`, `client_id`; HTTP 200 is success. The tokens are cleared even when
   revocation fails, and the owner is told it was not confirmed (they can disconnect Lonora in ChatGPT settings).
@@ -208,15 +217,16 @@ sign-in is still the owner's.
 - `POST /api/providers/openai_chatgpt/sign-out`.
 - `ProviderCredentials.connection("openai_chatgpt")` returns a fresh access token and `https://api.openai.com/v1`; the
   adapter calls it once per request.
-- With `LONORA_CHATGPT_SIGN_IN=off`, the card offers no sign-in, the routes answer `chatgpt_sign_in_unavailable`, and
-  the agent tells the owner to use an OpenAI API key.
+- With `LONORA_CHATGPT_SIGN_IN=off`, the card offers no sign-in, start and finish answer `chatgpt_sign_in_unavailable`,
+  and the agent tells the owner to use an OpenAI API key. Sign-out always works: while a sign-in made before holds
+  tokens, the providers list keeps its row with **Sign out**, so it is revoked rather than left at rest.
 
 ### 4.5 Clients
 
 The web card (`OwnerActionCard`) and the Android card (`owner-action-card.tsx`) show the two steps, the paste field
 (masked, never echoed, cleared on submit), the connected account, and the errors of section 4.8, in Arabic and
 English, from shared logic in `packages/core`. The web settings list shows the connection, "Using ChatGPT plan",
-**Manage usage** and **Sign out**.
+**Manage usage** and **Sign out**, which stays while a sign-in holds tokens even when plan use is not allowed.
 
 ### 4.6 Guards
 
