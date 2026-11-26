@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0201_fixed_model_list"
-down_revision = "0129_grant_cards_gone"
+down_revision = "0130_routine_skipped_occurrences"
 branch_labels = None
 depends_on = None
 
