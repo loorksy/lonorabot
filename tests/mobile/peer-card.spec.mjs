@@ -15,8 +15,13 @@ function fixture(data) {
 }
 
 const copy = {
-  ar: { kicker: "تعاون الوكلاء", queued: "في الانتظار", completed: "اكتملت" },
-  en: { kicker: "Agent collaboration", queued: "Queued", completed: "Completed" },
+  ar: { kicker: "تعاون الوكلاء", queued: "في الانتظار", working: "يعمل…", completed: "اكتملت" },
+  en: {
+    kicker: "Agent collaboration",
+    queued: "Queued",
+    working: "Working…",
+    completed: "Completed",
+  },
 };
 
 for (const locale of ["ar", "en"])
@@ -42,7 +47,9 @@ for (const locale of ["ar", "en"])
         async (id) => (await (await context.request.get(`/api/agents/${id}`)).json()).name,
       ),
     );
-    const cards = page.getByTestId(`peer-card-${data.child.id}`);
+    // A conversation opened from the card stacks on the one under it, which stays mounted
+    // but hidden: only the shown conversation's cards count.
+    const cards = page.getByTestId(`peer-card-${data.child.id}`).filter({ visible: true });
     const request = cards.filter({ hasText: "PERSISTED peer request" });
     const answer = cards.filter({ hasText: "PERSISTED peer answer" });
     // Who asked whom, in that order whatever the reading direction.
@@ -64,12 +71,15 @@ for (const locale of ["ar", "en"])
     await reads(request, sender, recipient);
     await links(request, recipient, sender);
 
-    // The recipient's name opens its conversation, where the same request is drawn.
+    // The recipient's name opens its conversation, where the same request is drawn with the
+    // live status of the run it started there.
     await request.getByRole("link", { name: recipient, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/thread\\?id=${data.target_thread}`));
     await expect(request).toHaveCount(1);
     await reads(request, sender, recipient);
     await links(request, sender, recipient);
+    fixture({ ...data, action: "peer_start" });
+    await expect(request).toContainText(text.working, { timeout: 20000 });
 
     fixture({ ...data, action: "peer_complete" });
     await expect(answer).toHaveCount(1, { timeout: 20000 });
