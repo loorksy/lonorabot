@@ -16,7 +16,8 @@ from ..middleware.auth import require_owner, runtime
 
 router = APIRouter(prefix="/events")
 AUTH_REFRESH_SECONDS = 5
-KEEPALIVE_SECONDS = 10
+# A visible frame on a quiet stream; web and mobile reconnect after 45 s without any frame.
+PING_SECONDS = 15
 MAX_CURSOR = 2**63 - 1
 
 
@@ -45,7 +46,7 @@ def resume_cursor(request: Request, cursor: int) -> int:
 
 
 async def event_lines(request: Request, owner_id: str, cursor: int) -> AsyncGenerator[str, None]:
-    """Flush readiness immediately and keep an idle stream live and revocable."""
+    """Flush readiness immediately and keep an idle stream live, visible and revocable."""
     rt = runtime(request)
     authorization = request.headers.get("authorization", "")
     token = (
@@ -58,7 +59,7 @@ async def event_lines(request: Request, owner_id: str, cursor: int) -> AsyncGene
     yield f"id: {cursor}\nevent: ready\ndata: {json.dumps({'cursor': cursor})}\n\n"
     iterator = stream_events(rt.db, owner_id, cursor)
     pending = asyncio.create_task(anext(iterator))
-    next_auth, next_ping = monotonic() + AUTH_REFRESH_SECONDS, monotonic() + KEEPALIVE_SECONDS
+    next_auth, next_ping = monotonic() + AUTH_REFRESH_SECONDS, monotonic() + PING_SECONDS
     try:
         while True:
             if await request.is_disconnected():
@@ -74,8 +75,10 @@ async def event_lines(request: Request, owner_id: str, cursor: int) -> AsyncGene
                     return
                 next_auth = monotonic() + AUTH_REFRESH_SECONDS
             if now >= next_ping:
-                yield ": keepalive\n\n"
-                next_ping = monotonic() + KEEPALIVE_SECONDS
+                # A named event with data reaches EventSource (a comment does not), and it
+                # carries no `id:`, so Last-Event-ID never moves.
+                yield "event: ping\ndata: {}\n\n"
+                next_ping = monotonic() + PING_SECONDS
             timeout = max(0.01, min(next_auth, next_ping) - monotonic())
             done, _ = await asyncio.wait({pending}, timeout=timeout)
             if pending not in done:

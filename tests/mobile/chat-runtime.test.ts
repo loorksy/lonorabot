@@ -249,6 +249,10 @@ test("native durable WS authenticates live, resumes cursor, refreshes after read
       },
       "./session-lifecycle": { registerSessionTeardown() {} },
       "./storage": { loadNativeToken: async () => "private-session" },
+      "expo-network": {
+        getNetworkStateAsync: async () => ({ type: "WIFI", isConnected: true }),
+        addNetworkStateListener: () => ({ remove() {} }),
+      },
     },
     {
       WebSocket: Socket,
@@ -305,6 +309,161 @@ test("native durable WS authenticates live, resumes cursor, refreshes after read
     "connected",
   ]);
   stop();
+});
+
+/** The owner event transport over fake sockets, timers and network readings. */
+function nativeEvents() {
+  type Timer = { callback: () => void; ms: number; cleared?: boolean };
+  type Reading = { type: string; isConnected: boolean };
+  const timers: Timer[] = [],
+    sockets: Socket[] = [],
+    phases: string[] = [],
+    events: Event[] = [];
+  let onNetwork: ((state: Reading) => void) | undefined;
+  class Socket {
+    static OPEN = 1;
+    static CONNECTING = 0;
+    readyState = 1;
+    sent: string[] = [];
+    /** A half-open socket: close() starts the handshake, and its end is never reported. */
+    halfOpen = false;
+    onopen?: () => void;
+    onclose?: () => void;
+    onerror?: () => void;
+    onmessage?: (event: { data: string }) => void;
+    constructor(readonly url: string) {
+      sockets.push(this);
+    }
+    send(raw: string) {
+      this.sent.push(raw);
+    }
+    close() {
+      if (this.readyState >= 2) return;
+      this.readyState = 2;
+      if (this.halfOpen) return;
+      this.readyState = 3;
+      this.onclose?.();
+    }
+    receive(value: unknown) {
+      this.onmessage?.({ data: JSON.stringify(value) });
+    }
+  }
+  const transport = moduleFixture<typeof import("../../apps/mobile/lib/events")>(
+    "events",
+    {
+      "react-native": {
+        Platform: { OS: "android" },
+        AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) },
+      },
+      "./session-lifecycle": { registerSessionTeardown() {} },
+      "./storage": { loadNativeToken: async () => "private-session" },
+      "expo-network": {
+        getNetworkStateAsync: async () => ({ type: "WIFI", isConnected: true }),
+        addNetworkStateListener: (callback: (state: Reading) => void) => {
+          onNetwork = callback;
+          return { remove() {} };
+        },
+      },
+    },
+    {
+      WebSocket: Socket,
+      setTimeout: (callback: () => void, ms: number) => {
+        // A timer that fired is no longer pending.
+        const timer: Timer = {
+          ms,
+          callback: () => {
+            timer.cleared = true;
+            callback();
+          },
+        };
+        timers.push(timer);
+        return timer;
+      },
+      clearTimeout: (timer: Timer) => {
+        timer.cleared = true;
+      },
+    },
+  );
+  const stop = transport.subscribeOwnerEvents(
+    "https://one.test",
+    (event) => events.push(event),
+    () => undefined,
+    (phase) => phases.push(phase),
+  );
+  const opened = async (socket: Socket) => {
+    socket.onopen?.();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    return JSON.parse(socket.sent[0]) as Record<string, unknown>;
+  };
+  const pending = (ms: number) => timers.filter((timer) => timer.ms === ms && !timer.cleared);
+  const network = (state: Reading) => {
+    if (!onNetwork) throw new Error("The transport does not watch the network.");
+    onNetwork(state);
+  };
+  return { sockets, phases, events, opened, pending, network, stop };
+}
+const ownerEvent = (cursor: number) =>
+  ({
+    cursor,
+    kind: "message.created",
+    payload: {},
+    thread_id: "thread",
+    agent_id: "agent",
+    run_id: null,
+    created_at: "2026-11-26T10:00:00Z",
+  }) as unknown as Event;
+
+test("a native socket silent after ready is replaced within 45 s and resumes without duplicates", async () => {
+  const native = nativeEvents();
+  await native.opened(native.sockets[0]);
+  native.sockets[0].receive({ type: "ready", cursor: 10 });
+  native.sockets[0].receive(ownerEvent(11));
+  // A ping shows the socket is alive: it re-arms the silence timer and is never an event.
+  native.sockets[0].receive({ type: "ping" });
+  assert.equal(native.events.length, 1);
+  const silence = native.pending(45_000);
+  assert.equal(silence.length, 1);
+  // The phone moved networks: the socket looks open and will never report its close.
+  native.sockets[0].halfOpen = true;
+  silence[0].callback();
+  assert.equal(native.phases.at(-1), "reconnecting");
+  native.pending(1500)[0].callback();
+  assert.equal(native.sockets.length, 2);
+  assert.deepEqual(await native.opened(native.sockets[1]), {
+    cursor: 11,
+    token: "private-session",
+  });
+  native.sockets[1].receive({ type: "ready", cursor: 11 });
+  native.sockets[1].receive(ownerEvent(11));
+  native.sockets[1].receive(ownerEvent(12));
+  assert.deepEqual(
+    native.events.map((event) => event.cursor),
+    [11, 12],
+  );
+  // A late close of the abandoned socket starts nothing new.
+  native.sockets[0].onclose?.();
+  assert.equal(native.pending(1500).length, 0);
+  assert.equal(native.phases.at(-1), "connected");
+  native.stop();
+});
+
+test("a network change replaces the native socket at once; a repeated reading does not", async () => {
+  const native = nativeEvents();
+  await native.opened(native.sockets[0]);
+  native.sockets[0].receive({ type: "ready", cursor: 4 });
+  native.network({ type: "WIFI", isConnected: true });
+  assert.equal(native.sockets[0].readyState, 1);
+  assert.equal(native.phases.at(-1), "connected");
+  native.sockets[0].halfOpen = true;
+  native.network({ type: "CELLULAR", isConnected: true });
+  assert.equal(native.phases.at(-1), "reconnecting");
+  native.pending(1500)[0].callback();
+  assert.equal(native.sockets.length, 2);
+  assert.deepEqual(await native.opened(native.sockets[1]), {
+    cursor: 4,
+    token: "private-session",
+  });
+  native.stop();
 });
 
 test("native visual persistence retains complete scope identity beyond filesystem filename limits", async () => {
