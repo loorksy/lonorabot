@@ -377,6 +377,26 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     assert run.model_metadata["skill_selection"]["skill_versions"] == {}
 
 
+@pytest.mark.asyncio
+async def test_skill_refresh_reads_a_delegated_runs_own_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A restored routine, Task or subagent run keeps its own request as the skill task."""
+    from lonora_adapter_kit.types import ModelMessage
+    from lonora_agent.context import skills
+
+    session = FakeSession(SimpleNamespace(id="agent"), None)
+    context: Any = SimpleNamespace(db=SimpleNamespace(sessions=lambda: session), agent_id="agent")
+    read = AsyncMock()
+    monkeypatch.setattr(skills, "read_skill_context", read)
+    messages = [
+        ModelMessage(role="user", content="An older owner message"),
+        ModelMessage(role="user", context_origin="delegated_request", content="[skill:memory] go"),
+    ]
+    await skills.refresh_skill_context(context, load_tools(), messages)
+    assert cast(Any, read.await_args).args[4] == "[skill:memory] go"
+
+
 def test_legacy_display_name_compatibility() -> None:
     result = select_skill_context(
         [{"name": "Owner Preferences", "content": "Use concise replies."}],

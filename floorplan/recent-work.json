@@ -34,6 +34,11 @@
           "ref": "packages/adapter-kit/src/lonora_adapter_kit/context_sections.py",
           "change": "Trust labels are one fixed list, checked when a section is made.",
           "note": ""
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/context/skills.py",
+          "change": "A restored or steered run reads skill hints from its own delegated request, not an older owner message.",
+          "note": ""
         }
       ]
     },

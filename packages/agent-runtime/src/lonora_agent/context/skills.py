@@ -260,7 +260,9 @@ async def refresh_skill_context(
             (
                 item.content
                 for item in reversed(messages)
-                if item.role == "user" and item.context_origin == "conversation"
+                if item.role == "user"
+                # A routine's, Task's or subagent's prompt is its run's own request.
+                and item.context_origin in ("conversation", "delegated_request")
             ),
             None,
         )
