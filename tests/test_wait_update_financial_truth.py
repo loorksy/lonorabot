@@ -88,6 +88,7 @@ async def test_wait_prose_cannot_publish_premature_or_private_financial_claims(
             thread_id="thread",
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
+            locale="ar",
         ),
     )
     monkeypatch.setattr(model_runtime, "refresh_routing_context", AsyncMock())
@@ -157,7 +158,8 @@ def test_ambiguous_failure_wrapper_is_not_evidence_of_nonexecution(payload: dict
                 tool_calls=[ToolCall(id="effect", name="trade_execute", arguments={})],
             ),
             ModelMessage(role="tool", tool_call_id="effect", content=json.dumps(payload)),
-        ]
+        ],
+        "ar",
     )
     assert result and "قبل أي إعادة إرسال" in result
     assert "لم يُنفّذ" not in result
@@ -198,7 +200,8 @@ def test_wait_rejection_summary_uses_known_causes_and_never_arbitrary_diagnostic
                     }
                 ),
             ),
-        ]
+        ],
+        locale,
     )
     assert result and "private-secret" not in result and "token=" not in result
     if code.upper().endswith("MARKET_CLOSED"):

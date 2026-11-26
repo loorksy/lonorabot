@@ -20,7 +20,6 @@ from .runtime_notices import (
     attention_message,
     attention_notice,
     is_owner_message,
-    prefers_arabic,
 )
 from .stop_gates import StopGateVerdict, task_progress, task_stop_gate
 from .uncertain_outcome import append_line, append_uncertain_line
@@ -126,7 +125,7 @@ async def request_owner_attention(
     and the runtime's own account of what is unfinished leads the message so a
     held answer claiming completion is never the owner's only report.
     """
-    arabic = prefers_arabic(messages)
+    arabic = context.locale == "ar"
     completion = await task_progress(context)
     notice = attention_notice(
         reason, arabic, [title for _, title in completion.incomplete] if completion else ()
@@ -161,13 +160,14 @@ def closing_lines(
     messages: list[ModelMessage],
     text: str,
     registry: ToolRegistry | None,
+    locale: str,
 ) -> str:
     """The reply with the fixed lines the runtime owes the owner: an outcome that is not
     known, and a picked choice that was left undone."""
-    text = append_uncertain_line(state, messages, text)
+    text = append_uncertain_line(state, messages, text, locale)
     if registry is not None and choice_left_undone(state, messages, registry):
         text = append_line(
-            state, messages, text, CHOICE_LINE_AR if prefers_arabic(messages) else CHOICE_LINE_EN
+            state, messages, text, CHOICE_LINE_AR if locale == "ar" else CHOICE_LINE_EN
         )
     return text
 
@@ -209,7 +209,7 @@ async def final_answer(
             return None
     if outcome_line:
         picked = state.get(OFFER_OBLIGATION)
-        updated = closing_lines(state, messages, text, registry)
+        updated = closing_lines(state, messages, text, registry, context.locale)
         if updated != text:
             text, metadata = updated, {**metadata, **rich_metadata(state)}
             await save()

@@ -27,7 +27,7 @@ from lonora_db.boards import BoardRepository
 from lonora_db.client import Database
 from lonora_db.messages import history, send_message
 from lonora_db.runs import claim_next, create_run, outcome_status
-from lonora_db.schema import EventRow, MessageRow, RunRow, TicketRow
+from lonora_db.schema import EventRow, MessageRow, OwnerProfileRow, RunRow, TicketRow
 from lonora_db.tasks import create_task, get_task, snapshot
 from lonora_db.tickets import TicketRepository
 from lonora_gateway.attention import candidate
@@ -80,15 +80,17 @@ def seeded(pending: list[ToolCall], **environment: Any) -> dict[str, Any]:
     }
 
 
-async def conversation_run(fixture: Fixture, state: dict[str, Any] | None = None) -> ToolContext:
+async def conversation_run(
+    fixture: Fixture, state: dict[str, Any] | None = None, content: str = "Analyze gold"
+) -> ToolContext:
     db, owner, _, thread = fixture
     async with db.sessions() as session, session.begin():
-        sent = await send_message(session, owner, thread, MessageCreate(content="Analyze gold"))
+        sent = await send_message(session, owner, thread, MessageCreate(content=content))
         run = await claim_next(session, "loop-writer", 120, "conversation")
         assert run and run.id in sent["run_ids"]
         run.status = "running"
         run.execution_state = state or {
-            "messages": [ModelMessage(role="user", content="Analyze gold").model_dump(mode="json")],
+            "messages": [ModelMessage(role="user", content=content).model_dump(mode="json")],
             "instruction_skill_ids": [],
         }
         lease = Lease(run_id=run.id, owner="loop-writer", fence=run.lease_fence)
@@ -653,6 +655,8 @@ async def test_a_reply_that_keeps_its_answer_after_the_check_stands(
 async def task_run(fixture: Fixture, request: TaskCreate) -> tuple[ToolContext, str]:
     db, owner, agent, thread = fixture
     async with db.sessions() as session, session.begin():
+        # The owner's reply language decides the server's text in the attention message.
+        await session.merge(OwnerProfileRow(owner_id=owner, reply_language="en"))
         task = await create_task(session, owner, agent, thread, request)
         run = await claim_next(session, "task-writer", 120, "work")
         assert run and run.id == task.payload["run_id"]

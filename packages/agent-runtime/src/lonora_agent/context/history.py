@@ -258,7 +258,11 @@ async def history_context(
             # not shown at all; one whose Run never started leaves only a note, never its
             # bubble, intent, data or values.
             if never_ran(row.ui_submit, await submit_status(session, row)):
-                messages.append(ModelMessage(role="user", content="[" + NEVER_RAN_NOTE + "]"))
+                messages.append(
+                    ModelMessage(
+                        role="user", context_origin="runtime_context", content=NEVER_RAN_NOTE
+                    )
+                )
             continue
         text = (
             card_words(row, run)

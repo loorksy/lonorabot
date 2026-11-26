@@ -125,7 +125,7 @@ async def compact_history(context: ToolContext, *, settled: bool = False) -> Non
                     if not never_ran(row.ui_submit, await submit_status(session, row)):
                         held = True
                         break
-                    content = "[" + NEVER_RAN_NOTE + "]"
+                    role, content = "lonora_runtime", NEVER_RAN_NOTE
                 block = (
                     f"<message seq='{row.seq}' role='{role}' agent_id='{row.agent_id or ''}'>\n"
                     + content

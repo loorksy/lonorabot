@@ -15,7 +15,7 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 
-from .runtime_notices import is_owner_message, prefers_arabic
+from .runtime_notices import is_owner_message
 
 _STARTED_KEY = "owner_started"
 _START_KEY = "owner_request_start"
@@ -151,8 +151,8 @@ def unconfirmed_change(state: dict[str, Any], messages: list[ModelMessage]) -> b
     return False
 
 
-def uncertain_line(state: dict[str, Any], messages: list[ModelMessage]) -> str | None:
-    arabic = prefers_arabic(messages)
+def uncertain_line(state: dict[str, Any], messages: list[ModelMessage], locale: str) -> str | None:
+    arabic = locale == "ar"
     if uncertain_operations(state, messages):
         return LINE_AR if arabic else LINE_EN
     if unconfirmed_change(state, messages):
@@ -173,9 +173,11 @@ def appended_parts(parts: list[Any], line: str) -> list[Any]:
     return parts
 
 
-def append_uncertain_line(state: dict[str, Any], messages: list[ModelMessage], text: str) -> str:
+def append_uncertain_line(
+    state: dict[str, Any], messages: list[ModelMessage], text: str, locale: str
+) -> str:
     """The reply with the uncertain-outcome line, when one is owed."""
-    return append_line(state, messages, text, uncertain_line(state, messages))
+    return append_line(state, messages, text, uncertain_line(state, messages, locale))
 
 
 def append_line(

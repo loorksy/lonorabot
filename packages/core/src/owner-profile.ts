@@ -179,8 +179,14 @@ export function reachMeHint(channel: ReachMe, locale: string): string {
   return pick(channelHints[channel], locale);
 }
 
-export function replyLanguageLabel(language: ReplyLanguage, locale: string): string {
-  return pick(languages[language], locale);
+/** A reply language in words: the offered choices, else any BCP-47 tag an agent saved. */
+export function replyLanguageLabel(language: string, locale: string): string {
+  if (language in languages) return pick(languages[language as ReplyLanguage], locale);
+  try {
+    return new Intl.DisplayNames([locale], { type: "language" }).of(language) ?? language;
+  } catch {
+    return language;
+  }
 }
 
 export function preferenceFieldLabel(field: string, locale: string): string | null {
@@ -199,8 +205,8 @@ export function preferenceValueText(field: string, value: unknown, locale: strin
   if (field === "reach_me" && typeof value === "string" && value in channels)
     return pick(channels[value as ReachMe], locale);
   if (field === "reach_me" && value === "activity") return pick(activityOnly, locale);
-  if (field === "reply_language" && (value === "ar" || value === "en"))
-    return pick(languages[value], locale);
+  if (field === "reply_language" && typeof value === "string")
+    return replyLanguageLabel(value, locale);
   return String(value);
 }
 

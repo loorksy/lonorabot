@@ -98,4 +98,4 @@ def test_the_teaching_names_only_what_the_catalog_builds():
     # No chart, timer or date picker node exists, so the teaching does not offer them.
     for gone in ("(picker)", "(chart)", "(timer)", 'timer"'):
         assert gone not in text
-    assert not re.search("[\u0600-\u06ff]", text[: text.index("Instrument names")])
+    assert not re.search("[\u0600-\u06ff]", text)

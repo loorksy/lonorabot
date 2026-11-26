@@ -501,7 +501,7 @@ class OwnerProfileRow(Base):
     __tablename__ = "ln_owner_profile"
     __table_args__ = (
         CheckConstraint(
-            "reply_language IS NULL OR reply_language IN ('ar','en')",
+            "reply_language IS NULL OR length(reply_language) BETWEEN 2 AND 35",
             name="ln_owner_profile_reply_language",
         ),
     )
@@ -510,8 +510,8 @@ class OwnerProfileRow(Base):
     )
     content: Mapped[str] = mapped_column(Text, default="")
     version: Mapped[int] = mapped_column(Integer, default=1)
-    # None follows the language of the owner's latest message.
-    reply_language: Mapped[str | None] = mapped_column(String(8))
+    # A BCP-47 tag (``owner_profile.ReplyLanguage``); None follows the owner's latest message.
+    reply_language: Mapped[str | None] = mapped_column(String(35))
     # «الاسم» and «طريقة المخاطبة» of the owner form (WP-H); None until the owner sets them.
     name: Mapped[str | None] = mapped_column(String(80))
     address: Mapped[str | None] = mapped_column(String(80))

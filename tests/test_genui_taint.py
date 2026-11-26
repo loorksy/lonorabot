@@ -12,6 +12,7 @@ import json
 from typing import Any
 
 import pytest
+from lonora_db.genui_submit import NEVER_RAN_NOTE
 from test_genui_submit import Card, open_fixture
 
 
@@ -213,7 +214,7 @@ async def test_rules_v_and_n_hold_in_session_search_and_compaction() -> None:
         assert captured
         summary_input = captured[0]
         assert "role='owner_via_card'" in summary_input and "2,401" in summary_input
-        assert "طلب من بطاقة لم يُنفَّذ" in summary_input and "2,402" not in summary_input
+        assert NEVER_RAN_NOTE in summary_input and "2,402" not in summary_input
         assert "2,403" not in "".join(captured)
 
     finally:

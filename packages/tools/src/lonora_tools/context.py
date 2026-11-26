@@ -51,6 +51,9 @@ class ToolContext:
     # The model this Run was started on (a subagent's chosen model); it leads the
     # Agent's own model chain, which stays behind it as the fallback.
     run_model: ModelSelection | None = None
+    # The language of server-written owner text in this Run (conversation_locale, read at
+    # its start): fallbacks, outcome lines and card failure text. Model input stays English.
+    locale: str = "ar"
 
     @property
     def effect_key(self) -> str:

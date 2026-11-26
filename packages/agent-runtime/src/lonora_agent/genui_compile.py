@@ -64,12 +64,6 @@ MAX_OBJECT_SCALARS = 300
 SYMBOL_TOOLS = {"market_quote", "market_instrument"}
 RESTING_LIMIT = 560
 HARD_LIMIT = 720
-DEFAULT_WHY = {
-    "form": "نموذج قصير يجمع ما يحتاجه الطلب مرة واحدة ويمنع الأخطاء، بدل أسئلة متتالية.",
-    "calculator": "حاسبة تفاعلية تجرّب فيها الأرقام بنفسك وترى النتيجة فورًا؛ أوضح من شرح نصي.",
-    "diagram": "مستويات وأسهم تُظهر كيف تتصل الأجزاء في نظرة واحدة، أوضح من فقرات.",
-    "summary": "ملخص قصير بالتفاصيل مع زر للخطوة التالية؛ أوضح من فقرة وأسهل من البحث في القوائم.",
-}
 HEIGHTS = {
     "Segmented": 68,
     "Number": 70,
@@ -1318,10 +1312,8 @@ def compile_card(
         if estimate_height(blocks, visible_now(blocks), tallest) > HARD_LIMIT:
             raise CardError("card_fallback_budget")
 
+    # A card without the model's why shows none: the server writes no reason for it.
     why = card.why
-    if final and not why:
-        why = DEFAULT_WHY.get(head["kind"], DEFAULT_WHY["form"])
-        diagnostics.add("why_default")
     fallback = card.fallback
     if not fallback:
         # A partial card carries the fallback of what is built so far, so a turn that

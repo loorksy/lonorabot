@@ -101,7 +101,6 @@ from .runtime_notices import (
     is_runtime_notice,
     limit_fallback,
     notice_message,
-    prefers_arabic,
 )
 from .steering import merge_run_notices, merge_steering, owner_steering_pending
 from .stop_gates import task_progress
@@ -302,7 +301,9 @@ async def finish_turn(
             # Only the model chooses silence, by an empty answer: a failed final call, a
             # turn of calls or a card without text leaves the fixed report, and an order
             # nothing verified is that report (5.3.3).
-            text = unverified_financial_result(messages) or limit_fallback(prefers_arabic(messages))
+            text = unverified_financial_result(messages, context.locale) or limit_fallback(
+                context.locale == "ar"
+            )
         if reply.rich_content is None or not reply.text.strip():
             state.pop("rich_content", None)
         else:
@@ -317,7 +318,7 @@ async def finish_turn(
             )
         )
         # The round-limit and guardrail report gets the runtime's fixed lines too.
-        text = closing_lines(state, messages, text, registry)
+        text = closing_lines(state, messages, text, registry, context.locale)
         if not text:
             # An empty assistant turn never enters a checkpoint a Task may resume.
             messages.pop()

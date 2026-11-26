@@ -54,6 +54,7 @@ def context(agent: _Agent | None = None) -> ToolContext:
             agent_id="agent-1",
             thread_id="t",
             lease=SimpleNamespace(run_id="run-1"),
+            locale="ar",
         ),
     )
 
@@ -235,13 +236,14 @@ async def test_observed_card_without_any_resolved_fact_falls_back() -> None:
 
 
 @pytest.mark.asyncio
-async def test_missing_why_and_fallback_get_defaults() -> None:
+async def test_a_missing_fallback_is_generated_and_a_missing_why_stays_missing() -> None:
     body = A01.rsplit("\n", 2)[0] + "\n"
     projection, projector = await project(reply(body))
     card = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
-    assert card["why"] and card["fallback"].startswith("**تنبيه سعر**")
+    # The server writes no reason in the agent's voice: a card without why shows none.
+    assert "why" not in card and card["fallback"].startswith("**تنبيه سعر**")
     codes = {d["code"] for d in projector.diagnostics}
-    assert {"why_default", "fallback_generated"} <= codes
+    assert "fallback_generated" in codes
 
 
 @pytest.mark.asyncio
@@ -279,15 +281,13 @@ def test_v2_prompt_block_is_bounded_generated_and_the_only_one() -> None:
     assert len(block) <= MAX_GENUI_GUIDANCE_CHARS
     for part in ("<lonora_answer_shape>", "<lonora_ui_rules>", "alert.create", "XAUUSD Gold"):
         assert part in block
-    # English only (owner rule): no Arabic outside the instrument names the compiler matches.
-    names = block.index("Instrument names")
-    rest = block[:names] + block[block.index("\n", names) :]
-    assert not re.search("[\u0600-\u06ff]", rest)
+    # English only (owner rule): model input carries no Arabic, instrument names included.
+    assert not re.search("[\u0600-\u06ff]", block)
     assert "{vocabulary}" not in block and "{teaching}" not in block and "<!--" not in block
     assert capabilities().block() == (
         "<lonora_ui_capabilities>\nintents: ask, alert.create, alert.off\ndelivery: app\n"
         "go: market, tasks, usage, files, agents\n"
-        "timezone: UTC · language: ar\n</lonora_ui_capabilities>"
+        "timezone: UTC\n</lonora_ui_capabilities>"
     )
 
 

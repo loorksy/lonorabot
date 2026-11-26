@@ -1,4 +1,8 @@
-"""The owner profile's reply language, else bounded evidence from owner messages."""
+"""The language of server-written owner text (Arabic or English, Arabic first: VISION 17).
+
+The owner profile's reply language decides it, else bounded evidence from owner messages,
+else the UI locale. This is the one place a script test picks that language; model input
+never depends on it (the model reads the profile's reply_language itself)."""
 
 import re
 from typing import Literal
@@ -16,8 +20,9 @@ async def conversation_locale(
     await owned_thread(session, owner_id, thread_id)
     # The owner profile's reply language wins; otherwise the owner's latest message.
     profile = await session.get(OwnerProfileRow, owner_id)
-    if profile is not None and profile.reply_language in ("ar", "en"):
-        return "en" if profile.reply_language == "en" else "ar"
+    if profile is not None and profile.reply_language:
+        # Server text exists in Arabic and English; any other language reads the English.
+        return "ar" if profile.reply_language.lower().split("-")[0] == "ar" else "en"
     messages = await session.scalars(
         select(MessageRow.content)
         .where(MessageRow.thread_id == thread_id, MessageRow.role == "user")

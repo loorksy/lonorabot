@@ -1,11 +1,13 @@
 import asyncio
 import logging
 from collections.abc import Callable
+from dataclasses import replace
 from time import monotonic
 
 from lonora_adapter_kit.model_errors import ModelProviderError
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
+from lonora_db.conversation_locale import conversation_locale
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.genui_submit import mark_submit_started
@@ -113,6 +115,10 @@ async def execute_run(
     try:
         async with context.db.sessions() as session, session.begin():
             row = await require_lease(session, context.lease, lock=True)
+            # Owner text follows the conversation the Run reports to (VISION 11.6).
+            locale = await conversation_locale(
+                session, context.owner_id, await report_thread(session, row)
+            )
             row.status = "running"
             row.updated_at = utcnow()
             # Rules N and T: a card submission records that its Run started.
@@ -126,6 +132,7 @@ async def execute_run(
                 run_id=row.id,
                 payload={"run": run_data(row)},
             )
+        context = replace(context, locale=locale)
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
             async with context.db.sessions() as session, session.begin():

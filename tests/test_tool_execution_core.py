@@ -448,12 +448,12 @@ def test_trailing_notice_stays_with_its_block_and_never_becomes_the_owner_anchor
 
 def test_runtime_notice_cannot_hide_an_unverified_financial_result() -> None:
     messages = exchange()
-    expected = unverified_financial_result(messages)
+    expected = unverified_financial_result(messages, "en")
     assert expected and "not yet independently verified" in expected
     messages.append(notice_message("budget", "One round remains."))
-    assert unverified_financial_result(messages) == expected
+    assert unverified_financial_result(messages, "en") == expected
     messages.append(ModelMessage(role="user", content="And what about silver today?"))
-    assert unverified_financial_result(messages) is None
+    assert unverified_financial_result(messages, "en") is None
 
 
 def test_owner_attention_notice_states_the_known_truth_in_the_owner_language() -> None:

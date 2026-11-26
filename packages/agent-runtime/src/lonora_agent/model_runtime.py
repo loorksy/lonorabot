@@ -106,9 +106,9 @@ async def model_turn(
     preparation_ms["total"] = round((monotonic() - preparation_started) * 1000, 2)
 
     public_ids = public_broker_ids(messages)
-    incremental_allowed = not unverified_financial_result(messages) and not unsettled_wait_result(
-        messages
-    )
+    incremental_allowed = not unverified_financial_result(
+        messages, context.locale
+    ) and not unsettled_wait_result(messages, context.locale)
     streaming = PublicStream(set(), public_ids, enabled=incremental_allowed)
     projector = VisualReplyProjector(context, messages)
     request_started = monotonic()
@@ -221,7 +221,7 @@ async def model_turn(
         ),
     )
     public_ids = public_broker_ids(messages)
-    unverified = unverified_financial_result(messages)
+    unverified = unverified_financial_result(messages, context.locale)
     # The gates read every proposed target, including a bridge call that did
     # not resolve (it fails without dispatching) and calls in a tool-less turn.
     proposed = set[str]().union(*(proposed_names(call) for call in reply.tool_calls))
@@ -239,7 +239,7 @@ async def model_turn(
     elif "task_wait" in proposed:
         # Continuous work still reports real failures before suspending. Never
         # replace an uncertain result with a premature success or silent wait.
-        result_summary = unsettled_wait_result(messages)
+        result_summary = unsettled_wait_result(messages, context.locale)
         if result_summary:
             reply = reply.model_copy(update={"text": result_summary})
     # Style is model guidance, never a second generation or a failed user

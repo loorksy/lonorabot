@@ -10,12 +10,12 @@ or financial authority.
 
 import json
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.incoming_calls import IncomingCallPolicy, policy_error_code
 from lonora_core.user_error import LonoraError
-from pydantic import ValidationError
+from pydantic import StringConstraints, ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,7 +34,10 @@ from .transactions import SettingsRepository
 
 OWNER_PROFILE_CHAR_LIMIT = 8000
 REACH_ME_KEY = "incoming-call-policy:"
-ReplyLanguage = Literal["ar", "en"]
+# A BCP-47 language tag (ar, en, es, zh-Hant, ...); None follows the owner's latest message.
+ReplyLanguage = Annotated[
+    str, StringConstraints(pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,4}$", max_length=35)
+]
 ProfileTransform = Callable[[str, int], tuple[str, dict[str, Any]]]
 
 
@@ -408,7 +411,7 @@ def undone_preferences(
     previous_language = old.get("reply_language")
     restored_language: ReplyLanguage | None | Literal["keep"] = "keep"
     if previous_language != new.get("reply_language"):
-        restored_language = previous_language if previous_language in ("ar", "en") else None
+        restored_language = previous_language or None
     return policy, restored_language
 
 

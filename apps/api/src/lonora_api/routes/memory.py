@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from lonora_auth.identity import OwnerIdentity
@@ -10,6 +10,7 @@ from lonora_db.memory_revisions import list_revisions, revision_data
 from lonora_db.owner_knowledge import correct_line, profile_lines
 from lonora_db.owner_profile import (
     OWNER_PROFILE_CHAR_LIMIT,
+    ReplyLanguage,
     commit_owner_profile,
     enrolled_devices,
     owner_profile_data,
@@ -46,7 +47,7 @@ class OwnerPreferencesUpdate(Contract):
     """The owner's own preferences, saved as one change: the reach-me policy and reply
     language, and «الاسم» / «طريقة المخاطبة» (WP-H). Only the fields sent change."""
 
-    reply_language: Literal["ar", "en"] | None = None
+    reply_language: ReplyLanguage | None = None
     reach_me: IncomingCallPolicy | None = None
     name: str | None = Field(default=None, max_length=80)
     address: str | None = Field(default=None, max_length=80)

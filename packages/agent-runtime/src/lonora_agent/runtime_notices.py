@@ -103,18 +103,6 @@ def append_notice(messages: list[ModelMessage], kind: str, text: str) -> None:
     messages.append(notice_message(kind, text))
 
 
-def prefers_arabic(messages: list[ModelMessage]) -> bool:
-    """Same owner-language heuristic as the financial truth gate."""
-    for owner in reversed(messages):
-        if not is_owner_message(owner):
-            continue
-        if re.search(r"[ؠ-ي]", owner.content):
-            return True
-        if " " in owner.content and len(re.findall(r"[A-Za-z]", owner.content)) >= 8:
-            return False
-    return True
-
-
 NO_ANSWER = (
     "No answer was provided for the selected request. Provide the substantive result or ask "
     "a necessary clarification with wait_for_input. Do not invent results."
