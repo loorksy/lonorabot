@@ -60,6 +60,10 @@
       "name": "One vocabulary tests",
       "description": "Automatic checks for one vocabulary."
     },
+    "tests/test_openai_responses.py": {
+      "name": "OpenAI Responses tests",
+      "description": "Automatic checks for the OpenAI connection: text, tool calls, images, usage, cut-off replies and failures."
+    },
     "tests/test_order_line_fixture.py": {
       "name": "Order line fixture tests",
       "description": "Automatic checks for order line fixture."

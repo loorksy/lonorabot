@@ -28,6 +28,10 @@
       "name": "OpenAI connection",
       "description": "Talks to OpenAI's models."
     },
+    "packages/adapters/src/lonora_adapters/models/openai_responses.py": {
+      "name": "OpenAI Responses connection",
+      "description": "Talks to OpenAI's models through the Responses API, and can shape each request the way the ChatGPT plan requires."
+    },
     "packages/adapters/src/lonora_adapters/models/openrouter.py": {
       "name": "OpenRouter connection",
       "description": "Talks to models through OpenRouter."
