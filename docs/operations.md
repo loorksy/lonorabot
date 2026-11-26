@@ -61,6 +61,11 @@ order on a MetaApi account, to the Gateway through the database (`ln_broker_rela
 Gateway answers with its own connection. While the Gateway is stopped these requests answer
 `broker_gateway_unavailable` and nothing reaches the broker.
 
+The Gateway restarts itself when its event loop is stuck: after 120 s without a turn it writes
+`gateway_loop_stalled` and every thread's stack to its log and exits with code 70, and Docker's
+`restart: unless-stopped` starts it again. Its container is `healthy` (`sudo lonora status`)
+only while each heartbeat refreshes `/app/.runtime/gateway-alive`, at most 60 s ago.
+
 Layout on a server (default `/opt/lonora`):
 
 ```
@@ -419,8 +424,10 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
 5. Migrations run as their own step (`migrate` service). Right after, a fingerprint of the
    owner-control and money records is taken (see below).
 6. The API starts first, **with the Gateway still stopped**, and must pass `/health`. Then
-   maintenance is turned off (writes open again), the Gateway (agent and trading loops) starts, and
-   the update waits for `/ready` (default 240 s, `LONORA_READY_TIMEOUT`).
+   maintenance is turned off (writes open again), the Gateway (agent and trading loops) starts and
+   must turn healthy (its heartbeat refreshes `/app/.runtime/gateway-alive`; a Gateway that has not
+   done so after about 90 s fails the update at `Gateway start`), and the update waits for `/ready`
+   (default 240 s, `LONORA_READY_TIMEOUT`).
 7. Success: marker removed, `state/history.log` updated.
 
 Web search (SearXNG) and the research browser start with every update but are never waited on:

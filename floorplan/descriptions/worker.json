@@ -6,7 +6,7 @@
     },
     "apps/worker/src/lonora_worker/health.py": {
       "name": "Worker health",
-      "description": "Reports whether the worker is healthy."
+      "description": "Reports whether the worker is healthy, and names the small file every heartbeat refreshes so the container's health check can tell a living worker from a stuck one."
     },
     "apps/worker/src/lonora_worker/main.py": {
       "name": "Worker startup",

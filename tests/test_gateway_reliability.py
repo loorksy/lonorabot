@@ -243,6 +243,34 @@ async def test_readiness_needs_a_fresh_heartbeat_and_no_stalled_critical_step(
     assert (await gateway_health(db))["ready"] is False
 
 
+@pytest.mark.asyncio
+async def test_the_heartbeat_refreshes_the_file_the_container_healthcheck_reads(
+    task_db: Fixture, tmp_path: Path
+) -> None:
+    db, *_ = task_db
+    alive = tmp_path / "state" / "gateway-alive"
+    gateway = service.Gateway(db, "unused-key", tmp_path, liveness_file=alive)
+    await gateway.heartbeat()
+    first = alive.stat().st_mtime
+    os.utime(alive, (first - 600, first - 600))
+    await gateway.heartbeat()
+    assert alive.stat().st_mtime > first - 600
+
+
+def test_the_gateway_service_is_healthy_only_while_its_heartbeat_file_is_fresh() -> None:
+    import yaml
+    from lonora_worker.health import LIVENESS_FILE
+
+    # A stuck loop, a dead process or a heartbeat that cannot reach the database lets the
+    # file age, and the container turns unhealthy.
+    compose = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / "infra/compose/docker-compose.prod.yml").read_text()
+    )
+    check = compose["services"]["gateway"]["healthcheck"]
+    assert "/app/" + str(LIVENESS_FILE) in " ".join(check["test"])
+    assert check["interval"] and check["retries"] and check["start_period"]
+
+
 def watch_payload(**extra: Any) -> dict[str, Any]:
     return {
         "kind": "price",

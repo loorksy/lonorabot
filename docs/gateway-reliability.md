@@ -161,6 +161,12 @@ stuck.
   `Restart=on-failure` then start it again; neither fires for a process that is alive
   but stuck. A restart is safe: leases are fenced, and an uncertain send is reconciled
   and never resent (VISION 6.3).
+- **Container healthcheck.** Each heartbeat refreshes `.runtime/gateway-alive`
+  (`LIVENESS_FILE` in `lonora_worker/health.py`), and the `gateway` service of
+  `infra/compose/docker-compose.prod.yml` is healthy only while that file is at most
+  60 s old. A stuck loop, a dead process or a heartbeat that cannot reach the database
+  lets it age. `lonora status` and the Cloud host agent read this service state, and
+  `lonora update` and `start` wait for it.
 
 ## Drain and lease renewal
 
@@ -219,6 +225,8 @@ passkey, so nothing is left looking active while it can no longer run:
   alert; drain release and lease renewal; durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.
+- `tests/test_gateway_reliability.py` also checks that the heartbeat refreshes the
+  file the `gateway` service's healthcheck reads.
 - `tests/test_worker_stall_guard.py`: a process whose loop is blocked exits with code 70
   and writes its stacks; one whose loop keeps running is left alone.
 - `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the
