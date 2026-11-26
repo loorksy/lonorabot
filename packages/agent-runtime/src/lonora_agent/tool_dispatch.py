@@ -150,4 +150,8 @@ async def dispatch_call(
             if tool and tool.read_only
             else "tool_execution_uncertain",
         }
+    if tool and not tool.read_only and not tool.financial and result.get("ok") is False:
+        # A state-changing call that did not return: refused (nothing changed) or unknown.
+        uncertain = result.get("code") == "tool_execution_uncertain"
+        result.setdefault("effect", "uncertain" if uncertain else "failed")
     return result

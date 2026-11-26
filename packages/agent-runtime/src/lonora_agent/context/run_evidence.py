@@ -168,8 +168,9 @@ def _entries(run: RunRow, terms: set[str]) -> list[_Entry]:
         if not isinstance(decoded, dict):
             continue
         result = cast(dict[str, Any], decoded)
-        effect = name in EFFECT_TOOLS
-        # Failed reads carry nothing to reuse; every effect outcome keeps its identity.
+        # Failed reads carry nothing to reuse; every effect outcome keeps its identity, and
+        # so does a state-changing call that failed or may have happened (tool_dispatch).
+        effect = name in EFFECT_TOOLS or result.get("effect") in {"failed", "uncertain"}
         if result.get("ok") is not True and not effect:
             continue
         found: dict[str, str] = {}
@@ -190,6 +191,8 @@ def _entries(run: RunRow, terms: set[str]) -> list[_Entry]:
             payload["identities"] = {
                 key: value for key, value in found.items() if key in IDENTITY_KEYS
             }
+        if result.get("effect") == "uncertain":
+            payload["effect"] = "uncertain: check before any repeat"
         if isinstance(result.get("result_ref"), str):
             payload["result_ref"] = result["result_ref"]
         payload["result"] = _preview(result)
