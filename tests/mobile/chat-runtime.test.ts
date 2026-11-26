@@ -249,6 +249,10 @@ test("native durable WS authenticates live, resumes cursor, refreshes after read
       },
       "./session-lifecycle": { registerSessionTeardown() {} },
       "./storage": { loadNativeToken: async () => "private-session" },
+      "expo-network": {
+        getNetworkStateAsync: async () => ({ type: "WIFI", isConnected: true }),
+        addNetworkStateListener: () => ({ remove() {} }),
+      },
     },
     {
       WebSocket: Socket,
@@ -307,13 +311,15 @@ test("native durable WS authenticates live, resumes cursor, refreshes after read
   stop();
 });
 
-/** The owner event transport over fake sockets and timers. */
+/** The owner event transport over fake sockets, timers and network readings. */
 function nativeEvents() {
   type Timer = { callback: () => void; ms: number; cleared?: boolean };
+  type Reading = { type: string; isConnected: boolean };
   const timers: Timer[] = [],
     sockets: Socket[] = [],
     phases: string[] = [],
     events: Event[] = [];
+  let onNetwork: ((state: Reading) => void) | undefined;
   class Socket {
     static OPEN = 1;
     static CONNECTING = 0;
@@ -351,6 +357,13 @@ function nativeEvents() {
       },
       "./session-lifecycle": { registerSessionTeardown() {} },
       "./storage": { loadNativeToken: async () => "private-session" },
+      "expo-network": {
+        getNetworkStateAsync: async () => ({ type: "WIFI", isConnected: true }),
+        addNetworkStateListener: (callback: (state: Reading) => void) => {
+          onNetwork = callback;
+          return { remove() {} };
+        },
+      },
     },
     {
       WebSocket: Socket,
@@ -383,7 +396,11 @@ function nativeEvents() {
     return JSON.parse(socket.sent[0]) as Record<string, unknown>;
   };
   const pending = (ms: number) => timers.filter((timer) => timer.ms === ms && !timer.cleared);
-  return { sockets, phases, events, opened, pending, stop };
+  const network = (state: Reading) => {
+    if (!onNetwork) throw new Error("The transport does not watch the network.");
+    onNetwork(state);
+  };
+  return { sockets, phases, events, opened, pending, network, stop };
 }
 const ownerEvent = (cursor: number) =>
   ({
@@ -427,6 +444,25 @@ test("a native socket silent after ready is replaced within 45 s and resumes wit
   native.sockets[0].onclose?.();
   assert.equal(native.pending(1500).length, 0);
   assert.equal(native.phases.at(-1), "connected");
+  native.stop();
+});
+
+test("a network change replaces the native socket at once; a repeated reading does not", async () => {
+  const native = nativeEvents();
+  await native.opened(native.sockets[0]);
+  native.sockets[0].receive({ type: "ready", cursor: 4 });
+  native.network({ type: "WIFI", isConnected: true });
+  assert.equal(native.sockets[0].readyState, 1);
+  assert.equal(native.phases.at(-1), "connected");
+  native.sockets[0].halfOpen = true;
+  native.network({ type: "CELLULAR", isConnected: true });
+  assert.equal(native.phases.at(-1), "reconnecting");
+  native.pending(1500)[0].callback();
+  assert.equal(native.sockets.length, 2);
+  assert.deepEqual(await native.opened(native.sockets[1]), {
+    cursor: 4,
+    token: "private-session",
+  });
   native.stop();
 });
 

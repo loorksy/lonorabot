@@ -1,5 +1,6 @@
 /** Existing authenticated durable owner stream, shared by charts and conversation adapters. */
 import type { Event } from "@lonora/contracts";
+import { addNetworkStateListener, getNetworkStateAsync, type NetworkState } from "expo-network";
 import { AppState, Platform } from "react-native";
 import { registerSessionTeardown } from "./session-lifecycle";
 import { loadNativeToken } from "./storage";
@@ -106,6 +107,19 @@ export function subscribeOwnerEvents(
     current.onerror = () => current.close();
     current.onclose = () => replace(current);
   };
+  // A network change (Wi-Fi to mobile data, offline and back) leaves the socket half-open, so it
+  // is replaced at once instead of after the silence timeout. A repeated reading changes nothing.
+  let network: string | undefined;
+  const networkChanged = (state: NetworkState) => {
+    const next = `${state.type}/${state.isConnected}`;
+    const changed = network !== undefined && next !== network;
+    network = next;
+    return changed;
+  };
+  void getNetworkStateAsync().then(networkChanged, () => undefined);
+  const networkSubscription = addNetworkStateListener((state) => {
+    if (networkChanged(state) && socket) replace(socket);
+  });
   const subscription = AppState.addEventListener("change", (state) => {
     foreground = state === "active";
     if (!foreground) {
@@ -124,6 +138,7 @@ export function subscribeOwnerEvents(
     if (silence) clearTimeout(silence);
     socket?.close();
     subscription.remove();
+    networkSubscription.remove();
     closers.delete(close);
   };
   closers.add(close);
