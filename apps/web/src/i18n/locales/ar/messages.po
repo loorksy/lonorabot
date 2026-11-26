@@ -565,7 +565,7 @@ msgstr "إضافة هدف"
 msgid "Add a provider"
 msgstr "إضافة مزود"
 
-#: src/shell/settings/ModelsPage.tsx:125
+#: src/shell/settings/ModelsPage.tsx:144
 msgid "Add a provider credential"
 msgstr "أضف مفتاح المزود"
 
@@ -960,7 +960,7 @@ msgid "Any signed delegation on this account is revoked, and {names} go back to 
 msgstr "يُلغى أي تفويض موقَّع على هذا الحساب، ويعود {names} إلى «تنفيذ بموافقة» دون حساب حتى تختار حسابًا آخر."
 
 #: src/shell/settings/ConnectionPages.tsx:673
-#: src/shell/settings/ModelsPage.tsx:130
+#: src/shell/settings/ModelsPage.tsx:149
 msgid "API key"
 msgstr "مفتاح API"
 
@@ -1140,7 +1140,7 @@ msgstr "القفل التلقائي"
 msgid "Available"
 msgstr "متاحة"
 
-#: src/shell/settings/ModelsPage.tsx:157
+#: src/shell/settings/ModelsPage.tsx:176
 msgid "Available models"
 msgstr "النماذج المتاحة"
 
@@ -1596,7 +1596,7 @@ msgstr "ملغاة"
 #~ msgid "Capabilities"
 #~ msgstr "القدرات"
 
-#: src/shell/settings/ModelsPage.tsx:171
+#: src/shell/settings/ModelsPage.tsx:190
 msgid "Capabilities unverified"
 msgstr "القدرات غير مؤكدة"
 
@@ -1809,8 +1809,8 @@ msgid "Choose a connection"
 msgstr "اختر اتصالًا"
 
 #: src/pages/KnowledgeSection.tsx:177
-msgid "Choose a discovered model"
-msgstr "اختر نموذجًا من الكتالوج"
+#~ msgid "Choose a discovered model"
+#~ msgstr "اختر نموذجًا من الكتالوج"
 
 #: src/components/market/MarketWatch.tsx:225
 msgid "Choose a feed"
@@ -1826,7 +1826,8 @@ msgstr "اختر ملفًا أصغر من 600 كيلوبايت."
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
 
-#: src/shell/settings/ModelsPage.tsx:204
+#: src/pages/KnowledgeSection.tsx:176
+#: src/shell/settings/ModelsPage.tsx:223
 msgid "Choose a model"
 msgstr "اختر نموذجًا"
 
@@ -2460,7 +2461,7 @@ msgstr "إنشاء مساحة العمل"
 #~ msgid "Created by an agent"
 #~ msgstr "أنشأها وكيل"
 
-#: src/shell/settings/ModelsPage.tsx:125
+#: src/shell/settings/ModelsPage.tsx:144
 msgid "Credential configured"
 msgstr "تم إعداد مفتاح الوصول"
 
@@ -2874,7 +2875,7 @@ msgstr "لكل وكيل تفويضه: يستأذن أو وكّله"
 msgid "Each member keeps its own permissions. The group has no shared financial authority."
 msgstr "كل عضو يحتفظ بصلاحياته. لا توجد صلاحية مالية مشتركة للمجموعة."
 
-#: src/shell/settings/ModelsPage.tsx:141
+#: src/shell/settings/ModelsPage.tsx:160
 msgid "Each provider's models are Lonora's own list, updated with Lonora."
 msgstr "نماذج كل مزوّد هي قائمة لونورا نفسها، وتُحدَّث مع لونورا."
 
@@ -3008,7 +3009,7 @@ msgstr "تفعيل {0}"
 #~ msgid "Enable autonomous trading for this goal in its owner controls first."
 #~ msgstr "فعّل التداول التلقائي لهذا الهدف من إعدادات المالك أولًا."
 
-#: src/pages/KnowledgeSection.tsx:168
+#: src/pages/KnowledgeSection.tsx:167
 msgid "Enable semantic retrieval"
 msgstr "تفعيل الاسترجاع الدلالي"
 
@@ -3521,7 +3522,7 @@ msgstr "وكيل عام"
 #~ msgid "Give your persistent agent an identity. Add instructions after creating it."
 #~ msgstr "امنح وكيلك الدائم هوية. أضف التعليمات بعد إنشائه."
 
-#: src/pages/KnowledgeSection.tsx:171
+#: src/pages/KnowledgeSection.tsx:170
 msgid "Global embedding model"
 msgstr "نموذج التضمين العالمي"
 
@@ -3529,7 +3530,7 @@ msgstr "نموذج التضمين العالمي"
 msgid "Global models"
 msgstr "النماذج العالمية"
 
-#: src/shell/settings/ModelsPage.tsx:266
+#: src/shell/settings/ModelsPage.tsx:283
 msgid "Global routing"
 msgstr "التوجيه العالمي"
 
@@ -3763,7 +3764,7 @@ msgstr "مكالمة واردة من {0}"
 #~ msgid "Increase"
 #~ msgstr "زيادة"
 
-#: src/pages/KnowledgeSection.tsx:209
+#: src/pages/KnowledgeSection.tsx:208
 msgid "Index note"
 msgstr "فهرسة الملاحظة"
 
@@ -3979,7 +3980,7 @@ msgstr "معرفة"
 msgid "Knowledge and skills"
 msgstr "المعرفة والمهارات"
 
-#: src/pages/KnowledgeSection.tsx:205
+#: src/pages/KnowledgeSection.tsx:204
 msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
@@ -4565,7 +4566,7 @@ msgctxt "call log"
 msgid "Missed voice call"
 msgstr "مكالمة صوتية فائتة"
 
-#: src/shell/settings/ModelsPage.tsx:270
+#: src/shell/settings/ModelsPage.tsx:287
 msgid "Mode"
 msgstr "الوضع"
 
@@ -4585,8 +4586,8 @@ msgstr "مزود النموذج غير متاح — إعادة المحاولة 
 
 #: src/shell/pages.tsx:151
 #: src/shell/settings/IntegrationsPage.tsx:620
-#: src/shell/settings/ModelsPage.tsx:73
-#: src/shell/settings/ModelsPage.tsx:111
+#: src/shell/settings/ModelsPage.tsx:92
+#: src/shell/settings/ModelsPage.tsx:130
 msgid "Model providers"
 msgstr "مزوّدو النماذج"
 
@@ -4594,7 +4595,7 @@ msgstr "مزوّدو النماذج"
 msgid "Models"
 msgstr "النماذج"
 
-#: src/shell/settings/ModelsPage.tsx:70
+#: src/shell/settings/ModelsPage.tsx:89
 msgid "Models appear here after you add a model provider."
 msgstr "تظهر النماذج هنا بعد إضافة مزوّد نماذج."
 
@@ -5337,7 +5338,7 @@ msgstr "مرة واحدة"
 msgid "One agent"
 msgstr "وكيل واحد"
 
-#: src/shell/settings/ModelsPage.tsx:290
+#: src/shell/settings/ModelsPage.tsx:307
 msgid "One model for text work"
 msgstr "نموذج واحد للمهام النصية"
 
@@ -5966,7 +5967,7 @@ msgid "Protection change"
 msgstr "تعديل الحماية"
 
 #: src/shell/settings/ConnectionPages.tsx:652
-#: src/shell/settings/ModelsPage.tsx:115
+#: src/shell/settings/ModelsPage.tsx:134
 msgid "Provider"
 msgstr "المزود"
 
@@ -6535,7 +6536,7 @@ msgstr "مراجعة حظر الإصدار"
 msgid "Role"
 msgstr "الدور"
 
-#: src/shell/settings/ModelsPage.tsx:291
+#: src/shell/settings/ModelsPage.tsx:308
 msgid "Route by capability"
 msgstr "التوجيه حسب القدرة"
 
@@ -6572,7 +6573,7 @@ msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنس
 #: src/components/ai/AvatarStudio.tsx:235
 #: src/components/skills/SkillEditor.tsx:123
 #: src/pages/Board.tsx:486
-#: src/pages/KnowledgeSection.tsx:187
+#: src/pages/KnowledgeSection.tsx:186
 #: src/pages/ScratchpadSection.tsx:195
 #: src/pages/shell/bot-settings.tsx:165
 #: src/shell/agent/IdentityPage.tsx:335
@@ -6598,7 +6599,7 @@ msgstr "حفظ الأفتار"
 msgid "Save file"
 msgstr "حفظ الملف"
 
-#: src/shell/settings/ModelsPage.tsx:315
+#: src/shell/settings/ModelsPage.tsx:332
 msgid "Save global routing"
 msgstr "حفظ التوجيه العالمي"
 
@@ -6618,7 +6619,7 @@ msgstr "حفظ الجدولة"
 msgid "Save skill"
 msgstr "حفظ المهارة"
 
-#: src/shell/settings/ModelsPage.tsx:145
+#: src/shell/settings/ModelsPage.tsx:164
 msgid "Save the key"
 msgstr "حفظ المفتاح"
 
@@ -6642,8 +6643,8 @@ msgstr "حفظ الإعدادات"
 #: src/pages/KnowledgeSection.tsx:96
 #: src/shell/agent/IdentityPage.tsx:132
 #: src/shell/settings/ConnectionPages.tsx:641
-#: src/shell/settings/ModelsPage.tsx:101
-#: src/shell/settings/ModelsPage.tsx:258
+#: src/shell/settings/ModelsPage.tsx:120
+#: src/shell/settings/ModelsPage.tsx:275
 #: src/shell/settings/NotifyPages.tsx:414
 #: src/shell/settings/OwnerPage.tsx:150
 msgid "Saved"
@@ -6800,7 +6801,7 @@ msgstr "نتائج البحث"
 msgid "Search runs"
 msgstr "البحث في عمليات التنفيذ"
 
-#: src/pages/KnowledgeSection.tsx:144
+#: src/pages/KnowledgeSection.tsx:143
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
 
@@ -6867,7 +6868,7 @@ msgstr "بيع بحد سعري"
 msgid "Sell stop"
 msgstr "بيع عند الكسر"
 
-#: src/pages/KnowledgeSection.tsx:141
+#: src/pages/KnowledgeSection.tsx:140
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
@@ -8259,7 +8260,7 @@ msgstr "لا توجد مكالمة جارية."
 msgid "There is no content in this section yet"
 msgstr "لا يوجد محتوى في هذا القسم بعد"
 
-#: src/shell/settings/ModelsPage.tsx:308
+#: src/shell/settings/ModelsPage.tsx:325
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "تنطبق هذه الإعدادات على جميع الوكلاء والمهام المجدولة. تتطلب المسارات الصوتية نماذج تدعم الصوت."
 
@@ -8805,7 +8806,7 @@ msgstr "تراجع"
 msgid "Undo this version"
 msgstr "التراجع عن هذا الإصدار"
 
-#: src/shell/settings/ModelsPage.tsx:297
+#: src/shell/settings/ModelsPage.tsx:314
 msgid "Unified model"
 msgstr "النموذج الموحد"
 
@@ -9024,7 +9025,7 @@ msgstr "استخدم الاقتراح: {suggestion}"
 msgid "Valid while the price stays within"
 msgstr "صالحة ما دام السعر ضمن"
 
-#: src/shell/settings/ModelsPage.tsx:167
+#: src/shell/settings/ModelsPage.tsx:186
 msgid "Verified metadata"
 msgstr "بيانات مؤكدة"
 

@@ -333,9 +333,11 @@ Nothing waits for agreement and nothing executes on its advice.
   names it again or picks it in the agent's settings.
 - The model picker lists every listed model of a connected provider, with the
   capabilities, window and output maximum the list states; the owner's own endpoint
-  lists its models without them. The list holds chat models only: speech (STT, TTS, live
-  voice) and embedding models are not in it, so the route and embedding pickers offer
-  none of them; a saved choice keeps working.
+  lists its models without them. The list holds chat models only: the voice route pickers
+  offer OpenAI's speech models (`gpt-live-1`, `gpt-live-1-mini`, `gpt-4o-mini-transcribe`,
+  `whisper-1`, `gpt-4o-mini-tts`, `tts-1`) while OpenAI is connected, and the semantic
+  memory picker OpenAI's embedding models (`text-embedding-3-small`, `-large`); a saved
+  choice keeps working.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured
   per adapter.
 - There is no spend cap (owner decision D4); usage is shown per agent.

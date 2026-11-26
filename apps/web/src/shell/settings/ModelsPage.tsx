@@ -28,6 +28,23 @@ const capabilityLabel = (cap: Capability) =>
     background: t`Background work`,
   })[cap];
 const VOICE: Capability[] = ["realtime_voice", "stt", "tts"];
+// Voice routes take OpenAI's speech models, which Lonora's list of chat models (VISION
+// 12.4) does not hold: the live, transcription and synthesis models lonora_voice serves.
+const SPEECH: Partial<Record<Capability, string[]>> = {
+  realtime_voice: ["gpt-live-1", "gpt-live-1-mini"],
+  stt: ["gpt-4o-mini-transcribe", "whisper-1"],
+  tts: ["gpt-4o-mini-tts", "tts-1"],
+};
+const speechModels = (cap: Capability): Model[] =>
+  (SPEECH[cap] ?? []).map((id) => ({
+    id,
+    provider: "openai",
+    name: id,
+    capabilities: [cap],
+    verified: true,
+    source: "lonora_voice",
+    context_window: null,
+  }));
 // What a route asks of a model whose capabilities are known (Lonora's list, VISION 12.4).
 const needed = (cap: Capability) =>
   cap === "vision" || cap === "reasoning" || VOICE.includes(cap) ? cap : "text";
@@ -55,6 +72,7 @@ export function ModelsPage() {
   if (!load.value) return load.error != null ? <Note>{userError(load.error)}</Note> : null;
   const [routing, catalogs, configured] = load.value;
   const models = catalogs.flat();
+  const speech = configured.some((item) => item.id === "openai" && item.configured);
   return (
     <>
       {models.length ? (
@@ -62,6 +80,7 @@ export function ModelsPage() {
           key={JSON.stringify(routing)}
           initial={routing}
           models={models}
+          speech={speech}
           onSaved={load.reload}
         />
       ) : (
@@ -205,11 +224,6 @@ function ModelField({
         {models
           .filter(
             (m) =>
-              cap !== "realtime_voice" ||
-              (m.provider === "openai" && ["gpt-live-1", "gpt-live-1-mini"].includes(m.id)),
-          )
-          .filter(
-            (m) =>
               !cap || !m.verified || !m.capabilities.length || m.capabilities.includes(needed(cap)),
           )
           .map((m) => (
@@ -225,10 +239,13 @@ function ModelField({
 function RoutingForm({
   initial,
   models,
+  speech,
   onSaved,
 }: {
   initial: Routing;
   models: Model[];
+  // Whether OpenAI is connected: the voice routes' models are its speech models.
+  speech: boolean;
   onSaved: () => void;
 }) {
   const toast = useToast();
@@ -238,7 +255,7 @@ function RoutingForm({
       key={cap}
       label={capabilityLabel(cap)}
       value={policy.routes[cap]}
-      models={models}
+      models={VOICE.includes(cap) ? (speech ? speechModels(cap) : []) : models}
       cap={cap}
       onChange={(value) => {
         const routes = { ...policy.routes };
