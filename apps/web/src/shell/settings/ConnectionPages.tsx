@@ -1,7 +1,14 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { chatgptText, MANAGE_USAGE_URL, signOutChatGpt, signOutLine } from "@lonora/core";
+import {
+  type ChatGptStatus,
+  chatgptRow,
+  chatgptText,
+  MANAGE_USAGE_URL,
+  signOutChatGpt,
+  signOutLine,
+} from "@lonora/core";
 import { Icon, PairIcon } from "@lonora/ui-web";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -569,7 +576,7 @@ type ProviderRow = {
   id: string;
   configured: boolean;
   /** The ChatGPT plan: its signed-in account, never a token. */
-  sign_in?: { email: string | null; plan: boolean; sign_in_again: boolean };
+  sign_in?: ChatGptStatus;
 };
 
 /* «مزوّدو النماذج» (route `providers`): the server's providers that have a key, and the
@@ -581,7 +588,7 @@ export function ProvidersPage() {
     (item) => item.configured && item.id !== "openai_chatgpt",
   );
   const plan = (providers.value ?? []).find(
-    (item) => item.id === "openai_chatgpt" && (item.configured || item.sign_in?.sign_in_again),
+    (item) => item.id === "openai_chatgpt" && chatgptRow(item.sign_in, i18n.locale),
   );
   return (
     <>
@@ -621,10 +628,12 @@ export function ProvidersPage() {
 }
 
 /* The ChatGPT plan in the providers list: its account, "Using ChatGPT plan" with Manage usage,
-   and Sign out, which revokes the session at OpenAI and says whether OpenAI confirmed it. */
+   and Sign out whenever a sign-in holds tokens (plan use allowed or not), which revokes the
+   session at OpenAI and says whether OpenAI confirmed it. */
 function ChatGptPlanRow({ row, onSignedOut }: { row: ProviderRow; onSignedOut: () => void }) {
   const toast = useToast();
   const text = chatgptText(i18n.locale);
+  const shown = chatgptRow(row.sign_in, i18n.locale);
   const [busy, setBusy] = useState(false);
   return (
     <div className="group" data-provider="openai_chatgpt">
@@ -633,7 +642,7 @@ function ChatGptPlanRow({ row, onSignedOut }: { row: ProviderRow; onSignedOut: (
         <span className="body">
           <strong>{text.name}</strong>
           <small dir="auto">
-            {row.configured ? text.usingPlan : text.signInAgain}
+            {shown?.line}
             {row.sign_in?.email ? (
               <>
                 {" · "}
@@ -650,29 +659,31 @@ function ChatGptPlanRow({ row, onSignedOut }: { row: ProviderRow; onSignedOut: (
         >
           {text.manageUsage}
         </a>
-        <button
-          type="button"
-          className="btn sm outline"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              const result = await signOutChatGpt((path, body) =>
-                api.post<{ signed_out: boolean; revoked: boolean }>(path, body),
-              );
-              toast(signOutLine(result, i18n.locale), {
-                type: result.revoked ? "success" : "warn",
-              });
-              onSignedOut();
-            } catch (error) {
-              toast(userError(error), { type: "error" });
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {text.signOut}
-        </button>
+        {shown?.signOut && (
+          <button
+            type="button"
+            className="btn sm outline"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const result = await signOutChatGpt((path, body) =>
+                  api.post<{ signed_out: boolean; revoked: boolean }>(path, body),
+                );
+                toast(signOutLine(result, i18n.locale), {
+                  type: result.revoked ? "success" : "warn",
+                });
+                onSignedOut();
+              } catch (error) {
+                toast(userError(error), { type: "error" });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {text.signOut}
+          </button>
+        )}
       </div>
     </div>
   );

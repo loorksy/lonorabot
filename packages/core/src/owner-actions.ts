@@ -931,7 +931,12 @@ export function ownerActionCard(
         if (secret.agent_name)
           lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
         hint = plan.hint;
-        signIn = { continue: plan.continue, address: plan.address, submit: plan.connect };
+        signIn = {
+          continue: plan.continue,
+          address: plan.address,
+          submit: plan.connect,
+          otherAccount: plan.otherAccount,
+        };
       } else if (secret) {
         // The label, field labels and details are the agent's words; every other word is ours.
         if (secret.label) lines.push(isolate(secret.label));

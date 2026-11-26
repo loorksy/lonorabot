@@ -1,5 +1,7 @@
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
+  type ChatGptStart,
+  continuingAsLine,
   finishChatGptSignIn,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
@@ -56,6 +58,7 @@ export function OwnerActionCard({
   const [values, setValues] = useState<Record<string, string>>({});
   // The ChatGPT plan card: the address the browser lands on, pasted after Continue.
   const [signingIn, setSigningIn] = useState(false);
+  const [account, setAccount] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   // Typed values never outlive the form: Not now, or a save on another device, clears them.
   const open = row.status === "pending";
@@ -151,15 +154,18 @@ export function OwnerActionCard({
       onChange(await submitSecret((path, body) => api.post<OwnerAction>(path, body), row.id, sent));
     });
   // Continue with ChatGPT: OpenAI's sign-in opens in the browser; the card then asks for the
-  // address the browser lands on, which goes only to the card's own route.
-  const continueWithChatGpt = () =>
+  // address the browser lands on, which goes only to the card's own route. ``newAccount``:
+  // "Use a different ChatGPT account", a new registration.
+  const continueWithChatGpt = (newAccount = false) =>
     run(async () => {
       const started = await startChatGptSignIn(
-        (path, body) => api.post<{ authorization_url: string; expires_at: string }>(path, body),
+        (path, body) => api.post<ChatGptStart>(path, body),
         row.id,
+        newAccount,
       );
       await Linking.openURL(started.authorization_url);
       setSigningIn(true);
+      setAccount(started.account);
     });
   const finishSignIn = () =>
     run(async () => {
@@ -328,6 +334,19 @@ export function OwnerActionCard({
             disabled={busy}
             onPress={() => void continueWithChatGpt()}
           />
+          {signingIn && account ? (
+            <View testID="owner-action-chatgpt-account" style={{ gap: 4 }}>
+              <Text style={[{ color: colors.secondary }, align]}>
+                {continuingAsLine(account, locale)}
+              </Text>
+              <Button
+                label={spec.signIn.otherAccount}
+                secondary
+                disabled={busy}
+                onPress={() => void continueWithChatGpt(true)}
+              />
+            </View>
+          ) : null}
           {signingIn ? (
             <>
               <Field

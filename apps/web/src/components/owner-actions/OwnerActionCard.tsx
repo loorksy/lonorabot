@@ -3,6 +3,8 @@ import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/
 import {
   brokerCardFailed,
   type ChatGptSignInForm,
+  type ChatGptStart,
+  continuingAsLine,
   finishChatGptSignIn,
   mergeOwnerAction,
   modeChangeLine,
@@ -195,22 +197,28 @@ export function OwnerActionCard({
     }
   }
   /** Continue with ChatGPT: OpenAI's sign-in opens in a new tab, opened inside the tap so the
-   * browser does not block it; the card then asks for the address that tab lands on. */
+   * browser does not block it; the card then asks for the address that tab lands on.
+   * ``newAccount``: "Use a different ChatGPT account", a new registration. */
   const [signingIn, setSigningIn] = useState(false);
-  async function continueWithChatGpt() {
+  const [account, setAccount] = useState<string | null>(null);
+  async function continueWithChatGpt(newAccount = false) {
     setBusy(true);
     setError(undefined);
     const tab = window.open("", "_blank");
     try {
       const started = await startChatGptSignIn(
-        (path, body) => api.post<{ authorization_url: string; expires_at: string }>(path, body),
+        (path, body) => api.post<ChatGptStart>(path, body),
         row.id,
+        newAccount,
       );
       if (tab) {
         tab.opener = null;
         tab.location.replace(started.authorization_url);
       } else window.open(started.authorization_url, "_blank", "noopener,noreferrer");
-      if (mounted.current) setSigningIn(true);
+      if (mounted.current) {
+        setSigningIn(true);
+        setAccount(started.account);
+      }
     } catch (cause) {
       tab?.close();
       if (mounted.current) setError(cause);
@@ -372,7 +380,8 @@ export function OwnerActionCard({
           form={spec.signIn}
           busy={busy}
           started={signingIn}
-          onContinue={() => void continueWithChatGpt()}
+          account={continuingAsLine(account, i18n.locale)}
+          onContinue={(newAccount) => void continueWithChatGpt(newAccount)}
           onSubmit={(address) => void finishSignIn(address)}
         />
       )}
@@ -560,18 +569,21 @@ function DecisionLine({
 }
 
 /** A ChatGPT plan card's sign-in: Continue with ChatGPT, then the address the browser landed
- * on, masked, never echoed, and cleared as soon as it is sent. */
+ * on, masked, never echoed, and cleared as soon as it is sent. An attempt that continues a
+ * registered account names it and offers another account instead. */
 function ChatGptSignIn({
   form,
   busy,
   started,
+  account,
   onContinue,
   onSubmit,
 }: {
   form: ChatGptSignInForm;
   busy: boolean;
   started: boolean;
-  onContinue: () => void;
+  account: string | null;
+  onContinue: (newAccount: boolean) => void;
   onSubmit: (address: string) => void;
 }) {
   const [address, setAddress] = useState("");
@@ -583,11 +595,25 @@ function ChatGptSignIn({
           className={`btn sm ${started ? "outline" : "primary"}${busy ? " is-busy" : ""}`}
           disabled={busy}
           data-owner-action-button="chatgpt-continue"
-          onClick={onContinue}
+          onClick={() => onContinue(false)}
         >
           {form.continue}
         </button>
       </div>
+      {started && account && (
+        <p className="oa-sub" dir="auto" data-owner-action-line="chatgpt-account">
+          {account}{" "}
+          <button
+            type="button"
+            className="btn sm ghost"
+            disabled={busy}
+            data-owner-action-button="chatgpt-other-account"
+            onClick={() => onContinue(true)}
+          >
+            {form.otherAccount}
+          </button>
+        </p>
+      )}
       {started && (
         <form
           className="lonora-owner-action-notes"

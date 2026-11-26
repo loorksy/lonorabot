@@ -4,6 +4,8 @@ import type { AgentModelSummary, OwnerAction } from "../../packages/contracts/sr
 import { agentModelLines, usesChatGptPlan } from "../../packages/core/src/agent-model";
 import {
   chatgptLabels,
+  chatgptRow,
+  continuingAsLine,
   finishChatGptSignIn,
   isChatGptCard,
   MANAGE_USAGE_URL,
@@ -140,6 +142,7 @@ test("the ChatGPT plan card signs in instead of asking for a key, and says the p
       continue: plan.continue,
       address: plan.address,
       submit: plan.connect,
+      otherAccount: plan.otherAccount,
     });
     // The second step is said before it happens: the page does not open on a server.
     assert.deepEqual(spec.lines.slice(0, 3), [plan.plan, plan.stepSignIn, plan.stepPaste]);
@@ -175,6 +178,7 @@ test("the sign-in posts only to the card's own routes, the address trimmed", asy
     return { authorization_url: "https://example.test/authorize", expires_at: "x" };
   };
   await startChatGptSignIn(post, "card/chatgpt");
+  await startChatGptSignIn(post, "card/chatgpt", true);
   await finishChatGptSignIn(post, "card/chatgpt", "  http://127.0.0.1:1455/auth/callback?code=c  ");
   await signOutChatGpt(async (path, body) => {
     posts.push([path, body]);
@@ -182,6 +186,7 @@ test("the sign-in posts only to the card's own routes, the address trimmed", asy
   });
   assert.deepEqual(posts, [
     ["/owner-actions/card%2Fchatgpt/chatgpt/start", {}],
+    ["/owner-actions/card%2Fchatgpt/chatgpt/start", { new_account: true }],
     [
       "/owner-actions/card%2Fchatgpt/chatgpt/finish",
       { address: "http://127.0.0.1:1455/auth/callback?code=c" },
@@ -216,6 +221,50 @@ test("each sign-in refusal has its own text in both languages, never the provide
     assert.ok(en && ar && en !== ar, code);
   }
   assert.match(ownerActionError("chatgpt_sign_in_unavailable", "en") ?? "", /OpenAI API key/);
+  // An exchange that did not complete is started again; the issued registration is kept.
+  assert.match(ownerActionError("chatgpt_unreachable", "en") ?? "", /start again/);
+  assert.doesNotMatch(ownerActionError("chatgpt_unreachable", "en") ?? "", /Nothing changed/);
+  assert.match(
+    ownerActionError("chatgpt_other_account", "en") ?? "",
+    /Use a different ChatGPT account/,
+  );
+});
+
+test("an attempt names the account it continues and offers another one", () => {
+  assert.equal(continuingAsLine(null, "en"), null);
+  assert.equal(
+    continuingAsLine("o@example.test", "en"),
+    chatgptLabels.en.continuingAs.replace("{account}", isolated("o@example.test")),
+  );
+  assert.equal(
+    continuingAsLine("o@example.test", "ar"),
+    chatgptLabels.ar.continuingAs.replace("{account}", isolated("o@example.test")),
+  );
+  assert.equal(chatgptLabels.en.otherAccount, "Use a different ChatGPT account");
+});
+
+test("the providers list keeps Sign out while a sign-in holds tokens, plan use or not", () => {
+  const status = { email: "o@example.test", plan: false, sign_in_again: false, signed_in: false };
+  // Never signed in, or signed out: no row.
+  assert.equal(chatgptRow(undefined, "en"), null);
+  assert.equal(chatgptRow(status, "en"), null);
+  for (const locale of ["ar", "en"] as const) {
+    const text = chatgptLabels[locale];
+    assert.deepEqual(chatgptRow({ ...status, plan: true, signed_in: true }, locale), {
+      line: text.usingPlan,
+      signOut: true,
+    });
+    // Plan use declined at sign-in, or the sign-in turned off: still signed in.
+    assert.deepEqual(chatgptRow({ ...status, signed_in: true }, locale), {
+      line: text.planNotUsed,
+      signOut: true,
+    });
+    // A refused renewal cleared the tokens: sign in again, nothing to sign out.
+    assert.deepEqual(chatgptRow({ ...status, sign_in_again: true }, locale), {
+      line: text.signInAgain,
+      signOut: false,
+    });
+  }
 });
 
 test("the plan's model line and its limit link to ChatGPT's usage settings", () => {

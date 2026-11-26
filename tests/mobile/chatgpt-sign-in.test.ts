@@ -4,7 +4,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { OwnerAction, Run } from "../../packages/contracts/src";
-import { chatgptLabels, planLimitReached } from "../../packages/core/src/chatgpt-plan";
+import {
+  chatgptLabels,
+  continuingAsLine,
+  planLimitReached,
+} from "../../packages/core/src/chatgpt-plan";
 import { ownerActionCard } from "../../packages/core/src/owner-actions";
 
 const pending = {
@@ -45,6 +49,9 @@ test("the Android card offers the sign-in, not a key field, until it settles", (
     assert.equal(spec.secret, null);
     assert.equal(spec.signIn?.continue, chatgptLabels[locale].continue);
     assert.equal(spec.signIn?.address, chatgptLabels[locale].address);
+    // Once an attempt continues a registered account, the card names it and offers another.
+    assert.equal(spec.signIn?.otherAccount, chatgptLabels[locale].otherAccount);
+    assert.ok(continuingAsLine("o@example.test", locale)?.includes("o@example.test"));
     // Only Not now remains as a button: the sign-in is the form's own.
     assert.deepEqual(
       spec.buttons.map((button) => button.key),

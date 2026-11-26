@@ -5,6 +5,7 @@
  * Every value the owner pastes goes only to the card's own route; nothing here keeps one.
  */
 import type { OwnerAction } from "@lonora/contracts";
+import { isolate } from "./trading-readiness";
 
 type Language = "ar" | "en";
 
@@ -29,9 +30,12 @@ export const chatgptLabels = {
     continue: "Continue with ChatGPT",
     address: "The page's address",
     connect: "Connect",
+    continuingAs: "Signing in as {account}.",
+    otherAccount: "Use a different ChatGPT account",
     connected: "Connected: {account}",
     connectedNoAccount: "Connected to your ChatGPT plan.",
     usingPlan: "Using ChatGPT plan",
+    planNotUsed: "Signed in, but Lonora is not using your ChatGPT plan.",
     manageUsage: "Manage usage",
     signOut: "Sign out",
     signedOut: "Signed out. Lonora no longer uses your ChatGPT plan.",
@@ -52,9 +56,12 @@ export const chatgptLabels = {
     continue: "المتابعة باستخدام ChatGPT",
     address: "عنوان الصفحة",
     connect: "ربط",
+    continuingAs: "تسجيل الدخول باسم {account}.",
+    otherAccount: "استخدم حساب ChatGPT آخر",
     connected: "متصل: {account}",
     connectedNoAccount: "متصل باشتراك ChatGPT.",
     usingPlan: "يستخدم اشتراك ChatGPT",
+    planNotUsed: "مسجّل الدخول، لكن لونورا لا تستخدم اشتراك ChatGPT.",
     manageUsage: "إدارة الاستخدام",
     signOut: "تسجيل الخروج",
     signedOut: "تم تسجيل الخروج. لم تعد لونورا تستخدم اشتراك ChatGPT.",
@@ -72,8 +79,14 @@ export function chatgptText(locale: string): ChatGptText {
   return chatgptLabels[language(locale)];
 }
 
-/** The card's sign-in while it waits: the button, the paste field and its submit. */
-export type ChatGptSignInForm = { continue: string; address: string; submit: string };
+/** The card's sign-in while it waits: the button, the paste field and its submit, and the
+ * owner's choice to register another account than the one Lonora continues. */
+export type ChatGptSignInForm = {
+  continue: string;
+  address: string;
+  submit: string;
+  otherAccount: string;
+};
 
 /** A Secret card that signs in with ChatGPT instead of taking a key. */
 export function isChatGptCard(card: OwnerAction): boolean {
@@ -85,12 +98,33 @@ export function isChatGptCard(card: OwnerAction): boolean {
   );
 }
 
-/** OpenAI's sign-in address for one attempt, to open in the browser. */
+/** One attempt: OpenAI's sign-in address to open in the browser, and the registered account
+ * it continues (null for a new registration). */
+export type ChatGptStart = {
+  authorization_url: string;
+  expires_at: string;
+  account: string | null;
+};
+
+/** OpenAI's sign-in address for one attempt; ``newAccount`` is "Use a different ChatGPT
+ * account": a new registration, which replaces the saved one once it is verified. */
 export async function startChatGptSignIn(
-  post: (path: string, body: unknown) => Promise<{ authorization_url: string; expires_at: string }>,
+  post: (path: string, body: unknown) => Promise<ChatGptStart>,
   cardId: string,
-): Promise<{ authorization_url: string; expires_at: string }> {
-  return post(`/owner-actions/${encodeURIComponent(cardId)}/chatgpt/start`, {});
+  newAccount = false,
+): Promise<ChatGptStart> {
+  return post(
+    `/owner-actions/${encodeURIComponent(cardId)}/chatgpt/start`,
+    newAccount ? { new_account: true } : {},
+  );
+}
+
+/** "Signing in as …" once an attempt continues a registered account; null for a new one. */
+export function continuingAsLine(
+  account: string | null | undefined,
+  locale: string,
+): string | null {
+  return account ? chatgptText(locale).continuingAs.replace("{account}", isolate(account)) : null;
 }
 
 /** The address the browser landed on, pasted by the owner: the card as it settled. */
@@ -110,6 +144,29 @@ export async function signOutChatGpt(
   post: (path: string, body: unknown) => Promise<ChatGptSignOut>,
 ): Promise<ChatGptSignOut> {
   return post("/providers/openai_chatgpt/sign-out", {});
+}
+
+/** The ChatGPT sign-in as the providers list reads it (``GET /providers``): never a token. */
+export type ChatGptStatus = {
+  email: string | null;
+  plan: boolean;
+  sign_in_again: boolean;
+  signed_in?: boolean;
+};
+
+/** The providers list's ChatGPT row: its line, and whether Sign out is offered (whenever a
+ * sign-in holds tokens, plan use allowed or not); null when there is nothing to show. */
+export function chatgptRow(
+  status: ChatGptStatus | null | undefined,
+  locale: string,
+): { line: string; signOut: boolean } | null {
+  if (!status) return null;
+  const text = chatgptText(locale);
+  const signOut = Boolean(status.signed_in);
+  if (status.plan) return { line: text.usingPlan, signOut };
+  if (status.sign_in_again) return { line: text.signInAgain, signOut };
+  if (signOut) return { line: text.planNotUsed, signOut };
+  return null;
 }
 
 /** What sign-out did: confirmed at OpenAI, or only on the owner's server. */
@@ -167,16 +224,16 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     ar: "تعذّر التحقق من إجابة ChatGPT. لم يُحفظ شيء. ابدأ من جديد.",
   },
   chatgpt_other_account: {
-    en: "You signed in with another ChatGPT account than the one Lonora is registered with. Sign in with that account.",
-    ar: "سجّلت الدخول بحساب ChatGPT غير الحساب المسجّلة به لونورا. سجّل الدخول بذلك الحساب.",
+    en: "You signed in with another ChatGPT account than the one Lonora is registered with. Sign in with that account, or tap Use a different ChatGPT account.",
+    ar: "سجّلت الدخول بحساب ChatGPT غير الحساب المسجّلة به لونورا. سجّل الدخول بذلك الحساب، أو اضغط استخدم حساب ChatGPT آخر.",
   },
   chatgpt_plan_use_declined: {
     en: "You signed in, but did not allow Lonora to use your plan. Tap Continue with ChatGPT and allow it, or connect an OpenAI API key.",
     ar: "سجّلت الدخول لكنك لم تسمح للونورا باستخدام اشتراكك. اضغط المتابعة باستخدام ChatGPT واسمح بذلك، أو اربط مفتاح OpenAI API.",
   },
   chatgpt_unreachable: {
-    en: "Lonora could not reach ChatGPT. Nothing changed. Try again shortly.",
-    ar: "تعذّر على لونورا الوصول إلى ChatGPT. لم يتغير شيء. حاول بعد قليل.",
+    en: "Lonora could not reach ChatGPT. Tap Continue with ChatGPT to start again shortly.",
+    ar: "تعذّر على لونورا الوصول إلى ChatGPT. اضغط المتابعة باستخدام ChatGPT للبدء من جديد بعد قليل.",
   },
   owner_action_not_chatgpt: {
     en: "This card does not sign in with ChatGPT.",
