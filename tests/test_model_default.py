@@ -2,7 +2,8 @@
 
 With a provider key and no routing, the router chooses that provider's default model
 from Lonora's list (VISION 12.4) and records it as the routing; no provider is asked
-for its models, except the owner's own endpoint, whose first listed model is taken.
+for its models, except the owner's own endpoint, whose first listed model is taken. A
+key the provider rejects is passed over for the next provider's.
 With nothing to choose from it raises ``model_not_configured`` (never an outage), and
 the replies that failed for that reason are queued again, in order, once the owner
 connects a model.
@@ -10,6 +11,7 @@ connects a model.
 
 from typing import Any
 
+import httpx
 import pytest
 from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
@@ -164,6 +166,62 @@ async def test_providers_are_taken_in_registry_order_and_only_a_listed_default_i
         Capability.CONVERSATION, USER, []
     )
     assert selection == ModelSelection(provider="zai", model="glm-5.3")
+
+
+class KeyStatuses:
+    """Real adapters on fake providers, each answering its key check with a status."""
+
+    def __init__(self, **statuses: int) -> None:
+        self.statuses = statuses
+        self.seen: list[tuple[str, str, str]] = []
+
+    def __call__(self, provider: str, key: str, base_url: str | None = None) -> ModelAdapter:
+        def answer(request: httpx.Request) -> httpx.Response:
+            self.seen.append((provider, request.method, request.url.path))
+            return httpx.Response(self.statuses[provider], json={"data": [{"id": "unlisted"}]})
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(answer))
+        return PROVIDERS[provider](key, client)
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_key_is_passed_over_for_the_next_providers_working_one(
+    router_db: Database,
+) -> None:
+    # A stale OpenAI key (an old LONORA_OPENAI_API_KEY) never takes the route from a
+    # working Anthropic key.
+    statuses = KeyStatuses(openai=401, anthropic=200)
+    keys = Keys("openai", "anthropic")
+    chosen = await default_model.choose_default_model(router_db, keys, statuses)
+    assert chosen == ModelSelection(provider="anthropic", model="claude-sonnet-5-5")
+    assert (await read_policy(router_db)).unified == chosen
+    # One status-only request per key; nothing the providers list is kept.
+    assert statuses.seen == [("openai", "GET", "/v1/models"), ("anthropic", "GET", "/v1/models")]
+    async with router_db.sessions() as session:
+        assert await session.get(SettingRow, "catalog:anthropic") is None
+
+
+@pytest.mark.asyncio
+async def test_a_key_that_could_not_be_checked_is_used(router_db: Database) -> None:
+    statuses = KeyStatuses(openai=503, anthropic=200)
+    chosen = await default_model.choose_default_model(
+        router_db, Keys("openai", "anthropic"), statuses
+    )
+    assert chosen == ModelSelection(provider="openai", model="gpt-6.2-sol")
+    assert statuses.seen == [("openai", "GET", "/v1/models")]
+
+
+@pytest.mark.asyncio
+async def test_only_rejected_keys_choose_nothing_and_say_the_key_was_rejected(
+    router_db: Database,
+) -> None:
+    statuses = KeyStatuses(openai=401, anthropic=403)
+    with pytest.raises(ModelProviderError) as raised:
+        await default_model.choose_default_model(
+            router_db, Keys("openai", "anthropic"), statuses
+        )
+    assert raised.value.code == "model_credentials_rejected"
+    assert (await read_policy(router_db)).unified is None
 
 
 @pytest.mark.asyncio

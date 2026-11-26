@@ -27,6 +27,7 @@ from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_db.model_credentials import CONNECTION_SETTING
 from lonora_db.schema import EventRow, MessageRow, RunRow, SecretRow, SettingRow
+from lonora_db.transactions import SettingsRepository
 from lonora_providers.credentials import ProviderCredentials
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -159,11 +160,25 @@ async def test_a_fixed_providers_key_is_checked_and_its_list_is_never_read() -> 
     credentials = ProviderCredentials(
         fixture.runtime.db, fixture.runtime.services(fixture.owner).secrets
     )
+    settings = SettingsRepository()
+    async with fixture.runtime.db.sessions() as session:
+        routing = await settings.get(session, "model_routing")
+    # The default model's own key check, answered here: no request leaves the test.
+    defaults: list[str] = []
+
+    async def default_check(adapter: Any) -> None:
+        defaults.append(type(adapter).__name__)
+
     try:
         agent = await fixture.agent("Claude")
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         outcomes: dict[int, tuple[str, str]] = {}
+        chosen: dict[int, tuple[bool, int]] = {}
         for status in (200, 401, 503):
+            # No routing yet: saving a usable key chooses the default model.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await settings.put(session, "model_routing", {})
+            checks = len(defaults)
             proposed = await call(
                 context,
                 "owner_action_propose",
@@ -174,10 +189,16 @@ async def test_a_fixed_providers_key_is_checked_and_its_list_is_never_read() -> 
             card_id = proposed["owner_action"]["id"]
             key = "sk-ant-fixture-" + uuid4().hex
             check = KeyCheck(status)
-            with patch("lonora_api.routes.secret_cards.model_adapter", check):
+            with (
+                patch("lonora_api.routes.secret_cards.model_adapter", check),
+                patch("lonora_providers.default_model.check_key", default_check),
+            ):
                 saved = await fixture.client.post(
                     f"/api/owner-actions/{card_id}/secret", json={"values": {"API_KEY": key}}
                 )
+            async with fixture.runtime.db.sessions() as session:
+                unified = (await settings.get(session, "model_routing")).get("unified")
+            chosen[status] = (unified is not None, len(defaults) - checks)
             assert saved.status_code == 200 and saved.json()["status"] == "confirmed"
             result = saved.json()["result"]
             assert result["saved"] == ["ANTHROPIC_API_KEY"] and "catalog" not in result
@@ -194,6 +215,10 @@ async def test_a_fixed_providers_key_is_checked_and_its_list_is_never_read() -> 
             401: "rejected",
             503: "unchecked",
         }
+        # A key the provider rejected chooses no default model; one it accepted, or that
+        # could not be checked, does.
+        assert not chosen[401][0] and chosen[401][1] == 0
+        assert chosen[200][0] and chosen[503][0]
         async with fixture.runtime.db.sessions() as session:
             # Nothing the provider listed is stored: its models are Lonora's list.
             assert await session.get(SettingRow, "catalog:anthropic") is None
@@ -220,6 +245,7 @@ async def test_a_fixed_providers_key_is_checked_and_its_list_is_never_read() -> 
             setting = await session.get(SettingRow, CONNECTION_SETTING + "anthropic")
             if setting is not None:
                 await session.delete(setting)
+            await settings.put(session, "model_routing", routing)
         await fixture.close()
 
 

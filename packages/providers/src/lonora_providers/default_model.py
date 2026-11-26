@@ -9,15 +9,19 @@ owner's own choice, so Settings show it and the owner changes it there.
 
 A provider's default (``DEFAULT_MODELS``) is a strong tool-calling model of Lonora's
 list (VISION 12.4), and it is chosen only while the list holds it. No provider is
-asked: only the owner's own endpoint, which has no model Lonora could know, is read
-for the first model it lists. No key, or nothing to choose, chooses nothing: the
-caller reports ``model_not_configured``, which is not an outage.
+asked for its models: its key is checked by the status of its listing alone
+(``key_check``), and a key it rejects (401, 403) is passed over, so a stale key never
+takes the route from a working one; a key that could not be checked counts. Only the
+owner's own endpoint, which has no model Lonora could know, is read for the first
+model it lists. No key, or nothing to choose, chooses nothing: the caller reports
+``model_not_configured``, which is not an outage.
 """
 
 import logging
 from collections.abc import Callable
 
 from lonora_adapter_kit.model import ModelAdapter
+from lonora_adapter_kit.model_errors import ModelProviderError
 from lonora_contracts.model_routing import ModelSelection, RoutingPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -26,7 +30,8 @@ from lonora_db.transactions import SettingsRepository
 from .catalog import listed_models
 from .credentials import ProviderCredentials
 from .discovery import discover_models
-from .registry import OWNER_ENDPOINT, PROVIDERS, model_adapter
+from .key_check import REJECTED, check_key
+from .registry import OWNER_ENDPOINT, PROVIDERS, build_adapter, model_adapter
 
 log = logging.getLogger("lonora.model_router")
 
@@ -46,8 +51,9 @@ async def choose_default_model(
     factory: Callable[..., ModelAdapter] = model_adapter,
 ) -> ModelSelection | None:
     """Choose and record the unified model, or return ``None`` when nothing can be
-    chosen. The owner's endpoint, when it cannot be asked, is passed over; if no other
-    provider gives a model, its failure is raised, so an outage reads as an outage."""
+    chosen. A rejected key, or the owner's endpoint when it cannot be asked, is passed
+    over; if no other provider gives a model, its failure is raised, so an outage reads
+    as an outage and a rejected key as one."""
     async with db.sessions() as session:
         stored = await SettingsRepository().get(session, "model_routing")
     current = RoutingPolicy.model_validate(stored)
@@ -57,7 +63,7 @@ async def choose_default_model(
     unreachable: LonoraError | None = None
     for provider in PROVIDERS:
         try:
-            await credentials.resolve(provider)
+            secret = await credentials.resolve(provider)
         except LonoraError as error:
             if error.code != "model_not_configured":
                 raise
@@ -73,6 +79,9 @@ async def choose_default_model(
             model = DEFAULT_MODELS[provider]
             if model not in {item.id for item in listed_models(provider)}:
                 model = None
+            elif rejected := await rejected_key(factory, provider, secret):
+                unreachable = unreachable or rejected
+                continue
         if model is None:
             continue
         selection = ModelSelection.model_validate({"provider": provider, "model": model})
@@ -88,4 +97,21 @@ async def choose_default_model(
         return selection
     if unreachable is not None:
         raise unreachable
+    return None
+
+
+async def rejected_key(
+    factory: Callable[..., ModelAdapter], provider: str, secret: str
+) -> ModelProviderError | None:
+    """The provider's refusal of the key (401, 403), or ``None``: accepted, or it could
+    not be checked (no answer, another answer), which leaves the key usable."""
+    adapter = build_adapter(factory, provider, secret, None)
+    try:
+        await check_key(adapter)
+    except ModelProviderError as error:
+        if error.http_status in REJECTED:
+            return error
+        log.warning("default_model_key_unchecked provider=%s reason=%s", provider, error.code)
+    finally:
+        await adapter.close()
     return None

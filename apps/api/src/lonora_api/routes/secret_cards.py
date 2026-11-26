@@ -129,8 +129,9 @@ async def save_secret(
         if row.payload["destination"] != BROKER:
             await continue_after_card(session, row)
         data = await owner_action_data(session, row)
-    if target == "model_provider":
-        # With a model now, the replies that failed for lack of one run again.
+    if target == "model_provider" and checked != "rejected":
+        # With a model now, the replies that failed for lack of one run again. A key the
+        # provider rejected gives no model: nothing is chosen from it, nothing re-run.
         await answer_unconfigured(request, owner)
     return data
 

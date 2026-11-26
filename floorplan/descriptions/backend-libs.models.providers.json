@@ -22,7 +22,7 @@
     },
     "packages/providers/src/lonora_providers/default_model.py": {
       "name": "Default model",
-      "description": "Chooses the model a fresh install answers with before the owner picks one: each provider's set default from the list."
+      "description": "Chooses the model a fresh install answers with before the owner picks one: each provider's set default from the list, skipping a provider whose key it rejects."
     },
     "packages/providers/src/lonora_providers/discovery.py": {
       "name": "Owner server's models",

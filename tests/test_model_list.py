@@ -251,11 +251,24 @@ async def test_no_fixed_provider_is_asked_for_its_models_on_the_catalog_path(
         assert await catalog_has(session, chosen)
         assert not await catalog_has(session, ModelSelection(provider="openai", model="gpt-9"))
         assert (await model_label(session, chosen))["name"] == "Anthropic: Claude Sonnet 5.5"
-    # The default model and the router's descriptors.
+    # The default model, whose key is checked by the status of its listing alone, and
+    # the router's descriptors.
     keys = Keys(*FIXED)
-    selection = await choose_default_model(router_db, keys)
+    checked: list[httpx.Request] = []
+
+    def factory(provider: str, key: str) -> Any:
+        def answer(request: httpx.Request) -> httpx.Response:
+            checked.append(request)
+            return httpx.Response(200, json={"data": [{"id": "not-lonoras-list"}]})
+
+        return PROVIDERS[provider](key, httpx.AsyncClient(transport=httpx.MockTransport(answer)))
+
+    selection = await choose_default_model(router_db, keys, factory)
     assert selection == ModelSelection(provider="openai", model=DEFAULT_MODELS["openai"])
     assert (await read_policy(router_db)).unified == selection
+    assert [(item.method, item.url.path, item.url.query) for item in checked] == [
+        ("GET", "/v1/models", b"")
+    ]
     await settings(
         router_db,
         {

@@ -60,12 +60,16 @@ a provider failure, and it is never shown as one.
   and the owner changes it there like their own choice. Providers are taken in registry
   order and the first connected one's default (`DEFAULT_MODELS`: `gpt-6.2-sol`,
   `claude-sonnet-5-5`, `deepseek-v4-pro`, `glm-5.3`, `anthropic/claude-sonnet-5.5`) is
-  taken. No provider is asked: a default is chosen only while Lonora's model list holds it
-  (VISION 12.4), so a stale default chooses nothing rather than a model that does not
-  exist. The owner's own endpoint has no default Lonora could know: its models are read
-  (and stored) and the first one it lists is taken. Speech routes, a
-  consultation's named models, and reads of the route (the model card, `model_list`)
-  never choose. An owner's own route, backup or assigned model is never replaced, and
+  taken. No provider is asked for its models: a default is chosen only while Lonora's model
+  list holds it (VISION 12.4), so a stale default chooses nothing rather than a model that
+  does not exist. Each key is checked by the status of its listing alone
+  (`key_check.check_key`): a key the provider rejects (401, 403), such as a stale
+  `LONORA_OPENAI_API_KEY`, is passed over for the next provider's, a key that could not be
+  checked counts, and if every key is rejected the rejection is raised. A Secret card key
+  the provider rejected chooses nothing and re-queues nothing. The owner's own endpoint
+  has no default Lonora could know: its models are read (and stored) and the first one it
+  lists is taken. Speech routes, a consultation's named models, and reads of the route
+  (the model card, `model_list`) never choose. An owner's own route, backup or assigned model is never replaced, and
   custom routing is never filled in. A search that chose nothing is not repeated for
   60 seconds, and concurrent first requests choose once.
 - **Nothing to choose.** No key, or no listed default: the Run fails with
