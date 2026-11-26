@@ -8,6 +8,8 @@ instructions came from; none of them grants tools or financial authority.
 
 from typing import Literal
 
+from lonora_adapter_kit.context_sections import Trust
+
 SkillProvenance = Literal["bundled", "owner", "agent_authored", "external", "unverified"]
 
 PROVENANCE: dict[str, SkillProvenance] = {
@@ -19,7 +21,7 @@ PROVENANCE: dict[str, SkillProvenance] = {
     "external": "external",
 }
 # Context-section trust labels for active procedure bodies.
-TRUST = {
+TRUST: dict[SkillProvenance, Trust] = {
     "bundled": "bundled_first_party",
     "owner": "owner_supplied",
     "agent_authored": "agent_authored",
@@ -35,7 +37,7 @@ def skill_provenance(source: str) -> SkillProvenance:
     return PROVENANCE.get(source, "unverified")
 
 
-def skill_trust(source: str) -> str:
+def skill_trust(source: str) -> Trust:
     if source == "legacy":
         return "legacy_owner_skill"
     return TRUST[skill_provenance(source)]

@@ -12,7 +12,7 @@ from lonora_db.threads import report_thread
 from lonora_voice.incoming import call_data, request_call
 from sqlalchemy import select
 
-from .base import Tool
+from .base import EffectStage, Tool
 from .context import ToolContext
 from .memory import Empty
 
@@ -24,16 +24,34 @@ REACH_ME_RECOVERY = {
 }
 
 
-NOTIFY_NOTE = (
-    "Shown in the app's notifications and this Agent's conversation. Off-app delivery "
-    "(push, messaging channels) is not available yet."
-)
-# The owner's delivery rules for this Agent (Q47) kept the alert from showing.
-AGENT_RULE_NOTES = {
-    "agent_in_app_off": "The owner turned off in-app alerts from this Agent, so no "
-    "notification was shown. Say it once in your reply in this conversation.",
-    "agent_daily_limit": "This Agent reached the daily alert limit the owner set, so no "
-    "notification was shown. Say it once in your reply; urgent alerts still show.",
+# The note and effect follow the attention row's status (attention.notify_owner).
+NOTIFY_NOTES: dict[str, tuple[EffectStage, str]] = {
+    "ready": (
+        "confirmed",
+        "Shown in the app's notifications and this Agent's conversation. Off-app delivery "
+        "(push, messaging channels) is not available yet.",
+    ),
+    "pending": ("pending", "Queued for the app's notifications; it has not shown yet."),
+    "held_for_quiet_hours": (
+        "pending",
+        "Held for the owner's quiet hours: it shows at held_until, not before.",
+    ),
+    "not_shown_owner_preference": (
+        "failed",
+        "The owner's notification settings kept it from showing, so no notification was "
+        "shown. Say it once in your reply in this conversation if it matters.",
+    ),
+    # The owner's delivery rules for this Agent (Q47) kept the alert from showing.
+    "agent_in_app_off": (
+        "failed",
+        "The owner turned off in-app alerts from this Agent, so no notification was shown. "
+        "Say it once in your reply in this conversation.",
+    ),
+    "agent_daily_limit": (
+        "failed",
+        "This Agent reached the daily alert limit the owner set, so no notification was "
+        "shown. Say it once in your reply; urgent alerts still show.",
+    ),
 }
 
 
@@ -49,9 +67,8 @@ async def notify(context: ToolContext, arguments: dict[str, Any]) -> dict[str, A
             OwnerNotifyRequest.model_validate(arguments),
             run_id=run.id,
         )
-        status = result["status"]
-        note = AGENT_RULE_NOTES.get(status, NOTIFY_NOTE)
-        return {**result, "note": note, "execution_authorized": False}
+        effect, note = NOTIFY_NOTES[result["status"]]
+        return {**result, "effect": effect, "note": note, "execution_authorized": False}
 
 
 async def request(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:

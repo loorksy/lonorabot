@@ -1046,10 +1046,9 @@ async def test_an_empty_normal_stop_is_a_reply_only_where_silence_is_allowed(
         assert malformed.value.reason is FailureReason.INVALID_RESPONSE
 
 
-UNVERIFIED_EN = (
-    "The broker acknowledged the request, but its resulting state is not yet independently "
-    "verified. I will not resend it."
-)
+# Server text in the conversation's locale: these conversations hold no owner message, so
+# it is Arabic (VISION 17). A wake's own prompt never decides it.
+UNVERIFIED = "أقرّ الوسيط بالطلب، لكن التحقق المستقل من نتيجته لم يكتمل بعد. لن أكرر الإرسال."
 
 
 def seeded_trade(words: str) -> dict[str, Any]:
@@ -1133,8 +1132,8 @@ async def test_a_silent_exit_still_reports_an_unverified_order():
             await execute_run(context, trade_and_silence(), 120, 6)
         row = await reload(fixture, run.id)
         # 5.3.3 and 6.4: an order the broker confirmed but nothing verified is always news.
-        assert row.status == "completed" and row.result == UNVERIFIED_EN, row.result
-        assert await contents(fixture, conversation) == [UNVERIFIED_EN]
+        assert row.status == "completed" and row.result == UNVERIFIED, row.result
+        assert await contents(fixture, conversation) == [UNVERIFIED]
     finally:
         await fixture.close()
 
@@ -1171,7 +1170,7 @@ async def test_at_the_limit_only_the_model_chooses_silence(final: str):
         row = await reload(fixture, run.id)
         assert row.model_metadata["exit_reason"] == "tool_round_limit"
         # The model never chose silence; the order nothing verified is the report (5.3.3).
-        assert row.result == UNVERIFIED_EN, row.result
+        assert row.result == UNVERIFIED, row.result
     finally:
         await fixture.close()
 
@@ -1227,12 +1226,14 @@ def test_a_steered_agent_message_never_hides_an_unverified_order():
     )
     # A helper's outcome steered in after the order is no new owner request: the order is
     # still reported (5.3.3), in the owner's language, not the helper's.
-    assert unverified_financial_result([*ordered, card]) == unverified_financial_result(ordered)
-    assert unverified_financial_result([*ordered, card]) is not None
-    assert unsettled_wait_result([*ordered, card]) == unsettled_wait_result(ordered)
+    assert unverified_financial_result([*ordered, card], "ar") == unverified_financial_result(
+        ordered, "ar"
+    )
+    assert unverified_financial_result([*ordered, card], "ar") is not None
+    assert unsettled_wait_result([*ordered, card], "ar") == unsettled_wait_result(ordered, "ar")
     # The owner's own next words still begin a new request.
     owner = ModelMessage(role="user", content="مرحبا")
-    assert unverified_financial_result([*ordered, card, owner]) is None
+    assert unverified_financial_result([*ordered, card, owner], "ar") is None
 
 
 @pytest.mark.asyncio
@@ -1544,7 +1545,7 @@ async def test_a_rich_only_limit_report_is_not_taken_for_silence():
             await execute_run(context, load_tools(), 120, 1)
         row = await reload(fixture, run.id)
         # The model answered with something; only an empty answer is its silence.
-        assert row.result == limit_fallback(False), row.result
+        assert row.result == limit_fallback(True), row.result
     finally:
         await fixture.close()
 

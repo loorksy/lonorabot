@@ -20,6 +20,7 @@ from lonora_db.lead import is_lead
 from lonora_db.memory import memory_data, memory_provenance, read_memory
 from lonora_db.owner_knowledge import profile_lines
 from lonora_db.owner_profile import (
+    ReplyLanguage,
     enrolled_devices,
     owner_preferences,
     owner_profile_data,
@@ -306,7 +307,7 @@ async def method_restore(context: ToolContext, args: dict[str, Any]) -> dict[str
 
 class OwnerPreferencesUpdate(Contract):
     reach_me: ReachMe | None = None
-    reply_language: Literal["ar", "en", "auto"] | None = None
+    reply_language: ReplyLanguage | Literal["auto"] | None = None
     # Quiet hours to the minute (Q47), local "HH:MM" in the owner's time zone.
     quiet_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     quiet_end: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -389,7 +390,7 @@ async def update_preferences(context: ToolContext, args: dict[str, Any]) -> dict
         updated = IncomingCallPolicy.model_validate(
             {**policy.model_dump(mode="json", exclude={"enabled"}), **changes}
         )
-        language: Literal["ar", "en", "keep"] | None = (
+        language: str | None = (
             "keep"
             if params.reply_language is None
             else None
@@ -467,8 +468,8 @@ def tools() -> list[Tool]:
         Tool(
             "owner_preferences_update",
             "Set the owner's shared preferences from what he typed: reach_me (notify, "
-            "message or call: how to reach him when something needs him), reply_language (ar, "
-            "en, or auto: his latest message's language), quiet hours as local HH:MM "
+            "message or call: how to reach him when something needs him), reply_language (a BCP-47 "
+            "tag such as ar, en, es or zh-Hant, or auto: his latest message's language), quiet hours as local HH:MM "
             "(quiet_start, quiet_end), timezone. Every Agent "
             "follows them from its next run; the owner can revert. Delivery is in-app only.",
             OwnerPreferencesUpdate,

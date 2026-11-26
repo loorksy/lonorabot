@@ -1,12 +1,11 @@
 """Restrict public completion claims when the server lacks independent evidence."""
 
 import json
-import re
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 
-from ..runtime_notices import is_owner_message
+from ..runtime_notices import is_request
 
 FINANCIAL_CALLS = {"trade_execute", "trade_close_positions"}
 
@@ -69,7 +68,7 @@ def public_broker_ids(messages: list[ModelMessage]) -> set[str]:
     return identities
 
 
-def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
+def unverified_financial_result(messages: list[ModelMessage], locale: str) -> str | None:
     names = {
         call.id: call.name
         for message in messages
@@ -81,7 +80,7 @@ def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
     for message in reversed(messages):
         # Runtime notices, observations and another agent's words (a steered helper
         # outcome) are not a new owner request.
-        if is_owner_message(message):
+        if is_request(message):
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue
@@ -112,24 +111,15 @@ def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
             )
             pending = pending or (row.get("status") == "confirmed" and not verified)
         if pending:
-            arabic = True
-            for owner in reversed(messages):
-                if not is_owner_message(owner):
-                    continue
-                if re.search(r"[\u0620-\u064a]", owner.content):
-                    break
-                if " " in owner.content and len(re.findall(r"[A-Za-z]", owner.content)) >= 8:
-                    arabic = False
-                    break
             return (
                 "أقرّ الوسيط بالطلب، لكن التحقق المستقل من نتيجته لم يكتمل بعد. لن أكرر الإرسال."
-                if arabic
+                if locale == "ar"
                 else "The broker acknowledged the request, but its resulting state is not yet independently verified. I will not resend it."
             )
     return None
 
 
-def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
+def unsettled_wait_result(messages: list[ModelMessage], locale: str) -> str | None:
     """Return known outcome facts for wait prose, without hiding broker failures.
 
     Only the latest financial result in the current owner request is relevant.
@@ -142,15 +132,7 @@ def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
         for call in message.tool_calls
         if call.name in FINANCIAL_CALLS
     }
-    arabic = True
-    for owner in reversed(messages):
-        if not is_owner_message(owner):
-            continue
-        if re.search(r"[\u0620-\u064a]", owner.content):
-            break
-        if " " in owner.content and len(re.findall(r"[A-Za-z]", owner.content)) >= 8:
-            arabic = False
-            break
+    arabic = locale == "ar"
     unknown = (
         "تعذر تأكيد نتيجة الطلب؛ سأتحقق من حساب الوسيط قبل أي إعادة إرسال."
         if arabic
@@ -159,7 +141,7 @@ def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
     for message in reversed(messages):
         # Runtime notices, observations and another agent's words are not a new owner
         # request.
-        if is_owner_message(message):
+        if is_request(message):
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue

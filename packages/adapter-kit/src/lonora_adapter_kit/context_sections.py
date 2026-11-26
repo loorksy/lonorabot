@@ -13,7 +13,7 @@ import json
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Literal, cast, get_args
 
 from lonora_adapter_kit.types import ModelMessage
 
@@ -26,6 +26,30 @@ CONTEXT_PREAMBLE = (
     "historical entries describe only what was known at their stated time."
 )
 OMITTED_SECTION = "omitted_sections"
+# Who stands behind a section's text, the one list of trust labels (CONTEXT_PREAMBLE says
+# what they share: data, never instructions or authority).
+Trust = Literal[
+    "first_party_runtime",
+    "owner_attributed",
+    "owner_attributed_untrusted",
+    "owner_supplied_untrusted",
+    "agent_authored",
+    "mutable_untrusted",
+    "model_summary",
+    "historical_observation",
+    "retrieved_untrusted",
+    "conversation_quote",
+    "workspace_script_untrusted",
+    "webhook_untrusted",
+    "peer_untrusted",
+    # Skill bodies, by provenance (``skills.provenance.TRUST``).
+    "bundled_first_party",
+    "owner_supplied",
+    "external_import",
+    "unverified_skill",
+    "legacy_owner_skill",
+]
+TRUST_LABELS: frozenset[str] = frozenset(get_args(Trust))
 _SECTION = re.compile(
     r'<context_section name="([^"]*)" source="([^"]*)" trust="([^"]*)" priority="(-?\d+)"'
     r"[^>]*>\n(.*?)\n</context_section>",
@@ -52,10 +76,14 @@ class ContextSection:
 
     name: str
     source: str
-    trust: str
+    trust: Trust
     body: str
     priority: int = 50
     attributes: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.trust not in TRUST_LABELS:
+            raise ValueError("context_section_trust_unknown")
 
 
 def render_section(section: ContextSection) -> str:

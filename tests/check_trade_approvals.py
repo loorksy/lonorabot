@@ -606,7 +606,8 @@ async def main():
                 ModelMessage(role="user", content="نفذ الطلب بعد الموافقة"),
                 ModelMessage(role="assistant", content="", tool_calls=[crash_call]),
                 ModelMessage(role="tool", tool_call_id=crash_call.id, content=json.dumps(receipt)),
-            ]
+            ],
+            "ar",
         )
         print(
             "PASS crash during independent verification preserves acknowledgment, sends once and cannot claim verified completion"

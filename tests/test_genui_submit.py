@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ToolCall
+from lonora_db.genui_submit import NEVER_RAN_NOTE
 from test_proactive_wakes import database
 
 A01 = (Path(__file__).parent / "fixtures/genui/documents/valid/a01-alert.lonora-ui").read_text()
@@ -409,7 +410,7 @@ async def test_never_run_submission_stays_out_of_every_run_and_unlocks_the_card(
                 session, card.thread["id"], run.input_seq, 0, card.agent["id"], run
             )
             assert not any("أنشئ تنبيهًا" in m.content for m in history)
-            assert any("طلب من بطاقة لم يُنفَّذ" in m.content for m in history)
+            assert any(m.content == NEVER_RAN_NOTE for m in history)
         # Rule L: a second submission not started in 30 minutes expires as not run.
         response = await card.post(card.body({"price": 2430}))
         assert response.status_code == 202, response.text
@@ -734,7 +735,11 @@ async def test_the_compiler_names_the_cards_account_beyond_the_bounded_list() ->
             )
         ]
         context = SimpleNamespace(
-            db=fixture.runtime.db, owner_id=fixture.owner, agent_id=card.agent["id"], thread_id="t"
+            db=fixture.runtime.db,
+            owner_id=fixture.owner,
+            agent_id=card.agent["id"],
+            thread_id="t",
+            locale="ar",
         )
         scope = await VisualReplyProjector(context, reads).agent_scope()  # type: ignore[arg-type]
         assert scope.several_accounts and scope.named_accounts == frozenset({named})

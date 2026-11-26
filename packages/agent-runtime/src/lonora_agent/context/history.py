@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from lonora_adapter_kit.context_sections import ContextSection, context_data
@@ -23,6 +23,13 @@ ROUTED_ANSWER_NOTE = (
 )
 
 HISTORY_WINDOW = 100
+CARD_ORIGINS = {"ui_submit": "owner_via_card", "ui_follow_up": "owner_via_card"}
+
+
+def turn_stamp(row: MessageRow, origin: str) -> str:
+    """When and from whom a replayed turn came, at its end so the prefixes that mark peers
+    and card words stay first. The agent's own turns carry none: a model echoes them."""
+    return f"\n[{row.created_at.astimezone(UTC):%Y-%m-%d %H:%M} UTC, {origin}]"
 
 
 def peer_content(name: str, text: str) -> str:
@@ -258,7 +265,11 @@ async def history_context(
             # not shown at all; one whose Run never started leaves only a note, never its
             # bubble, intent, data or values.
             if never_ran(row.ui_submit, await submit_status(session, row)):
-                messages.append(ModelMessage(role="user", content="[" + NEVER_RAN_NOTE + "]"))
+                messages.append(
+                    ModelMessage(
+                        role="user", context_origin="runtime_context", content=NEVER_RAN_NOTE
+                    )
+                )
             continue
         text = (
             card_words(row, run)
@@ -269,6 +280,8 @@ async def history_context(
             peer_content(names.get(row.agent_id or "", row.agent_id or ""), text) if peer else text
         )
         content += options.get(row.id, "")
+        if row.role == "user" or peer:
+            content += turn_stamp(row, "peer" if peer else CARD_ORIGINS.get(row.origin, "owner"))
         messages.append(
             ModelMessage(
                 role="user" if row.role == "user" or peer else "assistant", content=content

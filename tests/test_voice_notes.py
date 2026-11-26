@@ -304,7 +304,7 @@ async def test_a_voice_note_is_transcribed_before_the_agent_answers():
 
         async with fixture.runtime.db.sessions() as session:
             context = await history_context(session, thread["id"], message["seq"])
-        assert context[-1].content == FakeSpeech.transcript
+        assert context[-1].content.startswith(FakeSpeech.transcript + "\n[")
     finally:
         await fixture.close()
 
@@ -334,7 +334,7 @@ async def test_a_failed_transcript_admits_the_run_with_the_server_note():
 
         async with fixture.runtime.db.sessions() as session:
             context = await history_context(session, thread["id"], message["seq"])
-        assert context[-1].content == VOICE_NOTE_FAILED_TEXT
+        assert context[-1].content.startswith(VOICE_NOTE_FAILED_TEXT + "\n[")
     finally:
         await fixture.close()
 

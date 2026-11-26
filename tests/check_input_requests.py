@@ -199,7 +199,8 @@ async def main() -> None:
             assert "<question_choices>" in question_text
             assert all(choice["label"] in question_text for choice in choices)
             assert restored[-2].role == "assistant" and restored[-1].role == "user"
-            assert restored[-1].content == choices[0]["label"]
+            # The canonical answer, then its date and origin stamp.
+            assert restored[-1].content.startswith(choices[0]["label"] + "\n[")
             before_question = await history_context(
                 session, thread["id"], question_message.seq - 1, agent_id=agent["id"]
             )

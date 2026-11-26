@@ -16,7 +16,7 @@ from typing import cast
 from lonora_adapter_kit.types import ModelMessage, ToolDefinition
 from lonora_core.user_error import LonoraError
 
-from .loader import resources_root
+from .loader import bundled, resources_root
 
 MAX_CORE_CHARS = 16000
 MAX_DOMAIN_CHARS = 14000
@@ -40,7 +40,7 @@ class PolicyBundle:
 def _load(path: Path, mtime_ns: int, manifest_mtime_ns: int) -> PolicyBundle:
     del mtime_ns, manifest_mtime_ns  # Part of the development/cache identity.
     try:
-        content = path.read_text()
+        content = bundled(path.read_text())
         manifest = json.loads(path.with_name("manifest.json").read_text())
         digest = hashlib.sha256(content.encode()).hexdigest()
         bootstrap = {

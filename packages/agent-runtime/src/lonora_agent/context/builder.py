@@ -112,10 +112,7 @@ async def build_context(
         # in this order of priority and with a notice, before a request would fail.
         records = [
             block
-            for block in (
-                server_records("lonora_recorded_decisions", decisions),
-                server_records("lonora_operational_observations", observations),
-            )
+            for block in (server_records("lonora_operational_observations", observations),)
             if block
         ]
         if thread.group_id:
@@ -134,9 +131,8 @@ async def build_context(
             blocks.append(
                 "<voice_observation>Current speech is a provisional transcript and may receive "
                 "later corrections. Use the existing conversation; ask only for genuinely "
-                "ambiguous details. Fragment timestamps do not establish complete intent or "
-                "financial authorization. Exact financial confirmation follows the ordinary "
-                "server approval policy. Keep this guidance private.</voice_observation>"
+                "ambiguous details. Fragment timestamps do not establish complete intent. "
+                "Keep this guidance private.</voice_observation>"
             )
         memory = await timed(
             "memory",
@@ -215,7 +211,12 @@ async def build_context(
             else run.prompt
         )
         if explicit_prompt:
-            messages.append(ModelMessage(role="user", content=explicit_prompt))
+            # A Run the owner did not type (a routine, watch, Task, ticket, subagent or
+            # webhook) carries a delegated request, often model-written: never his words.
+            origin = "conversation" if run.trigger in {"user", "group"} else "delegated_request"
+            messages.append(
+                ModelMessage(role="user", context_origin=origin, content=explicit_prompt)
+            )
         query = explicit_prompt or next(
             (
                 peer_text(message.content)
@@ -272,6 +273,11 @@ async def build_context(
             # notes, then its memory.
             *memory,
             *skill_context.sections,
+            skill_context.listed,
+            # Decision summaries are model-written: labelled data, not the system role.
+            ContextSection(
+                "recorded_decisions", "trading_decisions", "agent_authored", decisions, 60
+            ),
             ContextSection(
                 "history_summary",
                 "conversation_summary",

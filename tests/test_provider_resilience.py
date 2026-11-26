@@ -1072,6 +1072,8 @@ async def test_a_helper_run_asks_its_chosen_model_first(monkeypatch: pytest.Monk
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
             run_model=chosen,
+            locale="en",
+            timezone="UTC",
         ),
     )
     await model_runtime.model_turn(context, USER, [], Capability.CONVERSATION)

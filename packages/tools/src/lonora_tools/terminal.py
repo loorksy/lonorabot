@@ -160,10 +160,18 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
                 process["pid"],
                 process["command"],
             )
-        return {"background": True, "pid": process["pid"], "log": process["log"]}
+        # Started, with no outcome yet: workspace_processes shows how it ends.
+        return {
+            "background": True,
+            "pid": process["pid"],
+            "log": process["log"],
+            "effect": "attempted",
+        }
     stdout, stdout_cut = tail(result["stdout"])
     stderr, stderr_cut = tail(result["stderr"])
+    failed = result["exit_code"] != 0 or result["timed_out"]
     return {
+        "effect": "failed" if failed else "confirmed",
         "exit_code": result["exit_code"],
         "timed_out": result["timed_out"],
         "duration_ms": result["duration_ms"],

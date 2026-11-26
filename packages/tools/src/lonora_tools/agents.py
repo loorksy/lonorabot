@@ -29,6 +29,7 @@ from lonora_db.client import Database
 from lonora_db.lead import is_lead
 from lonora_db.owner_actions import (
     account_facts,
+    live_status,
     lock_owner_actions,
     raise_system_card,
 )
@@ -160,20 +161,22 @@ async def created_result(
     from lonora_db.trading_mode import trading_mode
 
     mandate = await session.scalar(
-        select(OwnerActionRow.id).where(
+        select(OwnerActionRow).where(
             OwnerActionRow.owner_id == context.owner_id,
             OwnerActionRow.subject == "trading_mode:" + row.id,
         )
     )
     return {
         "created": True,
+        "effect": "confirmed",
         "deduplicated": deduplicated,
         "agent": {
             "id": row.id,
             "name": row.name,
             "trading_mode": await trading_mode(session, context.owner_id, row.id),
         },
-        "mandate_card_shown": mandate is not None,
+        # The stored Mandate card and its live status, not proof the owner saw it.
+        "mandate_card": {"id": mandate.id, "status": live_status(mandate)} if mandate else None,
         # A new agent is reported to the owner in one line (3.1.2; the conversation gate).
         **({} if deduplicated else {"owner_line": "required"}),
         "next": "It works when it has a task: send its first task with peer_send, then tell "

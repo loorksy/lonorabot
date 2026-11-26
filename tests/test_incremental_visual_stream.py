@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
@@ -14,7 +15,13 @@ from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_tools.loader import load_tools
 from test_teammate_runtime import model_boundary as model_boundary
 from test_teammate_runtime import model_context
-from test_visual_response import FALLBACK, context, frame, messages
+from test_visual_response import FALLBACK, frame, messages
+from test_visual_response import context as projector_context
+
+
+def context() -> Any:
+    """The projector's context in an English conversation (its fixtures are English)."""
+    return SimpleNamespace(**{**vars(projector_context()), "locale": "en"})
 
 
 def text_card(text: str, when: str | None = None) -> str:

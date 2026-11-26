@@ -40,7 +40,8 @@ def language_hint(chosen: str | None, written: list[str]) -> str | None:
     the owner writes this conversation in. Only when neither is known does the provider
     detect it, and a short Arabic note is then easily heard as another language."""
     if chosen:
-        return chosen
+        # The transcription API takes the language subtag (ISO 639-1) of the BCP-47 tag.
+        return chosen.split("-")[0].lower()
     text = " ".join(written)
     arabic, latin = len(_ARABIC.findall(text)), len(_LATIN.findall(text))
     # Latin letters do not say which language; Arabic script does.

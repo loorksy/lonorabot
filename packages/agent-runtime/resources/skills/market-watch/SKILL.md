@@ -5,9 +5,6 @@ description: Persist event-driven market monitoring and resume analysis on meani
 
 # Market Watch
 
-Follow the owner's current language or explicit language preference in all
-user-facing replies and labels. English examples do not require an English reply.
-
 ## Steps
 
 1. Recover the same objective and exact market; inspect watch_list before
@@ -27,6 +24,6 @@ user-facing replies and labels. English examples do not require an English reply
 
 ## Output
 
-When you set a watch, confirm the actual saved condition briefly. Example:
-"I'll return when the specified condition is met." Only say this after persistence succeeds.
-Monitoring grants no financial authority.
+- After watch_create succeeds, the saved condition and its level or time, briefly;
+  before that result, nothing is watching.
+- Monitoring grants no financial authority.

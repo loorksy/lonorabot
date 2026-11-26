@@ -56,6 +56,7 @@ async def project(
             agent_id=agent,
             thread_id=thread,
             lease=SimpleNamespace(run_id=run),
+            locale="ar",
         ),
     )
     projector = VisualReplyProjector(context, [OWNER])

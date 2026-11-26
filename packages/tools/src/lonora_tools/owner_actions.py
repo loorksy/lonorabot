@@ -21,7 +21,7 @@ from lonora_providers.chatgpt_sign_in import sign_in_enabled
 from lonora_providers.registry import SIGN_IN
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .base import Tool
+from .base import EffectStage, Tool
 from .context import ToolContext
 
 
@@ -38,18 +38,25 @@ async def mandate_target(
     return proposal.model_copy(update={"agent_id": target})
 
 
+# What a card's live status says the proposal did: the owner is asked until he taps it.
+CARD_EFFECT: dict[str, EffectStage] = {"pending": "requested", "confirmed": "confirmed"}
+
+
 def card_summary(
     row: OwnerActionRow, created: bool, thread_id: str, passkey: bool
 ) -> dict[str, Any]:
+    status = live_status(row)
     return {
         "owner_action": {
             "id": row.id,
             "kind": row.kind,
-            "status": live_status(row),
+            "status": status,
             "expires_at": row.expires_at.isoformat(),
         },
-        "already_shown": not created,
-        "shown_in_conversation": row.thread_id == thread_id,
+        # The stored card, not proof the owner saw it.
+        "effect": CARD_EFFECT.get(status, "failed"),
+        "repeated": not created,
+        "stored_in_thread": row.thread_id == thread_id,
         # The owner decides on the card; nothing has changed yet.
         "owner_must_tap": True,
         "passkey_required": passkey,
@@ -119,7 +126,7 @@ def tools() -> list[Tool]:
             "labels in the owner's language. There is no grant card. The card "
             "shows server facts (a Secret card also your label, field labels and the details "
             "you gave); say in one line what it does. A repeated proposal returns the card "
-            "already shown; at most five of yours wait at once.",
+            "already stored; at most five of yours wait at once.",
             OwnerActionProposal,
             propose_card,
             replay_safe=True,

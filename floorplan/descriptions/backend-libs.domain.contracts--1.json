@@ -138,7 +138,7 @@
     },
     "packages/contracts/src/lonora_contracts/instrument_names.py": {
       "name": "Instrument names",
-      "description": "The server's own names for instruments in the owner's language."
+      "description": "The server's own names for instruments in Arabic and English; the model is given the English ones."
     },
     "packages/contracts/src/lonora_contracts/integrations.py": {
       "name": "Integration shape",

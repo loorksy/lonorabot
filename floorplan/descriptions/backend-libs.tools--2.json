@@ -58,7 +58,7 @@
     },
     "packages/tools/src/lonora_tools/terminal.py": {
       "name": "Workspace terminal (tool)",
-      "description": "Lets an agent use the owner's workspace — run commands, read and write files, manage processes — with every byte that comes back scanned for secrets."
+      "description": "Lets an agent use the owner's workspace — run commands, read and write files, manage processes — with every byte that comes back scanned for secrets; a command's result says whether it succeeded, failed or is still running."
     },
     "packages/tools/src/lonora_tools/tool_discovery.py": {
       "name": "Tool discovery",

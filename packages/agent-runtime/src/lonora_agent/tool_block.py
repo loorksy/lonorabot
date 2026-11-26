@@ -405,7 +405,7 @@ async def run_and_record_segment(
             ).strip()
             # 5.3.3, 6.4: ending silent never hides an order the broker acknowledged and
             # nothing verified; the run reports it as model_turn's gate would.
-            prose = unverified_financial_result(messages) or prose
+            prose = unverified_financial_result(messages, context.locale) or prose
             outcome = await final_answer(
                 context,
                 state,

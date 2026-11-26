@@ -6,12 +6,14 @@ from typing import Any
 from lonora_adapters.voice.realtime import OpenAILiveAdapter
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_permissions import effective_permission
 from lonora_db.call_log import log_call
 from lonora_db.client import Database
-from lonora_db.schema import EffectReceiptRow, ResourceRow, VoiceSessionRow
+from lonora_db.schema import AgentRow, EffectReceiptRow, ResourceRow, VoiceSessionRow
 from lonora_db.transactions import owned_agent, owned_thread
 from lonora_db.voice import VoiceSessionRepository
 from lonora_providers.credentials import ProviderCredentials
+from lonora_trading.authority_verdict import authority_verdict, verdict_sentence
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,11 +30,17 @@ VOICE_INSTRUCTIONS = (
     "results. Transcripts may be incomplete or incorrect: ask for clarification of ambiguous "
     "financial instructions, except the bound trading pair. If this agent has a bound account "
     "and symbol, never ask which pair and never ask the owner to repeat the symbol. "
-    "When a trade needs a decision, an approval card with Approve and Reject buttons is inside "
-    "this call. Tell the owner only to press one of those buttons. A spoken or typed yes is not "
-    "approval. The backend owns trading permissions and tools. Casual conversation "
+    "The backend owns trading permissions and tools. Casual conversation "
     "may continue while backend work is running. Interruptions do not authorize a new order."
 )
+
+
+async def spoken_authority(session: AsyncSession, owner_id: str, agent: AgentRow) -> str:
+    """The instructions with the door's verdict for new risk on what this call delegates:
+    a spoken request is provisional speech (``owner_words.provisional_voice``)."""
+    level = await effective_permission(session, owner_id, agent.id)
+    verdict = authority_verdict(agent, level, provisional=True, observe_only=False)
+    return VOICE_INSTRUCTIONS + " " + verdict_sentence("new_risk", verdict["new_risk"])
 
 
 async def blocking_voice_call(session: AsyncSession, owner_id: str) -> bool:
@@ -117,7 +125,11 @@ async def create_voice_session(
             if request.incoming_call_id:
                 await answer_incoming(session, owner_id, request, session_id)
             instructions, seed = await voice_context(
-                session, owner_id, agent, thread.id, VOICE_INSTRUCTIONS
+                session,
+                owner_id,
+                agent,
+                thread.id,
+                await spoken_authority(session, owner_id, agent),
             )
             row = await VoiceSessionRepository().create(
                 session,

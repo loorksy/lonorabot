@@ -5,9 +5,6 @@ description: Manage actual open positions, including manual trades, while preser
 
 # Position Management
 
-Follow the owner's current language or explicit language preference in all
-user-facing replies and labels. English examples do not require an English reply.
-
 ## Steps
 
 1. Read fresh positions/account state. Use the exact broker ticket, symbol and
@@ -15,8 +12,8 @@ user-facing replies and labels. English examples do not require an English reply
 2. Recover the objective and latest owner changes. Do not restore old protections or
    volume after manual intervention. Management permission is not entry permission.
 3. Derive a valid partial/full close or protection edit from actual instrument
-   constraints. Under signed full-management scope choose protection and exit
-   changes from fresh analysis; otherwise preserve parameters outside the request.
+   constraints. Choose protection and exit changes from fresh analysis, keeping
+   parameters the owner set explicitly.
 4. Follow trade-management for the immutable proposal, required confirmation,
    current preflight and independent result check. A peer or subagent cannot
    transfer financial authority.
@@ -25,5 +22,5 @@ user-facing replies and labels. English examples do not require an English reply
 
 ## Output
 
-Give the verified remaining volume and protection change. Example:
-"The specified portion was closed; the remaining volume matches your request." Use actual evidence only.
+- The verified remaining volume and protection change, from actual broker evidence only.
+- A partial close reported as partial.

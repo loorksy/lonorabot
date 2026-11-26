@@ -212,7 +212,9 @@ async def main() -> None:
         assert gold["owner_line"] == "required", gold
         gold_id = gold["agent"]["id"]
         created_ids.append(gold_id)
-        assert gold["agent"]["trading_mode"] == "ask" and gold["mandate_card_shown"] is True
+        assert (
+            gold["agent"]["trading_mode"] == "ask" and gold["mandate_card"]["status"] == "pending"
+        )
         assert "owner_action" not in gold and "peer_send" in gold["next"]
         async with db.sessions() as session:
             row = await session.get(AgentRow, gold_id)
@@ -270,7 +272,7 @@ async def main() -> None:
         scout_id = scout["agent"]["id"]
         created_ids.append(scout_id)
         assert scout["created"] is True and scout["agent"]["trading_mode"] == "ask", scout
-        assert scout["mandate_card_shown"] is False
+        assert scout["mandate_card"] is None
         async with db.sessions() as session, session.begin():
             assert (await agent_origin(session, owner, scout_id))["created_via"] == "lead"
             # The owner's tap on Lonora's own Mandate card.

@@ -16,7 +16,11 @@ class ModelMessage(Contract):
     # Runtime-only provenance; provider adapters serialize their explicit wire fields.
     # ``runtime_context`` is labelled context data or a runtime marker in the
     # user role: never an owner request and never bound to a tool exchange.
-    context_origin: Literal["conversation", "tool_observation", "runtime_context"] = "conversation"
+    # ``delegated_request`` is the request of a Run the owner did not type (a routine, watch,
+    # Task, ticket, subagent or webhook prompt, often model-written): a request, never his words.
+    context_origin: Literal[
+        "conversation", "tool_observation", "runtime_context", "delegated_request"
+    ] = "conversation"
     content: str
     # Validated display data survives checkpoints; providers serialize explicit wire fields.
     rich_content: dict[str, Any] | None = None

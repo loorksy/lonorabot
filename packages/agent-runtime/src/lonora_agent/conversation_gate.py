@@ -36,7 +36,7 @@ from lonora_tools.registry import BRIDGE_TOOLS, INSPECTOR, ToolRegistry
 
 from .context.run_evidence import SKIPPED_TOOLS
 from .offers import PICKED, bound_tools, open_obligation, outstanding
-from .runtime_notices import is_owner_message, notice_kind
+from .runtime_notices import is_request, notice_kind
 from .stop_gates import CONVERSATION_KEY, MAXIMUM_STOP_NUDGES, StopGateVerdict
 from .uncertain_outcome import FINANCIAL_EFFECTS, uncertain_operations
 
@@ -83,9 +83,7 @@ def _record(state: dict[str, Any]) -> dict[str, Any]:
 
 def _request(messages: list[ModelMessage]) -> list[ModelMessage] | None:
     """What followed the owner's last message; ``None`` when that is a wake, not a request."""
-    last = next(
-        (i for i in range(len(messages) - 1, -1, -1) if is_owner_message(messages[i])), None
-    )
+    last = next((i for i in range(len(messages) - 1, -1, -1) if is_request(messages[i])), None)
     if last is None or messages[last].content.startswith(WAKE_OPEN):
         return None
     return messages[last + 1 :]
@@ -397,7 +395,7 @@ def _wake_gate(state: dict[str, Any], messages: list[ModelMessage]) -> StopGateV
         (
             i
             for i in range(len(messages) - 2, -1, -1)
-            if is_owner_message(messages[i])
+            if is_request(messages[i])
             or (
                 messages[i].role == "assistant"
                 and not messages[i].tool_calls

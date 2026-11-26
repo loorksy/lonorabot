@@ -8,7 +8,7 @@ from pathlib import Path
 
 from lonora_core.user_error import LonoraError
 
-from .loader import resources_root
+from .loader import bundled, resources_root
 
 VISUAL_MARKER = "<lonora_native_visual_response>"
 VISUAL_END = "</lonora_native_visual_response>"
@@ -20,11 +20,11 @@ def _read(path: Path, modified: int, teaching_modified: int) -> str:
     del modified, teaching_modified
     from ..genui_vocabulary import genui_vocabulary
 
-    teaching = (path.parent / "genui_v2_teaching.md").read_text()
+    teaching = bundled((path.parent / "genui_v2_teaching.md").read_text())
     # Authoring comments (attribution, what was dropped) never reach the model.
     teaching = re.sub(r"<!--.*?-->\s*", "", teaching, flags=re.S).strip()
     text = (
-        path.read_text()
+        bundled(path.read_text())
         .strip()
         .replace("{teaching}", teaching)
         .replace("{vocabulary}", genui_vocabulary())

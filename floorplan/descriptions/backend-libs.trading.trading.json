@@ -163,6 +163,10 @@
     "packages/trading/src/lonora_trading/weekly_report.py": {
       "name": "Weekly report",
       "description": "Wakes every agent once per trading week to write its report of that week."
+    },
+    "packages/trading/src/lonora_trading/authority_verdict.py": {
+      "name": "Door verdict",
+      "description": "Says, without deciding anything, what the execution door does now with each kind of trade request: send it, wait for the owner's approval, or refuse it with the door's reason."
     }
   }
 }
