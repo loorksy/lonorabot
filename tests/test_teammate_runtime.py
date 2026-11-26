@@ -21,6 +21,7 @@ from lonora_memory.profile import profile_context, profile_documents
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.runtime_control import wait
+from test_trading_skills import TRADING_SKILLS
 
 
 @pytest.mark.parametrize(
@@ -106,6 +107,8 @@ def test_nanobot_soul_and_descriptive_documents_are_loaded_from_real_resources()
         assert description == definition.manifest.description
         assert body == definition.content and not body.startswith("---")
         assert len(body.split()) < 2000
+        if identity in TRADING_SKILLS:
+            continue  # Knowledge, with its own schema (tests/test_trading_skills.py).
         assert "## Steps" in body or "## Recall" in body
         assert "## Output" in body
 

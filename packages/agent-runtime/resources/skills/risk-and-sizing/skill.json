@@ -1,0 +1,19 @@
+{
+  "id": "risk-and-sizing",
+  "version": "1.0.0",
+  "title": "Risk and Sizing",
+  "description": "Lonora risk-and-sizing trading knowledge.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "explicit",
+    "triggers": []
+  },
+  "risk_class": "read_only",
+  "required_capabilities": [],
+  "required_tools": [],
+  "dependencies": [],
+  "conflicts": [],
+  "priority": 50,
+  "context_budget": 6000
+}

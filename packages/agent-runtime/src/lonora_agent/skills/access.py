@@ -22,11 +22,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..context.skills import effective_skill_registry
 from .provenance import LEGACY_LABEL, skill_provenance
 from .registry import SkillRegistry
-from .resolver import SkillSelection, SkillSignals, resolve_skills
+from .resolver import ACTIVE_BUDGET, SkillSelection, SkillSignals, resolve_skills
 from .snapshot import MAX_SNAPSHOT_SKILLS, read_snapshot, write_snapshot
 
 VIEW_KIND = "skill-view-v1"
-ACTIVE_BUDGET = 16000
 
 
 def view_key(context: ToolContext) -> str:

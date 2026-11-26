@@ -33,7 +33,9 @@ change. Read existing intent and constraints; do the requested reversible review
 3. Check timestamps and closed versus developing candles. Quote, history and
    chart failures are distinct; inspect the failed boundary before declaring
    the entire account unavailable. Never manufacture missing observations.
-4. Read chart-analysis when charts or server indicators help. Derive levels,
+4. Before choosing, view the trading skills this decision needs (structure,
+   planning, risk, the instrument's family).
+   Read chart-analysis when charts or server indicators help. Derive levels,
    entry, invalidation and proposed size from real evidence and owner constraints.
    Use market_structure when confirmed swing anchors or alternative trendlines
    help the analysis. Its strict left/right windows reject equal extrema, and a
