@@ -78,7 +78,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/context/builder.py": {
       "name": "Context builder",
-      "description": "Assembles everything an agent reads before it thinks: memory, history, permissions, the account picture and more."
+      "description": "Assembles everything an agent reads before it thinks: memory, history, permissions, the account picture and more, with model-written text kept as labelled data."
     },
     "packages/agent-runtime/src/lonora_agent/context/command.py": {
       "name": "Command context",
@@ -146,7 +146,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/context/skills.py": {
       "name": "Skills context",
-      "description": "Chooses which of the agent's skills are relevant and adds their instructions to its context."
+      "description": "Chooses which of the agent's skills are relevant, lists the bundled ones as policy and every other skill's description as labelled data."
     },
     "packages/agent-runtime/src/lonora_agent/context/team.py": {
       "name": "Team context",

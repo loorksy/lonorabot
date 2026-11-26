@@ -96,6 +96,10 @@
       "name": "Remove old workspace data",
       "description": "Drops the former analytical-workspace data that nothing reads any more."
     },
+    "packages/db/migrations/versions/0201_reply_language_tag.py": {
+      "name": "Reply language tag",
+      "description": "Lets the owner's reply language be any language tag, not only Arabic or English."
+    },
     "packages/db/src/lonora_db/__init__.py": {
       "name": "Database package",
       "description": "Marks the database code as one package; holds no logic of its own."

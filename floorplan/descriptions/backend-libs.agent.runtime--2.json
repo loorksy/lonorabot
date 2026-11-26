@@ -10,7 +10,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/executor.py": {
       "name": "Run executor",
-      "description": "Runs one agent run from start to finish, keeping its lease alive and recording a clean failure if it breaks."
+      "description": "Runs one agent run from start to finish, keeping its lease alive, reading the owner's language for server text once, and recording a clean failure if it breaks."
     },
     "packages/agent-runtime/src/lonora_agent/failure_view.py": {
       "name": "Failure in words",
@@ -18,7 +18,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/genui_capabilities.py": {
       "name": "Card capabilities note",
-      "description": "Builds the per-turn note telling the model which generated-UI pieces it may use."
+      "description": "Builds the per-turn note telling the model which generated-UI intents, channels and routes exist."
     },
     "packages/agent-runtime/src/lonora_agent/genui_compile.py": {
       "name": "Card compiler",
@@ -70,7 +70,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/runtime_notices.py": {
       "name": "Runtime notices",
-      "description": "Places the runtime's notices where the model will read them, in the owner's language, never as mid-run system text."
+      "description": "Places the runtime's notices where the model will read them, never as mid-run system text, and tells the owner's own message apart from a delegated request."
     },
     "packages/agent-runtime/src/lonora_agent/runtime.py": {
       "name": "Agent runtime",
@@ -102,7 +102,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/skills/loader.py": {
       "name": "Skill loader",
-      "description": "Loads the built-in skills, prompts and the mandatory runtime rules."
+      "description": "Loads the built-in skills, prompts and the mandatory runtime rules, and refuses any that hand the model a ready-made reply to copy."
     },
     "packages/agent-runtime/src/lonora_agent/skills/packages.py": {
       "name": "Pinned packages",

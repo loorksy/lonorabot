@@ -1,1 +1,41 @@
-{ "tasks": [] }
+{
+  "tasks": [
+    {
+      "title": "Agent prompts: properties not replies, one language fact, delegated requests (PA1-PA3)",
+      "request": "Internal prompts in English only, no development examples or quoted replies in what the model reads, the reply language as one fact, and model-written requests never treated as the owner's words.",
+      "summary": "Bundled prompts and skills lost their worked examples, quoted replies and retired authority words, and the loader now refuses them. The owner's reply language is any language tag; the server's own text follows the conversation's language instead of guessing from Arabic letters. A routine's, Task's or helper's prompt is a delegated request, and model-written decision summaries and non-bundled skill descriptions moved out of the system role.",
+      "items": [
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/skills/loader.py",
+          "change": "Refuses bundled text with an Example line or a quoted first-person reply.",
+          "note": "The skills and prompts were rewritten as lists of properties."
+        },
+        {
+          "ref": "packages/db/src/lonora_db/conversation_locale.py",
+          "change": "Decides Arabic or English for server text from any reply-language tag.",
+          "note": "Read once per run in the run executor."
+        },
+        {
+          "ref": "packages/db/migrations/versions/0201_reply_language_tag.py",
+          "change": "Widens the reply language to a language tag.",
+          "note": ""
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/runtime_notices.py",
+          "change": "The old Arabic-letter guess is gone; a delegated request is a request, not the owner's message.",
+          "note": ""
+        },
+        {
+          "ref": "packages/agent-runtime/src/lonora_agent/context/builder.py",
+          "change": "Delegated prompts are labelled; decision summaries are context data.",
+          "note": ""
+        },
+        {
+          "ref": "packages/adapter-kit/src/lonora_adapter_kit/context_sections.py",
+          "change": "Trust labels are one fixed list, checked when a section is made.",
+          "note": ""
+        }
+      ]
+    }
+  ]
+}

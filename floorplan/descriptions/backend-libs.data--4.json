@@ -54,7 +54,7 @@
     },
     "packages/db/src/lonora_db/conversation_locale.py": {
       "name": "Conversation language",
-      "description": "Works out the language to reply in, from the owner's profile or recent messages."
+      "description": "Picks Arabic or English for the server's own owner-facing text, from the owner's reply language, his recent messages or the app language."
     },
     "packages/db/src/lonora_db/economic_calendar.py": {
       "name": "Calendar store",
