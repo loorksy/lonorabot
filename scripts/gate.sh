@@ -26,17 +26,19 @@ CREATED=()
 
 step() { printf '\n== %s\n' "$*"; }
 
-# database create|drop NAME, on SERVER; create prints the new database's URL.
+# database create|drop NAME, on SERVER; create prints the new database's URL. SERVER goes in the
+# environment: any user of the machine can read a command line, password included.
 database() {
-  "$PY" - "$SERVER" "$1" "$2" <<'PY'
+  GATE_SERVER=$SERVER "$PY" - "$1" "$2" <<'PY'
 import asyncio
+import os
 import sys
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
-server, action, name = make_url(sys.argv[1]), sys.argv[2], sys.argv[3]
+server, action, name = make_url(os.environ["GATE_SERVER"]), sys.argv[1], sys.argv[2]
 statement = (
     f"CREATE DATABASE {name}" if action == "create" else f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"
 )

@@ -171,6 +171,12 @@ def test_a_gate_that_drops_a_core_test_is_caught(tmp_path: Path, line: str, muta
     assert gate_gaps(gate) + run_gaps(stubbed_run(tmp_path, gate))
 
 
+def test_the_database_password_never_reaches_a_command_line(tmp_path: Path) -> None:
+    # Other users of a shared build server can read every process's arguments.
+    calls = stubbed_run(tmp_path, GATE.read_text(encoding="utf-8")).calls
+    assert calls and not [call for call in calls if PASSWORD in call]
+
+
 def test_ci_runs_the_gate_and_keeps_no_list_of_its_own() -> None:
     workflow = cast(dict[str, Any], yaml.safe_load(CI.read_text(encoding="utf-8")))
     steps = cast(list[dict[str, Any]], workflow["jobs"]["build"]["steps"])
