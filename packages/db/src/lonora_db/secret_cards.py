@@ -399,16 +399,26 @@ def saved_prompt(row: OwnerActionRow) -> str:
             "they are saved for."
         )
     if target == "model_provider":
-        catalog = row.result.get("catalog")
-        listed = (
-            f"Its catalog was read: {catalog} models."
-            if isinstance(catalog, int)
-            else "Its catalog could not be read yet; say so."
-        )
+        provider = row.payload["details"]["provider"]
+        catalog, key = row.result.get("catalog"), row.result.get("key")
+        if key == "rejected":
+            return (
+                f"The owner connected the model provider {provider} on your Secret card; you "
+                "never see its key. The provider rejected the key: tell the owner in one line "
+                "that it did not work and that a new Secret card replaces it."
+            )
+        if key == "accepted":
+            listed = "The provider accepted the key."
+        elif key is not None:
+            listed = "The key could not be checked yet; say so."
+        elif isinstance(catalog, int):
+            listed = f"Its catalog was read: {catalog} models."
+        else:
+            listed = "Its catalog could not be read yet; say so."
         return (
-            f"The owner connected the model provider {row.payload['details']['provider']} on "
-            f"your Secret card; you never see its key. {listed} Call model_list and tell the "
-            "owner in one line which models became available."
+            f"The owner connected the model provider {provider} on your Secret card; you "
+            f"never see its key. {listed} Call model_list and tell the owner in one line "
+            "which models became available."
         )
     if target == "mcp_server":
         return (

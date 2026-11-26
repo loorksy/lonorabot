@@ -10,6 +10,7 @@ import httpx
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_adapters.models.anthropic import AnthropicAdapter
+from lonora_adapters.models.compatible_endpoint import CompatibleEndpointAdapter
 from lonora_adapters.models.deepseek import DeepSeekAdapter
 from lonora_adapters.models.openai import OpenAIAdapter
 from lonora_adapters.models.openrouter import OpenRouterAdapter
@@ -262,6 +263,10 @@ def test_actual_router_fallback_preserves_owner_and_image_exchange_or_rejects() 
         async def resolve(self, provider: str) -> str:
             return "scripted-only-key"
 
+        async def connection(self, provider: str) -> tuple[str, str | None]:
+            # The owner's endpoint: the one provider whose catalog is its own listing.
+            return "scripted-only-key", "https://llm.example.test/v1"
+
     async def check() -> None:
         db = Database.connect("sqlite+aiosqlite:///:memory:")
         clients: list[httpx.AsyncClient] = []
@@ -272,14 +277,16 @@ def test_actual_router_fallback_preserves_owner_and_image_exchange_or_rejects() 
             async with db.sessions() as session, session.begin():
                 for key, value in {
                     "model_routing": RoutingPolicy(
-                        unified=ModelSelection(provider="openai", model="large")
+                        unified=ModelSelection(provider="openai_compatible", model="large")
                     ).model_dump(mode="json"),
-                    "model_backups": {"choices": [{"provider": "openai", "model": "small"}]},
-                    "catalog:openai": {
+                    "model_backups": {
+                        "choices": [{"provider": "openai_compatible", "model": "small"}]
+                    },
+                    "catalog:openai_compatible": {
                         "models": [
                             ModelDescriptor(
                                 id=name,
-                                provider="openai",
+                                provider="openai_compatible",
                                 name=name,
                                 context_window=window,
                                 source="scripted:catalog",
@@ -300,10 +307,10 @@ def test_actual_router_fallback_preserves_owner_and_image_exchange_or_rejects() 
                     json={"choices": [{"message": {"content": "Inspected current pixels only"}}]},
                 )
 
-            def factory(provider: str, key: str) -> ModelAdapter:
+            def factory(provider: str, key: str, base_url: str) -> ModelAdapter:
                 client = httpx.AsyncClient(transport=httpx.MockTransport(response))
                 clients.append(client)
-                return OpenAIAdapter(key, client)
+                return CompatibleEndpointAdapter(key, base_url, client)
 
             old = exchange()
             current = exchange()

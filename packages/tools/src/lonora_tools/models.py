@@ -3,8 +3,9 @@
 ``model_request`` changes the model an Agent's next turns use, and only on the owner's
 own words: it applies at once when the owner's typed message this run answers names the
 model (its id, its catalog name or a distinctive word of either); otherwise nothing
-changes and the result says to ask the owner. No card is raised either way. Any text
-model of a connected provider's catalog is assignable. Only Lonora changes another
+changes and the result says to ask the owner. No card is raised either way. Any model
+Lonora's list holds for a connected provider (the owner's endpoint: the models it lists)
+is assignable. Only Lonora changes another
 agent's model. It never grants authority and never repeats anything: tool results,
 memory, Tasks, grants and uncertain operations stay exactly as they are, and the next
 model turn simply asks another model.
@@ -27,16 +28,14 @@ from lonora_core.model_routing import names_model
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import (
     apply_agent_model,
-    catalog_has,
-    catalog_models,
     closest_models,
-    model_label,
     same_choice,
     stored_agent_model,
 )
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, MessageRow, RunRow, SteeringRow
 from lonora_db.transactions import owned_agent
+from lonora_providers.catalog import catalog_has, catalog_models, model_label
 from pydantic import Field
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,7 +88,7 @@ async def _connected(context: ToolContext) -> list[str]:
 
 async def model_available(context: ToolContext, selection: ModelSelection) -> bool:
     """Whether a connected provider's catalog lists this model: any such model is
-    available to an agent, with no list of the owner's to be on (VISION 12.3)."""
+    available to an agent, with no list of the owner's to be on (VISION 12.3, 12.4)."""
     if selection.provider not in await _connected(context):
         return False
     async with context.db.sessions() as session:

@@ -1,4 +1,4 @@
-"""The owner's model choice per Agent: any model of a connected provider's catalog.
+"""The owner's model choice per Agent: any listed model of a connected provider.
 
 It orders models and never grants authority; changing it repeats nothing.
 """
@@ -11,13 +11,9 @@ from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import AgentModelChange, AgentModelRecord, Capability
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import (
-    agent_model_record,
-    catalog_models,
-    change_agent_model,
-    model_label,
-)
+from lonora_db.agent_models import agent_model_record, change_agent_model
 from lonora_db.usage import agent_usage
+from lonora_providers.catalog import catalog_models, model_label
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.registry import PROVIDERS
 

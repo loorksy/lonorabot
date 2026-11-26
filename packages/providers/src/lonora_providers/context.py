@@ -54,8 +54,9 @@ def context_limits(
 ) -> ContextLimits:
     """Window minus output reservation and safety margin; unknown stays explicit.
 
-    The catalog window wins; a conservative family table fills the gap for
-    providers whose model listing has none; otherwise the policy's
+    The catalog window wins (Lonora's list states one for every model it holds,
+    VISION 12.4); a conservative family table fills the gap for the owner endpoint's
+    models and a saved model the list does not hold; otherwise the policy's
     ``maximum_input_tokens`` applies and capacity is reported as unknown. The
     output reservation is the policy's budget bounded by the model's documented
     maximum (``UNKNOWN_OUTPUT_TOKENS`` when none is known) and a quarter of the

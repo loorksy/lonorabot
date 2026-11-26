@@ -37,6 +37,7 @@ from lonora_db.agent_models import agent_model_preference
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
+from .catalog import provider_catalog
 from .context import (
     ContextLimits,
     PreparedContext,
@@ -185,10 +186,7 @@ class GlobalModelRouter:
                 ]
             catalogs: dict[str, list[ModelDescriptor]] = {}
             for provider in dict.fromkeys(item.provider for item in ordered):
-                payload = await settings.get(session, "catalog:" + provider)
-                catalogs[provider] = [
-                    ModelDescriptor.model_validate(item) for item in payload.get("models", [])
-                ]
+                catalogs[provider] = await provider_catalog(session, provider)
         route = Route([], policy, catalogs)
         owned: set[tuple[str, str]] = set()
         if record:

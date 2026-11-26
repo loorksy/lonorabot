@@ -1,8 +1,9 @@
 """«اختبار الاتصال»: dry-run checks before the owner saves a connection (WP-H).
 
 Each route makes one real, read-only round trip with the values the form holds and stores
-nothing: no secret, no catalog, no connection row. A model provider lists its models, an
-MCP server is initialised and lists its tools (reviewed like the trust preview), a broker
+nothing: no secret, no catalog, no connection row. A model provider answers whether it
+accepts the key (its model list is not read: Lonora's list is fixed, VISION 12.4), an MCP
+server is initialised and lists its tools (reviewed like the trust preview), a broker
 account reports its identity. None of them grants or widens any authority.
 """
 
@@ -21,6 +22,7 @@ from lonora_contracts.model_catalog import ProviderCredential
 from lonora_contracts.model_routing import ProviderId
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
+from lonora_providers.key_check import check_key
 from lonora_providers.registry import model_adapter
 from lonora_trading.connections import verified_identity
 from pydantic import Field
@@ -49,10 +51,10 @@ async def dry_run_provider(
 ) -> dict[str, Any]:
     adapter = model_adapter(provider, body.api_key)
     try:
-        models = await bounded(adapter.discover())
+        await bounded(check_key(adapter))
     finally:
         await adapter.close()
-    return {"ok": True, "models": [model.id for model in models][:200]}
+    return {"ok": True}
 
 
 class McpTest(Contract):

@@ -5,7 +5,6 @@ from lonora_contracts.model_routing import ProviderId
 from lonora_core.user_error import LonoraError
 from lonora_providers.catalog import read_catalog
 from lonora_providers.credentials import ProviderCredentials
-from lonora_providers.discovery import discover_models
 from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS
 
 from ..middleware.auth import require_owner, runtime
@@ -54,20 +53,7 @@ async def models(
     provider: ProviderId = Depends(settings_provider),
     owner: OwnerIdentity = Depends(require_owner),
 ) -> list[dict[str, object]]:
+    """Lonora's list for the provider (VISION 12.4): no provider is asked for its models."""
     return [
         model.model_dump(mode="json") for model in await read_catalog(runtime(request).db, provider)
-    ]
-
-
-@router.post("/{provider}/discover")
-async def discover(
-    request: Request,
-    provider: ProviderId = Depends(settings_provider),
-    owner: OwnerIdentity = Depends(require_owner),
-) -> list[dict[str, object]]:
-    rt = runtime(request)
-    credentials = ProviderCredentials(rt.db, rt.services(owner.id).secrets)
-    return [
-        model.model_dump(mode="json")
-        for model in await discover_models(rt.db, credentials, provider)
     ]

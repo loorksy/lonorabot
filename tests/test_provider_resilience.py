@@ -929,7 +929,8 @@ async def test_agent_preference_orders_candidates_and_never_needs_a_migration(
     task_db: Fixture,
 ) -> None:
     db, owner, agent, _ = task_db
-    own = ModelSelection(provider="deepseek", model="agent-model")
+    # A model the list holds for text only (Z.ai's GLM-4.7 takes no images).
+    own = ModelSelection(provider="zai", model="glm-4.7")
     own_backup = ModelSelection(provider="zai", model="agent-backup")
     await configure(db, BACKUP)
     async with db.sessions() as session, session.begin():
@@ -955,23 +956,6 @@ async def test_agent_preference_orders_candidates_and_never_needs_a_migration(
     plain = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id="other")
     assert plain.choices == [PRIMARY, BACKUP]
     # A catalog that verifies the Agent's model as text-only keeps vision global.
-    await settings(
-        db,
-        {
-            "catalog:deepseek": {
-                "models": [
-                    ModelDescriptor(
-                        id="agent-model",
-                        provider="deepseek",
-                        name="A",
-                        capabilities=["text", "tools"],
-                        verified=True,
-                        source="fixture",
-                    ).model_dump(mode="json")
-                ]
-            }
-        },
-    )
     vision = await router.route(Capability.VISION, owner_id=owner, agent_id=agent)
     assert vision.choices == [PRIMARY, own_backup, BACKUP]
 

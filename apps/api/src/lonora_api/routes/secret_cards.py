@@ -9,10 +9,12 @@ secret), or an MCP server (its address and optional token). A saved MCP server's
 run once the owner trusts it, by naming it in chat (``mcp_trust``) or in Capabilities;
 the agent that asked is woken to tell him. A broker card's values go only to the broker
 layer's store (7.2.3); the gateway then provisions the account and wakes the agent with
-the result. A model provider's key (and an OpenAI-compatible endpoint's base URL,
-checked first) is used to read the provider's catalog, with no lock held; the same
-transaction then saves the key and its record for the router, stores the catalog,
-settles the card and wakes the agent to name the models that became available.
+the result. A model provider's key is checked with the provider first, with no lock held:
+whether it accepts the key, never what it lists, since the provider's models are Lonora's
+list (VISION 12.4). An OpenAI-compatible endpoint's base URL is checked, and its models
+are read with the key, as they are the owner's. The same transaction then saves the key
+and its record for the router (and the endpoint's catalog), settles the card and wakes
+the agent to name the models that became available.
 """
 
 import asyncio
@@ -21,6 +23,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request
+from lonora_adapter_kit.model_errors import ModelProviderError
 from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
@@ -45,7 +48,8 @@ from lonora_db.schema import IntegrationRow, OwnerActionRow
 from lonora_db.secret_cards import card_values, free_names, save_values, secret_stale_reason
 from lonora_db.secrets import BROKER, WORKSPACE
 from lonora_db.transactions import SettingsRepository
-from lonora_providers.registry import model_adapter
+from lonora_providers.key_check import REJECTED, check_key
+from lonora_providers.registry import OWNER_ENDPOINT, model_adapter
 from lonora_security.network import compatible_endpoint, endpoint_sha256
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,7 +61,8 @@ from .model_router import answer_unconfigured
 
 router = APIRouter(prefix="/owner-actions")
 log = logging.getLogger("lonora.secret_cards")
-# One bounded catalog read with the key the owner typed: the card never waits longer.
+# One bounded check (the endpoint's catalog read) with the key the owner typed: the card
+# never waits longer.
 CATALOG_SECONDS = 20
 
 
@@ -83,8 +88,12 @@ async def save_secret(
         peek = await owned_card(session, owner.id, card_id)
     target = peek.payload.get("connect") if peek.kind == "secret" else None
     catalog: list[ModelDescriptor] | None = None
+    checked = "unchecked"
     if target == "model_provider" and live_status(peek) == "pending":
-        catalog = await offered_models(peek, card_values(peek, body.values))
+        if peek.payload["details"]["provider"] in OWNER_ENDPOINT:
+            catalog = await offered_models(peek, card_values(peek, body.values))
+        else:
+            checked = await checked_key(peek, card_values(peek, body.values))
     async with rt.db.sessions() as session, session.begin():
         row = await pending_card(session, owner, card_id)
         if row is None:
@@ -99,15 +108,19 @@ async def save_secret(
         if target is None:
             result = await save_values(session, row, body.values, write)
         elif target == "model_provider":
+            provider = row.payload["details"]["provider"]
             result = await save_model_key(session, store, row, card_values(row, body.values))
-            result["catalog"] = None if catalog is None else len(catalog)
-            # This key's catalog, empty when it could not be read: never the catalog of
-            # the key it replaced.
-            await SettingsRepository().put(
-                session,
-                "catalog:" + row.payload["details"]["provider"],
-                {"models": [item.model_dump(mode="json") for item in catalog or []]},
-            )
+            if provider in OWNER_ENDPOINT:
+                result["catalog"] = None if catalog is None else len(catalog)
+                # This key's catalog, empty when it could not be read: never the catalog
+                # of the key it replaced.
+                await SettingsRepository().put(
+                    session,
+                    "catalog:" + provider,
+                    {"models": [item.model_dump(mode="json") for item in catalog or []]},
+                )
+            else:
+                result["key"] = checked
         else:
             result = await connect(session, store, owner, row, card_values(row, body.values))
         await settle_saved(session, owner, row, result)
@@ -183,6 +196,25 @@ async def offered_models(
     except Exception as error:
         log.warning("model_catalog_unread provider=%s error=%s", provider, type(error).__name__)
         return None
+    finally:
+        await adapter.close()
+
+
+async def checked_key(card: OwnerActionRow, values: dict[str, str]) -> str:
+    """Whether the provider accepts the key the owner typed, asked before the transaction
+    with no lock held: ``accepted``, ``rejected`` (a 401 or 403), or ``unchecked`` (no
+    answer, or another one). The key is saved in every case; the agent says which."""
+    provider = card.payload["details"]["provider"]
+    adapter = model_adapter(provider, values["API_KEY"])
+    try:
+        async with asyncio.timeout(CATALOG_SECONDS):
+            await check_key(adapter)
+        return "accepted"
+    except Exception as error:
+        if isinstance(error, ModelProviderError) and error.http_status in REJECTED:
+            return "rejected"
+        log.warning("model_key_unchecked provider=%s error=%s", provider, type(error).__name__)
+        return "unchecked"
     finally:
         await adapter.close()
 

@@ -1,9 +1,11 @@
 """«اختبار الاتصال» dry runs (WP-H): one real read-only round trip, nothing stored."""
 
+import asyncio
 import os
 from typing import Any
 from uuid import uuid4
 
+import httpx
 import pytest
 
 
@@ -12,51 +14,57 @@ def database() -> None:
         pytest.skip("The dry-run routes are exercised through the owner API.")
 
 
-class FakeAdapter:
-    def __init__(self, key: str):
-        self.key, self.closed = key, False
-
-    async def discover(self) -> list[Any]:
-        from types import SimpleNamespace
-
-        if self.key != "sk-good-key-123":
-            from lonora_core.user_error import LonoraError
-
-            raise LonoraError("provider_authentication_failed", 401)
-        return [SimpleNamespace(id="gpt-test")]
-
-    async def close(self) -> None:
-        self.closed = True
+GOOD_KEY = "sk-good-key-123"
 
 
-def fake_adapter(provider: str, key: str) -> FakeAdapter:
-    return FakeAdapter(key)
+def provider(seen: list[httpx.Request], delay: float = 0) -> Any:
+    """Real adapters on a fake provider that accepts one key; every request is kept."""
+
+    async def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        await asyncio.sleep(delay)
+        if request.headers.get("authorization") != "Bearer " + GOOD_KEY:
+            return httpx.Response(401, json={"error": {"message": "Incorrect API key"}})
+        return httpx.Response(200, json={"data": [{"id": "gpt-test"}]})
+
+    def adapter(name: str, key: str) -> Any:
+        from lonora_providers.registry import PROVIDERS
+
+        return PROVIDERS[name](key, httpx.AsyncClient(transport=httpx.MockTransport(answer)))
+
+    return adapter
 
 
 @pytest.mark.asyncio
-async def test_provider_test_lists_models_without_storing_the_key(monkeypatch: pytest.MonkeyPatch):
+async def test_provider_test_checks_the_key_without_storing_anything(
+    monkeypatch: pytest.MonkeyPatch,
+):
     database()
     from check_streaming import Fixture
     from lonora_api.routes import connection_tests
-    from lonora_db.schema import SecretRow
+    from lonora_db.schema import SecretRow, SettingRow
     from sqlalchemy import func, select
 
-    monkeypatch.setattr(connection_tests, "model_adapter", fake_adapter)
+    seen: list[httpx.Request] = []
+    monkeypatch.setattr(connection_tests, "model_adapter", provider(seen))
     fixture = await Fixture().open()
     try:
         async with fixture.runtime.db.sessions() as session:
             before = await session.scalar(select(func.count()).select_from(SecretRow))
-        good = await fixture.client.post(
-            "/api/providers/openai/test", json={"api_key": "sk-good-key-123"}
-        )
+            settings = await session.scalar(select(func.count()).select_from(SettingRow))
+        good = await fixture.client.post("/api/providers/openai/test", json={"api_key": GOOD_KEY})
         assert good.status_code == 200, good.text
-        assert good.json() == {"ok": True, "models": ["gpt-test"]}
+        # Only whether the provider accepts the key: its list is not Lonora's (12.4).
+        assert good.json() == {"ok": True}
         bad = await fixture.client.post(
             "/api/providers/openai/test", json={"api_key": "sk-wrong-key-1"}
         )
-        assert bad.status_code == 401
+        assert bad.status_code == 502 and bad.json()["code"] == "model_credentials_rejected"
+        assert "sk-wrong-key-1" not in bad.text
+        assert [(item.method, item.url.path) for item in seen] == [("GET", "/v1/models")] * 2
         async with fixture.runtime.db.sessions() as session:
             after = await session.scalar(select(func.count()).select_from(SecretRow))
+            assert await session.scalar(select(func.count()).select_from(SettingRow)) == settings
         assert before == after
     finally:
         await fixture.close()
@@ -65,41 +73,27 @@ async def test_provider_test_lists_models_without_storing_the_key(monkeypatch: p
 @pytest.mark.asyncio
 async def test_dry_runs_are_owner_only_and_bounded(monkeypatch: pytest.MonkeyPatch):
     database()
-    import asyncio
-
-    import httpx
     from check_streaming import Fixture
     from lonora_api.routes import connection_tests
 
-    class Slow(FakeAdapter):
-        async def discover(self) -> list[Any]:
-            await asyncio.sleep(5)
-            return []
-
     monkeypatch.setattr(connection_tests, "TIMEOUT_SECONDS", 0.2)
-
-    def slow_adapter(provider: str, key: str) -> FakeAdapter:
-        return Slow(key)
-
-    monkeypatch.setattr(connection_tests, "model_adapter", slow_adapter)
+    monkeypatch.setattr(connection_tests, "model_adapter", provider([], delay=5))
     fixture = await Fixture().open()
     try:
         anonymous = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=fixture.app), base_url="http://localhost"
         )
         for path, body in (
-            ("/api/providers/openai/test", {"api_key": "sk-good-key-123"}),
+            ("/api/providers/openai/test", {"api_key": GOOD_KEY}),
             ("/api/mcp/test", {"url": "https://mcp.example.com/mcp"}),
             ("/api/trading/connections/test", {"provider": "simulation", "account_id": "x"}),
         ):
             refused = await anonymous.post(path, json=body)
             assert refused.status_code in {401, 403}, (path, refused.status_code)
         await anonymous.aclose()
-        slow = await fixture.client.post(
-            "/api/providers/openai/test", json={"api_key": "sk-good-key-123"}
-        )
+        slow = await fixture.client.post("/api/providers/openai/test", json={"api_key": GOOD_KEY})
         assert slow.status_code == 504 and slow.json()["code"] == "connection_test_timeout"
-        assert "sk-good-key-123" not in slow.text
+        assert GOOD_KEY not in slow.text
     finally:
         await fixture.close()
 

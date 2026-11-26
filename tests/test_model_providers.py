@@ -1,9 +1,10 @@
 """Model access uses API keys only, through the adapters and the router (mandate 12.1).
 
 Each of the six provider paths (Anthropic, OpenAI, DeepSeek, OpenRouter, Z.ai and an
-OpenAI-compatible endpoint the owner names by its base URL) connects with an API key,
-lists its catalog and runs a turn. Fake transports stand in for the providers; no
-request leaves the process. The key travels only in the header each provider documents
+OpenAI-compatible endpoint the owner names by its base URL) connects with an API key and
+runs a turn. A key is checked by the status of the provider's model listing alone; only
+the owner's endpoint is read for its models (VISION 12.4). Fake transports stand in for
+the providers; no request leaves the process. The key travels only in the header each provider documents
 for API keys, and nothing in a request depends on the plan behind the key.
 """
 
@@ -19,7 +20,8 @@ from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.default_model import choose_default_model
-from lonora_providers.registry import PROVIDERS, model_adapter
+from lonora_providers.key_check import check_key
+from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS, model_adapter
 from lonora_providers.router import GlobalModelRouter
 from lonora_security.network import compatible_endpoint
 from test_model_context import router_db as router_db
@@ -104,21 +106,27 @@ def test_the_registry_has_exactly_the_six_paths_of_12_1() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("provider", sorted(PATHS))
-async def test_each_provider_lists_its_catalog_and_runs_a_turn_with_an_api_key(
+async def test_each_provider_checks_its_key_and_runs_a_turn_with_an_api_key(
     provider: str,
 ) -> None:
     base, header, value = PATHS[provider]
     client, seen = recording()
     adapter = adapter_with(provider, client)
     try:
-        catalog = await adapter.discover()
+        if provider in OWNER_ENDPOINT:
+            # The owner's endpoint lists its models: they are the owner's.
+            catalog = await adapter.discover()
+            assert [item.id for item in catalog] == ["model-a"]
+            assert {item.provider for item in catalog} == {provider}
+        else:
+            # Any other key is checked by the status of its listing alone.
+            await check_key(adapter)
         reply = await adapter.complete("model-a", USER, [])
     finally:
         await client.aclose()
-    assert [item.id for item in catalog] == ["model-a"]
-    assert {item.provider for item in catalog} == {provider}
     assert reply.text == "أهلاً"
     assert len(seen) == 2
+    assert seen[0].method == "GET" and seen[0].url.path.endswith("/models")
     for request in seen:
         assert str(request.url).startswith(base + "/")
         assert request.headers[header] == value
@@ -286,12 +294,14 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
         for method, path, body in (
             ("PUT", "/api/providers/openai_compatible/credential", {"api_key": KEY}),
             ("GET", "/api/providers/openai_compatible/models", None),
-            ("POST", "/api/providers/openai_compatible/discover", None),
             ("POST", "/api/providers/openai_compatible/test", {"api_key": KEY}),
         ):
             answer = await fixture.client.request(method, path, json=body)
             assert answer.status_code == 404, path
             assert answer.json()["code"] == "provider_not_supported", path
+        # No provider is asked for its list from Settings any more (VISION 12.4).
+        gone = await fixture.client.post("/api/providers/openai/discover", json={})
+        assert gone.status_code == 404
     finally:
         await fixture.close()
 
