@@ -4258,6 +4258,10 @@ msgstr "يحتاج Lonora إلى الميكروفون للإملاء والرس�
 #~ msgid "Lonora uses it for your agents' conversations. You can change it in Models."
 #~ msgstr "يستخدمه Lonora في محادثات وكلائك، ويمكنك تغييره من «النماذج»."
 
+#: src/components/ai/AttentionInbox.tsx:45
+msgid "Lonora's background service has stopped"
+msgstr "توقفت خدمة الخلفية في لونورا"
+
 #: src/pages/shell/bot-panel.tsx:228
 #~ msgctxt "model"
 #~ msgid "Lonora's model"

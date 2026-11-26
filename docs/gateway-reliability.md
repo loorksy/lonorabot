@@ -167,6 +167,13 @@ stuck.
   60 s old. A stuck loop, a dead process or a heartbeat that cannot reach the database
   lets it age. `lonora status` and the Cloud host agent read this service state, and
   `lonora update` and `start` wait for it.
+- **The owner is told.** The API, a separate process that keeps running, checks every
+  30 s (`watch_gateway`). Once no Gateway heartbeat has been fresh for 3 minutes
+  (`STOPPED_AFTER`, longer than a stuck Gateway takes to restart itself, and counted from
+  the API's own start at the earliest, so an update tells nobody), it raises one
+  `gateway_stopped` item per stop and sends its push (VISION 11.4, Amendment 5). Web and
+  mobile show it in «يحتاج انتباهك» while no heartbeat is fresh
+  ([attention.md](attention.md)).
 
 ## Drain and lease renewal
 
@@ -227,6 +234,10 @@ passkey, so nothing is left looking active while it can no longer run:
   request kept as history.
 - `tests/test_gateway_reliability.py` also checks that the heartbeat refreshes the
   file the `gateway` service's healthcheck reads.
+- `tests/test_gateway_stopped.py`: a stale heartbeat shows the stopped-worker line and a
+  fresh one removes it; a quick restart or an API that just started tells nobody; a
+  cleanly stopped or never started Gateway is a stopped worker; the API pushes a stop
+  once and nothing while a Gateway runs.
 - `tests/test_worker_stall_guard.py`: a process whose loop is blocked exits with code 70
   and writes its stacks; one whose loop keeps running is left alone.
 - `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the

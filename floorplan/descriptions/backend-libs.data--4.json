@@ -68,6 +68,10 @@
       "name": "Execution receipts store",
       "description": "Posts and reads the receipt for each broker-confirmed trade."
     },
+    "packages/db/src/lonora_db/gateways.py": {
+      "name": "Is a worker running",
+      "description": "Tells from the workers' heartbeats whether one is running now and when one was last heard from."
+    },
     "packages/db/src/lonora_db/generated_artifacts.py": {
       "name": "Generated image linking",
       "description": "Links an agent's generated images to the message that delivers them."
@@ -116,13 +120,13 @@
       "name": "Watches store",
       "description": "Creates, reads, controls, extends and stops the owner's market watches."
     },
-    "packages/db/src/lonora_db/memory_revisions.py": {
-      "name": "Memory history store",
-      "description": "Keeps attributed, undoable changes to the owner profile, preferences and each agent's memory."
-    },
     "packages/db/src/lonora_db/memory.py": {
       "name": "Memory store",
       "description": "Reads and writes an agent's memory document as one attributed change, keeping owner sections apart."
+    },
+    "packages/db/src/lonora_db/memory_revisions.py": {
+      "name": "Memory history store",
+      "description": "Keeps attributed, undoable changes to the owner profile, preferences and each agent's memory."
     },
     "packages/db/src/lonora_db/messages.py": {
       "name": "Messages store",

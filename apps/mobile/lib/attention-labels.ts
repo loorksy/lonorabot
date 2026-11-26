@@ -30,4 +30,5 @@ export const attentionLabels: Record<AttentionCode, Label> = {
   agent_notification: "attentionAgentAlert",
   secret_requested: "attentionSecretRequested",
   mandate_proposed: "attentionMandateProposed",
+  gateway_stopped: "attentionGatewayStopped",
 };

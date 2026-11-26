@@ -4264,6 +4264,10 @@ msgstr "Lonora needs the microphone for dictation, voice messages and calls. Not
 #~ msgid "Lonora uses it for your agents' conversations. You can change it in Models."
 #~ msgstr "Lonora uses it for your agents' conversations. You can change it in Models."
 
+#: src/components/ai/AttentionInbox.tsx:45
+msgid "Lonora's background service has stopped"
+msgstr "Lonora's background service has stopped"
+
 #: src/pages/shell/bot-panel.tsx:228
 #~ msgctxt "model"
 #~ msgid "Lonora's model"

@@ -7,7 +7,10 @@ One push per record, at its creation, to every phone that has not signed out:
 - a Mandate card an agent proposed (``mandate_proposed``);
 - a broker health problem (``broker_token_rejected``, ``broker_account_undeployed``,
   ``broker_connection_lost``, ``broker_rate_limited``): one push per account and problem, the problem named by the
-  account and the time it began, so a flapping connection pushes once per outage.
+  account and the time it began, so a flapping connection pushes once per outage;
+- a problem with Lonora's own background work (Amendment 5): no Gateway is running
+  (``gateway_stopped``), one push per stop. The API sends this one (``lonora_gateway.health``),
+  since a stopped Gateway cannot.
 
 The text is the fixed catalog text of the event in the owner's language, under the agent's
 name: no price, no volume, no account number and no model text leaves the server, and the
@@ -65,6 +68,7 @@ PUSH_CODES = frozenset(
         "secret_requested",
         "mandate_proposed",
         *BROKER_HEALTH_CODES,
+        "gateway_stopped",
     }
 )
 EVENTS_PER_TICK = 100
@@ -124,6 +128,9 @@ async def push_record(session: AsyncSession, item: AttentionRow) -> tuple[str, i
         if not account or not since:
             return None
         return f"{account}:{since}", None
+    if item.code == "gateway_stopped":
+        # The item is the stop: one per stop, opened in Lonora's conversation.
+        return item.id, None
     if item.code == "approval_required":
         row = await session.get(TradeApprovalRow, str(parameters.get("approval_id", "")))
         record = row.id if row else ""

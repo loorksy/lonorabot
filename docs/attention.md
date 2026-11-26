@@ -1,6 +1,6 @@
 # Attention items for the owner's events
 
-What needs the owner (mandate 11.4) is one attention item per event, raised and withdrawn
+What needs the owner (mandate 11.4, six kinds since Amendment 5) is one attention item per event, raised and withdrawn
 by the server with no model involved. The contract is `AttentionNotification`,
 `ATTENTION_EVENTS` and `BROKER_HEALTH_CODES` in `lonora_contracts/attention.py`,
 mirrored in `packages/contracts/src/attention.ts`. The item is the payload of the
@@ -16,6 +16,7 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 | `broker_health` | `broker_account_undeployed` | the account is disconnected with `broker_account_undeployed` or `broker_account_not_found` | the same |
 | `broker_health` | `broker_connection_lost` | the account has been disconnected for any other reason for 2 minutes (`LOST_CONNECTION_GRACE`) | the same |
 | `broker_health` | `broker_rate_limited` | the account has been disconnected because MetaApi throttles its requests (`broker_rate_limited`) for 2 minutes; the account itself is fine and the adapter retries at the time MetaApi gives | the same |
+| `background_health` | `gateway_stopped` | no Gateway heartbeat has been fresh for 3 minutes (`STOPPED_AFTER`), counted from the last heartbeat and never from before the API started; raised by the API (`tell_owner_if_stopped`, `lonora_gateway/health.py`), since a stopped Gateway cannot; one item per stop | a Gateway heartbeat is fresh again (45 s, `lonora_db/gateways.py`) |
 
 - Every item is `action_required`, except `broker_rate_limited`, which is
   `important_change` (MetaApi throttling needs no action from the owner); a broker
@@ -40,6 +41,12 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 - Broker health items open in Lonora's conversation, with `account_id`, `since` and the
   adapter's `reason_code` in their parameters; the owner text names the problem
   (`lonora_bus/attention_messages.json`).
+- The stopped-Gateway item opens in Lonora's conversation, with `last_heartbeat` in its
+  parameters. The API checks every 30 s (`watch_gateway`, `lonora_api/health.py`) and,
+  while no Gateway runs, sends the push itself (`dispatch_push`). The view shows the
+  line only while no heartbeat is fresh; once one is, the Gateway's own sweep
+  (`withdraw_ended`) withdraws the item. Nothing wakes Lonora for it: its own work is what
+  stopped.
 
 ## Lonora's system alerts
 
@@ -75,7 +82,7 @@ projection with no model: `GET /attention/view` (`attention_view`, `AttentionVie
 
 - It lists, newest first:
   - the open, still-current items of the owner's events above (Trade Approval, Settle,
-    Secret and Mandate cards, broker health problems);
+    Secret and Mandate cards, broker health problems, Lonora's stopped background work);
   - Tasks that need the owner's review (`task_review`);
   - every run in a conversation that waits on the owner's answer to its question
     (`waiting_input` with a pending input request), as `owner_question`;

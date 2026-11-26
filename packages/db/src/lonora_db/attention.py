@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_delivery import delivery_block
 from .events import emit
+from .gateways import gateway_running
 from .owner_profile import reach_me_policy
 from .schema import (
     AttentionRow,
@@ -50,6 +51,8 @@ SYSTEM_ATTENTION = {
     "broker_connection_lost": "action_required",
     # Nothing for the owner to do: the adapter retries at the time MetaApi gives.
     "broker_rate_limited": "important_change",
+    # Raised by the API while no Gateway runs (lonora_gateway.health, Amendment 5).
+    "gateway_stopped": "action_required",
 }
 
 
@@ -112,6 +115,8 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         )
     if row.code == "run_quarantined":
         return True
+    if row.code == "gateway_stopped":
+        return not await gateway_running(session)
     if row.code == "approval_required":
         approval = await session.get(TradeApprovalRow, row.parameters.get("approval_id", ""))
         return (

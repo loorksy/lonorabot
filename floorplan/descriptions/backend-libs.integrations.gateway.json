@@ -22,7 +22,7 @@
     },
     "packages/gateway/src/lonora_gateway/health.py": {
       "name": "Worker health",
-      "description": "Reports the worker is healthy only while its heartbeat is fresh and no critical step has stalled."
+      "description": "Reports the worker is healthy only while its heartbeat is fresh and no critical step has stalled; when no worker has run for a few minutes, raises one notice for the owner and sends it to the phone from the main server."
     },
     "packages/gateway/src/lonora_gateway/heartbeat.py": {
       "name": "Heartbeat",
