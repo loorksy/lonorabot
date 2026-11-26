@@ -1,4 +1,5 @@
-"""The one gate, scripts/gate.sh: it runs every core test of VISION 14.1.2, and CI runs it."""
+"""The one gate, scripts/gate.sh: it runs the core tests of VISION 14.1.2 and 6.1-6.9 and the
+offline acceptance run, leaves the checkout as it found it, and CI runs it."""
 
 import ast
 import os
