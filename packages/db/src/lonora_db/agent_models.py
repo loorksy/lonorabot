@@ -11,6 +11,7 @@ connected provider is assignable (``lonora_providers.catalog``). A new agent sta
 (``inherit_lead_model``, VISION 3.1.2) until the owner assigns another.
 """
 
+from collections.abc import Iterable
 from hashlib import sha256
 from typing import Literal
 
