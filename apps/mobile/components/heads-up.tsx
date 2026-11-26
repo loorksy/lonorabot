@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, AppState, PanResponder, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../lib/api";
-import { attentionLabels } from "../lib/attention-labels";
+import { attentionTitle } from "../lib/attention-labels";
 import { subscribeOwnerEvents } from "../lib/events";
 import { attentionBanner, type Banner, messageBanner } from "../lib/heads-up";
 import { useLists } from "../lib/lists-state";
@@ -160,9 +160,8 @@ export function HeadsUp() {
     for (const item of data.attention) {
       if (announced.current.has(item.id)) continue;
       announced.current.add(item.id);
-      const labels = Object.fromEntries(
-        Object.entries(attentionLabels).map(([code, label]) => [code, live.current.t(label)]),
-      );
+      // The item's own line: a refused model names its provider and the failure family.
+      const labels = { [item.code]: attentionTitle(live.current.t, item.code, item.parameters) };
       const next = attentionBanner(item, {
         rows: live.current.rows,
         openedAt: openedAt.current,

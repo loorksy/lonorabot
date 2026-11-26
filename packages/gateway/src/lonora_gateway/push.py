@@ -11,7 +11,8 @@ One push per record, at its creation, to every phone that has not signed out:
 - a problem with Lonora's own background work (Amendment 5): no Gateway is running
   (``gateway_stopped``), one push per stop, which the API sends (``lonora_gateway.health``)
   since a stopped Gateway cannot; or a model provider refused background work
-  (``model_access_failed``), one push per provider route, cause and key.
+  (``model_access_failed``), one push per provider route, cause and key, and no second
+  one within a day when the route fails again after a success (``REPUSH_AFTER``).
 
 The text is the fixed catalog text of the event in the owner's language, under the agent's
 name (a refused model names its provider and the failure family, never the provider's
@@ -132,8 +133,9 @@ async def push_record(session: AsyncSession, item: AttentionRow) -> tuple[str, i
             return None
         return f"{account}:{since}", None
     if item.code in {"gateway_stopped", "model_access_failed"}:
-        # The item is the record: one per stop, or per refused route, cause and key.
-        return item.id, None
+        # The item is the record: one per stop, or per refused route, cause and key; one
+        # raised again within a day of the last push (``repeat``) does not push.
+        return None if parameters.get("repeat") else (item.id, None)
     if item.code == "approval_required":
         row = await session.get(TradeApprovalRow, str(parameters.get("approval_id", "")))
         record = row.id if row else ""

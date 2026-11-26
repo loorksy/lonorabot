@@ -63,6 +63,11 @@ export const ATTENTION_EVENTS: Partial<Record<AttentionCode, AttentionEvent>> = 
 export function isBrokerHealth(code: AttentionCode): boolean {
   return ATTENTION_EVENTS[code] === "broker_health";
 }
+/**
+ * Why a model provider refused background work (model_access_failed): a rejected key,
+ * spent credit, a model the key may not use, or one the provider does not have.
+ */
+export type ModelAccessReason = "auth" | "billing" | "permission" | "model_not_found";
 /** The payload of the attention.updated and attention.ready events. */
 export interface AttentionNotification {
   id: string;
@@ -86,6 +91,10 @@ export interface AttentionNotification {
     summary?: string;
     /** Where an Agent's alert is delivered; "in_app" until off-app delivery exists. */
     delivery?: "in_app";
+    /** A refused model (model_access_failed): the failure family and the provider's fixed
+     * name (null for an OpenAI-compatible endpoint). */
+    reason?: ModelAccessReason;
+    provider_name?: string | null;
   };
   source_count: number;
   version: number;
@@ -122,6 +131,10 @@ export interface AttentionViewRow {
   symbol?: string | null;
   /** An agent's alert: its plain summary for the owner (the agent's words). */
   summary?: string | null;
+  /** A refused model (model_access_failed): the failure family and the provider's fixed
+   * name (null for an OpenAI-compatible endpoint), never the provider's message. */
+  reason?: ModelAccessReason | null;
+  provider_name?: string | null;
   /**
    * The owner has already looked at it: the item was opened, or the question's
    * conversation was read up to it. Such a row stays listed but lights no dot.

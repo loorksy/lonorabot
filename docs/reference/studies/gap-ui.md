@@ -85,7 +85,7 @@ None of these weakens section 6, adds a Stop control (Amendment 1), or adds a ve
 
 ### 1.5 Notifications, push and channels
 - **Attention.** One "needs your attention" projection: `packages/gateway/src/lonora_gateway/attention.py` and `packages/db/src/lonora_db/attention.py`. It is shown by `apps/web/src/shell/domain/UpdatesPages.tsx` and `apps/mobile/app/(tabs)/updates.tsx`. Reach-me rules and quiet hours: `NotifyPages.tsx` and `notify-settings.tsx`.
-- **Mobile push.** `packages/gateway/src/lonora_gateway/push.py` sends the five 11.4 kinds (`PUSH_CODES`) once per record and phone.
+- **Mobile push.** `packages/gateway/src/lonora_gateway/push.py` sends the five 11.4 kinds (`PUSH_CODES`) once per record and phone. (Since Amendment 5 there are six: Lonora's own background work, `gateway_stopped` and `model_access_failed`.)
   - The effect receipt is written before the network call, an unknown outcome is never resent, and Expo receipts are read after 15 minutes.
   - The text is fixed catalog text under the agent's name, and there is no action button.
   - A tap opens the conversation at the card (`apps/mobile/lib/push.native.ts`).

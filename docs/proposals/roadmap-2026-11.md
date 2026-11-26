@@ -1245,7 +1245,7 @@ Each of these becomes one batch once the owner decides. The decision is in the n
   - Broker events from the Gateway's own MetaApi connection wake the owning agent.
   - The server decides when a run may stay silent, and the owner's words end that silence.
   - The morning brief is built from server facts, with a fallback.
-  - Push is limited to five kinds with fixed text, and the receipt is written before the send.
+  - Push is limited to five kinds (six since Amendment 5, D1) with fixed text, and the receipt is written before the send.
 - **Runs.**
   - The run row is the queue, with claim, lease and fence.
   - Restart rules are per tool call: an interrupted mutation is reported as uncertain and never resent.

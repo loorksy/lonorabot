@@ -28,6 +28,7 @@ from lonora_contracts.model_routing import (
     RoutingPolicy,
 )
 from lonora_contracts.runs import Lease, RunRequest
+from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import agent_model_key
 from lonora_db.attention import attention_view, settle_model_access, withdraw_ended
 from lonora_db.client import Database
@@ -47,6 +48,7 @@ from lonora_gateway.push import PUSH_CODES
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
+from test_model_context import FixtureCredentials
 from test_provider_resilience import Scripted
 from test_task_runtime import task_db as task_db
 
@@ -57,11 +59,28 @@ USER = [ModelMessage(role="user", content="Review gold")]
 NO_TOOLS = cast(ToolRegistry, SimpleNamespace(tools={}))
 
 
-async def routed(db: Database) -> None:
+async def routed(db: Database, *backups: ModelSelection) -> None:
     async with db.sessions() as session, session.begin():
         await SettingsRepository().put(
             session, "model_routing", RoutingPolicy(unified=PRIMARY).model_dump(mode="json")
         )
+        await SettingsRepository().put(
+            session,
+            "model_backups",
+            {"choices": [item.model_dump(mode="json") for item in backups]},
+        )
+
+
+class KeysFor(FixtureCredentials):
+    """A key for these providers only: the router passes over the others as unconfigured."""
+
+    def __init__(self, *providers: str) -> None:
+        self.providers = set(providers)
+
+    async def resolve(self, provider: str) -> str:
+        if provider not in self.providers:
+            raise LonoraError("model_not_configured", 409)
+        return await super().resolve(provider)
 
 
 async def routine(db: Database, owner: str, agent: str, thread: str) -> str:
@@ -91,6 +110,18 @@ async def provider_failure(db: Database, *outcomes: Any) -> ModelProviderError:
     fake = Scripted(**{"primary-model": list(outcomes)})
     with pytest.raises(ModelProviderError) as caught:
         await fake.router(db).complete(Capability.BACKGROUND, USER, [], choices=[PRIMARY])
+    return caught.value
+
+
+async def chain_failure(
+    db: Database, choices: list[ModelSelection], credentials: KeysFor, *outcomes: Any
+) -> ModelProviderError:
+    """What the real router raises for this chain, with keys only for some providers."""
+    fake = Scripted(**{"primary-model": list(outcomes)})
+    with pytest.raises(ModelProviderError) as caught:
+        await fake.router(db, credentials).complete(
+            Capability.BACKGROUND, USER, [], choices=choices
+        )
     return caught.value
 
 
@@ -178,6 +209,8 @@ async def test_a_rejected_key_raises_one_item_and_the_next_ticks_create_no_run(
     assert [(row["kind"], row["code"]) for row in view] == [
         ("background_health", "model_access_failed")
     ]
+    # Web and mobile name the provider and the failure family in the line itself.
+    assert (view[0]["reason"], view[0]["provider_name"]) == ("auth", "OpenAI")
     for _ in range(3):
         await due_again(db, routine_id)
         assert await dispatch_routines(db) == 0
@@ -240,6 +273,8 @@ async def test_an_agent_on_a_different_working_provider_keeps_running(task_db: F
             SettingRow(key=agent_model_key(owner, other.id), payload=record.model_dump(mode="json"))
         )
         other_id, desk_id = other.id, desk.id
+    # Working: its provider has a key (one with none could not answer either).
+    await save_key(db, owner, "deepseek")
     second = await routine(db, owner, other_id, desk_id)
     await due_again(db, first)
     assert await dispatch_routines(db) == 1
@@ -349,3 +384,217 @@ async def test_a_model_access_failure_pushes_once_naming_the_provider(task_db: F
     assert body == attention_text(
         "model_access_failed", "ar", {"reason": "auth", "provider_name": "OpenAI"}
     )
+
+
+@pytest.mark.asyncio
+async def test_a_backup_with_no_key_does_not_keep_the_routine_failing(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, thread = task_db
+    monkeypatch.delenv("LONORA_DEEPSEEK_API_KEY", raising=False)
+    await routed(db, OTHER)
+    routine_id = await routine(db, owner, agent, thread)
+    assert await dispatch_routines(db) == 1
+    # The router passes over the backup, which has no key, and the primary key is rejected.
+    error = await chain_failure(
+        db,
+        [PRIMARY, OTHER],
+        KeysFor("openai"),
+        ModelProviderError(FailureReason.AUTH, http_status=401),
+    )
+    assert [(provider, failed.reason) for provider, _, failed in error.failures] == [
+        ("openai", FailureReason.AUTH),
+        ("deepseek", FailureReason.NOT_CONFIGURED),
+    ]
+    await fail_next(db, error)
+    assert len(await items(db, owner)) == 1
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    assert len(await routine_runs(db, routine_id)) == 1
+    # A key saved for the backup gives the routine a model that may answer.
+    await save_key(db, owner, "deepseek")
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_model_past_the_routers_cap_does_not_keep_the_routine_failing(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    # Six distinct models of one provider (a repeat takes no place), then a seventh that the
+    # router never tries although its provider has a key.
+    backups = [ModelSelection(provider="openai", model=f"backup-{n}") for n in range(5)]
+    await routed(db, PRIMARY, *backups, OTHER)
+    await save_key(db, owner, "deepseek")
+    routine_id = await routine(db, owner, agent, thread)
+    assert await dispatch_routines(db) == 1
+    error = await chain_failure(
+        db,
+        [PRIMARY, *backups, OTHER],
+        KeysFor("openai", "deepseek"),
+        ModelProviderError(FailureReason.AUTH, http_status=401),
+    )
+    assert {provider for provider, _, _ in error.failures} == {"openai"}
+    assert len(error.failures) == 6
+    await fail_next(db, error)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    assert len(await routine_runs(db, routine_id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_held_one_shot_stays_due_and_fires_once_released(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    await fail_next(
+        db, await provider_failure(db, ModelProviderError(FailureReason.AUTH, http_status=401))
+    )
+    due = utcnow() - timedelta(seconds=5)
+    async with db.sessions() as session, session.begin():
+        shot = RoutineRow(
+            owner_id=owner,
+            agent_id=agent,
+            thread_id=thread,
+            prompt="Check gold at 9",
+            run_at=due,
+            next_run_at=due,
+        )
+        session.add(shot)
+        await session.flush()
+        shot_id = shot.id
+    assert await dispatch_routines(db) == 0
+    async with db.sessions() as session:
+        held = await session.get(RoutineRow, shot_id)
+        assert held is not None and held.enabled and held.last_run_at is None
+    await save_key(db, owner, "openai")
+    assert await dispatch_routines(db) == 1
+    [run] = await routine_runs(db, shot_id)
+    # It runs late, and its run knows when it was due.
+    assert run.model_metadata["scheduled_for"] == due.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_a_held_tick_counts_as_skipped(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    routine_id = await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    await fail_next(
+        db, await provider_failure(db, ModelProviderError(FailureReason.AUTH, http_status=401))
+    )
+    for _ in range(2):
+        await due_again(db, routine_id)
+        assert await dispatch_routines(db) == 0
+    async with db.sessions() as session:
+        held = await session.get(RoutineRow, routine_id)
+        assert held is not None and held.skipped_occurrences == 2
+    await save_key(db, owner, "openai")
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+    runs = sorted(await routine_runs(db, routine_id), key=lambda run: run.created_at)
+    assert runs[-1].model_metadata["skipped_occurrences"] == 2
+
+
+async def pass_time(db: Database, minutes: int) -> None:
+    """Move every item and run back by ``minutes``, as if that much time had passed."""
+    async with db.sessions() as session, session.begin():
+        for table in (AttentionRow, RunRow):
+            for row in await session.scalars(select(table)):
+                row.created_at -= timedelta(minutes=minutes)
+
+
+@pytest.mark.asyncio
+async def test_a_held_routine_is_tried_again_after_a_growing_wait(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    routine_id = await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    spent = await provider_failure(db, ModelProviderError(FailureReason.BILLING, http_status=402))
+    await fail_next(db, spent)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    # The owner may top up the account at the provider, which Lonora cannot see: a quarter
+    # of an hour after the item, one routine run goes through to try again.
+    await pass_time(db, 16)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+    # It fails the same way: no second item, and the next try waits twice as long.
+    await fail_next(db, spent)
+    assert [item.status for item in await items(db, owner)] == ["ready"]
+    await pass_time(db, 29)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    await pass_time(db, 2)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+    assert len(await routine_runs(db, routine_id)) == 3
+    # That try succeeds (the account was topped up): the item ends and routines fire again.
+    async with db.sessions() as session, session.begin():
+        answered = await claim_next(session, "gw-model-access", 120)
+        assert answered is not None
+        answered.status = "completed"
+        assert await settle_model_access(session, owner, "openai", "primary-model") == 1
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_missing_model_ends_once_no_agent_would_try_it(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    await fail_next(
+        db,
+        await provider_failure(
+            db, ModelProviderError(FailureReason.MODEL_NOT_FOUND, http_status=404)
+        ),
+    )
+    assert len(await items(db, owner)) == 1
+    # The owner chooses another model, as the item asks.
+    newer = ModelSelection(provider="openai", model="newer-model")
+    async with db.sessions() as session, session.begin():
+        await SettingsRepository().put(
+            session, "model_routing", RoutingPolicy(unified=newer).model_dump(mode="json")
+        )
+    async with db.sessions() as session:
+        assert [row["code"] for row in await attention_view(session, owner)] == []
+    async with db.sessions() as session, session.begin():
+        assert await withdraw_ended(session, owner) == 1
+    assert [item.status for item in await items(db, owner)] == ["suppressed"]
+
+
+@pytest.mark.asyncio
+async def test_a_provider_failing_between_successes_pushes_once_a_day(task_db: Fixture) -> None:
+    from lonora_gateway.push import push_record
+
+    db, owner, agent, thread = task_db
+    await routed(db)
+    rejected = await provider_failure(db, ModelProviderError(FailureReason.AUTH, http_status=401))
+
+    async def fail_then_answer() -> None:
+        async with db.sessions() as session, session.begin():
+            await create_run(
+                session,
+                owner,
+                RunRequest(thread_id=thread, agent_id=agent, trigger="watch", prompt="Watch gold"),
+            )
+        await fail_next(db, rejected)
+        async with db.sessions() as session, session.begin():
+            await settle_model_access(session, owner, "openai", "primary-model")
+
+    await fail_then_answer()
+    await fail_then_answer()
+    first, second = sorted(await items(db, owner), key=lambda item: item.created_at)
+    async with db.sessions() as session:
+        # Each failure is an item of its own, but only the first pushes.
+        assert await push_record(session, first) == (first.id, None)
+        assert await push_record(session, second) is None
+    await pass_time(db, 25 * 60)
+    await fail_then_answer()
+    *_, third = sorted(await items(db, owner), key=lambda item: item.created_at)
+    async with db.sessions() as session:
+        assert await push_record(session, third) == (third.id, None)

@@ -25,7 +25,7 @@ section 6 unchanged, adds no Stop control (Amendment 1) and no venue other than 
 | 12 | Show model cost per run in routine history (a view, never a meter) | adapt | P3 | S | OMB | no |
 | A1 | Broker events wake the owning agent from the gateway's own MetaApi connection, grouped and idempotent | already-better | P3 | - | both recommend it | - |
 | A2 | Market watches: model-free, tick and candle evaluation, confirmations, debounce, cooldown, expiry, health, quarantine | already-better | P3 | - | both | - |
-| A3 | Push: closed list of five kinds, fixed text, no model text, receipt before send, never resent | already-better | P3 | - | both | - |
+| A3 | Push: closed list of five kinds (six since Amendment 5), fixed text, no model text, receipt before send, never resent | already-better | P3 | - | both | - |
 | A4 | Silence enforced by the server; a failed silent wake gives the owner back its source item | already-better | P3 | - | both | - |
 | A5 | Morning brief: server facts, Lonora writes, server fallback, time learned from app opens | already-better | P3 | - | OMB | - |
 | A6 | Trade Approval validity by price drift, not a timeout | already-better | P3 | - | both | - |
