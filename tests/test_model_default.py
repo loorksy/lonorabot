@@ -217,9 +217,7 @@ async def test_only_rejected_keys_choose_nothing_and_say_the_key_was_rejected(
 ) -> None:
     statuses = KeyStatuses(openai=401, anthropic=403)
     with pytest.raises(ModelProviderError) as raised:
-        await default_model.choose_default_model(
-            router_db, Keys("openai", "anthropic"), statuses
-        )
+        await default_model.choose_default_model(router_db, Keys("openai", "anthropic"), statuses)
     assert raised.value.code == "model_credentials_rejected"
     assert (await read_policy(router_db)).unified is None
 

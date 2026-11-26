@@ -144,7 +144,8 @@ def test_each_provider_lists_the_models_rakazo_lists() -> None:
 def test_every_listed_model_is_served_by_its_registered_adapter(provider: str) -> None:
     # The wires the adapter itself declares, not a copy of the import's table: a wire
     # the import accepts, or an entry brings, is one the registered adapter speaks.
-    spoken = getattr(PROVIDERS[provider], "wires")
+    adapter: Any = PROVIDERS[provider]
+    spoken = adapter.wires
     listed = {entry["wire"] for entry in shipped()["providers"][provider]}
     assert listed <= spoken and WIRES[provider] <= spoken, (provider, listed, spoken)
 
