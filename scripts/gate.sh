@@ -76,10 +76,15 @@ fresh() {
 step "build: ruff, pyright, the policy, tool-reference and manifest checks, pnpm lint, check and build"
 bash scripts/build.sh
 
-step "web catalogs: extracted in place, and no Arabic translation missing"
+step "web catalogs: extracted, and no Arabic translation missing"
+# The extraction rewrites the tracked catalogs (their source line references). Catalogs without
+# local edits are restored afterwards, so the gate leaves the checkout as it found it.
+catalogs=apps/web/src/i18n/locales
+git diff --quiet -- "$catalogs" && restore=1 || restore=0
 pnpm --filter @lonora/web i18n
-missing=$(awk '$0 == "msgstr \"\"" && previous ~ /^msgid ".+"$/ { missing++ } { previous = $0 } END { print missing + 0 }' apps/web/src/i18n/locales/ar/messages.po)
-[ "$missing" -eq 0 ] || { echo "Arabic catalog: $missing messages have no translation"; exit 1; }
+missing=$(awk '$0 == "msgstr \"\"" && previous ~ /^msgid ".+"$/ { missing++ } { previous = $0 } END { print missing + 0 }' "$catalogs"/ar/messages.po)
+[ "$restore" -eq 0 ] || git checkout -q -- "$catalogs"
+[ "$missing" -eq 0 ] || { echo "Arabic catalog: $missing messages have no translation (pnpm --filter @lonora/web i18n adds them)"; exit 1; }
 
 step "migrate a fresh database: exactly one alembic head"
 fresh tests

@@ -115,7 +115,7 @@ anything newer on the branches named below was done after it, so check `git log`
 
 Run `LONORA_DATABASE_URL=<a PostgreSQL 16 server> bash scripts/gate.sh`. Only the URL's server and role are used: the role must be allowed to create databases, and the gate makes a fresh database for each step that needs one and drops them all at the end. The gate sets its own CI-only dummy values (Fernet key, bootstrap token) and puts every `packages/*/src` and `apps/*/src` of the checkout on `PYTHONPATH`. Its header lists the one-time setup. It stops at the first failure and runs, in this order:
 - `bash scripts/build.sh`: ruff, ruff format, pyright strict, the tool reference and manifest check (`export_agent_tool_reference.py --check`), the GenUI catalog check and the policy distribution, then pnpm lint, check and build.
-- `pnpm --filter @lonora/web i18n`, which refreshes the catalogs in place, with Arabic at 0 missing.
+- `pnpm --filter @lonora/web i18n`, with Arabic at 0 missing. The extraction rewrites the catalogs; when they had no local edits, the gate restores them afterwards, so it leaves the checkout as it found it.
 - `bash scripts/migrate.sh` on a fresh database. There must be exactly one alembic head.
 - Full pytest: `.venv/bin/python -m pytest -q tests`. It includes `tests/test_acceptance_scenario.py`, which runs `scripts/agent_eval/acceptance.py --offline`.
 - `python tests/run_foundation_checks.py --isolated-databases` (109 check scripts and 16 pytest files; each gets a fresh database). Five of the core tests of VISION 14.1.2 are check scripts there; the other six run in the full pytest. `tests/test_gate.py` fails if the gate stops running one of them, or if `ci.yml` gets a test list of its own.

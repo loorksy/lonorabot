@@ -171,6 +171,12 @@ def test_a_gate_that_drops_a_core_test_is_caught(tmp_path: Path, line: str, muta
     assert gate_gaps(gate) + run_gaps(stubbed_run(tmp_path, gate))
 
 
+def test_the_gate_leaves_the_checkout_as_it_found_it(tmp_path: Path) -> None:
+    # A signed gate result describes the commit: the catalogs Lingui extracts in place are
+    # restored once they are counted.
+    assert stubbed_run(tmp_path, GATE.read_text(encoding="utf-8")).changed == ""
+
+
 def test_the_database_password_never_reaches_a_command_line(tmp_path: Path) -> None:
     # Other users of a shared build server can read every process's arguments.
     calls = stubbed_run(tmp_path, GATE.read_text(encoding="utf-8")).calls
