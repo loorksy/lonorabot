@@ -1,0 +1,13 @@
+{
+  "name": "lonora-cloud-site",
+  "private": true,
+  "type": "module",
+  "description": "Lonora Cloud website, registration and admin approval (Cloudflare Pages + Pages Functions + D1). Staged here until loorksy/lonora-cloud exists (docs/cloud/DECISIONS.md D2, D46).",
+  "scripts": {
+    "test": "node --no-warnings --test tests/*.test.js",
+    "dev": "wrangler pages dev public --d1 DB=lonora_site",
+    "db:init": "wrangler d1 execute lonora_site --remote --file=schema.sql",
+    "deploy": "wrangler pages deploy public --project-name lonora-site"
+  },
+  "engines": { "node": ">=22" }
+}

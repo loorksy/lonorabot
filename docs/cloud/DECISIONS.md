@@ -59,14 +59,20 @@ here in the same pull request. "Blocks" names the first task that cannot start w
 | D44 | How agents search the web | **Hybrid:** the provider's built-in search first, Lonora's own `web_search` (SearXNG, GDELT for news) as the free fallback, better page reading. Spec: [docs/proposals/web-research.md](../proposals/web-research.md). | Better quality than SearXNG at about $10 per 1,000 searches on the owner's key; leading agents work this way. | PT-6 | Proposed |
 | D45 | Signing in to remote MCP servers by OAuth | **Build it:** discovery, client registration (owner-entered details, Client ID Metadata Document, Dynamic Client Registration), PKCE with `resource`, `iss` check, a sign-in card in the web client and the app, encrypted tokens with refresh, and the stateless protocol revision. Spec: [docs/proposals/mcp-oauth.md](../proposals/mcp-oauth.md). | Owner: «يلزم MCP OAuth». Servers that accept only OAuth cannot be connected today: the helpers in `oauth.py` are built but called by nothing (VISION §13). | PT-7 | Confirmed (2026-11-22) |
 
+## Signup (owner decision of 2026-11-25)
+
+| ID | Decision | Recommendation | Why | Blocks | Status |
+|---|---|---|---|---|---|
+| D46 | How customers sign up at launch | **Normal registration on the website, then approval by staff.** A visitor creates an account (name, email, password, country, language, acceptance of the terms and the risk disclosure). The account is `pending` until staff approve it in the admin panel. Staff then activate it once the customer's dedicated Lonora exists, which is manual provisioning until Phase 3 automates it. Until activation nothing is provisioned and nothing is charged. Staff can also reject or suspend an account, and every decision is logged. | Owner: «يسجل طبيعي لكن الموافقة والتفعيل من لوحة الادمن». It allows selling before billing and automated provisioning exist, and lets the company choose who it serves (D20, D21). | Phase W | Confirmed (2026-11-25) |
+
 ## Commercial
 
 | ID | Decision | Recommendation | Blocks | Status |
 |---|---|---|---|---|
 | D13 | Plans | Resource tiers only (VISION P1: no trading, activity or model limits). Starter (8 GB VM, workspace 2 GB / 1 CPU / 10 GB), Pro (16 GB, workspace 4 GB / 2 CPU / 20 GB), Max (32 GB dedicated vCPU, workspace 8 GB / 4 CPU / 50 GB, custom domain, daily snapshots, priority support), Enterprise (dedicated, SSO, contract SLA). Sizes follow the installer preflight (RAM ≥ 3584 MB + workspace memory). | P4-T5 | Deferred (2026-11-22): owner «الباقات لاحقاً» |
 | D14 | Prices | Set **after** measuring real cost per instance in Phase 3 with the cost worksheet in PLAN.md §5.3. Starting hypotheses to test: Starter $39–49, Pro $79–99, Max $149–199 per month, two months free on annual. | P4-T5 | Deferred (2026-11-22): owner «الباقات لاحقاً» |
-| D15 | Trial | **7 days on Starter, card required**, instance destroyed 3 days after an unconverted trial ends (export offered). | P4-T6 | Proposed |
-| D16 | Billing provider | Depends on D19. **Stripe Billing + Stripe Tax** if the company is in a Stripe country; otherwise **Paddle** (merchant of record: it collects and remits global sales tax/VAT). Before integrating, get written confirmation that the provider accepts automated-trading software. | P4-T4 | Proposed |
+| D15 | Trial | (Waits until the owner opens paid plans; D46 governs signup until then.) **7 days on Starter, card required**, instance destroyed 3 days after an unconverted trial ends (export offered). | P4-T6 | Proposed |
+| D16 | Billing provider | (Waits until the owner opens paid plans; D46.) Depends on D19. **Stripe Billing + Stripe Tax** if the company is in a Stripe country; otherwise **Paddle** (merchant of record: it collects and remits global sales tax/VAT). Before integrating, get written confirmation that the provider accepts automated-trading software. | P4-T4 | Proposed |
 | D17 | Support desk | **Built in-house** in the control plane (tickets, SLAs, macros, CSAT, supervisors, approvals) because it needs instance context, RBAC and break-glass. Live chat can start with an embedded Chatwoot (open source, self-hosted) and move in-house later. | P5-T6 | Proposed |
 | D18 | Support coverage | Arabic + English. Starter/Pro: business hours (owner's time zone). Max: 24/7 for P1 incidents. | P5-T8 | Proposed |
 

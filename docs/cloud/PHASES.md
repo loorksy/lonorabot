@@ -76,6 +76,18 @@ through a setup link, answers every `--json` command, and a self-hosted install 
 
 ---
 
+## Phase W — The website, registration and approval (in progress, D46)
+
+The company website and the portal account. Until `loorksy/lonora-cloud` exists (D2, P0-T7), it is staged in `cloud/site/` of this repository. `cloud/` is outside every path the Lonora `Dockerfile` copies, so none of it ships in a customer image (Amendment 3 §7).
+
+| ID | Task | Acceptance criteria |
+|---|---|---|
+| PW-T1 | Website v04: v03 corrected to VISION and Amendments 1-3. Two modes, no limits, no Stop, plans as resource tiers (D13) with prices "announced at launch" (D14), BYOK, the app as the product. | Every claim traces to VISION or this plan; Arabic first; screenshots at 390 and 1280 in ar and en. |
+| PW-T2 | Registration: name, email, password, country, language, MT5 broker (optional), acceptance of the terms and the risk disclosure (versions recorded). Turnstile, honeypot, per-IP rate limit, no account enumeration. The new account is `pending`. | Tests: valid signup, duplicate email, bad input, bot, rate limit, foreign origin. |
+| PW-T3 | Portal sign-in and the account page: the status (pending, active, rejected, suspended); when active, "Open in the app" with the customer's instance address and setup link. This sign-in is the portal's only. It never opens the customer's Lonora (D7). | Tests: sessions (HttpOnly, Secure, SameSite), logout, wrong password, the status page per state. |
+| PW-T4 | Admin panel behind Cloudflare Access (staff identity, D25): list and search accounts; approve, activate (instance address and setup link), reject with a reason, suspend; CSV export; audit log of every staff action. | Tests: a request without a valid Access token is refused; every decision is logged; CSV cells cannot inject formulas. |
+| PW-T5 | The owner's runbook: Cloudflare account, D1, Turnstile, Access, secrets, deploy, export, deletion on request. | A dry run with the local test server follows it to the end. |
+
 ## Phase M — The Android app is the product (`lonorabot`, alongside Phases 2–4, D36)
 
 | ID | Task | Acceptance criteria |
