@@ -57,7 +57,8 @@ def near(
 def test_cached_tokens_are_priced_once_at_the_cached_rate():
     assert near(usage_cost(*SONNET), SONNET_COST)
     assert near(usage_cost(*GPT4O), GPT4O_COST)
-    # Anthropic reports input without the cache reads; OpenAI-compatible APIs include them.
+    # Anthropic reports input without the cache reads; OpenAI's Responses `input_tokens`
+    # and the OpenAI-compatible APIs' `prompt_tokens` include them.
     assert prompt_tokens("anthropic", 1000, 2000) == 3000
     assert prompt_tokens("openai", 3000, 1000) == 3000
 

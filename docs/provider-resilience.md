@@ -25,7 +25,7 @@ stays one of the stable codes Runs, Tasks and clients already read.
 | `overloaded` | 503/529, `overloaded_error`, overload wording on 429, the ChatGPT plan's `subscription_sharing_usage_unavailable` and `subscription_sharing_user_unavailable` | `model_provider_unavailable` |
 | `server_error` | other 5xx, `api_error`, untyped stream error events | `model_provider_unavailable` |
 | `timeout` | read/connect timeout, 408/504 | `model_provider_unavailable` |
-| `connection` | transport errors, a stream that closed before its end marker (`response.completed` on the Responses API) | `model_provider_unavailable` |
+| `connection` | transport errors, a stream that closed before its end marker (`response.completed` or `response.incomplete` on the Responses API) | `model_provider_unavailable` |
 | `context_overflow` / `payload_too_large` | "prompt is too long", `context_length_exceeded`, 413 | `context_limit_exceeded` |
 | `model_not_found` | 404, `not_found_error`, "the model … does not exist" | `model_endpoint_unavailable` |
 | `content_policy` | content filters, `refusal`/`content_filter` stops | `model_content_blocked` |
