@@ -76,6 +76,7 @@ class AndroidArtifactChecks(unittest.TestCase):
                 "SYSTEM_ALERT_WINDOW",
                 "READ_EXTERNAL_STORAGE",
                 "WRITE_EXTERNAL_STORAGE",
+                "ACCESS_WIFI_STATE",
             )
             if f"name='android.permission.{permission}'" in permissions
         ]

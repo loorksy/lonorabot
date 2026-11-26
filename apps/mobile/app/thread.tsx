@@ -368,6 +368,20 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           setLoaded(true);
           setError(null);
         });
+        // Read on its own, as on Web: another side read failing never hides the agent
+        // collaboration cards, and a failed read of them keeps the cards already drawn.
+        void api
+          .get<Resource[]>(`/peer-messages?thread_id=${encodeURIComponent(id)}`)
+          .then((rows) => {
+            if (
+              stillLive() &&
+              conversationCache.current(scope) &&
+              selected.current.id === id &&
+              selected.current.scope === scope
+            )
+              setPeers(rows);
+          })
+          .catch(() => undefined);
         const auxiliary = Promise.all([
           api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
           api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
@@ -380,20 +394,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           api
             .get<ExecutionReceipt[]>(`/trading/receipts?thread_id=${encodeURIComponent(id)}`)
             .catch(() => [] as ExecutionReceipt[]),
-          // As on Web, a failed read keeps the peer cards already drawn.
-          api
-            .get<Resource[]>(`/peer-messages?thread_id=${encodeURIComponent(id)}`)
-            .catch(() => null),
         ]).then(
-          ([
-            nextFiles,
-            nextApprovals,
-            collaboration,
-            refreshedAgents,
-            nextCards,
-            nextReceipts,
-            nextPeers,
-          ]) => {
+          ([nextFiles, nextApprovals, collaboration, refreshedAgents, nextCards, nextReceipts]) => {
             if (
               !stillLive() ||
               !conversationCache.current(scope) ||
@@ -440,7 +442,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               }),
             );
             setReceipts(nextReceipts);
-            if (nextPeers) setPeers(nextPeers);
             setError(null);
           },
         );

@@ -61,8 +61,8 @@ It is presentation only.
   agents read; `peerOutcome` in `@lonora/core` strips it for inbox previews and Mobile
   message bubbles. A request between two agents and its returned result are drawn as the
   same "Agent collaboration" card («تعاون الوكلاء») on Web and Mobile: core `peerCard`
-  gives who asked whom (each name opens that agent's conversation), the status and the
-  text.
+  gives who asked whom (a name opens that agent's conversation; on Mobile only the other
+  agent's name is a link), the status and the text.
 - Approval cards show the request in words («شراء 0.10», core `orderLineAction`), never
   its action id, and labeled values: "Broker ticket" («تذكرة الوسيط») before a broker
   reference, and a result code only as its owner sentence; the broker's raw codes and

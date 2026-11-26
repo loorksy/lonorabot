@@ -26,17 +26,19 @@ CREATED=()
 
 step() { printf '\n== %s\n' "$*"; }
 
-# database create|drop NAME, on SERVER; create prints the new database's URL.
+# database create|drop NAME, on SERVER; create prints the new database's URL. SERVER goes in the
+# environment: any user of the machine can read a command line, password included.
 database() {
-  "$PY" - "$SERVER" "$1" "$2" <<'PY'
+  GATE_SERVER=$SERVER "$PY" - "$1" "$2" <<'PY'
 import asyncio
+import os
 import sys
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
-server, action, name = make_url(sys.argv[1]), sys.argv[2], sys.argv[3]
+server, action, name = make_url(os.environ["GATE_SERVER"]), sys.argv[1], sys.argv[2]
 statement = (
     f"CREATE DATABASE {name}" if action == "create" else f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"
 )
@@ -74,10 +76,15 @@ fresh() {
 step "build: ruff, pyright, the policy, tool-reference and manifest checks, pnpm lint, check and build"
 bash scripts/build.sh
 
-step "web catalogs: extracted in place, and no Arabic translation missing"
+step "web catalogs: extracted, and no Arabic translation missing"
+# The extraction rewrites the tracked catalogs (their source line references). Catalogs without
+# local edits are restored afterwards, so the gate leaves the checkout as it found it.
+catalogs=apps/web/src/i18n/locales
+git diff --quiet -- "$catalogs" && restore=1 || restore=0
 pnpm --filter @lonora/web i18n
-missing=$(awk '$0 == "msgstr \"\"" && previous ~ /^msgid ".+"$/ { missing++ } { previous = $0 } END { print missing + 0 }' apps/web/src/i18n/locales/ar/messages.po)
-[ "$missing" -eq 0 ] || { echo "Arabic catalog: $missing messages have no translation"; exit 1; }
+missing=$(awk '$0 == "msgstr \"\"" && previous ~ /^msgid ".+"$/ { missing++ } { previous = $0 } END { print missing + 0 }' "$catalogs"/ar/messages.po)
+[ "$restore" -eq 0 ] || git checkout -q -- "$catalogs"
+[ "$missing" -eq 0 ] || { echo "Arabic catalog: $missing messages have no translation (pnpm --filter @lonora/web i18n adds them)"; exit 1; }
 
 step "migrate a fresh database: exactly one alembic head"
 fresh tests
@@ -85,7 +92,8 @@ heads=$("$PY" -m alembic -c packages/db/alembic.ini heads | grep -c '(head)' || 
 [ "$heads" -eq 1 ] || { echo "expected one alembic head, found $heads"; exit 1; }
 
 # The full run includes tests/test_acceptance_scenario.py, which runs
-# scripts/agent_eval/acceptance.py --offline and holds its known defects strictly.
+# scripts/agent_eval/acceptance.py --offline and holds its known defects strictly
+# (tests/test_gate.py fails if it stops doing so).
 step "full pytest"
 "$PY" -m pytest -q tests
 
