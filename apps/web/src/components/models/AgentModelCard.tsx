@@ -1,6 +1,13 @@
 import { i18n } from "@lingui/core";
 import type { Agent, AgentModelChange, AgentModelSummary } from "@lonora/contracts";
-import { agentModelLines, agentModelText, offersDefaultModel } from "@lonora/core";
+import {
+  agentModelLines,
+  agentModelText,
+  chatgptText,
+  MANAGE_USAGE_URL,
+  offersDefaultModel,
+  usesChatGptPlan,
+} from "@lonora/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -67,6 +74,11 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
           {line}
         </p>
       ))}
+      {usesChatGptPlan(summary) && (
+        <a href={MANAGE_USAGE_URL} target="_blank" rel="noopener noreferrer" dir="auto">
+          {chatgptText(locale).manageUsage}
+        </a>
+      )}
       <div className="lonora-agent-model-choice">
         <p className="muted" dir="auto">
           {options.length ? text.ownerOnly : text.noModels}

@@ -8,7 +8,8 @@ export type OwnerProfile = {
   version: number;
   name: string | null;
   address: string | null;
-  reply_language: "ar" | "en" | null;
+  // A BCP-47 tag (ar, en, es, ...); null follows the owner's latest message.
+  reply_language: string | null;
   reach_me: import("@lonora/contracts").IncomingCallPolicy;
   devices: { id: string; name: string }[];
   limit: number;

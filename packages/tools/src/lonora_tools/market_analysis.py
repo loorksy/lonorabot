@@ -240,9 +240,13 @@ async def calendar_available(context: ToolContext) -> str | None:
 
 async def calendar(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = CalendarReadInput.model_validate(args)
-    sources, events = await read_calendar(
-        context.db, context.owner_id, read_secret=context.secrets.read
-    )
+    sent: list[str] = []
+
+    async def stored_address(secret_id: str) -> str:
+        sent.append(secret_id)
+        return await context.secrets.read(secret_id)
+
+    sources, events = await read_calendar(context.db, context.owner_id, read_secret=stored_address)
     now = utcnow()
     window = {
         "from": (now - timedelta(hours=params.hours_back)).isoformat(),
@@ -269,7 +273,7 @@ async def calendar(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
         limit=params.limit,
     )
     readable = any(item["status"] == "ok" for item in sources)
-    return {
+    result: dict[str, Any] = {
         "configured": True,
         "reason": None if readable else "calendar_source_unavailable",
         "observed_at": now.isoformat(),
@@ -279,6 +283,11 @@ async def calendar(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
         "total_matches": total,
         "truncated": total > len(page),
     }
+    if sent:
+        # A calendar read from its stored address sent it (it may carry a key): scanned
+        # with the values as they are now (7.2.6).
+        return (await scan(context)).data(result)
+    return result
 
 
 def _default_path(symbol: str, timeframe: str) -> str:

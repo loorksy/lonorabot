@@ -21,7 +21,7 @@ from lonora_adapter_kit.model_errors import (
 )
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_adapters.models.anthropic import AnthropicAdapter
-from lonora_adapters.models.openai import OpenAIAdapter
+from lonora_adapters.models.deepseek import DeepSeekAdapter
 from lonora_agent.environment import ToolRetryScheduled
 from lonora_agent.executor import execute_run
 from lonora_agent.model_recovery import (
@@ -263,6 +263,30 @@ def test_http_failures_classify_into_stable_codes(
 
 
 @pytest.mark.parametrize(
+    ("code", "status", "reason"),
+    [
+        ("subscription_sharing_usage_limit_exceeded", 429, FailureReason.BILLING),
+        ("subscription_sharing_user_not_eligible", 403, FailureReason.PERMISSION),
+        ("subscription_sharing_route_not_supported", 403, FailureReason.PERMISSION),
+        ("chatpass_v2_scope_not_authorized", 403, FailureReason.PERMISSION),
+        ("chatpass_v2_invalid_authorization_context", 403, FailureReason.PERMISSION),
+        ("subscription_sharing_invalid_user", 401, FailureReason.AUTH),
+        ("subscription_sharing_unsupported_capability", 400, FailureReason.FORMAT_ERROR),
+        ("subscription_sharing_usage_unavailable", 503, FailureReason.OVERLOADED),
+        ("subscription_sharing_user_unavailable", 503, FailureReason.OVERLOADED),
+    ],
+)
+def test_the_chatgpt_plan_error_codes_map_to_the_taxonomy(
+    code: str, status: int, reason: FailureReason
+) -> None:
+    body = json.dumps({"error": {"code": code, "message": "provider text", "param": "tools"}})
+    error = response_failure(status, body, {})
+    assert error.reason is reason and not error.inferred
+    # Provider text is never kept; only the code is.
+    assert "provider text" not in repr(vars(error))
+
+
+@pytest.mark.parametrize(
     ("message", "reason"),
     [
         # Loose wording that once took a model or key offline for 15 minutes.
@@ -445,7 +469,9 @@ async def test_anthropic_cut_off_tool_input_is_truncated_never_invalid(stream: b
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [False, True])
-async def test_openai_length_finish_flags_text_and_refuses_tool_calls(stream: bool) -> None:
+async def test_chat_completions_length_finish_flags_text_and_refuses_tool_calls(
+    stream: bool,
+) -> None:
     def handle(request: httpx.Request) -> httpx.Response:
         tools = json.loads(request.content).get("messages")[0]["content"] == "tools"
         if stream:
@@ -471,7 +497,7 @@ async def test_openai_length_finish_flags_text_and_refuses_tool_calls(stream: bo
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        adapter = OpenAIAdapter("fixture-key", client)
+        adapter = DeepSeekAdapter("fixture-key", client)
 
         async def delta(_: str) -> None:
             return None
@@ -493,7 +519,7 @@ async def test_unterminated_stream_and_content_filter_and_discovery() -> None:
         return httpx.Response(200, text=sse({"choices": [{"delta": {"content": "Gold"}}]}))
 
     with pytest.raises(ModelProviderError) as caught:
-        await adapter_reply(OpenAIAdapter, cut, stream=True)
+        await adapter_reply(DeepSeekAdapter, cut, stream=True)
     assert caught.value.reason is FailureReason.CONNECTION
 
     def filtered(_: httpx.Request) -> httpx.Response:
@@ -502,7 +528,7 @@ async def test_unterminated_stream_and_content_filter_and_discovery() -> None:
         )
 
     with pytest.raises(ModelProviderError) as caught:
-        await adapter_reply(OpenAIAdapter, filtered, stream=False)
+        await adapter_reply(DeepSeekAdapter, filtered, stream=False)
     assert caught.value.reason is FailureReason.CONTENT_POLICY
 
     def models(_: httpx.Request) -> httpx.Response:
@@ -929,7 +955,8 @@ async def test_agent_preference_orders_candidates_and_never_needs_a_migration(
     task_db: Fixture,
 ) -> None:
     db, owner, agent, _ = task_db
-    own = ModelSelection(provider="deepseek", model="agent-model")
+    # A model the list holds for text only (Z.ai's GLM-4.7 takes no images).
+    own = ModelSelection(provider="zai", model="glm-4.7")
     own_backup = ModelSelection(provider="zai", model="agent-backup")
     await configure(db, BACKUP)
     async with db.sessions() as session, session.begin():
@@ -955,25 +982,32 @@ async def test_agent_preference_orders_candidates_and_never_needs_a_migration(
     plain = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id="other")
     assert plain.choices == [PRIMARY, BACKUP]
     # A catalog that verifies the Agent's model as text-only keeps vision global.
-    await settings(
-        db,
-        {
-            "catalog:deepseek": {
-                "models": [
-                    ModelDescriptor(
-                        id="agent-model",
-                        provider="deepseek",
-                        name="A",
-                        capabilities=["text", "tools"],
-                        verified=True,
-                        source="fixture",
-                    ).model_dump(mode="json")
-                ]
-            }
-        },
-    )
     vision = await router.route(Capability.VISION, owner_id=owner, agent_id=agent)
     assert vision.choices == [PRIMARY, own_backup, BACKUP]
+
+
+@pytest.mark.asyncio
+async def test_an_agent_whose_only_model_reads_no_images_is_told_so_not_unconfigured(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, _ = task_db
+    # Z.ai's default, inherited from Lonora's model: the list holds it for text only.
+    glm = ModelSelection(provider="zai", model="glm-5.3")
+    await settings(db, {"model_routing": RoutingPolicy(unified=glm).model_dump(mode="json")})
+    async with db.sessions() as session, session.begin():
+        await change_agent_model(session, owner, agent, AgentModelChange(primary=glm))
+    router = Scripted().router(db)
+    route = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id=agent)
+    assert route.choices == [glm]
+    # A model is configured; one that sees the image is not, and the code says which.
+    with pytest.raises(LonoraError) as caught:
+        await router.route(Capability.VISION, owner_id=owner, agent_id=agent)
+    assert caught.value.code == "model_lacks_vision"
+    # A model that reads images, routed for vision, takes the image turn.
+    sonnet = ModelSelection(provider="anthropic", model="claude-sonnet-5-5")
+    await settings(db, {"model_backups": {"choices": [sonnet.model_dump(mode="json")]}})
+    vision = await router.route(Capability.VISION, owner_id=owner, agent_id=agent)
+    assert vision.choices == [sonnet]
 
 
 @pytest.mark.asyncio
@@ -1038,6 +1072,8 @@ async def test_a_helper_run_asks_its_chosen_model_first(monkeypatch: pytest.Monk
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
             run_model=chosen,
+            locale="en",
+            timezone="UTC",
         ),
     )
     await model_runtime.model_turn(context, USER, [], Capability.CONVERSATION)

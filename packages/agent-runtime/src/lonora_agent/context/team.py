@@ -1,6 +1,8 @@
 import json
+from zoneinfo import ZoneInfo
 
 from lonora_adapter_kit.types import ModelMessage
+from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_directory import agent_directory
 from lonora_db.agent_state import agent_live_state
@@ -14,6 +16,7 @@ from .group import group_context
 from .permissions import permission_context
 
 ROUTING_FRAME_PREFIX = "[Lonora live routing metadata v1]\n"
+CLOCK_PREFIX = "[Lonora clock]\n"
 DIRECTORY_CHAR_BUDGET = 12000
 
 
@@ -56,6 +59,21 @@ async def team_context(session: AsyncSession, owner_id: str, agent_id: str) -> s
     )
 
 
+def clock_block(timezone: str) -> str:
+    """Now, in UTC and in the owner's time zone, to the minute. It ends each request, after
+    the cached prefix and the history, so it never changes what comes before it."""
+    now = utcnow()
+    local = now.astimezone(ZoneInfo(timezone))
+    return CLOCK_PREFIX + encode_metadata(
+        {
+            "utc_now": now.strftime("%Y-%m-%dT%H:%MZ"),
+            "owner_timezone": timezone,
+            "local_now": local.strftime("%Y-%m-%d %H:%M"),
+            "weekday": local.strftime("%A"),
+        }
+    )
+
+
 async def routing_frame(
     session: AsyncSession, owner_id: str, agent_id: str, thread_id: str, run: RunRow | None = None
 ) -> str:
@@ -82,10 +100,12 @@ async def routing_frame(
         + "\n<live_agent_state>"
         # Readiness is the owner's presentation; the permission frame below carries it. The
         # current-work line and its card pointer are the owner's status line too: Arabic UI
-        # text, never model-facing (model text is English only).
+        # text, never model-facing (model text is English only). The read time changes every
+        # turn; the clock at the end of each request carries "now" instead.
         + encode_metadata(
             live.model_dump(
-                mode="json", exclude={"trading_readiness", "current_work", "pending_card_id"}
+                mode="json",
+                exclude={"trading_readiness", "current_work", "pending_card_id", "observed_at"},
             )
         )
         + "</live_agent_state>\nUse task_inspect or runtime_status for fresh details before claiming current progress. "

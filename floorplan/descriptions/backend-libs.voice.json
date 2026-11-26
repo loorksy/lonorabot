@@ -30,7 +30,7 @@
     },
     "packages/voice/src/lonora_voice/sessions.py": {
       "name": "Voice sessions",
-      "description": "Starts and ends a voice session, links an answered incoming call, and logs the call in the conversation."
+      "description": "Starts and ends a voice session, links an answered incoming call, logs the call in the conversation, and tells the speaking model what the door does with a new trade."
     },
     "packages/voice/src/lonora_voice/synthesis.py": {
       "name": "Speech synthesis",

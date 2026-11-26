@@ -21,6 +21,7 @@ writing and the server offers no tool that can trade or move money. Credentials 
 the server.
 """
 
+import asyncio
 import hashlib
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -51,6 +52,7 @@ from sqlalchemy import select
 from .base import Tool
 from .context import ToolContext
 from .source_trust import owner_named, refusal
+from .terminal import scan
 
 
 class McpList(Contract):
@@ -289,7 +291,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     "execution_allowed": state in {"trusted", "operator_declared"},
                 }
             )
-        return {
+        listing = {
             "tools": discovered,
             "trusted_tier": trust.tier if trust else None,
             "source_trust": "untrusted_external_metadata",
@@ -302,6 +304,9 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         }
     finally:
         await adapter.close()
+    # The server may echo the token it was just sent in its own descriptions: scanned with
+    # the values as they are now (7.2.6).
+    return (await scan(context)).data(listing)
 
 
 async def execution_declared(context: ToolContext) -> str | None:
@@ -445,12 +450,17 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             raise LonoraError("mcp_connection_changed", 409)
         if grant.source == "trusted" and await trust_for(context, connection_id) != trust:
             raise LonoraError("mcp_tool_not_authorized", 403)
+        # The server may echo the token it is sent: the values as they are now, read after
+        # that token and before the send, so a store that cannot be read sends nothing.
+        found = await scan(context)
         result = {
             "result": await adapter.execute(args["name"], args["arguments"]),
             "effect_tier": grant.tier,
         }
     finally:
         await adapter.close()
+    # Scanned before the receipt keeps it (7.2.6).
+    result = await asyncio.to_thread(found.data, result)
     if grant.trust_id is not None:
         async with context.db.sessions() as session, session.begin():
             await mark_used(session, grant.trust_id)

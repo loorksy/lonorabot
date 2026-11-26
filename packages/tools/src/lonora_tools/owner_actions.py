@@ -17,9 +17,11 @@ from lonora_db.owner_actions import card_facts, live_status, propose
 from lonora_db.runs import require_lease
 from lonora_db.schema import OwnerActionRow, RunRow, ThreadRow
 from lonora_db.transactions import owned_thread
+from lonora_providers.chatgpt_sign_in import sign_in_enabled
+from lonora_providers.registry import SIGN_IN
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .base import Tool
+from .base import EffectStage, Tool
 from .context import ToolContext
 
 
@@ -36,18 +38,25 @@ async def mandate_target(
     return proposal.model_copy(update={"agent_id": target})
 
 
+# What a card's live status says the proposal did: the owner is asked until he taps it.
+CARD_EFFECT: dict[str, EffectStage] = {"pending": "requested", "confirmed": "confirmed"}
+
+
 def card_summary(
     row: OwnerActionRow, created: bool, thread_id: str, passkey: bool
 ) -> dict[str, Any]:
+    status = live_status(row)
     return {
         "owner_action": {
             "id": row.id,
             "kind": row.kind,
-            "status": live_status(row),
+            "status": status,
             "expires_at": row.expires_at.isoformat(),
         },
-        "already_shown": not created,
-        "shown_in_conversation": row.thread_id == thread_id,
+        # The stored card, not proof the owner saw it.
+        "effect": CARD_EFFECT.get(status, "failed"),
+        "repeated": not created,
+        "stored_in_thread": row.thread_id == thread_id,
         # The owner decides on the card; nothing has changed yet.
         "owner_must_tap": True,
         "passkey_required": passkey,
@@ -69,6 +78,9 @@ async def card_scope(context: ToolContext, session: AsyncSession) -> tuple[RunRo
 
 async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     proposal = OwnerActionProposal.model_validate(args)
+    if proposal.target == "model_provider" and proposal.name in SIGN_IN and not sign_in_enabled():
+        # This installation does not offer Sign in with ChatGPT (M8): an API key does.
+        raise LonoraError("chatgpt_sign_in_unavailable", 409)
     if proposal.kind == "trading_mode":
         proposal = await mandate_target(context, proposal)
     async with context.db.sessions() as session, session.begin():
@@ -106,14 +118,15 @@ def tools() -> list[Tool]:
             "server), news_feed or economic_calendar (name; for these three the owner types "
             "the address, which may carry a key, and a server's optional token), "
             "brave_search (web search key) or model_provider (name: the provider id; for "
-            "openai_compatible the owner types the base URL with the key); a trading "
+            "openai_compatible the owner types the base URL with the key; openai_chatgpt "
+            "signs in with ChatGPT to use the owner's ChatGPT plan, with no key); a trading "
             "account is broker_connect. Any other "
             "credential: label and secret_fields, each a key (the name it is saved under), a "
             "label, and secret false only for a value safe to show while typed; write the "
             "labels in the owner's language. There is no grant card. The card "
             "shows server facts (a Secret card also your label, field labels and the details "
             "you gave); say in one line what it does. A repeated proposal returns the card "
-            "already shown; at most five of yours wait at once.",
+            "already stored; at most five of yours wait at once.",
             OwnerActionProposal,
             propose_card,
             replay_safe=True,

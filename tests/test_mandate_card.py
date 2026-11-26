@@ -49,7 +49,7 @@ async def test_the_mandate_card_switches_the_mode_the_button_showed() -> None:
         assert card["kind"] == "trading_mode" and card["status"] == "pending", card
         # A repeated proposal returns the card already shown.
         repeat = await call(context, "owner_action_propose", kind="trading_mode")
-        assert repeat["owner_action"]["id"] == card["id"] and repeat["already_shown"], repeat
+        assert repeat["owner_action"]["id"] == card["id"] and repeat["repeated"], repeat
         shown = cast(
             list[dict[str, Any]],
             await fixture.request("GET", f"/owner-actions?thread_id={context.thread_id}"),

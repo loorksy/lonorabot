@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from functools import partial
 from time import monotonic
 
@@ -8,9 +9,11 @@ from lonora_adapter_kit.model_errors import ModelProviderError
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import raise_model_access, settle_model_access
+from lonora_db.conversation_locale import conversation_locale
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.genui_submit import mark_submit_started
+from lonora_db.owner_profile import reach_me_policy
 from lonora_db.rich_response import validated_rich_content
 from lonora_db.routines import mark_routine_started
 from lonora_db.runs import (
@@ -173,6 +176,7 @@ async def record_failure(
                 read_only_names={tool.name for tool in registry.tools.values() if tool.read_only},
                 reason=provider.reason.value if provider else None,
                 retry_after=provider.retry_after if provider else None,
+                provider=provider.provider if provider else None,
             )
             if provider is not None:
                 await raise_model_access(
@@ -208,6 +212,11 @@ async def execute_run(
     try:
         async with context.db.sessions() as session, session.begin():
             row = await require_lease(session, context.lease, lock=True)
+            # Owner text follows the conversation the Run reports to (VISION 11.6).
+            locale = await conversation_locale(
+                session, context.owner_id, await report_thread(session, row)
+            )
+            timezone = (await reach_me_policy(session, context.owner_id)).timezone
             row.status = "running"
             row.updated_at = utcnow()
             # Rules N and T: a card submission records that its Run started.
@@ -223,6 +232,7 @@ async def execute_run(
                 run_id=row.id,
                 payload={"run": run_data(row)},
             )
+        context = replace(context, locale=locale, timezone=timezone)
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
 

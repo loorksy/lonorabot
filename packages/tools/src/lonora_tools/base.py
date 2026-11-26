@@ -47,6 +47,10 @@ def eager_for(*profiles: ExposureProfile) -> frozenset[ExposureProfile]:
 # peer messages or financial tools.
 ToolScope = Literal["full", "observe_only", "helper"]
 HELPER_EFFECTS = frozenset({"artifact_create"})
+# What a state-changing call did, on its result's "effect" key: the owner was asked,
+# it is queued, it went out with no outcome yet, it is done, nothing changed, or unknown
+# (check before any repeat). Financial tools keep their journal status instead.
+EffectStage = Literal["requested", "pending", "attempted", "confirmed", "failed", "uncertain"]
 
 
 def run_scope(trigger: str, metadata: Mapping[str, Any]) -> ToolScope:

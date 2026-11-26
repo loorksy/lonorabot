@@ -36,6 +36,7 @@ OWNER_CODES = frozenset(
         "runtime_error",
         "skill_continuation_unavailable",
         "model_not_configured",
+        "model_lacks_vision",
         "model_credentials_rejected",
         "model_access_denied",
         "model_billing_exhausted",

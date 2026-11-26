@@ -201,7 +201,10 @@ async def test_unconfigured_search_stays_explicit_and_existing_brave_route_still
             db=db,
             owner_id="fixture-owner",
             searxng_url=None,
-            secrets=SimpleNamespace(read=secret_read),
+            # The answer is scanned after the stored key went out (``scan``).
+            secrets=SimpleNamespace(read=secret_read, scanned_values=AsyncMock(return_value={})),
+            workspace_given=None,
+            cli_tokens=None,
         ),
     )
     try:

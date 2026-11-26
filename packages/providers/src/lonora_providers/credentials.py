@@ -3,12 +3,14 @@ import os
 
 from dotenv import dotenv_values
 from lonora_adapter_kit.secrets import SecretStore
+from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.model_credentials import SavedKey, saved_key
 from lonora_security.network import compatible_endpoint
 
-from .registry import OWNER_ENDPOINT
+from .chatgpt_sign_in import RESOURCE, ChatGptSignIn
+from .registry import OWNER_ENDPOINT, SIGN_IN
 
 log = logging.getLogger("lonora.model_router")
 # A card saved while the key is read: read again, a few times at most.
@@ -30,7 +32,13 @@ class ProviderCredentials:
         pairs one card's key with another's URL. The card's URL goes with the card's key; the deployment's
         URL with the deployment's or a settings-era key. A URL that fails the check
         connects nothing: the router passes over the provider as unconfigured instead of
-        failing every route that lists it."""
+        failing every route that lists it. The ChatGPT plan's is a fresh access token of
+        the owner's sign-in, with OpenAI's public API."""
+        if provider in SIGN_IN:
+            sign_in = self.sign_in()
+            token = await sign_in.access_token()
+            await sign_in.keep_models_fresh(token)
+            return token, RESOURCE
         if provider not in OWNER_ENDPOINT:
             return await self.resolve(provider), None
         prefix = "LONORA_" + provider.upper()
@@ -65,8 +73,19 @@ class ProviderCredentials:
         async with self.db.sessions() as session:
             return await saved_key(session, provider)
 
+    def sign_in(self) -> ChatGptSignIn:
+        """The owner's ChatGPT sign-in; only the encrypted store holds it."""
+        if not isinstance(self.store, EncryptedSecretStore):
+            raise LonoraError("model_not_configured", 409)
+        return ChatGptSignIn(self.store)
+
+    async def model_refused(self, provider: str, model: str) -> None:
+        """A model the signed-in account refused at run time leaves its list."""
+        if provider in SIGN_IN:
+            await self.sign_in().refuse_model(model)
+
     async def resolve(self, provider: str) -> str:
-        if provider in OWNER_ENDPOINT:
+        if provider in OWNER_ENDPOINT or provider in SIGN_IN:
             return (await self.connection(provider))[0]
         async with self.db.sessions() as session:
             saved = await saved_key(session, provider)
@@ -87,6 +106,12 @@ class ProviderCredentials:
             return None
 
     async def configured(self, provider: str) -> bool:
+        if provider in SIGN_IN:
+            # Signed in with plan use, read without asking OpenAI.
+            try:
+                return await self.sign_in().usable()
+            except LonoraError:
+                return False
         try:
             await self.resolve(provider)
             return True

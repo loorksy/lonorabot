@@ -22,7 +22,7 @@
     },
     "packages/agent-runtime/src/lonora_agent/tool_dispatch.py": {
       "name": "Run one tool call",
-      "description": "Carries out a single tool call under the rules that keep it safe to replay after a crash."
+      "description": "Carries out a single tool call under the rules that keep it safe to replay after a crash, and marks an action that did not return as failed or uncertain."
     },
     "packages/agent-runtime/src/lonora_agent/tool_exposure.py": {
       "name": "Tool exposure",

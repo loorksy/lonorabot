@@ -9,7 +9,7 @@ import {
   type Routing,
   type Selection,
 } from "../../lib/api";
-import { discoverModels, providers, readModels } from "../../lib/model_catalog";
+import { providers, readModels } from "../../lib/model_catalog";
 import { capabilities, readRouting, saveRouting } from "../../lib/model_routing";
 import { userError } from "../../lib/user_error";
 import { useToast } from "../Toast";
@@ -28,6 +28,26 @@ const capabilityLabel = (cap: Capability) =>
     background: t`Background work`,
   })[cap];
 const VOICE: Capability[] = ["realtime_voice", "stt", "tts"];
+// Voice routes take OpenAI's speech models, which Lonora's list of chat models (VISION
+// 12.4) does not hold: the live, transcription and synthesis models lonora_voice serves.
+const SPEECH: Partial<Record<Capability, string[]>> = {
+  realtime_voice: ["gpt-live-1", "gpt-live-1-mini"],
+  stt: ["gpt-4o-mini-transcribe", "whisper-1"],
+  tts: ["gpt-4o-mini-tts", "tts-1"],
+};
+const speechModels = (cap: Capability): Model[] =>
+  (SPEECH[cap] ?? []).map((id) => ({
+    id,
+    provider: "openai",
+    name: id,
+    capabilities: [cap],
+    verified: true,
+    source: "lonora_voice",
+    context_window: null,
+  }));
+// What a route asks of a model whose capabilities are known (Lonora's list, VISION 12.4).
+const needed = (cap: Capability) =>
+  cap === "vision" || cap === "reasoning" || VOICE.includes(cap) ? cap : "text";
 const key = (item: Selection) => `${item.provider}:${item.model}`;
 const modelKey = (model: Model) => `${model.provider}:${model.id}`;
 const modelName = (model: Model) => `${providerName(model.provider)} · ${model.name}`;
@@ -35,21 +55,25 @@ const modelName = (model: Model) => `${providerName(model.provider)} · ${model.
 type Configured = { id: string; configured: boolean };
 
 /* «النماذج» (route `models`, under التكاملات › الذكاء الاصطناعي): main's model overlay on one
-   page. The global routing, the provider catalog (a key, then a fresh discovery) and the
-   discovered models. Only the owner assigns an agent's model (Q20 a). */
+   page. The global routing, a provider's key, and the models of the connected providers:
+   Lonora's list, never read from a provider (VISION 12.4). Only the owner assigns an agent's
+   model (Q20 a). */
 export function ModelsPage() {
-  const load = useLoad(
-    () =>
-      Promise.all([
-        readRouting(),
-        Promise.all(providers.map(readModels)),
-        api.get<Configured[]>("/providers"),
-      ]),
-    [],
-  );
+  const load = useLoad(async () => {
+    const [routing, configured] = await Promise.all([
+      readRouting(),
+      api.get<Configured[]>("/providers"),
+    ]);
+    // The ChatGPT plan's models too, as its signed-in account offers them.
+    const connected = [...providers, "openai_chatgpt" as Provider].filter((provider) =>
+      configured.some((item) => item.id === provider && item.configured),
+    );
+    return [routing, await Promise.all(connected.map(readModels)), configured] as const;
+  }, []);
   if (!load.value) return load.error != null ? <Note>{userError(load.error)}</Note> : null;
   const [routing, catalogs, configured] = load.value;
   const models = catalogs.flat();
+  const speech = configured.some((item) => item.id === "openai" && item.configured);
   return (
     <>
       {models.length ? (
@@ -57,6 +81,7 @@ export function ModelsPage() {
           key={JSON.stringify(routing)}
           initial={routing}
           models={models}
+          speech={speech}
           onSaved={load.reload}
         />
       ) : (
@@ -70,36 +95,29 @@ export function ModelsPage() {
         </>
       )}
       <CatalogForm configured={configured} onDone={load.reload} />
-      {models.length > 0 && <DiscoveredModels models={models} />}
+      {models.length > 0 && <ListedModels models={models} />}
     </>
   );
 }
 
-/* Main's «Providers and official catalog»: the key is optional once one is stored, and the
-   provider's catalog is discovered again. */
+/* A provider's key. Its models are Lonora's list, so saving the key is all: nothing is
+   read from the provider. */
 function CatalogForm({ configured, onDone }: { configured: Configured[]; onDone: () => void }) {
   const toast = useToast();
   const [provider, setProvider] = useState<Provider>(providers[0]);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
-  // A key stored before a failed discovery counts, so «Save and discover models» can try again.
-  const [saved, setSaved] = useState<Provider[]>([]);
-  const stored =
-    saved.includes(provider) || configured.some((item) => item.id === provider && item.configured);
+  const stored = configured.some((item) => item.id === provider && item.configured);
   return (
     <form
       noValidate
       onSubmit={async (event) => {
         event.preventDefault();
-        if (busy || (!key && !stored)) return;
+        if (busy || !key) return;
         setBusy(true);
         try {
-          if (key) {
-            await api.put(`/providers/${provider}/credential`, { api_key: key });
-            setKey("");
-            setSaved((list) => [...list, provider]);
-          }
-          await discoverModels(provider);
+          await api.put(`/providers/${provider}/credential`, { api_key: key });
+          setKey("");
           toast(t`Saved`, { type: "success" });
           onDone();
         } catch (error) {
@@ -110,7 +128,7 @@ function CatalogForm({ configured, onDone }: { configured: Configured[]; onDone:
       }}
     >
       <h3>
-        <Trans>Providers and official catalog</Trans>
+        <Trans>Model providers</Trans>
       </h3>
       <label className="field">
         <span>
@@ -140,26 +158,23 @@ function CatalogForm({ configured, onDone }: { configured: Configured[]; onDone:
         />
       </label>
       <Note>
-        <Trans>
-          The catalog is read from the provider. Unknown capabilities are shown as unverified.
-        </Trans>
+        <Trans>Each provider's models are Lonora's own list, updated with Lonora.</Trans>
       </Note>
       <div className="actions">
-        <button type="submit" className="btn primary" disabled={busy || (!key && !stored)}>
-          <Trans>Save and discover models</Trans>
+        <button type="submit" className="btn primary" disabled={busy || !key}>
+          <Trans>Save the key</Trans>
         </button>
       </div>
     </form>
   );
 }
 
-/* Main's «Discovered models»: every model of every provider, with whether its metadata is
-   verified. */
-function DiscoveredModels({ models }: { models: Model[] }) {
+/* The models of the connected providers, with whether their metadata is verified. */
+function ListedModels({ models }: { models: Model[] }) {
   return (
     <>
       <h3>
-        <Trans>Discovered models</Trans> ({models.length})
+        <Trans>Available models</Trans> ({models.length})
       </h3>
       <div className="group">
         {models.map((model) => (
@@ -206,15 +221,11 @@ function ModelField({
           onChange(model ? { provider: model.provider, model: model.id } : undefined);
         }}
       >
-        <option value="">{t`Choose a discovered model`}</option>
+        <option value="">{t`Choose a model`}</option>
         {models
           .filter(
             (m) =>
-              cap !== "realtime_voice" ||
-              (m.provider === "openai" && ["gpt-live-1", "gpt-live-1-mini"].includes(m.id)),
-          )
-          .filter(
-            (m) => !cap || !m.verified || !m.capabilities.length || m.capabilities.includes(cap),
+              !cap || !m.verified || !m.capabilities.length || m.capabilities.includes(needed(cap)),
           )
           .map((m) => (
             <option key={modelKey(m)} value={modelKey(m)}>
@@ -229,10 +240,13 @@ function ModelField({
 function RoutingForm({
   initial,
   models,
+  speech,
   onSaved,
 }: {
   initial: Routing;
   models: Model[];
+  // Whether OpenAI is connected: the voice routes' models are its speech models.
+  speech: boolean;
   onSaved: () => void;
 }) {
   const toast = useToast();
@@ -242,7 +256,7 @@ function RoutingForm({
       key={cap}
       label={capabilityLabel(cap)}
       value={policy.routes[cap]}
-      models={models}
+      models={VOICE.includes(cap) ? (speech ? speechModels(cap) : []) : models}
       cap={cap}
       onChange={(value) => {
         const routes = { ...policy.routes };

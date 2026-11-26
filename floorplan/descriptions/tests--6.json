@@ -159,6 +159,10 @@
     "tests/test_background_silence.py": {
       "name": "Background silence tests",
       "description": "Automatic checks for background silence."
+    },
+    "tests/test_chatgpt_sign_in.py": {
+      "name": "ChatGPT sign-in tests",
+      "description": "Automatic checks for signing in with ChatGPT against a fake OpenAI."
     }
   }
 }

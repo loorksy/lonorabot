@@ -1,8 +1,8 @@
 """Explicit model-choice fixture for the Web and Mobile model card specs.
 
 Reads one JSON action on stdin. ``init`` gives the browser the owner session, sets one
-default model and two connected providers with explicit catalogs, and creates an agent
-with its conversation. ``cleanup`` restores the global model settings and removes the
+default model and two connected providers, whose models are Lonora's list (VISION 12.4),
+and creates an agent with its conversation. ``cleanup`` restores the global model settings and removes the
 fixture keys, so later specs see what they saw before. No real provider is called and no
 key is real.
 """
@@ -18,14 +18,8 @@ from lonora_db.schema import SecretRow
 from lonora_db.transactions import SettingsRepository
 from sqlalchemy import delete
 
-SETTINGS = (
-    "model_routing",
-    *("catalog:" + name for name in ("openai", "anthropic")),
-)
-CATALOGS = {
-    "openai": [("gpt-default-ui", "GPT Default UI")],
-    "anthropic": [("claude-sonnet-ui", "Claude Sonnet UI"), ("claude-opus-ui", "Claude Opus UI")],
-}
+SETTINGS = ("model_routing",)
+PROVIDERS = ("openai", "anthropic")
 
 
 async def action(data: dict[str, Any]) -> dict[str, Any]:
@@ -51,7 +45,7 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             restore = {
                 "settings": {key: await SettingsRepository().get(session, key) for key in SETTINGS},
                 "added_keys": [
-                    provider for provider in CATALOGS if await saved_key(session, provider) is None
+                    provider for provider in PROVIDERS if await saved_key(session, provider) is None
                 ],
             }
         cookies = [
@@ -60,24 +54,12 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.request(
             "PUT",
             "/settings/models",
-            {"mode": "unified", "unified": {"provider": "openai", "model": "gpt-default-ui"}},
+            {"mode": "unified", "unified": {"provider": "openai", "model": "gpt-6.2-sol"}},
         )
-        for provider in CATALOGS:
+        for provider in PROVIDERS:
             await fixture.request(
                 "PUT", f"/providers/{provider}/credential", {"api_key": "explicit-ui-key-1234"}
             )
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            for provider, models in CATALOGS.items():
-                await SettingsRepository().put(
-                    session,
-                    "catalog:" + provider,
-                    {
-                        "models": [
-                            {"id": model, "provider": provider, "name": name, "source": "fixture"}
-                            for model, name in models
-                        ]
-                    },
-                )
         agent = await fixture.agent("Model card " + data.get("locale", "en"))
         restore["agent"] = agent["id"]
         thread = await fixture.conversation(agent)

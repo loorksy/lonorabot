@@ -241,6 +241,25 @@ by that signal; the Run hands back right after it. From `before_effect` of a cal
 is not read-only until its result is checkpointed, the drain's backstop does not cancel
 the worker either (`docs/gateway-reliability.md`).
 
+Every receipt, stored result and Trade Approval id is keyed by the call id, so
+each call of a Run has its own. Before a reply is checkpointed, the loop gives a
+call whose provider id is empty, repeated in the reply or already in the
+transcript the id `stable_id(run_id, "call:{turn}:{index}")` (`unique_call_ids`,
+for every provider adapter); the checkpoint keeps the provider's own id under the new
+one (`execution_state.provider_call_ids`). An id that is already unique is kept, so
+earlier checkpoints and receipts still match.
+
+A result whose content someone other than the owner wrote (`returns_external_content`,
+the list the context engine labels untrusted) passes the owner's secret scan in
+`ToolRegistry.execute` and is marked `_provenance: third_party` (VISION.md 7.2.6). The
+scan is read once for the Run pass (`run_scan`), before the first such call is sent, so
+a store that cannot be read refuses the call unsent; a workspace command reads it again,
+and keeps that read, after its CLI token is issued. A tool that sends one of the owner's
+stored values to a third party (the MCP server's token in `mcp_tools` and `mcp_execute`,
+the Brave key in `web_search`, a stored feed or calendar address in `news_feed_read` and
+`economic_calendar_read`) also scans its own result with a read made after that value,
+so an echo of a value the owner saved during the pass arrives as `[secret:NAME]` too.
+
 A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
 `class` is one of input, resolution, connection, permission, provider, internal
 (`environment.error_class`, from the recovery category). An operation the executor

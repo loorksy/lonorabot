@@ -12,8 +12,9 @@ from lonora_adapter_kit.context import context_blocks, govern_context, token_est
 from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapter_kit.types import ModelMessage, ToolCall, ToolDefinition
 from lonora_adapters.models.anthropic import AnthropicAdapter
+from lonora_adapters.models.compatible_endpoint import CompatibleEndpointAdapter
 from lonora_adapters.models.deepseek import DeepSeekAdapter
-from lonora_adapters.models.openai import OpenAIAdapter
+from lonora_adapters.models.openai_responses import OpenAIResponsesAdapter
 from lonora_adapters.models.openrouter import OpenRouterAdapter
 from lonora_adapters.models.zai import ZaiAdapter
 from lonora_contracts.model_catalog import ModelDescriptor
@@ -179,18 +180,27 @@ async def settings(db: Database, values: dict[str, Any]) -> None:
             await SettingsRepository().put(session, key, value)
 
 
+class EndpointCredentials(FixtureCredentials):
+    """The owner's own endpoint, the one provider whose catalog is its own listing."""
+
+    async def connection(self, provider: str) -> tuple[str, str | None]:
+        return "fixture-not-a-real-key", "https://llm.example.test/v1"
+
+
 @pytest.mark.asyncio
 async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Database) -> None:
-    primary = ModelSelection(provider="openai", model="large")
-    backup = ModelSelection(provider="openai", model="small")
+    primary = ModelSelection(provider="openai_compatible", model="large")
+    backup = ModelSelection(provider="openai_compatible", model="small")
     await settings(
         router_db,
         {
             "model_routing": RoutingPolicy(unified=primary).model_dump(mode="json"),
             "model_backups": {"choices": [backup.model_dump(mode="json")]},
-            "catalog:openai": {
+            "catalog:openai_compatible": {
                 "models": [
-                    descriptor(w).model_copy(update={"id": m}).model_dump()
+                    descriptor(w)
+                    .model_copy(update={"id": m, "provider": "openai_compatible"})
+                    .model_dump()
                     # Sized so the outcome holds with the tokenizer cache and with the
                     # UTF-8 byte fallback: the long history fits only the large window.
                     for m, w in [("large", 100000), ("small", 6000)]
@@ -215,10 +225,10 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
             },
         )
 
-    def factory(_: str, key: str) -> ModelAdapter:
+    def factory(_: str, key: str, base_url: str) -> ModelAdapter:
         client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
         clients.append(client)
-        adapter = OpenAIAdapter(key, client)
+        adapter = CompatibleEndpointAdapter(key, base_url, client)
         adapter.owns_client = True
         return adapter
 
@@ -233,7 +243,7 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
         *exchange('{"ok":true,"operation_id":"op-42"}'),
     ]
     original = [m.model_dump() for m in messages]
-    reply, selected = await GlobalModelRouter(router_db, FixtureCredentials(), factory).complete(
+    reply, selected = await GlobalModelRouter(router_db, EndpointCredentials(), factory).complete(
         Capability.CONVERSATION, messages, [], on_attempt=attempt
     )
     assert selected == backup and attempts == ["large", "small"]
@@ -246,8 +256,8 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
     assert payloads[1]["messages"][2]["role"] == "assistant"
     assert payloads[1]["messages"][-1]["tool_call_id"] == "financial-receipt"
     # No documented maximum for "large": the unknown-model output cap applies.
-    assert payloads[0]["max_completion_tokens"] == 8192
-    assert payloads[1]["max_completion_tokens"] == 1500
+    assert payloads[0]["max_tokens"] == 8192
+    assert payloads[1]["max_tokens"] == 1500
     budget = reply.provider_metadata["context_budget"]
     assert budget["context_window"] == 6000
     assert budget["actual_input_tokens"] == 77 and budget["actual_output_tokens"] == 12
@@ -260,13 +270,22 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize(
     "adapter_type",
-    [OpenAIAdapter, AnthropicAdapter, DeepSeekAdapter, ZaiAdapter, OpenRouterAdapter],
+    [OpenAIResponsesAdapter, AnthropicAdapter, DeepSeekAdapter, ZaiAdapter, OpenRouterAdapter],
 )
 async def test_provider_wire_output_budget(adapter_type: type[Any], stream: bool) -> None:
     payloads: list[dict[str, Any]] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         payloads.append(json.loads(request.content))
+        if adapter_type is OpenAIResponsesAdapter:
+            # The Responses API is always streamed.
+            events: list[dict[str, Any]] = [
+                {"type": "response.output_text.delta", "delta": "OK"},
+                {"type": "response.completed", "response": {"id": "r", "usage": {}}},
+            ]
+            return httpx.Response(
+                200, text="".join("data: " + json.dumps(x) + "\n\n" for x in events)
+            )
         if stream:
             events = (
                 [
@@ -303,7 +322,7 @@ async def test_provider_wire_output_budget(adapter_type: type[Any], stream: bool
         )
         if stream:
             assert chunks == ["OK"]
-    field = "max_completion_tokens" if adapter_type is OpenAIAdapter else "max_tokens"
+    field = "max_output_tokens" if adapter_type is OpenAIResponsesAdapter else "max_tokens"
     assert payloads[0][field] == 321
 
 

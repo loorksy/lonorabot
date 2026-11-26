@@ -1061,3 +1061,14 @@ async def test_quiet_hours_from_chat_are_kept_to_the_minute_and_an_empty_window_
     finally:
         await reset_profile(fixture)
         await fixture.close()
+
+
+def test_the_reply_language_is_any_language_tag_or_auto() -> None:
+    from lonora_tools.memory import OwnerPreferencesUpdate
+    from pydantic import ValidationError
+
+    for tag in ("ar", "en", "es", "zh-Hant", "pt-BR", "auto"):
+        assert OwnerPreferencesUpdate(reply_language=tag).reply_language == tag
+    for bad in ("spanish", "e", "ar en", "x" * 40):
+        with pytest.raises(ValidationError):
+            OwnerPreferencesUpdate(reply_language=bad)

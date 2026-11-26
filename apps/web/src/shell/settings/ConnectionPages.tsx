@@ -1,5 +1,14 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import {
+  type ChatGptStatus,
+  chatgptRow,
+  chatgptText,
+  MANAGE_USAGE_URL,
+  signOutChatGpt,
+  signOutLine,
+} from "@lonora/core";
 import { Icon, PairIcon } from "@lonora/ui-web";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -555,6 +564,7 @@ function SimulationImport({
 
 const PROVIDER_NAMES: Record<string, string> = {
   openai: "OpenAI",
+  openai_chatgpt: "ChatGPT",
   anthropic: "Anthropic",
   deepseek: "DeepSeek",
   zai: "Z.ai",
@@ -562,13 +572,27 @@ const PROVIDER_NAMES: Record<string, string> = {
 };
 export const providerName = (id: string) => PROVIDER_NAMES[id] ?? id;
 
-/* «مزوّدو النماذج» (route `providers`): the server's providers that have a key. */
+type ProviderRow = {
+  id: string;
+  configured: boolean;
+  /** The ChatGPT plan: its signed-in account, never a token. */
+  sign_in?: ChatGptStatus;
+};
+
+/* «مزوّدو النماذج» (route `providers`): the server's providers that have a key, and the
+   ChatGPT plan's sign-in with Manage usage and Sign out (Amendment 4). */
 export function ProvidersPage() {
   const nav = useNavigation();
-  const providers = useLoad(() => api.get<{ id: string; configured: boolean }[]>("/providers"), []);
-  const configured = (providers.value ?? []).filter((item) => item.configured);
+  const providers = useLoad(() => api.get<ProviderRow[]>("/providers"), []);
+  const configured = (providers.value ?? []).filter(
+    (item) => item.configured && item.id !== "openai_chatgpt",
+  );
+  const plan = (providers.value ?? []).find(
+    (item) => item.id === "openai_chatgpt" && chatgptRow(item.sign_in, i18n.locale),
+  );
   return (
     <>
+      {plan && <ChatGptPlanRow row={plan} onSignedOut={providers.reload} />}
       {configured.length ? (
         <div className="group">
           {configured.map((item) => (
@@ -603,11 +627,78 @@ export function ProvidersPage() {
   );
 }
 
+/* The ChatGPT plan in the providers list: its account, "Using ChatGPT plan" with Manage usage,
+   and Sign out whenever a sign-in holds tokens (plan use allowed or not), which revokes the
+   session at OpenAI and says whether OpenAI confirmed it. */
+function ChatGptPlanRow({ row, onSignedOut }: { row: ProviderRow; onSignedOut: () => void }) {
+  const toast = useToast();
+  const text = chatgptText(i18n.locale);
+  const shown = chatgptRow(row.sign_in, i18n.locale);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="group" data-provider="openai_chatgpt">
+      <div className="row">
+        <Icon name="cpu" />
+        <span className="body">
+          <strong>{text.name}</strong>
+          <small dir="auto">
+            {shown?.line}
+            {row.sign_in?.email ? (
+              <>
+                {" · "}
+                <bdi>{row.sign_in.email}</bdi>
+              </>
+            ) : null}
+          </small>
+        </span>
+        <a
+          className="btn sm outline"
+          href={MANAGE_USAGE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {text.manageUsage}
+        </a>
+        {shown?.signOut && (
+          <button
+            type="button"
+            className="btn sm outline"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const result = await signOutChatGpt((path, body) =>
+                  api.post<{ signed_out: boolean; revoked: boolean }>(path, body),
+                );
+                toast(signOutLine(result, i18n.locale), {
+                  type: result.revoked ? "success" : "warn",
+                });
+                onSignedOut();
+              } catch (error) {
+                toast(userError(error), { type: "error" });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {text.signOut}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* The provider form (route `provider`): the provider, the API key (show/hide), «اختبار الاتصال»
-   (POST /providers/{id}/test: lists the models without storing the key) and save (the key is
-   stored encrypted, then the catalog is discovered). */
+   (POST /providers/{id}/test: whether the provider accepts the key, nothing stored) and save
+   (the key is stored encrypted; the models are Lonora's list, VISION 12.4). */
 export function ProviderFormPage({ initial }: { initial?: string }) {
-  if (initial !== undefined && !Object.hasOwn(PROVIDER_NAMES, initial)) return <NotFoundPage />;
+  // The ChatGPT plan takes no key: it is signed in from its Secret card in chat.
+  if (
+    initial !== undefined &&
+    (!Object.hasOwn(PROVIDER_NAMES, initial) || initial === "openai_chatgpt")
+  )
+    return <NotFoundPage />;
   return <ProviderForm initial={initial} />;
 }
 function ProviderForm({ initial }: { initial?: string }) {
@@ -637,9 +728,6 @@ function ProviderForm({ initial }: { initial?: string }) {
           await api.put(`/providers/${encodeURIComponent(provider)}/credential`, {
             api_key: key(form),
           });
-          await api
-            .post(`/providers/${encodeURIComponent(provider)}/discover`, {})
-            .catch(() => undefined);
           clearDirty();
           toast(t`Saved`, { type: "success" });
           nav.go("/app/providers", { replace: true });
@@ -664,11 +752,13 @@ function ProviderForm({ initial }: { initial?: string }) {
           }}
         >
           <option value="">{t`Choose the provider`}</option>
-          {(providers.value ?? []).map((item) => (
-            <option key={item.id} value={item.id}>
-              {providerName(item.id)}
-            </option>
-          ))}
+          {(providers.value ?? [])
+            .filter((item) => item.id !== "openai_chatgpt")
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {providerName(item.id)}
+              </option>
+            ))}
         </select>
       </label>
       <label className="field">
@@ -708,14 +798,10 @@ function ProviderForm({ initial }: { initial?: string }) {
           setBusy(true);
           setTest(null);
           try {
-            const result = await api.post<{ models: string[] }>(
-              `/providers/${encodeURIComponent(provider)}/test`,
-              {
-                api_key: key(form),
-              },
-            );
-            const count = result.models.length;
-            setTest({ ok: true, text: t`The connection works · ${count} models available` });
+            await api.post(`/providers/${encodeURIComponent(provider)}/test`, {
+              api_key: key(form),
+            });
+            setTest({ ok: true, text: t`The connection works` });
           } catch (error) {
             setTest({ ok: false, text: userError(error) });
           } finally {

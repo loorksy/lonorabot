@@ -6,17 +6,15 @@ authority or changes what the Agent may do, and changing it never repeats a tool
 a trade or any other effect: the next model turn simply asks another model.
 
 Only the owner assigns a model (VISION 12.3): from an agent's settings, or in chat, where
-an agent applies it when the owner's own message names the model. Any text model of a
-connected provider's catalog is assignable. A new agent starts on Lonora's current model
+an agent applies it when the owner's own message names the model. Any listed model of a
+connected provider is assignable (``lonora_providers.catalog``). A new agent starts on Lonora's current model
 (``inherit_lead_model``, VISION 3.1.2) until the owner assigns another.
 """
 
-from collections.abc import Iterable
 from hashlib import sha256
-from typing import Any, Literal, cast
+from typing import Literal
 
 from lonora_contracts.domain import utcnow
-from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import (
     AgentModelChange,
     AgentModelPreference,
@@ -217,24 +215,6 @@ async def inherit_lead_model(session: AsyncSession, owner_id: str, agent_id: str
     )
 
 
-async def catalog_models(session: AsyncSession, providers: Iterable[str]) -> list[dict[str, str]]:
-    """Text models the providers' discovered catalogs list, as provider, id and name."""
-    settings = SettingsRepository()
-    found: list[dict[str, str]] = []
-    for provider in providers:
-        payload = await settings.get(session, "catalog:" + provider)
-        for item in cast(list[Any], payload.get("models", [])):
-            try:
-                descriptor = ModelDescriptor.model_validate(item)
-            except ValidationError:
-                continue
-            # A model the catalog verifies without text is not an agent's model.
-            if descriptor.verified and "text" not in descriptor.capabilities:
-                continue
-            found.append({"provider": provider, "model": descriptor.id, "name": descriptor.name})
-    return found
-
-
 def closest_models(
     query: str, entries: list[dict[str, str]], limit: int = 6
 ) -> list[dict[str, str]]:
@@ -247,31 +227,3 @@ def closest_models(
     ]
     scored.sort(key=lambda item: (-item[0], item[1]))
     return [entry for _, _, entry in scored[:limit]]
-
-
-async def catalog_has(session: AsyncSession, selection: ModelSelection) -> bool:
-    """Whether the provider's discovered catalog lists this model."""
-    catalog = await SettingsRepository().get(session, "catalog:" + selection.provider)
-    models = cast(list[Any], catalog.get("models", []))
-    return any(
-        isinstance(item, dict) and cast(dict[str, Any], item).get("id") == selection.model
-        for item in models
-    )
-
-
-async def model_label(session: AsyncSession, selection: ModelSelection | None) -> dict[str, Any]:
-    """The model as the owner recognizes it: its catalog name when known."""
-    if selection is None:
-        return {"provider": None, "model": None, "name": None}
-    catalog = await SettingsRepository().get(session, "catalog:" + selection.provider)
-    entries = [
-        cast(dict[str, Any], item)
-        for item in cast(list[Any], catalog.get("models", []))
-        if isinstance(item, dict)
-    ]
-    name = next((item.get("name") for item in entries if item.get("id") == selection.model), None)
-    return {
-        "provider": selection.provider,
-        "model": selection.model,
-        "name": name if isinstance(name, str) and name != selection.model else None,
-    }

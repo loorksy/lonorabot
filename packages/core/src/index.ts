@@ -9,6 +9,7 @@ export {
   offersDefaultModel,
   tokenCount,
   usageLine,
+  usesChatGptPlan,
 } from "./agent-model";
 export * from "./agent-permission";
 export { agentPermissionError } from "./agent-permission-errors";
@@ -76,6 +77,26 @@ export {
   rowUnread,
   selectionSummary,
 } from "./chat-rows";
+export {
+  CHATGPT_PROVIDER,
+  type ChatGptSignInForm,
+  type ChatGptSignOut,
+  type ChatGptStart,
+  type ChatGptStatus,
+  type ChatGptText,
+  chatgptError,
+  chatgptLabels,
+  chatgptRow,
+  chatgptText,
+  continuingAsLine,
+  finishChatGptSignIn,
+  isChatGptCard,
+  MANAGE_USAGE_URL,
+  planLimitReached,
+  signOutChatGpt,
+  signOutLine,
+  startChatGptSignIn,
+} from "./chatgpt-plan";
 export {
   availableCommands,
   COMMAND_ALIAS,

@@ -1,9 +1,12 @@
-"""Model access uses API keys only, through the adapters and the router (mandate 12.1).
+"""Model access uses the owner's API keys, or the ChatGPT plan's sign-in, through the
+adapters and the router (mandate 12.1, Amendment 4).
 
-Each of the six provider paths (Anthropic, OpenAI, DeepSeek, OpenRouter, Z.ai and an
-OpenAI-compatible endpoint the owner names by its base URL) connects with an API key,
-lists its catalog and runs a turn. Fake transports stand in for the providers; no
-request leaves the process. The key travels only in the header each provider documents
+Each of the seven provider paths (Anthropic, OpenAI, the ChatGPT plan, DeepSeek,
+OpenRouter, Z.ai and an OpenAI-compatible endpoint the owner names by its base URL)
+connects with its credential (the plan's is the access token of Sign in with ChatGPT,
+``test_chatgpt_sign_in``) and runs a turn; OpenAI's and the plan's go to the Responses API. A key is checked by the status of the provider's model listing alone; only
+the owner's endpoint is read for its models (VISION 12.4). Fake transports stand in for
+the providers; no request leaves the process. The key travels only in the header each provider documents
 for API keys, and nothing in a request depends on the plan behind the key.
 """
 
@@ -19,7 +22,8 @@ from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.default_model import choose_default_model
-from lonora_providers.registry import PROVIDERS, model_adapter
+from lonora_providers.key_check import check_key
+from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS, model_adapter
 from lonora_providers.router import GlobalModelRouter
 from lonora_security.network import compatible_endpoint
 from test_model_context import router_db as router_db
@@ -32,6 +36,7 @@ USER = [ModelMessage(role="user", content="مرحبا")]
 PATHS: dict[str, tuple[str, str, str]] = {
     "anthropic": ("https://api.anthropic.com/v1", "x-api-key", KEY),
     "openai": ("https://api.openai.com/v1", "authorization", "Bearer " + KEY),
+    "openai_chatgpt": ("https://api.openai.com/v1", "authorization", "Bearer " + KEY),
     "deepseek": ("https://api.deepseek.com/v1", "authorization", "Bearer " + KEY),
     "openrouter": ("https://openrouter.ai/api/v1", "authorization", "Bearer " + KEY),
     "zai": ("https://api.z.ai/api/paas/v4", "authorization", "Bearer " + KEY),
@@ -69,6 +74,18 @@ def provider_answer(request: httpx.Request) -> httpx.Response:
                 "usage": {"input_tokens": 3, "output_tokens": 2},
             },
         )
+    if path.endswith("/responses"):
+        # OpenAI answers on the Responses API, always as a stream (VISION Amendment 4).
+        events = [
+            {"type": "response.output_text.delta", "delta": "أهلاً"},
+            {
+                "type": "response.completed",
+                "response": {"id": "resp_1", "usage": {"input_tokens": 3, "output_tokens": 2}},
+            },
+        ]
+        return httpx.Response(
+            200, text="".join("data: " + json.dumps(event) + "\n\n" for event in events)
+        )
     if path.endswith("/chat/completions"):
         return httpx.Response(
             200,
@@ -97,28 +114,34 @@ def adapter_with(provider: str, client: httpx.AsyncClient) -> Any:
     return PROVIDERS[provider](KEY, client)
 
 
-def test_the_registry_has_exactly_the_six_paths_of_12_1() -> None:
+def test_the_registry_has_exactly_the_seven_paths_of_12_1() -> None:
     assert set(PROVIDERS) == set(PATHS)
     assert set(ProviderId.__args__) == set(PATHS)  # type: ignore[attr-defined]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("provider", sorted(PATHS))
-async def test_each_provider_lists_its_catalog_and_runs_a_turn_with_an_api_key(
+async def test_each_provider_checks_its_key_and_runs_a_turn_with_an_api_key(
     provider: str,
 ) -> None:
     base, header, value = PATHS[provider]
     client, seen = recording()
     adapter = adapter_with(provider, client)
     try:
-        catalog = await adapter.discover()
+        if provider in OWNER_ENDPOINT:
+            # The owner's endpoint lists its models: they are the owner's.
+            catalog = await adapter.discover()
+            assert [item.id for item in catalog] == ["model-a"]
+            assert {item.provider for item in catalog} == {provider}
+        else:
+            # Any other key is checked by the status of its listing alone.
+            await check_key(adapter)
         reply = await adapter.complete("model-a", USER, [])
     finally:
         await client.aclose()
-    assert [item.id for item in catalog] == ["model-a"]
-    assert {item.provider for item in catalog} == {provider}
     assert reply.text == "أهلاً"
     assert len(seen) == 2
+    assert seen[0].method == "GET" and seen[0].url.path.endswith("/models")
     for request in seen:
         assert str(request.url).startswith(base + "/")
         assert request.headers[header] == value
@@ -128,6 +151,14 @@ async def test_each_provider_lists_its_catalog_and_runs_a_turn_with_an_api_key(
             assert "authorization" not in request.headers
     body = json.loads(seen[1].content)
     assert body["model"] == "model-a"
+    # OpenAI's turn goes to the Responses API; the other OpenAI-style paths keep Chat
+    # Completions and Anthropic keeps its Messages API.
+    turn = {"anthropic": "/messages", "openai": "/responses", "openai_chatgpt": "/responses"}
+    assert seen[1].url.path.endswith(turn.get(provider, "/chat/completions"))
+    if provider == "openai_chatgpt":
+        # The plan's limits: stateless, streamed, and no output budget.
+        assert body["store"] is False and body["stream"] is True
+        assert "max_output_tokens" not in body
 
 
 @pytest.mark.parametrize(
@@ -278,6 +309,7 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
         assert listed.status_code == 200
         assert [item["id"] for item in listed.json()] == [
             "openai",
+            "openai_chatgpt",
             "anthropic",
             "deepseek",
             "zai",
@@ -286,12 +318,19 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
         for method, path, body in (
             ("PUT", "/api/providers/openai_compatible/credential", {"api_key": KEY}),
             ("GET", "/api/providers/openai_compatible/models", None),
-            ("POST", "/api/providers/openai_compatible/discover", None),
             ("POST", "/api/providers/openai_compatible/test", {"api_key": KEY}),
         ):
             answer = await fixture.client.request(method, path, json=body)
             assert answer.status_code == 404, path
             assert answer.json()["code"] == "provider_not_supported", path
+        # The ChatGPT plan takes no key: the owner signs in on its Secret card.
+        key = await fixture.client.put(
+            "/api/providers/openai_chatgpt/credential", json={"api_key": KEY}
+        )
+        assert key.status_code == 409 and key.json()["code"] == "chatgpt_sign_in_required"
+        # No provider is asked for its list from Settings any more (VISION 12.4).
+        gone = await fixture.client.post("/api/providers/openai/discover", json={})
+        assert gone.status_code in {404, 405}, gone.status_code
     finally:
         await fixture.close()
 

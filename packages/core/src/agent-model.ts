@@ -6,6 +6,7 @@
  * never repeats anything.
  */
 import type { AgentModelSummary, ModelLabel } from "@lonora/contracts";
+import { CHATGPT_PROVIDER, chatgptText } from "./chatgpt-plan";
 import { isolate } from "./trading-readiness";
 
 type Language = "ar" | "en";
@@ -26,7 +27,7 @@ export const agentModelLabels = {
     inherited: "Lonora's model when it was created",
     save: "Save model",
     saved: "Saved",
-    noModels: "Connect a provider and discover its models in Model settings first.",
+    noModels: "Connect a model provider first: its models then appear here.",
     usageDays: "Last {days} days",
     usageLine: "{input} in · {output} out · {requests} requests",
     noUsage: "No model use in the last {days} days.",
@@ -46,7 +47,7 @@ export const agentModelLabels = {
     inherited: "نموذج لونورا عند إنشائه",
     save: "حفظ النموذج",
     saved: "حُفظ",
-    noModels: "صِل مزوّدًا واكتشف نماذجه في إعدادات النماذج أولًا.",
+    noModels: "صِل مزوّد نماذج أولًا، فتظهر نماذجه هنا.",
     usageDays: "آخر {days} يومًا",
     usageLine: "{input} دخل · {output} خرج · {requests} طلب",
     noUsage: "لا استخدام للنماذج في آخر {days} يومًا.",
@@ -104,11 +105,18 @@ export function offersDefaultModel(summary: AgentModelSummary): boolean {
   return summary.record.preference.primary != null;
 }
 
+/** Whether the agent answers on the owner's ChatGPT plan: then Web and Mobile show "Using
+ * ChatGPT plan" with Manage usage (OpenAI's guidelines for plan usage). */
+export function usesChatGptPlan(summary: AgentModelSummary): boolean {
+  return summary.current?.provider === CHATGPT_PROVIDER;
+}
+
 /** The model card's summary lines in an agent's settings. */
 export function agentModelLines(summary: AgentModelSummary, locale: string): string[] {
   const text = agentModelText(locale);
   const record = summary.record;
   const lines = [`${text.answering}: ${modelName(summary.current) ?? text.defaultModel}`];
+  if (usesChatGptPlan(summary)) lines.push(chatgptText(locale).usingPlan);
   if (record.chosen_by && record.preference.primary)
     lines.push(record.chosen_by === "owner" ? text.chosenByYou : text.inherited);
   lines.push(usageLine(summary.usage, summary.usage.days, locale));

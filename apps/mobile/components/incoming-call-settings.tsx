@@ -3,7 +3,6 @@ import {
   type OwnerProfileLabel,
   ownerActionText,
   ownerProfileLabel,
-  type ReplyLanguage,
   reachMeChannels,
   reachMeHint,
   reachMeLabel,
@@ -19,7 +18,8 @@ import { useSession } from "../lib/session";
 import { Button, colors, ErrorNotice, Field } from "./ui";
 
 type OwnerProfile = {
-  reply_language: "ar" | "en" | null;
+  // A BCP-47 tag (ar, en, es, ...); null follows the owner's latest message.
+  reply_language: string | null;
   reach_me: IncomingPolicy;
   devices: { id: string; name: string }[];
 };
@@ -37,7 +37,7 @@ export function IncomingCallSettings() {
   const text = ownerActionText(locale);
   const [policy, setPolicy] = useState<IncomingPolicy | null>(null);
   const [devices, setDevices] = useState<{ id: string; name: string }[]>([]);
-  const [language, setLanguage] = useState<ReplyLanguage>("auto");
+  const [language, setLanguage] = useState<string>("auto");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -216,7 +216,8 @@ export function IncomingCallSettings() {
             keyboardType="number-pad"
           />
           <Text style={{ color: colors.secondary }}>{label("replyLanguage")}</Text>
-          {replyLanguages.map((value) => (
+          {/* A tag an agent saved from the owner's words (es, ...) stays shown and chosen. */}
+          {[...new Set<string>([...replyLanguages, language])].map((value) => (
             <Button
               key={value}
               label={`${language === value ? "✓ " : ""}${replyLanguageLabel(value, locale)}`}

@@ -107,7 +107,6 @@ def test_every_request_keeps_mandatory_rules_before_owner_content():
     assert laws[0].startswith(CORE_MARKER)
     for safety in [
         "Ambiguous",
-        "typed approval",
         "exact-symbol",
         "Do not expose credentials",
         "Capability names and ordinary technical vocabulary are not secrets",
@@ -216,7 +215,6 @@ def test_voice_style_stays_bounded_and_explicit_about_real_results():
         "owner's language",
         "Avoid unprompted implementation narration",
         "answer explicit capability questions directly",
-        "Spoken agreement is not financial approval",
         "not misunderstanding",
     ]:
         assert requirement in voice
@@ -354,3 +352,31 @@ def test_the_identity_and_voice_are_a_decisive_traders():
     assert "these are choices you may make, never rules you must follow:" in core
     for kind in ("Scaling in", "Secure, then add", "Self-scheduling", "judging correlation"):
         assert kind in core, kind
+
+
+def test_model_facing_resources_teach_properties_not_retired_authority_or_replies():
+    # What the model reads: the static block, every chapter, the bundled skills and prompts.
+    from lonora_agent.skills.loader import bundled, load_prompt
+    from lonora_agent.skills.registry import built_in_skills
+
+    rendered = "\n".join(
+        [
+            *load_constitution(),
+            *policy_bundle().sections.values(),
+            *(item.content for item in built_in_skills().values()),
+            *(item.manifest.description for item in built_in_skills().values()),
+            *(load_prompt(path.stem) for path in (resources_root() / "prompts").glob("*.md")),
+        ]
+    ).lower()
+    for retired in ("accountauthority", "signed grant", "ladder", "super bot", "nanobot"):
+        assert retired not in rendered, retired
+    # A bundled skill or prompt that hands the model a reply to copy does not load.
+    for text in (
+        "## Output\n\nConfirm briefly. Example: the alert is set.",
+        '## Output\n\n- The saved fact, e.g. "I\'ll remember that you prefer short replies."',
+    ):
+        with pytest.raises(LonoraError, match="bundled_resource_quotes_a_reply"):
+            bundled(text)
+    assert bundled('## Steps\n\nThe owner may say "I want gold".') == (
+        '## Steps\n\nThe owner may say "I want gold".'
+    )

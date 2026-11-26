@@ -35,6 +35,7 @@ from lonora_db.agent_models import model_candidates
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
+from .catalog import provider_catalog
 from .context import (
     ContextLimits,
     PreparedContext,
@@ -44,7 +45,7 @@ from .context import (
 )
 from .credentials import ProviderCredentials
 from .default_model import choose_default_model
-from .registry import build_adapter, model_adapter
+from .registry import SIGN_IN, build_adapter, model_adapter
 from .resilience import (
     MAXIMUM_INLINE_WAIT_SECONDS,
     RECOVERY,
@@ -98,6 +99,15 @@ def agent_route_applies(capability: Capability, descriptor: ModelDescriptor | No
     if capability is Capability.VISION:
         return not (descriptor and descriptor.verified and "vision" not in descriptor.capabilities)
     return False
+
+
+def plan_refused(selection: ModelSelection, error: ModelProviderError) -> bool:
+    """ChatGPT refused this model for the signed-in account: the model is missing for it,
+    or the plan named the model as the unsupported part of the request."""
+    return selection.provider in SIGN_IN and (
+        error.reason is FailureReason.MODEL_NOT_FOUND
+        or (error.reason is FailureReason.FORMAT_ERROR and error.param == "model")
+    )
 
 
 def boosted_output(
@@ -172,10 +182,7 @@ class GlobalModelRouter:
                 )
             catalogs: dict[str, list[ModelDescriptor]] = {}
             for provider in dict.fromkeys(item.provider for item in ordered):
-                payload = await settings.get(session, "catalog:" + provider)
-                catalogs[provider] = [
-                    ModelDescriptor.model_validate(item) for item in payload.get("models", [])
-                ]
+                catalogs[provider] = await provider_catalog(session, provider)
         route = Route([], policy, catalogs)
         owned: set[tuple[str, str]] = set()
         if record:
@@ -184,6 +191,7 @@ class GlobalModelRouter:
         if run_choice:
             owned.add((run_choice.provider, run_choice.model))
         seen: set[tuple[str, str]] = set()
+        text_only = False
         for selection in ordered:
             identity = (selection.provider, selection.model)
             if identity in seen:
@@ -191,12 +199,15 @@ class GlobalModelRouter:
             if identity in owned and not agent_route_applies(
                 capability, route.descriptor(selection)
             ):
+                text_only = text_only or capability is Capability.VISION
                 continue
             seen.add(identity)
             route.choices.append(selection)
         del route.choices[MAXIMUM_CANDIDATES:]
         if not route.choices:
-            raise LonoraError("model_not_configured", 409)
+            # The Agent's own models read no images and nothing else is routed for them:
+            # a model is configured, one that sees is not.
+            raise LonoraError("model_lacks_vision" if text_only else "model_not_configured", 409)
         return route
 
     async def usable_route(
@@ -308,18 +319,28 @@ class GlobalModelRouter:
             try:
                 secret, endpoint = await self.credentials.connection(selection.provider)
             except LonoraError as error:
-                if error.code != "model_not_configured":
+                # A sign-in whose renewal was refused, or could not be made now, fails
+                # like a request would: the next candidate answers.
+                refused = (
+                    ModelProviderError(FailureReason.NOT_CONFIGURED)
+                    if error.code == "model_not_configured"
+                    else classified(error)
+                )
+                if refused is None:
                     raise
-                failures.append((selection, ModelProviderError(FailureReason.NOT_CONFIGURED)))
+                refused.provider = selection.provider
+                failures.append((selection, refused))
+                if RECOVERY[refused.reason].transient:
+                    waits.append(refused.retry_after or 0.0)
                 continue
             # A new base URL is a new credential: its health starts fresh.
             fingerprint = credential_fingerprint(secret + "\n" + endpoint if endpoint else secret)
             bench = self.health.benched(selection, fingerprint)
             if bench is not None:
                 state, remaining = bench
-                failures.append(
-                    (selection, ModelProviderError(state.reason, retry_after=remaining))
-                )
+                benched = ModelProviderError(state.reason, retry_after=remaining)
+                benched.provider = selection.provider
+                failures.append((selection, benched))
                 if RECOVERY[state.reason].transient:
                     waits.append(remaining)
                 continue
@@ -348,14 +369,22 @@ class GlobalModelRouter:
                 if error is None:
                     raise
                 recovery = RECOVERY[error.reason]
+                error.provider = selection.provider
                 seconds = self.health.record_failure(selection, fingerprint, error)
                 log.warning(
-                    "model_candidate_failed provider=%s reason=%s status=%s benched_seconds=%s",
+                    "model_candidate_failed provider=%s reason=%s status=%s benched_seconds=%s "
+                    "param=%s",
                     selection.provider,
                     error.reason.value,
                     error.http_status,
                     round(seconds, 1),
+                    error.param,
                 )
+                if plan_refused(selection, error):
+                    try:
+                        await self.credentials.model_refused(selection.provider, selection.model)
+                    except LonoraError:
+                        log.warning("plan_refusal_unrecorded provider=%s", selection.provider)
                 failures.append((selection, error))
                 if recovery.transient:
                     waits.append(max(error.retry_after or 0.0, seconds))
@@ -398,6 +427,7 @@ class GlobalModelRouter:
                 retry_after=min(positive) if positive else first.retry_after,
                 provider_type=first.diagnostic_type,
             )
+            exhausted.provider = first.provider
         elif configured:
             exhausted = configured[0]
         else:

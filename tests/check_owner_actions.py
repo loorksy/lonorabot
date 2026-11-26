@@ -224,7 +224,7 @@ async def main() -> None:
         assert anonymous.status_code == 401, anonymous.status_code
         assert saved.status_code == 401, saved.status_code
         replay = await propose(another)
-        assert replay["owner_action"]["id"] == pending and replay["already_shown"] is True
+        assert replay["owner_action"]["id"] == pending and replay["repeated"] is True
         assert (await card(pending)).status == "pending"
         status, cancelled = await decide(pending, {"decision": "cancel"})
         assert status == 200 and cancelled["status"] == "cancelled"
@@ -506,7 +506,7 @@ async def main() -> None:
         assert (await card(waiting[0])).result == {}
         # An expired card frees its slot and a new one can be proposed.
         fresh = await propose(expiring)
-        assert fresh["owner_action"]["id"] != waiting[0] and not fresh["already_shown"]
+        assert fresh["owner_action"]["id"] != waiting[0] and not fresh["repeated"]
         print("PASS at most five cards wait per agent; an expired card never acts")
 
         # Crash replay of the same tool call returns the same card, never a second one.

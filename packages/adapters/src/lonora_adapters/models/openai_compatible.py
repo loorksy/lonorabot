@@ -67,6 +67,9 @@ def wire_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
 
 class OpenAICompatibleAdapter(BaseModelAdapter):
     provider: ProviderId
+    # The wires (pi-ai's ``api``) of the models of Lonora's list this adapter serves:
+    # Chat Completions (``/chat/completions``).
+    wires = frozenset({"openai-completions"})
 
     async def complete(
         self,
@@ -84,8 +87,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
             "stream": False,
         }
         if max_output_tokens is not None:
-            output_field = "max_completion_tokens" if self.provider == "openai" else "max_tokens"
-            payload[output_field] = max_output_tokens
+            payload["max_tokens"] = max_output_tokens
         if tools:
             payload["tools"] = [
                 {"type": "function", "function": tool.model_dump()} for tool in tools

@@ -28,19 +28,6 @@ GPT4O = ("openai", "gpt-4o", 3000, 100, 1000)  # prompt_tokens includes cached
 UNKNOWN = ("openai", "gpt-9-imaginary", 10, 10, 0)
 
 
-@pytest.fixture(autouse=True)
-def openai_test_price(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The production table has no unverified OpenAI prices; these tests use a test-only
-    OpenAI row to exercise the provider that counts cached tokens inside its input."""
-    from lonora_core import model_pricing
-
-    monkeypatch.setitem(
-        model_pricing._PRICES,  # pyright: ignore[reportPrivateUsage]
-        "openai",
-        {"gpt-4o": model_pricing.ModelPrice(2.50, 1.25, 10.00)},
-    )
-
-
 SONNET_COST = (1000 * 3 + 2000 * 0.3 + 500 * 15) / 1e6
 GPT4O_COST = (2000 * 2.5 + 1000 * 1.25 + 100 * 10) / 1e6
 
@@ -57,25 +44,48 @@ def near(
 def test_cached_tokens_are_priced_once_at_the_cached_rate():
     assert near(usage_cost(*SONNET), SONNET_COST)
     assert near(usage_cost(*GPT4O), GPT4O_COST)
-    # Anthropic reports input without the cache reads; OpenAI-compatible APIs include them.
+    # Anthropic reports input without the cache reads; OpenAI's Responses `input_tokens`
+    # and the OpenAI-compatible APIs' `prompt_tokens` include them.
     assert prompt_tokens("anthropic", 1000, 2000) == 3000
     assert prompt_tokens("openai", 3000, 1000) == 3000
 
 
-def test_unknown_models_have_no_price_and_variants_are_not_guessed():
+def test_prices_come_from_the_model_list_and_unknown_models_have_none():
+    from lonora_core.model_list import list_package
+    from lonora_core.model_pricing import PRICES_AS_OF, ModelPrice
+
+    # Every provider's listed models are priced from Lonora's list, as it states them.
+    assert PRICES_AS_OF == list_package() == "@earendil-works/pi-ai@1.6.0"
+    assert model_price("anthropic", "claude-sonnet-4-5") == ModelPrice(3, 0.3, 15)
+    assert model_price("openai", "gpt-4o") == ModelPrice(2.5, 1.25, 10)
+    assert model_price("openrouter", "anthropic/claude-sonnet-4.5") == ModelPrice(3, 0.3, 15)
+    assert model_price("deepseek", "deepseek-v4-pro") is not None
+    assert model_price("zai", "glm-5.3") is not None
+    # A model the list does not hold, or lists without a price, is unknown, never free.
     assert usage_cost(*UNKNOWN) is None
-    assert model_price("openrouter", "anthropic/claude-sonnet-4.5") is None
-    assert model_price("openai", "gpt-5-pro") is None
+    assert model_price("openrouter", "auto") is None
+    assert model_price("zai", "glm-5.3-highspeed") is None
     assert model_price("anthropic", "claude-sonnet-4-5-preview") is None
+    assert model_price("openai_compatible", "gpt-4o") is None
     assert model_price("fake", "fake-model") is None
-    # A dated snapshot of a listed model is that model.
-    assert model_price("anthropic", "claude-sonnet-4-5-20250929") == model_price(
-        "anthropic", "claude-sonnet-4-5"
+    # A dated snapshot the list does not hold is Anthropic's listed model.
+    assert model_price("anthropic", "claude-opus-4-6-20260101") == model_price(
+        "anthropic", "claude-opus-4-6"
     )
     # Only Anthropic's dated ids are its listed model; another provider's snapshot is
-    # unpriced unless it has its own row.
-    assert model_price("openai", "gpt-4o-2024-05-13") is None
+    # unpriced unless the list holds it.
+    assert model_price("openai", "gpt-4o-2024-05-13") == ModelPrice(5, None, 15)
+    assert model_price("openai", "gpt-4o-2024-02-01") is None
     assert model_price("openai", "gpt-4o-mini") != model_price("openai", "gpt-4o")
+
+
+def test_cached_tokens_without_a_cached_price_are_unknown_never_free():
+    # The list states no cache-read price for these (zero): their cached tokens have no
+    # price, so a request that has some is unpriced; one without them is priced.
+    assert near(usage_cost("openai", "gpt-4o-2024-05-13", 1_000_000, 1_000_000, 0), 20.0)
+    assert usage_cost("openai", "gpt-4o-2024-05-13", 1_000_000, 0, 1) is None
+    assert usage_cost("openai", "gpt-5-pro", 1_000_000, 0, 900_000) is None
+    assert usage_cost("openrouter", "amazon/nova-2-lite-v1", 1_000_000, 0, 1_000_000) is None
 
 
 # --- Windows and CSV -----------------------------------------------------------------
@@ -117,7 +127,7 @@ def test_csv_has_a_bom_and_leaves_out_hours_not_started():
             "bucket": "hour",
             "timezone": "Asia/Riyadh",
             "agent_id": None,
-            "prices_as_of": "2026-11-10",
+            "prices_as_of": "@earendil-works/pi-ai@1.6.0",
             "window": {"start": datetime(2030, 3, 15, tzinfo=RIYADH), "end": NOW},
             "previous": {
                 "start": datetime(2030, 3, 14, tzinfo=RIYADH),

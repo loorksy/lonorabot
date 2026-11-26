@@ -74,6 +74,6 @@ def known_names(symbol: str) -> set[str]:
 
 
 def vocabulary_line() -> str:
-    """The cached-prefix name table: each symbol's English and Arabic names, the
-    labels the compiler accepts (server matching data, not an example)."""
-    return " · ".join(f"{item.symbol} {item.en} / {item.ar}" for item in INSTRUMENT_NAMES)
+    """The cached-prefix name table in English (model input is English); the compiler also
+    accepts each entry's Arabic and short names (``known_names``)."""
+    return " · ".join(f"{item.symbol} {item.en}" for item in INSTRUMENT_NAMES)

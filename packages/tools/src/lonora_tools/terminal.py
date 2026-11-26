@@ -68,10 +68,11 @@ async def owner_scan(
     secrets: SecretStore, given: GivenValues | None, tokens: CommandTokens | None
 ) -> SecretScan:
     """The one scan of every byte that comes back from the workspace (7.2.6), on every road:
-    tool results and the `lonora` CLI's notify and wake text. Every stored value but the
-    broker's (workspace, integration, provider: W-ENV's `scanned_values`), every value
-    given to a workspace command in the last 30 days (rotated and deleted ones included),
-    and every agent's CLI token."""
+    tool results and the `lonora` CLI's notify and wake text, and of every result a
+    third-party tool returns (``run_scan``). Every stored value but the broker's
+    (workspace, integration, provider: W-ENV's `scanned_values`), every value given to a
+    workspace command in the last 30 days (rotated and deleted ones included), and every
+    agent's CLI token."""
     values = await secrets.scanned_values()
     once = await given.values() if given else []
     issued = await tokens.values() if tokens else []
@@ -84,6 +85,16 @@ async def owner_scan(
 
 async def scan(context: ToolContext) -> SecretScan:
     return await owner_scan(context.secrets, context.workspace_given, context.cli_tokens)
+
+
+async def run_scan(context: ToolContext) -> SecretScan:
+    """``scan``, read once for the Run: every third-party result passes it
+    (``ToolRegistry.execute``, which reads it before the call). A workspace command reads
+    it again and keeps that read, since an agent's first command is issued its CLI
+    token."""
+    if "owner" not in context.scans:
+        context.scans["owner"] = await scan(context)
+    return context.scans["owner"]
 
 
 async def ordinary_run(context: ToolContext) -> bool:
@@ -126,8 +137,10 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
         if context.cli_tokens
         else None
     )
+    # Read after the token is issued, and kept as the Run's (``run_scan``).
+    context.scans["owner"] = await scan(context)
     result = await client(context).run(
-        await scan(context),
+        context.scans["owner"],
         context.agent_id,
         request.command,
         background=request.background,
@@ -147,10 +160,18 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
                 process["pid"],
                 process["command"],
             )
-        return {"background": True, "pid": process["pid"], "log": process["log"]}
+        # Started, with no outcome yet: workspace_processes shows how it ends.
+        return {
+            "background": True,
+            "pid": process["pid"],
+            "log": process["log"],
+            "effect": "attempted",
+        }
     stdout, stdout_cut = tail(result["stdout"])
     stderr, stderr_cut = tail(result["stderr"])
+    failed = result["exit_code"] != 0 or result["timed_out"]
     return {
+        "effect": "failed" if failed else "confirmed",
         "exit_code": result["exit_code"],
         "timed_out": result["timed_out"],
         "duration_ms": result["duration_ms"],

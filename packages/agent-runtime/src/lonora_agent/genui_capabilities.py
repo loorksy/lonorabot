@@ -2,8 +2,8 @@
 
 Only real capabilities: the intents whose tool path exists, the owner-wide delivery
 channels that exist (today only in-app: no push channel exists, Q10; agent calls arrive in
-phase 6, Q53/Q58), the client routes that exist and the owner's timezone and language.
-The compiler checks every card against the same values.
+phase 6, Q53/Q58) and the client routes that exist. The owner's time zone is the clock's
+(context.team.clock_block). The compiler checks every card against the same values.
 """
 
 from dataclasses import dataclass
@@ -20,8 +20,6 @@ class UiCapabilities:
     intents: tuple[str, ...] = S_A01_INTENTS
     delivery: tuple[str, ...] = ("app",)
     routes: tuple[str, ...] = ROUTES
-    timezone: str = "UTC"
-    language: str = "ar"
 
     def block(self) -> str:
         return (
@@ -29,10 +27,9 @@ class UiCapabilities:
             f"intents: {', '.join(self.intents)}\n"
             f"delivery: {', '.join(self.delivery)}\n"
             f"go: {', '.join(self.routes)}\n"
-            f"timezone: {self.timezone} · language: {self.language}\n"
             "</lonora_ui_capabilities>"
         )
 
 
-def capabilities(timezone: str | None = None, language: str = "ar") -> UiCapabilities:
-    return UiCapabilities(timezone=timezone or "UTC", language=language)
+def capabilities() -> UiCapabilities:
+    return UiCapabilities()

@@ -89,6 +89,9 @@ def cacheable_system(system: str) -> str | list[dict[str, Any]]:
 
 
 class AnthropicAdapter(BaseModelAdapter):
+    # The wires (pi-ai's ``api``) of the models of Lonora's list this adapter serves.
+    wires = frozenset({"anthropic-messages"})
+
     def __init__(self, api_key: str, client: httpx.AsyncClient | None = None):
         super().__init__(api_key, "https://api.anthropic.com/v1", client)
 

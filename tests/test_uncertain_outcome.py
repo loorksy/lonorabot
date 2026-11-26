@@ -158,11 +158,11 @@ def test_an_interrupted_change_that_is_not_a_trade_gets_its_own_line() -> None:
     assert not lined(state, messages) and unconfirmed_change(state, messages)
     messages.append(ModelMessage(role="assistant", content="أنشأت المراقبة."))
     # It promises no check: nothing reconciles a change that is not a trade.
-    assert append_uncertain_line(state, messages, "أنشأت المراقبة.") == (
+    assert append_uncertain_line(state, messages, "أنشأت المراقبة.", "ar") == (
         "أنشأت المراقبة.\n\n" + CHANGE_AR
     )
     state, messages = request(EN, exchange("watch_create", "w1", cut, level="2400"))
-    assert append_uncertain_line(state, messages, "Created.").endswith(CHANGE_EN)
+    assert append_uncertain_line(state, messages, "Created.", "en").endswith(CHANGE_EN)
     # Once any call followed, a read may have shown the change: the reply is the model's.
     for later in (
         exchange("watch_list", "r1", {"ok": True, "watches": [{"id": "w"}]}),
@@ -170,14 +170,14 @@ def test_an_interrupted_change_that_is_not_a_trade_gets_its_own_line() -> None:
     ):
         state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), later)
         assert not unconfirmed_change(state, messages)
-        assert append_uncertain_line(state, messages, "المراقبة قائمة.") == "المراقبة قائمة."
+        assert append_uncertain_line(state, messages, "المراقبة قائمة.", "ar") == "المراقبة قائمة."
     # An uncertain trade keeps the trade's line, and a wake gets none.
     state, messages = request(
         AR,
         exchange("trade_execute", "c1", AMBIGUOUS, action="buy"),
         exchange("watch_create", "w1", cut, level="2400"),
     )
-    assert append_uncertain_line(state, messages, "تم.").endswith(LINE_AR)
+    assert append_uncertain_line(state, messages, "تم.", "ar").endswith(LINE_AR)
     state, messages = request(
         "wake", exchange("watch_create", "w1", cut, level="2400"), trigger="broker_event"
     )
@@ -193,18 +193,18 @@ def test_a_wake_run_gets_no_line_even_with_owner_steering(trigger: str) -> None:
     )
     messages.append(ModelMessage(role="user", content="وش صار؟"))
     assert not lined(state, messages)
-    assert append_uncertain_line(state, messages, "تقرير") == "تقرير"
+    assert append_uncertain_line(state, messages, "تقرير", "ar") == "تقرير"
 
 
-def test_the_line_follows_the_conversation_language_and_is_appended_once() -> None:
+def test_the_line_follows_the_conversation_locale_and_is_appended_once() -> None:
     state, messages = request(AR, exchange("trade_execute", "c1", AMBIGUOUS, action="buy"))
     messages.append(ModelMessage(role="assistant", content="حللت الذهب وأرسلت الطلب."))
-    text = append_uncertain_line(state, messages, "حللت الذهب وأرسلت الطلب.")
+    text = append_uncertain_line(state, messages, "حللت الذهب وأرسلت الطلب.", "ar")
     assert text == "حللت الذهب وأرسلت الطلب.\n\n" + LINE_AR
     assert messages[-1].content == text
-    assert append_uncertain_line(state, messages, text) == text
+    assert append_uncertain_line(state, messages, text, "ar") == text
     state, messages = request(EN, exchange("trade_execute", "c1", AMBIGUOUS, action="buy"))
-    assert append_uncertain_line(state, messages, "Sent.").endswith(LINE_EN)
+    assert append_uncertain_line(state, messages, "Sent.", "en").endswith(LINE_EN)
 
 
 def test_a_full_card_keeps_every_part() -> None:
@@ -218,7 +218,7 @@ def test_a_full_card_keeps_every_part() -> None:
     state, messages = request(AR, exchange("trade_execute", "c1", AMBIGUOUS, action="buy"))
     rich: dict[str, Any] = {"version": 1, "parts": parts}
     state["rich_content"] = rich
-    append_uncertain_line(state, messages, "تحليل")
+    append_uncertain_line(state, messages, "تحليل", "ar")
     stored = cast(list[Any], state["rich_content"]["parts"])
     assert stored[0] == card and len(stored) == len(parts)
 
@@ -261,7 +261,7 @@ BUY = ToolCall(id="buy", name="trade_execute", arguments={"action": "buy", "symb
 async def test_the_final_reply_keeps_its_analysis_and_gets_the_line(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    context = await conversation_run(task_db, seeded(AR, [BUY]))
+    context = await conversation_run(task_db, seeded(AR, [BUY]), AR)
     model = Script(ModelReply(text="الذهب في اتجاه صاعد؛ أرسلت طلب الشراء."))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
     await execute_run(context, trade_registry(), 120, 8)
@@ -273,7 +273,7 @@ async def test_the_final_reply_keeps_its_analysis_and_gets_the_line(
 async def test_the_round_limit_report_gets_the_line(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    context = await conversation_run(task_db, seeded(AR, [BUY]))
+    context = await conversation_run(task_db, seeded(AR, [BUY]), AR)
     model = Script(ModelReply(text="توقفت عند حد الجولات."))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
     await execute_run(context, trade_registry(), 120, 2)
@@ -290,7 +290,7 @@ async def test_the_guardrail_report_gets_the_line(
         return {"version": 1}
 
     registry = trade_registry(Tool("fixture_write", "Write", Anything, write))
-    context = await conversation_run(task_db, seeded(AR, [BUY]))
+    context = await conversation_run(task_db, seeded(AR, [BUY]), AR)
     repeats = [
         ModelReply(tool_calls=[ToolCall(id=f"same-{i}", name="fixture_write", arguments={"n": 7})])
         for i in range(9)
@@ -315,7 +315,7 @@ async def test_the_guardrail_report_gets_the_line(
 async def test_a_question_reply_without_financial_calls_is_untouched(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    context = await conversation_run(task_db, seeded(AR, []) | {"pending": [], "rounds": 0})
+    context = await conversation_run(task_db, seeded(AR, []) | {"pending": [], "rounds": 0}, AR)
     model = Script(ModelReply(text="تم."))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
     await execute_run(context, trade_registry(), 120, 8)

@@ -18,7 +18,7 @@
     },
     "packages/tools/src/lonora_tools/base.py": {
       "name": "Tool foundations",
-      "description": "The shared foundation every agent tool is built on."
+      "description": "The shared foundation every agent tool is built on, including the stages an action's result can report."
     },
     "packages/tools/src/lonora_tools/broker_connect.py": {
       "name": "Connect a broker",
@@ -66,7 +66,7 @@
     },
     "packages/tools/src/lonora_tools/context.py": {
       "name": "Tool context",
-      "description": "Carries the shared details every tool call needs: the owner, agent, run and database."
+      "description": "Carries the shared details every tool call needs: the owner, agent, run and database, the language of server text and the owner's time zone."
     },
     "packages/tools/src/lonora_tools/environment.py": {
       "name": "Tool inspection",
@@ -78,7 +78,7 @@
     },
     "packages/tools/src/lonora_tools/incoming_call.py": {
       "name": "Reach the owner",
-      "description": "Lets an agent ask to reach the owner, spending the owner's existing attention rather than adding to it."
+      "description": "Lets an agent alert the owner or ask to reach him, spending his existing attention, and says truthfully whether the alert showed, is waiting, or was kept back."
     },
     "packages/tools/src/lonora_tools/knowledge.py": {
       "name": "Knowledge notes",
@@ -126,7 +126,7 @@
     },
     "packages/tools/src/lonora_tools/owner_actions.py": {
       "name": "Propose an action card",
-      "description": "Lets an agent put an action card — including a Mandate card — in the conversation for the owner to decide."
+      "description": "Lets an agent put an action card — including a Mandate card — in the conversation for the owner to decide; the result gives the stored card's live status, never that the owner saw it."
     },
     "packages/tools/src/lonora_tools/performance.py": {
       "name": "Read results",

@@ -24,6 +24,10 @@
       "name": "Model context tests",
       "description": "Automatic checks for model context."
     },
+    "tests/check_model_list_migration.py": {
+      "name": "Model list migration tests",
+      "description": "Automatic checks for model list migration."
+    },
     "tests/check_money_limits_migration.py": {
       "name": "Money limits migration tests",
       "description": "Automatic checks for money limits migration."

@@ -1,7 +1,7 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
-import { api, type Model } from "../lib/api";
+import { api } from "../lib/api";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
 import { MemoryRevisions } from "./MemoryRevisions";
@@ -115,26 +115,25 @@ export function KnowledgeSection({ agentId }: { agentId: string }) {
   );
 }
 
+// OpenAI's embedding models (lonora_memory.semantic posts to /v1/embeddings), which
+// Lonora's list of chat models (VISION 12.4) does not hold.
+const EMBEDDING_MODELS = ["text-embedding-3-small", "text-embedding-3-large"];
+
 function SemanticKnowledge({ agentId }: { agentId: string }) {
   const [configuration, setConfiguration] = useState<{ enabled: boolean; model: string | null }>({
     enabled: false,
     model: null,
   });
-  const [models, setModels] = useState<Model[]>([]);
   const [note, setNote] = useState("");
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    void Promise.all([
-      api.get<typeof configuration>("/memory/semantic/config"),
-      api.get<Model[]>("/providers/openai/models"),
-    ])
-      .then(([config, catalog]) => {
-        setConfiguration(config);
-        setModels(catalog);
-      })
-      .catch(setError);
+    void api.get<typeof configuration>("/memory/semantic/config").then(setConfiguration, setError);
   }, []);
+  // A saved model stays selectable.
+  const models = [
+    ...new Set([...EMBEDDING_MODELS, ...(configuration.model ? [configuration.model] : [])]),
+  ];
   return (
     <details className="card">
       <summary>
@@ -174,11 +173,11 @@ function SemanticKnowledge({ agentId }: { agentId: string }) {
             onChange={(e) => setConfiguration({ ...configuration, model: e.target.value || null })}
           >
             <option value="">
-              <Trans>Choose a discovered model</Trans>
+              <Trans>Choose a model</Trans>
             </option>
             {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
+              <option key={model} value={model}>
+                {model}
               </option>
             ))}
           </select>

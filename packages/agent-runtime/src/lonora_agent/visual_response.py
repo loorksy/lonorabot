@@ -76,7 +76,7 @@ def _evidence(messages: list[ModelMessage]) -> dict[str, tuple[str, Any]]:
         (
             i
             for i, m in enumerate(messages)
-            if m.role == "user" and m.context_origin == "conversation"
+            if m.role == "user" and m.context_origin in ("conversation", "delegated_request")
         ),
         default=-1,
     )
@@ -222,24 +222,15 @@ class VisualReplyProjector:
         self.context, self.messages = context, messages
         self.public_ids = public_broker_ids(messages)
         self.diagnostics: list[dict[str, Any]] = []
-        owner = next(
-            (
-                m.content
-                for m in reversed(messages)
-                if m.role == "user" and m.context_origin == "conversation"
-            ),
-            "",
-        )
+        arabic = context.locale == "ar"
         self.failure = (
             "تعذر عرض هذا الجزء التفاعلي."
-            if re.search(r"[\u0620-\u064a]", owner)
+            if arabic
             else "This interactive section could not be displayed."
         )
-        self.unavailable = "غير متاح" if re.search(r"[\u0620-\u064a]", owner) else "Unavailable"
+        self.unavailable = "غير متاح" if arabic else "Unavailable"
         self.missing_binding_logged = False
-        self.capabilities: UiCapabilities = capabilities(
-            language="ar" if re.search(r"[\u0620-\u064a]", owner) or not owner else "en"
-        )
+        self.capabilities: UiCapabilities = capabilities()
         self.scope: AgentScope | None = None
         self.cards: dict[str, dict[str, Any] | None] = {}
         self.slots: dict[str, dict[tuple[str, str], SlotRecord]] = {}

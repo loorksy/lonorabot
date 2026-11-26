@@ -47,22 +47,22 @@ for (const locale of ["en", "ar"]) {
       .click();
     const model = page.locator(".lonora-agent-model");
     await expect(model).toBeVisible();
-    await expect(model).toContainText("GPT Default UI");
+    await expect(model).toContainText("GPT-6.2 Sol");
     await expect(model).toContainText(
       locale === "ar" ? "لا استخدام للنماذج" : "No model use in the last",
     );
-    // Only the owner chooses: no Automatic / Fixed toggle, and every catalog model.
+    // Only the owner chooses: no Automatic / Fixed toggle, and every listed model.
     await expect(model.getByRole("radio")).toHaveCount(0);
     await expect(model).toContainText(
       locale === "ar" ? "أنت وحدك تختار نموذجه" : "Only you choose its model",
     );
-    await model.locator("select").selectOption("anthropic:claude-opus-ui");
+    await model.locator("select").selectOption("anthropic:claude-opus-5-5");
     await model
       .getByRole("button", { name: locale === "ar" ? "حفظ النموذج" : "Save model", exact: true })
       .click();
     await expect
       .poll(async () => (await record()).preference.primary?.model)
-      .toBe("claude-opus-ui");
+      .toBe("claude-opus-5-5");
     const chosen = await record();
     expect(chosen.chosen_by).toBe("owner");
     expect(chosen).not.toHaveProperty("mode");

@@ -140,7 +140,7 @@ def test_another_agents_outcome_after_the_calls_never_asks_for_them_again():
     made = exchange("watch_cancel", DONE, watch_id="w0")
     transcript = [ASKED, PICK, TOLD, *made, PEER, REPLY]
     assert not gate(state, *transcript).continue_turn
-    assert closing_lines(state, transcript, REPLY.content, REGISTRY) == REPLY.content
+    assert closing_lines(state, transcript, REPLY.content, REGISTRY, "ar") == REPLY.content
     assert state[OFFER_OBLIGATION]["outcome"] == "met"
     # With nothing made, the same outcome does not hide what is still to do.
     waiting = picked("watch_cancel")
@@ -192,28 +192,28 @@ def test_a_rule_or_a_trade_in_the_request_holds_the_reply(held: list[ModelMessag
     transcript = [ASKED, PICK, TOLD, *held, REPLY]
     assert not gate(state, *transcript).continue_turn
     # Nothing is appended either: the reply is the model's account of the refusal.
-    assert closing_lines(state, transcript, REPLY.content, REGISTRY) == REPLY.content
+    assert closing_lines(state, transcript, REPLY.content, REGISTRY, "ar") == REPLY.content
     assert state[OFFER_OBLIGATION]["outcome"] == "held"
 
 
 def test_the_reply_that_leaves_the_choice_undone_gets_one_line():
     state = picked("watch_cancel")
     transcript = [ASKED, PICK, TOLD, REPLY]
-    text = closing_lines(state, transcript, REPLY.content, REGISTRY)
+    text = closing_lines(state, transcript, REPLY.content, REGISTRY, "ar")
     assert text == REPLY.content + "\n\n" + CHOICE_LINE_AR
     assert transcript[-1].content == text and state[OFFER_OBLIGATION]["outcome"] == "unmet"
     # A second pass over the same reply adds nothing.
-    assert closing_lines(state, transcript, text, REGISTRY) == text
+    assert closing_lines(state, transcript, text, REGISTRY, "ar") == text
     # A reply drafted again is judged afresh: the line is owed until the calls are made.
     again = [*transcript[:-1], ModelMessage(role="assistant", content="كل شيء جاهز.")]
-    assert closing_lines(state, again, "كل شيء جاهز.", REGISTRY).endswith(CHOICE_LINE_AR)
+    assert closing_lines(state, again, "كل شيء جاهز.", REGISTRY, "ar").endswith(CHOICE_LINE_AR)
     english = [
         ModelMessage(role="user", content="Clean up the old alerts please"),
         ModelMessage(role="user", content="Delete all of them"),
         TOLD,
         ModelMessage(role="assistant", content="Deleted."),
     ]
-    assert closing_lines(picked("watch_cancel"), english, "Deleted.", REGISTRY).endswith(
+    assert closing_lines(picked("watch_cancel"), english, "Deleted.", REGISTRY, "en").endswith(
         CHOICE_LINE_EN
     )
 
@@ -242,13 +242,13 @@ def test_a_later_message_of_the_owner_closes_the_offer_unchecked():
     assert state[OFFER_OBLIGATION]["status"] == "superseded"
     transcript = [*messages, ModelMessage(role="assistant", content="حاضر.")]
     assert not gate(state, *transcript).continue_turn
-    assert closing_lines(state, transcript, "حاضر.", REGISTRY) == "حاضر."
+    assert closing_lines(state, transcript, "حاضر.", REGISTRY, "ar") == "حاضر."
     # The same holds when the calls were never made: the owner moved on.
     undone = picked("watch_cancel")
     merge_answer(undone, [ASKED, PICK, TOLD, later], "m-later", owner=True)
     after = [ASKED, PICK, TOLD, later, ModelMessage(role="assistant", content="حاضر.")]
     assert not gate(undone, *after).continue_turn
-    assert closing_lines(undone, after, "حاضر.", REGISTRY) == "حاضر."
+    assert closing_lines(undone, after, "حاضر.", REGISTRY, "ar") == "حاضر."
     # Another agent's message is not the owner's: the offer stays open.
     peer = picked("watch_cancel")
     merge_answer(peer, [ASKED, PICK, TOLD], "m-peer", owner=False)

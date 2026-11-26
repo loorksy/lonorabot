@@ -11,9 +11,11 @@ and says so whenever something is left out or condensed.
 `lonora_providers.context.context_limits` derives one request's budget from the
 resolved model:
 
-- **Window.** The provider catalog's `context_window` wins. The direct Anthropic,
-  OpenAI, DeepSeek and Z.ai listings do not report one, so a conservative family
-  table (`lonora_providers/model_windows.py`) fills the gap. A key matches only at
+- **Window.** The catalog's `context_window` wins: Lonora's model list states one for
+  every model it holds (VISION 12.4; capacity source `lonora_model_list:pi-ai@1.6.0`).
+  For a model it does not hold (the owner's own endpoint, whose listing may omit it, or
+  a saved model a release dropped) a conservative family table
+  (`lonora_providers/model_windows.py`) fills the gap. A key matches only at
   an id boundary (end, `-`, `:` or `@`), longest key first: `gpt-4` covers
   `gpt-4-0613` but not `gpt-4.5-preview` (its own 128k entry), and `glm-4.5` does
   not claim the 64k `glm-4.5v`. Otherwise capacity is reported as `unknown` and
@@ -73,10 +75,11 @@ mandatory first-party system text (policy, owner instructions, the
 routing frame) and the newest request alone do not fit, or the newest tool call
 cannot be represented.
 
-OpenAI-compatible adapters join adjacent plain user turns (for example the
-context data and the owner's request) into one wire message, as the Anthropic
-adapter already merges same-role turns, because some endpoints reject
-successive user messages.
+The OpenAI-compatible adapters (DeepSeek, Z.ai, OpenRouter and the owner's
+endpoint) join adjacent plain user turns (for example the context data and the
+owner's request) into one wire message, as the Anthropic adapter already merges
+same-role turns, because some endpoints reject successive user messages. OpenAI's
+Responses API takes successive user items as they are.
 
 ## Trust separation
 
@@ -237,6 +240,10 @@ Results of tools that return third-party, other-model or stored content
 result in its own Run is never promoted to a more trusted label. A registry test
 makes every catalog tool take a side, so a new tool cannot silently default to the
 first-party label.
+Both sections pass the owner's secret scan as the context is built (read once, and
+only when there is evidence to show), before any argument or preview is cut: a
+checkpoint written before third-party results were scanned, or before a value in it was
+saved as a secret, shows `[secret:NAME]` (VISION.md 7.2.6).
 
 ## The summary/window dark zone
 

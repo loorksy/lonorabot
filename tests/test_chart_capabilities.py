@@ -7,6 +7,7 @@ carries them.
 
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import pytest
 from lonora_core.chart_controller import TIMEFRAMES
@@ -31,6 +32,10 @@ async def test_capabilities_list_names_every_chart_timeframe_and_indicator(
         chart_visual=None,
         mcp_declarations=(),
         mcp_owner_trust=True,
+        # The listing agents read passes the owner's secret scan (7.2.6).
+        secrets=SimpleNamespace(scanned_values=AsyncMock(return_value={})),
+        workspace_given=None,
+        cli_tokens=None,
     )
     listed = await capabilities.listing(cast(Any, context), {})
     assert listed["charts"] == {

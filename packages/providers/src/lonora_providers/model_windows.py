@@ -1,7 +1,9 @@
 """Conservative context windows for model families whose catalog omits them.
 
-Provider catalogs are preferred (OpenRouter reports ``context_length``); the
-direct Anthropic, OpenAI, DeepSeek and Z.ai model listings do not. Values are
+The catalog is preferred: Lonora's list states a window and an output maximum for
+every model it holds (VISION 12.4). This table serves the models it does not hold:
+the owner's own endpoint, whose listing may omit them, and a model an agent keeps
+after a release dropped it from the list. Values are
 deliberately conservative for the family they name. A family key matches only
 at an id boundary (end of id, ``-``, ``:`` or ``@``), so ``gpt-4`` does not
 claim ``gpt-4.5-preview`` and ``glm-4.5`` does not claim the ``glm-4.5v``

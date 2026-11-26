@@ -224,6 +224,9 @@ async def test_existing_model_turn_respects_plain_or_mixed_output_without_second
     assert any('"call_id":"actual"' in item.content for item in supplied if item.role == "system")
     # The per-request capabilities block is always there: v2 is the only interface.
     assert any("<lonora_ui_capabilities>" in item.content for item in supplied)
+    # The clock ends every request, after the cached prefix and the history.
+    assert supplied[-1].content.startswith("[Lonora clock]\n")
+    assert '"owner_timezone": "UTC"' in supplied[-1].content
     if native:
         assert reply.rich_content and reply.rich_content["parts"][1]["type"] == "ui"
     else:

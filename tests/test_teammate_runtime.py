@@ -152,11 +152,11 @@ def financial_messages(verified: bool) -> list[ModelMessage]:
 
 
 def test_acknowledgment_is_not_independent_completion_or_a_later_request():
-    assert unverified_financial_result(financial_messages(False))
-    assert unverified_financial_result(financial_messages(True)) is None
+    assert unverified_financial_result(financial_messages(False), "ar")
+    assert unverified_financial_result(financial_messages(True), "ar") is None
     assert (
         unverified_financial_result(
-            [*financial_messages(False), ModelMessage(role="user", content="مرحبا")]
+            [*financial_messages(False), ModelMessage(role="user", content="مرحبا")], "ar"
         )
         is None
     )
@@ -232,6 +232,8 @@ def model_context(complete: Any) -> ToolContext:
             thread_id="thread",
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
+            locale="ar",
+            timezone="UTC",
         ),
     )
 
@@ -383,7 +385,7 @@ async def test_model_wording_cannot_promote_an_unverified_financial_receipt(
     )
     assert complete.await_count == usage.await_count == 1
     assert reply.text == (
-        proposed if verified else unverified_financial_result(financial_messages(False))
+        proposed if verified else unverified_financial_result(financial_messages(False), "ar")
     )
 
 
@@ -448,6 +450,8 @@ async def test_each_turn_gets_current_scoped_inventory_without_rewriting_checkpo
             thread_id="thread",
             lease=SimpleNamespace(run_id="run"),
             router=SimpleNamespace(complete=complete),
+            locale="ar",
+            timezone="UTC",
         ),
     )
     for _ in range(2):

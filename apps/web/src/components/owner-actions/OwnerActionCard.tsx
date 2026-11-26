@@ -2,6 +2,10 @@ import { i18n } from "@lingui/core";
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
   brokerCardFailed,
+  type ChatGptSignInForm,
+  type ChatGptStart,
+  continuingAsLine,
+  finishChatGptSignIn,
   mergeOwnerAction,
   modeChangeLine,
   OWNER_ACTION_CHANGED,
@@ -16,6 +20,7 @@ import {
   rereadOwnerAction,
   type SecretForm,
   SLOT_OWNER_ACTION_KINDS,
+  startChatGptSignIn,
   submitSecret,
   webDeviceProof,
   webDeviceSupported,
@@ -191,6 +196,53 @@ export function OwnerActionCard({
       if (mounted.current) setBusy(false);
     }
   }
+  /** Continue with ChatGPT: OpenAI's sign-in opens in a new tab, opened inside the tap so the
+   * browser does not block it; the card then asks for the address that tab lands on.
+   * ``newAccount``: "Use a different ChatGPT account", a new registration. */
+  const [signingIn, setSigningIn] = useState(false);
+  const [account, setAccount] = useState<string | null>(null);
+  async function continueWithChatGpt(newAccount = false) {
+    setBusy(true);
+    setError(undefined);
+    const tab = window.open("", "_blank");
+    try {
+      const started = await startChatGptSignIn(
+        (path, body) => api.post<ChatGptStart>(path, body),
+        row.id,
+        newAccount,
+      );
+      if (tab) {
+        tab.opener = null;
+        tab.location.replace(started.authorization_url);
+      } else window.open(started.authorization_url, "_blank", "noopener,noreferrer");
+      if (mounted.current) {
+        setSigningIn(true);
+        setAccount(started.account);
+      }
+    } catch (cause) {
+      tab?.close();
+      if (mounted.current) setError(cause);
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  }
+  async function finishSignIn(address: string) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      // The address goes only to the card's own route; the field is already cleared.
+      const updated = await finishChatGptSignIn(
+        (path, body) => api.post<OwnerAction>(path, body),
+        row.id,
+        address,
+      );
+      if (mounted.current) onChanged(updated);
+    } catch (cause) {
+      if (mounted.current) setError(cause);
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  }
   async function register() {
     setBusy(true);
     setError(undefined);
@@ -322,6 +374,16 @@ export function OwnerActionCard({
       )}
       {spec.secret && (
         <SecretFields form={spec.secret} busy={busy} onSubmit={(values) => void save(values)} />
+      )}
+      {spec.signIn && (
+        <ChatGptSignIn
+          form={spec.signIn}
+          busy={busy}
+          started={signingIn}
+          account={continuingAsLine(account, i18n.locale)}
+          onContinue={(newAccount) => void continueWithChatGpt(newAccount)}
+          onSubmit={(address) => void finishSignIn(address)}
+        />
       )}
       {spec.passkey && !supported && (
         <p className="oa-warn" role="status">
@@ -503,6 +565,93 @@ function DecisionLine({
         </button>
       )}
     </div>
+  );
+}
+
+/** A ChatGPT plan card's sign-in: Continue with ChatGPT, then the address the browser landed
+ * on, masked, never echoed, and cleared as soon as it is sent. An attempt that continues a
+ * registered account names it and offers another account instead. */
+function ChatGptSignIn({
+  form,
+  busy,
+  started,
+  account,
+  onContinue,
+  onSubmit,
+}: {
+  form: ChatGptSignInForm;
+  busy: boolean;
+  started: boolean;
+  account: string | null;
+  onContinue: (newAccount: boolean) => void;
+  onSubmit: (address: string) => void;
+}) {
+  const [address, setAddress] = useState("");
+  return (
+    <>
+      <div className="oa-actions">
+        <button
+          type="button"
+          className={`btn sm ${started ? "outline" : "primary"}${busy ? " is-busy" : ""}`}
+          disabled={busy}
+          data-owner-action-button="chatgpt-continue"
+          onClick={() => onContinue(false)}
+        >
+          {form.continue}
+        </button>
+      </div>
+      {started && account && (
+        <p className="oa-sub" dir="auto" data-owner-action-line="chatgpt-account">
+          {account}{" "}
+          <button
+            type="button"
+            className="btn sm ghost"
+            disabled={busy}
+            data-owner-action-button="chatgpt-other-account"
+            onClick={() => onContinue(true)}
+          >
+            {form.otherAccount}
+          </button>
+        </p>
+      )}
+      {started && (
+        <form
+          className="lonora-owner-action-notes"
+          data-owner-action-form="chatgpt"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const sent = address;
+            setAddress("");
+            if (sent.trim()) onSubmit(sent);
+          }}
+        >
+          <label>
+            <span dir="auto">{form.address}</span>
+            <input
+              name="address"
+              type="password"
+              dir="ltr"
+              required
+              autoComplete="off"
+              spellCheck={false}
+              value={address}
+              disabled={busy}
+              onChange={(event) => setAddress(event.target.value)}
+            />
+          </label>
+          <div className="oa-actions">
+            <button
+              type="submit"
+              className={`btn sm primary${busy ? " is-busy" : ""}`}
+              disabled={busy || !address.trim()}
+              data-owner-action-button="chatgpt-connect"
+            >
+              {form.submit}
+            </button>
+          </div>
+        </form>
+      )}
+    </>
   );
 }
 

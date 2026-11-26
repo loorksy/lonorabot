@@ -55,7 +55,8 @@ from .transactions import owned_agent
 SUBMIT = "ui_submit_origin"
 SUBMIT_LIFETIME = timedelta(minutes=30)
 WAITING = ("waiting_input", "waiting_takeover")
-NEVER_RAN_NOTE = "طلب من بطاقة لم يُنفَّذ"
+# Model input (history and summaries), so English (VISION 17 governs owner-facing text).
+NEVER_RAN_NOTE = "Lonora runtime: a request the owner sent from a card never ran."
 # The intents the capability block lists; a submit is checked again.
 LISTED_INTENTS = ("ask", "alert.create", "alert.off")
 

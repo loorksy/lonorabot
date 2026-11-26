@@ -24,6 +24,7 @@ from sqlalchemy import select
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .terminal import scan
 
 
 class SearchInput(Contract):
@@ -198,7 +199,10 @@ async def web_search(context: ToolContext, args: dict[str, Any]) -> dict[str, An
     web = payload.get("web", {})
     if not isinstance(web, dict):
         raise LonoraError("research_provider_unavailable", 502)
-    return search_result("brave", cast(dict[str, Any], web).get("results", []), "description")
+    result = search_result("brave", cast(dict[str, Any], web).get("results", []), "description")
+    # The owner's stored key went out: an answer that repeats it is scanned with the values
+    # as they are now, not only the Run's earlier read (``run_scan``, 7.2.6).
+    return (await scan(context)).data(result)
 
 
 async def search_payload(

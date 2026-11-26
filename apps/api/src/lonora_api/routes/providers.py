@@ -4,9 +4,9 @@ from lonora_contracts.model_catalog import ProviderCredential
 from lonora_contracts.model_routing import ProviderId
 from lonora_core.user_error import LonoraError
 from lonora_providers.catalog import read_catalog
+from lonora_providers.chatgpt_sign_in import sign_in_enabled
 from lonora_providers.credentials import ProviderCredentials
-from lonora_providers.discovery import discover_models
-from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS
+from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS, SIGN_IN
 
 from ..middleware.auth import require_owner, runtime
 from .model_router import answer_unconfigured
@@ -28,11 +28,24 @@ async def providers(
 ) -> list[dict[str, object]]:
     rt = runtime(request)
     credentials = ProviderCredentials(rt.db, rt.services(owner.id).secrets)
-    return [
-        {"id": provider, "configured": await credentials.configured(provider)}
-        for provider in PROVIDERS
-        if provider not in OWNER_ENDPOINT
-    ]
+    listed: list[dict[str, object]] = []
+    for provider in PROVIDERS:
+        if provider in OWNER_ENDPOINT:
+            continue
+        item: dict[str, object] = {
+            "id": provider,
+            "configured": await credentials.configured(provider),
+        }
+        if provider in SIGN_IN:
+            # The signed-in ChatGPT account and whether its plan is in use (never a token).
+            # With the sign-in turned off it is listed only while a sign-in holds tokens,
+            # so the owner can still sign out.
+            status = await credentials.sign_in().status()
+            if not sign_in_enabled() and not status["signed_in"]:
+                continue
+            item["sign_in"] = status
+        listed.append(item)
+    return listed
 
 
 @router.put("/{provider}/credential")
@@ -42,6 +55,9 @@ async def save_credential(
     provider: ProviderId = Depends(settings_provider),
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, bool]:
+    if provider in SIGN_IN:
+        # The ChatGPT plan takes no key: the owner signs in on its Secret card.
+        raise LonoraError("chatgpt_sign_in_required", 409)
     await runtime(request).services(owner.id).secrets.write(provider, body.api_key, "provider")
     # With a key the router can choose a model: what failed for lack of one is retried.
     await answer_unconfigured(request, owner)
@@ -54,20 +70,7 @@ async def models(
     provider: ProviderId = Depends(settings_provider),
     owner: OwnerIdentity = Depends(require_owner),
 ) -> list[dict[str, object]]:
+    """Lonora's list for the provider (VISION 12.4): no provider is asked for its models."""
     return [
         model.model_dump(mode="json") for model in await read_catalog(runtime(request).db, provider)
-    ]
-
-
-@router.post("/{provider}/discover")
-async def discover(
-    request: Request,
-    provider: ProviderId = Depends(settings_provider),
-    owner: OwnerIdentity = Depends(require_owner),
-) -> list[dict[str, object]]:
-    rt = runtime(request)
-    credentials = ProviderCredentials(rt.db, rt.services(owner.id).secrets)
-    return [
-        model.model_dump(mode="json")
-        for model in await discover_models(rt.db, credentials, provider)
     ]

@@ -19,16 +19,19 @@ import {
   accumulateStream,
   activeStatuses,
   type ConversationItem,
+  chatgptText,
   commandQuery,
   conversationTimeline,
   type LiveReplyStream,
   latestCardIndex,
   liveAvatarState,
+  MANAGE_USAGE_URL,
   type MentionAddress,
   mergeOwnerAction,
   needsTimeSeparator,
   parseCommand,
   peersByMessage,
+  planLimitReached,
   projectRunEvents,
   retryableFailure,
   runStatusText,
@@ -50,6 +53,7 @@ import {
   AppState,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   Text,
@@ -1531,8 +1535,20 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             >
               {agents.find((value) => value.id === run.agent_id)?.name} ·{" "}
               {runStatusText(run.status, locale)}
-              {run.error_code ? ` · ${errorText(new ApiError(run.error_code, 0))}` : ""}
+              {planLimitReached(run.failure)
+                ? ` · ${chatgptText(locale).planLimitTitle}`
+                : run.error_code
+                  ? ` · ${errorText(new ApiError(run.error_code, 0))}`
+                  : ""}
             </Text>
+            {run.status === "failed" && planLimitReached(run.failure) ? (
+              // The ChatGPT plan's own limit: Manage usage opens ChatGPT settings › Usage.
+              <Button
+                label={chatgptText(locale).manageUsage}
+                secondary
+                onPress={() => void Linking.openURL(MANAGE_USAGE_URL).catch(() => undefined)}
+              />
+            ) : null}
             {activeStatuses.includes(run.status) ||
             run.status === "waiting_input" ||
             run.status === "waiting_takeover" ? (

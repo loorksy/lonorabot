@@ -2,6 +2,8 @@ import type { UsageDay } from "./usage";
 
 export type Provider =
   | "openai"
+  /** The owner's ChatGPT plan, connected with Sign in with ChatGPT (no key). */
+  | "openai_chatgpt"
   | "anthropic"
   | "deepseek"
   | "zai"

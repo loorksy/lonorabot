@@ -14,7 +14,7 @@
     },
     "packages/adapter-kit/src/lonora_adapter_kit/context_sections.py": {
       "name": "Context data sections",
-      "description": "Builds the labelled, escaped blocks of outside content that are kept out of the system's own instructions."
+      "description": "Builds the labelled, escaped blocks of outside content kept out of the system's own instructions, each with one of a fixed set of trust labels."
     },
     "packages/adapter-kit/src/lonora_adapter_kit/context.py": {
       "name": "Request budgeting",
