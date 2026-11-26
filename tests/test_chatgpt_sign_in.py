@@ -43,8 +43,10 @@ from lonora_providers import chatgpt_sign_in as signin
 from lonora_providers.catalog import PLAN_MODELS, listed_models, read_catalog
 from lonora_providers.chatgpt_sign_in import ChatGptSignIn, Credential
 from lonora_providers.credentials import ProviderCredentials
+from lonora_providers.default_model import choose_default_model
 from lonora_providers.registry import PROVIDERS
 from lonora_providers.router import GlobalModelRouter
+from lonora_providers.routing_policy import CHOSEN_BY_LONORA
 from sqlalchemy import select
 from test_secret_card import call, thread_cards
 
@@ -207,6 +209,9 @@ async def world(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]
         routing = await settings.get(session, "model_routing")
         # No model chosen yet: the sign-in chooses the plan's default (M4).
         await settings.put(session, "model_routing", {})
+        chosen = await session.get(SettingRow, CHOSEN_BY_LONORA)
+        if chosen is not None:
+            await session.delete(chosen)
     with patch.object(signin, "http_client", fake.http):
         try:
             agent = await fixture.agent("Plan")
@@ -231,7 +236,7 @@ async def world(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]
                     )
                 ).all():
                     await session.delete(row)
-                for key in (CONNECTION_SETTING + signin.PROVIDER, PLAN_MODELS):
+                for key in (CONNECTION_SETTING + signin.PROVIDER, PLAN_MODELS, CHOSEN_BY_LONORA):
                     row = await session.get(SettingRow, key)
                     if row is not None:
                         await session.delete(row)
@@ -972,3 +977,48 @@ async def test_the_accounts_models_are_read_once_per_window_and_never_after_sign
     await reading
     async with db.sessions() as session:
         assert await session.get(SettingRow, PLAN_MODELS) is None
+
+
+async def test_the_plan_takes_lonoras_choice_of_model_but_never_the_owners(
+    world: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Signing in moves Lonora's own choice (an API key's default it picked) to the plan;
+    a model the owner chose stays, and the agent is told so and offers the plan's."""
+    fake, fixture = world["fake"], world["fixture"]
+    db = fixture.runtime.db
+    monkeypatch.setenv("LONORA_OPENAI_API_KEY", "fixture-not-a-real-key")
+    credentials = ProviderCredentials(db, world["store"])
+    key_default = {"provider": "openai", "model": "gpt-6.2-sol"}
+    plan_default = {"provider": "openai_chatgpt", "model": "gpt-6.1-sol"}
+
+    async def routing() -> dict[str, Any]:
+        return (await fixture.request("GET", "/settings/models"))["unified"]
+
+    async def follow_up(card_id: str) -> str:
+        async with db.sessions() as session:
+            runs = (
+                await session.scalars(select(RunRow).where(RunRow.agent_id == world["agent"]["id"]))
+            ).all()
+        return next(
+            run.prompt for run in runs if run.model_metadata.get("owner_action_id") == card_id
+        )
+
+    # Lonora chose the key's default before the sign-in: the plan takes it.
+    chosen = await choose_default_model(db, credentials, plan_factory(fake))
+    assert chosen is not None and chosen.model_dump() == key_default
+    card_id = await sign_in(world)
+    assert await routing() == plan_default
+    assert "You now answer with the plan's gpt-6.1-sol." in await follow_up(card_id)
+
+    # The owner's own choice stands, and the agent offers the plan's models instead.
+    await fixture.request("PUT", "/settings/models", {"mode": "unified", "unified": key_default})
+    card_id = await sign_in(world)
+    assert await routing() == key_default
+    prompt = await follow_up(card_id)
+    assert "You still answer with OpenAI gpt-6.2-sol, which the plan does not pay for" in prompt
+    assert "model_request" in prompt
+
+    # Nothing chosen, both connected: the next request chooses the plan, already paid for,
+    # before the key.
+    await fixture.request("PUT", "/settings/models", {"mode": "unified", "unified": None})
+    assert await routing() == plan_default

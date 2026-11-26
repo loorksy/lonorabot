@@ -25,7 +25,7 @@ the card; the card, its events and the conversation keep only the saved names.
 import hashlib
 import re
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
@@ -392,6 +392,24 @@ async def free_names(
         number += 1
 
 
+def _plan_route(row: OwnerActionRow) -> str:
+    """Which model answers you after a ChatGPT sign-in: the plan's, or still another
+    provider's that the owner chose, which the plan does not pay for."""
+    answering = row.result.get("answering")
+    if not isinstance(answering, dict):
+        return ""
+    chosen = cast(dict[str, Any], answering)
+    model = chosen.get("model")
+    if chosen.get("provider") in SIGN_IN_PROVIDERS:
+        return f"You now answer with the plan's {model}."
+    name = PROVIDER_NAMES.get(str(chosen.get("provider")), str(chosen.get("provider")))
+    return (
+        f"You still answer with {name} {model}, which the plan does not pay for: say so, and "
+        "offer to switch to one of the plan's models. Switch only on the owner's own words "
+        "(model_request); the owner's default model is also chosen in Settings."
+    )
+
+
 def saved_prompt(row: OwnerActionRow) -> str:
     """The agent's next run after the owner saved: never a value, and never a name the
     agent's words shaped (its keys, its label, or a saved name built from a name it
@@ -415,11 +433,17 @@ def saved_prompt(row: OwnerActionRow) -> str:
                 if isinstance(offered, int)
                 else "The plan's models could not be read yet; say so."
             )
-            return (
-                "The owner signed in with ChatGPT on your Secret card: eligible requests can "
-                "now use the owner's ChatGPT plan, managed in ChatGPT settings. Lonora holds "
-                f"the sign-in and you never see it. {listed} Call model_list and tell the "
-                "owner in one line which models became available."
+            return " ".join(
+                part
+                for part in (
+                    "The owner signed in with ChatGPT on your Secret card: requests to the "
+                    "plan's models now use the owner's ChatGPT plan, managed in ChatGPT "
+                    "settings. Lonora holds the sign-in and you never see it.",
+                    listed,
+                    _plan_route(row),
+                    "Call model_list and tell the owner in one line which models became available.",
+                )
+                if part
             )
         catalog, key = row.result.get("catalog"), row.result.get("key")
         if key == "rejected":

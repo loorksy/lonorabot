@@ -31,7 +31,7 @@ from lonora_providers.catalog import (
 )
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.default_model import DEFAULT_MODELS, choose_default_model
-from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS
+from lonora_providers.registry import OWNER_ENDPOINT, PROVIDERS, SIGN_IN
 from lonora_providers.router import GlobalModelRouter
 from lonora_providers.routing_policy import read_policy
 from test_model_context import router_db as router_db
@@ -260,8 +260,8 @@ async def test_no_fixed_provider_is_asked_for_its_models_on_the_catalog_path(
         assert not await catalog_has(session, ModelSelection(provider="openai", model="gpt-9"))
         assert (await model_label(session, chosen))["name"] == "Anthropic: Claude Sonnet 5.5"
     # The default model, whose key is checked by the status of its listing alone, and
-    # the router's descriptors.
-    keys = Keys(*FIXED)
+    # the router's descriptors. Keys only: a ChatGPT sign-in would come first (no key check).
+    keys = Keys(*(provider for provider in FIXED if provider not in SIGN_IN))
     checked: list[httpx.Request] = []
 
     def factory(provider: str, key: str) -> Any:
