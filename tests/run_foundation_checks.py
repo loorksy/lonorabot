@@ -100,6 +100,7 @@ CHECKS = (
     "check_simple_lonora.py",
     "check_gold_journey.py",
     "check_close_wake.py",
+    "check_durable_runtime.py",
 )
 
 

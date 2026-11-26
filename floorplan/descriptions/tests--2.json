@@ -36,6 +36,10 @@
       "name": "Durable records tests",
       "description": "Automatic checks for durable records."
     },
+    "tests/check_durable_runtime.py": {
+      "name": "Durable runtime tests",
+      "description": "Automatic checks for the durable runtime: sign-in, saved replies and memory, context limits, steering and concurrency."
+    },
     "tests/check_dynamic_watches.py": {
       "name": "Dynamic watches tests",
       "description": "Automatic checks for dynamic watches."
