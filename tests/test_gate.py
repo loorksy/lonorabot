@@ -6,12 +6,16 @@ import shlex
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
 import yaml
 from lonora_security.secrets import SecretCipher
 
 ROOT = Path(__file__).resolve().parents[1]
 GATE = ROOT / "scripts/gate.sh"
 CI = ROOT / ".github/workflows/ci.yml"
+# The gate's two commands that run the core tests: the whole suite, and the check scripts.
+PYTEST = ["$PY", "-m", "pytest", "-q", "tests"]
+FOUNDATION = ["$PY", "tests/run_foundation_checks.py", "--isolated-databases"]
 
 
 def core_tests() -> list[str]:
@@ -21,11 +25,12 @@ def core_tests() -> list[str]:
     return re.findall(r"^\s+- `tests/([a-z0-9_]+\.py)`$", section, re.M)
 
 
-def gate_commands(word: str) -> list[list[str]]:
-    """The gate's command lines that name ``word``, split as the shell splits them."""
-    lines = GATE.read_text(encoding="utf-8").splitlines()
+def gate_commands(gate: str, word: str) -> list[list[str]]:
+    """The command lines of the gate text ``gate`` that name ``word``, split as the shell does."""
     return [
-        shlex.split(line) for line in lines if word in line and not line.lstrip().startswith("#")
+        shlex.split(line)
+        for line in gate.splitlines()
+        if word in line and not line.lstrip().startswith("#")
     ]
 
 
@@ -38,23 +43,50 @@ def foundation_checks() -> set[str]:
     raise AssertionError("tests/run_foundation_checks.py has no CHECKS")
 
 
+def gate_gaps(gate: str) -> list[str]:
+    """Why the gate text ``gate`` would not run every core test; empty when it runs them all.
+
+    Each of its two core commands is pinned exactly: any option, prefix or ``|| true`` changes
+    what runs. The full suite runs unfiltered, so every tests/test_*.py file is collected.
+    """
+    gaps: list[str] = []
+    for word, expected in (("pytest", PYTEST), ("run_foundation_checks", FOUNDATION)):
+        found = [command for command in gate_commands(gate, word) if command[0] != "step"]
+        if found != [expected]:
+            gaps.append(f"expected the one command {' '.join(expected)}, found {found}")
+    return gaps
+
+
 def test_the_gate_runs_every_core_test_of_14_1_2() -> None:
     names = core_tests()
     assert len(names) == 11, names
-    pytest = [command for command in gate_commands("pytest") if "pytest" in command]
-    assert len(pytest) == 1, pytest
-    # The whole suite, unfiltered: every tests/test_*.py file is collected.
-    arguments = pytest[0][pytest[0].index("pytest") + 1 :]
-    assert [argument for argument in arguments if not argument.startswith("-")] == ["tests"]
-    assert not {"-k", "--ignore", "--deselect", "--ignore-glob", "-m"} & set(arguments)
-    assert any(
-        "tests/run_foundation_checks.py" in command and "--isolated-databases" in command
-        for command in gate_commands("run_foundation_checks")
-    )
+    assert gate_gaps(GATE.read_text(encoding="utf-8")) == []
     checks = foundation_checks()
     for name in names:
         assert (ROOT / "tests" / name).is_file(), name
         assert name.startswith("test_") or name in checks, f"the gate does not run {name}"
+
+
+@pytest.mark.parametrize(
+    ("line", "mutated"),
+    [
+        (
+            '"$PY" -m pytest -q tests',
+            '"$PY" -m pytest -q tests --ignore=tests/test_financial_admission.py',
+        ),
+        (
+            '"$PY" -m pytest -q tests',
+            '"$PY" -m pytest -q tests --deselect=tests/test_tool_execution_core.py',
+        ),
+        ('"$PY" -m pytest -q tests', '"$PY" -m pytest -q tests -knot_financial'),
+        ('"$PY" -m pytest -q tests', '"$PY" -m pytest -q tests || true'),
+        ('"$PY" tests/run_foundation_checks.py', ': "$PY" tests/run_foundation_checks.py'),
+    ],
+)
+def test_a_gate_that_drops_a_core_test_is_caught(line: str, mutated: str) -> None:
+    gate = GATE.read_text(encoding="utf-8")
+    assert gate.count(line) == 1
+    assert gate_gaps(gate.replace(line, mutated))
 
 
 def test_ci_runs_the_gate_and_keeps_no_list_of_its_own() -> None:
