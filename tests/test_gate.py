@@ -149,6 +149,19 @@ def test_the_gate_runs_every_core_test_of_14_1_2(tmp_path: Path) -> None:
         assert name.startswith("test_") or name in checks, f"the gate does not run {name}"
 
 
+def test_every_check_script_of_the_safety_core_runs_in_the_gate() -> None:
+    # B0: the tests of 6.1-6.9 run on every change. A check script that cites one of those
+    # clauses runs in the foundation checks; the full pytest already holds every test_*.py.
+    checks = foundation_checks()
+    cited = [
+        path.name
+        for path in sorted((ROOT / "tests").glob("check_*.py"))
+        if re.search(r"(?<![\d.])6\.[1-9](?!\d)", path.read_text(encoding="utf-8"))
+    ]
+    assert cited
+    assert [name for name in cited if name not in checks] == []
+
+
 @pytest.mark.parametrize(
     ("line", "mutated"),
     [
