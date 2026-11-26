@@ -8,7 +8,8 @@ default model becomes the unified route. It is written to ``model_routing`` like
 owner's own choice, so Settings show it and the owner changes it there.
 
 A provider's default (``DEFAULT_MODELS``) is a strong tool-calling model of Lonora's
-list (VISION 12.4), and it is chosen only while the list holds it. No provider is
+list (VISION 12.4), and it is chosen only while the list holds it; for the ChatGPT plan,
+only while the signed-in account offers it (else its latest offered model). No provider is
 asked for its models: its key is checked by the status of its listing alone
 (``key_check``), and a key it rejects (401, 403) is passed over, so a stale key never
 takes the route from a working one; a key that could not be checked counts. Only the
@@ -27,17 +28,19 @@ from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
-from .catalog import listed_models
+from .catalog import listed_models, read_catalog
 from .credentials import ProviderCredentials
 from .discovery import discover_models
 from .key_check import REJECTED, check_key
-from .registry import OWNER_ENDPOINT, PROVIDERS, build_adapter, model_adapter
+from .registry import OWNER_ENDPOINT, PROVIDERS, SIGN_IN, build_adapter, model_adapter
 
 log = logging.getLogger("lonora.model_router")
 
 # A trading agent needs a strong model: each provider's default when the owner chose none.
 DEFAULT_MODELS: dict[str, str] = {
     "openai": "gpt-6.2-sol",
+    # Rakazo's subscription default.
+    "openai_chatgpt": "gpt-6.1-sol",
     "anthropic": "claude-sonnet-5-5",
     "deepseek": "deepseek-v4-pro",
     "zai": "glm-5.3",
@@ -66,7 +69,10 @@ async def choose_default_model(
             secret = await credentials.resolve(provider)
         except LonoraError as error:
             if error.code != "model_not_configured":
-                raise
+                if provider not in SIGN_IN:
+                    raise
+                # A sign-in that could not be renewed is passed over like a rejected key.
+                unreachable = unreachable or error
             continue
         if provider in OWNER_ENDPOINT:
             try:
@@ -75,6 +81,12 @@ async def choose_default_model(
                 unreachable = unreachable or error
                 continue
             model = next((item.id for item in models), None)
+        elif provider in SIGN_IN:
+            # The plan's models as the signed-in account offers them; its token was just
+            # checked by the sign-in or its refresh, so no key check.
+            offered = [item.id for item in await read_catalog(db, provider)]
+            model = DEFAULT_MODELS[provider] if DEFAULT_MODELS[provider] in offered else None
+            model = model or (offered[-1] if offered else None)
         else:
             model = DEFAULT_MODELS[provider]
             if model not in {item.id for item in listed_models(provider)}:

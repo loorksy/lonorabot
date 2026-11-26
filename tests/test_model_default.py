@@ -97,6 +97,7 @@ def test_each_provider_defaults_to_a_strong_model_of_the_list() -> None:
     # The owner's choice of defaults (VISION Amendment 4, M4), one per fixed provider.
     assert DEFAULT_MODELS == {
         "openai": "gpt-6.2-sol",
+        "openai_chatgpt": "gpt-6.1-sol",
         "anthropic": "claude-sonnet-5-5",
         "deepseek": "deepseek-v4-pro",
         "zai": "glm-5.3",

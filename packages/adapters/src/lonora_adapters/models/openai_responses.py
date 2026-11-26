@@ -265,3 +265,12 @@ class OpenAIResponsesAdapter(BaseModelAdapter):
                     )
                 )
         return descriptors
+
+
+class ChatGptPlanAdapter(OpenAIResponsesAdapter):
+    """The owner's ChatGPT plan: the same public route with the plan's request limits. Its
+    key is the access token Sign in with ChatGPT issued, fresh for every request
+    (``lonora_providers.chatgpt_sign_in``)."""
+
+    def __init__(self, api_key: str, client: httpx.AsyncClient | None = None):
+        super().__init__(api_key, client, chatgpt_plan=True)

@@ -1,8 +1,10 @@
-"""Model access uses API keys only, through the adapters and the router (mandate 12.1).
+"""Model access uses the owner's API keys, or the ChatGPT plan's sign-in, through the
+adapters and the router (mandate 12.1, Amendment 4).
 
-Each of the six provider paths (Anthropic, OpenAI, DeepSeek, OpenRouter, Z.ai and an
-OpenAI-compatible endpoint the owner names by its base URL) connects with an API key and
-runs a turn. A key is checked by the status of the provider's model listing alone; only
+Each of the seven provider paths (Anthropic, OpenAI, the ChatGPT plan, DeepSeek,
+OpenRouter, Z.ai and an OpenAI-compatible endpoint the owner names by its base URL)
+connects with its credential (the plan's is the access token of Sign in with ChatGPT,
+``test_chatgpt_sign_in``) and runs a turn; OpenAI's and the plan's go to the Responses API. A key is checked by the status of the provider's model listing alone; only
 the owner's endpoint is read for its models (VISION 12.4). Fake transports stand in for
 the providers; no request leaves the process. The key travels only in the header each provider documents
 for API keys, and nothing in a request depends on the plan behind the key.
@@ -34,6 +36,7 @@ USER = [ModelMessage(role="user", content="مرحبا")]
 PATHS: dict[str, tuple[str, str, str]] = {
     "anthropic": ("https://api.anthropic.com/v1", "x-api-key", KEY),
     "openai": ("https://api.openai.com/v1", "authorization", "Bearer " + KEY),
+    "openai_chatgpt": ("https://api.openai.com/v1", "authorization", "Bearer " + KEY),
     "deepseek": ("https://api.deepseek.com/v1", "authorization", "Bearer " + KEY),
     "openrouter": ("https://openrouter.ai/api/v1", "authorization", "Bearer " + KEY),
     "zai": ("https://api.z.ai/api/paas/v4", "authorization", "Bearer " + KEY),
@@ -111,7 +114,7 @@ def adapter_with(provider: str, client: httpx.AsyncClient) -> Any:
     return PROVIDERS[provider](KEY, client)
 
 
-def test_the_registry_has_exactly_the_six_paths_of_12_1() -> None:
+def test_the_registry_has_exactly_the_seven_paths_of_12_1() -> None:
     assert set(PROVIDERS) == set(PATHS)
     assert set(ProviderId.__args__) == set(PATHS)  # type: ignore[attr-defined]
 
@@ -150,8 +153,12 @@ async def test_each_provider_checks_its_key_and_runs_a_turn_with_an_api_key(
     assert body["model"] == "model-a"
     # OpenAI's turn goes to the Responses API; the other OpenAI-style paths keep Chat
     # Completions and Anthropic keeps its Messages API.
-    turn = {"anthropic": "/messages", "openai": "/responses"}.get(provider, "/chat/completions")
-    assert seen[1].url.path.endswith(turn)
+    turn = {"anthropic": "/messages", "openai": "/responses", "openai_chatgpt": "/responses"}
+    assert seen[1].url.path.endswith(turn.get(provider, "/chat/completions"))
+    if provider == "openai_chatgpt":
+        # The plan's limits: stateless, streamed, and no output budget.
+        assert body["store"] is False and body["stream"] is True
+        assert "max_output_tokens" not in body
 
 
 @pytest.mark.parametrize(
@@ -302,6 +309,7 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
         assert listed.status_code == 200
         assert [item["id"] for item in listed.json()] == [
             "openai",
+            "openai_chatgpt",
             "anthropic",
             "deepseek",
             "zai",

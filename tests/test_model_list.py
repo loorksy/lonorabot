@@ -209,9 +209,9 @@ def test_listed_models_are_verified_descriptors_of_the_list() -> None:
     assert glm.capabilities == ["text", "tools", "reasoning"]
     sonnet = next(item for item in listed_models("anthropic") if item.id == "claude-sonnet-5-5")
     assert sonnet.capabilities == ["text", "tools", "vision", "reasoning"]
-    # The ChatGPT plan's list is there before its sign-in exists; the owner's endpoint
-    # has none: its models are the owner's.
-    assert "openai_chatgpt" not in get_args(ProviderId) and "openai_chatgpt" not in PROVIDERS
+    # The ChatGPT plan is a provider of its own (M3); the owner's endpoint has no list:
+    # its models are the owner's.
+    assert "openai_chatgpt" in get_args(ProviderId) and "openai_chatgpt" in PROVIDERS
     assert "gpt-6.1-sol" in {item.id for item in listed_models("openai_chatgpt")}
     assert listed_models("openai_compatible") == []
 
