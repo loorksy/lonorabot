@@ -47,7 +47,7 @@ It lives here only until `loorksy/lonora-cloud` exists (D2). Nothing under `clou
 
 ## English
 
-**What it does:** a visitor registers and waits as `pending`. Staff approve or reject in the admin panel. **"Activate in one click"** runs `customer.sh create <handle>`, which in under a minute creates the customer's own database and role in the shared PostgreSQL, an env file (mode 600) with the customer's own encryption key, database password and one-time setup token, the customer's Lonora server and worker from the current release image, and the route `https://<handle>.<BASE_DOMAIN>` in Caddy. It waits until `/ready` answers there and returns the setup link. The account then turns active and the customer sees "Open in the app". If any step fails, `customer.sh remove` undoes it, the account returns to `approved` with the script's message, and "Retry" appears.
+**What it does:** a visitor registers and waits as `pending`. Staff approve or reject in the admin panel. **"Activate in one click"** runs `customer.sh create <handle>`, which in under a minute creates the customer's own database and role in the shared PostgreSQL, an env file (mode 600) with the customer's own encryption key and database password, the customer's Lonora server and worker from the current release image, the website account as its owner (with the password the customer signed up with, D7), and the route `https://<handle>.<BASE_DOMAIN>` in Caddy. It waits until `/ready` answers there. The account then turns active and the customer sees "Open in the app" and signs in with the same email and password: there is no second sign-up. If any step fails, `customer.sh remove` undoes it, the account returns to `approved` with the script's message, and "Retry" appears.
 
 ### One-time host setup
 
@@ -57,7 +57,7 @@ The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`;
 
 ### Daily use
 
-- **Activate:** the admin panel. If the panel cannot, `sudo customer.sh create <handle>` prints the setup link for a manual activation.
+- **Activate:** the admin panel. If the panel cannot, `sudo customer.sh create <handle>` (nothing on stdin) prints a one-time setup link for a manual activation.
 - **Ship a release:** `sudo customer.sh release <git ref>` builds the image once (`infra/compose/build-from-source.sh`, capped at 2 CPUs and 3 GB) and switches every customer with `update`. Each Lonora runs its migrations as it starts.
 - **Workspace and browser:** on demand, 1 GB each: `customer.sh workspace <handle> start|stop`.
 - **Delete on request:** removes the account and, with confirmation, the customer's installation and data (`customer.sh remove`).

@@ -3,12 +3,14 @@ import asyncio
 import contextlib
 import getpass
 import signal
+import sys
 from collections.abc import Generator
 from pathlib import Path
 from typing import cast
 
 import uvicorn
 from lonora_auth.account_security import hash_password, normalize_email
+from lonora_auth.owner_policy import import_owner
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.owner import get_owner
@@ -34,6 +36,17 @@ async def create_owner(email: str) -> None:
             session.add(
                 OwnerRow(email=normalize_email(email), password_hash=hash_password(password))
             )
+    finally:
+        await db.close()
+
+
+async def import_owner_from_stdin() -> None:
+    """customer.sh create (Lonora Cloud): the owner's email and website password hash, one per line."""
+    email, password_hash = sys.stdin.readline().strip(), sys.stdin.readline().strip()
+    db = Database.connect(get_settings().database_url)
+    try:
+        async with db.sessions() as session, session.begin():
+            await import_owner(session, email, password_hash)
     finally:
         await db.close()
 
@@ -92,7 +105,11 @@ def main() -> None:
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--create-owner")
+    parser.add_argument("--import-owner", action="store_true")
     args = parser.parse_args()
+    if args.import_owner:
+        asyncio.run(import_owner_from_stdin())
+        return
     if args.create_owner:
         asyncio.run(create_owner(args.create_owner))
         return

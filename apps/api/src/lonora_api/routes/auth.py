@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Response
-from lonora_auth.account_security import DUMMY_HASH, normalize_email, verify_password
+from lonora_auth.account_security import DUMMY_HASH, kept_hash, normalize_email, verify_password
 from lonora_auth.identity import OwnerIdentity
 from lonora_auth.sessions import issue_session, revoke
 from lonora_contracts.auth import LoginRequest
@@ -20,6 +20,7 @@ async def login_session(request: Request, body: LoginRequest) -> tuple[OwnerRow,
         valid = verify_password(body.password, owner.password_hash if owner else DUMMY_HASH)
         if owner is None or owner.email != normalize_email(body.email) or not valid:
             raise LonoraError("unauthorized", 401)
+        owner.password_hash = kept_hash(body.password, owner.password_hash)
         token, csrf = await issue_session(session, owner, rt.settings.session_seconds)
     return owner, token, csrf
 
