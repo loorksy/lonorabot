@@ -162,7 +162,7 @@
     },
     "apps/mobile/components/peer-card.tsx": {
       "name": "Agent collaboration card (phone)",
-      "description": "Draws a request between two agents, or its returned result, as on the web: who asked whom with links to both conversations, the text and the status."
+      "description": "Draws a request between two agents, or its returned result, as on the web: who asked whom with a link to the other agent's conversation, the text and the status."
     }
   }
 }

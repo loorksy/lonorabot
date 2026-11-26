@@ -1,7 +1,7 @@
 import type { Message, Resource, Run } from "@lonora/contracts";
 import { type PeerParty, type PeerStatus, peerCard } from "@lonora/core";
 import { useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import type { Label } from "../lib/i18n";
 import { useSession } from "../lib/session";
 import { useShellColors } from "../lib/theme";
@@ -18,8 +18,9 @@ const STATUS: Record<PeerStatus, Label> = {
 };
 
 /** A persisted request between two agents, or its returned result, in Web's card frame
-    (`PeerCard` in Cards.tsx): who asked whom, each name opening that agent's conversation,
-    the text and the status. What it shows comes from core `peerCard`, shared with Web. */
+    (`PeerCard` in Cards.tsx): who asked whom, the other agent's name opening its
+    conversation, the text and the status. What it shows comes from core `peerCard`, shared
+    with Web. */
 export function PeerCard({
   message,
   peer,
@@ -38,14 +39,15 @@ export function PeerCard({
   const row = rtl ? "row-reverse" : "row";
   const who = (party: PeerParty) => {
     const name = party.name || t("peerAgent");
-    return party.thread ? (
-      <Text
+    // This conversation is already open: a push would stack it a second time behind Back.
+    return party.thread && party.thread !== message.thread_id ? (
+      <Pressable
         accessibilityRole="link"
         onPress={() => router.push({ pathname: "/thread", params: { id: party.thread } })}
-        style={{ color: shell.link, fontSize: 14, fontWeight: "600" }}
+        style={{ minHeight: 44, justifyContent: "center" }}
       >
-        {name}
-      </Text>
+        <Text style={{ color: shell.link, fontSize: 14, fontWeight: "600" }}>{name}</Text>
+      </Pressable>
     ) : (
       <Text style={{ color: shell.foreground, fontSize: 14, fontWeight: "600" }}>{name}</Text>
     );

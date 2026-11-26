@@ -546,6 +546,9 @@ async def browser_action(data: dict[str, Any]):
             }
             await progress(context, data["kind"], data.get("payload", {}))
             return {"published": True}
+        if action == "peer_start":
+            await fixture.lease(data["child"])
+            return {"running": True}
         if action == "peer_complete":
             context = await fixture.lease(data["child"])
             await progress(context, "run.reply_started", {"turn_id": "browser-peer-answer"})
