@@ -334,3 +334,41 @@ test("an answer that is not Lonora's keeps sign-in", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
   await expect(page.getByLabel("Setup token", { exact: true })).toHaveCount(0);
 });
+
+// A connect link (lonora://connect?server=…&token=…, P1-T8) carries the new server's setup token:
+// once the owner confirms, the setup form shows it filled in. The app may already be on sign-in
+// when the link arrives (it is where a phone with no owner waits), so that case is checked too.
+const linkToken = "lonora-link-setup-token-0123456789";
+const noOwnerYet = (page) =>
+  page.route("**/api/onboarding", (route) => route.fulfill({ json: { owner_initialized: false } }));
+const connectPath = () =>
+  `/connect?server=${encodeURIComponent(test.info().project.use.baseURL)}&token=${linkToken}`;
+const shownTokenField = (page) =>
+  page.getByLabel("Setup token", { exact: true }).filter({ visible: true });
+
+test("a connect link fills the setup token in for the server it names", async ({ page }) => {
+  await noOwnerYet(page);
+  await page.goto(connectPath());
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(page.getByText("Set up Lonora", { exact: true })).toBeVisible();
+  await expect(shownTokenField(page)).toHaveValue(linkToken);
+});
+
+test("a connect link confirmed while sign-in is open fills that form's token too", async ({
+  page,
+}) => {
+  await noOwnerYet(page);
+  await page.goto("/");
+  await expect(page.getByText("Set up Lonora", { exact: true })).toBeVisible();
+  await expect(shownTokenField(page)).toHaveValue("");
+  // The link opens inside the running app, as a deep link does: no page load.
+  await page.evaluate((path) => {
+    window.history.pushState(null, "", path);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, connectPath());
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(
+    page.getByText("Set up Lonora", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
+  await expect(shownTokenField(page)).toHaveValue(linkToken);
+});
