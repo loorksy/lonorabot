@@ -10,7 +10,7 @@
     },
     "apps/worker/src/lonora_worker/main.py": {
       "name": "Worker startup",
-      "description": "Starts the always-on worker and keeps it running until it is told to stop."
+      "description": "Starts the always-on worker and keeps it running until it is told to stop; if its work loop freezes for two minutes, it records where it was stuck and exits so it is started again."
     },
     "apps/worker/src/lonora_worker/process_identity.py": {
       "name": "Worker id",

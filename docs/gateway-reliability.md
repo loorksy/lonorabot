@@ -148,6 +148,20 @@ younger than 45 s and none of its critical steps is stalled; otherwise 503, with
 stalled step names. Gateway rows whose last heartbeat is more than seven days old are
 pruned.
 
+## Seen from outside
+
+Everything above runs inside the gateway, so it cannot notice the gateway itself being
+stuck.
+
+- **Loop-stall guard.** A plain thread (`stall_guard` in `lonora_worker/main.py`)
+  watches a timestamp the event loop updates every second. When the loop has not run
+  for 120 s (`STALL_SECONDS`, above the longest legitimate synchronous section), it
+  writes `gateway_loop_stalled` and every thread's stack to stderr (`faulthandler`) and
+  exits with code 70. Docker's `restart: unless-stopped` and systemd's
+  `Restart=on-failure` then start it again; neither fires for a process that is alive
+  but stuck. A restart is safe: leases are fenced, and an uncertain send is reconciled
+  and never resent (VISION 6.3).
+
 ## Drain and lease renewal
 
 On SIGTERM the gateway stops claiming, lets running work finish for up to 25 s and then
@@ -205,6 +219,8 @@ passkey, so nothing is left looking active while it can no longer run:
   alert; drain release and lease renewal; durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.
+- `tests/test_worker_stall_guard.py`: a process whose loop is blocked exits with code 70
+  and writes its stacks; one whose loop keeps running is left alone.
 - `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the
   grant list, the permission frame and the trade path agree.
 - `tests/check_durable_records.py` (fresh PostgreSQL): the migration's constraints,

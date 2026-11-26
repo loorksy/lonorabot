@@ -84,6 +84,10 @@
       "name": "Weekly report tests",
       "description": "Automatic checks for weekly report."
     },
+    "tests/test_worker_stall_guard.py": {
+      "name": "Worker stall guard tests",
+      "description": "Automatic checks for worker stall guard."
+    },
     "tests/test_worker_startup.py": {
       "name": "Worker startup tests",
       "description": "Automatic checks for worker startup."
