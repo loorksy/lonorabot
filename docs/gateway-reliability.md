@@ -193,10 +193,14 @@ renewal refused as stale, takes effect once that call has returned, and the chec
 its result is refused by the moved fence: a cancel never cuts a send.
 
 A Run's final transaction (its completion, its wait for the owner's answer, its release
-back to the queue) is retried the same way after a dropped connection, a failover or a
-timeout, while the lease holds (`final_commit`); any other error still fails the Run. A
-Run whose answer was ready is therefore not recorded as failed by a database blip, and
-the fence makes a second commit impossible.
+back to the queue) is retried the same way after a failure of the database rather than of
+the statement, while the lease holds (`final_commit`): a dropped connection, a restart or
+a failover, a deadlock or a serialization failure, too many connections, a timeout or a
+full pool. asyncpg reports most of these as a plain driver error, so its SQLSTATE class
+decides (08, 40, 53, 57 or 58). An error of the statement itself (a constraint, a bad
+value) would fail every attempt and still fails the Run. A Run whose answer was ready is
+therefore not recorded as failed by a database blip, and the fence makes a second commit
+impossible.
 
 ## Durable records
 
@@ -244,7 +248,8 @@ passkey, so nothing is left looking active while it can no longer run:
   run and relay drains share one deadline below the stop grace; a cancel that stops a
   long model call within 3 s and waits for a change past `before_effect`, even when a
   lease renewal falls inside that change, with no write after it;
-  a transient error at the final commit;
+  a database restart, a deadlock, too many connections or a full pool at the final commit
+  retried, and a statement error there not;
   durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.

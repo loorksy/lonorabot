@@ -30,6 +30,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError, SQLAlchemyError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .collaboration.outcome_return import return_outcome
@@ -45,7 +46,10 @@ log = logging.getLogger("lonora.executor")
 TRANSIENT_RENEWAL_ERRORS = (SQLAlchemyError, OSError, TimeoutError)
 # How often a running Run looks whether it was cancelled (VISION 4.6, 4.7, 7.1.5).
 WATCH_SECONDS = 2.0
-# How often a cancel noticed inside an effect looks again whether the effect ended.
+# SQLSTATE classes of a failure of the database rather than of the statement (PostgreSQL,
+# appendix A): a Run's final commit is retried after one of them (database_failed).
+TRANSIENT_SQLSTATES = ("08", "40", "53", "57", "58")
+# How often a lost lease noticed inside an effect looks again whether the effect ended.
 EFFECT_POLL_SECONDS = 0.2
 
 
@@ -107,12 +111,25 @@ async def watch_fence(context: ToolContext, lost: Callable[[], None]) -> None:
             return
 
 
-def connection_failed(error: Exception) -> bool:
-    """A database failure of the connection (a drop, a failover, a timeout), not of the
-    statement: worth another attempt of the same transaction."""
-    return isinstance(error, OSError | TimeoutError | OperationalError | InterfaceError) or (
-        isinstance(error, DBAPIError) and error.connection_invalidated
-    )
+def database_failed(error: Exception) -> bool:
+    """A failure of the database, not of the statement: worth another attempt of the same
+    transaction.
+
+    asyncpg reaches SQLAlchemy as a plain ``DBAPIError`` for most of these, so its SQLSTATE
+    decides: a connection exception (08), a rollback such as a deadlock or a serialization
+    failure (40), insufficient resources such as too many connections (53), an operator's
+    intervention such as a restart or a failover (57) or a system error (58). A full pool
+    is SQLAlchemy's ``TimeoutError``, not the builtin one. A constraint, a bad value or any
+    other error of the statement would fail every attempt and is never retried.
+    """
+    if isinstance(error, DBAPIError):
+        sqlstate = getattr(error.orig, "sqlstate", None)
+        return (
+            error.connection_invalidated
+            or isinstance(error, OperationalError | InterfaceError)
+            or (isinstance(sqlstate, str) and sqlstate.startswith(TRANSIENT_SQLSTATES))
+        )
+    return isinstance(error, OSError | TimeoutError | PoolTimeoutError)
 
 
 async def final_commit[Committed](
@@ -122,12 +139,13 @@ async def final_commit[Committed](
     write: Callable[[AsyncSession], Awaitable[Committed]],
 ) -> Committed:
     """A Run's final transaction (its completion, its wait for the owner, its release),
-    retried like a lease renewal after a transient database error while the lease holds.
+    retried like a lease renewal after a failure of the database (``database_failed``)
+    while the lease holds.
 
     ``keep_lease`` goes on renewing meanwhile and sets ``lost`` once it gives the lease
-    up; a fenced ``stale_lease`` or any other error is never retried. The fence makes a
-    second commit impossible: a retry after a commit whose answer was lost finds the Run
-    no longer leased.
+    up; a fenced ``stale_lease`` or an error of the statement is never retried. The fence
+    makes a second commit impossible: a retry after a commit whose answer was lost finds
+    the Run no longer leased.
     """
     margin = lease_seconds / 6
     failed_at: float | None = None
@@ -138,7 +156,7 @@ async def final_commit[Committed](
         except Exception as error:
             failed_at = monotonic() if failed_at is None else failed_at
             if (
-                not connection_failed(error)
+                not database_failed(error)
                 or lost.is_set()
                 or monotonic() - failed_at >= lease_seconds - margin
             ):

@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import asyncpg  # pyright: ignore[reportMissingTypeStubs]
 import lonora_agent.executor as executor
 import lonora_db.item_failures as item_failures
 import lonora_db.routines as routines
@@ -21,6 +22,13 @@ import lonora_gateway.service as service
 import lonora_market.watchers as watchers
 import pytest
 import yaml
+from asyncpg.exceptions import (  # pyright: ignore[reportMissingTypeStubs]
+    CannotConnectNowError,
+    DeadlockDetectedError,
+    StringDataRightTruncationError,
+    TooManyConnectionsError,
+    UniqueViolationError,
+)
 from lonora_adapter_kit.types import ModelReply
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_automation.runner import dispatch_routines
@@ -67,7 +75,12 @@ from lonora_tools.base import Tool
 from lonora_tools.context import RunDrain, ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import func, select, update
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.dialects.postgresql.asyncpg import (
+    AsyncAdapt_asyncpg_connection,
+    AsyncAdapt_asyncpg_dbapi,
+)
+from sqlalchemy.exc import DBAPIError, OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 from test_task_runtime import task_db as task_db
 from test_tool_loop_execution import (
     Arguments,
@@ -928,9 +941,34 @@ async def test_a_cancel_never_cuts_a_change_past_before_effect(
     await nothing_written_after(context, cancelled, last)
 
 
+def asyncpg_error(error: Exception) -> DBAPIError:
+    """``error`` from asyncpg, the production driver, as SQLAlchemy's dialect raises it."""
+    dbapi = AsyncAdapt_asyncpg_dbapi(asyncpg)
+    try:
+        AsyncAdapt_asyncpg_connection._handle_exception_no_connection(dbapi, error)  # pyright: ignore[reportPrivateUsage]
+    except dbapi.Error as translated:
+        return cast(DBAPIError, DBAPIError.instance(None, None, translated, dbapi.Error))
+    raise AssertionError(error)
+
+
 @pytest.mark.asyncio
-async def test_a_transient_error_at_the_final_commit_still_completes_the_run(
-    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("error", "retried"),
+    [
+        # PostgreSQL restarting or failing over: asyncpg maps it to no OperationalError.
+        (asyncpg_error(CannotConnectNowError("the database system is starting up")), True),
+        (asyncpg_error(DeadlockDetectedError("deadlock detected")), True),
+        (asyncpg_error(TooManyConnectionsError("too many clients already")), True),
+        # A full pool: SQLAlchemy's TimeoutError, not the builtin one.
+        (PoolTimeout("QueuePool limit of size 5 overflow 10 reached"), True),
+        # An error of the statement itself would fail every attempt: never retried.
+        (asyncpg_error(UniqueViolationError("duplicate key value")), False),
+        (asyncpg_error(StringDataRightTruncationError("value too long")), False),
+    ],
+    ids=["restart", "deadlock", "connections", "pool", "constraint", "value"],
+)
+async def test_the_final_commit_retries_a_database_failure_never_a_statement_error(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch, error: Exception, retried: bool
 ) -> None:
     context = await conversation_run(task_db)
     monkeypatch.setattr(
@@ -942,14 +980,12 @@ async def test_a_transient_error_at_the_final_commit_still_completes_the_run(
     async def flaky(session: Any, lease: Lease, answer: str, metadata: dict[str, Any]) -> bool:
         attempts.append(1)
         if len(attempts) == 1:
-            raise OperationalError("UPDATE ln_runs", {}, ConnectionResetError("reset"))
+            raise error
         return await real(session, lease, answer, metadata)
 
     monkeypatch.setattr(executor, "complete_run", flaky)
     await executor.execute_run(context, ToolRegistry([]), 120, 8)
     run = await saved_run(context)
-    assert run.status == "completed" and run.result == "Gold is flat.", run.error_code
-    assert len(attempts) == 2
     async with context.db.sessions() as session:
         replies = list(
             await session.scalars(
@@ -958,6 +994,11 @@ async def test_a_transient_error_at_the_final_commit_still_completes_the_run(
                 )
             )
         )
+    if not retried:
+        assert run.status == "failed" and run.error_code == "runtime_error" and attempts == [1]
+        return
+    assert run.status == "completed" and run.result == "Gold is flat.", run.error_code
+    assert len(attempts) == 2
     # The failed attempt was rolled back: the answer is in the conversation once.
     assert [reply.content for reply in replies] == ["Gold is flat."]
 
