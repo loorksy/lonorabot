@@ -463,6 +463,45 @@ async def test_a_stream_cut_before_its_terminal_event_is_interrupted_and_drops_i
             {"type": "error", "code": "rate_limit_exceeded", "message": "Slow down", "param": None},
             FailureReason.RATE_LIMIT,
         ),
+        # As api.openai.com answered an image it could not download, and one it could
+        # not read: a rejected request, as its HTTP 400 would be, never an outage.
+        (
+            {
+                "type": "error",
+                "error": {
+                    "message": "Error while downloading file.",
+                    "type": "invalid_request_error",
+                    "param": "url",
+                    "code": "invalid_value",
+                },
+            },
+            FailureReason.FORMAT_ERROR,
+        ),
+        (
+            {
+                "type": "error",
+                "error": {
+                    "message": "input_image image_url unsupported image format: unknown",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": None,
+                },
+            },
+            FailureReason.FORMAT_ERROR,
+        ),
+        # A rejected request still keeps its sharper reason.
+        (
+            {
+                "type": "error",
+                "error": {
+                    "message": "Your input exceeds the context window of this model.",
+                    "type": "invalid_request_error",
+                    "param": "input",
+                    "code": "context_length_exceeded",
+                },
+            },
+            FailureReason.CONTEXT_OVERFLOW,
+        ),
         (
             {
                 "type": "response.failed",

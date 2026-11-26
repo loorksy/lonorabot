@@ -23,6 +23,7 @@ from contextlib import aclosing
 from typing import Any, cast
 
 import httpx
+from lonora_adapter_kit.model_errors import ModelProviderError, classify_failure
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.usage import TokenUsage
@@ -33,7 +34,6 @@ from .base import (
     interrupted_stream,
     invalid_response,
     stopped_reply,
-    stream_error,
 )
 
 # The ChatGPT plan takes function tools only inside a namespace (its preview limits).
@@ -92,6 +92,17 @@ def event_error(event: dict[str, Any]) -> dict[str, Any]:
     if isinstance(nested, dict):
         return cast(dict[str, Any], nested)
     return {key: value for key, value in event.items() if key != "type"}
+
+
+def event_failure(error: Any) -> ModelProviderError:
+    """Classify an error the stream reports after its HTTP 200.
+
+    OpenAI reports some rejected requests (an image it cannot download or read) only
+    as an ``invalid_request_error`` event; it is classified as the HTTP 400 OpenAI
+    answers with for the same error, so a rejected request is not retried as an outage.
+    """
+    kind = cast(dict[str, Any], error).get("type") if isinstance(error, dict) else None
+    return classify_failure(400 if kind == "invalid_request_error" else None, error)
 
 
 class OpenAIResponsesAdapter(BaseModelAdapter):
@@ -167,9 +178,9 @@ class OpenAIResponsesAdapter(BaseModelAdapter):
                 async for event in events:
                     kind = event.get("type")
                     if kind == "error":
-                        raise stream_error(event_error(event))
+                        raise event_failure(event_error(event))
                     if kind == "response.failed":
-                        raise stream_error(event["response"].get("error") or {})
+                        raise event_failure(event["response"].get("error") or {})
                     if kind == "response.output_text.delta":
                         chunk = event["delta"]
                         if not isinstance(chunk, str) or len(text) + len(chunk) > 120000:

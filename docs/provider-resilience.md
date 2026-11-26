@@ -31,7 +31,7 @@ stays one of the stable codes Runs, Tasks and clients already read.
 | `content_policy` | content filters, `refusal`/`content_filter` stops | `model_content_blocked` |
 | `output_limit` | "max_tokens … > N, which is the maximum", "at most N completion tokens" | `model_request_rejected` |
 | `truncated` | `max_tokens`/`length` stop, or an incomplete Responses reply (`response.incomplete`), with tool calls or no text | `model_output_truncated` |
-| `format_error` | other 4xx, the ChatGPT plan's `subscription_sharing_unsupported_capability` | `model_request_rejected` |
+| `format_error` | other 4xx, a Responses `invalid_request_error` stream event (read as its HTTP 400), the ChatGPT plan's `subscription_sharing_unsupported_capability` | `model_request_rejected` |
 | `invalid_response` | malformed body or stream | `model_response_invalid` |
 
 Classification order: a decisive provider type or code, then the HTTP status
