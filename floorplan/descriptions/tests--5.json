@@ -96,6 +96,10 @@
       "name": "Incoming call tests",
       "description": "Automatic checks for incoming call."
     },
+    "tests/mobile/live-connection.spec.mjs": {
+      "name": "Live connection tests",
+      "description": "Automatic checks that the phone shows a silent live feed as reconnecting within 45 seconds and picks up again from the last update without repeats."
+    },
     "tests/mobile/mandate-mode.test.ts": {
       "name": "Mandate mode tests",
       "description": "Automatic checks for mandate mode."

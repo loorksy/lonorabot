@@ -52,6 +52,10 @@
       "name": "Knowledge notes tests",
       "description": "Automatic checks for knowledge notes."
     },
+    "tests/web/live-connection.spec.mjs": {
+      "name": "Live connection tests",
+      "description": "Automatic checks that the web app shows a silent live feed as reconnecting within 45 seconds and picks up again from the last update without repeats."
+    },
     "tests/web/message-cards.spec.mjs": {
       "name": "Message cards tests",
       "description": "Automatic checks for message cards."
