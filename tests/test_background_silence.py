@@ -717,6 +717,30 @@ async def test_a_helper_of_ended_background_work_posts_no_card():
 
 
 @pytest.mark.asyncio
+async def test_helpers_of_ended_background_work_share_one_follow_up():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Fan-in desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        # A watch set in the chat has ended; two helpers bring something back. One
+        # background follow-up reads both, out of the owner's sight (P1-09, 11.5).
+        watch = await make_run(fixture, agent, conversation, "watch")
+        await ended(fixture, watch)
+        gold = await returned_helper(fixture, agent, watch, "completed", "Gold held 2,400.")
+        silver = await returned_helper(fixture, agent, watch, "completed", "Silver held 30.")
+        assert await contents(fixture, conversation) == []
+        [follow_up] = await follow_ups(fixture, watch.id)
+        assert follow_up.model_metadata["background"] is True
+        steered = await steered_text(fixture, follow_up.id)
+        assert gold.id in steered and silver.id in steered
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_a_work_thread_message_is_never_sent_to_a_channel():
     database()
     from check_streaming import Fixture

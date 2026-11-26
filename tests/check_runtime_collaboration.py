@@ -1,4 +1,6 @@
-"""Actual concurrent child runtimes return to one running host without a second synthesis."""
+"""Actual concurrent child runtimes return to one running host without a second synthesis;
+peer outcomes returning to a finished requester share one follow-up (P1-09), and a repeated
+request that has not ended is the first one (P3-06)."""
 
 import asyncio
 import json
@@ -8,14 +10,25 @@ from unittest.mock import patch
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.collaboration.outcome_return import return_outcome
+from lonora_agent.collaboration.peer_messages import delegate_peer
+from lonora_agent.context.builder import build_context
 from lonora_agent.executor import execute_run
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.model_routing import ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.collaboration import current_session
 from lonora_db.messages import send_message
-from lonora_db.schema import CollaborationSessionRow, EventRow, RunRow, TradingJournalRow
+from lonora_db.runs import complete_run
+from lonora_db.schema import (
+    CollaborationSessionRow,
+    EventRow,
+    MessageRow,
+    RunRow,
+    SteeringRow,
+    TradingJournalRow,
+)
 from lonora_tools.loader import load_tools
+from lonora_tools.message import send as peer_send
 from sqlalchemy import func, select
 
 
@@ -152,5 +165,116 @@ async def main() -> None:
         await f.close()
 
 
+async def follow_ups(f: Fixture, parent_id: str) -> list[RunRow]:
+    async with f.runtime.db.sessions() as session:
+        return list(
+            await session.scalars(
+                select(RunRow).where(
+                    RunRow.parent_run_id == parent_id, RunRow.trigger == "follow_up"
+                )
+            )
+        )
+
+
+async def finish(f: Fixture, run: dict[str, Any], answer: str) -> None:
+    """``run`` ends with ``answer`` and its outcome returns, as the worker does."""
+    context = await f.lease(run)
+    async with f.runtime.db.sessions() as session, session.begin():
+        assert await complete_run(session, context.lease, answer, {})
+    await return_outcome(f.runtime.db, run["id"])
+
+
+async def fan_in() -> None:
+    f = await Fixture().open()
+    try:
+        host = await f.agent("Fan-in host")
+        first, second, third = (
+            await f.agent("Fan-in A"),
+            await f.agent("Fan-in B"),
+            await f.agent("Fan-in C"),
+        )
+        thread = await f.conversation(host)
+        parent = await f.run(host, thread)
+        context = await f.lease(parent)
+        a = await delegate_peer(context.for_call("fan-a"), first["id"], "Read source A")
+        b = await delegate_peer(context.for_call("fan-b"), second["id"], "Read source B")
+        # Through the tool: its result tells the requester the outcome comes back on its own.
+        c = await peer_send(
+            context.for_call("fan-c"), {"agent_id": third["id"], "task": "Read source C"}
+        )
+        assert c["next"].startswith("The outcome returns here on its own")
+        # The same request to the same agent, while the first is not done, is the first (P3-06).
+        again = await delegate_peer(context.for_call("fan-a-again"), first["id"], "Read source A")
+        assert again["id"] == a["id"] and again["duplicate"] is True and "duplicate" not in a
+        async with f.runtime.db.sessions() as session:
+            asked = await session.scalar(
+                select(func.count())
+                .select_from(RunRow)
+                .where(RunRow.parent_run_id == parent["id"], RunRow.trigger == "peer")
+            )
+            written = await session.scalar(
+                select(func.count())
+                .select_from(MessageRow)
+                .where(MessageRow.thread_id == thread["id"], MessageRow.content == "Read source A")
+            )
+        assert asked == 3 and written == 1
+        # The requester ends its turn before any helper answers.
+        async with f.runtime.db.sessions() as session, session.begin():
+            assert await complete_run(session, context.lease, "Asked A, B and C.", {})
+        # Two children returning to the finished requester produce one follow-up, and that
+        # follow-up reads both outcomes.
+        await finish(f, a, "FANIN-ALPHA gold held 2400")
+        await finish(f, b, "FANIN-BETA silver held 30")
+        [follow_up] = await follow_ups(f, parent["id"])
+        assert follow_up.status == "queued"
+        follow_context = await f.lease(
+            {"id": follow_up.id, "agent_id": host["id"], "thread_id": thread["id"]}
+        )
+        seen = "\n".join(m.content for m in await build_context(follow_context))
+        assert "FANIN-ALPHA" in seen and "FANIN-BETA" in seen
+        # A child returning while that follow-up runs steers it; it starts nothing new.
+        await finish(f, c, "FANIN-GAMMA copper held 4")
+        [same] = await follow_ups(f, parent["id"])
+        assert same.id == follow_up.id
+        async with f.runtime.db.sessions() as session:
+            steered = list(
+                await session.scalars(
+                    select(MessageRow.content)
+                    .join(SteeringRow, SteeringRow.message_id == MessageRow.id)
+                    .where(SteeringRow.run_id == follow_up.id)
+                )
+            )
+        assert len(steered) == 1 and "FANIN-GAMMA" in steered[0]
+        # A cancelled child of a finished requester starts nothing.
+        other = await f.run(host, thread)
+        other_context = await f.lease(other)
+        d = await delegate_peer(other_context.for_call("fan-d"), first["id"], "Read source D")
+        async with f.runtime.db.sessions() as session, session.begin():
+            assert await complete_run(session, other_context.lease, "Asked A.", {})
+        await f.request("POST", "/runs/" + d["id"] + "/cancel", {})
+        assert await follow_ups(f, other["id"]) == []
+        # Ended work is sent again by a new request.
+        later = await f.run(host, thread)
+        later_context = await f.lease(later)
+        e = await delegate_peer(later_context.for_call("fan-e"), first["id"], "Read source E")
+        await f.request("POST", "/runs/" + e["id"] + "/cancel", {})
+        resent = await delegate_peer(
+            later_context.for_call("fan-e-again"), first["id"], "Read source E"
+        )
+        assert resent["id"] != e["id"] and "duplicate" not in resent
+        print(
+            "PASS peer outcomes returning to a finished requester share one follow-up that "
+            "reads them all, a later one steers it, and a cancelled one starts nothing; a "
+            "repeated unfinished request is the first, an ended one is sent again"
+        )
+    finally:
+        await f.close()
+
+
+async def checks() -> None:
+    await main()
+    await fan_in()
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(checks())
