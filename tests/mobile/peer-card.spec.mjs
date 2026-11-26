@@ -48,18 +48,28 @@ for (const locale of ["ar", "en"])
     // Who asked whom, in that order whatever the reading direction.
     const reads = (card, first, second) =>
       expect(card.getByTestId("peer-who")).toHaveText(new RegExp(`${first}.*${second}`));
+    // Only the other agent's name is a link, with a full touch target; this conversation's
+    // own agent is plain text, so a tap never opens this conversation a second time.
+    const links = async (card, other, here) => {
+      const link = card.getByRole("link", { name: other, exact: true });
+      await expect(link).toHaveCount(1);
+      expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect(card.getByRole("link", { name: here, exact: true })).toHaveCount(0);
+    };
 
     await page.goto(`/thread?id=${data.source_thread}`);
     await expect(request).toHaveCount(1);
     await expect(request).toContainText(text.kicker);
     await expect(request).toContainText(text.queued);
     await reads(request, sender, recipient);
+    await links(request, recipient, sender);
 
     // The recipient's name opens its conversation, where the same request is drawn.
     await request.getByRole("link", { name: recipient, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/thread\\?id=${data.target_thread}`));
     await expect(request).toHaveCount(1);
     await reads(request, sender, recipient);
+    await links(request, sender, recipient);
 
     fixture({ ...data, action: "peer_complete" });
     await expect(answer).toHaveCount(1, { timeout: 20000 });
@@ -73,6 +83,7 @@ for (const locale of ["ar", "en"])
     await expect(answer).toContainText(text.completed);
     await expect(answer).not.toContainText("peer_outcome");
     await expect(request).toContainText(text.completed);
+    await links(answer, recipient, sender);
     await answer.getByRole("link", { name: recipient, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/thread\\?id=${data.target_thread}`));
   });
