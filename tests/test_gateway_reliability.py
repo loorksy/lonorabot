@@ -587,6 +587,19 @@ async def test_an_owner_message_left_queued_opens_one_episode_until_it_is_claime
                 updated_at=waited,
             )
         )
+        # Waiting behind its own conversation's running turn is not the workers' delay.
+        busy = ThreadRow(owner_id=owner, agent_id=agent, title="Busy")
+        session.add(busy)
+        await session.flush()
+        session.add(
+            RunRow(
+                thread_id=busy.id,
+                agent_id=agent,
+                status="running",
+                lease_expires_at=utcnow() + timedelta(minutes=2),
+            )
+        )
+        session.add(RunRow(thread_id=busy.id, agent_id=agent, created_at=waited, updated_at=waited))
     watchdog = Watchdog(db, Liveness(), set())
     assert await watchdog.delayed_runs() == 1
     assert await watchdog.delayed_runs() == 0  # One item per episode.

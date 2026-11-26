@@ -34,8 +34,9 @@ from lonora_db.schema import (
     ThreadRow,
     TradingJournalRow,
 )
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from .health import HEARTBEAT_FRESH
 from .liveness import Liveness
@@ -304,6 +305,7 @@ class Watchdog:
         now = utcnow()
         cutoff = now - QUEUE_DELAY
         retry_at = RunRow.execution_state["environment"]["retry"]["not_before"].as_string()
+        turn = aliased(RunRow)
         async with self.db.sessions() as session:
             count, oldest = (
                 await session.execute(
@@ -315,8 +317,16 @@ class Watchdog:
                         # Waiting since it was queued, or since its retry came due.
                         RunRow.updated_at < cutoff,
                         or_(retry_at.is_(None), retry_at < cutoff.isoformat()),
-                        # As the claim: a paused agent's work waits for the owner.
+                        # As the claim: a paused agent's work waits for the owner, and a
+                        # Run waits behind its own conversation's running turn.
                         or_(AgentRow.paused.is_(False), claimable_while_paused()),
+                        ~exists(
+                            select(turn.id).where(
+                                turn.thread_id == RunRow.thread_id,
+                                turn.status.in_(["leased", "running"]),
+                                turn.lease_expires_at > now,
+                            )
+                        ),
                     )
                 )
             ).one()

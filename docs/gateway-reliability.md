@@ -123,8 +123,8 @@ from the others.
   due and unclaimed for more than 60 s (`QUEUE_DELAY`) raises one `gateway_degraded`
   item per episode (`reason_code: runs_delayed`, with the `count` and `oldest_seconds`
   when it opened), withdrawn once none is left waiting. A run waiting out its retry
-  backoff counts from when the retry came due, and a paused agent's work waits for the
-  owner. Every pass while runs are delayed logs `run.queue_delayed` with the count and
+  backoff counts from when the retry came due; a paused agent's work waits for the
+  owner, and a run behind its own conversation's running turn waits for that turn. Every pass while runs are delayed logs `run.queue_delayed` with the count and
   the oldest wait, and `run.queue_recovered` once they are claimed. The web shows the
   item as "New requests are waiting longer than usual to start".
 - **Aging operations.** A live operation still `reserved`, `submitted` or `ambiguous`
