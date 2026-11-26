@@ -89,8 +89,9 @@ async def scan(context: ToolContext) -> SecretScan:
 
 async def run_scan(context: ToolContext) -> SecretScan:
     """``scan``, read once for the Run: every third-party result passes it
-    (``ToolRegistry.execute``). A workspace command reads it again, since an agent's
-    first command is issued its CLI token."""
+    (``ToolRegistry.execute``, which reads it before the call). A workspace command reads
+    it again and keeps that read, since an agent's first command is issued its CLI
+    token."""
     if "owner" not in context.scans:
         context.scans["owner"] = await scan(context)
     return context.scans["owner"]
@@ -136,9 +137,10 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
         if context.cli_tokens
         else None
     )
-    context.scans.clear()
+    # Read after the token is issued, and kept as the Run's (``run_scan``).
+    context.scans["owner"] = await scan(context)
     result = await client(context).run(
-        await scan(context),
+        context.scans["owner"],
         context.agent_id,
         request.command,
         background=request.background,

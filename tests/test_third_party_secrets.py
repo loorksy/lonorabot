@@ -2,9 +2,10 @@
 
 An MCP server or a web page can echo what Lonora sent it, or anything else it holds. Every
 result of a tool whose content someone other than the owner wrote passes the owner's
-secret scan before it reaches the model, a stored tool result or an effect receipt, and
-is marked as data (``_provenance``). Runs on the real migrated PostgreSQL schema (skipped
-without ``LONORA_DATABASE_URL``); the MCP server and the web page are scripted.
+secret scan before it reaches the model, a stored tool result or an effect receipt, and is
+marked as data (``_provenance``). The scan is read before the call is sent. The database
+cases run on the real migrated PostgreSQL schema (skipped without
+``LONORA_DATABASE_URL``); servers, pages, feeds and stores are scripted.
 """
 
 import base64
@@ -17,12 +18,15 @@ from uuid import uuid4
 import pytest
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import Contract
+from lonora_core.user_error import LonoraError
 from lonora_db.schema import ArtifactRow, EffectReceiptRow
 from lonora_security.runtime_storage import confined_path
 from lonora_tools import mcp
 from lonora_tools.base import Tool
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import ToolRegistry
+from test_mcp_boundary import ScriptedTransport, declaration, install_transport
+from test_mcp_boundary import context as mcp_context
 from test_trusted_sources import SCHEMA, URL, WRITES, database
 
 PAGE = 130_000
@@ -188,5 +192,71 @@ async def test_a_web_result_is_scanned_and_marked_as_third_party() -> None:
         assert own == {"saved": True}
         # The owner's secrets are read once for the Run, not once per page.
         assert reads["count"] == 1
+    finally:
+        await fixture.close()
+
+
+async def unreadable() -> dict[str, str]:
+    raise LonoraError("secret_decryption_failed", 500)
+
+
+@pytest.mark.asyncio
+async def test_a_store_that_cannot_be_read_stops_an_mcp_call_before_it_is_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scan is read before the call goes out: a store that cannot be read refuses the
+    call unsent, never after a send it would then report as a plain failure (which invites
+    the model to send it again)."""
+    transport = ScriptedTransport()
+    install_transport(monkeypatch, transport)
+    context = mcp_context(declarations=(declaration(),))
+    context.secrets.scanned_values = unreadable
+    with pytest.raises(LonoraError, match="secret_decryption_failed"):
+        await mcp.execute(
+            context,
+            {"connection_id": "connection", "name": "research", "arguments": {"symbol": "XAUUSD"}},
+        )
+    assert [call["method"] for call in transport.calls].count("tools/call") == 0
+
+
+@pytest.mark.asyncio
+async def test_the_registry_reads_the_scan_before_a_third_party_call_and_never_after() -> None:
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Order")
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        events: list[str] = []
+
+        async def fetch(_: Any, args: dict[str, Any]) -> dict[str, Any]:
+            events.append("sent")
+            return {"url": args["url"], "content": "A page."}
+
+        store = context.secrets
+        original = store.scanned_values
+
+        async def counted() -> dict[str, str]:
+            events.append("read")
+            return await original()
+
+        registry = ToolRegistry([Tool("web_fetch", "Fetch a page", Page, fetch, True)])
+        with patch.object(store, "scanned_values", counted):
+            await registry.execute(
+                ToolCall(id="order-1", name="web_fetch", arguments={"url": "https://a.test"}),
+                context,
+            )
+        assert events == ["read", "sent"]
+        # A store that cannot be read fails the call before anything is sent.
+        with (
+            patch.object(store, "scanned_values", unreadable),
+            pytest.raises(LonoraError, match="secret_decryption_failed"),
+        ):
+            await registry.execute(
+                ToolCall(id="order-2", name="web_fetch", arguments={"url": "https://b.test"}),
+                replace(context, call_id="order-2", scans={}),
+            )
+        assert events == ["read", "sent"]
     finally:
         await fixture.close()

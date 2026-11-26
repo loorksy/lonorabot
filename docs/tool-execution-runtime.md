@@ -241,6 +241,13 @@ for every provider adapter); the provider's id is kept in the reply's
 `provider_metadata.provider_call_ids`. An id that is already unique is kept, so
 earlier checkpoints and receipts still match.
 
+A result whose content someone other than the owner wrote (`returns_external_content`,
+the list the context engine labels untrusted) passes the owner's secret scan in
+`ToolRegistry.execute` and is marked `_provenance: third_party` (VISION.md 7.2.6). The
+scan is read once for the Run pass (`run_scan`), before the first such call is sent, so
+a store that cannot be read refuses the call unsent; a workspace command reads it again,
+and keeps that read, after its CLI token is issued.
+
 A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
 `class` is one of input, resolution, connection, permission, provider, internal
 (`environment.error_class`, from the recovery category). An operation the executor

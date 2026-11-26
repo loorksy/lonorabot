@@ -447,15 +447,17 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             raise LonoraError("mcp_connection_changed", 409)
         if grant.source == "trusted" and await trust_for(context, connection_id) != trust:
             raise LonoraError("mcp_tool_not_authorized", 403)
+        # The server may echo the token it is sent: the values as they are now, read after
+        # that token and before the send, so a store that cannot be read sends nothing.
+        found = await scan(context)
         result = {
             "result": await adapter.execute(args["name"], args["arguments"]),
             "effect_tier": grant.tier,
         }
     finally:
         await adapter.close()
-    # The server may echo the token it was just sent: scanned with the values as they
-    # are now, before the receipt keeps it (7.2.6).
-    result = await asyncio.to_thread((await scan(context)).data, result)
+    # Scanned before the receipt keeps it (7.2.6).
+    result = await asyncio.to_thread(found.data, result)
     if grant.trust_id is not None:
         async with context.db.sessions() as session, session.begin():
             await mark_used(session, grant.trust_id)

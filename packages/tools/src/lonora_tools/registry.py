@@ -546,6 +546,9 @@ class ToolRegistry:
                 # The financial implementation checks current permission before
                 # preparing a new action. Keep completed receipt retrieval
                 # possible after downgrade; the executor rechecks before send.
+        # Read before the call can send anything: a store that cannot be read refuses the
+        # call unsent, never after an effect it would then report as a plain failure.
+        scan = await run_scan(context) if returns_external_content(call.name) else None
         timeout = tool.dispatch_timeout()
         if timeout is None:
             result = await self.dispatch(tool, call, context)
@@ -554,10 +557,9 @@ class ToolRegistry:
             # for a read, tool_execution_uncertain for an interrupted mutation.
             async with asyncio.timeout(timeout):
                 result = await self.dispatch(tool, call, context)
-        if returns_external_content(call.name):
+        if scan is not None:
             # Someone other than the owner wrote it: no stored secret's value reaches the
             # model, a stored result or a receipt through it (7.2.6), and it is data.
-            scan = await run_scan(context)
             result = {**await asyncio.to_thread(scan.data, result), "_provenance": "third_party"}
             # From now on this Run's owner message no longer stands for the owner's
             # intent on its own (``provenance.owner_message_id``).

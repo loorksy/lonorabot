@@ -132,7 +132,9 @@ operator declared it. The order is:
    owner's secret scan before that receipt is written and before the model reads it: a
    stored value the server writes back (its own token, plain or in base64) arrives as
    `[secret:NAME]` (VISION.md 7.2.6), and the result is marked `_provenance:
-   third_party`, as every web, feed and other third-party result is.
+   third_party`, as every web, feed and other third-party result is. The scan is read
+   after the token and before the call is sent, so a store that cannot be read sends
+   nothing (never a sent call reported as failed, which would invite a resend).
 
 Tool names must follow the MCP naming rule (`[A-Za-z0-9_./-]`, at most 128); other names
 and unsupported schemas are left out of a review, so the owner never sees remote text
