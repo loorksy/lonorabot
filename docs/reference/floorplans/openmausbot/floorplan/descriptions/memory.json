@@ -1,0 +1,180 @@
+{
+  "files": {
+    "server/workspace.ts": {
+      "name": "Memory files and prompt",
+      "description": "Reads, edits and caps MEMORY.md, archives overflow entries and builds the memory rules and notes prompt parts."
+    },
+    "server/memory-store.ts": {
+      "name": "Memory file store",
+      "description": "Allowlists memory paths, blocks symlink escapes, hashes text and computes the gauge for load limits."
+    },
+    "server/memory-entries.ts": {
+      "name": "Memory entry parsing",
+      "description": "Parses dated memory bullets, hides expired ones and computes fact identity for duplicate checks."
+    },
+    "server/memory-capture.ts": {
+      "name": "Capture step prompt",
+      "description": "Builds the fact-capture prompt, parses candidates and verifies each evidence quote against the chat."
+    },
+    "server/memory-dream.ts": {
+      "name": "Dream step",
+      "description": "Reads recent chats together and asks a model for cross-conversation patterns, outdated lines and ideas."
+    },
+    "server/memory-upkeep.ts": {
+      "name": "Memory upkeep scheduler",
+      "description": "Queues capture, organize, tidy and dream model calls, filing results with journal rows and state."
+    },
+    "server/memory-tidy.ts": {
+      "name": "Nightly tidy plan",
+      "description": "Plans expiry, exact-duplicate removal and model-judged contradiction striking for memory notes."
+    },
+    "server/memory-organize.ts": {
+      "name": "Topic filing step",
+      "description": "Selects MEMORY.md lines to move into topic files and applies the model's moves, sparing core facts."
+    },
+    "server/memory-topics.ts": {
+      "name": "Topic file headers",
+      "description": "Parses topic frontmatter, renders the capped topic index and merges new lines into topic files."
+    },
+    "server/memory-forget.ts": {
+      "name": "Forget handling",
+      "description": "Removes notes mentioning given words from memory files and routes bot memory updates and forget requests."
+    },
+    "server/memory-fact-checks.ts": {
+      "name": "Dream fact checks",
+      "description": "Rejects dream facts whose quotes are missing from the cited chats or whose numbers are unquoted."
+    },
+    "server/memory-journal.ts": {
+      "name": "Memory change journal",
+      "description": "Records every memory file change outside the workspace with diffs, turn-boundary attribution and undo."
+    },
+    "server/thread-notes.ts": {
+      "name": "Conversation notes",
+      "description": "Keeps per-conversation notes loaded only in that chat and lists reachable threads for session search."
+    },
+    "server/recall.ts": {
+      "name": "Auto-recall builder",
+      "description": "Searches topics, memory files and conversations for a message and renders a fenced, capped recall block."
+    },
+    "server/recent-work.ts": {
+      "name": "Recent-work brief",
+      "description": "Builds the two-day brief of what the bot said elsewhere and parses since/until time filters."
+    },
+    "server/digest.ts": {
+      "name": "Turn digest",
+      "description": "Builds the compact per-turn digest of tools, files, memory changes and reply head stored as a message."
+    },
+    "server/bot-folder.ts": {
+      "name": "Bot folder and soul",
+      "description": "Renders SOUL.md as the fenced standing-instructions block ranked above memory and skills."
+    },
+    "server/host/conversation-compaction.ts": {
+      "name": "Conversation compaction",
+      "description": "Decides when to fold history, drafts the summary and appends a compaction record leaving originals intact."
+    },
+    "server/host/resume-check.ts": {
+      "name": "Resume check",
+      "description": "Computes replay inputs and whether the next turn resumes the engine session after compaction."
+    },
+    "server/resume-plan.ts": {
+      "name": "Resume plan",
+      "description": "Decides whether a turn resumes its engine session or rebuilds from the transcript."
+    },
+    "server/tool-results.ts": {
+      "name": "Large tool result store",
+      "description": "Saves redacted overflow tool output for an hour so the model can read it by id and offset."
+    },
+    "server/tool-list-budget.ts": {
+      "name": "Tool list budget",
+      "description": "Shrinks tool schemas and descriptions to fit a byte budget for engines that silently drop tools."
+    },
+    "server/drivers/agents-result.ts": {
+      "name": "Bounded tool results",
+      "description": "Cuts tool results over 24,000 chars to a preview and points the model to tool_result_read."
+    },
+    "server/drivers/agents-catalog.ts": {
+      "name": "Agents tool catalog",
+      "description": "Defines memory_update, memory_log, session_search, skills_list and skill_manage tool schemas."
+    },
+    "server/drivers/agents-call.ts": {
+      "name": "Agents tool dispatch",
+      "description": "Runs memory_update, memory_log, session_search and session_read calls against the harness API."
+    },
+    "server/drivers/memory-search-text.ts": {
+      "name": "Search result text",
+      "description": "Formats memory, team and thread hits for session_search results the model reads."
+    },
+    "server/drivers/claude-own-memory.ts": {
+      "name": "Claude auto-memory off",
+      "description": "Defines the env flag that disables Claude Code's own memory so only OpenMausBot memory is used."
+    },
+    "server/drivers/openai-compat.ts": {
+      "name": "OpenAI-compatible driver",
+      "description": "Calls OpenAI-style APIs and adds OpenRouter cache_control and session_id for Claude models."
+    },
+    "server/cache-keepwarm.ts": {
+      "name": "Cache keep-warm",
+      "description": "Pings subscription Claude sessions near cache expiry to avoid re-writing large prompts."
+    },
+    "server/skills.ts": {
+      "name": "Skill store",
+      "description": "Stores skills per bot, stages and undoes skill writes, links them to engines and builds the skills index."
+    },
+    "server/skill-learn.ts": {
+      "name": "Skill learning prompt",
+      "description": "Parses /learn commands and builds the skill-authoring prompt and standards."
+    },
+    "server/skill-review.ts": {
+      "name": "Automatic skill review",
+      "description": "Counts tool steps per chat and runs a tool-less review that stages skill creates or updates."
+    },
+    "server/skill-library.ts": {
+      "name": "Skill library",
+      "description": "Loads bundled and library skills, selects them by trigger terms and renders skill instructions."
+    },
+    "server/skills-for-all-bots.ts": {
+      "name": "Skills for all bots",
+      "description": "Keeps one person's skill copy and syncs it into each of their bots as a managed skill."
+    },
+    "server/host/skills-library.ts": {
+      "name": "Skills host",
+      "description": "Builds a turn's skills index, imports and slash-command expansion across own, library and project skills."
+    },
+    "server/saved-steps/saved-steps.ts": {
+      "name": "Saved steps wiring",
+      "description": "Wires the computer-use recipe journal, store and replay dispatch into the server."
+    },
+    "server/saved-steps/rules.ts": {
+      "name": "Saved step rules",
+      "description": "Defines recipe steps and the refusals that stop unsafe computer-use sequences from being saved."
+    },
+    "server/saved-steps/dispatch.ts": {
+      "name": "Saved step replay",
+      "description": "Replays a stored computer-use recipe for a matching request without calling the model."
+    },
+    "server/side-jobs.ts": {
+      "name": "Background text jobs",
+      "description": "Picks the engine or opt-in helper model for compaction, memory and skill-review one-shot calls."
+    },
+    "server/team-memory.ts": {
+      "name": "Team memory",
+      "description": "Stores reviewed bot-proposed section facts and renders them into prompts within a 6,000-byte cap."
+    },
+    "server/profile-learned.ts": {
+      "name": "Learned About me",
+      "description": "Tracks facts bots added to About me, removable and never re-added once removed or forgotten."
+    },
+    "shared/memory-model.ts": {
+      "name": "Memory model types",
+      "description": "Types the model selection and outcome used by memory background calls."
+    },
+    "shared/context-breakdown.ts": {
+      "name": "Context breakdown type",
+      "description": "Types an engine-reported breakdown of what fills a conversation's context window."
+    },
+    "shared/skill-md.ts": {
+      "name": "SKILL.md parsing",
+      "description": "Validates skill names and parses SKILL.md frontmatter, tags and size limits."
+    }
+  }
+}

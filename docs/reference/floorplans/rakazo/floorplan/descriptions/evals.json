@@ -1,0 +1,152 @@
+{
+  "files": {
+    "packages/adapters/src/runs/assembly/prompt-version.test.ts": {
+      "name": "Prompt version tests",
+      "description": "Proves the prompt fingerprint is stable, changes with templates, tool schemas and context policy, and survives bundling."
+    },
+    "packages/adapters/src/runs/assembly/run-instructions.prompt.test.ts": {
+      "name": "Run instruction prompt tests",
+      "description": "Pins exact output of the connected-plugin and taught-skill instruction builders."
+    },
+    "packages/adapters/src/runs/executor/executor-approval-pi.test.ts": {
+      "name": "Approval pause tests",
+      "description": "Mocks the Pi agent to check approval pauses and the duplicate-effect gate in the executor tool wrapper."
+    },
+    "packages/adapters/src/runs/executor/executor-loop-guard.test.ts": {
+      "name": "Loop guard tests",
+      "description": "Runs a real executor and Pi against a scripted HTTP model to prove repeated over-limit calls are stopped."
+    },
+    "packages/adapters/src/runtime/pi/pi-runtime-fallback.test.ts": {
+      "name": "Pi fallback tests",
+      "description": "Wraps the real Pi agent to test model fallback, delays and stream behaviour with controlled streams."
+    },
+    "packages/adapters/src/runtime/scripted-runtime.ts": {
+      "name": "Scripted agent runtime",
+      "description": "Implements a fake AgentRuntime that derives scripted tool calls, failures and hangs from the prompt text."
+    },
+    "packages/adapters/src/computers/sandbox/sandbox-conformance.test.ts": {
+      "name": "Sandbox conformance tests",
+      "description": "Runs one workspace contract against many sandbox providers backed by emulators and fakes."
+    },
+    "packages/testkit/src/model-emulator.ts": {
+      "name": "Loopback model emulator",
+      "description": "Serves a scripted OpenAI-compatible SSE endpoint that asserts each request and fails if steps are unused."
+    },
+    "packages/testkit/src/cli/harness.ts": {
+      "name": "Integration and e2e harness",
+      "description": "Starts disposable Postgres and runs every postgres test or the Playwright e2e suite with a chosen runtime."
+    },
+    "packages/testkit/src/cli/evals.ts": {
+      "name": "Eval CLI",
+      "description": "Parses options, calibrates the judge, runs suites on a disposable database and writes version-2 reports with spend caps."
+    },
+    "packages/testkit/src/cli/approval-eval.ts": {
+      "name": "Approval eval CLI",
+      "description": "Runs reviewed approval cases and variants against the auto-review model with pricing, store and reports."
+    },
+    "packages/testkit/src/cli/canary.ts": {
+      "name": "Provider canary CLI",
+      "description": "Starts live provider canary tests only when real sandbox or model keys exist."
+    },
+    "packages/testkit/src/infra/providers.canary.test.ts": {
+      "name": "Live provider canaries",
+      "description": "Provisions, runs a command on and destroys real sandboxes, skipping each provider without its key."
+    },
+    "packages/testkit/src/computers/computer-replay-fixture.ts": {
+      "name": "Contacts replay fixture",
+      "description": "Models a hand-authored contacts export page where only valid actions create the download."
+    },
+    "packages/testkit/src/flows/simulated-user.ts": {
+      "name": "Simulated user model",
+      "description": "Plays a person from a private brief and returns JSON chat, card, secret or screen moves."
+    },
+    "packages/testkit/src/flows/runner.ts": {
+      "name": "Live flow runner",
+      "description": "Drives a flow with a simulated person, grades from site and product records, and tracks cost and frames."
+    },
+    "packages/testkit/src/evals/cases.ts": {
+      "name": "Eval case model",
+      "description": "Defines Step, Evidence and EvalCase types and the product eval cases with deterministic graders and judges."
+    },
+    "packages/testkit/src/evals/runner.ts": {
+      "name": "Eval trial runner",
+      "description": "Runs one trial through the real API, walks steps, builds evidence, grades, and cleans up with failure categories."
+    },
+    "packages/testkit/src/evals/grading.ts": {
+      "name": "Eval grading",
+      "description": "Runs the judge only after deterministic criteria pass, settles verdicts and regrades stored trials."
+    },
+    "packages/testkit/src/evals/judge.ts": {
+      "name": "LLM eval judge",
+      "description": "Builds a tool-free judge on the agent runtime that returns a pass verdict and records safe settings."
+    },
+    "packages/testkit/src/evals/judge-identity.ts": {
+      "name": "Judge identity compare",
+      "description": "Lists which recorded judge fields differ between two reports."
+    },
+    "packages/testkit/src/evals/report.ts": {
+      "name": "Eval report types",
+      "description": "Defines trial results and failure categories and summarizes pass counts, cost and latency per case."
+    },
+    "packages/testkit/src/evals/fingerprint.ts": {
+      "name": "Eval fingerprints",
+      "description": "Hashes the first model request, settings and case data with ids and dates normalized for result reuse."
+    },
+    "packages/testkit/src/evals/compare.ts": {
+      "name": "Eval report comparison",
+      "description": "Validates two reports, refuses mismatched settings and lists trials that went from passed to failed."
+    },
+    "packages/testkit/src/evals/run-store.ts": {
+      "name": "Eval run store",
+      "description": "Stores gzipped reports by fingerprint and plans each case as run, reuse or regrade."
+    },
+    "packages/testkit/src/evals/measurement.ts": {
+      "name": "Eval cost measurement",
+      "description": "Prices model calls and enforces a conservative spend budget before each live call."
+    },
+    "packages/testkit/src/evals/step-accounting.ts": {
+      "name": "Step cost accounting",
+      "description": "Partitions usage ledger calls by step and reconciles totals against the workflow."
+    },
+    "packages/testkit/src/evals/scripted-shell.ts": {
+      "name": "Scripted shell answers",
+      "description": "Answers sandbox shell commands from regex checks and leaves other commands unavailable."
+    },
+    "packages/testkit/src/evals/sandbox.ts": {
+      "name": "Eval sandbox",
+      "description": "Refuses unscripted shell commands with exit 127, records a harness issue, and serves fixed screenshots."
+    },
+    "packages/testkit/src/evals/wire-observer.ts": {
+      "name": "Wire observer",
+      "description": "Records digest-only facts about tool results in model requests without keeping prompt text."
+    },
+    "packages/testkit/src/evals/cache-probe.ts": {
+      "name": "Cache prefix probe",
+      "description": "Replays a long prefix in four phases to measure prompt cache reuse."
+    },
+    "packages/testkit/src/evals/evals.test.ts": {
+      "name": "Eval harness tests",
+      "description": "Unit-tests the fake services, graders, regrading with a failing judge, summaries and redaction."
+    },
+    "packages/testkit/src/evals/suites/initiative.ts": {
+      "name": "Initiative eval suite",
+      "description": "Checks a bot sets exactly one due follow-up routine, speaks once on wake and stays silent if closed."
+    },
+    "packages/testkit/src/evals/suites/silence-observer.ts": {
+      "name": "Silence observer",
+      "description": "Captures realtime progress events at publish time because finalization deletes them."
+    },
+    "packages/testkit/src/evals/suites/eval-silence.postgres.test.ts": {
+      "name": "Silence eval fixture test",
+      "description": "Runs silence cases through the product with scripted replies to prove graders pass and fail correctly."
+    },
+    "packages/testkit/src/evals/suites/tool-choice.ts": {
+      "name": "Tool-choice eval suite",
+      "description": "Defines case expectations for required, forbidden and ordered tool calls and resulting settings."
+    },
+    "packages/testkit/src/evals/suites/approval.ts": {
+      "name": "Approval eval cases",
+      "description": "Defines reviewed approval cases with expected pass or ask outcomes and a versioned fixture."
+    }
+  }
+}

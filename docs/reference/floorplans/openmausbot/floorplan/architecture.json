@@ -1,0 +1,1309 @@
+{
+ "$schema": "floorplan/architecture@1",
+ "audience": "developers",
+ "project": {
+  "name": "OpenMausBot",
+  "summary": "Local-first chat app where each bot is a real agent engine (Claude Code, Codex, others) behind one runtime and harness; Electron desktop plus React UI over a Node server.",
+  "entrypoints": [
+   "server/openmausbot.ts",
+   "server/index.ts",
+   "electron/boot.mjs",
+   "src/main.tsx"
+  ]
+ },
+ "ignore": [
+  "third_party/**",
+  "**/*.lock",
+  "pnpm-lock.yaml",
+  "server/model-catalog/models-dev.snapshot.json",
+  ".tmpexp/**",
+  ".tmpexp"
+ ],
+ "nodes": [
+  {
+   "id": "web",
+   "label": "Chat UI",
+   "kind": "ui",
+   "summary": "React app: sidebar of bots, chat threads, approvals, settings and sign-in screens.",
+   "paths": [
+    "src/**",
+    "index.html",
+    "rail.html",
+    "vite.config.ts",
+    "*-preview.html"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ],
+   "details": "Vite + React 19 renderer. Talks to the local server over HTTP/SSE. The settings screens drive provider sign-in and model pickers."
+  },
+  {
+   "id": "web.components",
+   "label": "Components",
+   "kind": "feature",
+   "summary": "Feature folders of React components: chat, room feed, bot settings, keys, inbox, onboarding.",
+   "parent": "web",
+   "paths": [
+    "src/components/**"
+   ]
+  },
+  {
+   "id": "web.state",
+   "label": "State and hooks",
+   "kind": "library",
+   "summary": "Client-side state, hooks and wire helpers that talk to the server.",
+   "parent": "web",
+   "paths": [
+    "src/state/**",
+    "src/hooks/**",
+    "src/types/**",
+    "src/data/**",
+    "src/pair/**"
+   ]
+  },
+  {
+   "id": "web.i18n",
+   "label": "Locales and assets",
+   "kind": "config",
+   "summary": "Translation catalogs and static assets.",
+   "parent": "web",
+   "paths": [
+    "src/locales/**",
+    "src/assets/**"
+   ]
+  },
+  {
+   "id": "desktop",
+   "label": "Desktop shell",
+   "kind": "ui",
+   "summary": "Electron main process: windows, browser pane, native IPC, cloud account and updates.",
+   "paths": [
+    "electron/**",
+    "electron-builder.yml"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "agent",
+   "label": "Agent runtime",
+   "kind": "service",
+   "summary": "The agent loop and everything it needs to talk to models: engine drivers, model catalog, provider sign-in and the tool surface. Lives inside server/ but is the study target.",
+   "details": "Each bot is an engine process (Claude Code, Codex, Pi, ACP agents) or an HTTP chat driver. The runtime admits work, dispatches turns to a driver, and the harness serves the agent's tools back over MCP."
+  },
+  {
+   "id": "agent.loop",
+   "label": "Agent loop and harness",
+   "kind": "service",
+   "summary": "Admission, turn dispatch, runtime tick loop, per-turn context, steering queue and the harness HTTP bus that tools call back into.",
+   "parent": "agent",
+   "paths": [
+    "server/agents-turn.ts",
+    "server/agents-bridge-*.ts",
+    "server/turn-*.ts",
+    "server/room-*.ts",
+    "server/steer-queue.ts",
+    "server/channel-queue.ts",
+    "server/internal-turns.ts",
+    "server/member-turn.ts",
+    "server/main-thread.ts",
+    "server/live-turns.ts",
+    "server/context-*.ts",
+    "server/delta-context.ts",
+    "server/system-prompt.ts",
+    "server/compaction-summary.ts",
+    "server/repeat-*.ts",
+    "server/limit-failover.ts",
+    "server/quick-model-fallback.ts",
+    "server/quota-switch.ts",
+    "server/automatic-recovery.ts"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ],
+   "tags": [
+    "loop"
+   ]
+  },
+  {
+   "id": "agent.engines",
+   "label": "Provider and engine drivers",
+   "kind": "library",
+   "summary": "ProviderDriver implementations: one per engine or API (Claude Code CLI, Codex, Pi, Antigravity, ACP agents, OpenAI-compatible chat).",
+   "parent": "agent",
+   "paths": [
+    "server/drivers/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**",
+    "server/drivers/*login*",
+    "server/drivers/*auth*",
+    "server/drivers/device-auth.ts",
+    "server/drivers/chatgpt-plan-*",
+    "server/drivers/codex-plan-token*",
+    "server/drivers/claude-accounts*",
+    "server/drivers/antigravity-account*",
+    "server/drivers/antigravity-native-sign*",
+    "server/drivers/antigravity-sign-in*",
+    "server/drivers/codex-account-home.ts",
+    "server/drivers/*catalog*",
+    "server/drivers/*-models.ts",
+    "server/drivers/claude-model-*",
+    "server/drivers/agents-*",
+    "server/drivers/*mcp*",
+    "server/drivers/permission-command*",
+    "server/drivers/chat-tool-approval*",
+    "server/drivers/codex-app-approval*",
+    "server/drivers/codex-approval-config*",
+    "server/drivers/codex-tool-surface*",
+    "server/drivers/team-tools*",
+    "server/drivers/tool-*",
+    "server/drivers/own-mcp-*",
+    "server/drivers/claude-tool-search*",
+    "server/drivers/claude-unusable-tools*",
+    "server/drivers/claude-hooks*"
+   ],
+   "tags": [
+    "models"
+   ]
+  },
+  {
+   "id": "agent.engines.claude",
+   "label": "Claude Code driver",
+   "kind": "library",
+   "summary": "Spawns the claude CLI, parses its stream-json, handles Bedrock, billing and limits.",
+   "parent": "agent.engines",
+   "paths": [
+    "server/drivers/claude*",
+    "server/claude-*.ts",
+    "server/anthropic-key-env.ts"
+   ]
+  },
+  {
+   "id": "agent.engines.codex",
+   "label": "Codex driver",
+   "kind": "library",
+   "summary": "Runs the codex app server per bot: config, instructions, warm processes, compaction.",
+   "parent": "agent.engines",
+   "paths": [
+    "server/drivers/codex*",
+    "server/codex-*.ts"
+   ]
+  },
+  {
+   "id": "agent.engines.acp",
+   "label": "ACP agent drivers",
+   "kind": "library",
+   "summary": "Agent Client Protocol drivers for Gemini, Cursor, OpenCode, Kimi, Qwen, Hermes and others.",
+   "parent": "agent.engines",
+   "paths": [
+    "server/drivers/acp/**"
+   ]
+  },
+  {
+   "id": "agent.engines.compat",
+   "label": "OpenAI-compatible chat",
+   "kind": "library",
+   "summary": "Direct HTTP chat drivers for OpenAI-style APIs (OpenAI, Groq, Mistral, MiniMax, Ollama, OpenRouter) with tool-call and retry handling.",
+   "parent": "agent.engines",
+   "paths": [
+    "server/drivers/openai-*",
+    "server/drivers/chat-*",
+    "server/drivers/groq*",
+    "server/drivers/mistral*",
+    "server/drivers/minimax*",
+    "server/drivers/ollama*",
+    "server/drivers/openrouter*",
+    "server/drivers/cerebras*",
+    "server/drivers/grok*",
+    "server/drivers/greenference*",
+    "server/drivers/modelgo*",
+    "server/drivers/meta*",
+    "server/drivers/compat-*",
+    "server/drivers/muse-code*",
+    "server/openai-compat-endpoints.ts"
+   ]
+  },
+  {
+   "id": "agent.engines.pi",
+   "label": "Pi and Antigravity",
+   "kind": "library",
+   "summary": "Pi RPC sessions and the Antigravity runtime.",
+   "parent": "agent.engines",
+   "paths": [
+    "server/drivers/pi*",
+    "server/drivers/antigravity*",
+    "server/antigravity*"
+   ]
+  },
+  {
+   "id": "ext.openai",
+   "label": "OpenAI",
+   "kind": "external",
+   "summary": "OpenAI APIs and Azure OpenAI, plus ChatGPT plan tokens.",
+   "parent": "agent.engines",
+   "packages": [
+    "npm:openai"
+   ],
+   "hosts": [
+    "api.openai.com",
+    "auth.openai.com",
+    "*.openai.azure.com"
+   ]
+  },
+  {
+   "id": "ext.anthropic",
+   "label": "Anthropic",
+   "kind": "external",
+   "summary": "Anthropic API and the Claude subscription via the claude CLI.",
+   "parent": "agent.engines",
+   "packages": [
+    "npm:@anthropic-ai/*"
+   ],
+   "hosts": [
+    "api.anthropic.com",
+    "claude.com",
+    "claude.ai"
+   ]
+  },
+  {
+   "id": "ext.google",
+   "label": "Google Gemini",
+   "kind": "external",
+   "summary": "Gemini API and Google sign-in for Antigravity.",
+   "parent": "agent.engines",
+   "packages": [
+    "npm:@google/*"
+   ],
+   "hosts": [
+    "generativelanguage.googleapis.com",
+    "accounts.google.com"
+   ]
+  },
+  {
+   "id": "ext.openrouter",
+   "label": "OpenRouter and other providers",
+   "kind": "external",
+   "summary": "OpenRouter, Groq, DeepSeek, xAI, MiniMax, Cursor, OpenCode and similar hosted model APIs.",
+   "parent": "agent.engines",
+   "hosts": [
+    "openrouter.ai",
+    "api.groq.com",
+    "api.deepseek.com",
+    "api.x.ai",
+    "api.minimax.io",
+    "cursor.com",
+    "opencode.ai"
+   ]
+  },
+  {
+   "id": "agent.catalog",
+   "label": "Model catalog",
+   "kind": "data",
+   "summary": "Bundled model manifest and models.dev snapshot, per-engine model lists, startup cache and model selection.",
+   "parent": "agent",
+   "paths": [
+    "server/model-catalog/**",
+    "server/model-manifest/**",
+    "server/startup-model-catalog.ts",
+    "server/model-*.ts",
+    "server/default-model-selection.ts",
+    "server/agent-endpoint-models.ts",
+    "server/checker-model.ts",
+    "server/thread-model.ts",
+    "server/hosted-models.ts",
+    "server/prices.ts",
+    "server/decider/openrouter-models.ts",
+    "server/drivers/*catalog*",
+    "server/drivers/*-models.ts",
+    "server/drivers/claude-model-*",
+    "server/routes/thread-models.ts",
+    "server/routes/internal-models.ts",
+    "shared/model-request.ts",
+    "shared/thread-model.ts",
+    "shared/modelgo.ts",
+    "shared/opencode-model-id.ts",
+    "scripts/build-model-catalog.*",
+    "scripts/check-model-manifest.*"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ],
+   "tags": [
+    "models"
+   ]
+  },
+  {
+   "id": "agent.auth",
+   "label": "Provider sign-in and keys",
+   "kind": "service",
+   "summary": "Subscription sign-in (ChatGPT/Codex device code, claude auth login, Antigravity), API key storage and checks, per-engine homes, email sign-in to the app.",
+   "parent": "agent",
+   "paths": [
+    "server/account-signin.ts",
+    "server/provider-auth-sessions.ts",
+    "server/sign-in-*.ts",
+    "server/claude-accounts.ts",
+    "server/provider-key-check.ts",
+    "server/key-*.ts",
+    "server/credential-env.ts",
+    "server/engine-homes/**",
+    "server/routes/sign-in*.ts",
+    "server/routes/cli-login.ts",
+    "server/routes/github-sign-in.ts",
+    "server/routes/email-sign-in.ts",
+    "server/routes/antigravity-accounts.ts",
+    "server/routes/logins.ts",
+    "server/cli-login*.ts",
+    "server/login-*.ts",
+    "server/bot-logins.ts",
+    "shared/engine-sign-in.ts",
+    "shared/device-sign-in.ts",
+    "shared/cli-login.ts",
+    "shared/sign-in-*.ts",
+    "shared/github-sign-in.ts",
+    "shared/logins.ts",
+    "server/drivers/*login*",
+    "server/drivers/*auth*",
+    "server/drivers/device-auth.ts",
+    "server/drivers/chatgpt-plan-*",
+    "server/drivers/codex-plan-token*",
+    "server/drivers/claude-accounts*",
+    "server/drivers/antigravity-account*",
+    "server/drivers/antigravity-native-sign*",
+    "server/drivers/antigravity-sign-in*",
+    "server/drivers/codex-account-home.ts"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ],
+   "tags": [
+    "auth"
+   ]
+  },
+  {
+   "id": "agent.tools",
+   "label": "Tools and permissions",
+   "kind": "service",
+   "summary": "The agent tool surface (served over MCP by the harness), approval cards, allow-lists, tool scopes and MCP gating.",
+   "parent": "agent",
+   "paths": [
+    "server/permission-*.ts",
+    "server/mcp-*.ts",
+    "server/tool-*.ts",
+    "server/agent-tool-policy.ts",
+    "server/always-allow.ts",
+    "server/auto-approve.ts",
+    "server/command-allowlist.ts",
+    "server/safety-floor*.ts",
+    "server/provider-tool-allow.ts",
+    "server/approval*.ts",
+    "server/chat-apps-mcp.ts",
+    "server/connector-*.ts",
+    "server/routes/mcp-servers.ts",
+    "server/routes/internal-tools.ts",
+    "server/routes/internal-mcp.ts",
+    "shared/tool-*.ts",
+    "shared/agents-tool-names.ts",
+    "shared/command-allowlist.ts",
+    "shared/approval-mode.ts",
+    "shared/wire-tool.ts",
+    "shared/mcp-*.ts",
+    "server/drivers/agents-*",
+    "server/drivers/*mcp*",
+    "server/drivers/permission-command*",
+    "server/drivers/chat-tool-approval*",
+    "server/drivers/codex-app-approval*",
+    "server/drivers/codex-approval-config*",
+    "server/drivers/codex-tool-surface*",
+    "server/drivers/team-tools*",
+    "server/drivers/tool-*",
+    "server/drivers/own-mcp-*",
+    "server/drivers/claude-tool-search*",
+    "server/drivers/claude-unusable-tools*",
+    "server/drivers/claude-hooks*"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ],
+   "tags": [
+    "tools"
+   ]
+  },
+  {
+   "id": "agent.tools.bridge",
+   "label": "Agents tool bridge",
+   "kind": "feature",
+   "summary": "The agents-* tool implementations the harness exposes to every engine: board, pages, waits, browser, computer, memory.",
+   "parent": "agent.tools",
+   "paths": [
+    "server/drivers/agents-*"
+   ]
+  },
+  {
+   "id": "server",
+   "label": "Platform server",
+   "kind": "service",
+   "summary": "Local-first Node server: HTTP API, store, routines, memory, browser, cloud computers, sharing. The agent runtime above is carved out of it.",
+   "paths": [
+    "server/**",
+    "*.ts"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ],
+   "details": "server/index.ts is the large composition root that wires every module and mounts routes."
+  },
+  {
+   "id": "server.core",
+   "label": "Server core",
+   "kind": "service",
+   "summary": "Entrypoints, config, store, persistence, sessions and the composition root.",
+   "parent": "server",
+   "paths": [
+    "server/index.ts",
+    "server/openmausbot.ts",
+    "server/dev-server.ts",
+    "server/store*.ts",
+    "server/config.ts",
+    "server/message-db*.ts",
+    "server/sessions.ts",
+    "server/schema.ts",
+    "server/data-*.ts",
+    "server/contracts.ts"
+   ]
+  },
+  {
+   "id": "server.routes",
+   "label": "HTTP routes",
+   "kind": "feature",
+   "summary": "REST and SSE route modules for bots, threads, messages, settings, cloud and sharing.",
+   "parent": "server",
+   "paths": [
+    "server/routes/**"
+   ]
+  },
+  {
+   "id": "server.host",
+   "label": "Host services",
+   "kind": "feature",
+   "summary": "Host-side services behind routes: access gates, check-backs, cloud computers, vault, briefs, browser seats.",
+   "parent": "server",
+   "paths": [
+    "server/host/**"
+   ]
+  },
+  {
+   "id": "server.browser",
+   "label": "Browser and computer use",
+   "kind": "feature",
+   "summary": "Embedded browser engine, CDP, live viewers and computer control for bots.",
+   "parent": "server",
+   "paths": [
+    "server/browser/**",
+    "server/browser-*.ts",
+    "server/computer-*.ts",
+    "server/cloud-browser/**",
+    "server/phone-screen/**"
+   ]
+  },
+  {
+   "id": "server.cloud",
+   "label": "Cloud, boxes and VPS",
+   "kind": "feature",
+   "summary": "Cloud computers, sync, lending, bot boxes (containers), VPS hosts and fleet.",
+   "parent": "server",
+   "paths": [
+    "server/cloud-*.ts",
+    "server/boat*.ts",
+    "server/bot-box/**",
+    "server/vps-*.ts",
+    "server/fleet*.ts",
+    "server/container-*.ts",
+    "server/local-vm-*.ts",
+    "server/lent-*.ts",
+    "server/team-*.ts",
+    "server/workspace-backup*"
+   ]
+  },
+  {
+   "id": "server.automation",
+   "label": "Routines, memory and skills",
+   "kind": "feature",
+   "summary": "Scheduled routines, webhooks, memory store and skill library.",
+   "parent": "server",
+   "paths": [
+    "server/routine*.ts",
+    "server/memory-*.ts",
+    "server/webhook*.ts",
+    "server/triggers*",
+    "server/app-trigger*.ts",
+    "server/vault/**"
+   ]
+  },
+  {
+   "id": "server.cli",
+   "label": "Headless CLI",
+   "kind": "script",
+   "summary": "omb CLI, headless client and setup commands.",
+   "parent": "server",
+   "paths": [
+    "server/headless/**",
+    "server/cli*.ts",
+    "server/doctor/**",
+    "server/pair-cli.ts"
+   ]
+  },
+  {
+   "id": "ext.composio",
+   "label": "Composio and connected apps",
+   "kind": "external",
+   "summary": "Third-party app connections via Composio and MCP servers.",
+   "parent": "server",
+   "hosts": [
+    "connect.composio.dev",
+    "app.composio.dev",
+    "backend.composio.dev"
+   ]
+  },
+  {
+   "id": "ext.github",
+   "label": "GitHub",
+   "kind": "external",
+   "summary": "GitHub API for sign-in, sharing and release checks.",
+   "parent": "server",
+   "hosts": [
+    "api.github.com",
+    "github.com",
+    "raw.githubusercontent.com"
+   ]
+  },
+  {
+   "id": "edge",
+   "label": "Cloud edge services",
+   "kind": "service",
+   "summary": "Cloudflare control plane, Composio broker, relay, connector and the phone companion.",
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ],
+   "details": "Separately deployed pieces around the local server."
+  },
+  {
+   "id": "edge.cloudflare",
+   "label": "Cloudflare workers",
+   "kind": "service",
+   "summary": "Control plane and Composio broker workers with D1 migrations.",
+   "parent": "edge",
+   "paths": [
+    "cloudflare/**"
+   ]
+  },
+  {
+   "id": "edge.relay",
+   "label": "Relay",
+   "kind": "service",
+   "summary": "Relay server that tunnels phones to a home server.",
+   "parent": "edge",
+   "paths": [
+    "relay/**"
+   ]
+  },
+  {
+   "id": "edge.connector",
+   "label": "Connector",
+   "kind": "service",
+   "summary": "Connector host process and install profiles.",
+   "parent": "edge",
+   "paths": [
+    "connector/**"
+   ]
+  },
+  {
+   "id": "edge.companion",
+   "label": "Phone companion",
+   "kind": "ui",
+   "summary": "Companion app source and protocol.",
+   "parent": "edge",
+   "paths": [
+    "companion/**"
+   ]
+  },
+  {
+   "id": "shared",
+   "label": "Shared code",
+   "kind": "library",
+   "summary": "Wire types and helpers shared by server, UI and desktop.",
+   "paths": [
+    "shared/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "docs",
+   "label": "Docs site",
+   "kind": "ui",
+   "summary": "Documentation website content and code.",
+   "paths": [
+    "apps/**",
+    "docs/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "ops",
+   "label": "Scripts and infra",
+   "kind": "infra",
+   "summary": "Build scripts, deploy configs, CI workflows, Dockerfile and release tooling.",
+   "paths": [
+    "scripts/**",
+    "deploy/**",
+    "build/**",
+    ".github/**",
+    "Dockerfile",
+    "compose.yaml",
+    "*.config.*",
+    "tsconfig*.json",
+    "pnpm-workspace.yaml",
+    "package.json",
+    "maus.ps1",
+    ".claude/**",
+    "skills/**",
+    "enterprise/**",
+    "public/**",
+    "announcements/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "tests",
+   "label": "Tests and evals",
+   "kind": "test",
+   "summary": "Co-located unit, e2e and node tests plus the evals harness.",
+   "paths": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "web.settings",
+   "label": "Settings and keys",
+   "kind": "feature",
+   "summary": "Settings screens: engine and key setup, bot settings, bot panel, access.",
+   "parent": "web.components",
+   "paths": [
+    "src/components/settings/**",
+    "src/components/bot-settings/**",
+    "src/components/bot-panel/**",
+    "src/components/keys/**",
+    "src/components/bot-access/**",
+    "src/components/*Settings*",
+    "src/components/*Setting*",
+    "src/components/*Key*",
+    "src/components/*SignIn*",
+    "src/components/*Engine*",
+    "src/components/*Model*"
+   ]
+  },
+  {
+   "id": "web.rooms",
+   "label": "Rooms and workspace",
+   "kind": "feature",
+   "summary": "Room feed, inbox, widgets, data and browser views.",
+   "parent": "web.components",
+   "paths": [
+    "src/components/room-feed/**",
+    "src/components/inbox/**",
+    "src/components/widget/**",
+    "src/components/data/**",
+    "src/components/browser/**",
+    "src/components/routines/**",
+    "src/components/automations/**",
+    "src/components/skill-burger/**",
+    "src/components/app/**"
+   ]
+  },
+  {
+   "id": "web.cloud",
+   "label": "Cloud and onboarding",
+   "kind": "feature",
+   "summary": "Cloud purchase, devices, onboarding, published apps.",
+   "parent": "web.components",
+   "paths": [
+    "src/components/cloud-*/**",
+    "src/components/devices/**",
+    "src/components/onboarding/**",
+    "src/components/published-apps/**",
+    "src/components/github/**"
+   ]
+  },
+  {
+   "id": "web.lib",
+   "label": "Client libs",
+   "kind": "library",
+   "summary": "Pure client helpers: wire calls, activity, formatting.",
+   "parent": "web",
+   "paths": [
+    "src/lib/**"
+   ]
+  },
+  {
+   "id": "agent.loop.runtime",
+   "label": "Runtime tick",
+   "kind": "service",
+   "summary": "Store-driven runtime: admission, assignments, envelopes, limits, handoff.",
+   "parent": "agent.loop",
+   "paths": [
+    "server/runtime/**",
+    "server/coordinator.ts",
+    "server/runtime-coordinator.ts",
+    "server/admission.ts",
+    "server/handoff-ticks.ts"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "agent.loop.harness",
+   "label": "Harness",
+   "kind": "service",
+   "summary": "Harness HTTP bus and registry that engine tools call back into.",
+   "parent": "agent.loop",
+   "paths": [
+    "server/harness/**",
+    "server/harness-*.ts"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "agent.loop.decider",
+   "label": "Decider and routing",
+   "kind": "service",
+   "summary": "Light model decisions: room routing, inbox triage, app picks.",
+   "parent": "agent.loop",
+   "paths": [
+    "server/decider/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "agent.auth.engines",
+   "label": "Engine login drivers",
+   "kind": "service",
+   "summary": "Per-engine login controllers (device code, CLI login, plan tokens).",
+   "parent": "agent.auth",
+   "paths": [
+    "server/drivers/*login*",
+    "server/drivers/*auth*",
+    "server/drivers/device-auth.ts",
+    "server/drivers/chatgpt-plan-*",
+    "server/drivers/codex-plan-token*",
+    "server/drivers/claude-accounts*",
+    "server/drivers/antigravity-account*",
+    "server/drivers/antigravity-native-sign*",
+    "server/drivers/antigravity-sign-in*",
+    "server/drivers/codex-account-home.ts"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "agent.auth.routes",
+   "label": "Sign-in routes and shared",
+   "kind": "feature",
+   "summary": "HTTP routes and wire helpers for sign-in cards.",
+   "parent": "agent.auth",
+   "paths": [
+    "server/routes/sign-in*.ts",
+    "server/routes/cli-login.ts",
+    "server/routes/github-sign-in.ts",
+    "server/routes/email-sign-in.ts",
+    "server/routes/antigravity-accounts.ts",
+    "server/routes/logins.ts",
+    "shared/engine-sign-in.ts",
+    "shared/device-sign-in.ts",
+    "shared/cli-login.ts",
+    "shared/sign-in-*.ts",
+    "shared/github-sign-in.ts",
+    "shared/logins.ts"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "agent.catalog.manifest",
+   "label": "Manifest and snapshot",
+   "kind": "data",
+   "summary": "Bundled manifest, models.dev snapshot and trimmer.",
+   "parent": "agent.catalog",
+   "paths": [
+    "server/model-catalog/**",
+    "server/model-manifest/**",
+    "scripts/build-model-catalog.*",
+    "scripts/check-model-manifest.*"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "tests.server",
+   "label": "Server tests",
+   "kind": "test",
+   "summary": "Server unit, e2e and fixtures.",
+   "parent": "tests",
+   "paths": [
+    "server/**/*.test.*",
+    "server/**/*.testkit.*",
+    "server/testing/**",
+    "server/**/fixtures/**",
+    "server/**/test/**"
+   ]
+  },
+  {
+   "id": "tests.ui",
+   "label": "UI and desktop tests",
+   "kind": "test",
+   "summary": "Renderer, shared and Electron tests.",
+   "parent": "tests",
+   "paths": [
+    "src/**/*.test.*",
+    "src/testing/**",
+    "electron/**/*.node-test.*",
+    "electron/**/*.test.*",
+    "shared/**/*.test.*"
+   ]
+  },
+  {
+   "id": "tests.evals",
+   "label": "Evals and script tests",
+   "kind": "test",
+   "summary": "Eval harness and script tests.",
+   "parent": "tests",
+   "paths": [
+    "evals/**",
+    "scripts/testing/**",
+    "scripts/**/*.test.*"
+   ]
+  },
+  {
+   "id": "shared.frame",
+   "label": "App frame and skill burger",
+   "kind": "library",
+   "summary": "Shared app-frame and skill-burger modules.",
+   "parent": "shared",
+   "paths": [
+    "shared/app-frame/**",
+    "shared/skill-burger/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "ops.scripts",
+   "label": "Scripts",
+   "kind": "script",
+   "summary": "Build, bench, release and check scripts.",
+   "parent": "ops",
+   "paths": [
+    "scripts/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "ops.deploy",
+   "label": "Deploy and CI",
+   "kind": "infra",
+   "summary": "Deploy configs, installers, CI workflows.",
+   "parent": "ops",
+   "paths": [
+    "deploy/**",
+    "build/**",
+    ".github/**",
+    "enterprise/**",
+    "Dockerfile",
+    "compose.yaml"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "edge.cloudflare.cp",
+   "label": "Control plane",
+   "kind": "service",
+   "summary": "Cloudflare control-plane worker.",
+   "parent": "edge.cloudflare",
+   "paths": [
+    "cloudflare/control-plane/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "edge.cloudflare.broker",
+   "label": "Composio broker",
+   "kind": "service",
+   "summary": "Composio broker worker.",
+   "parent": "edge.cloudflare",
+   "paths": [
+    "cloudflare/composio-broker/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "edge.protocol",
+   "label": "Phone protocol",
+   "kind": "library",
+   "summary": "Shared phone protocol package.",
+   "parent": "edge",
+   "paths": [
+    "packages/**"
+   ],
+   "exclude": [
+    "**/*.test.*",
+    "**/*.node-test.*",
+    "**/*.testkit.*",
+    "**/testing/**",
+    "**/test/**",
+    "**/e2e/**",
+    "**/fixtures/**",
+    "evals/**",
+    "scripts/testing/**"
+   ]
+  },
+  {
+   "id": "server.skills",
+   "label": "Skills and saved steps",
+   "kind": "feature",
+   "summary": "Skill library, skill burger and saved steps.",
+   "parent": "server",
+   "paths": [
+    "server/skill*.ts",
+    "server/skill-burger/**",
+    "server/saved-steps/**"
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "turn",
+   "title": "One agent turn",
+   "description": "A user message to the bot's reply.",
+   "steps": [
+    {
+     "node": "web.components",
+     "note": "User sends a message in a thread."
+    },
+    {
+     "node": "server/routes/bot-messages.ts",
+     "note": "POST handler stores the message and enqueues work."
+    },
+    {
+     "node": "server/runtime/runtime.ts",
+     "note": "tick() admits the assignment and dispatches it, with envelope and limits."
+    },
+    {
+     "node": "server/turn-route.ts",
+     "note": "Picks simple vs complex tier and the model."
+    },
+    {
+     "node": "server/agents-turn.ts",
+     "note": "Builds the per-turn tool environment and bearer."
+    },
+    {
+     "node": "agent.engines",
+     "note": "The bot's driver (claude, codex, chat...) runs the model."
+    },
+    {
+     "node": "server/drivers/agents-bridge.ts",
+     "note": "Engine tool calls come back to the harness over MCP."
+    },
+    {
+     "node": "server/harness/registry.ts",
+     "note": "Harness checks the bearer, runs the tool, returns results."
+    },
+    {
+     "node": "web.state",
+     "note": "Reply streams back over SSE and renders."
+    }
+   ]
+  },
+  {
+   "id": "signin",
+   "title": "Sign in with a ChatGPT or Claude subscription",
+   "steps": [
+    {
+     "node": "web.components",
+     "note": "User picks an engine in Settings and clicks Sign in."
+    },
+    {
+     "node": "server/routes/sign-in.ts",
+     "note": "Route starts a provider authentication session."
+    },
+    {
+     "node": "server/provider-auth-sessions.ts",
+     "note": "Tracks the pending session and status."
+    },
+    {
+     "node": "server/drivers/codex-device-auth.ts",
+     "note": "codex login --device-auth yields a link and code."
+    },
+    {
+     "node": "server/drivers/claude-login-auth.ts",
+     "note": "claude auth login: link shown, pasted code goes to stdin."
+    },
+    {
+     "node": "server/engine-homes/sign-ins.ts",
+     "note": "Credentials live in the engine's own home, never in app code."
+    },
+    {
+     "node": "agent.catalog",
+     "note": "Signed-in engines then list their models."
+    }
+   ]
+  }
+ ],
+ "tour": [
+  {
+   "node": "agent.loop",
+   "title": "The loop",
+   "note": "Start at runtime.ts: store is the only state and tick() the only dispatch point."
+  },
+  {
+   "node": "agent.engines",
+   "title": "Engine drivers",
+   "note": "Every provider implements ProviderDriver; builtIn.ts lists them."
+  },
+  {
+   "node": "agent.catalog",
+   "title": "Model catalog",
+   "note": "A bundled manifest plus a startup cache gives a fixed model list."
+  },
+  {
+   "node": "agent.auth",
+   "title": "Sign-in",
+   "note": "Subscription logins delegate to the vendors' own CLIs."
+  },
+  {
+   "node": "agent.tools",
+   "title": "Tools and approvals",
+   "note": "Harness-served tools are scoped per turn and gated by approval modes."
+  },
+  {
+   "node": "server.core",
+   "title": "Composition root",
+   "note": "index.ts wires everything."
+  }
+ ]
+}

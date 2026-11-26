@@ -1,0 +1,88 @@
+{
+  "files": {
+    "packages/adapters/src/runtime/pi/models/pi-models.ts": {
+      "name": "Model catalog builder",
+      "description": "Builds the cached provider and model catalog from the pi-ai registry, hides unservable models and applies the provider allowlist."
+    },
+    "packages/adapters/src/models/model-provider-allowlist.ts": {
+      "name": "Provider allowlist",
+      "description": "Reads the deployment provider allowlist and refuses or strips providers it leaves out, including copied bot and routine pins."
+    },
+    "packages/adapters/src/runtime/pi/models/pi-live-catalog.ts": {
+      "name": "API-key live catalog",
+      "description": "Probes a provider's models endpoint with the user's key and merges new and retired ids into the bundled catalog."
+    },
+    "packages/adapters/src/runtime/pi/models/pi-live-model.ts": {
+      "name": "Live model fallback",
+      "description": "Filters chat-model ids and infers a live model's capabilities from its closest bundled sibling."
+    },
+    "packages/adapters/src/runtime/pi/models/pi-live-cache.ts": {
+      "name": "Live catalog cache",
+      "description": "Provides the stale-while-revalidate cache and the env switch shared by every live catalog fetch."
+    },
+    "packages/adapters/src/runtime/pi/models/pi-model-compat.ts": {
+      "name": "Registry compatibility patches",
+      "description": "Patches registry models for Google effort levels, Bedrock strict mode, developer role and canonical provider ids."
+    },
+    "packages/adapters/src/runtime/pi/models/pi-openai-compatible-provider.ts": {
+      "name": "Custom endpoint provider",
+      "description": "Registers the OpenAI-compatible provider that lets users connect any URL and probe its model list."
+    },
+    "packages/adapters/src/runtime/pi/models/pi-current-models.test.ts": {
+      "name": "Shipped model tests",
+      "description": "Asserts which OpenAI, Anthropic and Bedrock model ids and effort levels the bundled catalog ships."
+    },
+    "packages/adapters/src/models/model-selection.ts": {
+      "name": "Model selection rules",
+      "description": "Chooses default models and credentials and validates that a connection can serve a requested model."
+    },
+    "packages/adapters/src/models/model-choice.ts": {
+      "name": "Loose model resolver",
+      "description": "Lists the models a user can run and resolves a spoken model name to one with deterministic ranking."
+    },
+    "packages/adapters/src/models/model-roles.ts": {
+      "name": "Model role defaults",
+      "description": "Resolves each purpose's model from the member's choice, falling back to the deployment's."
+    },
+    "packages/adapters/src/models/model-settings.ts": {
+      "name": "Connection model settings",
+      "description": "Merges saved and compatible-endpoint defaults into the settings a model runs with on a connection."
+    },
+    "packages/adapters/src/models/deployment-model.ts": {
+      "name": "Deployment default model",
+      "description": "Reads the environment's default provider, model and key and the admin-saved override."
+    },
+    "packages/adapters/src/models/model-vision.ts": {
+      "name": "Vision support check",
+      "description": "Decides whether a catalog or compatible model accepts images, using the registry and sibling fallbacks."
+    },
+    "packages/adapters/src/bots/own-bot-settings.ts": {
+      "name": "Bot self-settings",
+      "description": "Lets a bot change its own model and effort by resolving the name then validating the change."
+    },
+    "packages/adapters/src/tools/fleet-tools.ts": {
+      "name": "Fleet tools",
+      "description": "Gives agents tools to spawn and manage child bots, resolving any requested model first."
+    },
+    "apps/api/src/routes/context.ts": {
+      "name": "Route context",
+      "description": "Builds the per-request catalog by merging auth, live lists, credit offerings and saved selections."
+    },
+    "apps/api/src/models/deployment-model-settings.ts": {
+      "name": "Deployment model settings",
+      "description": "Lets an admin save the default model and key for everyone, and goes back to the environment's."
+    },
+    "apps/web/src/lib/models/model-catalog.ts": {
+      "name": "Web model options",
+      "description": "Turns credentials and the localized catalog into one list of model options for pickers."
+    },
+    "apps/web/src/lib/models/composer-model-picker-preference.ts": {
+      "name": "Composer picker preference",
+      "description": "Stores whether the message box shows the model picker in local storage."
+    },
+    "apps/web/src/components/models/FoundModelPicker.tsx": {
+      "name": "Server model picker",
+      "description": "Renders a searchable dropdown of model ids found on a custom server."
+    }
+  }
+}
