@@ -44,7 +44,7 @@ export default function Connect() {
                 setBusy(true);
                 void changeServer(link.server)
                   .then(() => {
-                    holdSetupToken(link.token);
+                    holdSetupToken(link.server, link.token);
                     router.replace("/sign-in");
                   })
                   .catch((cause) => setError(errorText(cause)))

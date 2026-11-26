@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   holdSetupToken,
   parseConnectLink,
+  sameServer,
   takeSetupToken,
 } from "../../apps/mobile/lib/connect-link.ts";
 
@@ -46,8 +47,29 @@ test("credentials, queries, fragments and other schemes are refused", () => {
   }
 });
 
-test("the held token is taken once", () => {
-  holdSetupToken(TOKEN);
-  assert.equal(takeSetupToken(), TOKEN);
+test("the held token is taken once, with the server it was issued for", () => {
+  holdSetupToken("https://sara.lonora.app", TOKEN);
+  assert.deepEqual(takeSetupToken(), { server: "https://sara.lonora.app", token: TOKEN });
   assert.equal(takeSetupToken(), null);
+  holdSetupToken("https://sara.lonora.app", null);
+  assert.equal(takeSetupToken(), null);
+});
+
+test("only the same server counts as the linked one", () => {
+  for (const same of [
+    "https://sara.lonora.app/",
+    " https://SARA.lonora.app ",
+    "https://sara.lonora.app/api",
+  ]) {
+    assert.ok(sameServer("https://sara.lonora.app", same), same);
+  }
+  for (const other of [
+    "https://omar.lonora.app",
+    "http://sara.lonora.app",
+    "https://sara.lonora.app:8443",
+    "",
+    "sara",
+  ]) {
+    assert.equal(sameServer("https://sara.lonora.app", other), false, other);
+  }
 });

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
 import { onboardingStatus } from "../lib/api";
-import { takeSetupToken } from "../lib/connect-link";
+import { type HeldSetupToken, sameServer, takeSetupToken } from "../lib/connect-link";
 import { useSession } from "../lib/session";
 
 export default function SignIn() {
@@ -52,17 +52,19 @@ export default function SignIn() {
   }, [ready, owner, address, recheck]);
   const pending = checked?.address !== address;
   const setup = !pending && checked?.initialized === false;
-  // A connect link's setup token (lonora://connect…&token=) fills the setup form once.
-  const linked = useRef<string | null | undefined>(undefined);
+  // A connect link's setup token (lonora://connect…&token=) fills the setup form once, and
+  // only for the server the link named: once the address names another server it is dropped.
+  const linked = useRef<HeldSetupToken | null | undefined>(undefined);
   if (linked.current === undefined) linked.current = takeSetupToken();
   // The setup token is kept only while the setup form is shown.
   useEffect(() => {
+    if (linked.current && !sameServer(linked.current.server, address)) linked.current = null;
     if (!setup) setToken("");
     else if (linked.current) {
-      setToken(linked.current);
+      setToken(linked.current.token);
       linked.current = null;
     }
-  }, [setup]);
+  }, [setup, address]);
   if (!ready) return <Loading />;
   if (owner) return <Redirect href="/" />;
   // One rule for the button and for the keyboard's submit key.

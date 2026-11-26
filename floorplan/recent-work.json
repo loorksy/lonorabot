@@ -24,12 +24,12 @@
         {
           "ref": "apps/mobile/lib/connect-link.ts",
           "change": "new",
-          "note": "New: refuses unsafe server addresses in a link and keeps the setup code only in memory until sign-in uses it."
+          "note": "New: refuses unsafe server addresses in a link and keeps the setup code only in memory, with the server it came for, until sign-in uses it."
         },
         {
           "ref": "apps/mobile/app/sign-in.tsx",
           "change": "changed",
-          "note": "Fills the setup code from the link into the owner-setup form, once, and clears it whenever that form is not shown."
+          "note": "Fills the setup code from the link into the owner-setup form, once and only for the linked server; it drops the code if the address is changed to another server, and clears it whenever that form is not shown."
         }
       ]
     }

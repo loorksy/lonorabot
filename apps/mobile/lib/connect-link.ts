@@ -32,13 +32,31 @@ export function parseConnectLink(server: unknown, token: unknown): ConnectLink |
   return { server: clean, host: url.host, token: t };
 }
 
-// The token waits here, in memory only, until the sign-in screen's setup form takes it.
-let pending: string | null = null;
-export function holdSetupToken(token: string | null) {
-  pending = token;
+// Whether two addresses name the same server (the same rule as the session's own address).
+export function sameServer(a: string, b: string): boolean {
+  const key = (value: string) => {
+    try {
+      return new URL(value.trim())
+        .toString()
+        .replace(/\/api\/?$/, "")
+        .replace(/\/$/, "");
+    } catch {
+      return null;
+    }
+  };
+  const k = key(a);
+  return k !== null && k === key(b);
 }
-export function takeSetupToken(): string | null {
-  const t = pending;
+
+// The token waits here, in memory only, with the server it was issued for, until the sign-in
+// screen's setup form takes it. It is never handed to another server.
+export type HeldSetupToken = { server: string; token: string };
+let pending: HeldSetupToken | null = null;
+export function holdSetupToken(server: string, token: string | null) {
+  pending = token ? { server, token } : null;
+}
+export function takeSetupToken(): HeldSetupToken | null {
+  const held = pending;
   pending = null;
-  return t;
+  return held;
 }
