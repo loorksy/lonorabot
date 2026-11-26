@@ -214,7 +214,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 payload=message_data(message),
             )
             if (
-                not deliver(session, parent, message, hidden)
+                not attach_outcome(session, parent, message, hidden)
                 and parent.status == "completed"
                 and not child.model_metadata.get("collaboration_session_id")
             ):
@@ -222,7 +222,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 # the follow-up that has not ended yet, so one answer reads every outcome.
                 live = await live_follow_up(session, parent)
                 if live is not None:
-                    deliver(session, live, message, hidden)
+                    attach_outcome(session, live, message, hidden)
                 elif child.status != "cancelled":
                     continuation = await create_run(
                         session,
@@ -305,7 +305,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
             )
 
 
-def deliver(session: AsyncSession, run: RunRow, message: MessageRow, hidden: bool) -> bool:
+def attach_outcome(session: AsyncSession, run: RunRow, message: MessageRow, hidden: bool) -> bool:
     """Give a returned outcome to ``run`` if it has not ended: a queued run reads it before
     its first turn, a started one by steering. False when ``run`` has ended."""
     if run.status == "queued":
