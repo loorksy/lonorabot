@@ -80,6 +80,7 @@ def context(seen: list[Any], tokens: Tokens) -> Any:
         workspace_given=None,
         cli_tokens=tokens,
         lease=SimpleNamespace(run_id="run-1"),
+        scans={},
     )
 
 
