@@ -15,7 +15,9 @@ user-facing replies and labels. English examples do not require an English reply
    actual broker/login/server; saved configuration alone is not connectivity.
 2. Inspect min/max/step volume, tick size, stops and fresh bid/ask. Read broker
    positions/orders including manual tickets. Derive a proposal from evidence
-   and owner constraints when asked to plan. For a market entry with a money
+   and owner constraints when asked to plan. Before choosing, view the trading
+   skills this decision needs (structure, planning, risk, the instrument's family).
+   For a market entry with a money
    budget and explicit stop, use market_position_size in the exact account currency;
    do not convert cent-account units or invent tick economics. Its estimated stop
    loss excludes gaps, slippage, fees, carry and margin checks. Recheck the actual
