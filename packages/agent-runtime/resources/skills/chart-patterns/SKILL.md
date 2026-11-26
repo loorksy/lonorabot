@@ -89,6 +89,5 @@ event lands before it can complete, or you found it after choosing the side.
 
 ## Saying it
 
-"1h double bottom, second rejection forming at the prior low; I buy the rejection,
-stop below the low, first objective the neckline; a close below the low ends it." Or:
-"No clear pattern; the plan rests on the range edges."
+One line: timeframe, pattern and its state, the entry, the stop beyond the breaking level,
+the first objective, the close that ends it. No clear pattern: say so, name the plan's levels.

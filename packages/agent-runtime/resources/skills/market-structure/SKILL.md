@@ -93,8 +93,7 @@ thin hours.
 
 ## Saying it
 
-Regime, level and what changes your mind, in one line: "Range on 1h; London swept the
-high and closed back inside; I sell toward the low while price holds below the sweep; a
-close above it ends the idea." When structure is unclear, still decide: "Transition
-after a failed low; no trade until 1h closes back above the shift." Never "it may go up
-or down".
+One line holds the regime, the level that matters, what you do there and the close that ends
+the idea. When structure is unclear, still decide: call it a transition, say there is no setup
+yet, and name the close that would create one. A line that says price may go either way
+decides nothing.

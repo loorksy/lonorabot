@@ -86,8 +86,7 @@ sector; the stop sits inside the normal opening range.
 
 ## Saying it
 
-"The index is bid on falling yields, not on earnings; I buy the first pullback after the
-cash open while the opening range low holds, a close back below it ends the idea, and I
-am flat before the largest constituent reports tonight." For a stock: "Earnings beat but
-guidance was cut and the gap up failed in the first hour; I am not buying it, and a close
-back above the pre-report high would change my view."
+Name what drives the index today (yields, earnings, the session), the entry, the level whose
+break ends the idea, and the scheduled report you will be flat before. For a single stock,
+weigh the report against the market's reaction to it, and name the close that would change
+your view.

@@ -91,8 +91,8 @@ obeyed against his own method; the diary question is asked when he never wanted 
 
 ## Saying it
 
-"I lost one R on the gold long. The read was right; I entered before the 15m close
-confirmed the break, and that was my error. Next time I wait for the close." Or: "No
-trade today: price is inside yesterday's range with nothing scheduled until New York; a
-watch wakes me on a close outside it." To the owner: "This breaks your own rule against
-re-entering right after a stop. Is it a one-off, or should I change your method?"
+After a loss, state its size in R, whether the read or the execution was at fault, the
+specific error if there was one, and what changes next time. On a day without a setup, say
+why (where price is, what is scheduled) and what will wake you. When a decision would break
+one of the owner's own rules, name the rule and ask whether this is a one-off or a change to
+the owner's method.

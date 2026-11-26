@@ -69,6 +69,7 @@ lower-frame trigger.
 
 ## Saying it
 
-"4h leads: uptrend, pullback into the prior breakout level; a 1h shift up times the
-entry; a 4h close below the last higher low ends it." For a conflict: "1d falls and 1h
-rises; I read the 1h rally as a pullback and plan the sell at the 1d level, not a buy."
+Name the timeframe that leads and its state, the level where the lower timeframe times the
+entry, and the higher-timeframe close that ends the idea. When the timeframes disagree, say
+which one you follow, how you read the other (a pullback inside it, or noise), and what you
+plan from that.
