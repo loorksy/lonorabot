@@ -14,7 +14,7 @@ from lonora_adapter_kit.types import ModelMessage, ToolCall, ToolDefinition
 from lonora_adapters.models.anthropic import AnthropicAdapter
 from lonora_adapters.models.compatible_endpoint import CompatibleEndpointAdapter
 from lonora_adapters.models.deepseek import DeepSeekAdapter
-from lonora_adapters.models.openai import OpenAIAdapter
+from lonora_adapters.models.openai_responses import OpenAIResponsesAdapter
 from lonora_adapters.models.openrouter import OpenRouterAdapter
 from lonora_adapters.models.zai import ZaiAdapter
 from lonora_contracts.model_catalog import ModelDescriptor
@@ -270,13 +270,22 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize(
     "adapter_type",
-    [OpenAIAdapter, AnthropicAdapter, DeepSeekAdapter, ZaiAdapter, OpenRouterAdapter],
+    [OpenAIResponsesAdapter, AnthropicAdapter, DeepSeekAdapter, ZaiAdapter, OpenRouterAdapter],
 )
 async def test_provider_wire_output_budget(adapter_type: type[Any], stream: bool) -> None:
     payloads: list[dict[str, Any]] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         payloads.append(json.loads(request.content))
+        if adapter_type is OpenAIResponsesAdapter:
+            # The Responses API is always streamed.
+            events: list[dict[str, Any]] = [
+                {"type": "response.output_text.delta", "delta": "OK"},
+                {"type": "response.completed", "response": {"id": "r", "usage": {}}},
+            ]
+            return httpx.Response(
+                200, text="".join("data: " + json.dumps(x) + "\n\n" for x in events)
+            )
         if stream:
             events = (
                 [
@@ -313,7 +322,7 @@ async def test_provider_wire_output_budget(adapter_type: type[Any], stream: bool
         )
         if stream:
             assert chunks == ["OK"]
-    field = "max_completion_tokens" if adapter_type is OpenAIAdapter else "max_tokens"
+    field = "max_output_tokens" if adapter_type is OpenAIResponsesAdapter else "max_tokens"
     assert payloads[0][field] == 321
 
 

@@ -20,8 +20,9 @@ same way as new ones; nothing is stored per row. So a model a release's list no 
 holds becomes unpriced, its past usage included (for example `claude-sonnet-4` and
 `claude-opus-4-1`, which the 1.6.0 list does not hold), while its token counts stay.
 
-- Anthropic reports `input_tokens` without the cache reads; the OpenAI-compatible APIs
-  (OpenAI, DeepSeek, Z.ai, OpenRouter) include the cached tokens in `prompt_tokens`. The
+- Anthropic reports `input_tokens` without the cache reads; OpenAI's Responses API
+  includes them in `input_tokens`, and the OpenAI-compatible APIs (DeepSeek, Z.ai,
+  OpenRouter) include them in `prompt_tokens`. The
   dashboard normalizes: `input_tokens` is every prompt token, cached included, and
   cached tokens are priced once, at the cached rate. A listed model without a cache-read
   price (zero in the list) prices a request that has cached tokens as unknown, never as

@@ -265,7 +265,17 @@ _TYPED: dict[str, FailureReason] = {
     "context_length_exceeded": FailureReason.CONTEXT_OVERFLOW,
     "content_filter": FailureReason.CONTENT_POLICY,
     "content_policy_violation": FailureReason.CONTENT_POLICY,
+    # The ChatGPT plan's Responses error codes (OpenAI's Sign in with ChatGPT errors).
+    "subscription_sharing_usage_limit_exceeded": FailureReason.BILLING,
+    "subscription_sharing_user_not_eligible": FailureReason.PERMISSION,
+    "subscription_sharing_route_not_supported": FailureReason.PERMISSION,
+    "subscription_sharing_invalid_user": FailureReason.AUTH,
+    "subscription_sharing_unsupported_capability": FailureReason.FORMAT_ERROR,
+    "subscription_sharing_usage_unavailable": FailureReason.OVERLOADED,
+    "subscription_sharing_user_unavailable": FailureReason.OVERLOADED,
 }
+# The plan's signed permission context did not authorize the request.
+_PERMISSION_PREFIX = "chatpass_v2_"
 _OUTPUT_LIMIT_PATTERNS = (
     re.compile(r"at most (\d+) (?:completion|output) tokens"),
     re.compile(r">\s*(\d+),? which is the maximum"),
@@ -464,6 +474,8 @@ def classify_failure(
     text = " ".join(part for part in (kind, code, message) if part).lower()[:_MESSAGE_LIMIT]
     effective = status if status is not None else numeric
     typed = _TYPED.get(code) or _TYPED.get(kind)
+    if typed is None and code.startswith(_PERMISSION_PREFIX):
+        typed = FailureReason.PERMISSION
     output_limit: int | None = None
     inferred = False
     if typed is not None and (effective is None or effective >= 400):

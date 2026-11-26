@@ -67,15 +67,6 @@ def shipped() -> dict[str, Any]:
 
 # The wires (pi-ai's ``api``) the import accepts for each provider (M5).
 WIRES: dict[str, set[str]] = importer().WIRES
-# M5: OpenAI's listed models are served by the Responses adapter (spec section 3), built
-# beside this change. Until it is registered, the OpenAI adapter posts to
-# /chat/completions, where the Responses-only entries (the -pro and codex models) do not
-# answer: this change merges with that adapter, and this mark goes with it.
-RESPONSES_PENDING = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="the OpenAI adapter registered here speaks Chat Completions, not openai-responses",
-)
 
 
 def test_the_list_has_its_shape_and_its_source() -> None:
@@ -136,10 +127,7 @@ def test_each_provider_lists_the_models_rakazo_lists() -> None:
 
 @pytest.mark.parametrize(
     "provider",
-    [
-        pytest.param(provider, marks=RESPONSES_PENDING) if provider == "openai" else provider
-        for provider in sorted(set(WIRES) & set(PROVIDERS))
-    ],
+    sorted(set(WIRES) & set(PROVIDERS)),
 )
 def test_every_listed_model_is_served_by_its_registered_adapter(provider: str) -> None:
     # The wires the adapter itself declares, not a copy of the import's table: a wire

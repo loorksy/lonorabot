@@ -71,6 +71,18 @@ def provider_answer(request: httpx.Request) -> httpx.Response:
                 "usage": {"input_tokens": 3, "output_tokens": 2},
             },
         )
+    if path.endswith("/responses"):
+        # OpenAI answers on the Responses API, always as a stream (VISION Amendment 4).
+        events = [
+            {"type": "response.output_text.delta", "delta": "أهلاً"},
+            {
+                "type": "response.completed",
+                "response": {"id": "resp_1", "usage": {"input_tokens": 3, "output_tokens": 2}},
+            },
+        ]
+        return httpx.Response(
+            200, text="".join("data: " + json.dumps(event) + "\n\n" for event in events)
+        )
     if path.endswith("/chat/completions"):
         return httpx.Response(
             200,
@@ -136,6 +148,10 @@ async def test_each_provider_checks_its_key_and_runs_a_turn_with_an_api_key(
             assert "authorization" not in request.headers
     body = json.loads(seen[1].content)
     assert body["model"] == "model-a"
+    # OpenAI's turn goes to the Responses API; the other OpenAI-style paths keep Chat
+    # Completions and Anthropic keeps its Messages API.
+    turn = {"anthropic": "/messages", "openai": "/responses"}.get(provider, "/chat/completions")
+    assert seen[1].url.path.endswith(turn)
 
 
 @pytest.mark.parametrize(

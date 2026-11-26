@@ -75,10 +75,11 @@ mandatory first-party system text (policy, owner instructions, the
 routing frame) and the newest request alone do not fit, or the newest tool call
 cannot be represented.
 
-OpenAI-compatible adapters join adjacent plain user turns (for example the
-context data and the owner's request) into one wire message, as the Anthropic
-adapter already merges same-role turns, because some endpoints reject
-successive user messages.
+The OpenAI-compatible adapters (DeepSeek, Z.ai, OpenRouter and the owner's
+endpoint) join adjacent plain user turns (for example the context data and the
+owner's request) into one wire message, as the Anthropic adapter already merges
+same-role turns, because some endpoints reject successive user messages. OpenAI's
+Responses API takes successive user items as they are.
 
 ## Trust separation
 
