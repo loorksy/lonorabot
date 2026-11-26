@@ -6,7 +6,7 @@
     },
     "packages/bus/src/lonora_bus/attention.py": {
       "name": "Alert text",
-      "description": "Provides the translated text for mandatory alerts."
+      "description": "Provides the translated text for mandatory alerts, naming the model provider when one refused access."
     },
     "packages/bus/src/lonora_bus/durable_events.py": {
       "name": "Event stream",

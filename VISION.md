@@ -811,3 +811,22 @@ mandate:
 13. **The customer's client.** In Lonora Cloud the owner uses the native app («كل شيء على التطبيق»); the operator's
     website is only the account portal (subscription, payment, account). Once the app offers every owner capability of
     the web client (section 13), the web client may be switched off for customers; the API the app uses stays.
+
+### Amendment 5 (2026-11-26): a sixth push kind, for Lonora's own background work
+
+The owner decided that a stopped background worker, and background work that fails because its model provider refuses
+access, each send a phone push. It was owner decision D1 of the roadmap of 2026-11-26, approved with every other
+recommendation («نعم موافق»), with the order that no earlier decision is cancelled by later material («اي قرار سبق و
+اتخذته لايجب ان نلغيه»). The following adds to the mandate:
+
+1. **11.4 gains a sixth kind.** The list of what sends one mobile push when created gains, after "a broker health
+   problem (9.4)": "a problem with Lonora's own background work that only the owner can see or fix: the Gateway (the
+   always-on worker that runs agents, routines, watches and reconciliation) has stopped, or background work failed
+   because a model provider refused access (a rejected key, spent credit, a model the key may not use, or a model the
+   provider does not have)." The list stays closed: it now names six kinds, and nothing else is added.
+2. **Who sends it.** A stopped Gateway cannot send its own push: the API, a separate process that is still running,
+   sends it. Neither item can be written by Lonora or any agent, because their own work is what stopped.
+3. **What it says.** Fixed server text in the owner's language: that the background work has stopped, or the provider's
+   name and the failure family. The provider's own message never leaves the server. As for the other five kinds, the
+   push carries no button and decides nothing, and quiet hours do not hold it.
+4. **Unchanged.** Execution Receipts and reports still send no push. Section 6 is untouched.

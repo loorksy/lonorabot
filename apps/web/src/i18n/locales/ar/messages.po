@@ -363,6 +363,10 @@ msgstr "بطاقة التفويض بانتظار لمستك"
 msgid "A message in the agent's conversation with an alert"
 msgstr "رسالة في محادثة الوكيل مع تنبيه"
 
+#: src/components/ai/AttentionInbox.tsx:46
+msgid "A model provider refused background work"
+msgstr "رفض مزوّد النموذج العمل في الخلفية"
+
 #: src/pages/shell/bot-panel.tsx:42
 #~ msgid "A new teammate"
 #~ msgstr "زميل جديد"
@@ -4258,6 +4262,10 @@ msgstr "يحتاج Lonora إلى الميكروفون للإملاء والرس�
 #~ msgid "Lonora uses it for your agents' conversations. You can change it in Models."
 #~ msgstr "يستخدمه Lonora في محادثات وكلائك، ويمكنك تغييره من «النماذج»."
 
+#: src/components/ai/AttentionInbox.tsx:45
+msgid "Lonora's background service has stopped"
+msgstr "توقفت خدمة الخلفية في لونورا"
+
 #: src/pages/shell/bot-panel.tsx:228
 #~ msgctxt "model"
 #~ msgid "Lonora's model"
@@ -4713,6 +4721,10 @@ msgstr "السعر الجديد"
 #: src/components/trading/TradeApprovals.tsx:365
 msgid "New request"
 msgstr "طلب جديد"
+
+#: src/components/ai/AttentionInbox.tsx:126
+msgid "New requests are waiting longer than usual to start"
+msgstr "الطلبات الجديدة تنتظر أكثر من المعتاد لتبدأ"
 
 #: src/components/trading/ExecutionReceipt.tsx:30
 msgid "New stop loss"

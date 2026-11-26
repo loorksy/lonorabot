@@ -1,6 +1,10 @@
 import type { Event as RuntimeEvent } from "./api";
 
 export type EventConnection = { close: () => void };
+// The server sends a frame (an event or a ping) at least every 15 s. A connection that carries
+// none for this long is dead even when it still looks open (a half-open socket after sleep or a
+// network change), so it is closed and reopened from the cursor.
+const IDLE_MS = 45_000;
 
 function validEvent(value: unknown): value is RuntimeEvent {
   if (!value || typeof value !== "object") return false;
@@ -28,11 +32,11 @@ export function eventStream(
   let retry = 0;
   let source: EventSource | undefined;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  let startupTimer: ReturnType<typeof setTimeout> | undefined;
+  let silenceTimer: ReturnType<typeof setTimeout> | undefined;
 
   const clearTimers = () => {
     clearTimeout(reconnectTimer);
-    clearTimeout(startupTimer);
+    clearTimeout(silenceTimer);
   };
   const connect = () => {
     if (stopped) return;
@@ -54,7 +58,12 @@ export function eventStream(
     };
     // A buffering intermediary must not leave an apparently open but silent
     // connection indefinitely. The server flushes its ready frame immediately.
-    startupTimer = setTimeout(reconnect, 10_000);
+    let live = false;
+    const expectFrameWithin = (ms: number) => {
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(reconnect, ms);
+    };
+    expectFrameWithin(10_000);
     current.addEventListener("ready", (message) => {
       if (!active()) return;
       try {
@@ -63,14 +72,20 @@ export function eventStream(
         cursor = Number(value.cursor);
         initialized = true;
         retry = 0;
-        clearTimeout(startupTimer);
+        live = true;
+        expectFrameWithin(IDLE_MS);
         onConnection(true);
       } catch {
         // A malformed frame cannot move the replay cursor or invalidate history.
       }
     });
+    // A ping only shows the connection is alive: it is not an event and moves no cursor.
+    current.addEventListener("ping", () => {
+      if (active() && live) expectFrameWithin(IDLE_MS);
+    });
     current.onmessage = (message) => {
       if (!active() || !initialized) return;
+      if (live) expectFrameWithin(IDLE_MS);
       try {
         const event: unknown = JSON.parse(message.data);
         if (!validEvent(event) || event.cursor <= cursor) return;

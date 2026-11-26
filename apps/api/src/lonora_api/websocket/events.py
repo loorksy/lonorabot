@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from time import monotonic
 from typing import Any, cast
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -13,6 +14,8 @@ from ..runtime import ApiRuntime
 
 router = APIRouter()
 MAX_CURSOR = 2**63 - 1
+# A visible frame on a quiet socket; the phone reconnects after 45 s without any frame.
+PING_SECONDS = 15
 
 
 async def guarded_stream(
@@ -88,8 +91,29 @@ async def events(socket: WebSocket) -> None:
 
         async def send() -> None:
             await socket.send_json({"type": "ready", "cursor": cursor})
-            async for event in stream_events(rt.db, owner.id, cursor):
-                await socket.send_json(event)
+            iterator = stream_events(rt.db, owner.id, cursor)
+            pending = asyncio.create_task(anext(iterator))
+            next_ping = monotonic() + PING_SECONDS
+            try:
+                while True:
+                    if monotonic() >= next_ping:
+                        # Not an event: it has no cursor, so it never moves the client's.
+                        await socket.send_json({"type": "ping"})
+                        next_ping = monotonic() + PING_SECONDS
+                    timeout = max(0.01, next_ping - monotonic())
+                    done, _ = await asyncio.wait({pending}, timeout=timeout)
+                    if pending not in done:
+                        continue
+                    try:
+                        event = pending.result()
+                    except StopAsyncIteration:
+                        return
+                    await socket.send_json(event)
+                    pending = asyncio.create_task(anext(iterator))
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await iterator.aclose()
 
         await guarded_stream(socket, token, send)
     except (LonoraError, WebSocketDisconnect, TimeoutError, ValueError):

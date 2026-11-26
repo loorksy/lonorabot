@@ -3,6 +3,8 @@ from lonora_charts.visual import ChartVisualRuntime
 from lonora_db.client import Database
 from lonora_gateway.service import Gateway
 
+from .health import LIVENESS_FILE
+
 
 def create_gateway(settings: Settings) -> tuple[Database, Gateway]:
     db = Database.connect(settings.database_url)
@@ -21,6 +23,7 @@ def create_gateway(settings: Settings) -> tuple[Database, Gateway]:
         expo_access_token=settings.expo_access_token.get_secret_value()
         if settings.expo_access_token
         else None,
+        liveness_file=LIVENESS_FILE,
         chart_visual=ChartVisualRuntime(
             settings.chart_renderer_url,
             str(settings.chart_browser_executable) if settings.chart_browser_executable else None,

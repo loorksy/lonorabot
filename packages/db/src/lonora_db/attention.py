@@ -1,5 +1,6 @@
 """Durable notification decisions reuse event publication and effect receipts."""
 
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from typing import Any, cast
 
@@ -17,6 +18,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
 from lonora_core.broker_health import GRACED as GENERIC
 from lonora_core.broker_health import broker_problem, outage
+from lonora_core.run_state import is_background
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import func, select, text
@@ -24,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_delivery import delivery_block
 from .events import emit
+from .gateways import gateway_running
+from .model_credentials import saved_key
 from .owner_profile import reach_me_policy
 from .schema import (
     AttentionRow,
@@ -50,6 +54,10 @@ SYSTEM_ATTENTION = {
     "broker_connection_lost": "action_required",
     # Nothing for the owner to do: the adapter retries at the time MetaApi gives.
     "broker_rate_limited": "important_change",
+    # Raised by the API while no Gateway runs (lonora_gateway.health, Amendment 5).
+    "gateway_stopped": "action_required",
+    # A model provider refused background work; only the owner can fix it (Amendment 5).
+    "model_access_failed": "action_required",
 }
 
 
@@ -112,6 +120,13 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         )
     if row.code == "run_quarantined":
         return True
+    if row.code == "gateway_stopped":
+        return not await gateway_running(session)
+    if row.code == "model_access_failed":
+        # A new key for that provider ends it: the next background run tries again.
+        return row.parameters.get("credential") == await credential_marker(
+            session, str(row.parameters.get("provider", ""))
+        )
     if row.code == "approval_required":
         approval = await session.get(TradeApprovalRow, row.parameters.get("approval_id", ""))
         return (
@@ -886,6 +901,123 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
         )
     rows.sort(key=lambda row: row.created_at, reverse=True)
     return [row.model_dump(mode="json") for row in rows[:VIEW_LIMIT]]
+
+
+# Model failures only the owner can fix (VISION 11.5): the key is rejected, the credit is
+# spent, or the key may not use, or the provider does not have, the model. The last two
+# concern one model of the key; the first two every model it reaches.
+OWNER_ONLY_REASONS = ("auth", "billing", "permission", "model_not_found")
+PER_MODEL_REASONS = ("permission", "model_not_found")
+
+
+async def credential_marker(session: AsyncSession, provider: str) -> str:
+    """Which saved key of the provider a failure was seen with: the secret and when it was
+    written (a rotation keeps the id), or the deployment's own key. Never its value."""
+    saved = await saved_key(session, provider)
+    return saved.secret_id + "@" + saved.updated_at.isoformat() if saved else "deployment"
+
+
+def access_route(provider: str, model: str, reason: str) -> str:
+    return provider + ":" + model if reason in PER_MODEL_REASONS else provider
+
+
+async def raise_model_access(
+    session: AsyncSession, run_id: str, failures: Iterable[tuple[str, str, str, bool]]
+) -> int:
+    """One ``model_access_failed`` item per provider route and cause, when a background Run
+    failed because every model it could use refused access (P1-08). ``failures`` are the
+    router's candidates (provider, model, reason, inferred). A conversation shows its own
+    error; a reason read only from wording on a generic response raises nothing. Lonora
+    cannot write this item: its own model is what fails. Returns how many were raised."""
+    from .schema import RunRow, ThreadRow
+    from .secret_cards import PROVIDER_NAMES
+
+    run = await session.get(RunRow, run_id)
+    thread = await session.get(ThreadRow, run.thread_id) if run else None
+    if run is None or thread is None or not is_background(run.trigger, run.model_metadata):
+        return 0
+    owner_id = thread.owner_id
+    await lock_attention(session, owner_id)
+    raised = 0
+    for provider, model, reason, inferred in failures:
+        if reason not in OWNER_ONLY_REASONS or inferred:
+            continue
+        route = access_route(provider, model, reason)
+        credential = await credential_marker(session, provider)
+        earlier = list(
+            await session.scalars(
+                select(AttentionRow).where(
+                    AttentionRow.owner_id == owner_id,
+                    AttentionRow.code == "model_access_failed",
+                    AttentionRow.parameters["route"].as_string() == route,
+                    AttentionRow.parameters["reason"].as_string() == reason,
+                    AttentionRow.parameters["credential"].as_string() == credential,
+                )
+            )
+        )
+        # One open item per route, cause and key; a later failure after it ended is new.
+        if any(row.status != "suppressed" for row in earlier):
+            continue
+        item = await raise_system_attention(
+            session,
+            owner_id,
+            "model_access_failed",
+            ":".join((route, reason, credential, str(len(earlier)))),
+            {
+                "provider": provider,
+                # The fixed name the owner reads; an OpenAI-compatible endpoint has none.
+                "provider_name": PROVIDER_NAMES.get(provider),
+                "model": model if reason in PER_MODEL_REASONS else None,
+                "route": route,
+                "reason": reason,
+                "credential": credential,
+            },
+            agent_id=run.agent_id,
+            thread_id=run.model_metadata.get("origin_thread_id") or thread.id,
+        )
+        raised += item is not None
+    return raised
+
+
+async def settle_model_access(
+    session: AsyncSession, owner_id: str, provider: str | None, model: str | None
+) -> int:
+    """A Run that a model of ``provider`` answered ends the items it disproves: a rejected
+    key or spent credit of that provider, and a refused or missing model only for that
+    model. Returns how many were withdrawn."""
+    if not provider:
+        return 0
+    routes = {provider, provider + ":" + (model or "")}
+    rows = list(
+        await session.scalars(
+            select(AttentionRow).where(
+                AttentionRow.owner_id == owner_id,
+                AttentionRow.code == "model_access_failed",
+                AttentionRow.status.in_(["pending", "ready", "seen"]),
+            )
+        )
+    )
+    withdrawn = 0
+    for row in rows:
+        if row.parameters.get("route") in routes:
+            suppress_superseded(session, row)
+            withdrawn += 1
+    return withdrawn
+
+
+async def refused_routes(session: AsyncSession, owner_id: str) -> set[str]:
+    """The provider routes with a standing ``model_access_failed`` item: a provider (every
+    model of its key), or a provider and model."""
+    rows = await session.scalars(
+        select(AttentionRow).where(
+            AttentionRow.owner_id == owner_id,
+            AttentionRow.code == "model_access_failed",
+            AttentionRow.status.in_(["pending", "ready", "seen"]),
+        )
+    )
+    return {
+        str(row.parameters.get("route")) for row in rows if await mandatory_current(session, row)
+    }
 
 
 async def mandate_already_shown(session: AsyncSession, card: OwnerActionRow) -> bool:

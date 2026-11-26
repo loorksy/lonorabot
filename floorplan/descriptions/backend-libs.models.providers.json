@@ -42,7 +42,7 @@
     },
     "packages/providers/src/lonora_providers/router.py": {
       "name": "Model router",
-      "description": "Sends each request to the chosen model and falls through an ordered list of backups when one fails."
+      "description": "Sends each request to the chosen model and falls through an ordered list of backups when one fails, reporting how each one failed when none answers."
     },
     "packages/providers/src/lonora_providers/routing_policy.py": {
       "name": "Routing policy store",

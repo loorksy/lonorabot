@@ -12,6 +12,7 @@ from lonora_db.client import Database
 from lonora_db.runs import aware, claim_next
 from lonora_db.schema import ThreadRow
 from lonora_logging.correlation import correlate_run
+from lonora_tools.context import RunDrain
 from pydantic import ValidationError
 
 from .runtime import OwnerServices
@@ -43,6 +44,7 @@ async def dispatch_one(
     searxng_url: str | None = None,
     browser_url: str | None = None,
     mcp_owner_trust: bool = True,
+    drain: RunDrain | None = None,
 ) -> bool:
     dispatch_started = perf_counter()
     async with db.sessions() as session, session.begin():
@@ -77,7 +79,7 @@ async def dispatch_one(
         )
         services[owner_id] = owner_services
     context = owner_services.tool_context(
-        agent_id, thread_id, lease, root, depth, maximum_subagents, run_model
+        agent_id, thread_id, lease, root, depth, maximum_subagents, run_model, drain
     )
     with correlate_run(lease.run_id):
         log.info(

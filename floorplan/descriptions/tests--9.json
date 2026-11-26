@@ -12,6 +12,10 @@
       "name": "Mobile updates tests",
       "description": "Automatic checks for mobile updates."
     },
+    "tests/test_model_access.py": {
+      "name": "Model access tests",
+      "description": "Automatic checks for model access."
+    },
     "tests/test_model_access_guard.py": {
       "name": "Model access guard tests",
       "description": "Automatic checks for model access guard."
@@ -102,7 +106,7 @@
     },
     "tests/test_performance_summary.py": {
       "name": "Performance summary tests",
-      "description": "Automatic checks for performance summary."
+      "description": "Automatic checks for performance summary, its groupings and what each agent sees of the team's results."
     },
     "tests/test_permission_drafts.py": {
       "name": "Permission drafts tests",

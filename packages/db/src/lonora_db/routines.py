@@ -1,18 +1,22 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from lonora_contracts.domain import ThreadCreate, utcnow
+from lonora_contracts.model_routing import Capability
 from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
 from lonora_core.user_error import LonoraError
-from sqlalchemy import ColumnElement, Select, or_, select
+from sqlalchemy import ColumnElement, Select, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
-from .schema import AgentRow, RoutineRow
+from .schema import AgentRow, RoutineRow, RunRow
 from .threads import background_origin, create_thread
 from .transactions import owned_agent
+
+log = logging.getLogger("lonora.routines")
 
 
 def next_run(request: RoutineCreate, after: datetime) -> datetime:
@@ -21,6 +25,25 @@ def next_run(request: RoutineCreate, after: datetime) -> datetime:
     if request.cron:
         return next_occurrence(request.cron, request.timezone, after)
     return after + timedelta(seconds=request.interval_seconds or 60)
+
+
+# Counting a collapse, cron or interval, stops here, so a count at the bound is a lower
+# bound: after months of downtime a minute-by-minute cron would otherwise hold the
+# routine's transaction for seconds.
+MISSED_COUNT_CAP = 1000
+
+
+def missed_occurrences(request: RoutineCreate, due: datetime, now: datetime) -> int:
+    """The occurrences after ``due`` up to ``now``: the collapse folds them into one wake."""
+    if request.run_at is not None:
+        return 0
+    if not request.cron:
+        elapsed = (now - due).total_seconds() // (request.interval_seconds or 60)
+        return min(int(elapsed), MISSED_COUNT_CAP)
+    count, at = 0, next_run(request, due)
+    while at <= now and count < MISSED_COUNT_CAP:
+        count, at = count + 1, next_run(request, at)
+    return count
 
 
 def routine_data(row: RoutineRow) -> dict[str, Any]:
@@ -95,7 +118,10 @@ def due_query(now: datetime) -> Select[RoutineRow]:
 
 
 async def enqueue_due(session: AsyncSession, limit: int = 30) -> int:
-    """Enqueue every due routine in the caller's transaction (one batch, one outcome)."""
+    """Enqueue every due routine in the caller's transaction (one batch, one outcome).
+
+    A routine whose earlier run is unfinished is skipped (``enqueue_routine``) and is not
+    in the returned count."""
     now = utcnow()
     due = list(
         (await session.scalars(due_query(now).limit(limit).with_for_update(skip_locked=True))).all()
@@ -120,7 +146,9 @@ async def due_routines(session: AsyncSession, limit: int = 30) -> list[tuple[str
 
 
 async def enqueue_one(session: AsyncSession, routine_id: str) -> bool:
-    """Enqueue one routine in its own transaction, if it is still due and unclaimed."""
+    """Enqueue one routine in its own transaction, if it is still due and unclaimed.
+
+    False when it is not, or when its earlier run is unfinished and the tick is skipped."""
     now = utcnow()
     row = await session.scalar(
         due_query(now)
@@ -138,8 +166,84 @@ async def disable_routine(session: AsyncSession, routine_id: str) -> bool:
     return True
 
 
+def mark_routine_started(run: RunRow, now: datetime) -> None:
+    """A routine Run's first ``running`` transition, recorded once (``started_at``): its late
+    sentence names this start on every context head the Run builds, so a later wake repeats
+    the same sentence or none."""
+    if run.trigger == "routine" and "started_at" not in run.model_metadata:
+        run.model_metadata = {**run.model_metadata, "started_at": now.isoformat()}
+
+
+async def earlier_run_unfinished(session: AsyncSession, row: RoutineRow) -> bool:
+    """A run of this routine in its work thread is queued (a retry backoff included),
+    leased or running. One waiting for the owner's answer does not hold the schedule."""
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    RunRow.thread_id == row.thread_id,
+                    RunRow.trigger == "routine",
+                    RunRow.model_metadata["routine_id"].as_string() == row.id,
+                    RunRow.status.in_(("queued", "leased", "running")),
+                )
+            )
+        )
+    )
+
+
+async def model_access_refused(session: AsyncSession, row: RoutineRow) -> bool:
+    """Whether every model the routine's agent could use for background work has a standing
+    ``model_access_failed`` item (P1-08): its Run could only fail the same way again."""
+    from .agent_models import model_candidates
+    from .attention import refused_routes
+
+    refused = await refused_routes(session, row.owner_id)
+    if not refused:
+        return False
+    chain, _ = await model_candidates(
+        session, Capability.BACKGROUND, owner_id=row.owner_id, agent_id=row.agent_id
+    )
+    return bool(chain) and all(
+        choice.provider in refused or choice.provider + ":" + choice.model in refused
+        for choice in chain
+    )
+
+
 async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
-    await create_run(
+    """Fire one due routine; False when its earlier run is unfinished and the tick is skipped.
+
+    A skipped tick creates no run: the schedule advances as after a run, and the skipped
+    occurrences are counted. The next run carries, in server-only metadata, when it was
+    due (``scheduled_for``), the later occurrences folded into it (``missed_occurrences``)
+    and the occurrences skipped before it (``skipped_occurrences``). A one-shot always fires.
+    """
+    due = row.next_run_at if row.next_run_at.tzinfo else row.next_run_at.replace(tzinfo=UTC)
+    missed = 0
+    if row.run_at is None:
+        request = RoutineCreate(
+            prompt=row.prompt,
+            interval_seconds=row.interval_seconds,
+            cron=row.cron,
+            timezone=row.timezone,
+            enabled=row.enabled,
+        )
+        missed = missed_occurrences(request, due, now)
+        candidate = next_run(request, due)
+        # Collapse missed schedules into one wake; never replay a burst after downtime.
+        row.next_run_at = candidate if candidate > now else next_run(request, now)
+        if await earlier_run_unfinished(session, row):
+            # No pile of runs behind one still working (11.5); not a cap (P1): the
+            # routine fires on its schedule once the earlier run has ended.
+            row.skipped_occurrences += 1 + missed
+            return False
+    if await model_access_refused(session, row):
+        # Held until the owner saves a key or a run on that route succeeds: the tick has
+        # advanced and no Run is created. A one-shot counts as fired, as a failed run would.
+        log.info("routine_held code=model_access_failed")
+        if row.run_at is not None:
+            row.enabled, row.last_run_at = False, now
+        return False
+    run = await create_run(
         session,
         row.owner_id,
         RunRequest(
@@ -153,22 +257,16 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             },
         ),
     )
+    run.model_metadata = {
+        **run.model_metadata,
+        "scheduled_for": due.isoformat(),
+        "missed_occurrences": missed,
+        "skipped_occurrences": row.skipped_occurrences,
+    }
+    row.skipped_occurrences, row.last_run_at = 0, now
     if row.run_at is not None:
         # A one-shot routine fires once and then stays off until the owner reschedules it.
-        row.enabled, row.last_run_at = False, now
-        return True
-    row.last_run_at = now
-    request = RoutineCreate(
-        prompt=row.prompt,
-        interval_seconds=row.interval_seconds,
-        cron=row.cron,
-        timezone=row.timezone,
-        enabled=row.enabled,
-    )
-    previous = row.next_run_at if row.next_run_at.tzinfo else row.next_run_at.replace(tzinfo=UTC)
-    candidate = next_run(request, previous)
-    # Collapse missed schedules into one wake; never replay a burst after downtime.
-    row.next_run_at = candidate if candidate > now else next_run(request, now)
+        row.enabled = False
     return True
 
 

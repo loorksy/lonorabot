@@ -26,7 +26,10 @@ class ReactInput(Contract):
 async def send(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     from lonora_agent.collaboration.peer_messages import delegate_peer
 
-    return await delegate_peer(context, args["agent_id"], args["task"])
+    return {
+        **await delegate_peer(context, args["agent_id"], args["task"]),
+        "next": "The outcome returns here on its own; end your turn when nothing else needs doing.",
+    }
 
 
 async def react(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

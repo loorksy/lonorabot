@@ -149,6 +149,9 @@ async def test_the_first_brief_after_the_close_wakes_each_agent_once_in_its_conv
         {"action": "buy", "symbol": "XAUUSD", "volume": "0.1", "state": "awaiting_broker"},
     ]
     assert block(by_agent[lonora].prompt, "week_facts")["operations"] == []
+    # No trade closed: no results, for the week or since the start.
+    facts = block(by_agent[fixture_agent].prompt, "week_facts")
+    assert facts["results_this_week"] == facts["results_since_start"] == []
     assert "post one line that says so" in by_agent[lonora].prompt
 
 

@@ -9,7 +9,8 @@ import {
   type OrderLineState,
   orderLineAction,
   orderLineState,
-  peerOutcome,
+  type PeerParty,
+  peerCard,
 } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useEffect, useState } from "react";
@@ -525,45 +526,12 @@ export function Steps({
   );
 }
 
-/** The message ids a peer exchange (agent ↔ agent) is shown on, in both conversations. */
-export function peersByMessage(peers: Resource[]): Map<string, Resource> {
-  const out = new Map<string, Resource>();
-  for (const peer of peers) {
-    const payload = peer.payload;
-    for (const id of [
-      payload.source_message_id,
-      payload.target_message_id,
-      payload.source_outcome_message_id,
-      payload.target_outcome_message_id,
-      ...(Array.isArray(payload.source_outcome_message_ids)
-        ? payload.source_outcome_message_ids
-        : []),
-    ])
-      if (typeof id === "string") out.set(id, peer);
-  }
-  return out;
-}
-
 /** An actual persisted request between two agents, or its returned result, with links to
-    both continuous conversations (the reference's card frame). */
+    both continuous conversations (the reference's card frame). Who asked whom, the status
+    and the text come from core `peerCard`, as on Mobile. */
 export function PeerCard({ message, peer, run }: { message: Message; peer: Resource; run?: Run }) {
-  const payload = peer.payload;
-  const request =
-    payload.source_message_id === message.id || payload.target_message_id === message.id;
-  const wrapped = peerOutcome(message.content);
-  const side = (a: unknown, b: unknown) => String((request ? a : b) ?? "");
-  const from = {
-    id: side(payload.source_agent_id, payload.target_agent_id),
-    name: side(payload.source_agent_name, payload.target_agent_name),
-    thread: side(payload.source_thread_id, payload.target_thread_id),
-  };
-  const to = {
-    id: side(payload.target_agent_id, payload.source_agent_id),
-    name: side(payload.target_agent_name, payload.source_agent_name),
-    thread: side(payload.target_thread_id, payload.source_thread_id),
-  };
-  const status = wrapped.status ?? run?.status ?? String(payload.status ?? "queued");
-  const who = (party: typeof from) => {
+  const card = peerCard(message, peer, run?.status);
+  const who = (party: PeerParty) => {
     const name = <bdi>{party.name || t`Agent`}</bdi>;
     return party.id ? (
       <Link to={`/app/${encodeURIComponent(party.id)}?thread=${encodeURIComponent(party.thread)}`}>
@@ -574,35 +542,31 @@ export function PeerCard({ message, peer, run }: { message: Message; peer: Resou
     );
   };
   const label =
-    status === "cancelled"
+    card.status === "cancelled"
       ? t({ message: "Cancelled", context: "task state" })
-      : status === "failed"
+      : card.status === "failed"
         ? t({ message: "Failed", context: "task state" })
-        : status === "completed"
+        : card.status === "completed"
           ? t({ message: "Completed", context: "task state" })
-          : status === "limited"
+          : card.status === "limited"
             ? t`Stopped at its work limit`
-            : ["running", "leased"].includes(status)
+            : card.status === "working"
               ? t`Working…`
               : t({ message: "Queued", context: "task state" });
   return (
-    <div
-      className="mcard peer-card"
-      data-peer-message-id={peer.id}
-      data-peer-kind={request ? "request" : "outcome"}
-    >
+    <div className="mcard peer-card" data-peer-message-id={peer.id} data-peer-kind={card.kind}>
       <div className="mcard-kicker">
         <Icon name="users" />
         <Trans>Agent collaboration</Trans>
       </div>
       <div className="peer-who">
-        {who(from)}
+        {who(card.from)}
         <Icon name="back" className="flip" />
-        {who(to)}
+        {who(card.to)}
       </div>
-      {!(status === "cancelled" && wrapped.body === "cancelled") && (
+      {card.body !== null && (
         <div className="md" dir="auto">
-          {md(wrapped.body, null)}
+          {md(card.body, null)}
         </div>
       )}
       <span className="mcard-sub">{label}</span>

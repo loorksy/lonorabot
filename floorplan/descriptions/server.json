@@ -34,7 +34,7 @@
     },
     "apps/api/src/lonora_api/health.py": {
       "name": "Health & readiness",
-      "description": "Answers whether the server is alive and whether it's ready to serve, checking the database and the worker's heartbeat; a missing phone never fails it."
+      "description": "Answers whether the server is alive and whether it's ready to serve, checking the database and the worker's heartbeat; a missing phone never fails it. It also keeps checking in the background that the worker runs, and tells the owner when it has stopped."
     },
     "apps/api/src/lonora_api/http_body.py": {
       "name": "Upload size limit",

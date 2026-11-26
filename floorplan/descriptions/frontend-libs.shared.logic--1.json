@@ -129,8 +129,8 @@
       "description": "The shared wording for the owner's profile and preferences."
     },
     "packages/core/src/peer-outcome.ts": {
-      "name": "Peer result unwrap",
-      "description": "Pulls the result out of the wrapper an agent uses to return another agent's reply."
+      "name": "Peer card rules",
+      "description": "Pulls the result out of the wrapper an agent uses to return another agent's reply, and decides what a request between two agents shows on web and phone: which messages carry it, who asked whom, its status and its text."
     },
     "packages/core/src/plain-line.ts": {
       "name": "One-line preview",

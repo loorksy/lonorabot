@@ -1,15 +1,18 @@
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from functools import partial
 from time import monotonic
 
 from lonora_adapter_kit.model_errors import ModelProviderError
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
+from lonora_db.attention import raise_model_access, settle_model_access
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.genui_submit import mark_submit_started
 from lonora_db.rich_response import validated_rich_content
+from lonora_db.routines import mark_routine_started
 from lonora_db.runs import (
     complete_run,
     fail_run,
@@ -18,7 +21,7 @@ from lonora_db.runs import (
     require_lease,
     run_data,
 )
-from lonora_db.schema import MessageRow, SteeringRow, ThreadRow, TradeApprovalRow
+from lonora_db.schema import MessageRow, RunRow, SteeringRow, ThreadRow, TradeApprovalRow
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_db.task_wait_settlement import settle_task_wait
@@ -28,10 +31,12 @@ from lonora_logging.context import run_id as diagnostic_run_id
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .collaboration.outcome_return import return_outcome
 from .environment import ToolRetryScheduled
+from .loop_outcomes import LoopOutcome
 from .model_recovery import RETRY_REASON
 from .tasks import TaskSuspended
 from .tool_loop import execute_tool_loop
@@ -40,6 +45,10 @@ log = logging.getLogger("lonora.executor")
 
 # Database failures a lease renewal retries before it gives the lease up.
 TRANSIENT_RENEWAL_ERRORS = (SQLAlchemyError, OSError, TimeoutError)
+# How often a running Run looks whether it was cancelled (VISION 4.6, 4.7, 7.1.5).
+WATCH_SECONDS = 2.0
+# How often a cancel noticed inside an effect looks again whether the effect ended.
+EFFECT_POLL_SECONDS = 0.2
 
 
 async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[], None]) -> None:
@@ -74,12 +83,85 @@ async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[]
             break
 
 
+async def watch_fence(
+    context: ToolContext, worker: asyncio.Task[object] | None, lost: Callable[[], None]
+) -> None:
+    """Stop the Run within about two seconds once its fence moved (a cancel).
+
+    A cancel only moves the fence. Between fenced writes (a model thinking before its
+    first token, a long read, a backoff sleep) the Run would otherwise go on, spending
+    the owner's key, until its next lease renewal. A worker inside an effect is never
+    cut: the cancel takes effect once that call has returned, and the checkpoint of its
+    result is already refused by the moved fence.
+    """
+    while True:
+        await asyncio.sleep(WATCH_SECONDS)
+        try:
+            async with context.db.sessions() as session:
+                fence = await session.scalar(
+                    select(RunRow.lease_fence).where(RunRow.id == context.lease.run_id)
+                )
+        except TRANSIENT_RENEWAL_ERRORS:
+            # An outage is keep_lease's to judge.
+            continue
+        # Only a cancel (or a newer claim) moves the fence; the Run's own completion or
+        # release keeps it, so the writing of its outcome is never cut.
+        if fence == context.lease.fence:
+            continue
+        while True:
+            if context.drain is None or worker not in context.drain.effects:
+                lost()
+                return
+            await asyncio.sleep(EFFECT_POLL_SECONDS)
+
+
+def connection_failed(error: Exception) -> bool:
+    """A database failure of the connection (a drop, a failover, a timeout), not of the
+    statement: worth another attempt of the same transaction."""
+    return isinstance(error, OSError | TimeoutError | OperationalError | InterfaceError) or (
+        isinstance(error, DBAPIError) and error.connection_invalidated
+    )
+
+
+async def final_commit[Committed](
+    context: ToolContext,
+    lease_seconds: int,
+    lost: asyncio.Event,
+    write: Callable[[AsyncSession], Awaitable[Committed]],
+) -> Committed:
+    """A Run's final transaction (its completion, its wait for the owner, its release),
+    retried like a lease renewal after a transient database error while the lease holds.
+
+    ``keep_lease`` goes on renewing meanwhile and sets ``lost`` once it gives the lease
+    up; a fenced ``stale_lease`` or any other error is never retried. The fence makes a
+    second commit impossible: a retry after a commit whose answer was lost finds the Run
+    no longer leased.
+    """
+    margin = lease_seconds / 6
+    failed_at: float | None = None
+    while True:
+        try:
+            async with context.db.sessions() as session, session.begin():
+                return await write(session)
+        except Exception as error:
+            failed_at = monotonic() if failed_at is None else failed_at
+            if (
+                not connection_failed(error)
+                or lost.is_set()
+                or monotonic() - failed_at >= lease_seconds - margin
+            ):
+                raise
+            log.warning("final_commit_retry type=%s", type(error).__name__)
+        await asyncio.sleep(min(2.0, margin / 2))
+
+
 async def record_failure(
     context: ToolContext, registry: ToolRegistry, code: str, error: LonoraError | None = None
 ) -> None:
     """Fail the Run with ``code``; once its lease is lost the failure is discarded.
 
-    A provider error adds its classified reason and ``Retry-After`` hint (Q22).
+    A provider error adds its classified reason and ``Retry-After`` hint (Q22). Background
+    work whose every model refused access raises the owner's item for each route (P1-08).
     """
     provider = error if isinstance(error, ModelProviderError) else None
     try:
@@ -92,6 +174,15 @@ async def record_failure(
                 reason=provider.reason.value if provider else None,
                 retry_after=provider.retry_after if provider else None,
             )
+            if provider is not None:
+                await raise_model_access(
+                    session,
+                    context.lease.run_id,
+                    [
+                        (name, model, failed.reason.value, failed.inferred)
+                        for name, model, failed in provider.failures
+                    ],
+                )
         await return_outcome(context.db, context.lease.run_id)
     except LonoraError:
         log.info("stale_failure_discarded")
@@ -103,13 +194,17 @@ async def execute_run(
     correlation = diagnostic_run_id.set(context.lease.run_id)
     current = asyncio.current_task()
     lost_lease = asyncio.Event()
+    # Only the Run's own work is cancelled: once it ended, its outcome is being written
+    # (or discarded) and a cancel there would escape into the worker loop.
+    working = True
 
     def lose() -> None:
         lost_lease.set()
-        if current:
+        if current and working:
             current.cancel()
 
     heartbeat_task = asyncio.create_task(keep_lease(context, lease_seconds, lose))
+    watch_task = asyncio.create_task(watch_fence(context, current, lose))
     try:
         async with context.db.sessions() as session, session.begin():
             row = await require_lease(session, context.lease, lock=True)
@@ -117,6 +212,8 @@ async def execute_run(
             row.updated_at = utcnow()
             # Rules N and T: a card submission records that its Run started.
             await mark_submit_started(session, row)
+            # A routine Run records its first start, which its late sentence names.
+            mark_routine_started(row, row.updated_at)
             emit(
                 session,
                 context.owner_id,
@@ -128,7 +225,10 @@ async def execute_run(
             )
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
-            async with context.db.sessions() as session, session.begin():
+
+            # The pass's final transaction: "again" runs the loop once more, "ended" leaves
+            # the Run waiting and "completed" completes it.
+            async def finish(session: AsyncSession, outcome: LoopOutcome) -> str:
                 if outcome.external_wait:
                     settled = await settle_task_wait(
                         session,
@@ -138,8 +238,8 @@ async def execute_run(
                         rich_content=validated_rich_content(outcome.metadata.get("rich_content")),
                     )
                     if settled == "continue":
-                        continue
-                    return
+                        return "again"
+                    return "ended"
                 if outcome.waiting:
                     row, thread = await locked_run_thread(session, context.lease)
                     outstanding = await session.scalar(
@@ -151,9 +251,9 @@ async def execute_run(
                     if approval_id:
                         approval = await session.get(TradeApprovalRow, approval_id)
                         if approval and approval.status != "pending":
-                            continue
+                            return "again"
                     if outstanding:
-                        continue
+                        return "again"
                     question = outcome.input_request
                     prior_question = next(
                         (
@@ -288,15 +388,32 @@ async def execute_run(
                         thread_id=context.thread_id,
                         run_id=row.id,
                     )
-                    return
+                    return "ended"
+                # A model answered: the access failures it disproves end (P1-08).
+                await settle_model_access(
+                    session,
+                    context.owner_id,
+                    outcome.metadata.get("provider"),
+                    outcome.metadata.get("model"),
+                )
                 complete = await complete_run(
                     session, context.lease, outcome.text, outcome.metadata
                 )
-            if complete:
+                return "completed" if complete else "again"
+
+            ending = await final_commit(
+                context, lease_seconds, lost_lease, partial(finish, outcome=outcome)
+            )
+            if ending == "again":
+                continue
+            working = False
+            if ending == "completed":
                 await return_outcome(context.db, context.lease.run_id)
-                return
+            return
     except ToolRetryScheduled:
-        async with context.db.sessions() as session, session.begin():
+        working = False
+
+        async def release(session: AsyncSession) -> None:
             row, _ = await locked_run_thread(session, context.lease)
             row.status = "queued"
             row.lease_expires_at = None
@@ -339,18 +456,24 @@ async def execute_run(
                     **({"code": retry["code"]} if isinstance(retry.get("code"), str) else {}),
                 },
             )
+
+        await final_commit(context, lease_seconds, lost_lease, release)
     except TaskSuspended:
         return
     except asyncio.CancelledError:
         if not lost_lease.is_set():
             raise
     except LonoraError as error:
+        working = False
         if error.code != "stale_lease":
             await record_failure(context, registry, error.code, error)
     except Exception as error:
+        working = False
         log.error("run_failed type=%s", type(error).__name__)
         await record_failure(context, registry, "runtime_error")
     finally:
+        working = False
         heartbeat_task.cancel()
-        await asyncio.gather(heartbeat_task, return_exceptions=True)
+        watch_task.cancel()
+        await asyncio.gather(heartbeat_task, watch_task, return_exceptions=True)
         diagnostic_run_id.reset(correlation)

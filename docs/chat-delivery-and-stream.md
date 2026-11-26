@@ -23,6 +23,11 @@
    A shared reducer rejects old generations, duplicate events and sequence gaps;
    canonical run/message snapshots repair reconnect/gap cases. The native live
    handshake establishes a current cursor; explicit resume keeps its saved cursor.
+   A quiet feed sends a ping every 15 s (`event: ping` on SSE, `{"type":"ping"}`
+   on the socket). A ping carries no id or cursor, so it never moves the client's. A
+   client that receives no frame for 45 s after readiness drops the connection,
+   shows it as reconnecting and resumes from its cursor. The phone also replaces
+   its socket when its network changes and reconnects on return to the foreground.
 9. Final canonical Message settlement replaces its matching provisional stream.
    Cancellation/failure retains accepted preview and explicit terminal state;
    it never manufactures a completed assistant Message or repeats a privileged

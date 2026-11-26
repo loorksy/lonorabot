@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ from .chart_renderer import install_chart_renderer
 from .env import Settings, get_settings
 from .errors import install_errors
 from .health import router as health_router
+from .health import watch_gateway
 from .http_body import BodyLimitMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.request_id import RequestIdMiddleware
@@ -90,7 +92,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             owner = await get_owner(session)
             if owner:
                 await ensure_personal_agent(session, owner.id)
+        watcher = asyncio.create_task(watch_gateway(rt))
         yield
+        watcher.cancel()
+        await asyncio.gather(watcher, return_exceptions=True)
         await rt.close()
 
     app = FastAPI(title="Lonora", version="0.2.0", lifespan=lifespan)

@@ -21,6 +21,7 @@ from lonora_db.attention import (
 from lonora_db.client import Database
 from lonora_db.item_failures import blocked, failure_code
 from lonora_db.owner_actions import awaiting_owner_answer
+from lonora_db.pauses import claimable_while_paused
 from lonora_db.routines import not_fired_one_shot
 from lonora_db.runs import MAX_RUN_RECOVERIES, aware, quarantine_run
 from lonora_db.schema import (
@@ -33,8 +34,9 @@ from lonora_db.schema import (
     ThreadRow,
     TradingJournalRow,
 )
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from .health import HEARTBEAT_FRESH
 from .liveness import Liveness
@@ -46,6 +48,11 @@ OPERATION_AGE = timedelta(minutes=15)
 # A routine or timer wait this far past due means the scheduler is not keeping up.
 OVERDUE_GRACE = timedelta(minutes=5)
 SCHEDULER_STEPS = frozenset({"routines", "task_waits"})
+# Someone waits on these Runs: the owner's message, in a conversation or a group, and a
+# broker event (Lonora's system-alert wake is one too). Due and unclaimed this long, they
+# mean the workers are not keeping up.
+WAITED_ON_TRIGGERS = ("user", "group", "broker_event")
+QUEUE_DELAY = timedelta(seconds=60)
 
 
 async def operation_origin(
@@ -85,6 +92,7 @@ class Watchdog:
             "steps": self.stalled_steps,
             "runs": self.recovered_runs,
             "overdue": self.overdue_wakes,
+            "delayed": self.delayed_runs,
             "operations": self.aging_operations,
             "ended": self.ended_episodes,
         }
@@ -289,6 +297,58 @@ class Watchdog:
             "gateway_degraded",
             self.episodes["overdue"],
             {"reason_code": "wakes_overdue", "count": overdue, **self.episode("overdue")},
+        )
+
+    async def delayed_runs(self) -> int:
+        """Runs someone waits on, due and unclaimed past ``QUEUE_DELAY``: one
+        ``gateway_degraded`` episode while any is left waiting, logged on every pass."""
+        now = utcnow()
+        cutoff = now - QUEUE_DELAY
+        retry_at = RunRow.execution_state["environment"]["retry"]["not_before"].as_string()
+        turn = aliased(RunRow)
+        async with self.db.sessions() as session:
+            count, oldest = (
+                await session.execute(
+                    select(func.count(RunRow.id), func.min(RunRow.updated_at))
+                    .join(AgentRow, AgentRow.id == RunRow.agent_id)
+                    .where(
+                        RunRow.status == "queued",
+                        RunRow.trigger.in_(WAITED_ON_TRIGGERS),
+                        # Waiting since it was queued, or since its retry came due.
+                        RunRow.updated_at < cutoff,
+                        or_(retry_at.is_(None), retry_at < cutoff.isoformat()),
+                        # As the claim: a paused agent's work waits for the owner, and a
+                        # Run waits behind its own conversation's running turn.
+                        or_(AgentRow.paused.is_(False), claimable_while_paused()),
+                        ~exists(
+                            select(turn.id).where(
+                                turn.thread_id == RunRow.thread_id,
+                                turn.status.in_(["leased", "running"]),
+                                turn.lease_expires_at > now,
+                            )
+                        ),
+                    )
+                )
+            ).one()
+        if not count:
+            if "delayed" in self.episodes:
+                log.info("run.queue_recovered")
+                await self.clear("gateway_degraded", self.episodes.pop("delayed"))
+            return 0
+        oldest_seconds = int((now - aware(oldest)).total_seconds())
+        log.warning("run.queue_delayed count=%s oldest_seconds=%s", count, oldest_seconds)
+        if "delayed" in self.episodes:
+            return 0
+        self.episodes["delayed"] = "delayed:" + now.isoformat(timespec="minutes")
+        return await self.alert(
+            "gateway_degraded",
+            self.episodes["delayed"],
+            {
+                "reason_code": "runs_delayed",
+                "count": int(count),
+                "oldest_seconds": oldest_seconds,
+                **self.episode("delayed"),
+            },
         )
 
     async def aging_operations(self) -> int:

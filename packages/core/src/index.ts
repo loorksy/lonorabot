@@ -197,7 +197,14 @@ export {
   replyLanguageLabel,
   replyLanguages,
 } from "./owner-profile";
-export { peerOutcome } from "./peer-outcome";
+export {
+  type PeerCard,
+  type PeerParty,
+  type PeerStatus,
+  peerCard,
+  peerOutcome,
+  peersByMessage,
+} from "./peer-outcome";
 export { fittedLine, plainLine, SIGNED_NUMBER, textDirection } from "./plain-line";
 export { ReadRequestGate } from "./read-request-gate";
 export {

@@ -61,6 +61,11 @@ order on a MetaApi account, to the Gateway through the database (`ln_broker_rela
 Gateway answers with its own connection. While the Gateway is stopped these requests answer
 `broker_gateway_unavailable` and nothing reaches the broker.
 
+The Gateway restarts itself when its event loop is stuck: after 120 s without a turn it writes
+`gateway_loop_stalled` and every thread's stack to its log and exits with code 70, and Docker's
+`restart: unless-stopped` starts it again. Its container is `healthy` (`sudo lonora status`)
+only while each heartbeat refreshes `/app/.runtime/gateway-alive`, at most 60 s ago.
+
 Layout on a server (default `/opt/lonora`):
 
 ```
@@ -419,8 +424,10 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
 5. Migrations run as their own step (`migrate` service). Right after, a fingerprint of the
    owner-control and money records is taken (see below).
 6. The API starts first, **with the Gateway still stopped**, and must pass `/health`. Then
-   maintenance is turned off (writes open again), the Gateway (agent and trading loops) starts, and
-   the update waits for `/ready` (default 240 s, `LONORA_READY_TIMEOUT`).
+   maintenance is turned off (writes open again), the Gateway (agent and trading loops) starts and
+   must turn healthy (its heartbeat refreshes `/app/.runtime/gateway-alive`; a Gateway that has not
+   done so after about 90 s fails the update at `Gateway start`), and the update waits for `/ready`
+   (default 240 s, `LONORA_READY_TIMEOUT`).
 7. Success: marker removed, `state/history.log` updated.
 
 Web search (SearXNG) and the research browser start with every update but are never waited on:
@@ -605,10 +612,15 @@ shown to a model.
 
 The gateway step `push` sends one push per record, when it is created, to every phone that has
 not signed out: a pending Trade Approval card, a Settle Uncertain Operation card, a
-Secret card an agent's run is waiting on, a Mandate card an agent proposed, and a broker
+Secret card an agent's run is waiting on, a Mandate card an agent proposed, a broker
 health problem (a rejected MetaApi
 token, an undeployed account, or a connection lost for more than two minutes), once per
-account and outage however often its reason changes. The text is
+account and outage however often its reason changes, and a problem with Lonora's own background
+work (VISION Amendment 5): a model provider refusing background work (a rejected key, spent
+credit, or a model the key may not use or the provider does not have), once per provider route,
+cause and saved key. The one problem a Gateway cannot push is its own stop: while no
+Gateway heartbeat has been fresh for three minutes, the API sends that push itself, once per
+stop. The text is
 Lonora's fixed text for that event in the owner's language under the agent's name; no price,
 volume, symbol or account number leaves the server, and the notification has no button. A tap
 opens the conversation at the card, and the card itself is where the owner approves or
@@ -673,7 +685,8 @@ writes before it is linked reaches an agent. Once a chat is linked the bot offer
 to move to another chat, unlink the bot and link it again. From then on the bot sends the
 alerts that push, from every agent's conversation (the agent's name and the same fixed text),
 once per record, with an effect receipt before each call and no second send of an unconfirmed
-one; alerts from before the pairing are not sent. Agents' replies are not sent to Telegram;
+one; alerts from before the pairing are not sent. The Gateway sends them, so a stopped Gateway
+reaches the phone by push only. Agents' replies are not sent to Telegram;
 read them in the app. What you write to the bot reaches the chosen agent's conversation as
 your message: a "yes" there is a message to the agent and never approves or settles a card,
 which only the card in the app does. A `/start` message is never passed to an agent, and

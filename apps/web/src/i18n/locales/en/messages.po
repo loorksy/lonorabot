@@ -363,6 +363,10 @@ msgstr "A Mandate card is waiting for your tap"
 msgid "A message in the agent's conversation with an alert"
 msgstr "A message in the agent's conversation with an alert"
 
+#: src/components/ai/AttentionInbox.tsx:46
+msgid "A model provider refused background work"
+msgstr "A model provider refused background work"
+
 #: src/pages/shell/bot-panel.tsx:42
 #~ msgid "A new teammate"
 #~ msgstr "A new teammate"
@@ -4264,6 +4268,10 @@ msgstr "Lonora needs the microphone for dictation, voice messages and calls. Not
 #~ msgid "Lonora uses it for your agents' conversations. You can change it in Models."
 #~ msgstr "Lonora uses it for your agents' conversations. You can change it in Models."
 
+#: src/components/ai/AttentionInbox.tsx:45
+msgid "Lonora's background service has stopped"
+msgstr "Lonora's background service has stopped"
+
 #: src/pages/shell/bot-panel.tsx:228
 #~ msgctxt "model"
 #~ msgid "Lonora's model"
@@ -4719,6 +4727,10 @@ msgstr "New price"
 #: src/components/trading/TradeApprovals.tsx:365
 msgid "New request"
 msgstr "New request"
+
+#: src/components/ai/AttentionInbox.tsx:126
+msgid "New requests are waiting longer than usual to start"
+msgstr "New requests are waiting longer than usual to start"
 
 #: src/components/trading/ExecutionReceipt.tsx:30
 msgid "New stop loss"

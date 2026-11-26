@@ -36,6 +36,10 @@
       "name": "Gateway reliability tests",
       "description": "Automatic checks for gateway reliability."
     },
+    "tests/test_gateway_stopped.py": {
+      "name": "Stopped worker tests",
+      "description": "Automatic checks for stopped worker."
+    },
     "tests/test_genui_contracts.py": {
       "name": "Genui contracts tests",
       "description": "Automatic checks for genui contracts."

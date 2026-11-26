@@ -159,6 +159,10 @@
     "apps/mobile/components/owner-action-card.tsx": {
       "name": "Owner action card (phone)",
       "description": "Draws one owner action card from the shared spec, in the owner's language."
+    },
+    "apps/mobile/components/peer-card.tsx": {
+      "name": "Agent collaboration card (phone)",
+      "description": "Draws a request between two agents, or its returned result, as on the web: who asked whom with links to both conversations, the text and the status."
     }
   }
 }

@@ -32,6 +32,8 @@ EXCLUDED = (
     "tests/",
     "apps/web/public/",
     "docs/ui-reference/",
+    # The old website draft (v03) kept as reference; the shipped site is cloud/site (v04).
+    "docs/cloud/website/",
     "pnpm-lock.yaml",
 )
 

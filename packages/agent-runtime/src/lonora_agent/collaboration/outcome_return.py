@@ -2,7 +2,7 @@ from typing import Any, cast
 
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import RunRequest
-from lonora_core.run_state import OUTCOME_THREAD, TERMINAL, is_background, may_end_silent
+from lonora_core.run_state import ACTIVE, OUTCOME_THREAD, TERMINAL, is_background, may_end_silent
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
@@ -213,49 +213,43 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 agent_id=child.agent_id,
                 payload=message_data(message),
             )
-            if parent.status == "queued":
-                if hidden:
-                    # Read before its first turn, whatever thread the card is in.
-                    session.add(SteeringRow(run_id=parent.id, message_id=message.id))
-                else:
-                    parent.input_seq = max(parent.input_seq, message.seq)
-                    if parent.execution_state:
-                        session.add(SteeringRow(run_id=parent.id, message_id=message.id))
-            elif parent.status in {"running", "leased", "waiting_input", "waiting_takeover"}:
-                session.add(SteeringRow(run_id=parent.id, message_id=message.id))
-                if parent.status == "waiting_input":
-                    parent.status = "queued"
-            elif (
-                parent.status == "completed"
-                and child.status != "cancelled"
+            if (
+                not deliver(session, parent, message, hidden)
+                and parent.status == "completed"
                 and not child.model_metadata.get("collaboration_session_id")
             ):
-                continuation = await create_run(
-                    session,
-                    thread.owner_id,
-                    RunRequest(
-                        thread_id=thread.id,
-                        agent_id=parent.agent_id,
-                        trigger="follow_up",
-                        parent_run_id=parent.id,
-                        prompt="Use the returned peer outcome to finish the background work "
-                        "that asked for it."
-                        if may_end_silent(
-                            is_background(parent.trigger, parent.model_metadata),
-                            parent.execution_state,
-                        )
-                        else "Use the returned peer outcome to complete the owner's request.",
-                        # A follow-up keeps an observe-only requester's narrowing, so it
-                        # never asks the owner to approve a trade the executor refuses.
-                        metadata={
-                            "depth": parent.model_metadata.get("depth", 0),
-                            **inherited_authority(parent),
-                            **wake_origin(parent),
-                        },
-                    ),
-                )
-                if hidden:
-                    session.add(SteeringRow(run_id=continuation.id, message_id=message.id))
+                # One continuation per finished requester (3.1.5, 11.5): an outcome joins
+                # the follow-up that has not ended yet, so one answer reads every outcome.
+                live = await live_follow_up(session, parent)
+                if live is not None:
+                    deliver(session, live, message, hidden)
+                elif child.status != "cancelled":
+                    continuation = await create_run(
+                        session,
+                        thread.owner_id,
+                        RunRequest(
+                            thread_id=thread.id,
+                            agent_id=parent.agent_id,
+                            trigger="follow_up",
+                            parent_run_id=parent.id,
+                            prompt="Use the returned peer outcome to finish the background work "
+                            "that asked for it."
+                            if may_end_silent(
+                                is_background(parent.trigger, parent.model_metadata),
+                                parent.execution_state,
+                            )
+                            else "Use the returned peer outcome to complete the owner's request.",
+                            # A follow-up keeps an observe-only requester's narrowing, so it
+                            # never asks the owner to approve a trade the executor refuses.
+                            metadata={
+                                "depth": parent.model_metadata.get("depth", 0),
+                                **inherited_authority(parent),
+                                **wake_origin(parent),
+                            },
+                        ),
+                    )
+                    if hidden:
+                        session.add(SteeringRow(run_id=continuation.id, message_id=message.id))
         from lonora_db.collaboration import record_outcome
 
         if returned_message:
@@ -309,6 +303,44 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     key="outcome:" + run_id, result={"returned": True, "fence": child.lease_fence}
                 )
             )
+
+
+def deliver(session: AsyncSession, run: RunRow, message: MessageRow, hidden: bool) -> bool:
+    """Give a returned outcome to ``run`` if it has not ended: a queued run reads it before
+    its first turn, a started one by steering. False when ``run`` has ended."""
+    if run.status == "queued":
+        if hidden:
+            # Read before its first turn, whatever thread the card is in.
+            session.add(SteeringRow(run_id=run.id, message_id=message.id))
+        else:
+            run.input_seq = max(run.input_seq, message.seq)
+            if run.execution_state:
+                session.add(SteeringRow(run_id=run.id, message_id=message.id))
+    elif run.status in {"running", "leased", "waiting_input", "waiting_takeover"}:
+        session.add(SteeringRow(run_id=run.id, message_id=message.id))
+        if run.status == "waiting_input":
+            run.status = "queued"
+    else:
+        return False
+    return True
+
+
+async def live_follow_up(session: AsyncSession, parent: RunRow) -> RunRow | None:
+    """The follow-up of a finished requester that has not ended yet, locked (its thread is
+    already locked). A collaboration's synthesis is not one: it answers its own round."""
+    return await session.scalar(
+        select(RunRow)
+        .where(
+            RunRow.parent_run_id == parent.id,
+            RunRow.trigger == "follow_up",
+            RunRow.status.in_(ACTIVE),
+            RunRow.model_metadata["collaboration_session_id"].as_string().is_(None),
+        )
+        .order_by(RunRow.created_at.desc(), RunRow.id.desc())
+        .limit(1)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
 
 
 async def outcome_thread(session: AsyncSession, parent: RunRow) -> ThreadRow:

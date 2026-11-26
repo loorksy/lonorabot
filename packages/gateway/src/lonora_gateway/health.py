@@ -1,13 +1,21 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
+from lonora_db.attention import raise_system_attention
 from lonora_db.client import Database
+from lonora_db.gateways import HEARTBEAT_FRESH, gateway_running, last_heartbeat
+from lonora_db.owner import get_owner
 from lonora_db.runs import aware
 from lonora_db.schema import GatewayRow
+from lonora_security.secrets import SecretCipher
 from sqlalchemy import select
 
-HEARTBEAT_FRESH = timedelta(seconds=45)
+from .push import PushTransport, dispatch_push
+
+# How long no Gateway may run before the owner is told. Longer than a stuck Gateway takes
+# to restart itself (lonora_worker.main, 120 s), so a restart that works tells nobody.
+STOPPED_AFTER = timedelta(minutes=3)
 
 
 def stalled_steps(liveness: dict[str, Any]) -> list[str]:
@@ -40,3 +48,38 @@ async def gateway_health(db: Database) -> dict[str, object]:
         else:
             ready.append(row.id)
     return {"ready": bool(ready), "instances": ready, "stalled": degraded}
+
+
+async def tell_owner_if_stopped(
+    db: Database,
+    since: datetime,
+    cipher: SecretCipher,
+    transport: PushTransport,
+) -> bool:
+    """The API's check, from a process that is still running: once no Gateway has run for
+    ``STOPPED_AFTER`` (counted from the last heartbeat, and never from before ``since``,
+    when the API started), the owner gets one ``gateway_stopped`` item per stop and its
+    push (VISION 11.4, Amendment 5). A stopped Gateway cannot push it; while one runs, the
+    API sends nothing and the Gateway's own sweep withdraws the item. Returns whether no
+    Gateway runs past the grace."""
+    now = utcnow()
+    async with db.sessions() as session:
+        owner = await get_owner(session)
+        if owner is None or await gateway_running(session, now):
+            return False
+        last = await last_heartbeat(session)
+    if now - max(last or since, since) < STOPPED_AFTER:
+        return False
+    # A first pass places the push cursor where no Gateway ever did, before the item.
+    await dispatch_push(db, owner.id, cipher, transport)
+    async with db.sessions() as session, session.begin():
+        # One item per stop, named by the last heartbeat seen before it.
+        await raise_system_attention(
+            session,
+            owner.id,
+            "gateway_stopped",
+            "gateway:" + (last.isoformat() if last else "never"),
+            {"last_heartbeat": last.isoformat() if last else None},
+        )
+    await dispatch_push(db, owner.id, cipher, transport)
+    return True

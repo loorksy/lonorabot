@@ -30,18 +30,21 @@ export type AttentionCode =
   | "gateway_degraded"
   | "agent_notification"
   | "secret_requested"
-  | "mandate_proposed";
+  | "mandate_proposed"
+  | "gateway_stopped"
+  | "model_access_failed";
 /**
- * The events of mandate 11.4 that need the owner, by code: each is one item, ready at
- * once and withdrawn when its card ends or its problem clears. Mirrors ATTENTION_EVENTS
- * in lonora_contracts.attention.
+ * The events of mandate 11.4 (six kinds since Amendment 5) that need the owner, by code:
+ * each is one item, ready at once and withdrawn when its card ends or its problem clears.
+ * Mirrors ATTENTION_EVENTS in lonora_contracts.attention.
  */
 export type AttentionEvent =
   | "trade_approval"
   | "settle_operation"
   | "secret_request"
   | "mandate_card"
-  | "broker_health";
+  | "broker_health"
+  | "background_health";
 export const ATTENTION_EVENTS: Partial<Record<AttentionCode, AttentionEvent>> = {
   approval_required: "trade_approval",
   operation_uncertain: "settle_operation",
@@ -51,6 +54,10 @@ export const ATTENTION_EVENTS: Partial<Record<AttentionCode, AttentionEvent>> = 
   broker_account_undeployed: "broker_health",
   broker_connection_lost: "broker_health",
   broker_rate_limited: "broker_health",
+  // Lonora's own background work stopped (Amendment 5): no Gateway is running, or a model
+  // provider refused access to background work (one item per route and cause).
+  gateway_stopped: "background_health",
+  model_access_failed: "background_health",
 };
 /** A broker health problem (mandate 9.4): one item per account and problem. */
 export function isBrokerHealth(code: AttentionCode): boolean {
