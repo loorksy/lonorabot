@@ -494,3 +494,46 @@ async def test_a_held_tick_counts_as_skipped(task_db: Fixture) -> None:
     assert await dispatch_routines(db) == 1
     runs = sorted(await routine_runs(db, routine_id), key=lambda run: run.created_at)
     assert runs[-1].model_metadata["skipped_occurrences"] == 2
+
+
+async def pass_time(db: Database, minutes: int) -> None:
+    """Move every item and run back by ``minutes``, as if that much time had passed."""
+    async with db.sessions() as session, session.begin():
+        for table in (AttentionRow, RunRow):
+            for row in await session.scalars(select(table)):
+                row.created_at -= timedelta(minutes=minutes)
+
+
+@pytest.mark.asyncio
+async def test_a_held_routine_is_tried_again_after_a_growing_wait(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    await routed(db)
+    routine_id = await routine(db, owner, agent, thread)
+    await dispatch_routines(db)
+    spent = await provider_failure(db, ModelProviderError(FailureReason.BILLING, http_status=402))
+    await fail_next(db, spent)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    # The owner may top up the account at the provider, which Lonora cannot see: a quarter
+    # of an hour after the item, one routine run goes through to try again.
+    await pass_time(db, 16)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+    # It fails the same way: no second item, and the next try waits twice as long.
+    await fail_next(db, spent)
+    assert [item.status for item in await items(db, owner)] == ["ready"]
+    await pass_time(db, 29)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 0
+    await pass_time(db, 2)
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1
+    assert len(await routine_runs(db, routine_id)) == 3
+    # That try succeeds (the account was topped up): the item ends and routines fire again.
+    async with db.sessions() as session, session.begin():
+        answered = await claim_next(session, "gw-model-access", 120)
+        assert answered is not None
+        answered.status = "completed"
+        assert await settle_model_access(session, owner, "openai", "primary-model") == 1
+    await due_again(db, routine_id)
+    assert await dispatch_routines(db) == 1

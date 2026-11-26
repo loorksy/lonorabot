@@ -34,9 +34,9 @@
     "mandate_proposed": "بطاقة التفويض بانتظار لمستك في المحادثة: تختار بها هل يتداول وكيلك بنفسه أم يستأذنك.",
     "gateway_stopped": "توقفت خدمة الخلفية في لونورا: لا يعمل الوكلاء ولا المهام المجدولة ولا المراقبات ولا متابعة الصفقات حتى يُعاد تشغيلها.",
     "model_access_failed": "رفض مزوّد النموذج العمل في الخلفية، وتنتظر المهام المجدولة حتى يُصلَح. راجع مفتاح النموذج في الإعدادات.",
-    "model_access_failed_auth": "رفض {provider} مفتاح النموذج: توقّف العمل في الخلفية، وتنتظر المهام المجدولة حتى تحفظ مفتاحًا جديدًا.",
-    "model_access_failed_billing": "نفد الرصيد لدى {provider} أو انتهت الخطة: توقّف العمل في الخلفية، وتنتظر المهام المجدولة حتى يُشحن الحساب.",
-    "model_access_failed_permission": "لا يسمح مفتاح {provider} باستخدام هذا النموذج: توقّف العمل في الخلفية عليه، وتنتظر مهامه المجدولة.",
+    "model_access_failed_auth": "رفض {provider} مفتاح النموذج: توقّف العمل في الخلفية. تنتظر المهام المجدولة حتى تحفظ مفتاحًا جديدًا، وتعيد لونورا المحاولة من حين لآخر.",
+    "model_access_failed_billing": "نفد الرصيد لدى {provider} أو انتهت الخطة: توقّف العمل في الخلفية. تنتظر المهام المجدولة وتعيد لونورا المحاولة من حين لآخر، فتُستأنف بعد شحن الحساب.",
+    "model_access_failed_permission": "لا يسمح مفتاح {provider} باستخدام هذا النموذج: توقّف العمل في الخلفية عليه. تنتظر مهامه المجدولة حتى تختار نموذجًا آخر أو يسمح المزوّد بهذا النموذج، وتعيد لونورا المحاولة من حين لآخر.",
     "model_access_failed_model_not_found": "لم يعد هذا النموذج متاحًا لدى {provider}: توقّف العمل في الخلفية عليه، وتنتظر مهامه المجدولة حتى تختار نموذجًا آخر.",
     "model_access_endpoint": "نقطة الاتصال المتوافقة مع OpenAI"
   },
@@ -75,9 +75,9 @@
     "mandate_proposed": "A Mandate card is waiting for your tap in the conversation: it sets whether your agent trades on its own or asks you first.",
     "gateway_stopped": "Lonora's background service has stopped: agents, routines, watches and trade checks are not running until it is restarted.",
     "model_access_failed": "A model provider refused background work, and routines wait until it is fixed. Check the model key in Settings.",
-    "model_access_failed_auth": "{provider} rejected the model key: background work stopped, and routines wait until you save a new key.",
-    "model_access_failed_billing": "{provider} reports the credit is spent or the plan has ended: background work stopped, and routines wait until the account is topped up.",
-    "model_access_failed_permission": "The {provider} key may not use this model: background work on it stopped, and its routines wait.",
+    "model_access_failed_auth": "{provider} rejected the model key: background work stopped. Routines wait until you save a new key, and Lonora tries again from time to time.",
+    "model_access_failed_billing": "{provider} reports the credit is spent or the plan has ended: background work stopped. Routines wait and Lonora tries again from time to time, so they resume once the account is topped up.",
+    "model_access_failed_permission": "The {provider} key may not use this model: background work on it stopped. Its routines wait until you choose another model or the provider allows this one, and Lonora tries again from time to time.",
     "model_access_failed_model_not_found": "{provider} no longer offers this model: background work on it stopped, and its routines wait until you choose another model.",
     "model_access_endpoint": "your OpenAI-compatible endpoint"
   }

@@ -181,8 +181,12 @@ or a channel.
   models the router tries: each once, at most six; one whose provider has no key counts as
   refused, as the router passes over it) advances without a run (`model_access_refused`
   in `lonora_db/routines.py`) and counts as skipped; a one-shot stays due and fires once
-  the hold ends. Nothing is limited (P1): those runs could only fail. Watches keep
-  evaluating without a model.
+  the hold ends. One routine run of the agent still goes through now and then (15
+  minutes after the newest item, then each wait twice the last, at most a day:
+  `RETRY_FIRST`, `RETRY_LONGEST`), so a cause fixed outside Lonora (credit topped up, the
+  model allowed, the deployment's key replaced) ends the hold: if a model answers, the
+  items it disproves end; if it fails the same way, nothing new is raised. Nothing is
+  limited (P1): the held runs could only fail. Watches keep evaluating without a model.
 - **Channels.** A webhook integration without a thread never forwards a work thread's
   messages; the conversation copy is sent once. Telegram carries only the 11.4 alerts.
 - **Kept on purpose.** A run that sent an order whose result is not verified always says

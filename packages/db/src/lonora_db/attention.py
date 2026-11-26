@@ -1005,9 +1005,9 @@ async def settle_model_access(
     return withdrawn
 
 
-async def refused_routes(session: AsyncSession, owner_id: str) -> set[str]:
-    """The provider routes with a standing ``model_access_failed`` item: a provider (every
-    model of its key), or a provider and model."""
+async def refused_routes(session: AsyncSession, owner_id: str) -> dict[str, datetime]:
+    """The provider routes with a standing ``model_access_failed`` item, each with when its
+    newest one was raised: a provider (every model of its key), or a provider and model."""
     rows = await session.scalars(
         select(AttentionRow).where(
             AttentionRow.owner_id == owner_id,
@@ -1015,9 +1015,14 @@ async def refused_routes(session: AsyncSession, owner_id: str) -> set[str]:
             AttentionRow.status.in_(["pending", "ready", "seen"]),
         )
     )
-    return {
-        str(row.parameters.get("route")) for row in rows if await mandatory_current(session, row)
-    }
+    routes: dict[str, datetime] = {}
+    for row in rows:
+        route = str(row.parameters.get("route"))
+        if await mandatory_current(session, row) and (
+            route not in routes or row.created_at > routes[route]
+        ):
+            routes[route] = row.created_at
+    return routes
 
 
 async def mandate_already_shown(session: AsyncSession, card: OwnerActionRow) -> bool:
