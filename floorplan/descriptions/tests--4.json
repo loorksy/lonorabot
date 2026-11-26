@@ -140,6 +140,10 @@
       "name": "Android smoke tests",
       "description": "Automatic checks for android smoke."
     },
+    "tests/mobile/app-config.test.ts": {
+      "name": "App config tests",
+      "description": "Automatic checks for the phone app's build settings, such as the Android permissions it blocks."
+    },
     "tests/mobile/approvals.spec.mjs": {
       "name": "Approvals tests",
       "description": "Automatic checks for approvals."

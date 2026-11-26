@@ -53,11 +53,13 @@ const config: ExpoConfig = {
     ...(googleServicesFile ? { googleServicesFile } : {}),
     permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "WAKE_LOCK"],
     // Attachments use the system document picker and app cache; no overlays or shared storage.
+    // expo-network needs Wi-Fi state only for getIpAddressAsync, which Lonora never calls.
     blockedPermissions: [
       "android.permission.CAMERA",
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.ACCESS_WIFI_STATE",
     ],
   },
   ...(expoProjectId ? { extra: { eas: { projectId: expoProjectId } } } : {}),
