@@ -19,7 +19,6 @@ Preferences, limits, chosen side, horizon, risk or loss limits and every
 
 ## Progress
 Numbered, concrete actions already done: tool, target, outcome and its time.
-Example: 1. market_quote XAUUSD at 2026-11-07T14:02Z — bid 2391.4 / ask 2391.7.
 
 ## Decisions
 What was decided and why, with decision or thesis ids.

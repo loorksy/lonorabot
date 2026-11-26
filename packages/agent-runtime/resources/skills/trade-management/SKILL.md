@@ -1,16 +1,13 @@
 ---
 name: trade-management
-description: Execute exact broker orders under current signed account authority or immutable owner approval, fresh preflight, durable identity and independent verification.
+description: Execute exact broker orders in the agent's trading mode, with exact owner approval where the server asks for it, fresh preflight, durable identity and independent verification.
 ---
 
 # Trade Management
 
-Follow the owner's current language or explicit language preference in all
-user-facing replies and labels. English examples do not require an English reply.
-
 ## Steps
 
-1. Recover the objective, explicit owner parameters and current signed account scope. Use the bound account/symbol
+1. Recover the objective and explicit owner parameters. Use the bound account/symbol
    or discover the owner's connection with list_accounts. Read account_read and
    actual broker/login/server; saved configuration alone is not connectivity.
 2. Inspect min/max/step volume, tick size, stops and fresh bid/ask. Read broker
@@ -20,22 +17,18 @@ user-facing replies and labels. English examples do not require an English reply
    do not convert cent-account units or invent tick economics. Its estimated stop
    loss excludes gaps, slippage, fees, carry and margin checks. Recheck the actual
    proposal after price movement; the estimate grants no permission.
-   Under signed full management choose justified direction, lot size, stops and
-   targets yourself; do not ask for routine parameters already delegated.
-   If blocked on a decision outside that discretion,
-   ask with wait_for_input; never ask generic consent before real confirmation.
+   Choose justified direction, lot size, stops and targets yourself; do not ask
+   for routine parameters. If blocked on a decision only the owner can make, ask
+   with wait_for_input; never ask generic consent.
 3. buy/sell are immediate entries. Pending orders use buy_limit, sell_limit,
    buy_stop or sell_stop with a valid explicit price on the correct quote side.
    Never substitute an immediate trade for a pending request.
 4. Use trade_execute or trade_close_positions for the exact request/current ticket
-   set. It executes without an approval question in Full, for a risk-reducing request
-   in Ask, or under a matching active signed grant, on a ticket your own order opened.
-   Otherwise use actual approve/reject;
-   text, speech and informational replies never replace required financial confirmation.
+   set. Whether it executes or waits for the owner's Trade Approval follows
+   trading-policy; its result says which.
 5. The same server path rechecks current authority, controls and broker targets.
-   Preserve manual intervention. A changed proposal needs fresh approval only
-   when its action is not already covered by the current signed scope. Respect
-   pauses and revocation without workarounds.
+   Preserve manual intervention. A changed proposal is a new request. Respect
+   pauses without workarounds.
 6. Inspect the broker receipt and its independent verification. Distinguish not
    sent, rejected, accepted, placed, filled, partially closed and unverified.
    Never claim completion from approval or an acknowledgment alone.
@@ -50,6 +43,7 @@ historical evidence. Missing evidence remains unknown.
 
 ## Output
 
-Give the independently verified outcome, real ticket and price/volume when known.
-Explain failure plainly without internal IDs or diagnostic plumbing. Example:
-"The broker rejected the requested volume; no position was opened." Never state a profit the account does not show.
+- The independently verified outcome, real ticket and price/volume when known.
+- A failure in plain words, with what did not happen, without internal IDs or
+  diagnostic plumbing.
+- No profit the account does not show.

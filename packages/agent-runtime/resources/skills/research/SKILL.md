@@ -5,9 +5,6 @@ description: Find primary market information or owned knowledge, compare sources
 
 # Research
 
-Follow the owner's current language or explicit language preference in all
-user-facing replies and labels. English examples do not require an English reply.
-
 ## Steps
 
 1. Search this Agent's own history with session_search before asking for material
@@ -34,6 +31,6 @@ user-facing replies and labels. English examples do not require an English reply
 
 ## Output
 
-Give the finding first, useful source links/dates and the material limitation.
-Example: "The statement confirms the decision; its effect on price remains a conditional interpretation."
-Do not narrate implementation or turn research into execution authority.
+- The finding first, useful source links/dates and the material limitation.
+- An interpretation kept distinct from what the source states.
+- No narrated implementation; research never becomes execution authority.

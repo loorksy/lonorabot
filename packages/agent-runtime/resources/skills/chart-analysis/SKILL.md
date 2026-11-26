@@ -5,9 +5,6 @@ description: Inspect broker-backed charts, candles and supported indicators; dra
 
 # Chart Analysis
 
-Follow the owner's current language or explicit language preference in all
-user-facing replies and labels. English examples do not require an English reply.
-
 ## Steps
 
 1. Establish the exact owned account/symbol. A fixed-market agent preserves its binding;
@@ -39,6 +36,6 @@ user-facing replies and labels. English examples do not require an English reply
 
 ## Output
 
-Give the observed structure, conditional interpretation and limitation. Example:
-"I added the invalidation zone to the chart; the image reflects the saved state when it was captured."
-Drawings and chart inspection never grant trading authority.
+- The observed structure, its conditional interpretation and the limitation.
+- A drawing or image at the stage its result shows: saved, rendered, inspected or delivered.
+- Drawings and chart inspection never grant trading authority.
