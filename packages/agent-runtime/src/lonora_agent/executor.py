@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from functools import partial
 from time import monotonic
 
 from lonora_adapter_kit.model_errors import ModelProviderError
@@ -28,10 +29,12 @@ from lonora_logging.context import run_id as diagnostic_run_id
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .collaboration.outcome_return import return_outcome
 from .environment import ToolRetryScheduled
+from .loop_outcomes import LoopOutcome
 from .model_recovery import RETRY_REASON
 from .tasks import TaskSuspended
 from .tool_loop import execute_tool_loop
@@ -72,6 +75,46 @@ async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[]
                 return
             renewed = monotonic()
             break
+
+
+def connection_failed(error: Exception) -> bool:
+    """A database failure of the connection (a drop, a failover, a timeout), not of the
+    statement: worth another attempt of the same transaction."""
+    return isinstance(error, OSError | TimeoutError | OperationalError | InterfaceError) or (
+        isinstance(error, DBAPIError) and error.connection_invalidated
+    )
+
+
+async def final_commit[Committed](
+    context: ToolContext,
+    lease_seconds: int,
+    lost: asyncio.Event,
+    write: Callable[[AsyncSession], Awaitable[Committed]],
+) -> Committed:
+    """A Run's final transaction (its completion, its wait for the owner, its release),
+    retried like a lease renewal after a transient database error while the lease holds.
+
+    ``keep_lease`` goes on renewing meanwhile and sets ``lost`` once it gives the lease
+    up; a fenced ``stale_lease`` or any other error is never retried. The fence makes a
+    second commit impossible: a retry after a commit whose answer was lost finds the Run
+    no longer leased.
+    """
+    margin = lease_seconds / 6
+    failed_at: float | None = None
+    while True:
+        try:
+            async with context.db.sessions() as session, session.begin():
+                return await write(session)
+        except Exception as error:
+            failed_at = monotonic() if failed_at is None else failed_at
+            if (
+                not connection_failed(error)
+                or lost.is_set()
+                or monotonic() - failed_at >= lease_seconds - margin
+            ):
+                raise
+            log.warning("final_commit_retry type=%s", type(error).__name__)
+        await asyncio.sleep(min(2.0, margin / 2))
 
 
 async def record_failure(
@@ -128,7 +171,10 @@ async def execute_run(
             )
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
-            async with context.db.sessions() as session, session.begin():
+
+            # The pass's final transaction: "again" runs the loop once more, "ended" leaves
+            # the Run waiting and "completed" completes it.
+            async def finish(session: AsyncSession, outcome: LoopOutcome) -> str:
                 if outcome.external_wait:
                     settled = await settle_task_wait(
                         session,
@@ -138,8 +184,8 @@ async def execute_run(
                         rich_content=validated_rich_content(outcome.metadata.get("rich_content")),
                     )
                     if settled == "continue":
-                        continue
-                    return
+                        return "again"
+                    return "ended"
                 if outcome.waiting:
                     row, thread = await locked_run_thread(session, context.lease)
                     outstanding = await session.scalar(
@@ -151,9 +197,9 @@ async def execute_run(
                     if approval_id:
                         approval = await session.get(TradeApprovalRow, approval_id)
                         if approval and approval.status != "pending":
-                            continue
+                            return "again"
                     if outstanding:
-                        continue
+                        return "again"
                     question = outcome.input_request
                     prior_question = next(
                         (
@@ -288,15 +334,23 @@ async def execute_run(
                         thread_id=context.thread_id,
                         run_id=row.id,
                     )
-                    return
+                    return "ended"
                 complete = await complete_run(
                     session, context.lease, outcome.text, outcome.metadata
                 )
-            if complete:
+                return "completed" if complete else "again"
+
+            ending = await final_commit(
+                context, lease_seconds, lost_lease, partial(finish, outcome=outcome)
+            )
+            if ending == "again":
+                continue
+            if ending == "completed":
                 await return_outcome(context.db, context.lease.run_id)
-                return
+            return
     except ToolRetryScheduled:
-        async with context.db.sessions() as session, session.begin():
+
+        async def release(session: AsyncSession) -> None:
             row, _ = await locked_run_thread(session, context.lease)
             row.status = "queued"
             row.lease_expires_at = None
@@ -339,6 +393,8 @@ async def execute_run(
                     **({"code": retry["code"]} if isinstance(retry.get("code"), str) else {}),
                 },
             )
+
+        await final_commit(context, lease_seconds, lost_lease, release)
     except TaskSuspended:
         return
     except asyncio.CancelledError:

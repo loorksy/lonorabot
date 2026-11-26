@@ -19,6 +19,7 @@ import lonora_gateway.attention as attention
 import lonora_gateway.service as service
 import lonora_market.watchers as watchers
 import pytest
+from lonora_adapter_kit.types import ModelReply
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_automation.runner import dispatch_routines
 from lonora_contracts.domain import utcnow
@@ -43,6 +44,7 @@ from lonora_db.schema import (
     GatewayRow,
     ItemFailureRow,
     MarketWatchRow,
+    MessageRow,
     RoutineRow,
     RunRow,
     SettingRow,
@@ -57,9 +59,11 @@ from lonora_gateway.runtime import OwnerServices
 from lonora_gateway.shutdown import drain
 from lonora_gateway.watchdog import Watchdog
 from lonora_tools.context import ToolContext
+from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 from test_task_runtime import task_db as task_db
+from test_tool_loop_execution import Script, conversation_run, saved_run
 
 Fixture = tuple[Database, str, str, str]
 POSTGRES = bool(os.environ.get("LONORA_TASK_TEST_DATABASE_URL"))
@@ -697,6 +701,40 @@ async def test_lease_renewal_gives_up_before_expiry_or_at_once_when_fenced(
     started = asyncio.get_running_loop().time()
     await asyncio.wait_for(executor.keep_lease(context, 3, lambda: lost.append(True)), 3)
     assert lost == [True] and asyncio.get_running_loop().time() - started < 1.5
+
+
+@pytest.mark.asyncio
+async def test_a_transient_error_at_the_final_commit_still_completes_the_run(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = await conversation_run(task_db)
+    monkeypatch.setattr(
+        "lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Gold is flat."))
+    )
+    real = executor.complete_run
+    attempts: list[int] = []
+
+    async def flaky(session: Any, lease: Lease, answer: str, metadata: dict[str, Any]) -> bool:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise OperationalError("UPDATE ln_runs", {}, ConnectionResetError("reset"))
+        return await real(session, lease, answer, metadata)
+
+    monkeypatch.setattr(executor, "complete_run", flaky)
+    await executor.execute_run(context, ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed" and run.result == "Gold is flat.", run.error_code
+    assert len(attempts) == 2
+    async with context.db.sessions() as session:
+        replies = list(
+            await session.scalars(
+                select(MessageRow).where(
+                    MessageRow.thread_id == context.thread_id, MessageRow.role == "assistant"
+                )
+            )
+        )
+    # The failed attempt was rolled back: the answer is in the conversation once.
+    assert [reply.content for reply in replies] == ["Gold is flat."]
 
 
 # A retired Super Bot request keeps the id of the goal it named, as a value.

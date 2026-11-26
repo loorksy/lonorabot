@@ -162,6 +162,12 @@ database error (dropped connection, failover, timeout, or a renewal that hangs) 
 retried until shortly before the lease would expire; only a fenced `stale_lease`, an unknown error or running out of
 lease time stops the Run.
 
+A Run's final transaction (its completion, its wait for the owner's answer, its release
+back to the queue) is retried the same way after a dropped connection, a failover or a
+timeout, while the lease holds (`final_commit`); any other error still fails the Run. A
+Run whose answer was ready is therefore not recorded as failed by a database blip, and
+the fence makes a second commit impossible.
+
 ## Durable records
 
 Deleting an agent, a conversation, a Run or a broker connection never deletes a
@@ -202,7 +208,8 @@ passkey, so nothing is left looking active while it can no longer run:
   claims fail goes stale; the stall threshold; readiness; recovery-count quarantine and
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
   ended episodes after a restart; coalesced quarantine notices and the kept critical
-  alert; drain release and lease renewal; durable records, delete refusal and the
+  alert; drain release and lease renewal; a transient error at the final commit;
+  durable records, delete refusal and the
   settlement of a deleted conversation's grant, with its retired Super Bot
   request kept as history.
 - `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the
