@@ -1,0 +1,8 @@
+# The nightly backup of Lonora Cloud (customer.sh backup), started by lonora-backup.timer.
+[Unit]
+Description=Lonora Cloud backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/srv/lonora/src/cloud/host/customer.sh backup

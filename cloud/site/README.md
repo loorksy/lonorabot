@@ -53,7 +53,7 @@ It lives here only until `loorksy/lonora-cloud` exists (D2). Nothing under `clou
 
 The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`; Docker, Node 22 and git; the repository in `/srv/lonora/src`; `host.env` (`BASE_DOMAIN`, `SITE_DOMAIN`, `ACME_EMAIL`, optional `WORKSPACE_DISK`, default `10g`); one `email bcrypt-hash` line per staff member in `/srv/lonora/caddy/staff`; `site.env` (`SITE_ORIGIN`, `BASE_DOMAIN`, `ADMIN_EMAILS`, Turnstile keys, document versions); then `customer.sh init` and `customer.sh release <full commit id>`.
 
-`init` starts the shared services, creates the `lonora-site` user, installs `lonora-site.service`, and allows that user exactly two root commands: `customer.sh create *` and `customer.sh remove *` (`/etc/sudoers.d/lonora-site`). The website listens only on a unix socket that Caddy reaches.
+`init` widens Docker's network pools once (`/etc/docker/daemon.json`: 256 networks of /24 in `10.201.0.0/16`, since the default of about 30 would stop new customers after nine or ten), starts the shared services, creates the `lonora-site` user, installs `lonora-site.service` and the nightly `lonora-backup.timer`, and allows that user exactly two root commands: `customer.sh create *` and `customer.sh remove *` (`/etc/sudoers.d/lonora-site`). The website listens only on a unix socket that Caddy reaches.
 
 ### Daily use
 
@@ -61,6 +61,8 @@ The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`;
 - **Ship a release:** `sudo customer.sh release <git ref>` builds the image once (`infra/compose/build-from-source.sh`, capped at 2 CPUs and 3 GB) and switches every customer with `update`. Each Lonora runs its migrations as it starts.
 - **Workspace and browser:** on demand, 1 GB each: `customer.sh workspace <handle> start|stop`.
 - **Delete on request:** removes the account and, with confirmation, the customer's installation and data (`customer.sh remove`).
+- **Backups:** every night at 02:17 UTC, `customer.sh backup` writes `/srv/lonora/backups/<date>/` (mode 700): `postgres.sql.gz` (every customer's database and role), `site.db` (accounts and decisions) and `keys.tar.gz` (each customer's `.env` with its encryption key, `host.env`, `site.env`, `release.env`, `caddy/`). Without the keys the database copy cannot be read, so both are kept together. The last 7 nights stay on this disk; turn on the provider's server backup (Hostinger: weekly, in hPanel) for a copy off this disk. Workspaces are not included (D10). Run it by hand any time: `sudo customer.sh backup`.
+- **Restore:** stop the site and the customers, then `gunzip -c postgres.sql.gz | docker exec -i lonora-postgres psql -U postgres`, `tar -xzf keys.tar.gz -C /srv/lonora`, copy `site.db` to `/srv/lonora/site/` (owner `lonora-site`), and start everything again (`customer.sh update <handle>` for each customer).
 - **New staff member:** add the line to `caddy/staff`, the email to `ADMIN_EMAILS`, then `docker exec lonora-caddy caddy reload --config /etc/caddy/Caddyfile` and `systemctl restart lonora-site`. The staff file must never be empty, or Caddy refuses its configuration.
 
 ### Security notes
@@ -71,4 +73,4 @@ The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`;
 
 ### Tests
 
-`npm test` runs 44 tests with Node's built-in runner: the site through `server.mjs` with an in-memory SQLite, and activation with the real `customer.sh` in dry-run mode (`--dry-run` prints every Docker and system command instead of running it; files go to `LONORA_HOST_HOME`). Turnstile is stubbed. The legal texts are drafts until counsel reviews them (D20).
+`npm test` runs 47 tests with Node's built-in runner: the site through `server.mjs` with an in-memory SQLite, and activation with the real `customer.sh` in dry-run mode (`--dry-run` prints every Docker and system command instead of running it; files go to `LONORA_HOST_HOME`). Turnstile is stubbed. The legal texts are drafts until counsel reviews them (D20).

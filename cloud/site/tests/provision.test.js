@@ -86,6 +86,23 @@ describe("one-click activation on the host", () => {
     assert.match(byHand.stdout, /^setup_link=https:\/\/fay\.lonora\.test\/#token=/);
   });
 
+  test("a backup holds the databases and every key needed to use them, and keeps the last seven", () => {
+    assert.equal(script("create", "bob").status, 0);
+    fs.writeFileSync(path.join(home, "host.env"), "BASE_DOMAIN=lonora.test\nPOSTGRES_PASSWORD=x\n");
+    for (let night = 1; night <= 9; night++) fs.mkdirSync(path.join(home, "backups", `2026010${night}-021700`), { recursive: true });
+    const out = script("backup");
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stderr, /would run: docker exec lonora-postgres pg_dumpall -U postgres \| gzip/);
+    const nights = fs.readdirSync(path.join(home, "backups")).sort();
+    assert.equal(nights.length, 7); // the newest seven: this one and six before it
+    assert.equal(nights[0], "20260104-021700");
+    const latest = path.join(home, "backups", nights.at(-1));
+    assert.equal(fs.statSync(latest).mode & 0o777, 0o700);
+    const listed = spawnSync("tar", ["-tzf", path.join(latest, "keys.tar.gz")], { encoding: "utf8" }).stdout.split("\n");
+    for (const file of ["host.env", "release.env", "customers/bob/.env"]) assert.ok(listed.includes(file), file);
+    assert.ok(!listed.some((file) => file.includes("workspace"))); // workspaces are not backed up (D10)
+  });
+
   test("a release is built once and switches every customer", () => {
     for (const h of ["ann", "bob"]) assert.equal(script("create", h).status, 0);
     const out = script("release", "v0.4.0");

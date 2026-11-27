@@ -1,0 +1,10 @@
+# Every night at 02:17 UTC; a night missed while the server was off runs at the next start.
+[Unit]
+Description=Lonora Cloud nightly backup
+
+[Timer]
+OnCalendar=*-*-* 02:17:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
