@@ -1,5 +1,6 @@
 /// Port of packages/core/src/time-separators.ts: local calendar boundaries and quiet gaps
-/// separate persistent chat history; the separator reads «اليوم 9:05 ص», a weekday, or a date.
+/// separate persistent chat history. On Android the separator reads the time alone today
+/// («٩:٠٥ ص») and the date with the time on any other day («٢٤ نوفمبر ٧:٥٤ م»).
 library;
 
 import '../format.dart';
@@ -23,27 +24,25 @@ bool needsTimeSeparator(Object current, [Object? previous]) {
           next.difference(prior).inMilliseconds >= 900000);
 }
 
-/// The separator's title: «[today] 9:05 ص», «[yesterday] …», the weekday within the week,
-/// else the date (with the year when it is not this year); '' for an invalid date. [today]
-/// and [yesterday] are the app's `today` / `yesterday` labels (time-separators.ts:17-38).
+/// The separator's title: the time alone today («٩:٠٥ ص», "9:05 AM"); the day and month, then
+/// the time, on any other day («٢٤ نوفمبر ٧:٥٤ م», "November 24 7:54 PM"), with the year when it
+/// is not this year; '' for an invalid date. Digits follow [dateDigits]. The separator no longer
+/// names the day: [today] and [yesterday] are ignored and only kept so existing callers compile.
 String formatTimeSeparator(
   Object createdAt,
   String locale, {
-  required String today,
-  required String yesterday,
+  String? today,
+  String? yesterday,
   DateTime? now,
 }) {
   final date = parseDate(createdAt);
   if (date == null) return '';
   final clock = (now ?? DateTime.now()).toLocal();
   final lang = language(locale);
-  final age = _localDay(clock) - _localDay(date);
   final time = formatDate('jm', lang, date);
-  if (age == 0) return '$today $time';
-  if (age == 1) return '$yesterday $time';
-  if (age >= 2 && age <= 6) return '${formatDate('EEEE', lang, date)} $time';
+  if (_localDay(clock) == _localDay(date)) return time;
   final day = formatDate(
-    date.year != clock.year ? 'yMMMd' : 'MMMd',
+    date.year != clock.year ? 'yMMMMd' : 'MMMMd',
     lang,
     date,
   );

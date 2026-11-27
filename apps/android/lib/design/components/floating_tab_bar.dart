@@ -38,7 +38,8 @@ class LnTabItem {
 
 /// Floating navigation: a 62 dp stadium with icon-only 54 dp tabs and a sliding highlight 6 dp
 /// wider than its tab on each side, plus a detached Ø62 action circle 8 dp away. Gutters are 21 dp;
-/// the bottom offset is at least 12 dp. Mirrors in RTL.
+/// the bottom offset is at least 12 dp. Mirrors in RTL. In dark both shapes are the opaque bar
+/// surface without a rim; light keeps the hairline.
 ///
 /// Place it at the bottom of a [Stack] (it applies its own gutters and bottom offset) and pad scrolling
 /// content by [FloatingTabBar.totalHeight].
@@ -125,8 +126,8 @@ class FloatingTabBar extends StatelessWidget {
   }
 }
 
-/// Shared material of the bar and the action circle: bar surface, hairline, chrome shadow. A backdrop
-/// blur is added only when the surface is translucent.
+/// Shared material of the bar and the action circle: bar surface, hairline (light only), chrome
+/// shadow. A backdrop blur is added only when the surface is translucent.
 class _Glass extends StatelessWidget {
   const _Glass({required this.child, this.circle = false});
 
@@ -138,12 +139,13 @@ class _Glass extends StatelessWidget {
     final ln = context.ln;
     final shape = circle ? const CircleBorder() : const StadiumBorder();
     final surface = ln.colors.barSurface;
+    final side = ln.isDark
+        ? BorderSide.none
+        : BorderSide(color: ln.colors.border);
     Widget body = DecoratedBox(
       decoration: ShapeDecoration(
         color: surface,
-        shape: circle
-            ? CircleBorder(side: BorderSide(color: ln.colors.border))
-            : StadiumBorder(side: BorderSide(color: ln.colors.border)),
+        shape: circle ? CircleBorder(side: side) : StadiumBorder(side: side),
       ),
       child: child,
     );

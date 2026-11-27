@@ -2,19 +2,23 @@
 library;
 
 export 'components/action_card.dart';
+export 'components/anchored_menu.dart';
 export 'components/badges.dart';
 export 'components/block_button.dart';
 export 'components/chat_list_row.dart';
 export 'components/chips.dart';
 export 'components/circle_icon_button.dart';
 export 'components/composer.dart';
+export 'components/drawer_scaffold.dart';
 export 'components/explore.dart';
 export 'components/floating_tab_bar.dart';
 export 'components/glyphs.dart';
 export 'components/icons.dart';
 export 'components/inline_event_row.dart';
 export 'components/jump_to_latest.dart';
+export 'components/menu_pill_button.dart';
 export 'components/message_bubble.dart';
+export 'components/popover_menu.dart';
 export 'components/schedule_card.dart';
 export 'components/screen_header.dart';
 export 'components/settings.dart';

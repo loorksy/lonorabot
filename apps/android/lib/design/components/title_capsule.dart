@@ -4,8 +4,9 @@ import '../theme.dart';
 import '../tokens.dart';
 import 'tappable.dart';
 
-/// Chat-header identity: a 48 dp avatar centred above a 32 dp name pill with a narrow trailing chevron.
-/// The avatar is painted over the pill's top edge.
+/// Chat-header identity: a 48 dp avatar centred above a 31 dp name pill with a narrow trailing
+/// chevron 8 dp after the name. The avatar is painted over the pill's top edge. The pill is the
+/// chrome-circle fill (no rim in dark); the name is the 16 dp title style in the ink.
 class TitleCapsule extends StatelessWidget {
   const TitleCapsule({
     super.key,
@@ -27,7 +28,7 @@ class TitleCapsule extends StatelessWidget {
   static const double pillOffset = 39.5;
 
   /// Total height of the widget (avatar top to pill bottom).
-  static const double height = pillOffset + LnSize.chipHeight;
+  static const double height = pillOffset + LnSize.namePill;
 
   @override
   Widget build(BuildContext context) {
@@ -48,15 +49,15 @@ class TitleCapsule extends StatelessWidget {
             Positioned(
               top: pillOffset,
               child: Container(
-                height: LnSize.chipHeight,
+                height: LnSize.namePill,
                 constraints: const BoxConstraints(maxWidth: 240),
                 padding: EdgeInsetsDirectional.only(
                   start: 12,
                   end: showChevron ? 10 : 12,
                 ),
                 decoration: ShapeDecoration(
-                  color: c.surface,
-                  shape: StadiumBorder(side: BorderSide(color: c.border)),
+                  color: c.chromeCircle,
+                  shape: StadiumBorder(side: ln.chromeRim),
                   shadows: ln.chromeShadow,
                 ),
                 child: Row(
@@ -67,15 +68,15 @@ class TitleCapsule extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: ln.text.body.copyWith(
-                          color: c.fgWarm,
-                          letterSpacing: -0.1,
+                        // White in dark; light keeps the warm ink.
+                        style: ln.text.title.copyWith(
+                          color: c.isDark ? c.fg : c.fgWarm,
                         ),
                       ),
                     ),
                     if (showChevron) ...[
-                      const SizedBox(width: 6),
-                      NarrowChevron(color: c.chevron),
+                      const SizedBox(width: 8),
+                      NarrowChevron(color: c.chevron, height: 10),
                     ],
                   ],
                 ),
@@ -89,7 +90,8 @@ class TitleCapsule extends StatelessWidget {
   }
 }
 
-/// The compact, tall "›" used in the name pill (5 × 12 dp, 1.6 dp stroke). Mirrors in RTL.
+/// The compact, tall "›" used in the name pill (5 × 12 dp by default, 1.6 dp stroke). Mirrors in
+/// RTL.
 class NarrowChevron extends StatelessWidget {
   const NarrowChevron({
     super.key,

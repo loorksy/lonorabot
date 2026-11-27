@@ -6,8 +6,9 @@ import '../tokens.dart';
 import 'badges.dart';
 import 'tappable.dart';
 
-/// Ø40 chrome circle with an arrow-down that appears when the conversation is scrolled away from the
-/// latest message. Scales and fades in/out with [visible]; shows an unread count above the circle.
+/// Ø36 circle with a 20 dp arrow-down in the warm ink that appears when the conversation is scrolled
+/// away from the latest message: the menu fill in dark (#262626, no rim, no shadow); the chrome
+/// surface with a hairline and the chrome shadow in light. Scales and fades in/out with [visible]; shows an unread count above the circle.
 /// [semanticLabel] is spoken as given: the caller composes it in its own language, with the unread
 /// count while there is one (e.g. «الانتقال إلى الأحدث، 3 غير مقروءة»).
 class JumpToLatestButton extends StatelessWidget {
@@ -63,15 +64,12 @@ class JumpToLatestButton extends StatelessWidget {
                     width: LnSize.jumpButton,
                     height: LnSize.jumpButton,
                     decoration: BoxDecoration(
-                      color: c.surface,
+                      color: c.isDark ? c.menuSurface : c.surface,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: c.border,
-                        strokeAlign: BorderSide.strokeAlignInside,
-                      ),
-                      boxShadow: ln.chromeShadow,
+                      border: Border.fromBorderSide(ln.chromeRim),
+                      boxShadow: c.isDark ? null : ln.chromeShadow,
                     ),
-                    child: Icon(FIcons.arrowDown, size: 20, color: c.fg),
+                    child: Icon(FIcons.arrowDown, size: 20, color: c.fgWarm),
                   ),
                   if (unreadCount > 0)
                     Positioned(top: -6, child: UnreadPill(count: unreadCount)),

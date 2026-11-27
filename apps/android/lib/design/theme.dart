@@ -158,6 +158,12 @@ class LnThemeData {
   List<BoxShadow> get chromeShadow =>
       isDark ? LnShadow.darkChrome : LnShadow.chrome;
 
+  /// Rim of floating chrome on [LnPalette.chromeCircle] (header circles, the name pill, header
+  /// pills): a hairline in light, where the white fill needs it on the white page; none in dark,
+  /// where the fill alone stands off the canvas.
+  BorderSide get chromeRim =>
+      isDark ? BorderSide.none : BorderSide(color: colors.border);
+
   /// Shadow for bordered cards (action, schedule cards).
   List<BoxShadow> get cardShadow => isDark ? LnShadow.darkCard : LnShadow.card;
 
@@ -297,6 +303,10 @@ FTypography lnForuiTypography(
 /// The forui 0.15 theme for Lonora: forui's defaults derived from [lnForuiColors]/[lnForuiTypography],
 /// with these style overrides:
 /// * radius 24 (cards; the composer and block buttons are 48 dp stadiums);
+/// * grouped settings cards ([lnTileGroupStyle]) and single tiles in the same card look;
+/// * popover menus drawn as Lonora's menu card (`LnMenuCard`): [LnPalette.menuSurface],
+///   [LnRadius.menu], a hairline rim, [LnShadow.menu] in light, [LnSpace.menuInset] above and below
+///   the rows, [LnSize.menuRow] rows with [LnSize.menuIcon] icons and labels in the warm ink;
 /// * the card shadow ([LnShadow.card]) and 24 dp chrome icons in the ink;
 /// * 16 dp page gutter;
 /// * block buttons 48 dp tall whose disabled (consumed, e.g. "Approved") look is the 6 % fill
@@ -371,6 +381,20 @@ FThemeData lnForuiTheme(
   );
   final fieldBorder = textField.border.resolve({});
   final switches = FSwitchStyle.inherit(colors: colors, style: style);
+  final tileGroup = lnTileGroupStyle(
+    p,
+    FTileGroupStyle.inherit(
+      colors: colors,
+      typography: typography,
+      style: style,
+    ),
+    typography,
+  );
+  final popoverMenu = FPopoverMenuStyle.inherit(
+    colors: colors,
+    style: style,
+    typography: typography,
+  );
 
   return FThemeData(
     debugLabel: p.isDark ? 'Lonora Dark' : 'Lonora Light',
@@ -383,6 +407,64 @@ FThemeData lnForuiTheme(
       destructive: block(buttons.destructive),
       outline: block(buttons.outline),
       ghost: buttons.ghost,
+    ),
+    tileGroupStyle: tileGroup,
+    // A tile outside a group draws the group's card itself.
+    tileStyle: tileGroup.tileStyle.copyWith(
+      decoration: FWidgetStateMap({
+        WidgetState.hovered | WidgetState.pressed: BoxDecoration(
+          color: Color.alphaBlend(p.fill3, p.fill3),
+          borderRadius: const BorderRadius.all(Radius.circular(LnRadius.group)),
+        ),
+        WidgetState.any: BoxDecoration(
+          color: p.fill3,
+          borderRadius: const BorderRadius.all(Radius.circular(LnRadius.group)),
+        ),
+      }),
+    ),
+    popoverMenuStyle: popoverMenu.copyWith(
+      decoration: BoxDecoration(
+        color: p.menuSurface,
+        borderRadius: const BorderRadius.all(Radius.circular(LnRadius.menu)),
+        border: Border.all(color: p.menuBorder, width: 0),
+        boxShadow: p.isDark ? null : LnShadow.menu,
+      ),
+      itemGroupStyle: (g) => g.copyWith(
+        decoration: const BoxDecoration(),
+        spacing: LnSpace.menuInset,
+        itemStyle: (i) => i.copyWith(
+          backgroundColor: FWidgetStateMap.all(const Color(0x00000000)),
+          margin: EdgeInsets.zero,
+          decoration: FWidgetStateMap({
+            WidgetState.hovered | WidgetState.pressed: BoxDecoration(
+              color: p.fill3,
+            ),
+            WidgetState.any: const BoxDecoration(),
+          }),
+          contentStyle: (cs) => cs.copyWith(
+            // 12 + the 24 dp icon or label line + 12: LnSize.menuRow.
+            padding: EdgeInsetsDirectional.symmetric(
+              horizontal: LnSpace.md,
+              vertical: (LnSize.menuRow - LnSize.menuIcon) / 2,
+            ),
+            prefixIconSpacing: LnSpace.sm,
+            prefixIconStyle: FWidgetStateMap({
+              WidgetState.disabled: IconThemeData(
+                color: p.fgSubtle,
+                size: LnSize.menuIcon,
+              ),
+              WidgetState.any: IconThemeData(
+                color: p.fgWarm,
+                size: LnSize.menuIcon,
+              ),
+            }),
+            titleTextStyle: FWidgetStateMap({
+              WidgetState.disabled: typography.base.copyWith(color: p.fgSubtle),
+              WidgetState.any: typography.base.copyWith(color: p.fgWarm),
+            }),
+          ),
+        ),
+      ),
     ),
     dividerStyles: FDividerStyles(
       horizontalStyle: dividers.horizontalStyle.copyWith(color: p.border),
@@ -418,7 +500,7 @@ FThemeData lnForuiTheme(
         decoration: BoxDecoration(
           color: p.inverseSurface,
           borderRadius: radius,
-          boxShadow: LnShadow.darkChrome,
+          boxShadow: LnShadow.toast,
         ),
         iconStyle: IconThemeData(color: p.onInverse, size: 18),
         titleTextStyle: typography.sm.copyWith(
@@ -426,6 +508,87 @@ FThemeData lnForuiTheme(
           fontWeight: FontWeight.w500,
         ),
         descriptionTextStyle: typography.sm.copyWith(color: p.onInverseMuted),
+      ),
+    ),
+  );
+}
+
+/// Grouped settings cards: the 6 % fill over the page with no border, radius 26 (a one-row card is
+/// a stadium), and rows of 16 dp sides and 14 dp above and below a 24 dp line (52 dp; see
+/// `MinTouchTileTitle`). A 20 dp icon in the ink sits 12 dp before the title; the muted value
+/// and a 20 dp muted chevron sit 12 dp apart at the end. Rows are divided by a one-pixel
+/// [LnPalette.borderStrong] hairline from the title start to the card edge. Section labels are
+/// captions in the secondary ink at the card's 16 dp inset, 8 dp above the card; notes are
+/// footnotes in the secondary ink inset 16 dp on both sides, 8 dp below it. Second lines are
+/// captions (14/20) in the secondary ink.
+FTileGroupStyle lnTileGroupStyle(
+  LnPalette p,
+  FTileGroupStyle base,
+  FTypography typography,
+) {
+  IconThemeData icon(Color color) =>
+      IconThemeData(color: color, size: LnSize.tileIcon);
+  return base.copyWith(
+    decoration: BoxDecoration(
+      color: p.fill3,
+      borderRadius: const BorderRadius.all(Radius.circular(LnRadius.group)),
+    ),
+    dividerColor: FWidgetStateMap.all(p.borderStrong),
+    // Zero is a hairline: one physical pixel, outside the rows' layout.
+    dividerWidth: 0,
+    labelTextStyle: FWidgetStateMap({
+      WidgetState.error: typography.sm.copyWith(color: p.error),
+      WidgetState.disabled: typography.sm.copyWith(color: p.fgSubtle),
+      WidgetState.any: typography.sm.copyWith(color: p.fgMuted),
+    }),
+    labelPadding: const EdgeInsetsDirectional.only(
+      start: LnSpace.md,
+      end: LnSpace.md,
+      bottom: LnSpace.xs,
+    ),
+    descriptionTextStyle: FWidgetStateMap.all(
+      typography.sm.copyWith(
+        fontSize: 13,
+        height: 18 / 13,
+        letterSpacing: 0.3,
+        color: p.fgMuted,
+      ),
+    ),
+    descriptionPadding: const EdgeInsetsDirectional.fromSTEB(
+      LnSpace.md,
+      LnSpace.xs,
+      LnSpace.md,
+      0,
+    ),
+    tileStyle: (t) => t.copyWith(
+      backgroundColor: FWidgetStateMap.all(const Color(0x00000000)),
+      decoration: FWidgetStateMap({
+        WidgetState.hovered | WidgetState.pressed: BoxDecoration(
+          color: p.fill3,
+        ),
+        WidgetState.any: const BoxDecoration(),
+      }),
+      contentStyle: (cs) => cs.copyWith(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          LnSpace.md,
+          14,
+          LnSpace.md,
+          14,
+        ),
+        prefixIconStyle: FWidgetStateMap({
+          WidgetState.disabled: icon(p.fgSubtle),
+          WidgetState.any: icon(p.fg),
+        }),
+        prefixIconSpacing: LnSpace.sm,
+        subtitleTextStyle: FWidgetStateMap({
+          WidgetState.disabled: typography.sm.copyWith(color: p.fgSubtle),
+          WidgetState.any: typography.sm.copyWith(color: p.fgMuted),
+        }),
+        suffixIconStyle: FWidgetStateMap({
+          WidgetState.disabled: icon(p.fgSubtle),
+          WidgetState.any: icon(p.fgMuted),
+        }),
+        suffixIconSpacing: LnSpace.sm,
       ),
     ),
   );

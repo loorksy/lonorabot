@@ -214,14 +214,17 @@ void main() {
       final [one, two, plain] = [for (var i = 0; i < 3; i++) rows.at(i)]
           .map(tester.getRect)
           .toList();
-      expect(one.height, LnSize.minTouch);
+      // A one-line row is the grouped card's 52 dp row (≥ 48); a two-line row is as tall as a
+      // plain FTile with a subtitle.
+      expect(one.height, LnSize.tileRow);
+      expect(one.height, greaterThanOrEqualTo(LnSize.minTouch));
       expect(two.height, plain.height);
-      // Every other tile keeps forui 0.15.1's own padding (no theme-wide growth).
+      // Grouped and single tiles share the settings-row padding: 16 dp sides, 14 above and below.
       final theme = FTheme.of(tester.element(find.byType(LnSection)));
       for (final style in [theme.tileStyle, theme.tileGroupStyle.tileStyle]) {
         expect(
           style.contentStyle.padding,
-          const EdgeInsetsDirectional.fromSTEB(15, 13, 10, 13),
+          const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
         );
       }
       // The title sits in the middle of the taller row.

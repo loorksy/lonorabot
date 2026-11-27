@@ -19,6 +19,35 @@ Object? tsSpacing(Object? value) => switch (value) {
   _ => value,
 };
 
+/// Android's own rules where it deliberately differs from the TS output (owner decisions; the
+/// Android side is pinned in date_digits_test.dart):
+/// * a date or time of day prints Arabic-Indic digits in Arabic, so the rows of these functions
+///   are compared with every digit read by value;
+const datedFunctions = {
+  'ownerActionCard',
+  'watchUntil',
+  'agentStatusLine',
+  'sourceLine',
+  'serverLine',
+  'readinessTime',
+  'tradingReadinessLine',
+};
+
+/// * the conversation's time separator shows the time alone today and the date otherwise,
+///   without naming the day, so its TS rows are not compared.
+const androidOwnRules = {'formatTimeSeparator'};
+
+/// [value] with Arabic-Indic digits read as Latin ones.
+Object? latinDigits(Object? value) => switch (value) {
+  String s => s.replaceAllMapped(
+    RegExp('[\u0660-\u0669]'),
+    (m) => String.fromCharCode(m[0]!.codeUnitAt(0) - 0x0660 + 0x30),
+  ),
+  List l => [for (final item in l) latinDigits(item)],
+  Map map => {for (final e in map.entries) e.key: latinDigits(e.value)},
+  _ => value,
+};
+
 void main() {
   final cases = (jsonDecode(
     File('test/l10n/fixtures/core_cases.json').readAsStringSync(),
@@ -127,13 +156,6 @@ void main() {
       };
     },
     // time-separators, attachments, list rows, files
-    'formatTimeSeparator': (a) => formatTimeSeparator(
-      a[0],
-      a[1],
-      today: m(a[2])['today'] as String,
-      yesterday: m(a[2])['yesterday'] as String,
-      now: at(a[3]),
-    ),
     'needsTimeSeparator': (a) => needsTimeSeparator(a[0], a[1]),
     'attachmentTooLarge': (a) => attachmentTooLarge(a[0]),
     'clockTime': (a) => clockTime(a[0]),
@@ -144,10 +166,13 @@ void main() {
     test(name, () {
       final rows = cases.where((row) => row['fn'] == name).toList();
       expect(rows, isNotEmpty, reason: 'no fixture for $name');
+      final Object? Function(Object?) digits = datedFunctions.contains(name)
+          ? latinDigits
+          : (value) => value;
       for (final row in rows) {
         expect(
-          tsSpacing(call(row['args'] as List)),
-          row['out'],
+          digits(tsSpacing(call(row['args'] as List))),
+          digits(row['out']),
           reason: '$name${jsonEncode(row['args'])}',
         );
       }
@@ -200,8 +225,12 @@ void main() {
 
   test('every fixture has a Dart port', () {
     expect(
-      cases.map((row) => row['fn']).toSet().difference(functions.keys.toSet()),
+      cases.map((row) => row['fn']).toSet().difference({
+        ...functions.keys,
+        ...androidOwnRules,
+      }),
       isEmpty,
     );
+    expect(functions.keys.toSet().containsAll(datedFunctions), isTrue);
   });
 }

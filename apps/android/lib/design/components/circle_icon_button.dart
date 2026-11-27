@@ -5,7 +5,8 @@ import '../tokens.dart';
 import 'badges.dart';
 import 'tappable.dart';
 
-/// Floating circular chrome button (Ø44, surface fill, hairline border, chrome shadow, 24 dp icon).
+/// Floating circular chrome button: Ø44 in the chrome-circle fill ([LnPalette.chromeCircle], #353535
+/// in dark) with a 24 dp icon; light adds a hairline rim and the chrome shadow, dark has no rim.
 ///
 /// The widget occupies `size + 4` square so the touch target is at least 48 dp; the visible circle is
 /// centred in it. Place it 2 dp closer to the edge than the visual inset you want (14 for a 16 gutter).
@@ -60,13 +61,9 @@ class CircleIconButton extends StatelessWidget {
                 height: size,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: c.surface,
+                  color: c.chromeCircle,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: c.border,
-                    width: 1,
-                    strokeAlign: BorderSide.strokeAlignInside,
-                  ),
+                  border: Border.fromBorderSide(ln.chromeRim),
                   boxShadow: ln.chromeShadow,
                 ),
                 child: IconTheme.merge(

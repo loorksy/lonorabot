@@ -184,15 +184,10 @@ class L10n {
     fallback: fallback,
   );
 
-  /// A conversation's time separator: «اليوم 9:05 ص», «أمس …», a weekday or a date.
+  /// A conversation's time separator: the time alone today («٩:٠٥ ص»), else the date and the
+  /// time («٢٤ نوفمبر ٧:٥٤ م»).
   String timeSeparator(Object createdAt, {DateTime? now}) =>
-      formatTimeSeparator(
-        createdAt,
-        lang,
-        today: translate('today'),
-        yesterday: translate('yesterday'),
-        now: now,
-      );
+      formatTimeSeparator(createdAt, lang, now: now);
 
   /// «محادثة واحدة», «محادثتان», «3 محادثات», «11 محادثة».
   String chatsWord(int count) => plurals.chatsWord(lang, count);

@@ -283,24 +283,30 @@ void main() {
   });
 
   group('formatting', () {
-    test('voice notes read m:ss', () {
+    test('voice notes read m:ss, the recorder mm:ss', () {
       expect(voiceClock(0), '0:00');
       expect(voiceClock(5.4), '0:05');
       expect(voiceClock(65), '1:05');
       expect(voiceClock(-3), '0:00');
       expect(voiceClock(3600), '60:00');
+      expect(voiceClock(5.4, twoDigitMinutes: true), '00:05');
+      expect(voiceClock(65, twoDigitMinutes: true), '01:05');
     });
 
-    test('the separator uses the app\'s today and yesterday', () {
+    test('the separator is the time today, else the date and time', () {
       final now = DateTime(2026, 11, 27, 16, 30);
       expect(
         l10n.timeSeparator(DateTime(2026, 11, 27, 9, 5), now: now),
-        'اليوم 9:05 ص',
+        '٩:٠٥ ص',
+      );
+      expect(
+        l10n.timeSeparator('2026-11-26T21:40:00', now: now),
+        '٢٦ نوفمبر ٩:٤٠ م',
       );
       l10n.setLocale(const Locale('en'));
       expect(
         l10n.timeSeparator('2026-11-26T21:40:00', now: now),
-        'Yesterday 9:40 PM',
+        'November 26 9:40 PM',
       );
       expect(formatNumber(1234.5, 'ar'), '1,234.5');
     });

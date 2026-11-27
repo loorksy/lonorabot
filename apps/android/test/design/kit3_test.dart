@@ -83,8 +83,8 @@ void main() {
   });
 
   group('K12 MinTouchTileTitle', () {
-    testWidgets('lifts a one-line FTile to 48 dp like LnListTile, in and out '
-        'of a group', (tester) async {
+    testWidgets('gives a one-line FTile LnListTile\'s 52 dp row (≥ 48), in '
+        'and out of a group', (tester) async {
       await _pump(
         tester,
         ListView(
@@ -115,7 +115,7 @@ void main() {
                 .first,
           )
           .height;
-      expect(height('Kit row'), LnSize.minTouch);
+      expect(height('Kit row'), LnSize.tileRow);
       expect(height('Own row'), height('Kit row'));
       expect(height('Alone'), greaterThanOrEqualTo(LnSize.minTouch));
       // The title stays at the start, centred in the row.
@@ -248,8 +248,10 @@ void main() {
       final a = tester.getRect(find.byKey(const ValueKey('a')));
       final b = tester.getRect(find.byKey(const ValueKey('b')));
       expect(a.height - b.height, 5);
-      expect(tester.getRect(find.text('Today')).top - a.top, LnSpace.md);
-      expect(tester.getRect(find.text('Yesterday')).top - b.top, LnSpace.md);
+      // 28 dp above the 18 dp footnote line, 16 below.
+      expect(tester.getRect(find.text('Today')).top - a.top, 28);
+      expect(tester.getRect(find.text('Today')).height, 18);
+      expect(tester.getRect(find.text('Yesterday')).top - b.top, 28);
       expect(b.bottom - tester.getRect(find.text('Yesterday')).bottom, 11);
     });
 

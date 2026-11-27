@@ -34,6 +34,7 @@ class LnPalette {
     required this.sendDisabledArrow,
     required this.brand,
     required this.selection,
+    required this.selectionFill,
     required this.warning,
     required this.success,
     required this.error,
@@ -58,6 +59,9 @@ class LnPalette {
     required this.menuBorder,
     required this.profileTop,
     required this.profileBottom,
+    required this.sheetPage,
+    required this.editorCard,
+    required this.borderStrong,
   });
 
   final Brightness brightness;
@@ -79,7 +83,7 @@ class LnPalette {
   final Color tabHighlight;
   final Color border;
 
-  /// Raised surfaces: header circles, chips, cards, composer.
+  /// Raised surfaces: chips, cards, composer (header circles use [chromeCircle]).
   final Color surface;
 
   /// Bottom-sheet fill: 60 % surface, meant to sit on a backdrop blur.
@@ -92,6 +96,8 @@ class LnPalette {
   final Color userBubble;
   final Color onUserBubble;
   final Color agentBubble;
+
+  /// Agent-bubble ink: white in dark, like the owner's bubble; the warm ink in light.
   final Color onAgentBubble;
 
   final Color sendDisc;
@@ -101,6 +107,10 @@ class LnPalette {
 
   final Color brand;
   final Color selection;
+
+  /// [selection] one step deeper, for fills that carry [onAccent] text or digits (the sheet
+  /// header's primary pill, the ☰ pill's count disc): white on it reads at 4.6:1.
+  final Color selectionFill;
   final Color warning;
   final Color success;
   final Color error;
@@ -162,6 +172,18 @@ class LnPalette {
   final Color profileTop;
   final Color profileBottom;
 
+  /// Opaque page of a stacked full-height sheet and of the agent's sub-pages (instructions,
+  /// memory): one step above the canvas in dark (#171717), white in light.
+  final Color sheetPage;
+
+  /// The full-height editor and content cards on [sheetPage] (the instructions editor, the memory
+  /// text): #252525 in dark, a light grey in light.
+  final Color editorCard;
+
+  /// Hairline dividers between the rows of a grouped card (12 % ink), drawn one physical pixel
+  /// wide.
+  final Color borderStrong;
+
   /// Selected reaction chip under a message (the owner's own reaction). Lonora-specific.
   Color get reactionSelected =>
       selection.withValues(alpha: isDark ? 0.28 : 0.14);
@@ -189,8 +211,9 @@ class LnPalette {
     fg: Color(0xFF1F1F1F),
     fgWarm: Color(0xFF34322D),
     fgStrong: Color(0xFF141414),
-    // 60 % / 30 % of the ink (secondary / tertiary text and icons).
-    fgMuted: Color(0x991F1F1F),
+    // 62 % / 30 % of the ink (secondary / tertiary text and icons): the secondary ink reads at
+    // 4.7:1 on white.
+    fgMuted: Color(0x9E1F1F1F),
     fgSubtle: Color(0x4D1F1F1F),
     chevron: Color(0x991F1F1F),
     fill1: Color(0x0A000000),
@@ -213,6 +236,7 @@ class LnPalette {
     sendDisabledArrow: Color(0xFFC7C7C6),
     brand: Color(0xFF7776EE),
     selection: Color(0xFF2276EC),
+    selectionFill: Color(0xFF2171E3),
     warning: Color(0xFFE59900),
     success: Color(0xFF25BA3B),
     error: Color(0xFFFA3D43),
@@ -237,6 +261,9 @@ class LnPalette {
     menuBorder: Color(0x14000000),
     profileTop: Color(0xFFF2F2F2),
     profileBottom: Color(0xFFFFFFFF),
+    sheetPage: Color(0xFFFFFFFF),
+    editorCard: Color(0xFFF2F2F2),
+    borderStrong: Color(0x1F000000),
   );
 
   static const dark = LnPalette(
@@ -261,13 +288,14 @@ class LnPalette {
     userBubble: Color(0xFF347ADB),
     onUserBubble: Color(0xFFFFFFFF),
     agentBubble: Color(0xFF292929),
-    onAgentBubble: Color(0xFFDADADA),
+    onAgentBubble: Color(0xFFFFFFFF),
     sendDisc: Color(0xE6FFFFFF),
     sendArrow: Color(0xFF000000),
     sendDisabledDisc: Color(0x1FFFFFFF),
     sendDisabledArrow: Color(0xFFC7C7C6),
     brand: Color(0xFF8D8CF5),
     selection: Color(0xFF347ADB),
+    selectionFill: Color(0xFF3274D1),
     warning: Color(0xFFF5B734),
     success: Color(0xFF5EB92D),
     error: Color(0xFFEA454A),
@@ -293,6 +321,9 @@ class LnPalette {
     menuBorder: Color(0xFF383838),
     profileTop: Color(0xFF333333),
     profileBottom: Color(0xFF3D3D3D),
+    sheetPage: Color(0xFF171717),
+    editorCard: Color(0xFF252525),
+    borderStrong: Color(0x1FFFFFFF),
   );
 }
 
@@ -328,12 +359,15 @@ abstract final class LnSpace {
   /// Avatar → text gap in list rows (24 dp inset + 44 dp avatar + 15 dp: text starts at 83 dp).
   static const double listTextGap = 15;
 
-  /// Gap between consecutive items from the same sender (bubble → bubble or card).
+  /// Gap between consecutive items from the same sender (bubble → card, card → bubble).
   static const double sameSenderGap = 7;
+
+  /// Gap between two bubbles of one sender's run; their facing corners join ([LnRadius.bubbleJoin]).
+  static const double bubbleRunGap = 4;
   static const double senderChangeGap = 16;
 
   /// Composer ↔ tab bar.
-  static const double composerToBar = 7;
+  static const double composerToBar = 8;
 
   /// Floating tab bar: `SafeArea(minimum: fromLTRB(21, 6, 21, 12))` around a `Row(spacing: 8)` of the
   /// pill and the action circle. The bottom value is a minimum; a taller system inset wins.
@@ -347,19 +381,34 @@ abstract final class LnSpace {
 
   /// Explore tile grid gap.
   static const double tileGap = 8;
+
+  /// A menu card's padding above its first and below its last row.
+  static const double menuInset = 6;
 }
 
 abstract final class LnRadius {
   /// Bubble corners (single-line bubbles are full stadiums either way).
   static const double bubble = 24;
 
+  /// A bubble's corners on its sender's side where it joins the next or previous bubble of the run.
+  static const double bubbleJoin = 5;
+
   /// Explore tiles and recommendation cards.
   static const double tile = 24;
   static const double card = 24;
+
+  /// Grouped settings cards: a one-row card (52 dp) is a stadium.
+  static const double group = 26;
   static const double iconTile = 8;
+
+  /// Anchored menus and popovers.
+  static const double menu = 12;
 
   /// Top corners only.
   static const double sheet = 38;
+
+  /// Top corners of a stacked full-height sheet, and the corners of the page it covers.
+  static const double stackedSheet = 12;
   static const double field = 14;
   static const double image = 16;
   static const double stadium = 999;
@@ -378,8 +427,27 @@ abstract final class LnSize {
   static const double avatarHeader = 48;
   static const double avatarGroup = 28;
 
-  /// Chat-header name pill.
+  /// Chips and pill fields.
   static const double chipHeight = 32;
+
+  /// The chat header's name pill.
+  static const double namePill = 31;
+
+  /// A one-line row of a grouped settings card: 14 + 24 + 14.
+  static const double tileRow = 52;
+
+  /// Leading and trailing icons of a settings row.
+  static const double tileIcon = 20;
+
+  /// A row of every menu card (anchored menus, popovers, forui's popover menus): a [menuIcon] and a
+  /// 16/24 label with 12 dp above and below; also the touch target.
+  static const double menuRow = 48;
+
+  /// The leading icon of a menu row, 16 dp from the start with the label 12 dp after it.
+  static const double menuIcon = 24;
+
+  /// The primary pill in a sheet header («إنشاء»); its touch target is [minTouch].
+  static const double headerPill = 36;
   static const double composerHeight = 48;
 
   /// The pill takes the width left by the gutters, the 8 dp spacing and the action circle (W − 112).
@@ -399,7 +467,7 @@ abstract final class LnSize {
   static const double bubbleMaxWidth = 313;
   static const double cardMaxWidth = 315;
   static const double headerBarHeight = 64;
-  static const double bubbleMaxFraction = 0.8;
+  static const double bubbleMaxFraction = 0.78;
   static const double bubblePadH = 16;
   static const double bubblePadV = 12;
 
@@ -410,7 +478,7 @@ abstract final class LnSize {
   static const double wideTileWidth = 296;
   static const double wideTileHeight = 128;
   static const double recIllustration = 32;
-  static const double jumpButton = 40;
+  static const double jumpButton = 36;
 
   /// Minimum touch target (Android accessibility guideline). Where a visual is smaller, the visual
   /// keeps its size and the hit area grows around it.
@@ -432,7 +500,22 @@ abstract final class LnShadow {
   static const card = [
     BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4)),
   ];
+
+  /// Dark chrome: barely one level darker than the canvas around the shape, so the fill alone
+  /// carries the edge.
   static const darkChrome = [
+    BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 2)),
+  ];
+
+  /// Menu cards in light, where the card sits on the white page without a scrim; dark draws them
+  /// without a shadow.
+  static const menu = [
+    BoxShadow(color: Color(0x14000000), blurRadius: 24, offset: Offset(0, 8)),
+  ];
+
+  /// The toast's stadium (both modes).
+  static const toast = [
     BoxShadow(color: Color(0x40000000), blurRadius: 10, offset: Offset(0, 4)),
   ];
   static const darkCard = [

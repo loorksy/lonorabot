@@ -1,5 +1,5 @@
-// Settings building blocks: thin conveniences over forui's own widgets with forui's default styling
-// under the Lonora theme. (LnTextField is the one exception: see its doc comment.)
+// Settings building blocks: thin conveniences over forui's own widgets, styled by the Lonora theme
+// (`lnForuiTheme`). (LnTextField is the one exception: see its doc comment.)
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart'
@@ -17,7 +17,13 @@ import 'package:forui/forui.dart';
 import '../theme.dart';
 import '../tokens.dart';
 
-/// A titled group of [LnListTile]s: forui [FTileGroup] with an optional label and description.
+/// A titled group of [LnListTile]s: forui [FTileGroup] with an optional label and description,
+/// drawn as the grouped card of `lnTileGroupStyle` (6 % fill, radius 26, 52 dp rows, caption
+/// label in the secondary ink).
+///
+/// [flat] lists the rows on the page itself (the agent profile's settings): no fill, the rows at
+/// the page gutter with a 24 dp icon, hairlines under the title column only, and the label in the
+/// 16 dp body style in the secondary ink.
 class LnSection extends StatelessWidget {
   const LnSection({
     super.key,
@@ -25,6 +31,7 @@ class LnSection extends StatelessWidget {
     required this.children,
     this.footer,
     this.padding,
+    this.flat = false,
   });
 
   final String? title;
@@ -36,22 +43,59 @@ class LnSection extends StatelessWidget {
   /// Defaults to the 16 dp page gutter.
   final EdgeInsetsGeometry? padding;
 
+  /// Rows on the page instead of a card.
+  final bool flat;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding:
-        padding ??
-        const EdgeInsetsDirectional.symmetric(horizontal: LnSpace.pageGutter),
-    child: FTileGroup(
-      label: title == null ? null : Text(title!),
-      description: footer == null ? null : Text(footer!),
-      children: children,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final ln = context.ln;
+    final c = ln.colors;
+    return Padding(
+      padding:
+          padding ??
+          const EdgeInsetsDirectional.symmetric(horizontal: LnSpace.pageGutter),
+      child: FTileGroup(
+        style: flat
+            ? (s) => s.copyWith(
+                decoration: const BoxDecoration(),
+                labelTextStyle: FWidgetStateMap.all(
+                  ln.text.body.copyWith(color: c.fgMuted),
+                ),
+                labelPadding: const EdgeInsetsDirectional.only(
+                  bottom: LnSpace.xxs,
+                ),
+                descriptionPadding: const EdgeInsetsDirectional.only(
+                  top: LnSpace.xs,
+                ),
+                tileStyle: (t) => t.copyWith(
+                  contentStyle: (cs) => cs.copyWith(
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      vertical: 14,
+                    ),
+                    prefixIconStyle: cs.prefixIconStyle.map(
+                      (icon) => icon.copyWith(size: LnSize.chromeIcon),
+                    ),
+                  ),
+                ),
+              )
+            : null,
+        label: title == null ? null : Text(title!),
+        description: footer == null ? null : Text(footer!),
+        children: children,
+      ),
+    );
+  }
 }
 
-/// Settings row on forui [FTile]: optional leading icon, title/subtitle, trailing value + chevron, or a
-/// custom trailing widget such as [LnSwitch]. [destructive] colours the title and icon with the error
-/// colour. A one-line row is at least [LnSize.minTouch] tall; taller rows keep forui's metrics.
+/// Settings row on forui [FTile]: optional 20 dp leading icon, title/subtitle (16 over 14),
+/// trailing value + chevron, or a custom trailing widget such as [LnSwitch]. A one-line row is
+/// [LnSize.tileRow] (52 dp) tall in the theme's group, never under [LnSize.minTouch]; a two-line
+/// row keeps forui's height, like any FTile with a subtitle.
+///
+/// Trailing glyphs: the chevron (mirrors in RTL) when the row opens a page; an up-right arrow for a
+/// row that leaves the app ([external]; it never mirrors); up-down chevrons for a row that opens a
+/// choice in place ([picker]). [destructive] rows are text only: the title in the error colour,
+/// no icon and no chevron.
 class LnListTile extends StatelessWidget with FTileMixin {
   const LnListTile({
     super.key,
@@ -65,7 +109,9 @@ class LnListTile extends StatelessWidget with FTileMixin {
     this.destructive = false,
     this.enabled,
     this.trailingIsAction = false,
-  });
+    this.external = false,
+    this.picker = false,
+  }) : assert(!(external && picker), 'external and picker are exclusive');
 
   final String title;
   final String? subtitle;
@@ -88,6 +134,13 @@ class LnListTile extends StatelessWidget with FTileMixin {
   /// of merging into the row's. Leave false for a status, a chevron or a switch the row also toggles.
   final bool trailingIsAction;
 
+  /// The row leaves the app (a web page, the store): an up-right arrow instead of the chevron.
+  final bool external;
+
+  /// The row opens a choice in place (a popover of options): up-down chevrons instead of the
+  /// chevron.
+  final bool picker;
+
   @override
   Widget build(BuildContext context) {
     final c = context.ln.colors;
@@ -95,30 +148,57 @@ class LnListTile extends StatelessWidget with FTileMixin {
         showChevron ?? (onTap != null && trailing == null && !destructive);
     final titleText = Text(
       title,
+      // One-line rows: every line exactly 24 dp, whichever fonts the words fall back to.
+      strutStyle: subtitle == null ? lnRowStrut : null,
       style: destructive ? TextStyle(color: c.error) : null,
     );
+    final Widget? glyph = external
+        ? const Icon(FIcons.arrowUpRight)
+        : picker
+        ? const Icon(FIcons.chevronsUpDown)
+        // Lucide chevrons mirror themselves in RTL (matchTextDirection).
+        : (chevron ? const Icon(FIcons.chevronRight) : null);
     return FTile(
       enabled: enabled,
       onPress: onTap,
-      prefix: icon == null
-          ? null
-          : Icon(icon, color: destructive ? c.error : null),
+      prefix: icon == null || destructive ? null : Icon(icon),
       title: subtitle != null ? titleText : MinTouchTileTitle(child: titleText),
       subtitle: subtitle == null ? null : Text(subtitle!),
-      details: value == null ? null : Text(value!),
+      // The value keeps a 24 dp line too, so it does not outgrow the title in any script.
+      details: value == null
+          ? null
+          : Text(
+              value!,
+              strutStyle: lnRowStrut,
+              textHeightBehavior: const TextHeightBehavior(
+                leadingDistribution: TextLeadingDistribution.even,
+              ),
+            ),
       suffix: trailing != null
           ? (trailingIsAction
                 ? Semantics(container: true, child: trailing)
                 : trailing)
-          // Lucide chevrons mirror themselves in RTL (matchTextDirection).
-          : (chevron ? const Icon(FIcons.chevronRight) : null),
+          : (destructive ? null : glyph),
     );
   }
 }
 
-/// The title of a one-line [FTile] (no subtitle), lifted to [LnSize.minTouch]: forui centres every
-/// slot on the tallest one, so a minimum on the title inside the tile's padding (the group's style, as
-/// FTile uses) lifts the whole row to the touch-target height. Taller titles keep their own height.
+/// Lines of exactly 24 dp for 16 dp row text: a forced strut, so a line that mixes fonts (Arabic
+/// words around a Latin space) is not taller than a line in one font. For the title and value of a
+/// one-line settings row.
+const lnRowStrut = StrutStyle(
+  fontSize: 16,
+  height: 1.5,
+  leadingDistribution: TextLeadingDistribution.even,
+  forceStrutHeight: true,
+);
+
+/// The title of a one-line [FTile] (no subtitle). Its lines keep their full height (forui trims the
+/// first ascent and last descent), so a one-line row is 14 + 24 + 14 = [LnSize.tileRow] in the
+/// theme's group (pass [lnRowStrut] to the title's Text to hold that for text that mixes fonts);
+/// and the title is never shorter than the touch target leaves inside the tile's padding, so the
+/// row is at least [LnSize.minTouch] with any padding. forui centres every slot on the tallest one.
+/// Taller titles keep their own height.
 class MinTouchTileTitle extends StatelessWidget {
   const MinTouchTileTitle({super.key, required this.child});
 
@@ -140,7 +220,12 @@ class MinTouchTileTitle extends StatelessWidget {
         alignment: AlignmentDirectional.centerStart,
         widthFactor: 1,
         heightFactor: 1,
-        child: child,
+        child: DefaultTextStyle.merge(
+          textHeightBehavior: const TextHeightBehavior(
+            leadingDistribution: TextLeadingDistribution.even,
+          ),
+          child: child,
+        ),
       ),
     );
   }

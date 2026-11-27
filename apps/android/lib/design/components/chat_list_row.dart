@@ -27,6 +27,8 @@ enum ChatPreviewKind {
 /// prefixes and a selection state. The title and preview read in their own direction (an English
 /// preview in the Arabic interface reads left to right, its ellipsis at the end of the English run)
 /// and stay aligned to the interface's start.
+///
+/// [ChatListRow.compact] is the chat drawer's row.
 class ChatListRow extends StatelessWidget {
   const ChatListRow({
     super.key,
@@ -48,9 +50,52 @@ class ChatListRow extends StatelessWidget {
     this.unreadLabel,
     this.pinnedLabel,
     this.mutedLabel,
-  });
+  }) : compact = false,
+       current = false;
 
-  /// Avatar in a 44 × 44 slot ([GroupAvatarPair] may overflow it).
+  /// The chat drawer's row: 62 dp pitch, 32 dp avatar slot whose start is 22 dp from the edge, a
+  /// one-line 16/500 title 20 dp after it (muted and pinned marks follow it), and the time and
+  /// unread pill or dot at the end, 28 dp from the edge. [preview] adds a one-line 14 dp second line
+  /// with the same decorations as the full row; leave it null for the name-only row. [current]
+  /// marks the open conversation: a [LnPalette.fill1] rounded rect (radius 16, 60 dp tall, 8 dp from
+  /// both edges) and the selected flag for screen readers. A selected row in [selectionMode] takes
+  /// the full row's [LnPalette.fill2] in the same shape.
+  ///
+  /// A [GroupAvatarPair] passed here should use `size: 20` to fit the 32 dp column.
+  const ChatListRow.compact({
+    super.key,
+    required this.avatar,
+    required this.title,
+    this.preview,
+    this.time,
+    this.previewKind = ChatPreviewKind.normal,
+    this.previewPrefix,
+    this.unreadCount = 0,
+    this.unreadDot = false,
+    this.pinned = false,
+    this.muted = false,
+    this.current = false,
+    this.selected = false,
+    this.selectionMode = false,
+    this.onTap,
+    this.onLongPress,
+    this.semanticLabel,
+    this.unreadLabel,
+    this.pinnedLabel,
+    this.mutedLabel,
+  }) : compact = true;
+
+  /// Compact geometry (dp). Lonora-specific values for the drawer.
+  static const double compactPitch = 62;
+  static const double compactAvatar = 32;
+  static const double compactAvatarInset = 22;
+  static const double compactTextGap = 20;
+  static const double compactHighlightHeight = 60;
+  static const double compactHighlightInset = LnSpace.xs;
+  static const double compactRadius = 16;
+
+  /// Avatar in a 44 × 44 slot (32 × 32 in [ChatListRow.compact]; [GroupAvatarPair] may overflow
+  /// it).
   final Widget avatar;
   final String title;
   final String? preview;
@@ -66,6 +111,12 @@ class ChatListRow extends StatelessWidget {
   final bool pinned;
   final bool muted;
   final bool selected;
+
+  /// The [ChatListRow.compact] layout.
+  final bool compact;
+
+  /// The open conversation, highlighted in the drawer ([ChatListRow.compact] only).
+  final bool current;
 
   /// Shows the selection check affordance on every row.
   final bool selectionMode;
@@ -89,6 +140,17 @@ class ChatListRow extends StatelessWidget {
     final ui = Directionality.of(context);
     final align = ui == TextDirection.rtl ? TextAlign.right : TextAlign.left;
 
+    final timeText = Text(
+      time ?? '',
+      maxLines: 1,
+      style: ln.text.caption.copyWith(
+        color: hasUnread && !muted ? c.brand : c.fgMuted,
+      ),
+    );
+    final Widget unread = unreadCount > 0
+        ? UnreadPill(count: unreadCount, muted: muted)
+        : DotBadge(ring: false, color: muted ? c.fgSubtle : c.brand);
+
     final titleRow = Row(
       children: [
         Expanded(
@@ -109,16 +171,7 @@ class ChatListRow extends StatelessWidget {
           const SizedBox(width: 4),
           Icon(FIcons.pin, size: 14, color: c.fgSubtle),
         ],
-        if (time != null) ...[
-          const SizedBox(width: 8),
-          Text(
-            time!,
-            maxLines: 1,
-            style: ln.text.caption.copyWith(
-              color: hasUnread && !muted ? c.brand : c.fgMuted,
-            ),
-          ),
-        ],
+        if (time != null && !compact) ...[const SizedBox(width: 8), timeText],
       ],
     );
 
@@ -191,13 +244,7 @@ class ChatListRow extends StatelessWidget {
                   ),
                 ),
         ),
-        if (unreadCount > 0) ...[
-          const SizedBox(width: 8),
-          UnreadPill(count: unreadCount, muted: muted),
-        ] else if (unreadDot) ...[
-          const SizedBox(width: 8),
-          DotBadge(ring: false, color: muted ? c.fgSubtle : c.brand),
-        ],
+        if (hasUnread && !compact) ...[const SizedBox(width: 8), unread],
       ],
     );
 
@@ -212,6 +259,83 @@ class ChatListRow extends StatelessWidget {
           if (pinned) pinnedLabel ?? 'pinned',
           if (muted) mutedLabel ?? 'muted',
         ].join(', ');
+
+    if (compact) {
+      return LnTappable(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        pressScale: 0.985,
+        pressOpacity: 1,
+        selected: selectionMode ? selected : (current ? true : null),
+        semanticLabel: label,
+        excludeChildSemantics: true,
+        child: SizedBox(
+          height: compactPitch,
+          child: Center(
+            child: AnimatedContainer(
+              duration: LnMotion.fast,
+              height: compactHighlightHeight,
+              margin: const EdgeInsetsDirectional.symmetric(
+                horizontal: compactHighlightInset,
+              ),
+              // Avatar 22 dp and trailing marks 28 dp from the drawer's edges.
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                compactAvatarInset - compactHighlightInset,
+                0,
+                LnSpace.lg,
+                0,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? c.fill2
+                    : current
+                    ? c.fill1
+                    : const Color(0x00000000),
+                borderRadius: const BorderRadius.all(
+                  Radius.circular(compactRadius),
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox.square(
+                    dimension: compactAvatar,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        avatar,
+                        if (selectionMode)
+                          PositionedDirectional(
+                            end: -6,
+                            bottom: -6,
+                            child: SelectionMark(selected: selected),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: compactTextGap),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        titleRow,
+                        if (preview != null || previewPrefix != null) ...[
+                          const SizedBox(height: 1.5),
+                          previewRow,
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (time != null) ...[const SizedBox(width: 8), timeText],
+                  if (hasUnread) ...[const SizedBox(width: 8), unread],
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return LnTappable(
       onTap: onTap,
