@@ -902,6 +902,28 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('event and order times read in Arabic-Indic digits in Arabic; '
+      'prices stay Latin', (tester) async {
+    scriptMarket();
+    await pumpWpf(tester, const MarketScreen(), locale: 'ar');
+    await scrollTo(tester, find.text('ECB Press Conference'));
+    final rows = tester.widgetList<CalendarRow>(find.byType(CalendarRow));
+    expect(rows, isNotEmpty);
+    for (final row in rows) {
+      expect(row.time, matches(RegExp('^[٠-٩]+/[٠-٩]+ [٠-٩]{2}:[٠-٩]{2}\$')));
+    }
+    await scrollTo(tester, find.text('سجل الأوامر'), delta: 300);
+    final order = RegExp('[٠-٩]+/[٠-٩]+ [٠-٩]{2}:[٠-٩]{2}');
+    expect(find.textContaining(order), findsWidgets);
+    expect(
+      find.textContaining(RegExp('[0-9]+/[0-9]+ [0-9]{2}:[0-9]{2}')),
+      findsNothing,
+    );
+    // The order's volume is a count: Latin.
+    expect(find.textContaining('0.10'), findsWidgets);
+    await unmount(tester);
+  });
+
   testWidgets('text scale 1.3 does not overflow', (tester) async {
     scriptMarket();
     await pumpWpf(tester, const MarketScreen(), locale: 'ar', textScale: 1.3);

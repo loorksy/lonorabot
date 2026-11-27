@@ -219,6 +219,7 @@ Store<AppState> testStore({
 GoRouter testRouter(
   Widget home, {
   Map<String, WidgetBuilder> pages = const {},
+  String initialLocation = '/home',
 }) {
   final paths = {
     Routes.signIn,
@@ -232,6 +233,7 @@ GoRouter testRouter(
     '/files',
     '/charts',
     Routes.ownerKnowledge,
+    Routes.settings,
     Routes.account,
     Routes.integrations,
     Routes.models,
@@ -244,7 +246,7 @@ GoRouter testRouter(
     Routes.agentSettings('agent-1'),
   };
   return GoRouter(
-    initialLocation: '/home',
+    initialLocation: initialLocation,
     routes: [
       GoRoute(path: '/home', builder: (_, _) => home),
       for (final p in paths)

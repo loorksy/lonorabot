@@ -1,5 +1,5 @@
-// The interface language choice: Arabic, English, or following the phone. Shared by the Me
-// tab's Language row and the Appearance page.
+// The interface language choice: Arabic, English, or following the phone. Shared by the Settings
+// page's Language row and the Appearance page.
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FTileGroup;
@@ -42,7 +42,8 @@ Future<void> applyLanguageChoice(BuildContext context, LanguageChoice choice) =>
       ),
     };
 
-/// The language picker: a sheet with the three choices; a choice applies at once.
+/// The language picker: a sheet with the three choices and, under them, what «Follow system»
+/// means (the Appearance page's footer); a choice applies at once.
 Future<void> pickLanguage(BuildContext context) async {
   final locale = context.read().prefs.locale;
   final current = currentLanguageChoice(locale);
@@ -50,6 +51,7 @@ Future<void> pickLanguage(BuildContext context) async {
     context,
     title: context.t('language'),
     builder: (sheet) => FTileGroup(
+      description: Text(sheet.t('set_languageHint')),
       children: [
         for (final choice in LanguageChoice.values)
           ChoiceTile(

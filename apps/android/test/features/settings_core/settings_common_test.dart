@@ -1,6 +1,7 @@
 // Shared settings rows and states (settings_common.dart): one-line WrapTile / ChoiceTile rows reach
-// the 48 dp touch target as LnListTile's do; a choice / switch row reads its state on its own
-// node; a failed first load is the kit's ErrorState.
+// the grouped card's 52 dp rows as LnListTile's do; a choice / switch row reads its state on its
+// own node; section gaps, notes and the in-place row picker; a failed first load is the kit's
+// ErrorState.
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +17,7 @@ void main() {
   setUpAll(setUpFeatureTests);
 
   for (final direction in TextDirection.values) {
-    testWidgets('one-line WrapTile and ChoiceTile rows are 48 dp; a hint keeps '
+    testWidgets('one-line WrapTile and ChoiceTile rows are 52 dp; a hint keeps '
         'forui\'s height (${direction.name})', (tester) async {
       setGoldenViewport(tester);
       await tester.pumpWidget(
@@ -49,9 +50,9 @@ void main() {
       Rect row(String title) => tester.getRect(
         find.ancestor(of: find.text(title), matching: find.byType(FTile)),
       );
-      expect(row('Built-in').height, LnSize.minTouch);
-      expect(row('Dark').height, LnSize.minTouch);
-      expect(row('Light').height, LnSize.minTouch);
+      expect(row('Built-in').height, LnSize.tileRow);
+      expect(row('Dark').height, LnSize.tileRow);
+      expect(row('Light').height, LnSize.tileRow);
       expect(row('Hinted').height, row('Plain').height);
       // The title stays in the middle of the taller row.
       expect(
@@ -149,6 +150,88 @@ void main() {
         semantics.dispose();
       },
     );
+  }
+
+  testWidgets('sections are 32 dp apart on pages; a note lines up '
+      'with the rows\' text, 32 dp from both edges', (tester) async {
+    setGoldenViewport(tester);
+    await tester.pumpWidget(
+      lnTestApp(
+        direction: TextDirection.rtl,
+        child: ListView(
+          children: [
+            const SectionGap(),
+            const SectionGap(height: LnSpace.md),
+            const SettingsNote(
+              'A note long enough to wrap onto a second line '
+              'at this width, so both of its edges show.',
+            ),
+          ],
+        ),
+      ),
+    );
+    final gaps = tester.widgetList<SizedBox>(
+      find.descendant(
+        of: find.byType(SectionGap),
+        matching: find.byType(SizedBox),
+      ),
+    );
+    expect([for (final g in gaps) g.height], [LnSpace.xxl, LnSpace.md]);
+    final note = tester.getRect(find.byType(Text));
+    expect(note.left, greaterThanOrEqualTo(32));
+    expect(note.right, 393 - 32);
+  });
+
+  for (final direction in TextDirection.values) {
+    testWidgets('a row picker opens at the row\'s end edge and returns the '
+        'choice (${direction.name})', (tester) async {
+      setGoldenViewport(tester);
+      final row = GlobalKey();
+      String? chosen;
+      await tester.pumpWidget(
+        lnTestApp(
+          direction: direction,
+          child: Builder(
+            builder: (context) => ListView(
+              children: [
+                LnSection(
+                  children: [
+                    LnListTile(
+                      key: row,
+                      title: 'Theme',
+                      value: 'Dark',
+                      picker: true,
+                      onTap: () async => chosen = await showRowPicker<String>(
+                        context,
+                        row: row,
+                        label: 'Theme',
+                        selected: 'dark',
+                        actions: const [
+                          LnMenuAction(label: 'Light', value: 'light'),
+                          LnMenuAction(label: 'Dark', value: 'dark'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Theme'));
+      await tester.pumpAndSettle();
+      final menu = tester.getRect(find.byType(LnMenuCard));
+      final rect = tester.getRect(find.byKey(row));
+      expect(
+        direction == TextDirection.ltr ? menu.right : menu.left,
+        direction == TextDirection.ltr ? rect.right : rect.left,
+      );
+      expect(menu.top, rect.bottom + 4);
+      await tester.tap(find.text('Light'));
+      await tester.pumpAndSettle();
+      expect(chosen, 'light');
+    });
   }
 
   for (final (name, error, icon) in [

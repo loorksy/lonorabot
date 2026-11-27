@@ -1,16 +1,14 @@
-// Me tab: entries, navigation, sign-out and clear-cache confirmations, usage card, goldens.
+// Me tab: its entry cards and their layout, navigation (Settings is its own page), the usage
+// card, goldens.
 //
 // Regenerate goldens with: flutter test --update-goldens test/features/me
-import 'dart:async';
-
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/rendering.dart' show SemanticsAction;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:forui/forui.dart' show FIcons, FTile;
+import 'package:forui/forui.dart' show FIcons, FTile, FTileGroup;
 import 'package:go_router/go_router.dart';
 import 'package:lonora/core/api/api_error.dart';
-import 'package:lonora/core/storage/local_store.dart';
 import 'package:lonora/design/design.dart';
 import 'package:lonora/features/me/me_screen.dart';
 import 'package:lonora/state/app_state.dart';
@@ -100,12 +98,14 @@ void main() {
     return (api, store);
   }
 
-  testWidgets('shows the owner, every Lonora entry and the usage totals', (
-    tester,
-  ) async {
+  testWidgets('shows the owner, the usage totals, every Lonora entry and '
+      'Settings last', (tester) async {
     await pumpMe(tester, locale: 'en');
     expect(find.text('أبو خالد'), findsOneWidget);
-    for (final title in [
+    expect(find.text('1,284,330'), findsOneWidget);
+    expect(find.text('220,415'), findsOneWidget);
+    expect(find.text('905,112'), findsOneWidget);
+    final titles = [
       'Agents',
       'Routines',
       'Tasks',
@@ -115,22 +115,28 @@ void main() {
       'Integrations',
       'Global model routing',
       'What is running',
+      'Settings',
+    ];
+    for (final title in titles) {
+      await scrollTo(tester, find.text(title));
+      expect(find.text(title), findsOneWidget, reason: title);
+    }
+    // The phone's preferences and sign-out are no longer rows of Me.
+    for (final gone in [
       'Notifications and contact',
-      'Voice',
       'Language',
       'Appearance',
       'Clear cache',
       'About Lonora',
+      'Sign out',
     ]) {
-      await scrollTo(tester, find.text(title));
-      expect(find.text(title), findsOneWidget, reason: title);
+      expect(find.text(gone), findsNothing, reason: gone);
     }
-    await scrollTo(tester, find.text('1,284,330'));
-    expect(find.text('220,415'), findsOneWidget);
-    expect(find.text('905,112'), findsOneWidget);
   });
 
-  testWidgets('entries open their pages', (tester) async {
+  testWidgets('entries open their pages; Settings is its own page', (
+    tester,
+  ) async {
     await pumpMe(tester, locale: 'en');
     await tester.tap(find.text('Agents'));
     await tester.pumpAndSettle();
@@ -140,6 +146,29 @@ void main() {
     await tester.tap(find.text('أبو خالد'));
     await tester.pumpAndSettle();
     expect(find.text('stub:/settings/account'), findsOneWidget);
+    router.pop();
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Settings'));
+    await tapAndSettle(tester, find.text('Settings'));
+    expect(find.text('stub:/settings'), findsOneWidget);
+  });
+
+  testWidgets('back from the account page, the card reads the profile again', (
+    tester,
+  ) async {
+    final (api, _) = await pumpMe(tester, locale: 'en');
+    expect(api.callsTo('GET', '/owner/profile'), hasLength(1));
+    api.on(
+      'GET /owner/profile',
+      (_) => profileJson(name: 'Ahmed', address: 'Abu Khalid'),
+    );
+    await tester.tap(find.text('أبو خالد'));
+    await tester.pumpAndSettle();
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(api.callsTo('GET', '/owner/profile'), hasLength(2));
+    expect(find.text('Abu Khalid'), findsOneWidget);
+    expect(find.text('أبو خالد'), findsNothing);
   });
 
   testWidgets('the owner card says that it opens the account', (tester) async {
@@ -178,118 +207,65 @@ void main() {
     });
   }
 
-  testWidgets('the notifications row shows how Lonora reaches the owner', (
-    tester,
-  ) async {
-    await pumpMe(tester, locale: 'en');
-    await scrollTo(tester, find.text('Notifications and contact'));
-    // profileJson's channel is `message`.
-    expect(find.text('Message me'), findsOneWidget);
-  });
+  for (final locale in ['en', 'ar']) {
+    testWidgets('no visible title: the owner card leads, 30 dp under the '
+        'status bar; the cards sit 16 dp apart ($locale)', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpMe(tester, locale: locale);
+      final me = locale == 'en' ? 'Me' : 'أنا';
+      expect(find.text(me), findsNothing);
+      // The tab's name is still the screen's first heading.
+      final header = tester
+          .getSemantics(find.bySemanticsLabel(me).first)
+          .getSemanticsData();
+      expect(header.flagsCollection.isHeader, isTrue);
+      Rect card(String text) => tester.getRect(
+        find
+            .ancestor(of: find.text(text), matching: find.byType(FTileGroup))
+            .first,
+      );
+      final owner = card('أبو خالد');
+      // The status bar is 24 dp tall in the harness.
+      expect(owner.top, 24 + 30);
+      final usage = tester.getRect(
+        find
+            .ancestor(
+              of: find.byIcon(FIcons.chartColumn),
+              matching: find.byType(DecoratedBox),
+            )
+            .last,
+      );
+      final agents = card(locale == 'en' ? 'Agents' : 'الوكلاء');
+      expect(usage.top - owner.bottom, LnSpace.md);
+      expect(agents.top - usage.bottom, LnSpace.md);
+      semantics.dispose();
+    });
 
-  testWidgets('chat experience opens the conversation preferences', (
-    tester,
-  ) async {
-    await pumpMe(tester, locale: 'en');
-    await scrollTo(tester, find.text('Chat experience'));
-    await tapAndSettle(tester, find.text('Chat experience'));
-    expect(find.text('Chat experience'), findsNWidgets(2));
-    expect(find.byType(LnSwitch), findsNWidgets(4));
-  });
-
-  testWidgets('back from the account page, the card reads the profile again', (
-    tester,
-  ) async {
-    final (api, _) = await pumpMe(tester, locale: 'en');
-    expect(api.callsTo('GET', '/owner/profile'), hasLength(1));
-    api.on(
-      'GET /owner/profile',
-      (_) => profileJson(name: 'Ahmed', address: 'Abu Khalid'),
-    );
-    await tester.tap(find.text('أبو خالد'));
-    await tester.pumpAndSettle();
-    router.pop();
-    await tester.pumpAndSettle();
-    expect(api.callsTo('GET', '/owner/profile'), hasLength(2));
-    expect(find.text('Abu Khalid'), findsOneWidget);
-    expect(find.text('أبو خالد'), findsNothing);
-  });
-
-  testWidgets('sign-out cannot run twice while the server is slow', (
-    tester,
-  ) async {
-    final (api, store) = await pumpMe(tester, locale: 'en');
-    final logout = Completer<Object?>();
-    api.on('POST /auth/logout', (_) => logout.future);
-    await scrollTo(tester, find.text('Sign out'));
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Sign out').last);
-    // The confirmation closes; the server has not answered yet (8 s at most).
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Sign out?'), findsNothing);
-    expect(store.state.session.signedIn, isTrue);
-    // A second tap opens no second confirmation.
-    await tester.tap(find.text('Sign out'), warnIfMissed: false);
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('Sign out?'), findsNothing);
-    logout.complete({'logged_out': true});
-    await tester.pumpAndSettle();
-    expect(api.callsTo('POST', '/auth/logout'), hasLength(1));
-    expect(store.state.session.status, SessionStatus.signedOut);
-  });
-
-  testWidgets('sign out asks first, then revokes the session', (tester) async {
-    final (api, store) = await pumpMe(tester, locale: 'en');
-    await scrollTo(tester, find.text('Sign out'));
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-    expect(find.text('Sign out?'), findsOneWidget);
-    // Cancel keeps the session.
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(store.state.session.signedIn, isTrue);
-    expect(api.callsTo('POST', '/auth/logout'), isEmpty);
-
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Sign out').last);
-    await tester.pumpAndSettle();
-    expect(api.callsTo('POST', '/auth/logout'), hasLength(1));
-    expect(store.state.session.status, SessionStatus.signedOut);
-  });
-
-  testWidgets('clear cache asks first and keeps the outbox', (tester) async {
-    final pending = OutgoingMessage(
-      nonce: 'n1',
-      threadId: 'thread-1',
-      body: const {'content': 'not sent yet', 'client_nonce': 'n1'},
-      delivery: Delivery.queued,
-      createdAt: DateTime.utc(2026, 11, 27),
-    );
-    final (_, store) = await pumpMe(tester, locale: 'en', outbox: [pending]);
-    final scope = LocalStore.scope(testServer, testOwner.id);
-    testLocalStore.docs['$scope/shell'] = {'cached': true};
-    testLocalStore.docs['$scope/outbox'] = [pending.toJson()];
-    // A listed conversation and one no longer listed (archived, deleted): both go.
-    testLocalStore.docs['$scope/thread_thread-1'] = {'cached': true};
-    testLocalStore.docs['$scope/thread_gone'] = {'cached': true};
-    expect(store.state.session.signedIn, isTrue);
-    await scrollTo(tester, find.text('Clear cache'));
-    await tester.tap(find.text('Clear cache'));
-    await tester.pumpAndSettle();
-    expect(find.text('Clear the cache?'), findsOneWidget);
-    await tester.tap(find.text('Clear'));
-    await tester.pumpAndSettle();
-    expect(find.text('Cache cleared'), findsOneWidget);
-    expect(testLocalStore.docs.containsKey('$scope/shell'), isFalse);
-    expect(testLocalStore.docs.containsKey('$scope/thread_thread-1'), isFalse);
-    expect(testLocalStore.docs.containsKey('$scope/thread_gone'), isFalse);
-    expect(testLocalStore.docs['$scope/outbox'], [pending.toJson()]);
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpAndSettle();
-  });
+    testWidgets('the owner card: 48 dp initial 16 dp in, name 20/24 bold, '
+        'email 14/20 in the secondary ink, 80 dp tall ($locale)', (
+      tester,
+    ) async {
+      await pumpMe(tester, locale: locale);
+      final tile = tester.getRect(
+        find.ancestor(of: find.text('أبو خالد'), matching: find.byType(FTile)),
+      );
+      expect(tile.height, 80);
+      final avatar = tester.getRect(find.byType(OwnerInitialAvatar));
+      expect(avatar.size, const Size.square(48));
+      final rtl = locale == 'ar';
+      expect(rtl ? tile.right - avatar.right : avatar.left - tile.left, 16);
+      final name = tester.widget<Text>(find.text('أبو خالد'));
+      expect(name.style?.fontSize, 20);
+      expect(name.style?.fontWeight, FontWeight.w700);
+      final email = tester.widget<Text>(find.textContaining('owner@example'));
+      final palette = LnPalette.light;
+      expect(email.style?.fontSize, 14);
+      expect(email.style?.color, palette.fgMuted);
+      // The text starts 12 dp after the avatar.
+      final text = tester.getRect(find.text('أبو خالد'));
+      expect(rtl ? avatar.left - text.right : text.left - avatar.right, 12);
+    });
+  }
 
   testWidgets('usage failure offers a retry', (tester) async {
     final (api, _) = await pumpMe(tester, locale: 'en', usageFails: true);
@@ -307,50 +283,71 @@ void main() {
     expect(find.text('30'), findsOneWidget);
   });
 
-  testWidgets('ms:C7 / ms:C8 the tasks and sign-out icons mirror in Arabic', (
-    tester,
-  ) async {
+  testWidgets('ms:C7 the tasks icon mirrors in Arabic; ms:C8 sign-out is on '
+      'the account page, not on Me', (tester) async {
     await pumpMe(tester);
-    for (final icon in [LnIcons.listChecks, LnIcons.logOut]) {
-      await scrollTo(tester, find.byIcon(icon));
-      expect(icon.matchTextDirection, isTrue);
-      expect(
-        Directionality.of(tester.element(find.byIcon(icon))),
-        TextDirection.rtl,
-      );
-    }
+    await scrollTo(tester, find.byIcon(LnIcons.listChecks));
+    expect(LnIcons.listChecks.matchTextDirection, isTrue);
+    expect(
+      Directionality.of(tester.element(find.byIcon(LnIcons.listChecks))),
+      TextDirection.rtl,
+    );
     expect(find.byIcon(FIcons.listChecks), findsNothing);
-    expect(find.byIcon(FIcons.logOut), findsNothing);
+    await scrollTo(tester, find.text('الإعدادات'));
+    expect(find.text('تسجيل الخروج'), findsNothing);
+    expect(find.byIcon(LnIcons.logOut), findsNothing);
   });
 
-  testWidgets('ms:C6 the usage card sits on the list rows\' grid', (
-    tester,
-  ) async {
-    await pumpMe(tester);
-    await scrollTo(tester, find.byIcon(FIcons.chartColumn));
-    Finder inRow(Finder of, IconData icon) => find.descendant(
-      of: find.ancestor(of: of, matching: find.byType(Row)).first,
-      matching: find.byIcon(icon),
-    );
-    final card = find.byIcon(FIcons.chartColumn);
-    final cardChevron = inRow(card, FIcons.chevronRight);
-    // The row just above the card: «About Lonora».
-    final row = find.ancestor(
-      of: find.byIcon(FIcons.info),
-      matching: find.byType(FTile),
-    );
-    final rowIcon = find.byIcon(FIcons.info);
-    final rowChevron = find.descendant(
-      of: row,
-      matching: find.byIcon(FIcons.chevronRight),
-    );
-    expect(tester.getRect(card).right, tester.getRect(rowIcon).right);
-    expect(tester.getSize(card), tester.getSize(rowIcon));
-    expect(tester.getRect(cardChevron).left, tester.getRect(rowChevron).left);
-    expect(
-      IconTheme.of(tester.element(card)).color,
-      IconTheme.of(tester.element(rowIcon)).color,
-    );
+  for (final direction in ['ar', 'en']) {
+    testWidgets('ms:C6 the usage card sits on the list rows\' grid and wears '
+        'the group card ($direction)', (tester) async {
+      await pumpMe(tester, locale: direction);
+      Finder inRow(Finder of, IconData icon) => find.descendant(
+        of: find.ancestor(of: of, matching: find.byType(Row)).first,
+        matching: find.byIcon(icon),
+      );
+      final card = find.byIcon(FIcons.chartColumn);
+      final cardChevron = inRow(card, FIcons.chevronRight);
+      // The first row of the next card: «Agents».
+      final row = find.ancestor(
+        of: find.byIcon(FIcons.bot),
+        matching: find.byType(FTile),
+      );
+      final rowIcon = find.byIcon(FIcons.bot);
+      final rowChevron = find.descendant(
+        of: row,
+        matching: find.byIcon(FIcons.chevronRight),
+      );
+      expect(tester.getRect(card).left, tester.getRect(rowIcon).left);
+      expect(tester.getSize(card), const Size.square(LnSize.tileIcon));
+      expect(tester.getSize(card), tester.getSize(rowIcon));
+      expect(tester.getRect(cardChevron).left, tester.getRect(rowChevron).left);
+      expect(
+        IconTheme.of(tester.element(card)).color,
+        IconTheme.of(tester.element(rowIcon)).color,
+      );
+      // The header is a list row's height; the card is the group's fill and radius.
+      final header = find.ancestor(of: card, matching: find.byType(Padding));
+      expect(tester.getSize(header.first).height, LnSize.tileRow);
+      final box = tester.widget<DecoratedBox>(
+        find.ancestor(of: card, matching: find.byType(DecoratedBox)).last,
+      );
+      final decoration = box.decoration as BoxDecoration;
+      expect(decoration.color, LnPalette.light.fill3);
+      expect(decoration.border, isNull);
+      expect(
+        decoration.borderRadius,
+        const BorderRadius.all(Radius.circular(LnRadius.group)),
+      );
+    });
+  }
+
+  testWidgets('every Me target is labelled and at least 48 dp', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await pumpMe(tester, locale: 'en');
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+    await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    semantics.dispose();
   });
 
   testWidgets('text at 1.3× lays out without overflow', (tester) async {

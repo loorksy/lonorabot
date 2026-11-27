@@ -315,6 +315,19 @@ void main() {
       expect(find.text('Not configured'), findsNWidgets(3));
       expect(find.text('Manage usage'), findsOneWidget);
       expect(find.textContaining('owner@example.com'), findsOneWidget);
+      // It opens the browser: the up-right arrow, never the chevron.
+      final row = find.ancestor(
+        of: find.text('Manage usage'),
+        matching: find.byType(FTile),
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(FIcons.arrowUpRight)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(FIcons.chevronRight)),
+        findsNothing,
+      );
     });
 
     testWidgets('a key is tested, saved, cleared and never shown', (

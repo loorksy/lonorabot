@@ -20,6 +20,7 @@ const Map<String, List<String>> _tasksStrings = {
   'tk_completed': ['مكتملة', 'Completed'],
   'tk_cancelled': ['ملغاة', 'Cancelled'],
   'tk_none': ['لا توجد مهام.', 'No tasks.'],
+  'tk_searchPh': ['البحث في المهام', 'Search tasks'],
   'tk_details': ['تفاصيل المهمة', 'Task details'],
   'tk_due': ['موعد الإنجاز', 'Due'],
   'tk_notSet': ['غير محدد', 'Not set'],

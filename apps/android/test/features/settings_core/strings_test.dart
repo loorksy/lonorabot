@@ -11,6 +11,7 @@ import 'package:lonora/features/settings/about_screen.dart';
 import 'package:lonora/features/settings/account_screen.dart';
 import 'package:lonora/features/settings/appearance_screen.dart';
 import 'package:lonora/features/settings/notifications_screen.dart';
+import 'package:lonora/features/settings/settings_screen.dart';
 import 'package:lonora/features/settings/voice_settings_screen.dart';
 import 'package:lonora/l10n/l10n.dart';
 
@@ -21,6 +22,7 @@ void main() {
 
   final screens = <String, (Widget, bool)>{
     'me': (const MeScreen(), true),
+    'settings': (const SettingsScreen(), true),
     'account': (const AccountScreen(), true),
     'appearance': (const AppearanceScreen(), true),
     'notifications': (const NotificationsScreen(), true),

@@ -42,18 +42,20 @@ void showErrorToast(BuildContext context, Object error) {
   if (text != null) LnToast.show(context, text, kind: LnToastKind.error);
 }
 
-/// Back from a pushed settings page; a page opened directly (deep link) goes to the Me tab.
-void leavePage(BuildContext context) {
+/// Back from a pushed settings page; a page opened directly (deep link) goes to [fallback], the
+/// page its row lives on (the Me tab unless said otherwise).
+void leavePage(BuildContext context, {String fallback = Routes.me}) {
   if (context.canPop()) {
     context.pop();
   } else {
-    context.go(Routes.me);
+    context.go(fallback);
   }
 }
 
-/// A pushed settings page: the Ø44 back circle with the centred page title, then a scrolling
-/// column of sections. [onRefresh] adds pull-to-refresh. [body] replaces the list (loading,
-/// error and empty states); with [onRefresh] it fills the page and can be pulled too.
+/// A pushed settings page: the Ø44 back circle with the centred page title (16/24 in the ink),
+/// then a scrolling column of sections. [onRefresh] adds pull-to-refresh. [body] replaces the
+/// list (loading, error and empty states); with [onRefresh] it fills the page and can be pulled
+/// too. A page opened directly (deep link) goes back to [fallback].
 class SettingsPageScaffold extends StatelessWidget {
   const SettingsPageScaffold({
     super.key,
@@ -62,6 +64,7 @@ class SettingsPageScaffold extends StatelessWidget {
     this.body,
     this.onRefresh,
     this.leading,
+    this.fallback = Routes.me,
   });
 
   final String title;
@@ -71,6 +74,9 @@ class SettingsPageScaffold extends StatelessWidget {
 
   /// Replaces the back circle (a close circle on modal pages).
   final Widget? leading;
+
+  /// Where back goes when there is no page to pop to: the page whose row opens this one.
+  final String fallback;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +114,7 @@ class SettingsPageScaffold extends StatelessWidget {
                   // Lucide chevrons mirror themselves in RTL (matchTextDirection).
                   icon: const Icon(FIcons.chevronLeft),
                   semanticLabel: context.t('back'),
-                  onTap: () => leavePage(context),
+                  onTap: () => leavePage(context, fallback: fallback),
                 ),
             center: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 56),
@@ -121,7 +127,7 @@ class SettingsPageScaffold extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: ln.text.headline.copyWith(color: ln.colors.fg),
+                      style: ln.text.title.copyWith(color: ln.colors.fg),
                     ),
                   ),
                 ),
@@ -398,7 +404,8 @@ class SwitchTile extends StatelessWidget with FTileMixin {
 String sentenceStart(String text) =>
     text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);
 
-/// A muted paragraph between sections, at the page gutter.
+/// A muted paragraph between sections, lined up with the rows' text inside the cards (16 dp in from
+/// the card edge on both sides).
 class SettingsNote extends StatelessWidget {
   const SettingsNote(this.text, {super.key, this.padding});
 
@@ -407,15 +414,15 @@ class SettingsNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // In the section footers' style: the tile group's description at the page gutter.
+    // In the section footers' style and inset: the tile group's description.
     final style = FTheme.of(context).tileGroupStyle.descriptionTextStyle;
     return Padding(
       padding:
           padding ??
           const EdgeInsetsDirectional.fromSTEB(
-            LnSpace.pageGutter,
+            LnSpace.pageGutter + LnSpace.md,
             0,
-            LnSpace.pageGutter,
+            LnSpace.pageGutter + LnSpace.md,
             LnSpace.lg,
           ),
       child: Text(text, style: style.resolve(const {})),
@@ -423,12 +430,41 @@ class SettingsNote extends StatelessWidget {
   }
 }
 
-/// Vertical gap between sections.
+/// Vertical gap between sections: [LnSpace.xxl] on pushed pages; the Me tab's cards sit
+/// [LnSpace.md] apart.
 class SectionGap extends StatelessWidget {
-  const SectionGap({super.key});
+  const SectionGap({super.key, this.height = LnSpace.xxl});
+
+  final double height;
 
   @override
-  Widget build(BuildContext context) => const SizedBox(height: LnSpace.lg);
+  Widget build(BuildContext context) => SizedBox(height: height);
+}
+
+/// A choice made in place from a settings row (a [LnListTile] with `picker: true` whose key is
+/// [row]): the popover menu of [actions] opens at the row's end edge, under its value and ⇕ glyph
+/// (above it when there is no room below), with a check on the [selected] one. Completes with the
+/// chosen value, or null when dismissed.
+Future<T?> showRowPicker<T>(
+  BuildContext context, {
+  required GlobalKey row,
+  required String label,
+  required T selected,
+  required List<LnMenuAction<T>> actions,
+}) {
+  final box = row.currentContext!.findRenderObject()! as RenderBox;
+  final rect = box.localToGlobal(Offset.zero) & box.size;
+  final endX = Directionality.of(context) == TextDirection.rtl
+      ? rect.left
+      : rect.right - 1;
+  return showLnPopoverMenu<T>(
+    context,
+    actions: actions,
+    // A one-dp slice of the row's end edge: the menu lines up with that edge.
+    anchorRect: Rect.fromLTWH(endX, rect.top, 1, rect.height),
+    selected: selected,
+    semanticLabel: label,
+  );
 }
 
 /// Opens [url] outside the app (browser); an error toast when nothing can open it.

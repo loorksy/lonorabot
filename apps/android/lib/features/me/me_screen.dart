@@ -1,27 +1,21 @@
-// The Me tab: an ordered entry list, then usage, laid out as forui tile groups. Every entry is a
-// Lonora capability.
+// The Me tab: entry cards 16 dp apart, every one a Lonora capability: the owner (account), token
+// usage, the owner's agents and their work, the server-side services, and Settings (its own
+// page). No visible title: the owner's card leads.
 import 'dart:async';
 
-import 'package:async_redux/async_redux.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/routes.dart';
-import '../../app/services.dart';
 import '../../core/api/api_error.dart';
 import '../../core/models/models.dart';
 import '../../design/design.dart';
 import '../../l10n/l10n.dart';
 import '../../state/actions/base.dart';
-import '../../state/actions/session_actions.dart';
 import '../../state/app_state.dart';
-import '../conversation/conversation_header.dart' show showChatPrefsSheet;
-import '../settings/appearance_screen.dart' show themeModeLabel;
-import '../settings/language.dart';
 import '../settings/settings_common.dart';
-import 'me_actions.dart';
 import 'me_data.dart';
 
 class MeScreen extends StatefulWidget {
@@ -35,7 +29,6 @@ class _MeScreenState extends State<MeScreen> {
   OwnerProfileData? _profile;
   UsageSummary? _usage;
   Object? _usageError;
-  bool _signingOut = false;
 
   @override
   void initState() {
@@ -73,43 +66,10 @@ class _MeScreenState extends State<MeScreen> {
     }
   }
 
-  Future<void> _clearCache() async {
-    final confirmed = await showLnConfirm(
-      context,
-      title: context.t('me_clearCacheQ'),
-      message: context.t('me_clearCacheBody'),
-      confirmLabel: context.t('sh_clear'),
-      cancelLabel: context.t('sh_cancel'),
-      destructive: true,
-    );
-    if (!confirmed || !mounted) return;
-    await context.dispatchAndWait(ClearLocalCacheAction());
-    if (mounted) {
-      LnToast.show(
-        context,
-        context.t('me_cacheCleared'),
-        kind: LnToastKind.positive,
-      );
-    }
-  }
-
   /// The account page edits the name and form of address the card shows: read them again.
   Future<void> _openAccount() async {
     await context.push(Routes.account);
     if (mounted) await _loadProfile();
-  }
-
-  /// Revoking can wait up to 8 s offline: the row stays disabled meanwhile.
-  Future<void> _signOut() async {
-    if (_signingOut) return;
-    setState(() => _signingOut = true);
-    try {
-      if (await confirmSignOut(context) && mounted) {
-        await context.dispatchAndWait(SignOutAction());
-      }
-    } finally {
-      if (mounted) setState(() => _signingOut = false);
-    }
   }
 
   @override
@@ -117,10 +77,8 @@ class _MeScreenState extends State<MeScreen> {
     ensureCoreSettingsStrings(context);
     final ln = context.ln;
     final owner = context.select((AppState s) => s.session.owner);
-    final theme = context.select((AppState s) => s.prefs.themeMode);
-    final locale = context.select((AppState s) => s.prefs.locale);
-    final profile = _profile;
     void open(String route) => context.push(route);
+    const gap = SectionGap(height: LnSpace.md);
 
     return ColoredBox(
       color: ln.colors.bg,
@@ -132,11 +90,24 @@ class _MeScreenState extends State<MeScreen> {
             bottom: FloatingTabBar.occupiedHeight(context) + LnSpace.xl,
           ),
           children: [
-            LargeTitleHeader(title: context.t('android_me')),
-            const SizedBox(height: LnSpace.md),
-            if (owner != null)
-              _OwnerCard(owner: owner, profile: profile, onTap: _openAccount),
-            const SectionGap(),
+            // No visible title: the owner's card leads, 30 dp under the status bar. The tab's
+            // name stays the screen's first heading for screen readers.
+            Semantics(
+              header: true,
+              label: context.t('android_me'),
+              child: SizedBox(height: MediaQuery.paddingOf(context).top + 30),
+            ),
+            if (owner != null) ...[
+              _OwnerCard(owner: owner, profile: _profile, onTap: _openAccount),
+              gap,
+            ],
+            _UsageCard(
+              usage: _usage,
+              error: _usage == null ? _usageError : null,
+              onTap: () => open(Routes.usage),
+              onRetry: _loadUsage,
+            ),
+            gap,
             LnSection(
               children: [
                 LnListTile(
@@ -171,7 +142,7 @@ class _MeScreenState extends State<MeScreen> {
                 ),
               ],
             ),
-            const SectionGap(),
+            gap,
             LnSection(
               children: [
                 LnListTile(
@@ -191,82 +162,14 @@ class _MeScreenState extends State<MeScreen> {
                 ),
               ],
             ),
-            const SectionGap(),
-            LnSection(
-              title: context.t('settings'),
-              children: [
-                LnListTile(
-                  icon: FIcons.bell,
-                  title: context.t('notificationsAndContact'),
-                  // The Web's value (how Lonora reaches the owner), as a subtitle: the
-                  // title is too long for a value beside it in English.
-                  subtitle: profile == null
-                      ? null
-                      : reachMeLabel(profile.channel, context.l10n.lang),
-                  onTap: () => open(Routes.notifications),
-                ),
-                LnListTile(
-                  icon: FIcons.audioLines,
-                  title: context.t('voice'),
-                  onTap: () => open(Routes.voice),
-                ),
-                LnListTile(
-                  icon: FIcons.globe,
-                  title: context.t('language'),
-                  value: languageChoiceLabel(
-                    context,
-                    currentLanguageChoice(locale),
-                  ),
-                  onTap: () async {
-                    await pickLanguage(context);
-                    if (mounted) setState(() {});
-                  },
-                ),
-                LnListTile(
-                  icon: FIcons.sunMoon,
-                  title: context.t('sh_appearance'),
-                  value: themeModeLabel(context, theme),
-                  onTap: () => open(Routes.appearance),
-                ),
-                // The Web's «Chat experience» settings entry; the conversation header opens
-                // the same sheet.
-                LnListTile(
-                  icon: FIcons.messageSquare,
-                  title: context.t('chatPrefs'),
-                  onTap: () => showChatPrefsSheet(context),
-                ),
-                LnListTile(
-                  icon: FIcons.eraser,
-                  title: context.t('me_clearCache'),
-                  onTap: _clearCache,
-                ),
-                LnListTile(
-                  icon: FIcons.info,
-                  title: context.t('me_about'),
-                  value: ltr(appInfo.version),
-                  onTap: () => open(Routes.about),
-                ),
-              ],
-            ),
-            const SectionGap(),
-            _UsageCard(
-              usage: _usage,
-              error: _usage == null ? _usageError : null,
-              onTap: () => open(Routes.usage),
-              onRetry: _loadUsage,
-            ),
-            const SectionGap(),
+            gap,
+            // The phone's preferences, notifications and About live on their own page.
             LnSection(
               children: [
                 LnListTile(
-                  icon: LnIcons.logOut,
-                  title: context.t('logout'),
-                  subtitle: owner == null
-                      ? null
-                      : context.t('me_signedInAs', [ltr(owner.email)]),
-                  destructive: true,
-                  enabled: !_signingOut,
-                  onTap: _signOut,
+                  icon: FIcons.settings,
+                  title: context.t('settings'),
+                  onTap: () => open(Routes.settings),
                 ),
               ],
             ),
@@ -287,8 +190,9 @@ Future<bool> confirmSignOut(BuildContext context) => showLnConfirm(
   destructive: true,
 );
 
-/// The owner's card at the top of Me: initial, name, email; opens the account page. Lonora has
-/// no owner picture, so the avatar is the name's first letter (as the Web's settings root).
+/// The owner's card at the top of Me: initial, name (20/24 bold), email; opens the account page.
+/// Lonora has no owner picture, so the avatar is the name's first letter (as the Web's settings
+/// root). 16 dp around the 48 dp avatar: an 80 dp card.
 class _OwnerCard extends StatelessWidget {
   const _OwnerCard({
     required this.owner,
@@ -314,19 +218,36 @@ class _OwnerCard extends StatelessWidget {
           child: FTileGroup(
             children: [
               FTile(
+                style: (s) => s.copyWith(
+                  contentStyle: (cs) => cs.copyWith(
+                    padding: const EdgeInsetsDirectional.all(LnSpace.md),
+                  ),
+                ),
                 semanticsLabel: '$name, ${owner.email}',
                 onPress: () {
                   HapticFeedback.selectionClick();
                   onTap();
                 },
                 prefix: OwnerInitialAvatar(name: name),
-                title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                // Full 24 and 20 dp lines in every script (forui trims a tile's outer
+                // line edges): with the 48 dp avatar, a card of 16 + 48 + 16.
+                title: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ln.text.display.copyWith(color: c.fg),
+                  strutStyle: _line(20, 24),
+                  textHeightBehavior: _fullLines,
+                ),
                 subtitle: Text(
                   ltr(owner.email),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: ln.text.caption.copyWith(color: c.fgMuted),
+                  strutStyle: _line(14, 20),
+                  textHeightBehavior: _fullLines,
                 ),
-                suffix: Icon(FIcons.chevronRight, color: c.chevron),
+                suffix: const Icon(FIcons.chevronRight),
               ),
             ],
           ),
@@ -335,6 +256,18 @@ class _OwnerCard extends StatelessWidget {
     );
   }
 }
+
+const _fullLines = TextHeightBehavior(
+  leadingDistribution: TextLeadingDistribution.even,
+);
+
+/// Lines of exactly [height] dp for [size] dp text, whichever fonts the words fall back to.
+StrutStyle _line(double size, double height) => StrutStyle(
+  fontSize: size,
+  height: height / size,
+  leadingDistribution: TextLeadingDistribution.even,
+  forceStrutHeight: true,
+);
 
 /// A round letter avatar for the owner.
 class OwnerInitialAvatar extends StatelessWidget {
@@ -368,8 +301,9 @@ class OwnerInitialAvatar extends StatelessWidget {
   }
 }
 
-/// Token usage at the bottom of Me: `GET /usage/summary`, which is three totals; the usage page has
-/// the breakdown.
+/// Token usage, under the owner's card: `GET /usage/summary`, which is three totals; the usage
+/// page has the breakdown. A grouped card: a header on the list rows' grid (their padding, 20 dp
+/// icon, title style and chevron), a hairline, then the totals.
 class _UsageCard extends StatelessWidget {
   const _UsageCard({
     required this.usage,
@@ -434,25 +368,18 @@ class _UsageCard extends StatelessWidget {
         onTap: failed != null ? onRetry : onTap,
         semanticLabel: context.t('usage'),
         semanticHint: failed,
-        child: Container(
-          padding: EdgeInsetsDirectional.fromSTEB(
-            inset.left,
-            LnSpace.sm,
-            inset.right,
-            LnSpace.cardPadding,
-          ),
+        child: DecoratedBox(
           decoration: BoxDecoration(
-            color: c.surface,
-            border: Border.all(color: c.border),
+            color: c.fill3,
             borderRadius: const BorderRadius.all(
-              Radius.circular(LnRadius.card),
+              Radius.circular(LnRadius.group),
             ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                height: 36,
+              Padding(
+                padding: inset,
                 child: Row(
                   children: [
                     IconTheme(
@@ -465,7 +392,8 @@ class _UsageCard extends StatelessWidget {
                         context.t('usage'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: ln.text.title.copyWith(color: c.fg),
+                        strutStyle: lnRowStrut,
+                        style: tile.titleTextStyle.resolve(const {}),
                       ),
                     ),
                     SizedBox(width: tile.suffixIconSpacing),
@@ -478,17 +406,29 @@ class _UsageCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: LnSpace.xs),
-              if (failed != null)
-                Text(failed, style: ln.text.footnote.copyWith(color: c.fgMuted))
-              else
-                Row(
-                  children: [
-                    stat(context.t('inputTokens'), usage?.input),
-                    stat(context.t('outputTokens'), usage?.output),
-                    stat(context.t('cachedTokens'), usage?.cached),
-                  ],
+              // The groups' divider: a hairline, 16 dp in from both edges.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: LnSpace.md),
+                child: SizedBox(
+                  height: 1 / MediaQuery.devicePixelRatioOf(context),
+                  child: ColoredBox(color: c.borderStrong),
                 ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(LnSpace.md),
+                child: failed != null
+                    ? Text(
+                        failed,
+                        style: ln.text.footnote.copyWith(color: c.fgMuted),
+                      )
+                    : Row(
+                        children: [
+                          stat(context.t('inputTokens'), usage?.input),
+                          stat(context.t('outputTokens'), usage?.output),
+                          stat(context.t('cachedTokens'), usage?.cached),
+                        ],
+                      ),
+              ),
             ],
           ),
         ),

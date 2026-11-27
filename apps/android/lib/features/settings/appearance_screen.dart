@@ -1,9 +1,11 @@
 // Appearance: the theme (Follow system / Light / Dark) and the interface language, built from
-// forui tile groups.
+// forui tile groups. The Settings page picks the theme in place; this page stays the deep link
+// (/settings/appearance) with both lists.
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FIcons;
 
+import '../../app/routes.dart';
 import '../../design/design.dart';
 import '../../l10n/l10n.dart';
 import '../../state/actions/base.dart';
@@ -19,6 +21,13 @@ String themeModeLabel(BuildContext context, AppThemeMode mode) =>
       AppThemeMode.light => context.t('sh_light'),
       AppThemeMode.dark => context.t('sh_dark'),
     };
+
+/// The icon of a theme choice (the Appearance page's rows and the Settings page's picker).
+IconData themeModeIcon(AppThemeMode mode) => switch (mode) {
+  AppThemeMode.system => FIcons.sunMoon,
+  AppThemeMode.light => FIcons.sun,
+  AppThemeMode.dark => FIcons.moon,
+};
 
 class AppearanceScreen extends StatefulWidget {
   const AppearanceScreen({super.key});
@@ -36,16 +45,13 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     final language = currentLanguageChoice(locale);
     return SettingsPageScaffold(
       title: context.t('sh_appearance'),
+      fallback: Routes.settings,
       children: [
         LnSection(
           children: [
-            for (final (mode, icon) in const [
-              (AppThemeMode.system, FIcons.sunMoon),
-              (AppThemeMode.light, FIcons.sun),
-              (AppThemeMode.dark, FIcons.moon),
-            ])
+            for (final mode in AppThemeMode.values)
               ChoiceTile(
-                icon: icon,
+                icon: themeModeIcon(mode),
                 title: themeModeLabel(context, mode),
                 selected: theme == mode,
                 onSelect: () => context.dispatch(SetThemeModeAction(mode)),

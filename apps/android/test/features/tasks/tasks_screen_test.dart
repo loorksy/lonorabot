@@ -1,14 +1,16 @@
 // Tasks: Active · Scheduled · Completed, status words, details with pause / resume / complete /
-// cancel (confirmed) / delete (confirmed) and the conversation, create; goldens.
+// cancel (confirmed) / delete (confirmed) and the conversation, create, search; goldens.
 //
 // Regenerate goldens with: flutter test --update-goldens test/features/tasks
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:forui/forui.dart' show FTile;
+import 'package:forui/forui.dart' show FIcons, FTile;
 import 'package:lonora/avatar/avatar.dart';
 import 'package:lonora/core/models/models.dart';
-import 'package:lonora/design/design.dart' show LnIcons, LnSize;
+import 'package:lonora/design/design.dart'
+    show CircleIconButton, LnIcons, LnPalette, LnSize, LnTappable;
+import 'package:lonora/l10n/l10n.dart' show formatDate;
 import 'package:lonora/state/app_state.dart';
 import 'package:lonora/features/tasks/tasks_data.dart';
 import 'package:lonora/features/tasks/tasks_screen.dart';
@@ -349,6 +351,173 @@ void main() {
       expect(title.left, description.left);
     },
   );
+
+  testWidgets('the due line reads one digit system: Arabic-Indic date and '
+      'time in Arabic', (tester) async {
+    scriptTasks();
+    await pumpScreen(tester, const TasksScreen(), locale: 'ar');
+    await tapAndSettle(tester, find.textContaining('London open range'));
+    final due = DateTime.parse('2030-01-02T15:00:00Z').toLocal();
+    final hh = due.hour.toString().padLeft(2, '0');
+    final mm = due.minute.toString().padLeft(2, '0');
+    final ar = String.fromCharCodes(
+      '$hh:$mm'.codeUnits.map((u) => u >= 0x30 && u <= 0x39 ? u + 0x630 : u),
+    );
+    final line = find.textContaining(formatDate('d MMM y', 'ar', due));
+    expect(line, findsOneWidget);
+    final text = tester.widget<Text>(line).data!;
+    expect(text, endsWith(ar));
+    expect(RegExp('[0-9]').hasMatch(text), isFalse, reason: text);
+  });
+
+  group('search', () {
+    Future<void> openSearch(WidgetTester tester, {String locale = 'en'}) async {
+      scriptTasks();
+      await pumpScreen(tester, const TasksScreen(), locale: locale);
+      await tapAndSettle(
+        tester,
+        find.bySemanticsLabel(locale == 'en' ? 'Search' : 'بحث'),
+      );
+    }
+
+    for (final locale in ['en', 'ar']) {
+      testWidgets('the field sits at the start of the header, a plain ✕ at '
+          'its end; it takes focus ($locale)', (tester) async {
+        await openSearch(tester, locale: locale);
+        final fill = find.descendant(
+          of: find.byType(TaskSearchField),
+          matching: find.byType(DecoratedBox),
+        );
+        final field = tester.getRect(fill);
+        final close = find.ancestor(
+          of: find.byIcon(FIcons.x),
+          matching: find.byType(LnTappable),
+        );
+        final x = tester.getRect(close);
+        expect(field.height, TaskSearchField.height);
+        expect(x.size, const Size.square(LnSize.minTouch));
+        // The ✕'s centre sits where the header circles' do: 38 dp from the edge.
+        if (locale == 'en') {
+          expect(field.left, 16);
+          expect(393 - x.center.dx, 38);
+          expect(x.left - field.right, 8);
+        } else {
+          expect(393 - field.right, 16);
+          expect(x.center.dx, 38);
+          expect(field.left - x.right, 8);
+        }
+        // No circle behind the ✕; the back circle and the tabs are gone.
+        expect(
+          find.ancestor(
+            of: find.byIcon(FIcons.x),
+            matching: find.byType(CircleIconButton),
+          ),
+          findsNothing,
+        );
+        expect(find.byIcon(FIcons.chevronLeft), findsNothing);
+        final editable = tester.widget<EditableText>(find.byType(EditableText));
+        expect(editable.focusNode.hasFocus, isTrue);
+        expect(editable.cursorColor, LnPalette.light.selection);
+        final decoration =
+            tester.widget<DecoratedBox>(fill).decoration as BoxDecoration;
+        expect(decoration.color, LnPalette.light.fill3);
+        expect(decoration.border, isNull);
+        expect(decoration.boxShadow, isNull);
+        expect(
+          decoration.borderRadius,
+          const BorderRadius.all(Radius.circular(TaskSearchField.radius)),
+        );
+      });
+    }
+
+    testWidgets('finds active and completed tasks by title or agent', (
+      tester,
+    ) async {
+      await openSearch(tester);
+      // Nothing before a word is typed.
+      expect(find.byType(FTile), findsNothing);
+      await tester.enterText(find.byType(EditableText), 'review');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('October review'), findsOneWidget);
+      expect(find.textContaining('London open range'), findsNothing);
+      await tester.enterText(find.byType(EditableText), 'research');
+      await tester.pumpAndSettle();
+      // Both of Research's tasks: one waiting, one cancelled.
+      expect(find.textContaining('CPI preparation'), findsOneWidget);
+      expect(find.textContaining('Old idea'), findsOneWidget);
+      await tapAndSettle(tester, find.textContaining('CPI preparation'));
+      expect(find.text('Task details'), findsOneWidget);
+    });
+
+    testWidgets('offered on Active and Completed, not among the routines', (
+      tester,
+    ) async {
+      scriptTasks();
+      await pumpScreen(tester, const TasksScreen(), locale: 'en');
+      final search = find.bySemanticsLabel('Search');
+      expect(search, findsOneWidget);
+      await tapAndSettle(tester, find.text('Scheduled'));
+      expect(search, findsNothing);
+      // «+» stays, and now creates a routine.
+      final plus = tester.widget<CircleIconButton>(
+        find.widgetWithIcon(CircleIconButton, FIcons.plus),
+      );
+      expect(plus.semanticLabel, 'Create routine');
+      await tapAndSettle(tester, find.text('Completed'));
+      expect(search, findsOneWidget);
+      await tapAndSettle(tester, search);
+      expect(find.byType(TaskSearchField), findsOneWidget);
+    });
+
+    testWidgets('no match says so', (tester) async {
+      await openSearch(tester);
+      await tester.enterText(find.byType(EditableText), 'zzz');
+      await tester.pumpAndSettle();
+      expect(find.text('No results'), findsOneWidget);
+      expect(find.textContaining('zzz'), findsWidgets);
+    });
+
+    testWidgets('✕ and back end the search and bring the tabs back', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await openSearch(tester);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await tapAndSettle(tester, find.bySemanticsLabel('Close search'));
+      expect(find.byType(TaskSearchField), findsNothing);
+      expect(find.text('Active'), findsOneWidget);
+      await tapAndSettle(tester, find.bySemanticsLabel('Search'));
+      await tester.enterText(find.byType(EditableText), 'London');
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskSearchField), findsNothing);
+      expect(find.textContaining('London open range'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    for (final v in [goldenVariants[1]]) {
+      testWidgets('golden search ${v.name}', (tester) async {
+        await withRealShadows(() async {
+          scriptTasks();
+          await pumpScreen(
+            tester,
+            const TasksScreen(),
+            brightness: v.brightness,
+            locale: v.locale,
+          );
+          await tapAndSettle(tester, find.bySemanticsLabel('بحث'));
+          await tester.enterText(find.byType(EditableText), 'تقرير');
+          await tester.pumpAndSettle();
+          await expectLater(
+            find.byType(MaterialApp),
+            matchesGoldenFile('goldens/tasks_search_${v.name}.png'),
+          );
+        });
+      });
+    }
+  });
 
   for (final v in [goldenVariants[0], goldenVariants[3]]) {
     testWidgets('golden details ${v.name}', (tester) async {

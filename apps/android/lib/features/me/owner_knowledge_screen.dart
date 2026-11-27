@@ -319,9 +319,10 @@ class _OwnerKnowledgeScreenState extends State<OwnerKnowledgeScreen> {
                   if (habit != null)
                     FullTile(
                       icon: FIcons.sunrise,
+                      // Times of day: in the date digits of the interface language.
                       title: l10n.t('habitLine', const [], {
-                        'firstOpen': ltr(habit),
-                        'brief': ltr(_brief),
+                        'firstOpen': ltr(dateDigits(habit, l10n.lang)),
+                        'brief': ltr(dateDigits(_brief, l10n.lang)),
                       }),
                       subtitle: l10n.t('habitOrigin'),
                       trailing: Icon(FIcons.x, color: ln.colors.fgMuted),

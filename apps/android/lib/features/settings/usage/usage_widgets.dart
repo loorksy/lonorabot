@@ -285,7 +285,7 @@ String pointLabel(BuildContext context, UsageSeries series, int index) {
     final hh = point.start.hour.toString().padLeft(2, '0');
     final mm = point.start.minute.toString().padLeft(2, '0');
     final now = index == series.lastStarted ? ' · ${context.t('us_now')}' : '';
-    return '${ltr('$hh:$mm')}$now';
+    return '${ltr(dateDigits('$hh:$mm', lang))}$now';
   }
   final last = series.points.length - 1;
   final prefix = index == last
@@ -492,7 +492,11 @@ class _UsageChartCardState extends State<UsageChartCard> {
     );
     final lang = context.l10n.lang;
     final axis = series.hourly
-        ? ['00:00', '12:00', '23:00'].map(ltr).toList()
+        // Times and dates of day, in the date digits like the readout above the bars.
+        ? [
+            for (final t in ['00:00', '12:00', '23:00'])
+              ltr(dateDigits(t, lang)),
+          ]
         : [
             formatDate('d MMMM', lang, points.first.start),
             formatDate('d MMMM', lang, points[(n - 1) ~/ 2].start),

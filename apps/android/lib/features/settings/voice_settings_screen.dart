@@ -107,6 +107,7 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen>
     }
     return SettingsPageScaffold(
       title: context.t('voice'),
+      fallback: Routes.settings,
       onRefresh: () async {
         await Future.wait([_load(), _readMic()]);
       },
@@ -180,9 +181,11 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen>
                 const SectionGap(),
                 LnSection(
                   children: [
+                    // Leaves the app: the up-right arrow instead of the chevron.
                     LnListTile(
-                      icon: FIcons.externalLink,
+                      icon: FIcons.globe,
                       title: context.t('openWebSettings'),
+                      external: true,
                       onTap: () => openExternalUrl(
                         context,
                         Uri.parse('$server/app?settings=voice'),

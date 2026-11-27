@@ -6,22 +6,26 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart'
     show LicenseEntryWithLineBreaks, LicenseRegistry;
+import 'package:async_redux/async_redux.dart' show Store;
 import 'package:flutter/material.dart' show TextField;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:forui/forui.dart' show FTheme, FTile;
+import 'package:forui/forui.dart' show FIcons, FTheme, FTile, FTileGroup;
 import 'package:lonora/app/routes.dart';
 import 'package:lonora/core/api/api_error.dart';
 import 'package:lonora/core/json.dart';
 import 'package:lonora/core/models/models.dart';
 import 'package:lonora/core/storage/secure_store.dart';
-import 'package:lonora/design/design.dart' show LnIcons, LnSize, LnSpace;
+import 'package:lonora/design/design.dart'
+    show LnIcons, LnPalette, LnSize, LnSpace;
+import 'package:lonora/features/me/me_screen.dart' show OwnerInitialAvatar;
 import 'package:lonora/features/settings/about_screen.dart';
 import 'package:lonora/features/settings/account_screen.dart';
 import 'package:lonora/features/settings/notifications_screen.dart';
 import 'package:lonora/features/settings/settings_common.dart'
     show SettingsNote;
 import 'package:lonora/features/settings/voice_settings_screen.dart';
+import 'package:lonora/l10n/l10n.dart' show ltr;
 import 'package:lonora/state/app_state.dart';
 
 import '../../design/harness.dart';
@@ -29,6 +33,9 @@ import 'feature_harness.dart';
 
 void main() {
   setUpAll(setUpFeatureTests);
+
+  /// The store of the last [pumpPage].
+  late Store<AppState> pageStore;
 
   Future<ScriptedApi> pumpPage(
     WidgetTester tester,
@@ -50,7 +57,11 @@ void main() {
       ),
     );
     routes?.call(api);
-    final store = testStore(locale: locale, theme: theme, shell: shell);
+    final store = pageStore = testStore(
+      locale: locale,
+      theme: theme,
+      shell: shell,
+    );
     setFeatureViewport(tester);
     await tester.pumpWidget(featureApp(store, testRouter(page)));
     await tester.pumpAndSettle();
@@ -100,17 +111,170 @@ void main() {
       expect(find.text('Account'), findsOneWidget);
     });
 
-    testWidgets('Q13 the sign-out icon mirrors in Arabic', (tester) async {
+    testWidgets('sign-out is text only, in the error colour, on a card of '
+        'its own 32 dp below the last group (Arabic)', (tester) async {
       await pumpPage(
         tester,
         const AccountScreen(),
         routes: routes,
         locale: 'ar',
       );
-      final icon = find.byIcon(LnIcons.logOut);
-      await scrollTo(tester, icon);
-      expect(LnIcons.logOut.matchTextDirection, isTrue);
-      expect(Directionality.of(tester.element(icon)), TextDirection.rtl);
+      final signOut = find.text('تسجيل الخروج');
+      await scrollTo(tester, signOut);
+      expect(find.byIcon(LnIcons.logOut), findsNothing);
+      final row = find.ancestor(of: signOut, matching: find.byType(FTile));
+      expect(
+        find.descendant(of: row, matching: find.byType(Icon)),
+        findsNothing,
+      );
+      expect(tester.widget<Text>(signOut).style?.color, LnPalette.light.error);
+      // Start-aligned: in Arabic, 16 dp in from the card's right edge.
+      expect(tester.getRect(row).right - tester.getRect(signOut).right, 16);
+      final groups = find.byType(FTileGroup);
+      final card = tester.getRect(groups.last);
+      expect(card.height, LnSize.tileRow);
+      final before = tester.getRect(
+        groups.at(tester.widgetList(groups).length - 2),
+      );
+      // The passkey group's footnote sits between them.
+      expect(card.top, greaterThan(before.bottom + LnSpace.xxl - 1));
+    });
+
+    for (final locale in ['en', 'ar']) {
+      testWidgets('the owner\'s initial, Ø64, centred above the first '
+          'group; detail rows carry no icon ($locale)', (tester) async {
+        await pumpPage(
+          tester,
+          const AccountScreen(),
+          routes: routes,
+          locale: locale,
+        );
+        final avatar = find.byType(OwnerInitialAvatar);
+        expect(tester.getSize(avatar), const Size.square(64));
+        expect(tester.getCenter(avatar).dx, 393 / 2);
+        final first = tester.getRect(find.byType(FTileGroup).first);
+        expect(first.top - tester.getRect(avatar).bottom, LnSpace.xl);
+        // No «tap to change» line: Lonora has no owner picture to upload. The initial is the
+        // only text above the first group.
+        final texts = find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Text),
+        );
+        final above = [
+          for (var i = 0; i < texts.evaluate().length; i++)
+            if (tester.getRect(texts.at(i)).top < first.top)
+              tester.widget<Text>(texts.at(i)).data,
+        ];
+        expect(above, ['A']);
+        for (final tile in tester.widgetList<FTile>(
+          find.descendant(
+            of: find.byType(FTileGroup).first,
+            matching: find.byType(FTile),
+          ),
+        )) {
+          expect(
+            find.descendant(
+              of: find.byWidget(tile),
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w is Icon &&
+                    w.icon != FIcons.chevronRight &&
+                    w.icon != FIcons.chevronLeft,
+              ),
+            ),
+            findsNothing,
+          );
+        }
+      });
+    }
+
+    testWidgets('identity rows: name, form of address, email, user id; the '
+        'user id is a Latin value with no chevron (Arabic)', (tester) async {
+      await pumpPage(
+        tester,
+        const AccountScreen(),
+        routes: routes,
+        locale: 'ar',
+      );
+      final group = find.byType(FTileGroup).first;
+      final titles = [
+        for (final tile in tester.widgetList<FTile>(
+          find.descendant(of: group, matching: find.byType(FTile)),
+        ))
+          tester
+              .widgetList<Text>(
+                find.descendant(
+                  of: find.byWidget(tile),
+                  matching: find.byType(Text),
+                ),
+              )
+              .first
+              .data,
+      ];
+      expect(titles, [
+        'الاسم',
+        'طريقة المخاطبة',
+        'البريد الإلكتروني',
+        'معرّف المستخدم',
+      ]);
+      expect(find.text(ltr('owner-1')), findsOneWidget);
+      final idRow = find.ancestor(
+        of: find.text('معرّف المستخدم'),
+        matching: find.byType(FTile),
+      );
+      expect(
+        find.descendant(of: idRow, matching: find.byIcon(FIcons.chevronRight)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('sign out asks first, then revokes the session', (
+      tester,
+    ) async {
+      final api = await pumpPage(tester, const AccountScreen(), routes: routes);
+      final store = pageStore;
+      await scrollTo(tester, find.text('Sign out'));
+      await tester.tap(find.text('Sign out'));
+      await tester.pumpAndSettle();
+      expect(find.text('Sign out?'), findsOneWidget);
+      // Cancel keeps the session.
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(store.state.session.signedIn, isTrue);
+      expect(api.callsTo('POST', '/auth/logout'), isEmpty);
+
+      await tester.tap(find.text('Sign out'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign out').last);
+      await tester.pumpAndSettle();
+      expect(api.callsTo('POST', '/auth/logout'), hasLength(1));
+      expect(store.state.session.status, SessionStatus.signedOut);
+    });
+
+    testWidgets('sign-out cannot run twice while the server is slow', (
+      tester,
+    ) async {
+      final api = await pumpPage(tester, const AccountScreen(), routes: routes);
+      final store = pageStore;
+      final logout = Completer<Object?>();
+      api.on('POST /auth/logout', (_) => logout.future);
+      await scrollTo(tester, find.text('Sign out'));
+      await tester.tap(find.text('Sign out'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign out').last);
+      // The confirmation closes; the server has not answered yet (8 s at most).
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Sign out?'), findsNothing);
+      expect(store.state.session.signedIn, isTrue);
+      // A second tap opens no second confirmation.
+      await tester.tap(find.text('Sign out'), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Sign out?'), findsNothing);
+      logout.complete({'logged_out': true});
+      await tester.pumpAndSettle();
+      expect(api.callsTo('POST', '/auth/logout'), hasLength(1));
+      expect(store.state.session.status, SessionStatus.signedOut);
     });
 
     testWidgets('form of address is saved alone', (tester) async {
@@ -248,6 +412,22 @@ void main() {
         );
       });
     });
+
+    testWidgets('golden dark_ar', (tester) async {
+      await withRealShadows(() async {
+        await pumpPage(
+          tester,
+          const AccountScreen(),
+          locale: 'ar',
+          theme: AppThemeMode.dark,
+          routes: routes,
+        );
+        await expectLater(
+          find.byType(WidgetsApp),
+          matchesGoldenFile('goldens/account_dark_ar.png'),
+        );
+      });
+    });
   });
 
   group('notifications', () {
@@ -366,6 +546,31 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.callsTo('GET', '/owner/profile'), hasLength(2));
       expect(find.text('Message me'), findsOneWidget);
+    });
+
+    testWidgets('quiet hours read in the date digits: Arabic-Indic in Arabic', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        const NotificationsScreen(),
+        locale: 'ar',
+        routes: (api) {
+          routes(api);
+          reach = {
+            ...reach,
+            'quiet_start_minute': 22 * 60,
+            'quiet_end_minute': 8 * 60 + 30,
+            'quiet_start_hour': 22,
+            'quiet_end_hour': 8,
+          };
+        },
+      );
+      await scrollTo(tester, find.text(ltr('٠٨:٣٠')));
+      expect(find.text(ltr('٢٢:٠٠')), findsOneWidget);
+      expect(find.text(ltr('٠٨:٣٠')), findsOneWidget);
+      expect(find.textContaining('22:00'), findsNothing);
+      expect(find.textContaining('من ${ltr('٢٢:٠٠')} إلى'), findsOneWidget);
     });
 
     testWidgets('quiet hours: a new start time keeps the end', (tester) async {
@@ -592,8 +797,12 @@ void main() {
           .descriptionTextStyle
           .resolve(const {});
       expect(tester.widget<Text>(note).style, footer);
+      // In from the page edge as far as the footers, 16 dp inside the cards.
       final page = tester.getRect(find.byType(VoiceSettingsScreen));
-      expect(tester.getRect(note).left - page.left, LnSpace.pageGutter);
+      expect(
+        tester.getRect(note).left - page.left,
+        LnSpace.pageGutter + LnSpace.md,
+      );
     });
 
     testWidgets('golden dark_ar', (tester) async {
@@ -623,6 +832,26 @@ void main() {
       await pumpPage(tester, const AboutScreen(), routes: routes);
       expect(find.textContaining('1.0.0 (7)'), findsOneWidget);
       expect(find.textContaining('0.2.0 · 1a2b3c4'), findsOneWidget);
+    });
+
+    testWidgets('the web link leaves the app: an up-right arrow that '
+        'does not mirror, no chevron', (tester) async {
+      await pumpPage(tester, const AboutScreen(), routes: routes, locale: 'ar');
+      final row = find.ancestor(
+        of: find.text('فتح Lonora على الويب'),
+        matching: find.byType(FTile),
+      );
+      await scrollTo(tester, row);
+      final arrow = find.descendant(
+        of: row,
+        matching: find.byIcon(FIcons.arrowUpRight),
+      );
+      expect(arrow, findsOneWidget);
+      expect(FIcons.arrowUpRight.matchTextDirection, isFalse);
+      expect(
+        find.descendant(of: row, matching: find.byIcon(FIcons.chevronRight)),
+        findsNothing,
+      );
     });
 
     testWidgets('licenses in the app\'s own pages', (tester) async {

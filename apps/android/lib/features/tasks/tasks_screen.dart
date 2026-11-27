@@ -3,10 +3,14 @@
 // status words; details with its controls; create a task. «Scheduled» is the owner's routines (the
 // same board as /routines). Under the active tasks, «Runs» keeps Expo's list of the agents' recent
 // runs (apps/mobile/app/(tabs)/tasks.tsx: the agent's face, the run's status, its report
-// conversation). Composed from the kit.
+// conversation). A search (the header's magnifier) finds active and completed tasks by title or
+// agent: the field at the start of the header, a plain ✕ at its end. Composed from the kit.
 import 'dart:async';
 
 import 'package:async_redux/async_redux.dart';
+import 'package:flutter/material.dart'
+    show InputDecoration, Scaffold, TextAlignVertical, TextField;
+import 'package:flutter/services.dart' show TextInputAction;
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FIcons, FTile;
 import 'package:go_router/go_router.dart';
@@ -14,6 +18,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/routes.dart';
 import '../../avatar/avatar.dart';
 import '../../core/api/api_error.dart';
+import '../../core/models/models.dart' show Agent;
 import '../../design/design.dart';
 import '../../l10n/l10n.dart';
 import '../../state/actions/base.dart';
@@ -44,10 +49,27 @@ class _TasksScreenState extends State<TasksScreen> {
   Object? _error;
   final _board = GlobalKey<RoutineBoardState>();
 
+  /// The search's text; null while the page is not searching.
+  String? _query;
+  final _search = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _startSearch() => setState(() => _query = '');
+
+  void _endSearch() {
+    _search.clear();
+    setState(() => _query = null);
   }
 
   Future<void> _load() async {
@@ -145,28 +167,133 @@ class _TasksScreenState extends State<TasksScreen> {
             )
           else
             LnSection(
-              children: [
-                for (final t in shown)
-                  WrapTile(
-                    icon: t.status == 'completed'
-                        ? FIcons.circleCheck
-                        : t.status == 'paused'
-                        ? FIcons.pause
-                        : t.status == 'cancelled'
-                        ? FIcons.circleX
-                        : LnIcons.listTodo,
-                    title: isolate(t.title),
-                    subtitle: [
-                      isolate(agents[t.agentId]?.name ?? '—'),
-                      l10n.t(taskStatusKey(t.status)),
-                    ].join(dotSeparator),
-                    trailing: const TileChevron(),
-                    onTap: () => _open(t),
-                  ),
-              ],
+              children: [for (final t in shown) _taskTile(t, agents, l10n)],
             ),
           if (_tab == TaskTab.active) _runs(context),
         ],
+      ),
+    );
+  }
+
+  /// A task's row: its status icon, title, agent and status word; opens its details.
+  WrapTile _taskTile(TaskView t, Map<String, Agent> agents, L10n l10n) =>
+      WrapTile(
+        icon: t.status == 'completed'
+            ? FIcons.circleCheck
+            : t.status == 'paused'
+            ? FIcons.pause
+            : t.status == 'cancelled'
+            ? FIcons.circleX
+            : LnIcons.listTodo,
+        title: isolate(t.title),
+        subtitle: [
+          isolate(agents[t.agentId]?.name ?? '—'),
+          l10n.t(taskStatusKey(t.status)),
+        ].join(dotSeparator),
+        trailing: const TileChevron(),
+        onTap: () => _open(t),
+      );
+
+  /// The search page: the field and its ✕ in the header, then the active and completed tasks
+  /// whose title or agent contains the text (nothing before a word is typed). Back ends the
+  /// search.
+  Widget _searchPage(BuildContext context, String query) {
+    final l10n = context.l10n;
+    final c = context.ln.colors;
+    final agents = context.select((AppState s) => s.shell.agents);
+    final tasks = _tasks;
+    final needle = query.trim().toLowerCase();
+    bool matches(TaskView t) =>
+        t.title.toLowerCase().contains(needle) ||
+        (agents[t.agentId]?.name.toLowerCase().contains(needle) ?? false);
+    final found = [
+      if (tasks != null && needle.isNotEmpty)
+        for (final t in tasks)
+          if (matches(t)) t,
+    ];
+    final Widget results;
+    if (needle.isEmpty) {
+      results = const SizedBox.shrink();
+    } else if (tasks == null) {
+      results = _error == null
+          ? const SettingsSkeleton(groups: [4])
+          : LoadFailure(error: _error!, onRetry: _load);
+    } else if (found.isEmpty) {
+      results = Padding(
+        padding: const EdgeInsets.only(top: LnSpace.xxl),
+        child: EmptyState(
+          icon: FIcons.search,
+          title: l10n.t('sh_noResultsTitle'),
+          body: l10n.t('sh_noResultsFor', const [], {'q': isolate(query)}),
+        ),
+      );
+    } else {
+      results = LnSection(
+        children: [for (final t in found) _taskTile(t, agents, l10n)],
+      );
+    }
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _endSearch();
+      },
+      child: Scaffold(
+        backgroundColor: c.bg,
+        body: Column(
+          children: [
+            Padding(
+              // The header row's place: the field where the title row is, the ✕ in the touch
+              // box of the end circle.
+              padding: EdgeInsetsDirectional.fromSTEB(
+                LnSpace.pageGutter,
+                MediaQuery.paddingOf(context).top +
+                    ScreenHeader.topGapDefault -
+                    2,
+                LnSpace.pageGutter - 2,
+                0,
+              ),
+              child: SizedBox(
+                height: ScreenHeader.rowHeight,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TaskSearchField(
+                        controller: _search,
+                        hint: l10n.t('tk_searchPh'),
+                        onChanged: (text) => setState(() => _query = text),
+                      ),
+                    ),
+                    const SizedBox(width: LnSpace.xs),
+                    LnTappable(
+                      onTap: _endSearch,
+                      semanticLabel: l10n.t('sh_closeSearch'),
+                      child: SizedBox.square(
+                        dimension: LnSize.minTouch,
+                        child: Icon(
+                          FIcons.x,
+                          size: LnSize.chromeIcon,
+                          color: c.fg,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: LnSpace.xs),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.only(
+                  top: LnSpace.xs,
+                  bottom: pageBottomPadding(context),
+                ),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                children: [results],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -220,6 +347,8 @@ class _TasksScreenState extends State<TasksScreen> {
     registerAgentStrings(l10n);
     registerRoutinesStrings(l10n);
     registerTasksStrings(l10n);
+    final query = _query;
+    if (query != null) return _searchPage(context, query);
     final tabs = Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         LnSpace.pageGutter,
@@ -240,17 +369,101 @@ class _TasksScreenState extends State<TasksScreen> {
     return AgentPage(
       title: l10n.t('sh_tasks'),
       fallback: Routes.me,
-      trailing: CircleIconButton(
-        icon: const Icon(FIcons.plus),
-        semanticLabel: l10n.t(
-          _tab == TaskTab.scheduled ? 'createRoutine' : 'sh_createTask',
-        ),
-        onTap: _create,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // The search looks through tasks: not offered among the routines.
+          if (_tab != TaskTab.scheduled)
+            CircleIconButton(
+              icon: const Icon(FIcons.search),
+              semanticLabel: l10n.t('sh_search'),
+              onTap: _startSearch,
+            ),
+          CircleIconButton(
+            icon: const Icon(FIcons.plus),
+            semanticLabel: l10n.t(
+              _tab == TaskTab.scheduled ? 'createRoutine' : 'sh_createTask',
+            ),
+            onTap: _create,
+          ),
+        ],
       ),
       body: switch (_tab) {
         TaskTab.scheduled => RoutineBoard(key: _board, header: [tabs]),
         _ => _tasksBody(context, [tabs]),
       },
+    );
+  }
+}
+
+/// The task search's field: a 44 dp rounded rectangle (radius 12) in the cards' 6 % fill, no
+/// border or shadow; a 20 dp magnifier 12 dp in from the start; the hint in the tertiary ink;
+/// the caret in the action blue. The text takes the whole 48 dp row as its touch target. It
+/// takes focus as it opens.
+class TaskSearchField extends StatelessWidget {
+  const TaskSearchField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  static const double height = 44;
+  static const double radius = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final ln = context.ln;
+    final c = ln.colors;
+    const inset = (LnSize.minTouch - height) / 2;
+    return SizedBox(
+      height: LnSize.minTouch,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            top: inset,
+            bottom: inset,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: c.fill3,
+                borderRadius: const BorderRadius.all(Radius.circular(radius)),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: LnSpace.sm,
+            ),
+            child: Row(
+              children: [
+                Icon(FIcons.search, size: LnSize.tileIcon, color: c.fgMuted),
+                const SizedBox(width: LnSpace.sm),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    expands: true,
+                    maxLines: null,
+                    textAlignVertical: TextAlignVertical.center,
+                    onChanged: onChanged,
+                    textInputAction: TextInputAction.search,
+                    style: ln.text.body.copyWith(color: c.fg),
+                    cursorColor: c.selection,
+                    decoration: InputDecoration.collapsed(
+                      hintText: hint,
+                      hintStyle: ln.text.body.copyWith(color: c.fgSubtle),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

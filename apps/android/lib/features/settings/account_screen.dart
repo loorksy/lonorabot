@@ -1,4 +1,4 @@
-// Account, built from forui tile groups.
+// Account, built from forui tile groups: the owner's initial, then the identity rows.
 // Lonora's counterparts of apps/mobile/app/(settings)/account.tsx and the Web's profile form:
 // email, the owner's name and form of address and reply language, and the time zone quiet
 // hours follow (the Web owner form's zone, `reach_me.timezone`) (`PUT /owner/preferences`,
@@ -25,7 +25,7 @@ import '../../state/actions/session_actions.dart';
 import '../../state/app_state.dart';
 import '../auth/server_check.dart';
 import '../me/me_data.dart';
-import '../me/me_screen.dart' show confirmSignOut;
+import '../me/me_screen.dart' show OwnerInitialAvatar, confirmSignOut;
 import 'settings_common.dart';
 import 'settings_core_data.dart';
 
@@ -212,45 +212,40 @@ class _AccountScreenState extends State<AccountScreen> {
       title: context.t('account'),
       onRefresh: _load,
       children: [
-        // No label above the first group: the page title («Account») already names it.
+        // The owner's initial, centred above the first group (Lonora has no owner picture to
+        // change). No label above the first group: the page title («Account») already names it.
+        if (owner != null) ...[
+          Center(
+            child: OwnerInitialAvatar(
+              name: ownerDisplayName(profile, owner),
+              size: 64,
+            ),
+          ),
+          const SizedBox(height: LnSpace.xl),
+        ],
+        // Detail rows carry no icon: the title at the start, the value at the end, a chevron
+        // only where the row opens an editor.
         LnSection(
           footer: context.t('set_nameFooter'),
           children: [
             LnListTile(
-              icon: FIcons.mail,
-              title: context.t('email'),
-              value: owner == null ? null : ltr(owner.email),
-            ),
-            LnListTile(
-              icon: FIcons.user,
               title: preferenceFieldLabel('name', lang)!,
               value: valueOr(profile?.name),
               enabled: profile != null && !_saving,
               onTap: () => _editText('name', profile?.name),
             ),
             LnListTile(
-              icon: FIcons.userRound,
               title: preferenceFieldLabel('address', lang)!,
               value: valueOr(profile?.address),
               enabled: profile != null && !_saving,
               onTap: () => _editText('address', profile?.address),
             ),
             LnListTile(
-              icon: FIcons.languages,
-              title: ownerProfileLabel('replyLanguage', lang),
-              value: profile == null
-                  ? null
-                  : replyLanguageLabel(profile.replyLanguage ?? 'auto', lang),
-              enabled: profile != null && !_saving,
-              onTap: () => _editReplyLanguage(profile?.replyLanguage),
+              title: context.t('email'),
+              value: owner == null ? null : ltr(owner.email),
             ),
-            LnListTile(
-              icon: FIcons.globe,
-              title: preferenceFieldLabel('timezone', lang)!,
-              value: profile == null ? null : ltr(profile.timeZone),
-              enabled: profile != null && !_saving,
-              onTap: profile == null ? null : () => _editTimeZone(profile),
-            ),
+            if (owner != null)
+              LnListTile(title: context.t('set_userId'), value: ltr(owner.id)),
           ],
         ),
         if (_error != null && profile == null) ...[
@@ -261,14 +256,31 @@ class _AccountScreenState extends State<AccountScreen> {
         LnSection(
           children: [
             LnListTile(
-              icon: FIcons.server,
+              title: ownerProfileLabel('replyLanguage', lang),
+              value: profile == null
+                  ? null
+                  : replyLanguageLabel(profile.replyLanguage ?? 'auto', lang),
+              enabled: profile != null && !_saving,
+              onTap: () => _editReplyLanguage(profile?.replyLanguage),
+            ),
+            LnListTile(
+              title: preferenceFieldLabel('timezone', lang)!,
+              value: profile == null ? null : ltr(profile.timeZone),
+              enabled: profile != null && !_saving,
+              onTap: profile == null ? null : () => _editTimeZone(profile),
+            ),
+          ],
+        ),
+        const SectionGap(),
+        LnSection(
+          children: [
+            LnListTile(
               title: context.t('server'),
               value: server == null ? null : ltr(serverHost(server)),
               onTap: () => context.push(Routes.server),
             ),
             if (_sessionEnds != null)
               LnListTile(
-                icon: FIcons.clock,
                 title: context.t('set_sessionEnds'),
                 value: _sessionEndText(lang, _sessionEnds!),
               ),
@@ -283,22 +295,21 @@ class _AccountScreenState extends State<AccountScreen> {
             children: [
               if (profile == null || profile.devices.isEmpty)
                 LnListTile(
-                  icon: FIcons.fingerprint,
                   title: profile == null
                       ? context.t('sh_loading')
                       : context.t('set_noPasskeyDevices'),
                 )
               else
                 for (final device in profile.devices)
-                  LnListTile(icon: FIcons.fingerprint, title: device.name),
+                  LnListTile(title: device.name),
             ],
           ),
         ],
         const SectionGap(),
+        // Sign-out on a card of its own, as text in the error colour.
         LnSection(
           children: [
             LnListTile(
-              icon: LnIcons.logOut,
               title: context.t('logout'),
               destructive: true,
               enabled: !_signingOut,

@@ -400,6 +400,40 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('in Arabic the update time reads in Arabic-Indic digits; the '
+      'axes stay Latin', (tester) async {
+    scriptCharts();
+    await pumpWpf(tester, const ChartsScreen(), locale: 'ar');
+    final updated = find.textContaining('آخر تحديث · ');
+    await tester.scrollUntilVisible(
+      updated,
+      200,
+      scrollable: find
+          .byWidgetPredicate(
+            (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+          )
+          .first,
+    );
+    final line = tester.widget<Text>(updated).data!;
+    final local = DateTime.parse('2026-11-27T09:40:00Z').toLocal();
+    expect(line, contains(dateDigits(readoutTime(local), 'ar')));
+    expect(RegExp('[0-9]').hasMatch(line), isFalse, reason: line);
+    // Axis labels: hours in Latin digits.
+    final axis = find.descendant(
+      of: find.byType(CandleChart),
+      matching: find.textContaining(RegExp(r'^\d{2}:\d{2}$')),
+    );
+    expect(axis, findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(CandleChart),
+        matching: find.textContaining(RegExp('[٠-٩]')),
+      ),
+      findsNothing,
+    );
+    await unmount(tester);
+  });
+
   testWidgets('a live scene update is read; other charts are not', (
     tester,
   ) async {

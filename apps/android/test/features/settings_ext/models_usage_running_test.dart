@@ -564,23 +564,32 @@ void main() {
       expect(api.callsTo('GET', '/runs'), hasLength(1));
     });
 
-    testWidgets('ms:C15 «today» reads mid-sentence in lower case', (
-      tester,
-    ) async {
-      final now = DateTime.now().toUtc().toIso8601String();
-      await pumpRunning(
-        tester,
-        running: {
-          ...runningJson,
-          'processes': [
-            {...asJsonList(runningJson['processes']).first, 'started_at': now},
-          ],
-        },
-      );
-      await scrollTo(tester, find.textContaining('backtest.py'));
-      expect(find.textContaining('Started today '), findsOneWidget);
-      expect(find.textContaining('Started Today'), findsNothing);
-    });
+    for (final locale in ['en', 'ar']) {
+      testWidgets('ms:C15 a process started today shows the time alone, in '
+          'the date digits ($locale)', (tester) async {
+        final now = DateTime.now();
+        await pumpRunning(
+          tester,
+          locale: locale,
+          running: {
+            ...runningJson,
+            'processes': [
+              {
+                ...asJsonList(runningJson['processes']).first,
+                'started_at': now.toUtc().toIso8601String(),
+              },
+            ],
+          },
+        );
+        await scrollTo(tester, find.textContaining('backtest.py'));
+        final time = formatDate('jm', locale, now);
+        final line = locale == 'en' ? 'Started $time' : 'بدأت $time';
+        expect(find.text(line), findsOneWidget);
+        expect(find.textContaining(RegExp('[Tt]oday|اليوم')), findsNothing);
+        // One digit system per label: Latin in English, Arabic-Indic in Arabic.
+        expect(RegExp('[0-9]').hasMatch(line), locale == 'en', reason: line);
+      });
+    }
 
     testWidgets('ms:C12 the closing note is in the section footers\' style', (
       tester,
@@ -596,8 +605,12 @@ void main() {
           .descriptionTextStyle
           .resolve(const {});
       expect(tester.widget<Text>(note).style, footer);
+      // In from the page edge as far as the footers, 16 dp inside the cards.
       final page = tester.getRect(find.byType(RunningScreen));
-      expect(tester.getRect(note).left - page.left, LnSpace.pageGutter);
+      expect(
+        tester.getRect(note).left - page.left,
+        LnSpace.pageGutter + LnSpace.md,
+      );
     });
 
     testWidgets('every run and process row is at least 48 dp', (tester) async {

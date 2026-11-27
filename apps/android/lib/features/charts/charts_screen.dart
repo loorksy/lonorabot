@@ -588,7 +588,9 @@ class _ChartsScreenState extends State<ChartsScreen>
       ],
       if (scene.updatedAt != null)
         Footnote(
-          '${context.t('chartUpdated')} · ${ltr(readoutTime(scene.updatedAt!))}',
+          // A date: in the date digits; the axes and the crosshair readout stay Latin.
+          '${context.t('chartUpdated')} · '
+          '${ltr(dateDigits(readoutTime(scene.updatedAt!), context.l10n.lang))}',
         ),
     ];
   }

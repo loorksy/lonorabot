@@ -106,6 +106,17 @@ void main() {
     expect(find.textContaining('06:40'), findsOneWidget);
   });
 
+  testWidgets('the waking habit\'s times read in Arabic-Indic digits in '
+      'Arabic', (tester) async {
+    scriptKnowledge();
+    await pumpScreen(tester, const OwnerKnowledgeScreen(), locale: 'ar');
+    final line = find.textContaining('٠٦:٤٠');
+    expect(line, findsOneWidget);
+    final text = tester.widget<Text>(line).data!;
+    expect(text, contains('٠٦:٣٠'));
+    expect(RegExp('[0-9]').hasMatch(text), isFalse, reason: text);
+  });
+
   testWidgets('corrects a line, keeping its bullet', (tester) async {
     scriptKnowledge();
     fakeApi.on(
@@ -176,6 +187,9 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
+    // The 52 dp rows can leave it just under the screen's bottom edge.
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     await tapAndSettle(tester, row);
     await tapAndSettle(tester, find.text('Undo this change to your settings'));
     expect(

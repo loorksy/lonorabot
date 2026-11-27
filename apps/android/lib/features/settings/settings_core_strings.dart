@@ -1,6 +1,6 @@
 import '../../l10n/l10n.dart';
 
-/// Android-only labels of the account, appearance, notifications, voice and about pages.
+/// Android-only labels of the settings, account, appearance, notifications, voice and about pages.
 /// Where the Web already says the same thing, its wording is reused (apps/web NotifyPages.tsx,
 /// VoiceSettingsOverlay.tsx, SettingsRoot.tsx and their ar catalog).
 void registerSettingsCoreStrings([L10n? l10n]) {
@@ -67,7 +67,12 @@ const Map<String, List<String>> _settingsStrings = {
     'تسجيل جهاز بمفتاح المرور غير متاح في هذا التطبيق بعد. سجّل جهازك من Lonora على الويب.',
     'Registering a device with a passkey is not available in this app yet. Register your device from Lonora on the web.',
   ],
+  // Settings page: what the Chats tab opens on (this device).
+  'set_homeScreen': ['الشاشة الرئيسية', 'Home screen'],
+  'set_homeLastChat': ['آخر محادثة', 'Last conversation'],
+  'set_homeList': ['كل المحادثات', 'All chats'],
   // Account.
+  'set_userId': ['معرّف المستخدم', 'User ID'],
   'set_nameFooter': [
     'يقرأ كل وكلائك اسمك وطريقة مخاطبتك.',
     'Every agent reads your name and form of address.',

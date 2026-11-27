@@ -155,7 +155,8 @@ class _TaskDetailsSheetState extends State<TaskDetailsSheet> {
               l10n.t('tk_due'),
               due == null
                   ? l10n.t('tk_notSet')
-                  : '${formatDate('d MMM y', l10n.lang, due)} ${clock(due.hour, due.minute)}',
+                  : '${formatDate('d MMM y', l10n.lang, due)} '
+                        '${dateDigits(clock(due.hour, due.minute), l10n.lang)}',
             ),
             fact(
               l10n.t('tk_criterion'),
@@ -411,7 +412,7 @@ class _TaskCreateSheetState extends State<TaskCreateSheet> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      clock(_due.hour, _due.minute),
+                      dateDigits(clock(_due.hour, _due.minute), l10n.lang),
                       style: context.ln.text.body.copyWith(color: c.fgMuted),
                     ),
                     const TileChevron(),

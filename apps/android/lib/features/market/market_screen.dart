@@ -668,7 +668,11 @@ class _MarketScreenState extends State<MarketScreen>
     final t = e.scheduledAt;
     if (t == null) return '—';
     String two(int v) => v.toString().padLeft(2, '0');
-    return '${t.day}/${t.month} ${two(t.hour)}:${two(t.minute)}';
+    // A date and time: in the date digits of the interface language.
+    return dateDigits(
+      '${t.day}/${t.month} ${two(t.hour)}:${two(t.minute)}',
+      context.l10n.lang,
+    );
   }
 
   @override
@@ -1114,7 +1118,8 @@ class _MarketScreenState extends State<MarketScreen>
                   ].join(' '),
                   subtitle: [
                     operationStatusText(j.status, j.details, l10n.lang),
-                    if (j.updatedAt != null) ltr(_shortTime(j.updatedAt!)),
+                    if (j.updatedAt != null)
+                      ltr(_shortTime(j.updatedAt!, l10n.lang)),
                   ].join(dotSeparator),
                   onTap: j.threadId == null
                       ? null
@@ -1127,8 +1132,12 @@ class _MarketScreenState extends State<MarketScreen>
     return children;
   }
 
-  static String _shortTime(DateTime t) {
+  /// «27/11 14:05» in [lang]'s date digits.
+  static String _shortTime(DateTime t, String lang) {
     String two(int v) => v.toString().padLeft(2, '0');
-    return '${t.day}/${t.month} ${two(t.hour)}:${two(t.minute)}';
+    return dateDigits(
+      '${t.day}/${t.month} ${two(t.hour)}:${two(t.minute)}',
+      lang,
+    );
   }
 }

@@ -131,10 +131,10 @@ class _ProvidersPageState extends State<ProvidersPage> {
                 ].join(dotSeparator),
               ),
               LnListTile(
-                icon: FIcons.externalLink,
+                icon: FIcons.globe,
                 title: text.manageUsage,
-                // Opens the browser: no forward chevron.
-                showChevron: false,
+                // Opens the browser: the up-right arrow, no forward chevron.
+                external: true,
                 onTap: () =>
                     openExternalUrl(context, Uri.parse(manageUsageUrl)),
               ),

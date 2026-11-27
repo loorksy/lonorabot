@@ -14,7 +14,6 @@ const Map<String, List<String>> _meStrings = {
     'ستحتاج إلى تسجيل الدخول مجددًا. محادثاتك تبقى محفوظة في Lonora.',
     'You will need to sign in again. Your conversations stay saved in Lonora.',
   ],
-  'me_signedInAs': ['مسجَّل الدخول باسم {0}', 'Signed in as {0}'],
   'me_clearCache': ['مسح الذاكرة المؤقتة', 'Clear cache'],
   'me_clearCacheQ': ['مسح الذاكرة المؤقتة؟', 'Clear the cache?'],
   'me_clearCacheBody': [

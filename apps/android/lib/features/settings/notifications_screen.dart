@@ -40,7 +40,8 @@ class NotificationsScreen extends StatefulWidget {
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-/// «22:00» from minutes after local midnight.
+/// «22:00» from minutes after local midnight, in Latin digits (a label passes it through
+/// [dateDigits]).
 String clockOfMinutes(int minutes) {
   String two(int v) => v.toString().padLeft(2, '0');
   return '${two(minutes ~/ 60)}:${two(minutes % 60)}';
@@ -242,6 +243,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
     return SettingsPageScaffold(
       title: context.t('notificationsAndContact'),
+      fallback: Routes.settings,
       onRefresh: () async {
         await Future.wait([_load(), _readPermission()]);
       },
@@ -255,6 +257,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     String Function(String) label,
   ) {
     final lang = context.l10n.lang;
+    // A time of day: in the date digits of the interface language.
+    String time(int minutes) => ltr(dateDigits(clockOfMinutes(minutes), lang));
     final c = context.ln.colors;
     final permission = _permission;
     final allowed =
@@ -393,10 +397,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             title: context.t('set_muteAtNight'),
             subtitle: profile.quiet
                 ? context.t('set_fromTo', [
-                    ltr(clockOfMinutes(profile.quietStartMinute!)),
-                    ltr(clockOfMinutes(profile.quietEndMinute!)),
+                    time(profile.quietStartMinute!),
+                    time(profile.quietEndMinute!),
                   ])
-                : context.t('set_fromTo', [ltr('22:00'), ltr('08:00')]),
+                : context.t('set_fromTo', [time(22 * 60), time(8 * 60)]),
             value: profile.quiet,
             onChanged: _saving
                 ? null
@@ -407,14 +411,14 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             LnListTile(
               icon: FIcons.clock,
               title: context.t('set_from'),
-              value: ltr(clockOfMinutes(profile.quietStartMinute!)),
+              value: time(profile.quietStartMinute!),
               enabled: !_saving,
               onTap: () => _pickQuietTime(start: true),
             ),
             LnListTile(
               icon: FIcons.clock,
               title: context.t('set_to'),
-              value: ltr(clockOfMinutes(profile.quietEndMinute!)),
+              value: time(profile.quietEndMinute!),
               enabled: !_saving,
               onTap: () => _pickQuietTime(start: false),
             ),

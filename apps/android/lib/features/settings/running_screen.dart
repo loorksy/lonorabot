@@ -416,13 +416,8 @@ class _ProcessTile extends StatelessWidget with FTileMixin {
           ? null
           : Text(
               context.t('running_started', [
-                // Mid-sentence: «Started today 11:02 AM».
-                formatTimeSeparator(
-                  p.startedAt!,
-                  context.l10n.lang,
-                  today: context.t('today').toLowerCase(),
-                  yesterday: context.t('yesterday').toLowerCase(),
-                ),
+                // «Started 11:02 AM» today, «Started November 26 11:02 AM» before.
+                formatTimeSeparator(p.startedAt!, context.l10n.lang),
               ]),
             ),
       suffix: stopping

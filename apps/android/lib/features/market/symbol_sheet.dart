@@ -430,7 +430,10 @@ class _SymbolSheetState extends State<SymbolSheet> {
                 if (q.observedAt != null)
                   FactRow(
                     label: context.t('chartUpdated'),
-                    value: readoutTime(q.observedAt!),
+                    // A date: in the date digits (a chart's own readout stays Latin).
+                    value: ltr(
+                      dateDigits(readoutTime(q.observedAt!), context.l10n.lang),
+                    ),
                   ),
               ],
             ),

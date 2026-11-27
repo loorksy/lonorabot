@@ -10,6 +10,7 @@ import 'package:flutter/material.dart' show MaterialPageRoute;
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FIcons;
 
+import '../../app/routes.dart';
 import '../../app/services.dart';
 import '../../core/api/api_error.dart';
 import '../../design/design.dart';
@@ -90,6 +91,7 @@ class _AboutScreenState extends State<AboutScreen> {
     final serverVersion = _server;
     return SettingsPageScaffold(
       title: context.t('me_about'),
+      fallback: Routes.settings,
       onRefresh: _load,
       children: [
         const SizedBox(height: LnSpace.md),
@@ -160,9 +162,11 @@ class _AboutScreenState extends State<AboutScreen> {
         LnSection(
           children: [
             if (server != null)
+              // Leaves the app: the up-right arrow instead of the chevron.
               LnListTile(
-                icon: FIcons.externalLink,
+                icon: FIcons.globe,
                 title: context.t('set_openWeb'),
+                external: true,
                 onTap: () => openExternalUrl(context, Uri.parse('$server/app')),
               ),
             LnListTile(
