@@ -38,6 +38,8 @@ import '../features/settings/running_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/usage_screen.dart';
 import '../features/settings/voice_settings_screen.dart';
+import '../features/trading/recovery_screen.dart';
+import '../features/trading/trades_screen.dart';
 import '../features/skills/skills_screen.dart';
 import '../features/tasks/tasks_screen.dart';
 import '../state/app_state.dart';
@@ -222,6 +224,10 @@ GoRouter buildRouter(Store<AppState> store) {
                 AgentInstructionsScreen(agentId: s.pathParameters['id']!),
           ),
           GoRoute(
+            path: 'trades',
+            builder: (_, s) => TradesScreen(agentId: s.pathParameters['id']!),
+          ),
+          GoRoute(
             path: 'skills',
             builder: (_, s) => SkillsScreen(agentId: s.pathParameters['id']!),
           ),
@@ -296,6 +302,11 @@ GoRouter buildRouter(Store<AppState> store) {
         parentNavigatorKey: rootNavigatorKey,
         path: Routes.settings,
         builder: (_, _) => const SettingsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: Routes.recovery,
+        builder: (_, _) => const RecoveryScreen(),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

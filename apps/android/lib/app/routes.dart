@@ -34,6 +34,7 @@ abstract final class Routes {
   static String agentSettings(String id) => '/agent/$id/settings';
   static String agentMemory(String id) => '/agent/$id/memory';
   static String agentInstructions(String id) => '/agent/$id/instructions';
+  static String agentTrades(String id) => '/agent/$id/trades';
   static String agentSkills(String id) => '/agent/$id/skills';
   static String routines({String? agentId}) =>
       agentId == null ? '/routines' : '/routines?agent=$agentId';
@@ -61,6 +62,7 @@ abstract final class Routes {
   static const tasks = '/tasks';
   static const ownerKnowledge = '/me/knowledge';
   static const settings = '/settings';
+  static const recovery = '/settings/recovery';
   static const account = '/settings/account';
   static const integrations = '/settings/integrations';
   static const models = '/settings/models';
