@@ -1,0 +1,82 @@
+name: lonora
+description: Lonora for Android — native client for the Lonora agent server.
+publish_to: none
+
+# versionName+versionCode. CI overrides the build number (see .github/workflows/android.yml).
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Widget library (MIT). Lonora themes 0.15.1 to its own tokens (lib/design/theme.dart).
+  forui: 0.15.1
+  flutter_svg: 2.3.4
+  shimmer: 4.0.0
+
+  # Architecture: state, DI, routing, HTTP, realtime.
+  async_redux: 29.2.3
+  get_it: 9.3.0
+  go_router: 18.1.4
+  dio: 5.11.1
+  web_socket_channel: 3.0.3
+
+  # Device integration.
+  flutter_secure_storage: 11.2.0
+  shared_preferences: 2.5.6
+  path_provider: 2.1.6
+  connectivity_plus: 7.3.2
+  package_info_plus: 10.2.2
+  device_info_plus: 13.3.0
+  url_launcher: 6.3.3
+  share_plus: 13.3.1
+  image_picker: 1.2.4
+  file_picker: 13.3.3
+  open_filex: 5.0.0
+  app_links: 7.2.2
+  permission_handler: 12.0.3
+  flutter_local_notifications: 22.3.3
+  workmanager: 0.10.10
+
+  # Content rendering.
+  markdown: 7.3.1
+  flutter_highlighter: 0.1.1
+  # flutter_highlighter's own engine (same release), used directly for selectable code blocks.
+  highlighter: 0.1.1
+  flutter_math_fork: 0.7.4
+  fl_chart: 1.3.1
+  photo_view: 0.15.0
+  scrollview_observer: 1.27.3
+  visibility_detector: 0.4.0+2
+
+  # Voice (GPT-Live over WebRTC with the Lonora server's SDP endpoint) and voice notes.
+  flutter_webrtc: 1.6.3
+  wakelock_plus: 1.8.2
+  record: 7.2.0
+  just_audio: 0.10.6
+
+  # Updates when installed from Google Play.
+  in_app_update: 5.0.0
+
+  intl: 0.20.3
+  collection: 1.19.1
+  uuid: 4.6.0
+  crypto: 3.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/svg/
+    - assets/brand/
+    - assets/l10n/
