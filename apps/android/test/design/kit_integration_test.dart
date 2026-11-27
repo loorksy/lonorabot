@@ -584,22 +584,6 @@ void main() {
       expect(LnSize.reactionListEmoji, 24);
     });
 
-    test('agent hub gradients follow the five agent palettes', () {
-      expect(
-        [
-          for (final p in LnAgentPalette.values)
-            (p.hubStart.toARGB32(), p.hubEnd.toARGB32()),
-        ],
-        [
-          (0xFF143352, 0xFF183D62),
-          (0xFF422424, 0xFF502B2B),
-          (0xFF453021, 0xFF533A28),
-          (0xFF3B322B, 0xFF473C34),
-          (0xFF333333, 0xFF3D3D3D),
-        ],
-      );
-    });
-
     test('the toaster is drawn from the inverse tokens', () {
       for (final p in [LnPalette.light, LnPalette.dark]) {
         final toast = lnForuiTheme(p).toasterStyle.toastStyle;

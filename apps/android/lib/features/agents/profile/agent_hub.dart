@@ -1,5 +1,6 @@
 // The profile hub's hero: the agent's live avatar, name, role, status and the three primary
-// actions, composed from the kit.
+// actions, composed from the kit. It has no surface of its own: it sits on the profile page's
+// screen-fixed gradient ([LnPalette.profileTop] → [LnPalette.profileBottom]).
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FIcons;
 
@@ -8,29 +9,6 @@ import '../../../core/json.dart';
 import '../../../core/models/models.dart';
 import '../../../design/design.dart';
 import '../../../l10n/l10n.dart';
-
-/// The hub's dark gradients ([LnAgentPalette]), used only where one of Lonora's avatar colours maps
-/// onto an agent palette (the nearest hue family of the shell colour):
-///
-/// | Lonora shell (`avatarPalette` id) | Agent palette | Gradient |
-/// |---|---|---|
-/// | `blue` #3B82F6, `cyan` #06B6D4 | Blue | #143352 → #183D62 |
-/// | `red` #EF4444 | Red | #422424 → #502B2B |
-/// | `yellow` #EAB308, `orange` #F97316 | Yellow | #453021 → #533A28 |
-/// | `brown` #8D6E63 | Brown | #3B322B → #473C34 |
-/// | `gray` #64748B, `white` #FFFFFF | Gray | #333333 → #3D3D3D |
-///
-/// Every other shell (violet, green, magenta, a custom hex such as the server default
-/// #7c83fd) has no agent palette: the hub stays on the neutral canvas (null).
-LnAgentPalette? hubGradientFor(String agentId, String? color) =>
-    switch (resolveAvatarColor(agentId, color).id) {
-      'blue' || 'cyan' => LnAgentPalette.blue,
-      'red' => LnAgentPalette.red,
-      'yellow' || 'orange' => LnAgentPalette.yellow,
-      'brown' => LnAgentPalette.brown,
-      'gray' || 'white' => LnAgentPalette.gray,
-      _ => null,
-    };
 
 /// The agent's one status for the hub: running, paused or needing the owner.
 enum HubStatus { active, working, paused, attention, degraded }
@@ -94,14 +72,13 @@ class AgentHero extends StatelessWidget {
   final VoidCallback? onEditAvatar;
   final bool animate;
 
+  /// The avatar's size (80 dp, the profile's identity size).
+  static const double avatarSize = 80;
+
   @override
   Widget build(BuildContext context) {
     final ln = context.ln;
     final c = ln.colors;
-    final gradient = hubGradientFor(agent.id, agent.color);
-    final onHub = gradient != null;
-    final ink = onHub ? LnPalette.inkWhite : c.fg;
-    final mutedInk = onHub ? LnPalette.inkWhiteMuted : c.fgMuted;
     final l10n = context.l10n;
 
     final avatar = Semantics(
@@ -112,25 +89,13 @@ class AgentHero extends StatelessWidget {
         face: agent.avatar,
         color: agent.color,
         state: avatarState,
-        size: 96,
+        size: avatarSize,
         tradesOnItsOwn: agent.tradesOnItsOwn,
         animate: animate,
       ),
     );
 
-    return Container(
-      decoration: onHub
-          ? BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [gradient.hubStart, gradient.hubEnd],
-              ),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(LnRadius.card),
-              ),
-            )
-          : null,
+    return Padding(
       padding: EdgeInsetsDirectional.fromSTEB(
         LnSpace.pageGutter,
         topPadding,
@@ -139,9 +104,10 @@ class AgentHero extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // The pencil's 48 dp touch box sits on the avatar's bottom-end edge.
           SizedBox(
-            width: 112,
-            height: 104,
+            width: avatarSize + 24,
+            height: avatarSize + 12,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -162,12 +128,15 @@ class AgentHero extends StatelessWidget {
             ),
           ),
           const SizedBox(height: LnSpace.sm),
-          Text(
-            agent.name,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: ln.text.largeTitle.copyWith(color: ink),
+          Semantics(
+            header: true,
+            child: Text(
+              agent.name,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: ln.text.display.copyWith(color: c.fg),
+            ),
           ),
           if (role.isNotEmpty) ...[
             const SizedBox(height: LnSpace.xxs),
@@ -176,19 +145,17 @@ class AgentHero extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: ln.text.caption.copyWith(color: mutedInk),
+              style: ln.text.caption.copyWith(color: c.fgMuted),
             ),
           ],
           const SizedBox(height: LnSpace.sm),
-          _StatusPill(status: status, label: statusLabel, onHub: onHub),
+          _StatusPill(status: status, label: statusLabel),
           const SizedBox(height: LnSpace.lg),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               for (final a in actions)
-                Expanded(
-                  child: _HubActionButton(action: a, onHub: onHub),
-                ),
+                Expanded(child: _HubActionButton(action: a)),
             ],
           ),
         ],
@@ -198,15 +165,10 @@ class AgentHero extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.status,
-    required this.label,
-    required this.onHub,
-  });
+  const _StatusPill({required this.status, required this.label});
 
   final HubStatus status;
   final String label;
-  final bool onHub;
 
   @override
   Widget build(BuildContext context) {
@@ -217,83 +179,35 @@ class _StatusPill extends StatelessWidget {
       HubStatus.attention => StatusChipKind.waiting,
       HubStatus.degraded => StatusChipKind.error,
     };
-    if (!onHub) {
-      return Semantics(
-        liveRegion: true,
-        child: StatusChip(label: label, kind: kind),
-      );
-    }
-    // On the dark hub the label is white on a translucent pill; the dot keeps its colour.
-    final c = context.ln.colors;
-    final dot = switch (status) {
-      HubStatus.active => c.success,
-      HubStatus.working => LnPalette.dark.link,
-      HubStatus.paused => LnPalette.inkWhiteMuted,
-      HubStatus.attention => c.pending,
-      HubStatus.degraded => c.error,
-    };
     return Semantics(
       liveRegion: true,
-      child: Container(
-        padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 10, 4),
-        decoration: BoxDecoration(
-          color: c.inverseFill,
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: context.ln.text.smallStrong.copyWith(
-                  color: LnPalette.inkWhite,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: StatusChip(label: label, kind: kind),
     );
   }
 }
 
 class _HubActionButton extends StatelessWidget {
-  const _HubActionButton({required this.action, required this.onHub});
+  const _HubActionButton({required this.action});
 
   final HubAction action;
-  final bool onHub;
 
   @override
   Widget build(BuildContext context) {
     final ln = context.ln;
     final c = ln.colors;
-    final ink = onHub ? LnPalette.inkWhite : c.fg;
+    // On the profile gradient: a 7 % ink lift in dark (the page's own controls read one step
+    // above the gradient), the white chrome circle with its rim and shadow in light.
     final circle = Container(
       width: 52,
       height: 52,
       alignment: Alignment.center,
-      decoration: onHub
-          // 12 % white on the hub's dark gradient: no kit token for this fill.
-          ? const BoxDecoration(
-              color: Color(0x1FFFFFFF),
-              shape: BoxShape.circle,
-            )
-          : BoxDecoration(
-              color: c.surface,
-              shape: BoxShape.circle,
-              border: Border.all(color: c.border),
-              boxShadow: ln.chromeShadow,
-            ),
-      child: Icon(action.icon, size: LnSize.chromeIcon, color: ink),
+      decoration: BoxDecoration(
+        color: c.isDark ? c.fill4 : c.chromeCircle,
+        shape: BoxShape.circle,
+        border: Border.fromBorderSide(ln.chromeRim),
+        boxShadow: c.isDark ? null : ln.chromeShadow,
+      ),
+      child: Icon(action.icon, size: LnSize.chromeIcon, color: c.fg),
     );
     return LnTappable(
       onTap: action.onTap,
@@ -313,7 +227,7 @@ class _HubActionButton extends StatelessWidget {
                 action.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: ln.text.footnote.copyWith(color: ink),
+                style: ln.text.footnote.copyWith(color: c.fg),
               ),
             ],
           ),

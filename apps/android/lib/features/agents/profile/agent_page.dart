@@ -31,6 +31,7 @@ class AgentPage extends StatelessWidget {
     this.leading,
     this.fallback = Routes.agents,
     this.onBack,
+    this.background,
   });
 
   final String title;
@@ -44,11 +45,15 @@ class AgentPage extends StatelessWidget {
   /// Replaces the default back behaviour (e.g. a discard-changes check).
   final VoidCallback? onBack;
 
+  /// The page fill; the canvas by default. The agent's own sub-pages (instructions, memory) use
+  /// [LnPalette.sheetPage].
+  final Color? background;
+
   @override
   Widget build(BuildContext context) {
     final ln = context.ln;
     return Scaffold(
-      backgroundColor: ln.colors.bg,
+      backgroundColor: background ?? ln.colors.bg,
       body: Column(
         children: [
           ScreenHeader(
@@ -82,6 +87,59 @@ class AgentPage extends StatelessWidget {
           const SizedBox(height: LnSpace.xs),
           Expanded(child: body),
         ],
+      ),
+    );
+  }
+}
+
+/// The ✓ circle of an editor's header (the instructions, the avatar): Ø44 in a 48 dp touch box.
+/// Enabled, it is the action blue ([LnPalette.selectionFill]) with a white check (4.6:1);
+/// disabled (null [onTap]), the chrome circle with a tertiary check; [busy] shows a spinner.
+class ConfirmCircle extends StatelessWidget {
+  const ConfirmCircle({
+    super.key,
+    required this.semanticLabel,
+    this.onTap,
+    this.busy = false,
+  });
+
+  final String semanticLabel;
+  final VoidCallback? onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final ln = context.ln;
+    final c = ln.colors;
+    final enabled = onTap != null && !busy;
+    return LnTappable(
+      onTap: enabled ? onTap : null,
+      haptic: true,
+      semanticLabel: semanticLabel,
+      excludeChildSemantics: true,
+      child: SizedBox.square(
+        dimension: LnSize.minTouch,
+        child: Center(
+          child: AnimatedContainer(
+            duration: LnMotion.fast,
+            width: LnSize.headerCircle,
+            height: LnSize.headerCircle,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: enabled ? c.selectionFill : c.chromeCircle,
+              shape: BoxShape.circle,
+              border: enabled ? null : Border.fromBorderSide(ln.chromeRim),
+              boxShadow: ln.chromeShadow,
+            ),
+            child: busy
+                ? const LnSpinner(size: 18)
+                : Icon(
+                    FIcons.check,
+                    size: LnSize.chromeIcon,
+                    color: enabled ? c.onAccent : c.fgSubtle,
+                  ),
+          ),
+        ),
       ),
     );
   }

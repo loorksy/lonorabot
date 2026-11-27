@@ -327,21 +327,6 @@ class LnPalette {
   );
 }
 
-/// The five agent palettes. Only the profile-hub gradient is a token so far ([hubStart] → [hubEnd],
-/// the same in both modes).
-enum LnAgentPalette {
-  blue(hubStart: Color(0xFF143352), hubEnd: Color(0xFF183D62)),
-  red(hubStart: Color(0xFF422424), hubEnd: Color(0xFF502B2B)),
-  yellow(hubStart: Color(0xFF453021), hubEnd: Color(0xFF533A28)),
-  brown(hubStart: Color(0xFF3B322B), hubEnd: Color(0xFF473C34)),
-  gray(hubStart: Color(0xFF333333), hubEnd: Color(0xFF3D3D3D));
-
-  const LnAgentPalette({required this.hubStart, required this.hubEnd});
-
-  final Color hubStart;
-  final Color hubEnd;
-}
-
 /// Spacing scale and layout constants (dp).
 abstract final class LnSpace {
   static const double xxs = 4;

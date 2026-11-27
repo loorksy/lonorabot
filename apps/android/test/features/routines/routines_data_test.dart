@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lonora/core/models/models.dart';
 import 'package:lonora/features/agents/profile/agent_data.dart'
     show Watch, parsePriceCondition;
-import 'package:lonora/features/routines/routine_board.dart' show routineWhen;
+import 'package:lonora/features/routines/routine_board.dart'
+    show routineTime, routineWhen;
 import 'package:lonora/features/routines/routines_data.dart';
 import 'package:lonora/features/routines/routines_strings.dart';
 import 'package:lonora/l10n/l10n.dart';
@@ -222,14 +223,32 @@ void main() {
     expect(routineScheduleLine(routine(interval: 7200), l10n), 'Every 2 h');
     expect(routineScheduleLine(routine(interval: 1800), l10n), 'Every 30 min');
     l10n.setLocale(const Locale('ar'));
+    // Times and days of the month read in Arabic-Indic digits; counts stay Latin.
     expect(
       routineScheduleLine(routine(cron: '0 9 * * *'), l10n),
-      'كل يوم الساعة 09:00',
+      'كل يوم الساعة ٠٩:٠٠',
     );
     expect(
       routineScheduleLine(routine(cron: '0 18 * * 5'), l10n),
-      'أسبوعيًا يوم الجمعة الساعة 18:00',
+      'أسبوعيًا يوم الجمعة الساعة ١٨:٠٠',
     );
+    final monthly = routineScheduleLine(routine(cron: '0 9 15 * *'), l10n);
+    expect(monthly, contains('١٥'));
+    expect(monthly, contains('٠٩:٠٠'));
+    expect(monthly, isNot(matches(RegExp('[0-9]'))));
+    final hours = routineScheduleLine(routine(interval: 7200), l10n);
+    expect(hours, contains('2'));
+    expect(hours, isNot(matches(RegExp('[٠-٩]'))));
+  });
+
+  test('a routine time is one date label in one digit system', () {
+    final at = DateTime(2026, 11, 27, 7, 30);
+    expect(routineTime(at, 'en'), '27 Nov 2026 07:30');
+    final ar = routineTime(at, 'ar');
+    expect(ar, contains('٢٧'));
+    expect(ar, contains('٠٧:٣٠'));
+    expect(ar, isNot(matches(RegExp('[0-9]'))));
+    expect(routineTime(null, 'ar'), '—');
   });
 
   test('a fired one-shot is done', () {

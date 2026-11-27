@@ -6,7 +6,8 @@ import 'package:async_redux/async_redux.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lonora/core/api/api_error.dart';
-import 'package:lonora/design/design.dart' show LnIcons;
+import 'package:lonora/avatar/avatar.dart';
+import 'package:lonora/design/design.dart';
 import 'package:lonora/features/agents/agent_profile_screen.dart';
 import 'package:lonora/state/app_state.dart';
 
@@ -392,6 +393,72 @@ void main() {
     expect(shownRoute(tester), '/routines?agent=a-gold');
   });
 
+  testWidgets('the page sits on one screen-fixed vertical gradient', (
+    tester,
+  ) async {
+    scriptGold();
+    await pumpScreen(
+      tester,
+      const AgentProfileScreen(agentId: 'a-gold'),
+      locale: 'en',
+      brightness: Brightness.dark,
+    );
+    final gradient = find.byWidgetPredicate(
+      (w) =>
+          w is DecoratedBox &&
+          (w.decoration as BoxDecoration).gradient is LinearGradient,
+    );
+    expect(gradient, findsOneWidget);
+    final paint =
+        (tester.widget<DecoratedBox>(gradient).decoration as BoxDecoration)
+                .gradient!
+            as LinearGradient;
+    expect(paint.colors, [
+      LnPalette.dark.profileTop,
+      LnPalette.dark.profileBottom,
+    ]);
+    expect(paint.begin, Alignment.topCenter);
+    expect(paint.end, Alignment.bottomCenter);
+    final screen = tester.getSize(find.byType(MaterialApp));
+    expect(tester.getRect(gradient), Offset.zero & screen);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(gradient), Offset.zero & screen);
+  });
+
+  testWidgets('the hero: an 80 dp avatar, the name in the display style, and '
+      'the lists flat on the page', (tester) async {
+    scriptGold();
+    await pumpScreen(
+      tester,
+      const AgentProfileScreen(agentId: 'a-gold'),
+      locale: 'en',
+    );
+    final avatar = find.byWidgetPredicate(
+      (w) => w is LonoraAvatar && w.agentId == 'a-gold',
+    );
+    expect(tester.getSize(avatar), const Size.square(80));
+    final name = tester.widget<Text>(find.text('Gold desk'));
+    expect(name.style!.fontSize, 20);
+    expect(name.style!.fontWeight, FontWeight.w700);
+    final sections = tester.widgetList<LnSection>(find.byType(LnSection));
+    expect(sections, isNotEmpty);
+    expect(sections.every((s) => s.flat), isTrue);
+  });
+
+  testWidgets('the instructions row opens the full-page editor', (
+    tester,
+  ) async {
+    scriptGold();
+    await pumpScreen(
+      tester,
+      const AgentProfileScreen(agentId: 'a-gold'),
+      locale: 'en',
+    );
+    await tapAndSettle(tester, find.text('Instructions'));
+    expect(shownRoute(tester), '/agent/a-gold/instructions');
+  });
+
   testWidgets('an unknown agent shows that it is missing', (tester) async {
     fakeApi.on(
       'GET /agents/a-none',
@@ -403,6 +470,49 @@ void main() {
       locale: 'en',
     );
     expect(find.text('Agent not found'), findsOneWidget);
+  });
+
+  testWidgets('loading and missing states sit on the profile gradient too', (
+    tester,
+  ) async {
+    fakeApi.on(
+      'GET /agents/a-none',
+      (_, _) => throw ApiError(status: 404, code: 'agent_not_found'),
+    );
+    await pumpScreen(
+      tester,
+      const AgentProfileScreen(agentId: 'a-none'),
+      locale: 'en',
+      brightness: Brightness.dark,
+    );
+    expect(find.text('Agent not found'), findsOneWidget);
+    final gradient = find.byWidgetPredicate(
+      (w) =>
+          w is DecoratedBox &&
+          (w.decoration as BoxDecoration).gradient is LinearGradient,
+    );
+    expect(gradient, findsOneWidget);
+    expect(
+      ((tester.widget<DecoratedBox>(gradient).decoration as BoxDecoration)
+                  .gradient!
+              as LinearGradient)
+          .colors,
+      [LnPalette.dark.profileTop, LnPalette.dark.profileBottom],
+    );
+    final screen = tester.getSize(find.byType(MaterialApp));
+    expect(tester.getRect(gradient), Offset.zero & screen);
+    // The page's own fill is clear, so the gradient shows through.
+    expect(
+      tester
+          .widget<Scaffold>(
+            find.ancestor(
+              of: find.text('Agent not found'),
+              matching: find.byType(Scaffold),
+            ),
+          )
+          .backgroundColor,
+      const Color(0x00000000),
+    );
   });
 
   for (final v in goldenVariants) {

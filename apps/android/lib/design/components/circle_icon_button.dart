@@ -22,6 +22,7 @@ class CircleIconButton extends StatelessWidget {
     this.badge = false,
     this.badgeColor,
     this.iconColor,
+    this.fill,
     this.haptic = true,
   });
 
@@ -37,6 +38,10 @@ class CircleIconButton extends StatelessWidget {
   final bool badge;
   final Color? badgeColor;
   final Color? iconColor;
+
+  /// The circle's fill on a tinted surface (e.g. the agent profile gradient); defaults to
+  /// [LnPalette.chromeCircle].
+  final Color? fill;
   final bool haptic;
 
   @override
@@ -61,7 +66,7 @@ class CircleIconButton extends StatelessWidget {
                 height: size,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: c.chromeCircle,
+                  color: fill ?? c.chromeCircle,
                   shape: BoxShape.circle,
                   border: Border.fromBorderSide(ln.chromeRim),
                   boxShadow: ln.chromeShadow,

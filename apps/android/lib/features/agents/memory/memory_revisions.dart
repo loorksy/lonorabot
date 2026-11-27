@@ -7,7 +7,6 @@ import 'package:forui/forui.dart' show FIcons;
 
 import '../../../design/design.dart';
 import '../../../l10n/l10n.dart';
-import '../../routines/routines_data.dart' show clock;
 import '../../settings/settings_common.dart';
 import '../profile/agent_data.dart';
 
@@ -41,10 +40,9 @@ String revisionChangeLine(Map<String, dynamic> change, String lang) {
   return '${ownerProfileLabel(kind, lang)}: ${isolate(text)}';
 }
 
-/// «27 نوف 2026 09:05».
-String revisionTime(DateTime? at, String lang) => at == null
-    ? ''
-    : '${formatDate('d MMM y', lang, at)} ${clock(at.hour, at.minute)}';
+/// «٢٧ نوف ٢٠٢٦ ٠٩:٠٥»: one date label, in [lang]'s date digits.
+String revisionTime(DateTime? at, String lang) =>
+    at == null ? '' : formatDate('d MMM y HH:mm', lang, at);
 
 /// Whether the server accepts undoing [row]: a move away from «النشاط فقط» is refused
 /// (`reach_me_choice_removed`; apps/web OwnerPage.tsx `undoable`).

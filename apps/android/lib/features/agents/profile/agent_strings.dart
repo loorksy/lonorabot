@@ -94,6 +94,19 @@ const Map<String, List<String>> _agentStrings = {
   ],
   'ag_modeUnknown': ['التفويض غير معروف', 'Trading mode unknown'],
   'ag_marketSaved': ['حُفظ نطاق الوكيل', 'Market scope saved'],
+  // Create an agent, the avatar studio and the group sheet.
+  'ag_agentName': ['اسم الوكيل', 'Agent name'],
+  'ag_chooseColor': ['اختيار اللون', 'Choose a color'],
+  'ag_colorN': ['اللون {0}', 'Color {0}'],
+  'ag_searchAgents': ['ابحث عن وكيل', 'Search agents'],
+  'ag_removeMember': ['إزالة {0}', 'Remove {0}'],
+  // «اطلب من … أن يتذكر»: a line the owner sends to the agent's conversation from its memory.
+  'ag_rememberHint': ['اطلب من {0} أن يتذكر…', 'Ask {0} to remember…'],
+  'ag_rememberMessage': ['تذكّر: {0}', 'Remember: {0}'],
+  'ag_rememberSent': [
+    'أُرسل إلى محادثتك مع {0}',
+    'Sent to your conversation with {0}',
+  ],
   // Memory and knowledge.
   'ag_memoryTab': ['الذاكرة', 'Memory'],
   'ag_knowledgeTab': ['المعرفة', 'Knowledge'],

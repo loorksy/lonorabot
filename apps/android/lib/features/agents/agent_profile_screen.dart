@@ -1,10 +1,11 @@
 // «ملف الوكيل» (/agent/:id): the agent's hub: hero, Configuration rows, Schedules and a manage
-// menu, composed from the kit. Capabilities follow Lonora's other clients
-// (apps/web/src/shell/agent/AgentPage.tsx, apps/mobile/app/bot-settings.tsx): Message, Call (only
-// when GPT-Live is set up, otherwise it explains), Settings; memory, skills, routines, files,
-// charts; for a trading agent its Mandate (read-only here, changed in settings through the Mandate
-// card) and its watches (pause, resume, cancel); stop / turn on; delete (confirmed, the server's
-// refusal shown).
+// menu, composed from the kit. The whole page sits on one screen-fixed vertical gradient
+// ([LnPalette.profileTop] → [LnPalette.profileBottom]) and its lists are flat rows on it.
+// Capabilities follow Lonora's other clients (apps/web/src/shell/agent/AgentPage.tsx,
+// apps/mobile/app/bot-settings.tsx): Message, Call (only when GPT-Live is set up, otherwise it
+// explains), Settings; memory, skills, routines, files, charts; for a trading agent its Mandate
+// (read-only here, changed in settings through the Mandate card) and its watches (pause, resume,
+// cancel); stop / turn on; delete (confirmed, the server's refusal shown).
 import 'dart:async';
 
 import 'package:async_redux/async_redux.dart';
@@ -356,24 +357,34 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
 
     if (agent == null) {
       final error = _agentError;
-      return AgentPage(
-        title: '',
-        body: error == null
-            ? const SettingsSkeleton(groups: [5, 3])
-            : error is ApiError && error.isNotFound
-            ? EmptyState(icon: FIcons.userX, title: l10n.t('agentMissing'))
-            : LoadFailure(error: error, onRetry: _load),
+      // Loading, failed or missing: the same surface as the loaded page, so it does not flash.
+      return DecoratedBox(
+        decoration: _profileFill(ln.colors),
+        child: AgentPage(
+          title: '',
+          background: const Color(0x00000000),
+          body: error == null
+              ? const SettingsSkeleton(groups: [5, 3])
+              : error is ApiError && error.isNotFound
+              ? EmptyState(icon: FIcons.userX, title: l10n.t('agentMissing'))
+              : LoadFailure(error: error, onRetry: _load),
+        ),
       );
     }
 
+    // On the dark profile gradient the circles take the translucent fill the hub's own circles
+    // use; light keeps the white circles.
+    final circleFill = ln.colors.isDark ? ln.colors.fill4 : null;
     final header = ScreenHeader(
       leading: CircleIconButton(
         icon: const Icon(FIcons.chevronLeft),
         semanticLabel: l10n.t('back'),
+        fill: circleFill,
         onTap: () => leaveTo(context, Routes.agents),
       ),
       trailing: CircleIconButton(
         icon: const Icon(FIcons.ellipsis),
+        fill: circleFill,
         semanticLabel: l10n.t('actions'),
         onTap: _busy ? null : () => _menu(agent),
       ),
@@ -445,6 +456,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     final sections = <Widget>[
       const SizedBox(height: LnSpace.md),
       LnSection(
+        flat: true,
         title: l10n.t('ag_configuration'),
         children: [
           WrapTile(
@@ -454,7 +466,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                 ? null
                 : isolate(firstInstruction),
             trailing: const TileChevron(),
-            onTap: () => context.push(Routes.agentSettings(agent.id)),
+            onTap: () => context.push(Routes.agentInstructions(agent.id)),
           ),
           WrapTile(
             icon: FIcons.brain,
@@ -487,6 +499,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
       ),
       const SizedBox(height: LnSpace.lg),
       LnSection(
+        flat: true,
         title: l10n.t('routines'),
         children: [
           for (final r in (routines ?? const <Routine>[]).take(3))
@@ -525,6 +538,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
       if (trader) ...[
         const SizedBox(height: LnSpace.lg),
         LnSection(
+          flat: true,
           title: l10n.t('ag_trading'),
           footer: hasMode ? l10n.t('ag_mandateInSettings') : null,
           children: [
@@ -568,6 +582,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
           SettingsNote(l10n.t('ag_noWatches'))
         else if (watches.isNotEmpty)
           LnSection(
+            flat: true,
             title: l10n.t('ag_watches'),
             children: [
               for (final w in watches)
@@ -603,9 +618,13 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: ln.colors.bg,
+      backgroundColor: ln.colors.profileBottom,
       body: Stack(
         children: [
+          // Screen-fixed: the rows scroll over it.
+          Positioned.fill(
+            child: DecoratedBox(decoration: _profileFill(ln.colors)),
+          ),
           LnRefresh(
             onRefresh: _load,
             child: ListView(
@@ -620,3 +639,12 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     );
   }
 }
+
+/// The profile's screen-fixed fill: [LnPalette.profileTop] → [LnPalette.profileBottom].
+BoxDecoration _profileFill(LnPalette c) => BoxDecoration(
+  gradient: LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [c.profileTop, c.profileBottom],
+  ),
+);

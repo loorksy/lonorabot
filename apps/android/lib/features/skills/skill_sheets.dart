@@ -10,7 +10,6 @@ import '../../design/design.dart';
 import '../../l10n/l10n.dart';
 import '../agents/profile/agent_page.dart';
 import '../agents/settings/avatar_editor.dart' show confirmDiscard;
-import '../routines/routines_data.dart' show clock;
 import '../settings/settings_common.dart';
 import 'skills_data.dart';
 
@@ -318,7 +317,11 @@ class _SkillDetailsSheetState extends State<SkillDetailsSheet> {
                       title: l10n.t('sk_versionN', [v.version]),
                       subtitle: v.createdAt == null
                           ? null
-                          : '${formatDate('d MMM y', l10n.lang, v.createdAt!)} ${clock(v.createdAt!.hour, v.createdAt!.minute)}',
+                          : formatDate(
+                              'd MMM y HH:mm',
+                              l10n.lang,
+                              v.createdAt!,
+                            ),
                       trailing: Text(
                         l10n.t('sk_restore'),
                         style: sheet.ln.text.captionStrong.copyWith(

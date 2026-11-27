@@ -21,7 +21,6 @@ import '../../state/actions/base.dart';
 import '../../state/app_state.dart';
 import '../agents/profile/agent_page.dart';
 import '../agents/profile/agent_strings.dart';
-import '../routines/routines_data.dart' show clock;
 import '../settings/settings_common.dart';
 import 'skill_sheets.dart';
 import 'skills_data.dart';
@@ -332,7 +331,7 @@ class _SkillsScreenState extends State<SkillsScreen> {
                           skillBlockReasons[r.reason] ?? 'skillsReasonOwner',
                         ),
                         if (r.revokedAt != null)
-                          '${formatDate('d MMM y', l10n.lang, r.revokedAt!)} ${clock(r.revokedAt!.hour, r.revokedAt!.minute)}',
+                          formatDate('d MMM y HH:mm', l10n.lang, r.revokedAt!),
                       ].join(dotSeparator),
                     ),
                 WrapTile(

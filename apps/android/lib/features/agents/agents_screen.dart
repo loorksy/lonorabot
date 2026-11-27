@@ -18,6 +18,7 @@ import '../chats/chat_text.dart';
 import '../chats/chat_widgets.dart';
 import '../chats/chats_strings.dart';
 import '../chats/pull_to_refresh.dart';
+import '../groups/create_group_sheet.dart';
 
 class AgentsScreen extends StatelessWidget {
   const AgentsScreen({super.key});
@@ -175,7 +176,7 @@ class AgentsScreen extends StatelessWidget {
                 label: l10n.t('sh_createGroup'),
                 icon: FIcons.usersRound,
                 variant: BlockButtonVariant.secondary,
-                onPressed: () => context.push(Routes.newGroup()),
+                onPressed: () => showCreateGroupSheet(context),
               ),
             ),
           ],

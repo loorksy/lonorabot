@@ -27,10 +27,9 @@ import '../settings/settings_core_data.dart' show deviceTimeZone;
 import 'routine_editor.dart';
 import 'routines_data.dart';
 
-/// «27 نوفمبر 2026 07:30».
-String routineTime(DateTime? at, String lang) => at == null
-    ? '—'
-    : '${formatDate('d MMM y', lang, at)} ${clock(at.hour, at.minute)}';
+/// «٢٧ نوفمبر ٢٠٢٦ ٠٧:٣٠»: one date label, in [lang]'s date digits.
+String routineTime(DateTime? at, String lang) =>
+    at == null ? '—' : formatDate('d MMM y HH:mm', lang, at);
 
 /// A routine's status: done (fired one-shot), paused, or active with its next run.
 String routineStatus(Routine r, L10n l10n) {

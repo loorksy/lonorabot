@@ -257,6 +257,23 @@ void main() {
     await settleToasts(tester);
   });
 
+  testWidgets('a blocked version\'s date reads in Arabic-Indic digits; its '
+      'version number stays Latin', (tester) async {
+    scriptSkills();
+    await pumpSkills(tester, locale: 'ar');
+    final date = find.textContaining('٢١');
+    await tester.scrollUntilVisible(
+      date,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final line = tester.widget<Text>(date).data!;
+    expect(line, contains('٠٩:٣٠'));
+    // Only the date is Arabic-Indic: the line holds no Latin digit.
+    expect(line, isNot(matches(RegExp('[0-9]'))));
+    expect(find.textContaining('0.9.0'), findsWidgets);
+  });
+
   testWidgets('blocks a built-in version only after reason and confirm', (
     tester,
   ) async {

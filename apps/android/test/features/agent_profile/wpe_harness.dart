@@ -237,6 +237,7 @@ GoRouter wpeRouter(Widget home, {Map<String, Widget> pages = const {}}) {
     '/agent/:id',
     '/agent/:id/settings',
     '/agent/:id/memory',
+    '/agent/:id/instructions',
     '/agent/:id/skills',
     '/routines',
     '/chats/thread/:id',

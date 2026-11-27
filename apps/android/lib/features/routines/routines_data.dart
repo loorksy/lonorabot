@@ -277,9 +277,11 @@ class RoutineSchedule {
     return null;
   }
 
-  /// One line for the schedule, e.g. «كل يوم الساعة 09:00» / "Every Monday at 09:00".
+  /// One line for the schedule, e.g. «كل يوم الساعة ٠٩:٠٠» / "Every Monday at 09:00": its
+  /// times and days of the month in the date digits of [l10n]'s language; intervals and cron
+  /// stay Latin.
   String describe(L10n l10n) {
-    final time = clock(hour, minute);
+    final time = dateDigits(clock(hour, minute), l10n.lang);
     return switch (repeat) {
       RepeatKind.once => l10n.t('rt_onceAt', const [], {
         'date': date == null ? '' : formatDate('d MMM y', l10n.lang, date!),
@@ -293,7 +295,7 @@ class RoutineSchedule {
         'time': time,
       }),
       RepeatKind.monthly => l10n.t('rt_monthlyAt', const [], {
-        'day': '$dayOfMonth',
+        'day': dateDigits('$dayOfMonth', l10n.lang),
         'time': time,
       }),
       RepeatKind.custom =>
@@ -306,7 +308,7 @@ class RoutineSchedule {
   }
 }
 
-/// HH:mm with Latin digits, as Lonora prints clock times.
+/// HH:mm with Latin digits; a label wraps it in [dateDigits] for its language.
 String clock(int hour, int minute) =>
     '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 

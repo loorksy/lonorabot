@@ -14,6 +14,23 @@ String _enc(String value) => Uri.encodeComponent(value);
 Future<Agent> fetchAgent(String id) async =>
     Agent.fromJson(asJson(await api.get('/agents/${_enc(id)}')));
 
+/// `POST /agents` (`AgentCreate`): a flexible-scope agent with no market binding, named [name],
+/// with its avatar [face] and shell [color] (`#rrggbb`). The server picks its template.
+Future<Agent> createAgent({
+  required String name,
+  required String face,
+  required String color,
+}) async => Agent.fromJson(
+  asJson(
+    await api.post('/agents', {
+      'name': name.trim(),
+      'scope_mode': 'flexible',
+      'avatar': face,
+      'color': color,
+    }),
+  ),
+);
+
 /// `PATCH /agents/{id}` with only the fields that change (`AgentUpdate`, partial).
 Future<Agent> patchAgent(String id, Json body) async =>
     Agent.fromJson(asJson(await api.patch('/agents/${_enc(id)}', body)));

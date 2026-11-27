@@ -1,11 +1,11 @@
 // Kit adoption in the shared agent page pieces (ADOPT-A): ContentField hands its reading
-// direction and length cap to LnTextField, a one-line FullTile is a 48 dp row like
-// LnListTile, and the hub gradients come from the kit's agent palettes.
+// direction and length cap to LnTextField, a one-line FullTile is a 52 dp row like
+// LnListTile, and the editor's ✓ circle.
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsAction;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart';
 import 'package:lonora/design/design.dart';
-import 'package:lonora/features/agents/profile/agent_hub.dart';
 import 'package:lonora/features/agents/profile/agent_page.dart';
 
 import '../../design/fonts.dart';
@@ -114,7 +114,7 @@ void main() {
 
   group('FullTile', () {
     for (final direction in TextDirection.values) {
-      testWidgets('a one-line row is 48 dp (${direction.name})', (
+      testWidgets('a one-line row is 52 dp (${direction.name})', (
         tester,
       ) async {
         await _pump(
@@ -139,7 +139,7 @@ void main() {
         final rows = find.byWidgetPredicate((w) => w is FTappable);
         expect(rows, findsNWidgets(2));
         final one = tester.getRect(rows.first);
-        expect(one.height, LnSize.minTouch);
+        expect(one.height, LnSize.tileRow);
         // Two-line rows keep forui's own height (already above the minimum).
         expect(tester.getRect(rows.last).height, greaterThan(LnSize.minTouch));
         // The title sits in the middle of the taller row, at its reading edge.
@@ -154,13 +154,60 @@ void main() {
     }
   });
 
-  test('hub gradients are the kit agent palettes', () {
-    expect(hubGradientFor('a', 'blue'), LnAgentPalette.blue);
-    expect(hubGradientFor('a', 'cyan'), LnAgentPalette.blue);
-    expect(hubGradientFor('a', 'red'), LnAgentPalette.red);
-    expect(hubGradientFor('a', 'orange'), LnAgentPalette.yellow);
-    expect(hubGradientFor('a', 'brown'), LnAgentPalette.brown);
-    expect(hubGradientFor('a', 'white'), LnAgentPalette.gray);
-    expect(hubGradientFor('a', '#7c83fd'), isNull);
+  group('ConfirmCircle', () {
+    testWidgets('a 44 dp circle in a 48 dp button; enabled it is the action '
+        'blue with a white check', (tester) async {
+      var taps = 0;
+      await _pump(
+        tester,
+        Center(
+          child: ConfirmCircle(semanticLabel: 'Save', onTap: () => taps++),
+        ),
+      );
+      final button = find.bySemanticsLabel('Save');
+      expect(tester.getSize(button), const Size.square(LnSize.minTouch));
+      final circle = tester.widget<AnimatedContainer>(
+        find.byType(AnimatedContainer),
+      );
+      final fill = (circle.decoration! as BoxDecoration).color;
+      expect(fill, LnPalette.light.selectionFill);
+      expect(
+        tester.widget<Icon>(find.byIcon(FIcons.check)).color,
+        LnPalette.light.onAccent,
+      );
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(taps, 1);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    });
+
+    testWidgets('disabled it is the chrome circle with a tertiary check and '
+        'no tap', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pump(
+        tester,
+        const Center(child: ConfirmCircle(semanticLabel: 'Save')),
+      );
+      final circle = tester.widget<AnimatedContainer>(
+        find.byType(AnimatedContainer),
+      );
+      expect(
+        (circle.decoration! as BoxDecoration).color,
+        LnPalette.light.chromeCircle,
+      );
+      expect(
+        tester.widget<Icon>(find.byIcon(FIcons.check)).color,
+        LnPalette.light.fgSubtle,
+      );
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('Save'))
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isFalse,
+      );
+      handle.dispose();
+    });
   });
 }

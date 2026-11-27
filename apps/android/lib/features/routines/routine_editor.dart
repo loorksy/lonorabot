@@ -521,7 +521,12 @@ class _RoutineEditorState extends State<RoutineEditor> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        value(clock(schedule.hour, schedule.minute)),
+                        value(
+                          dateDigits(
+                            clock(schedule.hour, schedule.minute),
+                            l10n.lang,
+                          ),
+                        ),
                         const TileChevron(),
                       ],
                     ),

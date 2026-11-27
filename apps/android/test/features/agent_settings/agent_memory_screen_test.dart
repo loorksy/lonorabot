@@ -3,10 +3,12 @@
 //
 // Regenerate goldens with: flutter test --update-goldens test/features/agent_settings
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsAction;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lonora/core/api/api_error.dart';
 import 'package:lonora/design/design.dart';
 import 'package:lonora/features/agents/agent_memory_screen.dart';
+import 'package:lonora/features/agents/memory/semantic_section.dart';
 
 import '../agent_profile/wpe_harness.dart';
 
@@ -403,8 +405,12 @@ void main() {
       'model': 'text-embedding-3-small',
     });
     await settleToasts(tester);
-    final note = find.byWidgetPredicate(
-      (w) => w is EditableText && w.controller.text.isEmpty,
+    // The note field of the semantic section (the «remember» field is empty too).
+    final note = find.descendant(
+      of: find.byType(SemanticSection),
+      matching: find.byWidgetPredicate(
+        (w) => w is EditableText && w.controller.text.isEmpty,
+      ),
     );
     await tester.enterText(note.last, 'Gold reacts to real yields.');
     await tester.pump();
@@ -415,6 +421,159 @@ void main() {
       {'text': 'Gold reacts to real yields.'},
     );
     await settleToasts(tester);
+  });
+
+  group('page and «remember» field', () {
+    Finder remember() => find.descendant(
+      of: find.byType(RememberField),
+      matching: find.byType(TextField),
+    );
+
+    testWidgets('the memory reads in one editor-card on the sub-page fill', (
+      tester,
+    ) async {
+      scriptMemory();
+      await pumpScreen(
+        tester,
+        const AgentMemoryScreen(agentId: 'a-gold'),
+        locale: 'en',
+        brightness: Brightness.dark,
+      );
+      expect(
+        tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+        LnPalette.dark.sheetPage,
+      );
+      final card = find.byType(MemoryCard);
+      final box = tester.widget<DecoratedBox>(
+        find.descendant(of: card, matching: find.byType(DecoratedBox)).first,
+      );
+      final decoration = box.decoration as BoxDecoration;
+      expect(decoration.color, LnPalette.dark.editorCard);
+      expect(
+        decoration.borderRadius,
+        const BorderRadius.all(Radius.circular(26)),
+      );
+      final rect = tester.getRect(card);
+      expect(rect.left, 16);
+      expect(rect.right, tester.getSize(find.byType(MaterialApp)).width - 16);
+    });
+
+    testWidgets('a 56 dp stadium at the bottom names the agent; its send '
+        'disc waits for text', (tester) async {
+      final handle = tester.ensureSemantics();
+      scriptMemory();
+      await pumpScreen(
+        tester,
+        const AgentMemoryScreen(agentId: 'a-gold'),
+        locale: 'en',
+      );
+      expect(find.byType(RememberField), findsOneWidget);
+      final field = tester.getRect(find.byType(RememberField));
+      final screen = tester.getSize(find.byType(MaterialApp));
+      expect(screen.height - field.bottom, lessThan(16));
+      expect(
+        tester
+            .getSize(
+              find
+                  .descendant(
+                    of: find.byType(RememberField),
+                    matching: find.byType(Container),
+                  )
+                  .first,
+            )
+            .height,
+        RememberField.height,
+      );
+      expect(
+        tester.widget<TextField>(remember()).decoration!.hintText,
+        'Ask \u2068Gold desk\u2069 to remember…',
+      );
+      bool canSend() => tester
+          .getSemantics(find.bySemanticsLabel('Send'))
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap);
+      expect(canSend(), isFalse);
+      await tester.enterText(remember(), 'I prefer levels first');
+      await tester.pump();
+      expect(canSend(), isTrue);
+      // Both parts are 48 dp targets or more (the page's segmented tabs are the kit's own).
+      expect(
+        tester.getSize(find.bySemanticsLabel('Send')),
+        const Size.square(LnSize.minTouch),
+      );
+      expect(tester.getSize(remember()).height, RememberField.height);
+      handle.dispose();
+    });
+
+    testWidgets('sending puts «Remember: …» in the agent conversation', (
+      tester,
+    ) async {
+      scriptMemory();
+      fakeApi
+        ..on(
+          'POST /agents/a-gold/conversation',
+          (_, _) => {'id': 't-gold', 'agent_id': 'a-gold'},
+        )
+        ..on(
+          'POST /threads/t-gold/messages',
+          (body, _) => {
+            'message': {
+              'id': 'm-1',
+              'thread_id': 't-gold',
+              'role': 'user',
+              'seq': 4,
+              'content': (body as Map)['content'],
+            },
+            'runs': [],
+          },
+        );
+      await pumpScreen(
+        tester,
+        const AgentMemoryScreen(agentId: 'a-gold'),
+        locale: 'en',
+      );
+      await tester.enterText(remember(), '  I prefer levels first ');
+      await tester.pump();
+      await tapAndSettle(tester, find.bySemanticsLabel('Send'));
+      final call = fakeApi.callsTo('POST', '/threads/t-gold/messages').single;
+      expect((call.body! as Map)['content'], 'Remember: I prefer levels first');
+      expect((call.body! as Map)['attachment_ids'], isEmpty);
+      expect(find.text('I prefer levels first'), findsNothing);
+      expect(
+        find.text('Sent to your conversation with \u2068Gold desk\u2069'),
+        findsOneWidget,
+      );
+      await settleToasts(tester);
+    });
+
+    testWidgets('only under the Memory tab, and not while editing', (
+      tester,
+    ) async {
+      scriptMemory();
+      await pumpScreen(
+        tester,
+        const AgentMemoryScreen(agentId: 'a-gold'),
+        locale: 'en',
+      );
+      await tapAndSettle(tester, find.text('Knowledge'));
+      expect(find.byType(RememberField), findsNothing);
+      await tapAndSettle(tester, find.text('Memory'));
+      expect(find.byType(RememberField), findsOneWidget);
+      await tapAndSettle(tester, find.text('Edit memory'));
+      expect(find.byType(RememberField), findsNothing);
+    });
+
+    testWidgets('an Arabic date line uses Arabic-Indic digits only', (
+      tester,
+    ) async {
+      scriptMemory();
+      await pumpScreen(tester, const AgentMemoryScreen(agentId: 'a-gold'));
+      final line = find.textContaining('آخر تحديث');
+      expect(line, findsOneWidget);
+      final text = tester.widget<Text>(line).data!;
+      expect(text, contains('٠٨:١٥'));
+      expect(text, isNot(matches(RegExp('[0-9]'))));
+    });
   });
 
   testWidgets('an undone change shows «Restored» and offers no undo', (

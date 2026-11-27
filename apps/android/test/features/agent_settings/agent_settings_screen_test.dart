@@ -312,11 +312,7 @@ void main() {
       locale: 'en',
     );
     final delete = find.text('Delete agent');
-    await tester.scrollUntilVisible(
-      delete,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await reveal(tester, delete);
     await tapAndSettle(tester, delete);
     await tapAndSettle(tester, find.text('Delete'));
     expect(
@@ -394,11 +390,11 @@ void main() {
       await tester.ensureVisible(find.text('Reset'));
       await tester.pumpAndSettle();
       await tapAndSettle(tester, find.text('Reset'));
-      await tapAndSettle(tester, find.text('Cancel'));
+      await tapAndSettle(tester, find.bySemanticsLabel('Close'));
       expect(find.text('Discard the changes?'), findsOneWidget);
       await tapAndSettle(tester, find.text('Keep editing'));
-      // The sheet's Save (the page's own buttons lie under it).
-      await tapAndSettle(tester, find.text('Save').last);
+      // The sheet's ✓ (the page's own Save buttons lie under it).
+      await tapAndSettle(tester, find.bySemanticsLabel('Save').last);
       expect(fakeApi.callsTo('PATCH', '/agents/a-gold').single.body, {
         'avatar': 'orb',
         'color': '#8B5CF6',

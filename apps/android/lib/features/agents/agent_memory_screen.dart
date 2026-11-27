@@ -7,8 +7,16 @@
 // semantic retrieval sits under it; notes, links and the scratchpad live under Knowledge; light
 // goals have their own tab. Each part loads on its own: a failed one shows its error where it would
 // be, the others stay.
+//
+// The page sits on the sub-page fill ([LnPalette.sheetPage]); the memory reads in one content card
+// ([LnPalette.editorCard], radius 26). Under the Memory tab a stadium field «اطلب من … أن يتذكر»
+// sends the owner's line to the agent's own conversation, where the agent decides what to keep.
 import 'dart:async';
 
+import 'package:async_redux/async_redux.dart';
+import 'package:flutter/material.dart'
+    show InputBorder, InputDecoration, Material, MaterialType, TextField;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FIcons;
 
@@ -17,8 +25,8 @@ import '../../core/api/api_error.dart';
 import '../../design/design.dart';
 import '../../l10n/l10n.dart';
 import '../../state/actions/base.dart';
+import '../../state/actions/thread_actions.dart';
 import '../../state/app_state.dart';
-import '../routines/routines_data.dart' show clock;
 import '../settings/settings_common.dart';
 import 'memory/knowledge_section.dart';
 import 'memory/memory_revisions.dart';
@@ -240,7 +248,7 @@ class _AgentMemoryScreenState extends State<AgentMemoryScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: LnSpace.pageGutter),
-          child: LnCardSurface(
+          child: MemoryCard(
             child: text.isEmpty
                 ? Padding(
                     padding: const EdgeInsets.symmetric(vertical: LnSpace.md),
@@ -263,7 +271,7 @@ class _AgentMemoryScreenState extends State<AgentMemoryScreen> {
                           const SizedBox(height: LnSpace.sm),
                           Text(
                             l10n.t('ag_updatedAt', [
-                              '${formatDate('d MMM y', l10n.lang, updated)} ${clock(updated.hour, updated.minute)}',
+                              revisionTime(updated, l10n.lang),
                             ]),
                             style: ln.text.footnote.copyWith(color: c.fgMuted),
                           ),
@@ -325,6 +333,7 @@ class _AgentMemoryScreenState extends State<AgentMemoryScreen> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     registerAgentStrings(l10n);
+    final c = context.ln.colors;
     final agentName = context.select((AppState s) => s.shell.agents[_id]?.name);
     final memoryError = _memoryError;
     Widget body;
@@ -416,9 +425,198 @@ class _AgentMemoryScreenState extends State<AgentMemoryScreen> {
         title: agentName == null
             ? l10n.t('ag_memoryTab')
             : '${l10n.t('ag_memoryTab')} · ${isolate(agentName)}',
+        background: c.sheetPage,
         fallback: Routes.agent(_id),
         onBack: _back,
-        body: body,
+        body: _tab == MemoryTab.memory && !_editing && _memory != null
+            ? Column(
+                children: [
+                  Expanded(child: body),
+                  RememberField(agentId: _id, agentName: agentName ?? ''),
+                ],
+              )
+            : body,
+      ),
+    );
+  }
+}
+
+/// The memory's content card: [LnPalette.editorCard] at radius [LnRadius.group].
+class MemoryCard extends StatelessWidget {
+  const MemoryCard({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: context.ln.colors.editorCard,
+      borderRadius: const BorderRadius.all(Radius.circular(LnRadius.group)),
+    ),
+    child: child,
+  );
+}
+
+/// «اطلب من … أن يتذكر»: a 56 dp stadium on [LnPalette.editorCard] with a 44 dp send disc at its
+/// end. Sending puts «تذكّر: …» in the agent's own conversation (`POST /agents/{id}/conversation`,
+/// then the message), clears the field and says where it went.
+class RememberField extends StatefulWidget {
+  const RememberField({
+    super.key,
+    required this.agentId,
+    required this.agentName,
+  });
+
+  final String agentId;
+  final String agentName;
+
+  /// The stadium's height and its send disc.
+  static const double height = 56;
+  static const double disc = 44;
+
+  @override
+  State<RememberField> createState() => _RememberFieldState();
+}
+
+class _RememberFieldState extends State<RememberField> {
+  final _text = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _text.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _text.text.trim();
+    if (text.isEmpty || _busy) return;
+    final l10n = context.l10n;
+    setState(() => _busy = true);
+    try {
+      final ensure = EnsureAgentThreadAction(widget.agentId);
+      await context.dispatchAndWait(ensure);
+      final thread = ensure.threadId;
+      if (!mounted) return;
+      if (thread == null || ensure.status.originalError != null) {
+        showErrorToast(
+          context,
+          ensure.status.originalError ?? 'request_failed',
+        );
+        return;
+      }
+      context.dispatch(
+        SendMessageAction(thread, {
+          'content': l10n.t('ag_rememberMessage', [text]),
+          'attachment_ids': <String>[],
+        }),
+      );
+      _text.clear();
+      FocusManager.instance.primaryFocus?.unfocus();
+      LnToast.show(
+        context,
+        l10n.t('ag_rememberSent', [isolate(widget.agentName)]),
+        kind: LnToastKind.positive,
+      );
+    } catch (error) {
+      if (error is! SessionRequestCancelled && mounted) {
+        showErrorToast(context, error);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ln = context.ln;
+    final c = ln.colors;
+    final l10n = context.l10n;
+    final ambient = Directionality.of(context);
+    final ready = _text.text.trim().isNotEmpty && !_busy;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        LnSpace.pageGutter,
+        LnSpace.sm,
+        LnSpace.pageGutter,
+        keyboard
+            ? LnSpace.xs
+            : LnSpace.sm + MediaQuery.viewPaddingOf(context).bottom,
+      ),
+      child: Container(
+        height: RememberField.height,
+        padding: const EdgeInsetsDirectional.only(start: 20, end: 4),
+        decoration: ShapeDecoration(
+          color: c.editorCard,
+          shape: const StadiumBorder(),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Material(
+                type: MaterialType.transparency,
+                child: TextField(
+                  controller: _text,
+                  enabled: !_busy,
+                  maxLines: 1,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _send(),
+                  textDirection: textDirectionFor(_text.text, ambient),
+                  style: ln.text.body.copyWith(color: c.fg),
+                  cursorColor: c.brand,
+                  decoration: InputDecoration(
+                    isCollapsed: true,
+                    filled: false,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: (RememberField.height - 24) / 2,
+                    ),
+                    hintText: l10n.t('ag_rememberHint', [
+                      isolate(widget.agentName),
+                    ]),
+                    hintStyle: ln.text.body.copyWith(color: c.fgSubtle),
+                  ),
+                ),
+              ),
+            ),
+            LnTappable(
+              onTap: ready ? _send : null,
+              haptic: true,
+              semanticLabel: l10n.t('send'),
+              excludeChildSemantics: true,
+              child: SizedBox.square(
+                dimension: LnSize.minTouch,
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: LnMotion.fast,
+                    width: RememberField.disc,
+                    height: RememberField.disc,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: ready ? c.sendDisc : c.sendDisabledDisc,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _busy
+                        ? const LnSpinner(size: 18)
+                        : Icon(
+                            FIcons.arrowUp,
+                            size: LnSize.chromeIcon,
+                            color: ready ? c.sendArrow : c.sendDisabledArrow,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
