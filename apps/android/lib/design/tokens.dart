@@ -52,6 +52,12 @@ class LnPalette {
     required this.segmentedSelected,
     required this.successText,
     required this.positiveText,
+    required this.chromeCircle,
+    required this.drawerSurface,
+    required this.menuSurface,
+    required this.menuBorder,
+    required this.profileTop,
+    required this.profileBottom,
   });
 
   final Brightness brightness;
@@ -139,6 +145,23 @@ class LnPalette {
   final Color successText;
   final Color positiveText;
 
+  /// Fill of the Ø44 header circles and pills (no rim in dark). Light: white with the chrome
+  /// shadow, as before.
+  final Color chromeCircle;
+
+  /// The chat drawer's panel behind the conversation card.
+  final Color drawerSurface;
+
+  /// Anchored menus and popovers: the message menu, the reaction pill, the «+» and attach menus.
+  final Color menuSurface;
+
+  /// Hairline around [menuSurface].
+  final Color menuBorder;
+
+  /// The agent profile page's screen-fixed vertical gradient, top to bottom.
+  final Color profileTop;
+  final Color profileBottom;
+
   /// Selected reaction chip under a message (the owner's own reaction). Lonora-specific.
   Color get reactionSelected =>
       selection.withValues(alpha: isDark ? 0.28 : 0.14);
@@ -208,6 +231,12 @@ class LnPalette {
     segmentedSelected: Color(0xFFFFFFFF),
     successText: Color(0xFF197E28),
     positiveText: Color(0xFF177C53),
+    chromeCircle: Color(0xFFFFFFFF),
+    drawerSurface: Color(0xFFF7F7F7),
+    menuSurface: Color(0xFFFFFFFF),
+    menuBorder: Color(0x14000000),
+    profileTop: Color(0xFFF2F2F2),
+    profileBottom: Color(0xFFFFFFFF),
   );
 
   static const dark = LnPalette(
@@ -258,6 +287,12 @@ class LnPalette {
     segmentedSelected: Color(0x3DFFFFFF),
     successText: Color(0xFF5EB92D),
     positiveText: Color(0xFF2FD39A),
+    chromeCircle: Color(0xFF353535),
+    drawerSurface: Color(0xFF1A1A1A),
+    menuSurface: Color(0xFF262626),
+    menuBorder: Color(0xFF383838),
+    profileTop: Color(0xFF333333),
+    profileBottom: Color(0xFF3D3D3D),
   );
 }
 

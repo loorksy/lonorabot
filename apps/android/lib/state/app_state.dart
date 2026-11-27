@@ -334,12 +334,16 @@ class PrefsState {
     this.locale = 'ar',
     this.chatPrefs = const ChatPrefs(),
     this.notify = const NotifyPrefs(),
+    this.homeMode = HomeMode.lastChat,
   });
 
   final AppThemeMode themeMode;
   final String locale;
   final ChatPrefs chatPrefs;
   final NotifyPrefs notify;
+
+  /// What the Chats tab opens on (this device).
+  final HomeMode homeMode;
 
   ThemeMode get materialThemeMode => switch (themeMode) {
     AppThemeMode.system => ThemeMode.system,
@@ -352,13 +356,19 @@ class PrefsState {
     String? locale,
     ChatPrefs? chatPrefs,
     NotifyPrefs? notify,
+    HomeMode? homeMode,
   }) => PrefsState(
     themeMode: themeMode ?? this.themeMode,
     locale: locale ?? this.locale,
     chatPrefs: chatPrefs ?? this.chatPrefs,
     notify: notify ?? this.notify,
+    homeMode: homeMode ?? this.homeMode,
   );
 }
+
+/// The Chats tab's home: the last conversation with the chat list in a side drawer
+/// ([lastChat]), or the full chat list ([list]).
+enum HomeMode { lastChat, list }
 
 /// This phone's notification preferences (apps/web device-prefs.ts `NotifyPrefs`), surviving
 /// sign-out: [inApp] the heads-up banner for replies (urgent items show regardless), [preview]

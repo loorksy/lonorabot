@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../features/agents/agent_memory_screen.dart';
 import '../features/agents/agent_profile_screen.dart';
 import '../features/agents/agent_settings_screen.dart';
+import '../features/agents/instructions_screen.dart';
 import '../features/agents/agents_screen.dart';
 import '../features/attention/attention_screen.dart';
 import '../features/auth/connect_screen.dart';
@@ -33,6 +34,7 @@ import '../features/settings/integrations_screen.dart';
 import '../features/settings/models_screen.dart';
 import '../features/settings/notifications_screen.dart';
 import '../features/settings/running_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/settings/usage_screen.dart';
 import '../features/settings/voice_settings_screen.dart';
 import '../features/skills/skills_screen.dart';
@@ -178,6 +180,11 @@ GoRouter buildRouter(Store<AppState> store) {
                 AgentMemoryScreen(agentId: s.pathParameters['id']!),
           ),
           GoRoute(
+            path: 'instructions',
+            builder: (_, s) =>
+                AgentInstructionsScreen(agentId: s.pathParameters['id']!),
+          ),
+          GoRoute(
             path: 'skills',
             builder: (_, s) => SkillsScreen(agentId: s.pathParameters['id']!),
           ),
@@ -247,6 +254,11 @@ GoRouter buildRouter(Store<AppState> store) {
         parentNavigatorKey: rootNavigatorKey,
         path: Routes.ownerKnowledge,
         builder: (_, _) => const OwnerKnowledgeScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: Routes.settings,
+        builder: (_, _) => const SettingsScreen(),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

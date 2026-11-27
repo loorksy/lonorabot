@@ -15,6 +15,7 @@ const _localeKey = 'lonora.locale';
 const _chatPrefsKey = 'lonora.chatPrefs';
 const _notifyInAppKey = 'lonora.notify.in_app';
 const _notifyPreviewKey = 'lonora.notify.preview';
+const _homeModeKey = 'lonora.homeMode';
 
 const platformChannel = MethodChannel('ai.lonora.android/platform');
 
@@ -35,6 +36,10 @@ class LoadPrefsAction extends AppAction {
         chat = ChatPrefs.fromJson(asJson(jsonDecode(raw)));
       } catch (_) {}
     }
+    final home = HomeMode.values.firstWhere(
+      (m) => m.name == devicePrefs.getString(_homeModeKey),
+      orElse: () => HomeMode.lastChat,
+    );
     _applyNativeNightMode(theme);
     return state.copyWith(
       prefs: PrefsState(
@@ -42,6 +47,7 @@ class LoadPrefsAction extends AppAction {
         locale: locale,
         chatPrefs: chat,
         notify: readNotifyPrefs(devicePrefs),
+        homeMode: home,
       ),
     );
   }
@@ -129,5 +135,16 @@ class SetChatPrefsAction extends AppAction {
   Future<AppState> reduce() async {
     await devicePrefs.setString(_chatPrefsKey, jsonEncode(prefs.toJson()));
     return state.copyWith(prefs: state.prefs.copyWith(chatPrefs: prefs));
+  }
+}
+
+class SetHomeModeAction extends AppAction {
+  SetHomeModeAction(this.mode);
+  final HomeMode mode;
+
+  @override
+  Future<AppState> reduce() async {
+    await devicePrefs.setString(_homeModeKey, mode.name);
+    return state.copyWith(prefs: state.prefs.copyWith(homeMode: mode));
   }
 }
