@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart' show FIcons;
 import 'package:lonora/app/deep_links.dart';
 import 'package:lonora/app/services.dart';
+import 'package:lonora/avatar/avatar.dart';
 import 'package:lonora/core/api/api_client.dart';
 import 'package:lonora/core/api/api_error.dart';
 import 'package:lonora/core/json.dart';
@@ -26,6 +27,7 @@ import 'package:lonora/features/conversation/conversation_composer.dart';
 import 'package:lonora/features/conversation/conversation_screen.dart';
 import 'package:lonora/features/conversation/message_widgets.dart';
 import 'package:lonora/features/conversation/question_card.dart';
+import 'package:lonora/features/conversation/run_rows.dart';
 import 'package:lonora/features/rich/rich_content_view.dart';
 import 'package:lonora/features/voice/voice_note_button.dart';
 import 'package:lonora/l10n/l10n.dart';
@@ -350,9 +352,21 @@ void main() {
       for (final emoji in ['👍', '❤️', '😂', '😮', '😢', '🙏']) {
         expect(find.text(emoji), findsWidgets);
       }
+      // The menu card is headed by the message's time (the time separators' rule).
+      expect(find.text(l10n.timeSeparator(at(6))), findsWidgets);
       await tester.tap(find.text('Reply'));
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('Reply · Atlas'), findsOneWidget);
+      // The reply bar quotes the message; its quote mark says it is a reply.
+      final bar = find.byType(ComposerReplyBar);
+      expect(bar, findsOneWidget);
+      expect(tester.widget<ComposerReplyBar>(bar).title, isNull);
+      expect(
+        find.descendant(
+          of: bar,
+          matching: find.textContaining('EUR/USD is holding'),
+        ),
+        findsOneWidget,
+      );
       expect(tappable('Cancel reply'), findsOneWidget);
 
       // «Select text»: the message drawn by the rich view, selectable.
@@ -366,6 +380,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 600));
       await tester.tap(find.text('Select text'));
+      await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(milliseconds: 600));
       final sheet = find.byWidgetPredicate(
         (w) => w is RichContentView && w.selectable,
@@ -541,7 +556,7 @@ void main() {
       }
     });
 
-    testWidgets('a typing bubble shows while a run has no text yet', (
+    testWidgets('the agent at work shows while a run has no text yet', (
       tester,
     ) async {
       final base = streamingState('en');
@@ -549,7 +564,16 @@ void main() {
         base.thread(threadId).copyWith(streams: const {}),
       );
       await pumpScreen(tester, Store<AppState>(initialState: state));
-      expect(find.byType(TypingBubble), findsOneWidget);
+      final row = find.byType(WorkingRow);
+      expect(row, findsOneWidget);
+      // Its avatar sits at the bubbles' text column, 32 dp from the start edge.
+      final avatar = find.descendant(
+        of: row,
+        matching: find.byType(LonoraAvatar),
+      );
+      expect(tester.getSize(avatar), const Size(32, 32));
+      expect(tester.getTopLeft(avatar).dx, LnSpace.pageGutter + 16);
+      expect(tester.widget<WorkingRow>(row).semanticLabel, isNotEmpty);
     });
 
     testWidgets('a failed unsent message retries with the same nonce', (
@@ -844,6 +868,17 @@ void main() {
       expect(pendingShare.value, isNotNull);
       final field = tester.widget<TextField>(find.byType(TextField));
       expect(field.controller!.text, isEmpty);
+    });
+
+    testWidgets('a share the picker addressed to the open conversation joins '
+        'its composer', (tester) async {
+      await pumpScreen(tester, Store<AppState>(initialState: mixedState('en')));
+      pendingShare.value = const SharedPayload(text: 'Shared here')
+          .withTarget(threadId);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(pendingShare.value, isNull);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, 'Shared here');
     });
 
     testWidgets('read marks and the open thread follow the conversation being '
@@ -1259,7 +1294,7 @@ void main() {
         tester.getSemantics(find.bySemanticsLabel('Voice message')),
         isSemantics(
           label: 'Voice message',
-          hint: 'Hold to record a voice message',
+          hint: 'Tap to record hands-free',
           isButton: true,
           isEnabled: true,
         ),
@@ -1267,7 +1302,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('recording keeps the mic and closes the keyboard', (
+    testWidgets('the mic records hands-free and closes the keyboard', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -1289,36 +1324,18 @@ void main() {
       FocusNode field() =>
           tester.widget<TextField>(find.byType(TextField)).focusNode!;
       expect(field().hasFocus, isTrue);
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(VoiceNoteButton)),
-      );
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.bySemanticsLabel('Voice message'));
       await tester.pump();
-      // Recording: the same mic stays (a removed one would abandon the note).
-      expect(find.byType(VoiceNoteButton), findsOneWidget);
+      await tester.pump();
+      // Recording: the bar takes the pill's place; the field gives up the keyboard.
+      expect(find.byType(ComposerRecordingBar), findsOneWidget);
       expect(field().hasFocus, isFalse);
-      // K13: the field and «+» read as disabled, the mic stays enabled.
-      expect(
-        tester.getSemantics(find.byType(EditableText)),
-        isSemantics(isTextField: true, hasEnabledState: true, isEnabled: false),
-      );
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Attach file')),
-        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
-      );
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Voice message')),
-        isSemantics(isButton: true, hasEnabledState: true, isEnabled: true),
-      );
-      await tester.tap(find.byType(TextField), warnIfMissed: false);
-      await tester.pump();
-      expect(field().hasFocus, isFalse);
-      // Slide toward the start: cancelled, nothing sent.
-      await gesture.moveBy(const Offset(-60, 0));
-      await gesture.moveBy(const Offset(-60, 0));
-      await tester.pump();
-      await gesture.up();
+      // The hidden pill is out of the semantics tree.
+      expect(find.bySemanticsLabel('Attach file'), findsNothing);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.bySemanticsLabel('Delete the recording'));
       await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(ComposerRecordingBar), findsNothing);
       expect(fake.uploads, isEmpty);
       await tester.tap(find.byType(TextField));
       await tester.pump();
@@ -1326,14 +1343,60 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('a long press on the empty composer records; release sends', (
+      tester,
+    ) async {
+      VoiceNoteButton.recorderFactory = _Recorder.new;
+      VoiceNoteButton.recordingsDir = () async => Directory.systemTemp.path;
+      final sent = <double>[];
+      final sender = VoiceNoteButton.sender;
+      VoiceNoteButton.sender = (
+        context, {
+        required threadId,
+        required path,
+        required seconds,
+        required peaks,
+      }) async => sent.add(seconds);
+      addTearDown(() {
+        VoiceNoteButton.recorderFactory = RecordVoiceNoteRecorder.new;
+        VoiceNoteButton.sender = sender;
+      });
+      await pumpScreen(
+        tester,
+        Store<AppState>(
+          initialState: conversationState(
+            messages: [message('m1', 1, 'assistant', 'Hi.', at(5))],
+          ),
+        ),
+      );
+      expect(find.text('Hold to talk, tap to type'), findsOneWidget);
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(EditableText)),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      expect(find.byType(ComposerRecordingBar), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+      await gesture.up();
+      await tester.pump();
+      await tester.pump();
+      expect(sent.single, closeTo(2, 0.21));
+      expect(find.byType(ComposerRecordingBar), findsNothing);
+      await settleToasts(tester);
+    });
+
     testWidgets('a direct conversation names its agent in the hint and the '
         'capsule hint names the profile', (tester) async {
       await pumpScreen(tester, Store<AppState>(initialState: mixedState('en')));
-      expect(find.text('Message Atlas…'), findsOneWidget);
-      // The capsule opens the agent's profile, and says so.
+      // Empty and unfocused, the composer says how to talk; focused, it names the agent.
+      expect(find.text('Hold to talk, tap to type'), findsOneWidget);
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      expect(find.text('Message Atlas'), findsOneWidget);
+      // The capsule opens the conversation's actions, and says so.
       expect(
         tester.widget<TitleCapsule>(find.byType(TitleCapsule)).semanticHint,
-        'Agent profile',
+        'Agent actions',
       );
     });
   });

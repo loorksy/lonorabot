@@ -10,11 +10,11 @@ void registerChatsStrings() {
     // Row menu («Agent profile») and the selection entry.
     'chats_agentProfile': ['ملف الوكيل', 'Agent profile'],
     'chats_select': ['تحديد', 'Select'],
-    // «وكيل جديد» opens Lonora's conversation: Lonora creates agents from chat.
-    'chats_newAgentHint': [
-      'اطلب من Lonora إنشاء الوكيل الذي تحتاجه',
-      'Ask Lonora to create the agent you need',
-    ],
+    // The chat drawer of the last-conversation home: its button, its close action and the row
+    // that opens the full list.
+    'chats_drawer': ['قائمة المحادثات', 'Chat list'],
+    'chats_closeDrawer': ['إغلاق قائمة المحادثات', 'Close the chat list'],
+    'chats_allChats': ['كل المحادثات', 'All chats'],
     // Share target picker.
     'share_title': ['إرسال إلى…', 'Send to…'],
     // Groups (wording of Lonora Web's group page, apps/web/src/shell/agent/GroupPage.tsx).

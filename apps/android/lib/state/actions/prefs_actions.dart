@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'dart:ui' show PlatformDispatcher;
@@ -7,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/services.dart';
 import '../../core/json.dart';
+import '../../core/storage/local_store.dart';
 import '../app_state.dart';
 import 'base.dart';
 
@@ -16,6 +18,7 @@ const _chatPrefsKey = 'lonora.chatPrefs';
 const _notifyInAppKey = 'lonora.notify.in_app';
 const _notifyPreviewKey = 'lonora.notify.preview';
 const _homeModeKey = 'lonora.homeMode';
+const _lastThreadKey = 'lonora.lastThread';
 
 const platformChannel = MethodChannel('ai.lonora.android/platform');
 
@@ -146,5 +149,38 @@ class SetHomeModeAction extends AppAction {
   Future<AppState> reduce() async {
     await devicePrefs.setString(_homeModeKey, mode.name);
     return state.copyWith(prefs: state.prefs.copyWith(homeMode: mode));
+  }
+}
+
+/// Where the last opened conversation of the signed-in owner of this server is kept on this
+/// device; null when signed out.
+String? _lastThreadSlot(SessionState session) {
+  final server = session.server;
+  final owner = session.owner;
+  if (server == null || owner == null) return null;
+  return '$_lastThreadKey.${LocalStore.scope(server, owner.id)}';
+}
+
+SharedPreferences? get _prefsOrNull =>
+    sl.isRegistered<SharedPreferences>() ? devicePrefs : null;
+
+/// The conversation the owner of this server last opened on this device (the drawer home opens
+/// on it), or null.
+String? lastThreadOf(SessionState session) {
+  final slot = _lastThreadSlot(session);
+  if (slot == null) return null;
+  final id = _prefsOrNull?.getString(slot);
+  return id == null || id.isEmpty ? null : id;
+}
+
+/// Keeps [threadId] as the owner's last opened conversation; null forgets it.
+void rememberLastThread(SessionState session, String? threadId) {
+  final slot = _lastThreadSlot(session);
+  final prefs = _prefsOrNull;
+  if (slot == null || prefs == null) return;
+  if (threadId == null || threadId.isEmpty) {
+    unawaited(prefs.remove(slot));
+  } else if (prefs.getString(slot) != threadId) {
+    unawaited(prefs.setString(slot, threadId));
   }
 }

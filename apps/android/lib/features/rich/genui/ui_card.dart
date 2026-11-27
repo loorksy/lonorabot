@@ -354,7 +354,7 @@ class _UiCardViewState extends State<UiCardView> {
     }
     return text.replaceFirst(
       RegExp(r'^(الآن|now)(?=[\s:،,.]|$)', caseSensitive: false),
-      '${l10n.t('uiLastUpdated')} ${clockTime(oldest)}',
+      '${l10n.t('uiLastUpdated')} ${clockTime(oldest, lang: l10n.lang)}',
     );
   }
 
@@ -1793,7 +1793,7 @@ class _Footer extends StatelessWidget {
                 // When the card's facts were read; never the tools' internal names.
                 if (oldest != null)
                   Text(
-                    '${context.t('uiLastUpdated')} ${clockTime(oldest!)}',
+                    '${context.t('uiLastUpdated')} ${clockTime(oldest!, lang: context.l10n.lang)}',
                     style: ln.text.small.copyWith(color: c.fgMuted),
                   ),
               ],

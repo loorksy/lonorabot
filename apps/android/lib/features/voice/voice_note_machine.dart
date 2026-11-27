@@ -1,8 +1,9 @@
 // The voice-note recorder's gestures and limits, a port of Lonora Web's recorder
 // (apps/web/src/conversation/Composer.tsx `useVoiceRecorder`, Voice.tsx `VOICE`/`voicePeaks`):
-// hold the mic 350 ms to record; slide 110 dp toward the start to cancel, 70 dp up to lock;
-// release sends; at most 2:00 (then it sends by itself); under 0.7 s is too short. Pure and
-// unit-tested; the widget drives the recorder from the effects it returns.
+// hold to record (the composer's long press, or the mic's 350 ms hold in the pure machine); slide
+// 110 dp toward the start to cancel, 70 dp up to lock; release sends; a tap on the mic records
+// hands-free at once; at most 2:00 (then it sends by itself); under 0.7 s is too short. Pure and
+// unit-tested; the controller drives the recorder from the effects it returns.
 import 'dart:math' as math;
 
 abstract final class VoiceNoteLimits {
@@ -110,6 +111,14 @@ class VoiceNoteMachine {
     _reset();
     phase = VoiceNotePhase.pressing;
     return VoiceNoteEffect.none;
+  }
+
+  /// The mic's tap (or a screen reader's activation): a hands-free recording at once.
+  VoiceNoteEffect tapStart() {
+    if (phase != VoiceNotePhase.idle) return VoiceNoteEffect.none;
+    _reset();
+    phase = VoiceNotePhase.locked;
+    return VoiceNoteEffect.start;
   }
 
   VoiceNoteEffect holdElapsed() {

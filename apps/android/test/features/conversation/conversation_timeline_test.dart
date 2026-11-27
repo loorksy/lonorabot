@@ -220,6 +220,60 @@ void main() {
     });
   });
 
+  group('bubble runs', () {
+    bool bubble(TimelineItem item) => item is MessageItem;
+    test('one sender\'s bubbles join, 4 dp apart', () {
+      final a = message('a1', 2, 'assistant', 'One', at(1));
+      final b = message('a2', 3, 'assistant', 'Two', at(1));
+      final c = message('a3', 4, 'assistant', 'Three', at(2));
+      final rows = presentTimeline(
+        buildTimeline(thread: thread(messages: [m1, a, b, c])),
+        group: false,
+        sameSenderGap: 7,
+        senderChangeGap: 16,
+        bubbleRunGap: 4,
+        startsWithBubble: bubble,
+        endsWithBubble: bubble,
+      );
+      expect(
+        [for (final r in rows) (r.joinTop, r.joinBottom)],
+        [(false, false), (false, true), (true, true), (true, false)],
+      );
+      expect([for (final r in rows) r.gap].skip(1), [16, 4, 4]);
+    });
+
+    test('a row that does not end with its bubble breaks the run', () {
+      final a = message('a1', 2, 'assistant', 'One', at(1));
+      final b = message('a2', 3, 'assistant', 'Two', at(1));
+      final rows = presentTimeline(
+        buildTimeline(thread: thread(messages: [a, b])),
+        group: false,
+        sameSenderGap: 7,
+        senderChangeGap: 16,
+        bubbleRunGap: 4,
+        startsWithBubble: bubble,
+        // Files under the first bubble.
+        endsWithBubble: (item) => (item as MessageItem).message.id != 'a1',
+      );
+      expect(rows[1].joinTop, isFalse);
+      expect(rows[0].joinBottom, isFalse);
+      expect(rows[1].gap, 7);
+    });
+
+    test('without the predicates nothing joins', () {
+      final a = message('a1', 2, 'assistant', 'One', at(1));
+      final b = message('a2', 3, 'assistant', 'Two', at(1));
+      final rows = presentTimeline(
+        buildTimeline(thread: thread(messages: [a, b])),
+        group: false,
+        sameSenderGap: 7,
+        senderChangeGap: 16,
+      );
+      expect(rows.any((r) => r.joinTop || r.joinBottom), isFalse);
+      expect(rows[1].gap, 7);
+    });
+  });
+
   group('run controls', () {
     test('Stop targets the working and waiting runs of this thread', () {
       final runs = [

@@ -12,6 +12,8 @@ import '../../core/models/models.dart';
 import '../../design/design.dart';
 import '../../l10n/core/values.dart' show jsString;
 import '../../l10n/l10n.dart';
+import '../../state/actions/base.dart';
+import '../../state/app_state.dart';
 import '../rich/markdown_view.dart';
 
 final RegExp _wrapper = RegExp(
@@ -142,10 +144,18 @@ class PeerExchangeView extends StatelessWidget {
         style: ln.text.captionStrong.copyWith(color: link ? c.selection : c.fg),
       );
       if (!link) return text;
-      // This conversation is already open: only the other one is a link.
+      // This conversation is already open: only the other one is a link. The last-conversation
+      // home keeps one conversation at the Chats tab's root: the other one takes its place.
       return LnTappable(
-        onTap: () =>
-            GoRouter.maybeOf(context)?.push(Routes.thread(party.thread)),
+        onTap: () {
+          final router = GoRouter.maybeOf(context);
+          final link = Routes.thread(party.thread);
+          if (context.read().prefs.homeMode == HomeMode.lastChat) {
+            router?.go(link);
+          } else {
+            router?.push(link);
+          }
+        },
         semanticLabel: name,
         excludeChildSemantics: true,
         child: ConstrainedBox(

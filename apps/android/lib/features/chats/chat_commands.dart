@@ -11,6 +11,9 @@ import '../../core/api/api_error.dart';
 import '../../core/models/models.dart';
 import '../../design/design.dart';
 import '../../l10n/l10n.dart';
+import '../../state/actions/base.dart';
+import '../../state/app_state.dart';
+import '../groups/create_group_sheet.dart';
 import 'chat_rows.dart';
 import 'chats_actions.dart';
 import 'list_sheets.dart';
@@ -43,11 +46,14 @@ Future<bool> runChatsAction(BuildContext context, ChatsAction action) async {
 }
 
 /// Opens a row's conversation (an agent with none gets it now). [replace] uses `go` (from
-/// screens outside the chats branch); otherwise the conversation is pushed over the list.
+/// screens outside the chats branch), as does the last-conversation home, whose tab root is one
+/// conversation at a time; otherwise the conversation is pushed over the list. [beforeOpen] runs
+/// once the conversation is known, just before it opens (the chat drawer closes then).
 Future<void> openChatRow(
   BuildContext context,
   ChatRow row, {
   bool replace = false,
+  VoidCallback? beforeOpen,
 }) async {
   var id = row.threadId;
   if (id == null || id.isEmpty) {
@@ -56,7 +62,8 @@ Future<void> openChatRow(
     id = action.threadId;
   }
   if (id == null || id.isEmpty || !context.mounted) return;
-  if (replace) {
+  beforeOpen?.call();
+  if (replace || context.read().prefs.homeMode == HomeMode.lastChat) {
     context.go(Routes.thread(id));
   } else {
     context.push(Routes.thread(id));
@@ -214,7 +221,7 @@ class ChatCommands {
   void groupFrom(List<ChatRow> picked) {
     final members = picked.where((r) => r.isAgent).map((r) => r.id).toList();
     onDone();
-    context.push(Routes.newGroup(members: members));
+    showCreateGroupSheet(context, memberIds: members);
   }
 
   /// The row's long-press menu (profile · read/unread · pin/unpin) with Lonora's mute and archive,

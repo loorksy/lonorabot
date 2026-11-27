@@ -15,6 +15,7 @@ import '../features/auth/server_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/charts/charts_screen.dart';
 import '../features/chats/archived_screen.dart';
+import '../features/chats/chats_home.dart';
 import '../features/chats/chats_screen.dart';
 import '../features/chats/search_screen.dart';
 import '../features/conversation/conversation_screen.dart';
@@ -67,6 +68,32 @@ class _SessionListenable extends ChangeNotifier {
   }
 }
 
+/// Keeps links in the shape of the Chats tab's home. The last-conversation home shows one
+/// conversation at the tab's root: a conversation link (`/chats/thread/…`) becomes that root
+/// (`/chats?thread=…`), so conversations never stack. The list home pushes conversations over the
+/// list: a home link becomes the pushed conversation again, and the full list is the root.
+String? homeRedirect(HomeMode mode, Uri uri) {
+  final segments = uri.pathSegments;
+  final around = int.tryParse(uri.queryParameters['around'] ?? '');
+  if (mode == HomeMode.lastChat) {
+    if (segments.length == 3 &&
+        segments[0] == 'chats' &&
+        segments[1] == 'thread' &&
+        segments[2].isNotEmpty) {
+      return Routes.home(segments[2], around: around);
+    }
+    return null;
+  }
+  if (uri.path == Routes.chatList()) return Routes.chats;
+  final thread = uri.path == Routes.chats
+      ? uri.queryParameters['thread']
+      : null;
+  if (thread != null && thread.isNotEmpty) {
+    return Routes.thread(thread, around: around);
+  }
+  return null;
+}
+
 /// A conversation is a page over the chat list: it slides in and, swiped back (or ≡), slides away
 /// to reveal the list.
 Page<void> _conversationPage(GoRouterState state, Widget child) =>
@@ -88,7 +115,7 @@ GoRouter buildRouter(Store<AppState> store) {
         return open.contains(path) ? null : Routes.signIn;
       }
       if (path == Routes.splash || path == Routes.signIn) return Routes.chats;
-      return null;
+      return homeRedirect(store.state.prefs.homeMode, state.uri);
     },
     routes: [
       GoRoute(path: Routes.splash, builder: (_, _) => const SplashScreen()),
@@ -103,13 +130,16 @@ GoRouter buildRouter(Store<AppState> store) {
       GoRoute(path: Routes.server, builder: (_, _) => const ServerScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) =>
-            HomeShell(shell: shell, location: state.uri.path),
+            HomeShell(shell: shell, location: state.uri.toString()),
         branches: [
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: Routes.chats,
-                builder: (_, _) => const ChatsScreen(),
+                builder: (_, s) => ChatsHome(
+                  threadId: s.uri.queryParameters['thread'],
+                  around: int.tryParse(s.uri.queryParameters['around'] ?? ''),
+                ),
                 routes: [
                   GoRoute(
                     path: 'thread/:id',
@@ -126,6 +156,13 @@ GoRouter buildRouter(Store<AppState> store) {
                   GoRoute(
                     path: 'archived',
                     builder: (_, _) => const ArchivedScreen(),
+                  ),
+                  GoRoute(
+                    path: 'all',
+                    builder: (_, s) => ChatsScreen(
+                      pushed: true,
+                      select: s.uri.queryParameters['select'],
+                    ),
                   ),
                 ],
               ),

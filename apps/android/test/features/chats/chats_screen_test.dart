@@ -7,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lonora/app/routes.dart';
 import 'package:lonora/design/design.dart';
+import 'package:lonora/features/agents/create_agent_sheet.dart';
 import 'package:lonora/features/chats/chat_rows.dart';
 import 'package:lonora/features/chats/chat_widgets.dart';
+import 'package:lonora/features/groups/create_group_sheet.dart';
 import 'package:lonora/state/app_state.dart';
 
 import '../../design/harness.dart' show withRealShadows;
@@ -231,7 +233,8 @@ void main() {
     await settleToasts(tester);
   });
 
-  testWidgets('the + menu offers Lonora\'s create entries', (tester) async {
+  testWidgets('the + menu offers Lonora\'s create entries; new agent and new '
+      'group open their stacked sheets', (tester) async {
     await pumpChats(tester, locale: 'en');
     await tester.tap(find.bySemanticsLabel('New chat'));
     await tester.pumpAndSettle();
@@ -240,8 +243,21 @@ void main() {
     expect(find.text('Manage agents'), findsOneWidget);
     await tester.tap(find.text('New agent'));
     await tester.pumpAndSettle();
-    expect(shownRoute(tester), '/chats/thread/t-lonora');
-    await settleToasts(tester);
+    expect(find.byType(CreateAgentForm), findsOneWidget);
+    // The sheet stacks over the list; no conversation opens.
+    expect(shownRoute(tester), isNull);
+    Navigator.of(tester.element(find.byType(CreateAgentForm))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(CreateAgentForm), findsNothing);
+    await tester.tap(find.bySemanticsLabel('New chat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New group'));
+    await tester.pumpAndSettle();
+    final form = tester.widget<NewGroupForm>(find.byType(NewGroupForm));
+    expect(form.inSheet, isTrue);
+    expect(shownRoute(tester), isNull);
+    Navigator.of(tester.element(find.byType(NewGroupForm))).pop();
+    await tester.pumpAndSettle();
   });
 
   testWidgets(

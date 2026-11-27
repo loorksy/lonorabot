@@ -1,10 +1,11 @@
-// The call UI: a full-screen call page with the agent's large avatar, «Calling…» → the connected
-// timer → «Call ended», the level meter in the agent's colour
+// The call UI: a full-screen call page on a soft vertical gradient with the agent's avatar on two
+// rings that swell with the voice level, «Calling…» → the connected timer → «Call ended»
 // (apps/mobile/components/voice-overlay.tsx), error states with Retry, the conversation's trade
-// approvals under the controls (the fixed card: only the owner's tap on it decides), and four
-// controls Speaker · Mute · End call · Minimize. Minimized, the call is a pill at the top that
-// brings it back.
+// approvals under the controls (the fixed card: only the owner's tap on it decides), three Ø72
+// controls Speaker · End call · Mute, and the ⌄ circle that minimizes it. Minimized, the call is a
+// pill at the top that brings it back.
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/services.dart';
@@ -99,9 +100,6 @@ class VoiceCallView extends StatelessWidget {
     final l10n = context.l10n;
     final s = state;
     final name = agent?.name ?? 'Lonora';
-    final color = avatarHexColor(
-      resolveAvatarColor(agent?.id ?? s.agentId ?? 'lonora', agent?.color).hex,
-    );
     final connectedAt = s.connectedAt;
     final clock = s.phase == CallPhase.connected && connectedAt != null
         ? callClock(now.difference(connectedAt))
@@ -111,8 +109,17 @@ class VoiceCallView extends StatelessWidget {
     final ended = s.phase == CallPhase.ended || s.phase == CallPhase.failed;
     final top = MediaQuery.paddingOf(context).top;
     final bottom = MediaQuery.paddingOf(context).bottom;
-    return ColoredBox(
-      color: c.bg,
+    final level = s.phase == CallPhase.connected && (!s.muted || s.speaking)
+        ? s.level.clamp(0.0, 1.0)
+        : 0.0;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [c.profileTop, c.profileBottom],
+        ),
+      ),
       child: Padding(
         padding: EdgeInsets.only(top: top, bottom: bottom),
         child: Column(
@@ -121,8 +128,7 @@ class VoiceCallView extends StatelessWidget {
               padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 14, 0),
               child: Row(
                 children: [
-                  CircleIconButton(
-                    icon: const Icon(FIcons.chevronDown),
+                  _MinimizeCircle(
                     semanticLabel: l10n.t('minimizeCall'),
                     onTap: onMinimize,
                   ),
@@ -142,79 +148,62 @@ class VoiceCallView extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, box) => SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LnSpace.pageGutter,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: box.maxHeight),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: LnSpace.lg),
-                        Semantics(
-                          label: callStatus(l10n, s),
-                          child: Transform.scale(
-                            scale: 1 + s.level.clamp(0.0, 1.0) * 0.12,
-                            child: LonoraAvatar(
-                              agentId: agent?.id ?? s.agentId ?? 'lonora',
-                              face: agent?.avatar,
-                              color: agent?.color,
-                              tradesOnItsOwn: agent?.tradesOnItsOwn ?? false,
-                              state: callAvatarState(s),
-                              size: 132,
-                              animate: animate,
-                            ),
-                          ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  LnSpace.pageGutter,
+                  _avatarLead(context, top),
+                  LnSpace.pageGutter,
+                  LnSpace.lg,
+                ),
+                child: Column(
+                  children: [
+                    Semantics(
+                      label: callStatus(l10n, s),
+                      child: _AvatarRings(
+                        level: ended ? 0 : level,
+                        animate: animate,
+                        child: LonoraAvatar(
+                          agentId: agent?.id ?? s.agentId ?? 'lonora',
+                          face: agent?.avatar,
+                          color: agent?.color,
+                          tradesOnItsOwn: agent?.tradesOnItsOwn ?? false,
+                          state: callAvatarState(s),
+                          size: _AvatarRings.avatar,
+                          animate: animate,
                         ),
-                        const SizedBox(height: LnSpace.xl),
-                        Text(
-                          name,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: ln.text.largeTitle,
-                        ),
-                        const SizedBox(height: LnSpace.xxs),
-                        Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            callStatus(l10n, s),
-                            textAlign: TextAlign.center,
-                            style: ln.text.body.copyWith(color: c.fgMuted),
-                          ),
-                        ),
-                        const SizedBox(height: LnSpace.lg),
-                        if (!ended)
-                          _LevelMeter(
-                            level: s.phase == CallPhase.connected && !s.muted
-                                ? s.level
-                                : (s.phase == CallPhase.connected && s.speaking
-                                      ? s.level
-                                      : 0),
-                            color: color,
-                          ),
-                        if (s.error != null) ...[
-                          const SizedBox(height: LnSpace.lg),
-                          _CallError(
-                            text: l10n.errorText(s.error),
-                            onRetry: s.canRetry && !s.openSettings
-                                ? onRetry
-                                : null,
-                            onOpenSettings: s.openSettings
-                                ? onOpenSettings
-                                : null,
-                          ),
-                        ],
-                        if (approvals != null) ...[
-                          const SizedBox(height: LnSpace.lg),
-                          approvals!,
-                        ],
-                        const SizedBox(height: LnSpace.lg),
-                      ],
+                      ),
                     ),
-                  ),
+                    // The name sits on the rings' lower edge, 8 dp under the avatar.
+                    const SizedBox(height: LnSpace.xs),
+                    Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: ln.text.headline.copyWith(color: c.fg),
+                    ),
+                    const SizedBox(height: LnSpace.xxs),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        callStatus(l10n, s),
+                        textAlign: TextAlign.center,
+                        style: ln.text.caption.copyWith(color: c.fgMuted),
+                      ),
+                    ),
+                    if (s.error != null) ...[
+                      const SizedBox(height: LnSpace.xxl),
+                      _CallError(
+                        text: l10n.errorText(s.error),
+                        onRetry: s.canRetry && !s.openSettings ? onRetry : null,
+                        onOpenSettings: s.openSettings ? onOpenSettings : null,
+                      ),
+                    ],
+                    if (approvals != null) ...[
+                      const SizedBox(height: LnSpace.lg),
+                      approvals!,
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -227,44 +216,57 @@ class VoiceCallView extends StatelessWidget {
               ),
               child: ended
                   ? BlockButton(label: l10n.t('close'), onPressed: onClose)
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // The label names the control; on/off is the filled disc and
-                        // Semantics.toggled.
-                        _CallControl(
-                          icon: FIcons.volume2,
-                          label: l10n.t('vc_speaker'),
-                          semantics: l10n.t('vc_speaker'),
-                          toggled: s.speaker,
-                          onTap: s.phase == CallPhase.ending ? null : onSpeaker,
+                  : Center(
+                      // Three controls at a 104 dp pitch, centred (narrower on a narrow screen).
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: 3 * _CallControl.pitch,
                         ),
-                        _CallControl(
-                          icon: s.muted ? FIcons.micOff : FIcons.mic,
-                          label: s.muted
-                              ? l10n.t('vc_unmute')
-                              : l10n.t('vc_mute'),
-                          semantics: l10n.t(
-                            s.muted ? 'unmuteCall' : 'muteCall',
-                          ),
-                          toggled: s.muted,
-                          onTap: s.phase == CallPhase.ending ? null : onMute,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // The label names the control; on/off is the filled disc and
+                            // Semantics.toggled. Minimize is the ⌄ circle above.
+                            Expanded(
+                              child: _CallControl(
+                                icon: FIcons.volume2,
+                                label: l10n.t('vc_speaker'),
+                                semantics: l10n.t('vc_speaker'),
+                                toggled: s.speaker,
+                                onTap: s.phase == CallPhase.ending
+                                    ? null
+                                    : onSpeaker,
+                              ),
+                            ),
+                            Expanded(
+                              child: _CallControl(
+                                icon: FIcons.phoneOff,
+                                label: l10n.t('vc_end'),
+                                semantics: l10n.t('endCall'),
+                                destructive: true,
+                                onTap: s.phase == CallPhase.ending
+                                    ? null
+                                    : onEnd,
+                              ),
+                            ),
+                            Expanded(
+                              child: _CallControl(
+                                icon: s.muted ? FIcons.micOff : FIcons.mic,
+                                label: s.muted
+                                    ? l10n.t('vc_unmute')
+                                    : l10n.t('vc_mute'),
+                                semantics: l10n.t(
+                                  s.muted ? 'unmuteCall' : 'muteCall',
+                                ),
+                                toggled: s.muted,
+                                onTap: s.phase == CallPhase.ending
+                                    ? null
+                                    : onMute,
+                              ),
+                            ),
+                          ],
                         ),
-                        _CallControl(
-                          icon: FIcons.phoneOff,
-                          label: l10n.t('vc_end'),
-                          semantics: l10n.t('endCall'),
-                          destructive: true,
-                          onTap: s.phase == CallPhase.ending ? null : onEnd,
-                        ),
-                        _CallControl(
-                          icon: FIcons.minimize2,
-                          label: l10n.t('vc_minimize'),
-                          semantics: l10n.t('minimizeCall'),
-                          onTap: onMinimize,
-                        ),
-                      ],
+                      ),
                     ),
             ),
           ],
@@ -272,41 +274,123 @@ class VoiceCallView extends StatelessWidget {
       ),
     );
   }
+
+  /// The header row: 10 dp, then the ⌄ circle's 48 dp target.
+  static const double _headerExtent = 10 + _MinimizeCircle.target;
+
+  /// Space above the avatar: the rings' centre at 29 % of the screen's height (the page's upper
+  /// third), never so high that the outer ring reaches the header row.
+  static double _avatarLead(BuildContext context, double top) => math.max(
+    (_AvatarRings.outer - _AvatarRings.avatar) / 2 + LnSpace.xs,
+    MediaQuery.sizeOf(context).height * 0.29 -
+        top -
+        _headerExtent -
+        _AvatarRings.avatar / 2,
+  );
 }
 
-/// Seven bars in the agent's colour (voice-overlay.tsx:110-127).
-class _LevelMeter extends StatelessWidget {
-  const _LevelMeter({required this.level, required this.color});
+/// The ⌄ circle that minimizes the call: the header circle (Ø44 in a 48 dp target) raised over
+/// the page's gradient. In dark the chrome circle's fill would melt into the gradient's top, so
+/// the disc is the ink at 11 % over it; light keeps the chrome circle.
+class _MinimizeCircle extends StatelessWidget {
+  const _MinimizeCircle({required this.semanticLabel, this.onTap});
 
-  final double level;
-  final Color color;
+  /// The touch target around the Ø44 disc.
+  static const double target = 48;
 
-  static const _factors = [0.3, 0.7, 0.5, 1.0, 0.6, 0.85, 0.4];
+  final String semanticLabel;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => ExcludeSemantics(
-    child: SizedBox(
-      height: 38,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final f in _factors)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1.5),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 140),
-                width: 4,
-                height: 4 + level.clamp(0.0, 1.0) * f * 30,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: const BorderRadius.all(Radius.circular(4)),
-                ),
-              ),
+  Widget build(BuildContext context) {
+    final ln = context.ln;
+    final c = ln.colors;
+    return LnTappable(
+      onTap: onTap,
+      haptic: true,
+      semanticLabel: semanticLabel,
+      excludeChildSemantics: true,
+      child: SizedBox.square(
+        dimension: target,
+        child: Center(
+          child: Container(
+            width: LnSize.headerCircle,
+            height: LnSize.headerCircle,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: c.isDark ? c.fg.withValues(alpha: 0.11) : c.chromeCircle,
+              border: c.isDark ? null : Border.fromBorderSide(ln.chromeRim),
+              boxShadow: c.isDark ? null : ln.chromeShadow,
             ),
+            child: Icon(
+              FIcons.chevronDown,
+              size: LnSize.chromeIcon,
+              color: c.fg,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The avatar (80 dp) on two rings (119 and 163 dp, 10 % and 4 % of the ink) that swell with the
+/// voice [level]; still with reduced motion or [animate] off. The box is the avatar's: the rings
+/// overflow it.
+class _AvatarRings extends StatelessWidget {
+  const _AvatarRings({
+    required this.level,
+    required this.animate,
+    required this.child,
+  });
+
+  final double level;
+  final bool animate;
+  final Widget child;
+
+  static const double avatar = 80;
+  static const double inner = 119;
+  static const double outer = 163;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.ln.colors;
+    final still =
+        !animate || (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+    final swell = still ? 0.0 : level;
+    Widget ring(double size, double alpha, double grow) => AnimatedScale(
+      scale: 1 + swell * grow,
+      duration: const Duration(milliseconds: 140),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: c.fg.withValues(alpha: alpha),
+        ),
+      ),
+    );
+    // The rings spread beyond the avatar's box: what follows (the name) lies on the outer one.
+    return SizedBox.square(
+      dimension: avatar,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          OverflowBox(
+            maxWidth: outer,
+            maxHeight: outer,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [ring(outer, 0.04, 0.10), ring(inner, 0.10, 0.06)],
+            ),
+          ),
+          child,
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _CallError extends StatelessWidget {
@@ -358,7 +442,7 @@ class _CallError extends StatelessWidget {
   }
 }
 
-/// One of the call controls: a 64 dp disc with its label below.
+/// One of the call controls: a 72 dp disc with its label below, as wide as its slot.
 class _CallControl extends StatelessWidget {
   const _CallControl({
     required this.icon,
@@ -368,6 +452,9 @@ class _CallControl extends StatelessWidget {
     this.toggled = false,
     this.destructive = false,
   });
+
+  /// Centre to centre of two controls (their row's slots).
+  static const double pitch = 104;
 
   final IconData icon;
   final String label;
@@ -384,7 +471,7 @@ class _CallControl extends StatelessWidget {
         ? c.error
         : toggled
         ? c.fgStrong
-        : ln.opaque(c.fill4);
+        : c.surface;
     final ink = destructive
         ? c.onAccent
         : toggled
@@ -399,16 +486,16 @@ class _CallControl extends StatelessWidget {
         semanticLabel: semantics,
         excludeChildSemantics: true,
         child: SizedBox(
-          width: 76,
+          width: double.infinity,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 72,
+                height: 72,
                 decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
                 alignment: Alignment.center,
-                child: Icon(icon, size: 26, color: ink),
+                child: Icon(icon, size: 28, color: ink),
               ),
               const SizedBox(height: LnSpace.xs),
               Text(
@@ -416,7 +503,7 @@ class _CallControl extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: ln.text.small.copyWith(color: c.fgMuted),
+                style: ln.text.caption.copyWith(color: c.fgMuted),
               ),
             ],
           ),

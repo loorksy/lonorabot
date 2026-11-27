@@ -16,6 +16,8 @@ import '../../l10n/l10n.dart';
 import '../../state/actions/base.dart';
 import '../../state/actions/shell_actions.dart';
 import '../../state/app_state.dart';
+import '../agents/create_agent_sheet.dart';
+import '../groups/create_group_sheet.dart';
 import 'chat_commands.dart';
 import 'chat_rows.dart';
 import 'chat_widgets.dart';
@@ -31,7 +33,14 @@ const double chatFilterExtent = minTouchTarget + 1;
 const double _listTopGap = 7;
 
 class ChatsScreen extends StatefulWidget {
-  const ChatsScreen({super.key});
+  const ChatsScreen({super.key, this.pushed = false, this.select});
+
+  /// The full list pushed over the last-conversation home («كل المحادثات»): a back circle leads
+  /// the header, search and «+» stand at its end.
+  final bool pushed;
+
+  /// The row key the selection starts on (the drawer's «تحديد»).
+  final String? select;
 
   @override
   State<ChatsScreen> createState() => _ChatsScreenState();
@@ -40,7 +49,7 @@ class ChatsScreen extends StatefulWidget {
 class _ChatsScreenState extends State<ChatsScreen>
     with SingleTickerProviderStateMixin {
   String _filter = 'all';
-  Set<String>? _selected;
+  late Set<String>? _selected = widget.select == null ? null : {widget.select!};
   final _scroll = ScrollController(initialScrollOffset: chatFilterExtent);
   late final FPopoverController _create = FPopoverController(vsync: this);
 
@@ -84,23 +93,6 @@ class _ChatsScreenState extends State<ChatsScreen>
       });
     }
     return false;
-  }
-
-  /// «وكيل جديد»: Lonora creates agents from chat (docs/agents-from-chat.md), so this opens
-  /// the conversation with Lonora, the personal agent.
-  Future<void> _newAgent(List<ChatRow> rows) async {
-    final l10n = context.l10n;
-    final lonora = rows.where((r) => r.agent?.isPersonal ?? false).firstOrNull;
-    if (lonora == null) {
-      LnToast.show(
-        context,
-        l10n.errorText('agent_not_found'),
-        kind: LnToastKind.error,
-      );
-      return;
-    }
-    await openChatRow(context, lonora);
-    if (mounted) LnToast.show(context, l10n.t('chats_newAgentHint'));
   }
 
   @override
@@ -304,6 +296,53 @@ class _ChatsScreenState extends State<ChatsScreen>
       },
     );
 
+    final search = CircleIconButton(
+      icon: const Icon(FIcons.search),
+      semanticLabel: l10n.t('sh_search'),
+      onTap: () => context.push(Routes.search),
+    );
+    final create = FPopoverMenu(
+      popoverController: _create,
+      menuAnchor: AlignmentDirectional.topEnd,
+      childAnchor: AlignmentDirectional.bottomEnd,
+      spacing: const FPortalSpacing(4),
+      menu: [
+        FItemGroup(
+          children: [
+            FItem(
+              prefix: const Icon(FIcons.userRoundPlus),
+              title: Text(l10n.t('newAgent')),
+              onPress: () {
+                _create.hide();
+                showCreateAgentSheet(context);
+              },
+            ),
+            FItem(
+              prefix: const Icon(FIcons.usersRound),
+              title: Text(l10n.t('sh_newGroup')),
+              onPress: () {
+                _create.hide();
+                showCreateGroupSheet(context);
+              },
+            ),
+            FItem(
+              prefix: const Icon(FIcons.bot),
+              title: Text(l10n.t('sh_manageAgents')),
+              onPress: () {
+                _create.hide();
+                context.push(Routes.agents);
+              },
+            ),
+          ],
+        ),
+      ],
+      child: CircleIconButton(
+        icon: const Icon(FIcons.plus),
+        semanticLabel: l10n.t('sh_newChat'),
+        onTap: _create.toggle,
+      ),
+    );
+
     final header = selected != null
         ? SelectionHeader(
             picked: picked,
@@ -320,54 +359,23 @@ class _ChatsScreenState extends State<ChatsScreen>
             ),
           )
         : ScreenHeader(
-            leading: CircleIconButton(
-              icon: const Icon(FIcons.search),
-              semanticLabel: l10n.t('sh_search'),
-              onTap: () => context.push(Routes.search),
-            ),
-            trailing: FPopoverMenu(
-              popoverController: _create,
-              menuAnchor: AlignmentDirectional.topEnd,
-              childAnchor: AlignmentDirectional.bottomEnd,
-              spacing: const FPortalSpacing(8),
-              menu: [
-                FItemGroup(
-                  children: [
-                    FItem(
-                      prefix: const Icon(FIcons.userRoundPlus),
-                      title: Text(l10n.t('newAgent')),
-                      onPress: () {
-                        _create.hide();
-                        _newAgent(rows);
-                      },
-                    ),
-                    FItem(
-                      prefix: const Icon(FIcons.usersRound),
-                      title: Text(l10n.t('sh_newGroup')),
-                      onPress: () {
-                        _create.hide();
-                        context.push(Routes.newGroup());
-                      },
-                    ),
-                    FItem(
-                      prefix: const Icon(FIcons.bot),
-                      title: Text(l10n.t('sh_manageAgents')),
-                      onPress: () {
-                        _create.hide();
-                        context.push(Routes.agents);
-                      },
-                    ),
-                  ],
-                ),
-              ],
-              child: CircleIconButton(
-                icon: const Icon(FIcons.plus),
-                semanticLabel: l10n.t('sh_newChat'),
-                onTap: _create.toggle,
-              ),
-            ),
+            leading: widget.pushed
+                ? CircleIconButton(
+                    // Lucide chevrons mirror themselves in RTL (matchTextDirection).
+                    icon: const Icon(FIcons.chevronLeft),
+                    semanticLabel: l10n.t('back'),
+                    onTap: () => context.canPop()
+                        ? context.pop()
+                        : context.go(Routes.chats),
+                  )
+                : search,
+            trailing: widget.pushed
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [search, create],
+                  )
+                : create,
           );
-
     return PopScope(
       canPop: selected == null,
       onPopInvokedWithResult: (didPop, _) {

@@ -1,7 +1,8 @@
-// Message long-press menu: the six quick reactions, then Reply · Copy · Select text · …; geometry
-// composed from the kit's sheet and forui items. Lonora has no route to forward or delete a sent
-// message (api contract §5.4), so those entries are not offered; an unsent message offers Retry and
-// Delete (local, confirmed).
+// Message long-press menu, anchored to the message: everything behind it blurred, the message
+// lifted at its place, the six quick reactions above it and Reply · Copy · Select text · … below
+// it under the message's time. Lonora has no route to forward or delete a sent message (api
+// contract §5.4), so those entries are not offered; an unsent message offers Retry and Delete
+// (local, confirmed).
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart';
 
@@ -10,106 +11,57 @@ import '../../design/design.dart';
 import '../../l10n/l10n.dart';
 import '../rich/rich_content_view.dart';
 
-/// Opens the menu of a message. [onReact] receives the new owner reaction (null removes it);
-/// leave it null to hide the reactions row. Each action runs after the sheet has closed (and
-/// only while [context] is still mounted).
+/// Opens the menu of the message drawn by [target] at [targetKey] (the same message, laid out at
+/// its size). [onReact] receives the new owner reaction (null removes it); leave it null to hide
+/// the reactions pill. [header] tops the menu card (the message's time). Each action runs after
+/// the menu has closed (and only while [context] is still mounted).
 Future<void> showMessageMenu(
   BuildContext context, {
-  required List<LnMenuAction<void>> actions,
+  required Widget target,
+  required GlobalKey targetKey,
+  required List<LnMenuAction<String>> actions,
   String? ownReaction,
   ValueChanged<String?>? onReact,
-  String? title,
+  String? header,
 }) async {
-  VoidCallback? chosen;
-  await showLnSheet<void>(
+  final l10n = context.l10n;
+  if (targetKey.currentContext == null) return;
+  final picked = await showLnAnchoredMenu<String>(
     context,
-    title: title,
-    padding: const EdgeInsetsDirectional.fromSTEB(8, 0, 8, 8),
-    builder: (sheet) => SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (onReact != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: LnSpace.sm),
-              child: ReactionPicker(
-                selected: ownReaction,
-                onPick: (emoji) {
-                  chosen = () => onReact(emoji == ownReaction ? null : emoji);
-                  Navigator.of(sheet).pop();
+    target: target,
+    targetKey: targetKey,
+    header: header,
+    reactionsLabel: l10n.t('quickReaction'),
+    reactions: [
+      if (onReact != null)
+        for (final emoji in reactionEmojis)
+          LnReactionOption(
+            value: emoji,
+            selected: emoji == ownReaction,
+            semanticLabel: l10n.t('reactWith', [emoji]),
+            child: Text(
+              emoji,
+              style: const TextStyle(fontSize: LnSize.reactionPickerEmoji),
+            ),
+          ),
+    ],
+    actions: [
+      for (final a in actions)
+        LnMenuAction<String>(
+          label: a.label,
+          icon: a.icon,
+          destructive: a.destructive,
+          enabled: a.enabled,
+          onSelected: a.onSelected == null
+              ? null
+              : () {
+                  if (context.mounted) a.onSelected!();
                 },
-              ),
-            ),
-          if (actions.isNotEmpty)
-            FItemGroup(
-              children: [
-                for (final a in actions)
-                  _item(sheet, a, () {
-                    chosen = a.onSelected;
-                    Navigator.of(sheet).pop();
-                  }),
-              ],
-            ),
-        ],
-      ),
-    ),
+        ),
+    ],
   );
-  if (context.mounted) chosen?.call();
-}
-
-FItem _item(BuildContext context, LnMenuAction<void> a, VoidCallback onPress) {
-  final c = context.ln.colors;
-  final color = a.destructive ? c.error : null;
-  return FItem(
-    enabled: a.enabled,
-    onPress: onPress,
-    prefix: a.icon == null ? null : Icon(a.icon, color: color),
-    title: Text(a.label, style: color == null ? null : TextStyle(color: color)),
-  );
-}
-
-/// The six reactions the server accepts, the owner's own one highlighted.
-class ReactionPicker extends StatelessWidget {
-  const ReactionPicker({super.key, this.selected, required this.onPick});
-
-  final String? selected;
-  final ValueChanged<String> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.ln.colors;
-    final l10n = context.l10n;
-    return Semantics(
-      label: l10n.t('quickReaction'),
-      container: true,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          for (final emoji in reactionEmojis)
-            LnTappable(
-              onTap: () => onPick(emoji),
-              haptic: true,
-              selected: emoji == selected,
-              semanticLabel: l10n.t('reactWith', [emoji]),
-              excludeChildSemantics: true,
-              child: Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: emoji == selected ? c.fill4 : null,
-                ),
-                child: Text(
-                  emoji,
-                  style: const TextStyle(fontSize: LnSize.reactionPickerEmoji),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
+  if (picked != null && onReact != null && context.mounted) {
+    onReact(picked == ownReaction ? null : picked);
   }
 }
 
@@ -158,33 +110,55 @@ Future<void> showReactionsSheet(
 }
 
 /// «تحديد النص»: the message's words, drawn as in the transcript (agent Markdown, the owner's
-/// plain text) and selectable. A generated interface stays in the transcript: the sheet shows
-/// the message's text.
+/// plain text) and selectable, on a full-height page sheet with a centred title and a ✕. A
+/// generated interface stays in the transcript: the sheet shows the message's text.
 Future<void> showSelectTextSheet(
   BuildContext context, {
   required Message message,
   required String threadId,
-}) => showLnSheet<void>(
-  context,
-  title: context.t('conv_selectText'),
-  builder: (sheet) => SingleChildScrollView(
-    child: Padding(
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: DefaultTextStyle.merge(
-          style: sheet.ln.text.body.copyWith(color: sheet.ln.colors.fg),
-          child: RichContentView(
-            threadId: threadId,
-            text: message.content,
-            richContent: RichContentView.drawsOwnBubbles(message.richContent)
-                ? null
-                : message.richContent,
-            onUserBubble: message.fromOwner,
-            selectable: true,
+}) {
+  final l10n = context.l10n;
+  return showLnStackedSheet<void>(
+    context,
+    builder: (sheet) {
+      final ln = sheet.ln;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LnSheetHeader(
+            title: l10n.t('conv_selectText'),
+            closeLabel: l10n.t('close'),
+            plainClose: true,
           ),
-        ),
-      ),
-    ),
-  ),
-);
+          Expanded(
+            child: SingleChildScrollView(
+              controller: LnStackedSheet.scrollControllerOf(sheet),
+              padding: EdgeInsets.fromLTRB(
+                LnSpace.pageGutter,
+                LnSpace.md,
+                LnSpace.pageGutter,
+                LnSpace.md + MediaQuery.paddingOf(sheet).bottom,
+              ),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: DefaultTextStyle.merge(
+                  style: ln.text.body.copyWith(color: ln.colors.fgWarm),
+                  child: RichContentView(
+                    threadId: threadId,
+                    text: message.content,
+                    richContent:
+                        RichContentView.drawsOwnBubbles(message.richContent)
+                        ? null
+                        : message.richContent,
+                    onUserBubble: message.fromOwner,
+                    selectable: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}

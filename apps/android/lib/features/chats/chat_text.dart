@@ -129,23 +129,15 @@ String agentRole(L10n l10n, Agent agent) => agent.title.isNotEmpty
 /// The clock the list's times are read against (tests pin it).
 DateTime Function() chatClock = DateTime.now;
 
-/// A row's time: the clock today (HH:mm, Latin digits, as Lonora's clockTime), the weekday within
-/// the week, else the date.
+/// A row's time: the clock today (HH:mm), the weekday within the week, else the date; dates and
+/// times in the language's date digits (Arabic-Indic in Arabic).
 String listTime(DateTime at, String lang, {DateTime? now}) {
   final local = at.toLocal();
   final clock = (now ?? chatClock()).toLocal();
   int day(DateTime d) =>
       DateTime.utc(d.year, d.month, d.day).millisecondsSinceEpoch ~/ 86400000;
   final age = day(clock) - day(local);
-  if (age <= 0) return clockTime(local);
+  if (age <= 0) return clockTime(local, lang: lang);
   if (age <= 6) return formatDate('EEEE', lang, local);
-  return _latinDigits(
-    formatDate(local.year == clock.year ? 'MMMd' : 'yMMMd', lang, local),
-  );
+  return formatDate(local.year == clock.year ? 'MMMd' : 'yMMMd', lang, local);
 }
-
-/// Lonora shows Latin digits in Arabic too (as the Expo app's clockTime does).
-String _latinDigits(String text) => text.replaceAllMapped(
-  RegExp('[\u0660-\u0669\u06f0-\u06f9]'),
-  (m) => '${m[0]!.codeUnitAt(0) & 0xf}',
-);

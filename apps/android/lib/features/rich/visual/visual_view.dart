@@ -590,7 +590,7 @@ class _VisualDocumentViewState extends State<VisualDocumentView> {
         for (final time in observed)
           Text(
             '${context.t('visualObservedAt')}: '
-            '${DateTime.tryParse(time) == null ? context.t('visualUnavailable') : formatDate('yMd jm', context.l10n.lang, DateTime.parse(time).toLocal())}',
+            '${DateTime.tryParse(time) == null ? context.t('visualUnavailable') : captureStamp(context.l10n.lang, DateTime.parse(time).toLocal())}',
             style: ln.text.small.copyWith(color: c.fgMuted),
           ),
         if (_error != null)
@@ -1062,3 +1062,7 @@ class _EdgePainter extends CustomPainter {
   @override
   bool shouldRepaint(_EdgePainter old) => true;
 }
+
+/// A capture's date and time («٢٤‏/١١‏/٢٠٢٦ ٧:٥٤ م»; «11/24/2026 7:54 PM»).
+String captureStamp(String lang, DateTime t) =>
+    '${formatDate('yMd', lang, t)} ${formatDate('jm', lang, t)}';

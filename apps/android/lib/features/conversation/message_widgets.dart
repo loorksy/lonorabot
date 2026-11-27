@@ -40,10 +40,28 @@ class MessageTile extends StatelessWidget {
     this.onQuoteTap,
     this.onReactionsTap,
     this.onCallBack,
+    this.onSwipeReply,
+    this.joinTop = false,
+    this.joinBottom = false,
+    this.bubbleKey,
+    this.bubbleOnly = false,
   });
+
+  /// Keys the bubble (or, for files alone, the files): the long-press menu lifts it from there.
+  final GlobalKey? bubbleKey;
+
+  /// Only the bubble (or the files of a files-only message), as the long-press menu redraws it.
+  final bool bubbleOnly;
 
   final Message message;
   final String threadId;
+
+  /// Swipe the bubble toward the end side to reply to it.
+  final VoidCallback? onSwipeReply;
+
+  /// The bubble joins the same sender's bubble right above / right below (a bubble run).
+  final bool joinTop;
+  final bool joinBottom;
 
   /// A call log's tap calls the agent back (direct conversations with a callable agent).
   final VoidCallback? onCallBack;
@@ -115,29 +133,44 @@ class MessageTile extends StatelessWidget {
           editedLabel: editedLabel,
           onTap: quoted == null ? null : onQuoteTap,
           onLongPress: onLongPress,
+          joinTop: joinTop,
+          joinBottom: joinBottom,
+          onSwipeReply: onSwipeReply,
+          replyLabel: onSwipeReply == null ? null : l10n.t('reply'),
           child: body,
         );
       }
     }
 
+    final align = owner ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final files = [
+      for (final (i, id) in message.attachmentIds.indexed)
+        Padding(
+          padding: EdgeInsets.only(
+            top: main == null && i == 0 ? 0 : LnSpace.sameSenderGap,
+          ),
+          child: AttachmentView(
+            artifactId: id,
+            artifact: artifacts[id],
+            onLongPress: onLongPress,
+          ),
+        ),
+    ];
+    // Files alone stand for the bubble.
+    final lifted =
+        main ??
+        Column(
+          crossAxisAlignment: align,
+          mainAxisSize: MainAxisSize.min,
+          children: files,
+        );
+    if (bubbleOnly) return lifted;
     return Column(
-      crossAxisAlignment: owner
-          ? CrossAxisAlignment.end
-          : CrossAxisAlignment.start,
+      crossAxisAlignment: align,
       mainAxisSize: MainAxisSize.min,
       children: [
-        ?main,
-        for (final (i, id) in message.attachmentIds.indexed)
-          Padding(
-            padding: EdgeInsets.only(
-              top: main == null && i == 0 ? 0 : LnSpace.sameSenderGap,
-            ),
-            child: AttachmentView(
-              artifactId: id,
-              artifact: artifacts[id],
-              onLongPress: onLongPress,
-            ),
-          ),
+        KeyedSubtree(key: bubbleKey, child: lifted),
+        if (main != null) ...files,
         if (message.reactions.isNotEmpty)
           ReactionChips(reactions: message.reactions, onTap: onReactionsTap),
       ],
@@ -510,7 +543,9 @@ class AttachmentView extends StatelessWidget {
   }
 }
 
-/// A file card: 40 dp type tile, name (two lines) and «PDF · 1.3 MB».
+/// A file in the transcript: an outlined card as wide as a bubble can be (radius 24, the surface
+/// with a hairline), a coloured type tile with the type's glyph at the start, the name on one
+/// 16 dp line and its type and size under it.
 class FileCard extends StatelessWidget {
   const FileCard({
     super.key,
@@ -527,6 +562,38 @@ class FileCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
+  /// The type tile: 32 × 36 dp at 20 dp from the card's start edge.
+  static const Size tile = Size(32, 36);
+  static const double tileInset = 20;
+
+  /// The type's glyph and tile colour (Lonora's icon set and palette); null: a neutral tile.
+  static (IconData, Color?) typeOf(String mediaType, LnPalette c) {
+    final type = mediaType.split(';').first.trim().toLowerCase();
+    final sub = type.split('/').last;
+    if (type.startsWith('video/')) return (FIcons.filePlay, c.error);
+    if (type.startsWith('audio/')) return (FIcons.fileAudio, c.brand);
+    if (type.startsWith('image/')) return (FIcons.fileImage, c.success);
+    if (sub == 'pdf') return (FIcons.fileText, c.error);
+    if (sub.contains('sheet') || sub.contains('excel') || sub == 'csv') {
+      return (FIcons.fileSpreadsheet, c.success);
+    }
+    if (sub.contains('zip') || sub.contains('tar') || sub.contains('rar')) {
+      return (FIcons.fileArchive, c.warning);
+    }
+    if (sub.contains('json') ||
+        sub.contains('javascript') ||
+        sub.contains('html') ||
+        sub.contains('xml')) {
+      return (FIcons.fileCode, c.selection);
+    }
+    if (type.startsWith('text/') ||
+        sub.contains('word') ||
+        sub.contains('document')) {
+      return (FIcons.fileText, c.selection);
+    }
+    return (FIcons.file, null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ln = context.ln;
@@ -536,6 +603,7 @@ class FileCard extends StatelessWidget {
       if (badge.isNotEmpty) badge,
       if (size != null) formatFileSize(size, context.l10n.lang),
     ].join(dotSeparator);
+    final (icon, color) = typeOf(mediaType, c);
     return LnTappable(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -543,53 +611,52 @@ class FileCard extends StatelessWidget {
       semanticLabel: detail.isEmpty ? name : '$name, $detail',
       excludeChildSemantics: true,
       child: Container(
-        constraints: BoxConstraints(
-          minHeight: 64,
-          maxWidth: MessageBubble.maxWidthFor(MediaQuery.sizeOf(context).width),
+        width: MessageBubble.maxWidthFor(MediaQuery.sizeOf(context).width),
+        constraints: const BoxConstraints(minHeight: 68),
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          tileInset,
+          LnSpace.sm,
+          LnSpace.md,
+          LnSpace.sm,
         ),
-        padding: const EdgeInsetsDirectional.fromSTEB(12, 12, 16, 12),
         decoration: BoxDecoration(
           color: c.surface,
-          borderRadius: const BorderRadius.all(Radius.circular(LnRadius.image)),
+          borderRadius: const BorderRadius.all(Radius.circular(LnRadius.card)),
           border: Border.all(color: c.border),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: LnSize.iconTile,
-              height: LnSize.iconTile,
+              width: tile.width,
+              height: tile.height,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: c.fill2,
-                borderRadius: const BorderRadius.all(
-                  Radius.circular(LnRadius.iconTile),
-                ),
+                color: color ?? c.fill2,
+                borderRadius: const BorderRadius.all(Radius.circular(6)),
               ),
-              child: badge.isEmpty || badge.length > 4
-                  ? Icon(FIcons.file, size: 20, color: c.fgMuted)
-                  : Text(
-                      badge,
-                      style: ln.text.smallStrong.copyWith(color: c.fgMuted),
-                    ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: color == null ? c.fgMuted : LnPalette.inkWhite,
+              ),
             ),
-            const SizedBox(width: 12),
-            Flexible(
+            const SizedBox(width: LnSpace.sm),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     name,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: ln.text.captionStrong.copyWith(color: c.fg),
+                    style: ln.text.body.copyWith(color: c.fg),
                   ),
                   if (detail.isNotEmpty)
                     Text(
                       ltr(detail),
                       maxLines: 1,
-                      style: ln.text.small.copyWith(color: c.fgMuted),
+                      style: ln.text.caption.copyWith(color: c.fgMuted),
                     ),
                 ],
               ),

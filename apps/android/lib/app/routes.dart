@@ -13,6 +13,19 @@ abstract final class Routes {
 
   static String thread(String id, {int? around}) =>
       around == null ? '$chats/thread/$id' : '$chats/thread/$id?around=$around';
+
+  /// The Chats tab's home on [threadId] (the last-conversation home: the conversation is the
+  /// tab's root, the chat list in its drawer). [thread] links are redirected here in that mode.
+  static String home(String threadId, {int? around}) => Uri(
+    path: chats,
+    queryParameters: {'thread': threadId, 'around': ?around?.toString()},
+  ).toString();
+
+  /// The full chat list (filters, lists, archived, selection) over the last-conversation home;
+  /// [select] starts the selection on that row key.
+  static String chatList({String? select}) => select == null
+      ? '$chats/all'
+      : Uri(path: '$chats/all', queryParameters: {'select': select}).toString();
   static const archived = '$chats/archived';
   static const search = '/search';
 

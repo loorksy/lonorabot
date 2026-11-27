@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lonora/design/design.dart';
@@ -201,25 +202,35 @@ void main() {
                     agent: sara,
                   ),
                 ),
+                // Held: the hint stands above the 48 dp bar.
                 Positioned(
                   left: 20,
                   right: 20,
                   bottom: 120,
-                  height: 48,
                   child: VoiceNoteBar(machine: recording),
                 ),
+                // Locked, as the composer shows it: ✕, pause and send are buttons.
                 Positioned(
                   left: 20,
                   right: 20,
                   bottom: 40,
                   height: 48,
-                  child: VoiceNoteBar(machine: locked),
+                  child: VoiceNoteBar(
+                    machine: locked,
+                    onDelete: () {},
+                    onPause: () {},
+                    onSend: () {},
+                  ),
                 ),
               ],
             ),
           ),
         );
         await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          find.bySemanticsLabel(platformL10n.t('vn_pause')),
+          findsOneWidget,
+        );
         await expectLater(
           find.byType(WidgetsApp),
           matchesGoldenFile('goldens/call_pill_incoming_notes_${v.name}.png'),
@@ -369,6 +380,83 @@ void main() {
     );
   }
 
+  for (final dark in [false, true]) {
+    testWidgets(
+      'the call page layout: rings in the upper third, the name on '
+      'them, controls at a 104 dp pitch, a raised ⌄ (${dark ? 'dark' : 'light'})',
+      (tester) async {
+        setPlatformViewport(tester);
+        final store = voiceStore();
+        await tester.pumpWidget(
+          platformApp(
+            store: store,
+            dark: dark,
+            locale: 'ar',
+            home: VoiceCallView(
+              state: connected(),
+              agent: store.state.shell.agents['a-sara'],
+              now: now,
+              animate: false,
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+        final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+        // The rings' centre at 29 % of the screen's height.
+        final rings = find.byWidgetPredicate(
+          (w) => w is Container && w.constraints?.maxWidth == 163,
+        );
+        final ring = tester.getRect(rings);
+        expect(ring.size, const Size(163, 163));
+        expect(ring.center.dy, closeTo(size.height * 0.29, 0.5));
+        expect(ring.center.dx, closeTo(size.width / 2, 0.5));
+        // The name sits on the outer ring, under the inner one's centre line.
+        final name = tester.getRect(find.text('Sara'));
+        expect(name.top, lessThan(ring.bottom));
+        expect(name.top, greaterThan(ring.center.dy + 40));
+        // Three controls, 104 dp apart, centred on the screen.
+        final discs =
+            tester
+                .widgetList<Container>(
+                  find.byWidgetPredicate(
+                    (w) => w is Container && w.constraints?.maxWidth == 72,
+                  ),
+                )
+                .map((w) => tester.getRect(find.byWidget(w)).center.dx)
+                .toList()
+              ..sort();
+        expect(discs, hasLength(3));
+        expect(discs[1] - discs[0], closeTo(104, 0.01));
+        expect(discs[2] - discs[1], closeTo(104, 0.01));
+        expect(discs[1], closeTo(size.width / 2, 0.01));
+        // The ⌄ circle: a Ø44 disc in a 48 dp target, clearly off the gradient in dark.
+        final minimize = find.bySemanticsLabel(platformL10n.t('minimizeCall'));
+        expect(tester.getRect(minimize).size, const Size(48, 48));
+        final disc = tester.widget<Container>(
+          find.descendant(
+            of: find.byWidgetPredicate(
+              (w) =>
+                  w is LnTappable &&
+                  w.semanticLabel == platformL10n.t('minimizeCall'),
+            ),
+            matching: find.byWidgetPredicate(
+              (w) => w is Container && w.constraints?.maxWidth == 44,
+            ),
+          ),
+        );
+        final fill = (disc.decoration! as BoxDecoration).color!;
+        final c = dark ? LnPalette.dark : LnPalette.light;
+        if (dark) {
+          final over = Color.alphaBlend(fill, c.profileTop);
+          // #333333 → about #494949: 22 steps of grey above the gradient's top.
+          expect((over.r - c.profileTop.r) * 255, greaterThan(20));
+        } else {
+          expect(fill, c.chromeCircle);
+        }
+      },
+    );
+  }
+
   testWidgets('the call page controls reach the controller', (tester) async {
     setPlatformViewport(tester);
     final store = voiceStore();
@@ -389,16 +477,40 @@ void main() {
         ),
       ),
     );
+    // Three Ø72 controls, Speaker · End call · Mute from the start; minimize is the ⌄ circle.
+    final controls = [
+      for (final label in [
+        'Speaker',
+        platformL10n.t('endCall'),
+        platformL10n.t('muteCall'),
+      ])
+        tester.getRect(find.bySemanticsLabel(label)),
+    ];
+    expect(controls[0].center.dx, lessThan(controls[1].center.dx));
+    expect(controls[1].center.dx, lessThan(controls[2].center.dx));
+    for (final disc in tester.widgetList<Container>(
+      find.byWidgetPredicate(
+        (w) => w is Container && w.constraints?.maxWidth == 72,
+      ),
+    )) {
+      expect(disc.constraints?.maxHeight, 72);
+    }
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Container && w.constraints?.maxWidth == 72,
+      ),
+      findsNWidgets(3),
+    );
     await tester.tap(find.bySemanticsLabel(platformL10n.t('endCall')));
     await tester.tap(find.bySemanticsLabel(platformL10n.t('muteCall')));
     await tester.tap(find.bySemanticsLabel('Speaker'));
-    await tester.tap(find.text('Minimize'));
+    await tester.tap(find.bySemanticsLabel(platformL10n.t('minimizeCall')));
     await tester.pump(const Duration(milliseconds: 300));
     expect((ended, muted, speaker, minimized), (1, 1, 1, 1));
     expect(find.text('Voice call · \u206601:12\u2069'), findsOneWidget);
   });
 
-  group('VoiceNoteButton', () {
+  group('voice notes from the composer', () {
     late FakeRecorder recorder;
     late List<({String threadId, double seconds, List<int> peaks})> sent;
 
@@ -418,21 +530,21 @@ void main() {
               sent.add((threadId: threadId, seconds: seconds, peaks: peaks));
     });
 
-    Future<List<bool>> pumpButton(WidgetTester tester) async {
+    Future<List<bool>> pumpComposer(
+      WidgetTester tester, {
+      String locale = 'en',
+    }) async {
       setPlatformViewport(tester);
       final changes = <bool>[];
       await tester.pumpWidget(
         platformApp(
           store: voiceStore(),
-          locale: 'en',
+          locale: locale,
           home: Align(
-            alignment: Alignment.bottomRight,
+            alignment: Alignment.bottomCenter,
             child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: VoiceNoteButton(
-                threadId: 't-sara',
-                onRecordingChanged: changes.add,
-              ),
+              padding: const EdgeInsets.all(LnSpace.chromeGutter),
+              child: _VoiceComposer(onRecordingChanged: changes.add),
             ),
           ),
         ),
@@ -440,22 +552,44 @@ void main() {
       return changes;
     }
 
-    testWidgets('hold, speak, release: uploads and sends the note', (
+    Offset field(WidgetTester tester) =>
+        tester.getCenter(find.byType(EditableText));
+
+    Future<TestGesture> hold(WidgetTester tester) async {
+      final gesture = await tester.startGesture(field(tester));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets('the empty composer says how it works; a tap types', (
       tester,
     ) async {
-      final changes = await pumpButton(tester);
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(VoiceNoteButton)),
-      );
-      await tester.pump(const Duration(milliseconds: 400));
+      await pumpComposer(tester);
+      expect(find.text('Hold to talk, tap to type'), findsOneWidget);
+      await tester.tapAt(field(tester));
       await tester.pump();
+      expect(find.text('Hold to talk, tap to type'), findsNothing);
+      expect(find.text('Message Sara'), findsOneWidget);
+      expect(recorder.started, isNull);
+    });
+
+    testWidgets('hold anywhere on the composer, speak, release: sends', (
+      tester,
+    ) async {
+      final changes = await pumpComposer(tester);
+      final gesture = await hold(tester);
       expect(changes, [true]);
       expect(recorder.started, isNotNull);
-      expect(find.text('Slide to cancel'), findsOneWidget);
+      // The recording bar takes the pill's place, its hint above it.
+      expect(find.byType(ComposerRecordingBar), findsOneWidget);
+      expect(find.text('Slide aside to cancel, up to lock'), findsOneWidget);
       for (var i = 0; i < 30; i++) {
         recorder.levelsOut.add(i.isEven ? 0.8 : 0.2);
         await tester.pump(const Duration(milliseconds: 100));
       }
+      // The timer reads mm:ss in Latin digits.
+      expect(find.text('00:03'), findsOneWidget);
       await gesture.up();
       await tester.pump();
       await tester.pump();
@@ -465,122 +599,105 @@ void main() {
       expect(sent.single.threadId, 't-sara');
       expect(sent.single.seconds, closeTo(3.0, 0.11));
       expect(sent.single.peaks, hasLength(44));
-      expect(find.text('Slide to cancel'), findsNothing);
+      expect(find.byType(ComposerRecordingBar), findsNothing);
     });
 
-    testWidgets('slide toward the start cancels; nothing is sent', (
-      tester,
-    ) async {
-      await pumpButton(tester);
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(VoiceNoteButton)),
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.pump(const Duration(seconds: 2));
-      await gesture.moveBy(const Offset(-60, 0));
-      await gesture.moveBy(const Offset(-60, 0));
-      await tester.pump();
-      await gesture.up();
-      await tester.pump();
-      expect(recorder.cancelled, isTrue);
-      expect(sent, isEmpty);
-    });
+    for (final locale in ['en', 'ar']) {
+      testWidgets('sliding toward the start cancels ($locale)', (tester) async {
+        await pumpComposer(tester, locale: locale);
+        final gesture = await hold(tester);
+        await tester.pump(const Duration(seconds: 2));
+        final start = locale == 'ar' ? 1.0 : -1.0;
+        await gesture.moveBy(Offset(60 * start, 0));
+        await tester.pump();
+        // Past half the way the cancel circle turns red.
+        final bar = tester.widget<ComposerRecordingBar>(
+          find.byType(ComposerRecordingBar),
+        );
+        expect(bar.cancelArmed, isTrue);
+        await gesture.moveBy(Offset(60 * start, 0));
+        await tester.pump();
+        await gesture.up();
+        await tester.pump();
+        expect(recorder.cancelled, isTrue);
+        expect(sent, isEmpty);
+      });
+    }
 
-    testWidgets('slide up locks; the bar sends without the finger', (
-      tester,
-    ) async {
-      await pumpButton(tester);
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(VoiceNoteButton)),
-      );
-      await tester.pump(const Duration(milliseconds: 400));
+    testWidgets('sliding up locks; the bar pauses and sends', (tester) async {
+      await pumpComposer(tester);
+      final gesture = await hold(tester);
       await tester.pump(const Duration(seconds: 1));
       await gesture.moveBy(const Offset(0, -80));
       await gesture.up();
       await tester.pump(const Duration(seconds: 1));
-      expect(find.bySemanticsLabel('Send the voice message'), findsOneWidget);
+      expect(find.bySemanticsLabel('Pause recording'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Pause recording'));
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.bySemanticsLabel('Continue recording'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Continue recording'));
+      await tester.pump();
       await tester.tap(find.bySemanticsLabel('Send the voice message'));
       await tester.pump();
       await tester.pump();
       expect(sent, hasLength(1));
-      expect(sent.single.seconds, closeTo(2.0, 0.11));
+      // The paused seconds are not counted.
+      expect(sent.single.seconds, closeTo(2.0, 0.21));
       await tester.pump(const Duration(seconds: 3));
     });
 
-    for (final locale in ['en', 'ar']) {
-      testWidgets(
-        'the bar stays on the mic when the keyboard closes under the finger ($locale)',
-        (tester) async {
-          setPlatformViewport(tester);
-          // The keyboard is up (300 dp) when the owner presses the mic.
-          tester.view.viewInsets = const FakeViewPadding(bottom: 600);
-          addTearDown(tester.view.resetViewInsets);
-          await tester.pumpWidget(
-            platformApp(
-              store: voiceStore(),
-              locale: locale,
-              home: Builder(
-                builder: (context) => Padding(
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.viewInsetsOf(context).bottom,
-                  ),
-                  child: const Align(
-                    alignment: AlignmentDirectional.bottomEnd,
-                    child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: VoiceNoteButton(threadId: 't-sara'),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-          final gesture = await tester.startGesture(
-            tester.getCenter(find.byType(VoiceNoteButton)),
-          );
-          await tester.pump(const Duration(milliseconds: 400));
-          await tester.pump();
-          final width =
-              tester.view.physicalSize.width / tester.view.devicePixelRatio;
-          Rect mic() => tester.getRect(find.byType(VoiceNoteButton));
-          Rect bar() => tester.getRect(find.byType(VoiceNoteBar));
-          void onMic(Rect m) {
-            expect(bar().bottom, closeTo(m.bottom + 1, 0.01));
-            if (locale == 'ar') {
-              expect(bar().left, closeTo(m.left - 1, 0.01));
-              expect(bar().right, closeTo(width - LnSpace.chromeGutter, 0.01));
-            } else {
-              expect(bar().right, closeTo(m.right + 1, 0.01));
-              expect(bar().left, closeTo(LnSpace.chromeGutter, 0.01));
-            }
-          }
-
-          final before = mic();
-          onMic(before);
-          // The composer disables its field: the keyboard closes and the composer drops.
-          tester.view.viewInsets = FakeViewPadding.zero;
-          await tester.pump();
-          final after = mic();
-          expect(after.bottom, greaterThan(before.bottom + 200));
-          onMic(after);
-          await gesture.up();
-          await tester.pump();
-          await tester.pump();
-        },
+    testWidgets('the mic records hands-free at once; ✕ deletes', (
+      tester,
+    ) async {
+      final changes = await pumpComposer(tester);
+      final handle = tester.ensureSemantics();
+      final mic = find.bySemanticsLabel('Voice message');
+      expect(
+        tester.getSemantics(mic),
+        isSemantics(
+          label: 'Voice message',
+          hint: 'Tap to record hands-free',
+          isButton: true,
+          hasTapAction: true,
+        ),
       );
-    }
+      await tester.tap(mic);
+      await tester.pump();
+      await tester.pump();
+      expect(changes, [true]);
+      expect(recorder.started, isNotNull);
+      // Locked: no hold hint, the circles are buttons.
+      expect(find.text('Slide aside to cancel, up to lock'), findsNothing);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.tap(find.bySemanticsLabel('Delete the recording'));
+      await tester.pump();
+      expect(recorder.cancelled, isTrue);
+      expect(changes, [true, false]);
+      expect(sent, isEmpty);
+      await tester.pump(const Duration(seconds: 1));
+      handle.dispose();
+    });
+
+    testWidgets('48 dp targets on the recording bar', (tester) async {
+      await pumpComposer(tester);
+      final handle = tester.ensureSemantics();
+      await tester.tap(find.bySemanticsLabel('Voice message'));
+      await tester.pump();
+      await tester.pump();
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await tester.tap(find.bySemanticsLabel('Delete the recording'));
+      await tester.pump(const Duration(seconds: 1));
+      handle.dispose();
+    });
 
     testWidgets(
       'leaving while the microphone opens releases it and sends nothing',
       (tester) async {
         final opening = Completer<void>();
         recorder.startGate = opening.future;
-        final changes = await pumpButton(tester);
-        final gesture = await tester.startGesture(
-          tester.getCenter(find.byType(VoiceNoteButton)),
-        );
-        await tester.pump(const Duration(milliseconds: 400));
-        await tester.pump();
+        final changes = await pumpComposer(tester);
+        final gesture = await hold(tester);
         expect(changes, [true]);
         // The conversation closes before the microphone answers.
         await tester.pumpWidget(
@@ -596,7 +713,6 @@ void main() {
         await tester.pump();
         expect(recorder.cancelled, isTrue);
         expect(recorder.disposed, isTrue);
-        expect(changes, [true, false], reason: 'told after the frame');
         await gesture.up();
         await tester.pump(const Duration(seconds: 1));
         expect(sent, isEmpty);
@@ -604,26 +720,23 @@ void main() {
     );
 
     testWidgets(
-      'a tap only reminds how it works; microphone refused shows why',
+      'too short a hold says how it works; a refused microphone why',
       (tester) async {
-        final changes = await pumpButton(tester);
-        await tester.tap(find.byType(VoiceNoteButton));
+        final changes = await pumpComposer(tester);
+        final gesture = await hold(tester);
+        await gesture.up();
         await tester.pump(const Duration(milliseconds: 500));
         expect(find.text(platformL10n.t('vn_holdHint')), findsOneWidget);
-        expect(changes, isEmpty);
+        expect(sent, isEmpty);
+        expect(changes, [true, false]);
         await tester.pump(const Duration(seconds: 3));
 
         recorder.status = PermissionStatus.denied;
-        final gesture = await tester.startGesture(
-          tester.getCenter(find.byType(VoiceNoteButton)),
-        );
-        await tester.pump(const Duration(milliseconds: 400));
-        await tester.pump();
-        await gesture.up();
+        final again = await hold(tester);
+        await again.up();
         await tester.pump(const Duration(milliseconds: 500));
         expect(find.text(platformL10n.t('vn_micDenied')), findsOneWidget);
-        expect(recorder.started, isNull);
-        expect(changes, [true, false]);
+        expect(changes, [true, false, true, false]);
         await tester.pump(const Duration(seconds: 3));
       },
     );
@@ -633,4 +746,49 @@ void main() {
     expect(VoiceCalls.active.value, isFalse);
     expect(L10n.supportedLocales, isNotEmpty);
   });
+}
+
+/// A conversation composer as the conversation wires it: press-to-talk on the pill, the
+/// recording bar in its place, the mic as a tap target.
+class _VoiceComposer extends StatefulWidget {
+  const _VoiceComposer({required this.onRecordingChanged});
+
+  final ValueChanged<bool> onRecordingChanged;
+
+  @override
+  State<_VoiceComposer> createState() => _VoiceComposerState();
+}
+
+class _VoiceComposerState extends State<_VoiceComposer> {
+  final _text = TextEditingController();
+  bool _recording = false;
+  late final _voice = VoiceNoteController(
+    threadId: 't-sara',
+    onRecordingChanged: (value) {
+      widget.onRecordingChanged(value);
+      if (mounted) setState(() => _recording = value);
+    },
+  );
+
+  @override
+  void dispose() {
+    _voice.dispose();
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _voice.bind(context);
+    return Composer(
+      controller: _text,
+      placeholder: 'Message Sara',
+      inputEnabled: !_recording,
+      holdToTalk: _voice.holdToTalk(placeholder: 'Hold to talk, tap to type'),
+      recordingBar: _recording
+          ? VoiceNoteRecordingBar(controller: _voice)
+          : null,
+      micButton: VoiceNoteButton(controller: _voice),
+    );
+  }
 }

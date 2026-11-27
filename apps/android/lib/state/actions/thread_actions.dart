@@ -9,6 +9,7 @@ import '../../core/models/models.dart';
 import '../app_state.dart';
 import '../reply_stream.dart';
 import 'base.dart';
+import 'prefs_actions.dart' show rememberLastThread;
 import 'shell_actions.dart';
 
 const _uuid = Uuid();
@@ -181,11 +182,17 @@ class LoadNewestAction extends AppAction {
   }
 }
 
+/// The conversation on screen; a conversation that opens is also kept as the owner's last one
+/// (the drawer home opens on it).
 class SetOpenThreadAction extends AppAction {
   SetOpenThreadAction(this.threadId);
   final String? threadId;
   @override
-  AppState reduce() => state.copyWith(openThreadId: threadId);
+  AppState reduce() {
+    final id = threadId;
+    if (id != null && signedIn) rememberLastThread(state.session, id);
+    return state.copyWith(openThreadId: id);
+  }
 }
 
 /// Sends an owner message (`POST /threads/{id}/messages`, 202). The optimistic bubble is the

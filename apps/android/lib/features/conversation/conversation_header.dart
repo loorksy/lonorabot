@@ -1,7 +1,10 @@
-// Conversation header: Ø44 circles at the 16 dp gutter — back at the start, the conversation's
-// actions at the end — around the centred avatar + name capsule, which opens the agent's profile or
-// the group's settings. The actions menu carries Lonora's thread menu (apps/mobile/app/thread.tsx
-// ActionMenu): call the agent, charts, routines, files, chat experience, agent/group settings.
+// Conversation header: Ø44 circles at the 16 dp gutter around the centred avatar + name capsule.
+// At the start: the ☰ button of the chat drawer when this conversation is the Chats tab's
+// last-conversation home (with the unread count of the other chats), else back. At the end: a
+// call circle when the agent can take a call now. A tap on the capsule opens the conversation's
+// actions, Lonora's thread menu (apps/mobile/app/thread.tsx ActionMenu) led by the agent's
+// profile or the group's settings: charts, routines, files, chat experience, agent/group
+// settings.
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FIcons;
@@ -13,8 +16,13 @@ import '../../core/models/models.dart';
 import '../../design/design.dart';
 import '../../l10n/l10n.dart';
 import '../../state/actions/prefs_actions.dart';
+import '../../state/actions/base.dart';
 import '../../state/app_state.dart';
+import '../chats/chat_drawer.dart' show ChatDrawerScope;
+import '../chats/chats_home.dart' show unreadElsewhere;
+import '../chats/chats_strings.dart';
 import '../voice/voice_api.dart';
+import 'conversation_strings.dart';
 
 /// Height from the screen top to the first message (22 dp under the capsule).
 double conversationHeaderExtent(BuildContext context) =>
@@ -24,6 +32,16 @@ double conversationHeaderExtent(BuildContext context) =>
     2 +
     TitleCapsule.height +
     22;
+
+/// The header circles' bottom: the canvas hides the transcript down to here.
+double _circlesBottom(BuildContext context) =>
+    MediaQuery.paddingOf(context).top +
+    ScreenHeader.topGapDefault +
+    LnSize.headerCircle;
+
+/// Where the header's fade ends: the transcript is fully visible ≈64 dp under the capsule.
+double conversationFadeExtent(BuildContext context) =>
+    conversationHeaderExtent(context) - 22 + 64;
 
 class ConversationHeader extends StatelessWidget {
   const ConversationHeader({
@@ -35,6 +53,7 @@ class ConversationHeader extends StatelessWidget {
     this.members = const [],
     this.avatarState = LonoraAvatarState.idle,
     this.callable = false,
+    this.home = false,
   });
 
   final String threadId;
@@ -48,6 +67,10 @@ class ConversationHeader extends StatelessWidget {
 
   /// The agent can take a voice call now (a direct conversation with an active agent).
   final bool callable;
+
+  /// This conversation is the Chats tab's last-conversation home: the start circle opens the
+  /// chat drawer instead of going back.
+  final bool home;
 
   @override
   Widget build(BuildContext context) {
@@ -83,20 +106,37 @@ class ConversationHeader extends StatelessWidget {
         decoration: BoxDecoration(color: c.fill2, shape: BoxShape.circle),
       );
     }
-    // The capsule opens the agent's profile, or the group's settings.
-    final capsuleHint = l10n.t(
-      g != null ? 'groupSettings' : 'conv_agentProfile',
-    );
+    final drawer = home ? ChatDrawerScope.maybeOf(context) : null;
+    final Widget leading;
+    if (drawer != null) {
+      registerChatsStrings();
+      final unread = context.select(
+        (AppState s) => unreadElsewhere(s.shell, threadId),
+      );
+      leading = MenuPillButton(
+        semanticLabel: l10n.t('chats_drawer'),
+        unreadCount: unread,
+        unreadLabel: l10n.t('sh_unreadN', const [], {'count': unread}),
+        onTap: drawer.toggle,
+      );
+    } else {
+      leading = CircleIconButton(
+        // Lucide chevrons mirror themselves in RTL (matchTextDirection).
+        icon: const Icon(FIcons.chevronLeft),
+        semanticLabel: l10n.t('back'),
+        onTap: () => _back(context),
+      );
+    }
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // Content scrolls beneath the transparent chrome: the band behind the circles and the
-        // capsule is the canvas, fading out over the 22 dp above the first message.
+        // Content scrolls beneath the transparent chrome: the canvas hides it down to the
+        // circles' bottom, then fades it in over the ≈64 dp under the capsule.
         Positioned(
           left: 0,
           right: 0,
           top: 0,
-          height: conversationHeaderExtent(context),
+          height: conversationFadeExtent(context),
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -104,37 +144,49 @@ class ConversationHeader extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [c.bg, c.bg, c.bg.withValues(alpha: 0)],
-                  stops: [0, 1 - 22 / conversationHeaderExtent(context), 1],
+                  stops: [
+                    0,
+                    _circlesBottom(context) / conversationFadeExtent(context),
+                    1,
+                  ],
                 ),
               ),
             ),
           ),
         ),
         ScreenHeader(
-          leading: CircleIconButton(
-            // Lucide chevrons mirror themselves in RTL (matchTextDirection).
-            icon: const Icon(FIcons.chevronLeft),
-            semanticLabel: l10n.t('back'),
-            onTap: () => _back(context),
+          leading: leading,
+          center: Builder(
+            builder: (capsule) => TitleCapsule(
+              avatar: avatar,
+              title: title,
+              semanticHint: _actionsLabel(l10n),
+              onTap: () => _actions(capsule),
+            ),
           ),
-          center: TitleCapsule(
-            avatar: avatar,
-            title: title,
-            semanticHint: a != null || g != null ? capsuleHint : null,
-            onTap: a != null
-                ? () => context.push(Routes.agent(a.id))
-                : g != null
-                ? () => context.push(Routes.groupSettings(g.id))
-                : null,
-          ),
-          trailing: CircleIconButton(
-            icon: const Icon(FIcons.ellipsis),
-            semanticLabel: l10n.t('actions'),
-            onTap: () => _actions(context),
-          ),
+          trailing: a != null && callable
+              ? CircleIconButton(
+                  icon: const Icon(FIcons.phone),
+                  semanticLabel: l10n.t('callAgent'),
+                  onTap: () => VoiceCalls.start(
+                    context,
+                    agentId: a.id,
+                    threadId: threadId,
+                  ),
+                )
+              : null,
         ),
       ],
     );
+  }
+
+  /// The capsule's hint and its menu's name: the agent's actions, or the group's.
+  String _actionsLabel(L10n l10n) {
+    if (agent == null && group != null) {
+      registerConversationStrings(l10n);
+      return l10n.t('conv_groupActions');
+    }
+    return l10n.t('actions');
   }
 
   void _back(BuildContext context) {
@@ -145,51 +197,61 @@ class ConversationHeader extends StatelessWidget {
     }
   }
 
-  Future<void> _actions(BuildContext context) async {
-    final l10n = context.l10n;
+  /// The conversation's actions, under the capsule ([capsule] is its context).
+  Future<void> _actions(BuildContext capsule) async {
+    final l10n = capsule.l10n;
     final a = agent;
     final g = group;
-    await showLnActionMenu<void>(
-      context,
+    final box = capsule.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    // The name pill, not the avatar above it: the menu hangs from the pill's bottom.
+    final pill =
+        box.localToGlobal(const Offset(0, TitleCapsule.pillOffset)) &
+        Size(box.size.width, LnSize.namePill);
+    await showLnPopoverMenu<void>(
+      capsule,
+      anchorRect: pill,
+      semanticLabel: _actionsLabel(l10n),
       actions: [
-        if (a != null && callable)
+        if (a != null)
           LnMenuAction(
-            icon: FIcons.phone,
-            label: l10n.t('callAgent'),
-            onSelected: () =>
-                VoiceCalls.start(context, agentId: a.id, threadId: threadId),
+            icon: FIcons.userRound,
+            label: l10n.t('conv_agentProfile'),
+            onSelected: () => capsule.push(Routes.agent(a.id)),
+          )
+        else if (g != null)
+          LnMenuAction(
+            icon: FIcons.usersRound,
+            label: l10n.t('groupSettings'),
+            onSelected: () => capsule.push(Routes.groupSettings(g.id)),
           ),
         LnMenuAction(
           icon: FIcons.chartCandlestick,
           label: l10n.t('charts'),
           onSelected: () =>
-              context.push(Routes.charts(threadId: threadId, agentId: a?.id)),
+              capsule.push(Routes.charts(threadId: threadId, agentId: a?.id)),
         ),
         if (a != null)
           LnMenuAction(
             icon: FIcons.clock,
             label: l10n.t('routines'),
-            onSelected: () => context.push(Routes.routines(agentId: a.id)),
+            onSelected: () => capsule.push(Routes.routines(agentId: a.id)),
           ),
         LnMenuAction(
           icon: FIcons.folder,
           label: l10n.t('artifacts'),
-          onSelected: () => context.push(Routes.artifacts(threadId: threadId)),
+          onSelected: () => capsule.push(Routes.artifacts(threadId: threadId)),
         ),
         LnMenuAction(
           icon: FIcons.slidersHorizontal,
           label: l10n.t('chatPrefs'),
-          onSelected: () => showChatPrefsSheet(context),
+          onSelected: () => showChatPrefsSheet(capsule),
         ),
-        if (a != null || g != null)
+        if (a != null)
           LnMenuAction(
             icon: FIcons.settings,
-            label: l10n.t(g != null ? 'groupSettings' : 'agentSettings'),
-            onSelected: () => context.push(
-              g != null
-                  ? Routes.groupSettings(g.id)
-                  : Routes.agentSettings(a!.id),
-            ),
+            label: l10n.t('agentSettings'),
+            onSelected: () => capsule.push(Routes.agentSettings(a.id)),
           ),
       ],
     );

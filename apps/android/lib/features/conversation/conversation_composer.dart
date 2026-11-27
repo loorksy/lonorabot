@@ -1,8 +1,9 @@
 // The conversation composer: the design kit's Composer pill driving Lonora's send contract
 // (apps/mobile/components/thread-composer.tsx, app/thread.tsx `send`): text + `client_nonce`
 // through the outbox, reply (`reply_to`), edit and resend (`edited_from`), attachments uploaded one
-// by one to `/artifacts/upload` (≤ 10, ≤ 20 MiB each, progress and cancel), the conversation's web
-// search, Stop while a run works, and the voice-note mic.
+// by one to `/artifacts/upload` (≤ 10, ≤ 20 MiB each, progress and cancel) from the «+» menu, the
+// conversation's web search (a row of that menu), Stop while a run works, and voice notes: a long
+// press anywhere on the empty composer records, a tap types, and the mic records hands-free.
 import 'dart:async';
 import 'dart:io';
 
@@ -25,6 +26,7 @@ import '../../l10n/l10n.dart';
 import '../../state/actions/thread_actions.dart';
 import '../voice/voice_note_button.dart';
 import 'conversation_actions.dart';
+import 'conversation_strings.dart';
 import 'conversation_timeline.dart';
 
 /// Lonora's per-message attachment limit (apps/mobile/app/thread.tsx `pick`).
@@ -128,6 +130,19 @@ class ConversationComposerState extends State<ConversationComposer> {
   final List<ComposerUpload> _uploads = [];
   bool _recording = false;
 
+  /// The composer itself: the «+» menu hangs from its top.
+  final _pill = GlobalKey(debugLabel: 'composer');
+
+  late final VoiceNoteController _voice = VoiceNoteController(
+    threadId: widget.threadId,
+    onRecordingChanged: (value) {
+      if (!mounted) return;
+      // Recording closes the keyboard: the field gives up its focus.
+      if (value) focusNode.unfocus();
+      setState(() => _recording = value);
+    },
+  );
+
   @override
   void initState() {
     super.initState();
@@ -158,6 +173,7 @@ class ConversationComposerState extends State<ConversationComposer> {
       if (u.running) u.token.cancel('composer_closed');
       if (!u.done) u.discard();
     }
+    _voice.dispose();
     controller.dispose();
     focusNode.dispose();
     super.dispose();
@@ -329,55 +345,54 @@ class ConversationComposerState extends State<ConversationComposer> {
     widget.onSent?.call();
   }
 
+  /// The attach menu's start edge sits this far inside the composer's.
+  static const double attachMenuInset = 7;
+
+  /// «+»: Camera · Photos · Files (only what Lonora supports), then the conversation's web
+  /// search, checked while it is on; a menu over the composer, without a scrim. The limits are
+  /// enforced as files are picked (a toast says the limit when it is reached); turning web search
+  /// on says what it does.
   Future<void> _openAttach() async {
     final l10n = context.l10n;
-    String? choice;
-    await showLnSheet<void>(
+    registerConversationStrings(l10n);
+    final box = _pill.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    // Inset on both sides alike: the menu keeps to the composer's start edge.
+    final pill = box.localToGlobal(Offset.zero) & box.size;
+    final choice = await showLnPopoverMenu<String>(
       context,
-      title: l10n.t('addToConversation'),
-      padding: const EdgeInsetsDirectional.fromSTEB(0, 0, 0, 16),
-      builder: (sheet) => SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            LnSection(
-              footer: l10n.t('attachLimit'),
-              children: [
-                // Order: Camera · Photos · Files (only what Lonora supports).
-                LnListTile(
-                  icon: FIcons.camera,
-                  title: l10n.t('conv_camera'),
-                  onTap: () {
-                    choice = 'camera';
-                    Navigator.of(sheet).pop();
-                  },
-                ),
-                LnListTile(
-                  icon: FIcons.image,
-                  title: l10n.t('pickPhotos'),
-                  onTap: () {
-                    choice = 'photos';
-                    Navigator.of(sheet).pop();
-                  },
-                ),
-                LnListTile(
-                  icon: FIcons.file,
-                  title: l10n.t('pickFiles'),
-                  onTap: () {
-                    choice = 'files';
-                    Navigator.of(sheet).pop();
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: LnSpace.md),
-            _WebSearchSection(
-              threadId: widget.threadId,
-              initial: widget.webSearch,
-            ),
-          ],
-        ),
+      anchorRect: Rect.fromLTRB(
+        pill.left + attachMenuInset,
+        pill.top,
+        pill.right - attachMenuInset,
+        pill.bottom,
       ),
+      // Over the composer's top edge, as the menu grows from the «+».
+      gap: -4,
+      semanticLabel: l10n.t('addToConversation'),
+      selected: widget.webSearch ? 'web' : null,
+      actions: [
+        LnMenuAction(
+          value: 'camera',
+          icon: FIcons.camera,
+          label: l10n.t('conv_camera'),
+        ),
+        LnMenuAction(
+          value: 'photos',
+          icon: FIcons.image,
+          label: l10n.t('pickPhotos'),
+        ),
+        LnMenuAction(
+          value: 'files',
+          icon: FIcons.file,
+          label: l10n.t('pickFiles'),
+        ),
+        LnMenuAction(
+          value: 'web',
+          icon: FIcons.globe,
+          label: l10n.t('webSearch'),
+        ),
+      ],
     );
     if (!mounted) return;
     switch (choice) {
@@ -387,6 +402,23 @@ class ConversationComposerState extends State<ConversationComposer> {
         await _pickPhotos();
       case 'files':
         await _pickFiles();
+      case 'web':
+        await _setWebSearch(!widget.webSearch);
+    }
+  }
+
+  /// Turns the conversation's web search on or off (`PUT /threads/{id}/options`).
+  Future<void> _setWebSearch(bool on) async {
+    final action = ToggleWebSearchAction(widget.threadId, on);
+    await context.dispatchAndWait(action);
+    if (!mounted) return;
+    if (action.errorCode != null) {
+      _toast(context.l10n.errorText(action.errorCode));
+    } else {
+      _toast(
+        context.l10n.t(on ? 'webSearchOn' : 'webSearchOff'),
+        kind: LnToastKind.normal,
+      );
     }
   }
 
@@ -503,17 +535,6 @@ class ConversationComposerState extends State<ConversationComposer> {
     }
   }
 
-  void _webSearchOff() async {
-    final action = ToggleWebSearchAction(widget.threadId, false);
-    await context.dispatchAndWait(action);
-    if (!mounted) return;
-    if (action.errorCode != null) {
-      _toast(context.l10n.errorText(action.errorCode));
-    } else {
-      _toast(context.l10n.t('webSearchOff'), kind: LnToastKind.normal);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final ln = context.ln;
@@ -538,10 +559,8 @@ class ConversationComposerState extends State<ConversationComposer> {
         }),
       );
     } else if (reply != null) {
+      // A plain quote: the bar's own quote mark says it is a reply.
       replyBar = ComposerReplyBar(
-        title: _replyAuthor == null || _replyAuthor!.isEmpty
-            ? l10n.t('reply')
-            : '${l10n.t('reply')} · ${_replyAuthor!}',
         text: plainLine(reply.content).isEmpty
             ? l10n.t('attachments')
             : plainLine(reply.content),
@@ -558,7 +577,7 @@ class ConversationComposerState extends State<ConversationComposer> {
         _WebSearchChip(
           label: l10n.t('webSearch'),
           removeLabel: l10n.t('webSearchIsOn'),
-          onRemove: _webSearchOff,
+          onRemove: () => _setWebSearch(false),
         ),
       // An edit carries no files: the attached ones wait (hidden) for the next send.
       if (editing == null)
@@ -587,9 +606,12 @@ class ConversationComposerState extends State<ConversationComposer> {
     // Files alone are sent from the pill's send disc; the voice-note mic is its mic slot.
     final filesOnly = text.isEmpty && editing == null && ready.isNotEmpty;
 
-    // While recording, the field and «+» are inert (the field gives up focus, so the keyboard
-    // closes), but the trailing slot stays enabled: it holds the recording mic.
+    // While recording, the recording bar takes the pill's place: the pill stays mounted
+    // underneath, hidden and inert, so the hold that started it keeps reporting.
+    _voice.bind(context);
+    registerConversationStrings(l10n);
     final composer = Composer(
+      key: _pill,
       controller: controller,
       focusNode: focusNode,
       placeholder: widget.agentName == null
@@ -601,13 +623,16 @@ class ConversationComposerState extends State<ConversationComposer> {
       sendEnabled: editing != null || !_uploading,
       onSend: _send,
       onAttach: editing == null ? _openAttach : null,
-      micButton: VoiceNoteButton(
-        threadId: widget.threadId,
-        enabled: widget.enabled,
-        onRecordingChanged: (value) {
-          if (mounted) setState(() => _recording = value);
-        },
-      ),
+      // While the agent works, the empty composer names the agent; the hold still records.
+      holdToTalk: widget.enabled
+          ? _voice.holdToTalk(
+              placeholder: widget.running ? null : l10n.t('conv_holdToTalk'),
+            )
+          : null,
+      recordingBar: _recording
+          ? VoiceNoteRecordingBar(controller: _voice)
+          : null,
+      micButton: VoiceNoteButton(controller: _voice, enabled: widget.enabled),
       sendWithoutText: filesOnly,
       onStop: widget.onStop,
       attachLabel: l10n.t('attach'),
@@ -749,62 +774,6 @@ class _SuggestionChip extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The attach sheet's web search row (`PUT /threads/{id}/options`), as apps/mobile's
-/// WebSearchRow.
-class _WebSearchSection extends StatefulWidget {
-  const _WebSearchSection({required this.threadId, required this.initial});
-  final String threadId;
-  final bool initial;
-
-  @override
-  State<_WebSearchSection> createState() => _WebSearchSectionState();
-}
-
-class _WebSearchSectionState extends State<_WebSearchSection> {
-  late bool _on = widget.initial;
-  bool _busy = false;
-
-  Future<void> _set(bool value) async {
-    setState(() {
-      _on = value;
-      _busy = true;
-    });
-    final action = ToggleWebSearchAction(widget.threadId, value);
-    await context.dispatchAndWait(action);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      if (action.errorCode != null) _on = !value;
-    });
-    if (action.errorCode != null) {
-      LnToast.show(
-        context,
-        context.l10n.errorText(action.errorCode),
-        kind: LnToastKind.error,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return LnSection(
-      children: [
-        LnListTile(
-          icon: FIcons.globe,
-          title: l10n.t('webSearch'),
-          subtitle: l10n.t('webSearchOn'),
-          trailing: LnSwitch(
-            value: _on,
-            semanticLabel: l10n.t('webSearch'),
-            onChanged: _busy ? null : _set,
-          ),
-        ),
-      ],
     );
   }
 }

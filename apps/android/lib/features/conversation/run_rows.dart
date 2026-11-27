@@ -4,7 +4,10 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart' show FIcons;
+import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../avatar/avatar.dart';
 
 import '../../core/json.dart';
 import '../../core/models/models.dart';
@@ -25,6 +28,93 @@ Map<String, Object?> runJsonFor(Run run, LiveReplyStream? stream) => {
       'rich_content': stream.richContent,
     },
 };
+
+/// A reply that has no words yet: the agent's 32 dp avatar in the run's phase (animated) at the
+/// bubbles' text column, and the phase («يفكر», «جارٍ العمل»…) in body type with a moving shimmer
+/// (plain secondary ink with reduced motion). [label] null shows the avatar alone (the activity
+/// line above already says it).
+class WorkingRow extends StatelessWidget {
+  const WorkingRow({
+    super.key,
+    required this.agent,
+    required this.agentId,
+    required this.state,
+    this.label,
+    this.semanticLabel,
+  });
+
+  final Agent? agent;
+  final String agentId;
+  final LonoraAvatarState state;
+  final String? label;
+
+  /// Spoken for the row (the phase), also when [label] is not drawn.
+  final String? semanticLabel;
+
+  /// The avatar and its start inset: the bubbles' text column (16 dp into the bubble).
+  static const double avatar = 32;
+  static const double inset = LnSize.bubblePadH;
+
+  /// Avatar → label.
+  static const double gap = 10.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final ln = context.ln;
+    final c = ln.colors;
+    final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final a = agent;
+    final text = label;
+    Widget? words;
+    if (text != null) {
+      final plain = Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: ln.text.body.copyWith(color: c.fgMuted),
+      );
+      words = reduced
+          ? plain
+          : Shimmer.fromColors(
+              baseColor: c.fg.withValues(alpha: 0.4),
+              highlightColor: c.fg,
+              period: const Duration(milliseconds: 1600),
+              child: plain,
+            );
+    }
+    return Semantics(
+      liveRegion: true,
+      label: semanticLabel ?? text,
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(start: inset),
+          child: SizedBox(
+            height: LnSize.minTouch,
+            child: Row(
+              children: [
+                SizedBox.square(
+                  dimension: avatar,
+                  child: LonoraAvatar(
+                    agentId: a?.id ?? agentId,
+                    face: a?.avatar,
+                    color: a?.color,
+                    tradesOnItsOwn: a?.tradesOnItsOwn ?? false,
+                    state: state,
+                    size: avatar,
+                  ),
+                ),
+                if (words != null) ...[
+                  const SizedBox(width: gap),
+                  Flexible(child: words),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// The activity line above a reply being written: «يفكر», «يكتب الرد», «ينتظر ردك»…, with the
 /// run's tool calls behind a tap when the owner keeps «خطوات عمل الوكيل» on.

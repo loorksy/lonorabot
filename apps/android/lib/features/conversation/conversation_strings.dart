@@ -12,7 +12,7 @@ void registerConversationStrings([L10n? l10n]) {
   target.register({
     // Message long-press menu: Reply · Copy · Select text · ….
     'conv_selectText': ['تحديد النص', 'Select text'],
-    // Attach sheet: Camera · Photos · Files.
+    // Attach menu: Camera · Photos · Files · Web search.
     'conv_camera': ['الكاميرا', 'Camera'],
     // Confirmation before an unsent message is removed from this device.
     'conv_discardUnsentQ': [
@@ -33,8 +33,16 @@ void registerConversationStrings([L10n? l10n]) {
       'This agent is no longer available.',
     ],
     // The composer hint of a direct conversation names its agent.
-    'conv_messageTo': ['اكتب رسالة إلى {0}…', 'Message {0}…'],
-    // The header capsule's hint: a tap opens the agent's profile.
+    'conv_messageTo': ['أرسل رسالة إلى {0}', 'Message {0}'],
+    // The empty, unfocused composer: a long press records a voice note, a tap types.
+    'conv_holdToTalk': [
+      'اضغط مطولاً للتحدث، انقر للكتابة',
+      'Hold to talk, tap to type',
+    ],
+    // The first row of the header capsule's actions menu (a direct conversation).
     'conv_agentProfile': ['ملف الوكيل', 'Agent profile'],
+    // The header capsule's hint and menu name in a group conversation (`actions` names an
+    // agent's).
+    'conv_groupActions': ['إجراءات المجموعة', 'Group actions'],
   });
 }

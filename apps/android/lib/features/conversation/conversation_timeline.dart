@@ -250,17 +250,22 @@ DateTime? timeOf(TimelineItem item) => switch (item) {
 };
 
 /// A transcript row with its presentation: the time separator above it, the gap to the row
-/// before it, and whether a group conversation names its sender.
+/// before it, whether a group conversation names its sender, and whether its bubble joins the
+/// bubble of the same sender right above ([joinTop]) or right below ([joinBottom]).
 class TimelineRow {
   const TimelineRow({
     required this.item,
     required this.gap,
     this.separator,
     this.showSender = false,
+    this.joinTop = false,
+    this.joinBottom = false,
   });
 
   final TimelineItem item;
   final double gap;
+  final bool joinTop;
+  final bool joinBottom;
 
   /// Draw a time separator for this time above the row.
   final DateTime? separator;
@@ -275,11 +280,18 @@ const groupWindow = Duration(minutes: 3);
 /// belongs to the same sender. Rows of one sender further apart than [groupWindow] start a new
 /// group. Event rows carry their own 8 dp padding. Separators follow Lonora's rule: a new day or a
 /// 15 minute pause.
+///
+/// A run of one sender's bubbles sits [bubbleRunGap] apart with joined corners: a row whose top is
+/// its bubble ([startsWithBubble]) under a row whose bottom is its bubble ([endsWithBubble]), both
+/// of one sender in one group. Without the predicates nothing joins.
 List<TimelineRow> presentTimeline(
   List<TimelineItem> items, {
   required bool group,
   required double sameSenderGap,
   required double senderChangeGap,
+  double? bubbleRunGap,
+  bool Function(TimelineItem item)? startsWithBubble,
+  bool Function(TimelineItem item)? endsWithBubble,
 }) {
   final rows = <TimelineRow>[];
   DateTime? lastTime;
@@ -303,14 +315,37 @@ List<TimelineRow> presentTimeline(
         close &&
         (sender == previousSender ||
             (sender == 'card' && previousSender.startsWith('agent:')));
+    final joined =
+        same &&
+        sender == previousSender &&
+        sender != 'card' &&
+        sender != 'event' &&
+        rows.isNotEmpty &&
+        (startsWithBubble?.call(item) ?? false) &&
+        (endsWithBubble?.call(rows.last.item) ?? false);
     final double gap;
     if (rows.isEmpty || separator != null) {
       // The separator's own padding spaces it from the row before.
       gap = 0;
     } else if (sender == 'event' || previousSender == 'event') {
       gap = sender == 'event' ? sameSenderGap : 0;
+    } else if (joined) {
+      gap = bubbleRunGap ?? sameSenderGap;
     } else {
       gap = same ? sameSenderGap : senderChangeGap;
+    }
+    if (joined) {
+      final above = rows.removeLast();
+      rows.add(
+        TimelineRow(
+          item: above.item,
+          gap: above.gap,
+          separator: above.separator,
+          showSender: above.showSender,
+          joinTop: above.joinTop,
+          joinBottom: true,
+        ),
+      );
     }
     final agentRow = sender.startsWith('agent:') && sender != 'agent:';
     rows.add(
@@ -319,6 +354,7 @@ List<TimelineRow> presentTimeline(
         gap: gap,
         separator: separator,
         showSender: group && agentRow && !(same && sender == previousSender),
+        joinTop: joined,
       ),
     );
     previousSender = sender;

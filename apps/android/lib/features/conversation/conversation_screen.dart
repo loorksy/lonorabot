@@ -43,12 +43,26 @@ import 'message_widgets.dart';
 import 'question_card.dart';
 import 'run_rows.dart';
 
+/// The jump button's touch target reaches this far beyond its disc.
+const double _jumpTouchMargin = (LnSize.minTouch - LnSize.jumpButton) / 2;
+
+/// The transcript's fade into the canvas above the composer.
+const double _bottomFade = 18;
+
 class ConversationScreen extends StatefulWidget {
-  const ConversationScreen({super.key, required this.threadId, this.around});
+  const ConversationScreen({
+    super.key,
+    required this.threadId,
+    this.around,
+    this.home = false,
+  });
   final String threadId;
 
   /// Land on this message seq (search hit, notification) and flash it.
   final int? around;
+
+  /// The Chats tab's last-conversation home: the header's start circle opens the chat drawer.
+  final bool home;
 
   @override
   State<ConversationScreen> createState() => _ConversationScreenState();
@@ -106,6 +120,11 @@ class _ConversationScreenState extends State<ConversationScreen>
   final _scroll = ScrollController();
   late final _observer = ListObserverController(controller: _scroll);
   final _composer = GlobalKey<ConversationComposerState>();
+
+  /// Each message's bubble (the long-press menu lifts it from its place), by timeline key.
+  final Map<String, GlobalKey> _bubbleKeys = {};
+  GlobalKey _bubbleKey(String key) =>
+      _bubbleKeys.putIfAbsent(key, () => GlobalKey(debugLabel: key));
   Store<AppState>? _store;
   StreamSubscription<LonoraEvent>? _sub;
 
@@ -156,6 +175,8 @@ class _ConversationScreenState extends State<ConversationScreen>
     } catch (_) {
       // No live feed (previews, tests): snapshots still load.
     }
+    // The drawer home stays open under the share picker: a share addressed to it lands here.
+    pendingShare.addListener(_consumeShare);
     WidgetsBinding.instance.addPostFrameCallback((_) => _open());
   }
 
@@ -204,6 +225,7 @@ class _ConversationScreenState extends State<ConversationScreen>
 
   @override
   void dispose() {
+    pendingShare.removeListener(_consumeShare);
     WidgetsBinding.instance.removeObserver(this);
     _sub?.cancel();
     _sideTimer?.cancel();
@@ -264,9 +286,11 @@ class _ConversationScreenState extends State<ConversationScreen>
   }
 
   /// Content shared into Lonora joins the composer of the conversation the share picker
-  /// addressed it to. Taken only when the conversation opens: a share arriving meanwhile goes
-  /// to the picker first (deep_links closes this conversation), never to another conversation.
+  /// addressed it to: when the conversation opens, or at once when it is already open (the
+  /// last-conversation home stays open under the picker). A share not addressed yet goes to the
+  /// picker first (deep_links closes a pushed conversation), never to another conversation.
   void _consumeShare() {
+    if (!mounted) return;
     final share = pendingShare.value;
     final composer = _composer.currentState;
     if (share == null || composer == null) return;
@@ -466,13 +490,18 @@ class _ConversationScreenState extends State<ConversationScreen>
 
   Future<void> _messageMenu(
     Message m, {
+    required Widget target,
     required Map<String, Agent> agents,
     required String? taskAgentId,
   }) async {
     final l10n = context.l10n;
     final text = m.content.trim();
+    final at = m.createdAt;
     await showMessageMenu(
       context,
+      target: target,
+      targetKey: _bubbleKey('m:${m.id}'),
+      header: at == null ? null : l10n.timeSeparator(at),
       ownReaction: ownerReaction(m.reactions),
       onReact: (emoji) => _react(m, emoji),
       actions: [
@@ -544,11 +573,13 @@ class _ConversationScreenState extends State<ConversationScreen>
     }
   }
 
-  Future<void> _failedMenu(OutgoingMessage o) async {
+  Future<void> _failedMenu(OutgoingMessage o, Widget target) async {
     final l10n = context.l10n;
     await showMessageMenu(
       context,
-      title: l10n.t('messageNotSent'),
+      target: target,
+      targetKey: _bubbleKey('o:${o.nonce}'),
+      header: l10n.t('messageNotSent'),
       actions: [
         LnMenuAction(
           icon: FIcons.rotateCcw,
@@ -666,11 +697,21 @@ class _ConversationScreenState extends State<ConversationScreen>
         if (o.threadId == _threadId) o,
     ];
     final items = _timeline(context, t, view, outbox);
+    final questions = threadQuestions(t.runs.values, _threadId);
+    bool startsWithBubble(TimelineItem item) =>
+        item is MessageItem && _drawsBubble(context, item.message, questions);
     final rows = presentTimeline(
       items,
       group: groupId != null,
       sameSenderGap: LnSpace.sameSenderGap,
       senderChangeGap: LnSpace.senderChangeGap,
+      bubbleRunGap: LnSpace.bubbleRunGap,
+      startsWithBubble: startsWithBubble,
+      // Files and reactions under a bubble keep the next one at the usual distance.
+      endsWithBubble: (item) =>
+          startsWithBubble(item) &&
+          (item as MessageItem).message.attachmentIds.isEmpty &&
+          item.message.reactions.isEmpty,
     );
     _rows = rows;
     final banner = bannerRun(view.runs.values, {
@@ -700,7 +741,7 @@ class _ConversationScreenState extends State<ConversationScreen>
 
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final bottom = keyboard > 0
-        ? keyboard + LnSpace.xs
+        ? keyboard + LnSpace.sm
         : FloatingTabBar.occupiedHeight(context) + LnSpace.composerToBar;
     final strip = _strip(view.connection);
 
@@ -759,20 +800,42 @@ class _ConversationScreenState extends State<ConversationScreen>
                           ),
                           callable:
                               agent != null && !agent.paused && !unavailable,
+                          home: widget.home,
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: LnSpace.xs,
-                      child: Center(
-                        child: JumpToLatestButton(
-                          visible: !_following && rows.isNotEmpty,
-                          unreadCount: unread,
-                          semanticLabel: jumpLabel,
-                          onTap: _jumpToLatest,
+                    // The transcript fades into the canvas over the 18 dp above the composer.
+                    if (!unavailable)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: _bottomFade,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  ln.colors.bg.withValues(alpha: 0),
+                                  ln.colors.bg.withValues(alpha: 0.7),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
+                      ),
+                    // At the end side, 16 dp from the edge and 20 dp above the composer (the
+                    // button's 48 dp touch target reaches 6 dp beyond its 36 dp disc).
+                    PositionedDirectional(
+                      end: LnSpace.pageGutter - _jumpTouchMargin,
+                      bottom: 20 - LnSpace.xs - _jumpTouchMargin,
+                      child: JumpToLatestButton(
+                        visible: !_following && rows.isNotEmpty,
+                        unreadCount: unread,
+                        semanticLabel: jumpLabel,
+                        onTap: _jumpToLatest,
                       ),
                     ),
                   ],
@@ -987,6 +1050,7 @@ class _ConversationScreenState extends State<ConversationScreen>
       Widget child = switch (item) {
         MessageItem(:final message) => _messageRow(
           message,
+          row: row,
           callLog: callLog,
           byId: byId,
           view: view,
@@ -996,18 +1060,29 @@ class _ConversationScreenState extends State<ConversationScreen>
           taskAgentId: taskAgentId,
           callBack: callBack,
         ),
-        OutgoingItem(:final outgoing) => OutgoingTile(
-          outgoing: outgoing,
-          quoted: byId[outgoing.replyTo],
-          quotedAuthor: byId[outgoing.replyTo] == null
-              ? null
-              : _author(byId[outgoing.replyTo]!, view.agents),
-          artifacts: artifacts,
-          onRetry: () => _dispatch(RetryOutgoingAction(outgoing.nonce)),
-          onLongPress: outgoing.delivery == Delivery.failed
-              ? () => _failedMenu(outgoing)
-              : null,
-        ),
+        OutgoingItem(:final outgoing) => () {
+          OutgoingTile tile({VoidCallback? onLongPress}) => OutgoingTile(
+            outgoing: outgoing,
+            quoted: byId[outgoing.replyTo],
+            quotedAuthor: byId[outgoing.replyTo] == null
+                ? null
+                : _author(byId[outgoing.replyTo]!, view.agents),
+            artifacts: artifacts,
+            onRetry: () => _dispatch(RetryOutgoingAction(outgoing.nonce)),
+            onLongPress: onLongPress,
+          );
+          return Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: KeyedSubtree(
+              key: _bubbleKey(item.key),
+              child: tile(
+                onLongPress: outgoing.delivery == Delivery.failed
+                    ? () => _failedMenu(outgoing, tile())
+                    : null,
+              ),
+            ),
+          );
+        }(),
         PreviewItem(:final run) => _LivePreview(
           threadId: _threadId,
           runId: run.id,
@@ -1098,33 +1173,46 @@ class _ConversationScreenState extends State<ConversationScreen>
       },
       child: ListViewObserver(
         controller: _observer,
-        child: ListView.builder(
+        child: RawScrollbar(
           controller: _scroll,
-          reverse: true,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          thickness: 3,
+          radius: const Radius.circular(1.5),
+          thumbColor: context.ln.colors.fg.withValues(alpha: 0.45),
+          minThumbLength: 36,
+          fadeDuration: LnMotion.medium,
+          timeToFade: const Duration(milliseconds: 900),
           padding: EdgeInsets.only(
             top: conversationHeaderExtent(context),
             bottom: LnSpace.md,
-            left: LnSpace.pageGutter,
-            right: LnSpace.pageGutter,
           ),
-          itemCount: count,
-          findChildIndexCallback: (key) {
-            if (key is! ValueKey<String>) return null;
-            final i = rows.indexWhere((r) => r.item.key == key.value);
-            return i < 0 ? null : rows.length - 1 - i;
-          },
-          itemBuilder: (context, index) {
-            if (index >= rows.length) {
-              return _olderFailed && !view.loadingOlder
-                  ? _OlderFailedRow(onRetry: _retryOlder)
-                  : const Padding(
-                      padding: EdgeInsets.symmetric(vertical: LnSpace.md),
-                      child: Center(child: LnSpinner(size: 18)),
-                    );
-            }
-            return build(rows[rows.length - 1 - index]);
-          },
+          child: ListView.builder(
+            controller: _scroll,
+            reverse: true,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.only(
+              top: conversationHeaderExtent(context),
+              bottom: LnSpace.md,
+              left: LnSpace.pageGutter,
+              right: LnSpace.pageGutter,
+            ),
+            itemCount: count,
+            findChildIndexCallback: (key) {
+              if (key is! ValueKey<String>) return null;
+              final i = rows.indexWhere((r) => r.item.key == key.value);
+              return i < 0 ? null : rows.length - 1 - i;
+            },
+            itemBuilder: (context, index) {
+              if (index >= rows.length) {
+                return _olderFailed && !view.loadingOlder
+                    ? _OlderFailedRow(onRetry: _retryOlder)
+                    : const Padding(
+                        padding: EdgeInsets.symmetric(vertical: LnSpace.md),
+                        child: Center(child: LnSpinner(size: 18)),
+                      );
+              }
+              return build(rows[rows.length - 1 - index]);
+            },
+          ),
         ),
       ),
     );
@@ -1140,8 +1228,26 @@ class _ConversationScreenState extends State<ConversationScreen>
       m.role == 'system' &&
       (validateRichContent(m.richContent)?.any((p) => p is CallPart) ?? false);
 
+  /// Whether [m] draws as a text bubble at its top (an owner or agent message that is not a
+  /// generated interface, a question with choices or files alone): a bubble run joins it.
+  static bool _drawsBubble(
+    BuildContext context,
+    Message m,
+    Map<String, InputRequest> questions,
+  ) {
+    if (m.role != 'user' && m.role != 'assistant') return false;
+    if ((questions[m.id]?.choices.isNotEmpty ?? false)) return false;
+    if (m.fromOwner) {
+      return !(m.attachmentIds.isNotEmpty &&
+          m.parts.isEmpty &&
+          isAttachPlaceholder(context, m.content));
+    }
+    return !RichContentView.drawsOwnBubbles(m.richContent);
+  }
+
   Widget _messageRow(
     Message message, {
+    required TimelineRow row,
     required bool callLog,
     required Map<String, Message> byId,
     required _View view,
@@ -1177,29 +1283,46 @@ class _ConversationScreenState extends State<ConversationScreen>
       );
     }
     final quoted = byId[message.replyTo];
-    return MessageTile(
-      message: message,
-      threadId: _threadId,
-      quoted: quoted,
-      quotedAuthor: quoted == null ? null : _author(quoted, view.agents),
-      artifacts: artifacts,
-      onCallBack: callBack,
-      onLongPress: () => _messageMenu(
-        message,
-        agents: view.agents,
-        taskAgentId: message.agentId ?? taskAgentId,
-      ),
-      onQuoteTap: quoted == null
-          ? null
-          : () => _jumpTo(_rows, 'm:${quoted.id}'),
-      onReactionsTap: () => showReactionsSheet(
-        context,
-        reactions: message.reactions,
-        nameOf: (reactor) =>
-            view.agents[reactor]?.name ?? context.l10n.t('system'),
-        onRemoveOwn: () => _react(message, null),
-      ),
-    );
+    final author = quoted == null ? null : _author(quoted, view.agents);
+    // The same bubble, redrawn sharp over the blurred transcript while its menu is open.
+    MessageTile tile({GlobalKey? bubbleKey, bool bubbleOnly = false}) =>
+        MessageTile(
+          message: message,
+          threadId: _threadId,
+          quoted: quoted,
+          quotedAuthor: author,
+          artifacts: artifacts,
+          onCallBack: callBack,
+          bubbleKey: bubbleKey,
+          bubbleOnly: bubbleOnly,
+          joinTop: row.joinTop,
+          joinBottom: row.joinBottom,
+          onLongPress: bubbleOnly
+              ? null
+              : () => _messageMenu(
+                  message,
+                  target: tile(bubbleOnly: true),
+                  agents: view.agents,
+                  taskAgentId: message.agentId ?? taskAgentId,
+                ),
+          onSwipeReply: bubbleOnly
+              ? null
+              : () => _composer.currentState?.reply(
+                  message,
+                  _author(message, view.agents),
+                ),
+          onQuoteTap: quoted == null || bubbleOnly
+              ? null
+              : () => _jumpTo(_rows, 'm:${quoted.id}'),
+          onReactionsTap: () => showReactionsSheet(
+            context,
+            reactions: message.reactions,
+            nameOf: (reactor) =>
+                view.agents[reactor]?.name ?? context.l10n.t('system'),
+            onRemoveOwn: () => _react(message, null),
+          ),
+        );
+    return tile(bubbleKey: _bubbleKey('m:${message.id}'));
   }
 
   /// A reply being written: the live stream (replaced by the canonical message once it is
@@ -1258,8 +1381,19 @@ class _ConversationScreenState extends State<ConversationScreen>
             reconnecting ||
             !quiet.contains(activity.phase) ||
             (view.chatPrefs.steps && activity.calls.isNotEmpty);
+        // No words yet: the agent's avatar at work, saying the phase unless the line above
+        // already does.
+        final phaseLabel = l10n.t('activity_${activity.phase}');
         final typing = reply == null && run.isActive
-            ? TypingBubble(semanticLabel: l10n.t('activity_${activity.phase}'))
+            ? WorkingRow(
+                agent: view.agents[run.agentId],
+                agentId: run.agentId,
+                state:
+                    activityPhaseAvatar[activity.phase] ??
+                    LonoraAvatarState.working,
+                label: showLine ? null : phaseLabel,
+                semanticLabel: phaseLabel,
+              )
             : null;
         // A line with steps to open stands 48 dp around its 38 dp content, like the
         // transcript's tappable event rows: the gap above gives those 5 dp back.

@@ -100,6 +100,19 @@ void main() {
     });
   });
 
+  test('a tap on the mic records hands-free at once', () {
+    final m = VoiceNoteMachine();
+    expect(m.tapStart(), VoiceNoteEffect.start);
+    expect(m.phase, VoiceNotePhase.locked);
+    expect(m.recording, isTrue);
+    // Already recording: a second tap starts nothing; release does not send.
+    expect(m.tapStart(), VoiceNoteEffect.none);
+    expect(m.release(), VoiceNoteEffect.none);
+    m.tick(1.5);
+    expect(m.sendTap(), VoiceNoteEffect.send);
+    expect(m.phase, VoiceNotePhase.idle);
+  });
+
   group('voicePeaks', () {
     test('44 peaks, 0..100, normalised to the loudest', () {
       final peaks = voicePeaks([for (var i = 0; i < 100; i++) i / 100]);

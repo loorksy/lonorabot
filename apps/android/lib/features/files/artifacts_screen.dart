@@ -465,7 +465,7 @@ class _ArtifactsScreenState extends State<ArtifactsScreen> {
       mimeBadge(r.mediaType),
       isolate(formatFileSize(r.size, lang)),
       if (agent != null) isolate(agent.name),
-      if (at != null) isolate(shortDate(at)),
+      if (at != null) isolate(shortDate(at, lang: context.l10n.lang)),
     ].join(dotSeparator);
   }
 }

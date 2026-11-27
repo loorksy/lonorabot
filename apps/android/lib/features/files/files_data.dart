@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../app/services.dart';
 import '../../core/json.dart';
+import '../../l10n/format.dart' show dateDigits;
 import '../../state/actions/session_actions.dart' show signOutHooks;
 import '../../state/app_state.dart';
 
@@ -236,12 +237,16 @@ String cacheName(String value) {
   return cut.isEmpty ? 'artifact' : cut;
 }
 
-/// «27/11» this year, «27/11/25» before (Latin digits, day first).
-String shortDate(DateTime t, {DateTime? now}) {
+/// «27/11» this year, «27/11/25» before (day first), in [lang]'s date digits («٢٧/١١» in
+/// Arabic).
+String shortDate(DateTime t, {DateTime? now, String lang = 'en'}) {
   final year = (now ?? DateTime.now()).year;
-  return t.year == year
-      ? '${t.day}/${t.month}'
-      : '${t.day}/${t.month}/${(t.year % 100).toString().padLeft(2, '0')}';
+  return dateDigits(
+    t.year == year
+        ? '${t.day}/${t.month}'
+        : '${t.day}/${t.month}/${(t.year % 100).toString().padLeft(2, '0')}',
+    lang,
+  );
 }
 
 /// Recently drawn file bytes (thumbnails, viewer, hand-offs), newest last, about 24 MB at

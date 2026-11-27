@@ -211,7 +211,7 @@ class _ArtifactScreenState extends State<ArtifactScreen> {
       r.mediaType,
       isolate(formatFileSize(r.size, lang)),
       if (agentName != null) isolate(agentName),
-      if (at != null) isolate(shortDate(at)),
+      if (at != null) isolate(shortDate(at, lang: context.l10n.lang)),
     ].join(dotSeparator);
     const gutter = EdgeInsetsDirectional.symmetric(
       horizontal: LnSpace.pageGutter,

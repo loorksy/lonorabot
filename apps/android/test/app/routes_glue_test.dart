@@ -1,5 +1,5 @@
-// Lead glue: the files library's path and its route (agent and conversation scopes), one light
-// haptic when a voice note starts from the composer, and an older page that did not arrive
+// Lead glue: the files library's path and its route (agent and conversation scopes), one haptic
+// when a voice note starts (the composer's hold or the mic's tap), and an older page that did not arrive
 // recorded as an error code (also against a real server when LONORA_TEST_CREDS names one).
 import 'dart:convert';
 import 'dart:io';
@@ -16,6 +16,7 @@ import 'package:lonora/core/api/api_error.dart';
 import 'package:lonora/core/json.dart';
 import 'package:lonora/core/models/models.dart';
 import 'package:lonora/core/storage/local_store.dart';
+import 'package:lonora/design/design.dart';
 import 'package:lonora/features/conversation/conversation_composer.dart';
 import 'package:lonora/features/files/artifacts_screen.dart';
 import 'package:lonora/features/files/files_data.dart';
@@ -86,9 +87,8 @@ void main() {
     });
   });
 
-  testWidgets('a voice note from the composer starts with one light haptic', (
-    tester,
-  ) async {
+  testWidgets('a voice note starts with one haptic: the hold\'s, or the '
+      'mic tap\'s light one', (tester) async {
     final haptics = <Object?>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -111,20 +111,30 @@ void main() {
       ),
       locale: 'en',
     );
+    // A long press on the empty composer starts the note.
     final gesture = await tester.startGesture(
-      tester.getCenter(find.byType(VoiceNoteButton)),
+      tester.getCenter(find.byType(EditableText)),
     );
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
-    expect(
-      haptics.where((a) => a == 'HapticFeedbackType.lightImpact'),
-      hasLength(1),
-    );
+    // Every haptic counts: the composer's hold gives the only one.
+    expect(haptics, ['HapticFeedbackType.mediumImpact']);
     // Slide toward the start: cancelled, nothing sent.
     await gesture.moveBy(const Offset(-60, 0));
     await gesture.moveBy(const Offset(-60, 0));
     await tester.pump();
     await gesture.up();
+    await tester.pumpAndSettle();
+    // The mic's tap records hands-free with one light haptic.
+    haptics.clear();
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is LnTappable && w.semanticLabel == 'Voice message',
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
     await tester.pumpAndSettle();
     await unmount(tester);
   });
