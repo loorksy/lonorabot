@@ -7,6 +7,7 @@
 #   customer.sh [--dry-run] update <handle>         one customer onto the current release image
 #   customer.sh [--dry-run] remove <handle>         everything of that customer, its data included
 #   customer.sh [--dry-run] workspace <handle> start|stop   its workspace and browser, on demand
+#   customer.sh [--dry-run] backup                  the databases and every key, kept 7 nights (lonora-backup.timer)
 #
 # create --owner-on-stdin (the site) reads the website account that asked for it on stdin (its email,
 # then its password hash, one per line) and makes it the owner, so the customer signs in with the
@@ -149,8 +150,24 @@ release() {
     say "Release $ref: $digest"
 }
 
+# Docker's default address pools hold about 30 networks, and each customer uses two or three, so
+# the host would stop taking customers after nine or ten. Once, before any customer: 256 networks.
+widen_docker_pools() {
+    local conf=/etc/docker/daemon.json
+    grep -qs default-address-pools "$conf" && return 0
+    say "Widening Docker's network pools to 10.201.0.0/16 in /24 networks; Docker restarts once."
+    run python3 -c 'import json, os, sys
+p = sys.argv[1]
+c = json.load(open(p)) if os.path.isfile(p) and os.path.getsize(p) else {}
+c["default-address-pools"] = [{"base": "10.201.0.0/16", "size": 24}]
+os.makedirs(os.path.dirname(p), exist_ok=True)
+open(p, "w").write(json.dumps(c, indent=2) + "\n")' "$conf"
+    run systemctl restart docker
+}
+
 init() {
     grep -q '^POSTGRES_PASSWORD=' "$HOME_DIR/host.env" || printf 'POSTGRES_PASSWORD=%s\n' "$(secret 24)" >>"$HOME_DIR/host.env"
+    widen_docker_pools
     [[ -s "$HOME_DIR/caddy/staff" ]] || die "Add a staff sign-in to $HOME_DIR/caddy/staff first (cloud/site/README.md)."
     mkdir -p "$HOME_DIR/run" "$HOME_DIR/site"
     id lonora-site >/dev/null 2>&1 || run useradd --system --home-dir "$HOME_DIR/site" --shell /usr/sbin/nologin lonora-site
@@ -163,9 +180,38 @@ init() {
         run_in install -m 440 /dev/stdin /etc/sudoers.d/lonora-site
     run visudo -cqf /etc/sudoers.d/lonora-site
     run install -m 644 "$HOST/lonora-site.service" /etc/systemd/system/lonora-site.service
+    run install -m 644 "$HOST/lonora-backup.service" "$HOST/lonora-backup.timer" /etc/systemd/system/
     run systemctl daemon-reload
-    run systemctl enable --now lonora-site
+    run systemctl enable --now lonora-site lonora-backup.timer
     say "Host ready. Next: customer.sh release <git-ref>."
+}
+
+# Every night: the shared PostgreSQL (every customer's database and role), the website's database,
+# and the keys without which they cannot be used (each customer's .env with its encryption key, the
+# host and site settings, the staff sign-ins). Workspaces are not included (D10). Kept on this disk,
+# mode 700, the last BACKUP_KEEP (7); the provider's server backup is the copy off this disk.
+backup() {
+    local out keep="${BACKUP_KEEP:-7}" old f keys=()
+    out="$HOME_DIR/backups/$(date -u +%Y%m%d-%H%M%S)"
+    mkdir -p "$out"
+    if $DRY; then
+        say "would run: docker exec lonora-postgres pg_dumpall -U postgres | gzip > $out/postgres.sql.gz"
+    else
+        docker exec lonora-postgres pg_dumpall -U postgres | gzip >"$out/postgres.sql.gz"
+    fi
+    if [[ -f "$HOME_DIR/site/site.db" ]]; then # a consistent copy while the site runs
+        run node --no-warnings -e 'const [src, dst] = process.argv.slice(1), q = String.fromCharCode(39);
+new (require("node:sqlite").DatabaseSync)(src).exec(`VACUUM INTO ${q}${dst.replaceAll(q, q + q)}${q}`)' "$HOME_DIR/site/site.db" "$out/site.db"
+    fi
+    for f in host.env site.env release.env caddy "$HOME_DIR"/customers/*/.env; do
+        f="${f#"$HOME_DIR"/}"
+        if [[ -e "$HOME_DIR/$f" ]]; then keys+=("$f"); fi
+    done
+    tar -czf "$out/keys.tar.gz" -C "$HOME_DIR" "${keys[@]}"
+    for old in $(find "$HOME_DIR/backups" -mindepth 1 -maxdepth 1 -type d -name '2*' | sort | head -n "-$keep"); do
+        rm -rf -- "$old"
+    done
+    say "Backup: $out"
 }
 
 case "${1:-}" in
@@ -173,5 +219,6 @@ case "${1:-}" in
     release) release "${2:-}" ;;
     create | update | remove) customer "${2:-}"; lock 60; "$1" "${@:3}" ;;
     workspace) customer "${2:-}"; lock 60; workspace "${3:-}" ;;
-    *) sed -n '4,9p' "$0" >&2; exit 2 ;;
+    backup) backup ;;
+    *) sed -n '4,10p' "$0" >&2; exit 2 ;;
 esac
