@@ -1,0 +1,10 @@
+{
+  "package": "ai.lonora.android.debug",
+  "version_name": "1.0.0-debug",
+  "version_code": 1,
+  "url": "https://releases.example.com/lonora-android-1.0.0.apk",
+  "notes": {
+    "ar": "مكالمات أوضح وإصلاحات.",
+    "en": "Clearer calls and fixes."
+  }
+}

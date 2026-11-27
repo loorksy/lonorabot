@@ -1,0 +1,85 @@
+{
+  "generator": "apps/android/tool/i18n/port_i18n.mjs",
+  "sources": {
+    "apps/mobile/lib/i18n.ts": {
+      "prefix": "",
+      "keys": 590,
+      "sha256": "3631e1943fbccd508dc6b3b9bc6e4154f8c286fdeeb7bdeb528101fbb1581365"
+    },
+    "apps/mobile/lib/labels-shell.ts": {
+      "prefix": "sh_",
+      "keys": 176,
+      "sha256": "71f52143670d9743a4df43e5c88f7972ff68f67ef747428f8573fd429e62a42d"
+    },
+    "apps/mobile/lib/labels-shell-extra.ts": {
+      "prefix": "sh_",
+      "keys": 2,
+      "sha256": "7b395c681690cd74ea41e0b8247ce28eb6ca27a0a29962339631fa3113027a65"
+    },
+    "apps/mobile/lib/incoming-call-labels.json": {
+      "prefix": "incoming.",
+      "keys": 16,
+      "sha256": "2b1f8a08e4f11ba32309f31ce5b02c0363b3dc5f827e16d10256fd70752fb938"
+    },
+    "apps/mobile/lib/attention-labels.ts": {
+      "prefix": "attention.",
+      "keys": 31,
+      "sha256": "657b57a05e77acce44755b9f34e5d4842b200e1a67f5854fc6cce4be2266c2ec"
+    }
+  },
+  "total": 815,
+  "attention": {
+    "approval_required": "attentionApproval",
+    "approval_resolved": "attentionRequestUpdated",
+    "broker_token_rejected": "attentionBrokerTokenRejected",
+    "broker_account_undeployed": "attentionBrokerUndeployed",
+    "broker_connection_lost": "attentionBrokerConnectionLost",
+    "broker_rate_limited": "attentionBrokerRateLimited",
+    "external_broker_activity": "attentionAccountChanged",
+    "setup_confirmed": "attentionSetupConfirmed",
+    "thesis_invalidated": "attentionThesisChanged",
+    "watch_condition_met": "attentionWatchChanged",
+    "collaboration_completed": "attentionCollaborationCompleted",
+    "task_review": "taskNeedsReview",
+    "task_degraded": "attentionTaskDegraded",
+    "super_bot_authorization": "attentionRequestUpdated",
+    "super_bot_changed": "attentionRequestUpdated",
+    "task_completed": "attentionTaskCompleted",
+    "internal_update": "attentionUpdated",
+    "maintenance_item_quarantined": "attentionItemQuarantined",
+    "run_quarantined": "attentionRunQuarantined",
+    "operation_unresolved": "attentionOperationUnresolved",
+    "operation_uncertain": "attentionOperationUncertain",
+    "gateway_degraded": "attentionGatewayDegraded",
+    "agent_notification": "attentionAgentAlert",
+    "secret_requested": "attentionSecretRequested",
+    "mandate_proposed": "attentionMandateProposed",
+    "gateway_stopped": "attentionGatewayStopped",
+    "model_access_failed": "attentionModelAccessFailed"
+  },
+  "attentionModel": {
+    "auth": "attentionModelKeyRejected",
+    "billing": "attentionModelCreditSpent",
+    "permission": "attentionModelNotAllowed",
+    "model_not_found": "attentionModelGone"
+  },
+  "core": {
+    "packages/core/src/agent-permission-errors.ts": "2eb4af3d4d0c18e41cdabfa0b8fdd016f7fd2bc5f4780eb9da88aaf7f2c773ac",
+    "packages/core/src/financial-boundary.ts": "353e4fbaae6f9c325948ec0546df06a860b4d1583e269d1c6b21f19dc19b1c8f",
+    "packages/core/src/owner-actions.ts": "780d4af1ff92d9e92ae446fb093617a1b1e4fbba3216911672905f5eee94a0da",
+    "packages/core/src/owner-profile.ts": "28c762cacd8a893d63f9d8ed6134ca4f2352e7de86f8109f5fd58bfc2795769f",
+    "packages/core/src/chatgpt-plan.ts": "218ae328af944a2b2286b3ce9b02302fff0175fa8d241ced79c179ffb48b4a79",
+    "packages/core/src/agent-status.ts": "100f6adc77c712baefd839c9c598555a3c16f323fbcc6fb274ed7b86b6ef7101",
+    "packages/core/src/agent-model.ts": "1ab3f0354fae4c29ee23bfb8dc0f953cab45c4bb1e748ccbf7a7fc940c4c50de",
+    "packages/core/src/capabilities.ts": "44afdad6bdd2c4e694da593ea47770db88022d62961e33af6afa8519b59a55d4",
+    "packages/core/src/trading-readiness.ts": "69ad5b1242aa0087bef9eb6e975f64ef49f6cc5eb96c0ce7ef6fc3143548e45e",
+    "packages/core/src/trade-action-labels.ts": "284f1d5afa66e1cec1bbf81ac113130ee2cb8aa23b74dbdcb9b78581b80b31bd",
+    "packages/core/src/order-line.ts": "f1faff16451f1e14fb973666f2a5ad28c1daa5a0a3e44c6cc4354abd43b7eca9",
+    "packages/core/src/turn-activity.ts": "713eddf353990e4ff7b3d0aa1ff89d0db4918932008cadd23aac2a0abd86c1d1",
+    "packages/core/src/time-separators.ts": "18b926f67a159060374671c91b02d8e1ca40fffce9412673b12d59a596ff1b60",
+    "packages/core/src/attachments.ts": "9c476e832823deedec52e2857fa57d8e378e5e496dabfb16640b55ca60cf7752",
+    "packages/core/src/plain-line.ts": "6705d9a3080f5b7c7e692ea9f79ea4e510eefee46d8b32a244ae9000acf5d01e",
+    "packages/core/src/search-feed.ts": "1ad3c53aca38d71ee1d2bce5c8690f9cd6f195a3414aeec83023727f3a14d7ab",
+    "packages/core/src/genui/functions.ts": "9c64ee1634b8c5da7cf126a878375367179339be7e7c9a0c9c03aff179c0fc75"
+  }
+}

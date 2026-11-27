@@ -1,0 +1,23 @@
+[
+{"template":"{0} chats","mode":"positional","values":[3],"out":"3 chats"},
+{"template":"{0} / {1}","mode":"positional","values":["a","b"],"out":"a / b"},
+{"template":"{1} then {0} then {1}","mode":"positional","values":["x","y"],"out":"y then x then y"},
+{"template":"{0} and {2}","mode":"positional","values":["only"],"out":"only and "},
+{"template":"{0}","mode":"positional","values":[1.5],"out":"1.5"},
+{"template":"{0}","mode":"positional","values":[2],"out":"2"},
+{"template":"{0}","mode":"positional","values":[-0.25],"out":"-0.25"},
+{"template":"{0}","mode":"positional","values":[1e+21],"out":"1e+21"},
+{"template":"{0}","mode":"positional","values":[0],"out":"0"},
+{"template":"no placeholders","mode":"positional","values":["unused"],"out":"no placeholders"},
+{"template":"{name} stays {0}","mode":"positional","values":["filled"],"out":"{name} stays filled"},
+{"template":"{10}","mode":"positional","values":["a","b"],"out":""},
+{"template":"{0} {1}","mode":"positional","values":[],"out":" "},
+{"template":"{0}","mode":"positional","values":[null],"out":""},
+{"template":"{count} unread","mode":"named","values":{"count":4},"out":"4 unread"},
+{"template":"{provider} rejected","mode":"named","values":{"provider":"OpenAI"},"out":"OpenAI rejected"},
+{"template":"{a}{b}{a}","mode":"named","values":{"a":"1","b":"2"},"out":"121"},
+{"template":"{missing} here","mode":"named","values":{},"out":" here"},
+{"template":"{0} in named mode","mode":"named","values":{"name":"x"},"out":" in named mode"},
+{"template":"{n} ok","mode":"named","values":{"n":0},"out":"0 ok"},
+{"template":"{x}","mode":"named","values":{"x":3},"out":"3"}
+]

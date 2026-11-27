@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch surface: white in light, #1A1A1A in dark. -->
+    <color name="launch_background">#FFFFFF</color>
+    <!-- Adaptive icon background: Lonora brand kit, "always on black". -->
+    <color name="ic_launcher_background">#000000</color>
+</resources>
