@@ -2557,7 +2557,10 @@ html[dir="rtl"] .wtag{padding:4px 9px 4px 11px}
       var who = $('#acctWho'); who.textContent = (a.name || '') + ' · ';
       var em = document.createElement('bdi'); em.dir = 'ltr'; em.textContent = a.email || ''; who.appendChild(em);
       $('#acctUrl').textContent = a.instance_url || '';
-      setLink($('#acctOpen'), a.instance_url);
+      // «Open in the app»: the Android app's connect link with this account's server (the app then asks for
+      // the same email and password, D7).
+      var open = $('#acctOpen'), server = safeUrl(a.instance_url);
+      if(open){ open.hidden = !server; if(server) open.href = 'lonora://connect?server=' + encodeURIComponent(server.replace(/\/$/, '')); }
       setLink($('#acctSetup'), a.setup_link);
       $('#acctSetupHint').hidden = !a.setup_link; $('#acctSignInHint').hidden = !!a.setup_link;
       $$('[data-reason]').forEach(function(el){ if(a.reason){ el.textContent = a.reason; } else { el.innerHTML = bi('noReason'); } });
