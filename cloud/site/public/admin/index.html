@@ -71,6 +71,15 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
   <button class="btn" id="export" type="button">تصدير CSV</button>
 </header>
 <main id="main">
+  <details class="card" id="pay">
+    <summary>الدفع بـ USDT (شبكة TRON ‏TRC-20)</summary>
+    <p class="meta">يرى العميل العنوان والسعر في صفحة حسابه وهو بانتظار التفعيل، ثم يرسل رقم التحويل. تحقّق منه بالرابط في تفاصيل حسابه، ثم فعّله. اترك العنوان فارغاً لإخفاء الدفع.</p>
+    <div class="actions"><div class="line">
+      <input id="wallet" type="text" dir="ltr" maxlength="34" placeholder="T… عنوان محفظة USDT على TRON" autocomplete="off">
+      <input id="price" type="text" maxlength="200" placeholder="السعر كما يراه العميل، مثل: 30 USDT شهرياً">
+      <button class="btn primary" id="savePay" type="button">حفظ</button>
+    </div></div>
+  </details>
   <div class="tabs" role="toolbar" aria-label="الحالة" id="tabs"></div>
   <div class="bar">
     <label class="sr" for="q" hidden>بحث</label>
@@ -92,6 +101,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     setup_link: "رابط الإعداد يجب أن يبدأ بـ https://", not_found: "الحساب غير موجود.", origin: "طلب من مصدر آخر.",
     handle: "الاسم الفرعي: أحرف إنجليزية صغيرة وأرقام وشرطة، من 3 إلى 30، ويبدأ بحرف.", handle_taken: "هذا الاسم الفرعي مستخدم.",
     server_exists: "لهذا الحساب نسخة Lonora؛ أكّد حذفها أيضاً.", provision_failed: "تعذّر التجهيز.", deprovision_failed: "تعذّر حذف النسخة.",
+    wallet: "عنوان محفظة TRON يبدأ بـ T وطوله 34 حرفاً.", price: "السعر حتى 200 حرف.",
   };
   let status = "pending";
   let counts = {};
@@ -184,12 +194,15 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
         el("dt", {}, "الاستخدام"), el("dd", {}, (a.uses || []).map((u) => USES[u] || u).join("، ") || "—"),
         el("dt", {}, "الوثائق"), el("dd", { class: "ltr" }, `${a.terms_version} · ${a.risk_version} · ${a.privacy_version}`),
         el("dt", {}, "عنوان النسخة"), el("dd", { class: "ltr" }, a.instance_url || "—"),
+        el("dt", {}, "الدفع"), el("dd", {}, a.payment
+          ? el("span", {}, el("a", { href: `https://tronscan.org/#/transaction/${a.payment.tx}`, target: "_blank", rel: "noopener noreferrer", class: "ltr" }, `${a.payment.tx.slice(0, 10)}…${a.payment.tx.slice(-6)}`), ` · ${date(a.payment.submitted_at)}`)
+          : "—"),
         el("dt", {}, "التجهيز"), el("dd", {}, a.job ? `${JOB[a.job.status] || a.job.status}${a.job.error ? ` · ${a.job.error}` : ""} · ${date(a.job.updated_at)}` : "—"),
         el("dt", {}, "القرار"), el("dd", {}, a.decided_by ? `${date(a.decided_at)} · ${a.decided_by}` : "—"),
         el("dt", {}, "السبب"), el("dd", {}, a.reason || "—")),
       acts, el("div", { class: "meta" }, "السجل"), log);
     return el("article", { class: "card" },
-      el("div", { class: "row" }, el("span", { class: "name" }, a.name), el("span", { class: "email" }, a.email), el("span", { class: `pill ${a.status}` }, STATUS[a.status]), el("span", { class: "meta" }, date(a.created_at))),
+      el("div", { class: "row" }, el("span", { class: "name" }, a.name), el("span", { class: "email" }, a.email), el("span", { class: `pill ${a.status}` }, STATUS[a.status]), a.payment && (a.status === "pending" || a.status === "approved") ? el("span", { class: "pill active" }, "أرسل رقم التحويل") : "", el("span", { class: "meta" }, date(a.created_at))),
       det);
   }
 
@@ -205,10 +218,18 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     }
   }
 
+  async function loadPay() {
+    try { const out = await api("/api/admin/settings"); $("#wallet").value = out.wallet || ""; $("#price").value = out.price || ""; if (!out.wallet) $("#pay").open = true; } catch { /* shown by load() */ }
+  }
+  $("#savePay").addEventListener("click", async (e) => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try { await api("/api/admin/settings", { wallet: $("#wallet").value.trim(), price: $("#price").value.trim() }); toast("حُفظ."); } catch (err) { toast(err.message, true); }
+    btn.disabled = false;
+  });
   $("#refresh").addEventListener("click", load);
   $("#q").addEventListener("input", () => { clearTimeout(load.t); load.t = setTimeout(load, 300); });
   $("#export").addEventListener("click", () => { location.href = "/api/admin/export"; });
-  tabs(); load();
+  tabs(); load(); loadPay();
   // While an account is being prepared, refresh every 20 seconds.
   setInterval(() => { if (status === "provisioning" || (counts.provisioning || 0) > 0) load(); }, 20000);
 })();

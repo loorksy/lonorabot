@@ -539,6 +539,7 @@ html[dir="rtl"] .pw .input{padding-left:52px;padding-right:16px}
 .acct-addr small,.acct-reason small{color:var(--ink-3);font-size:12px}
 .acct-addr bdi{font-family:var(--mono);font-size:14px;color:var(--ink);overflow-wrap:anywhere}
 .acct-actions{display:flex;gap:10px;flex-wrap:wrap}
+.acct-pay{display:grid;gap:12px;margin-top:18px;padding-top:18px;border-top:1px solid var(--line-2)}
 .acct-reason{display:grid;gap:2px;width:100%;padding:12px 16px;border-radius:14px;border:1px solid var(--line-2)}
 .acct-reason span{color:var(--ink);overflow-wrap:anywhere}
 .acct-foot{margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
@@ -2041,6 +2042,17 @@ html[dir="rtl"] .wtag{padding:4px 9px 4px 11px}
           </div>
           <div class="acct-state" data-acct="rejected" hidden><span class="badge bad"><span class="ar">لم نوافق على الطلب</span><span class="en">Not approved</span></span><p><span class="ar">لم نوافق على طلبك.</span><span class="en">We didn't approve your request.</span></p><p class="acct-reason"><small><span class="ar">السبب</span><span class="en">Reason</span></small><span data-reason></span></p></div>
           <div class="acct-state" data-acct="suspended" hidden><span class="badge bad"><span class="ar">موقوف</span><span class="en">Suspended</span></span><p><span class="ar">حسابك موقوف.</span><span class="en">Your account is suspended.</span></p><p class="acct-reason"><small><span class="ar">السبب</span><span class="en">Reason</span></small><span data-reason></span></p></div>
+          <div class="acct-pay" id="acctPay" hidden>
+            <p><b><span class="ar">الدفع</span><span class="en">Payment</span></b> <bdi id="payPrice"></bdi></p>
+            <p class="hint"><span class="ar">أرسل USDT على شبكة TRON (TRC-20) فقط إلى هذا العنوان، ثم اكتب رقم التحويل (TXID). نتحقق منه ونفعّل حسابك. التحويل على شبكة أخرى يضيع.</span><span class="en">Send USDT on the TRON network (TRC-20) only to this address, then enter the transfer id (TXID). We check it and activate your account. A transfer on any other network is lost.</span></p>
+            <div class="acct-addr"><small><span class="ar">عنوان المحفظة · TRC-20</span><span class="en">Wallet address · TRC-20</span></small><bdi dir="ltr" id="payWallet"></bdi></div>
+            <div class="acct-actions"><button class="btn btn-secondary" type="button" id="payCopy"><span class="ar">نسخ العنوان</span><span class="en">Copy address</span></button></div>
+            <form id="payForm" novalidate>
+              <div class="field"><label for="payTx"><span class="ar">رقم التحويل (TXID)</span><span class="en">Transfer id (TXID)</span></label><input class="input" id="payTx" dir="ltr" autocomplete="off" spellcheck="false" maxlength="70" aria-describedby="e-payTx"><span class="err" id="e-payTx" aria-live="assertive"></span></div>
+              <button class="btn btn-primary" type="submit" id="payBtn"><span class="ar">أرسل رقم التحويل</span><span class="en">Send the transfer id</span></button>
+            </form>
+            <p class="hint" id="paySent" hidden></p>
+          </div>
           <div class="acct-state" data-acct="error" hidden><p><span class="ar">تعذّر تحميل حسابك.</span><span class="en">Your account couldn't be loaded.</span></p><button class="btn btn-secondary" type="button" data-acct-retry><span class="ar">حاول مرة أخرى</span><span class="en">Try again</span></button></div>
         </div>
         <p class="form-err" id="acctErr" role="alert"></p>
@@ -2330,7 +2342,11 @@ html[dir="rtl"] .wtag{padding:4px 9px 4px 11px}
     server:['حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.', 'Something went wrong. Try again in a moment.'],
     preview:['معاينة — الخادم غير متصل. لم يُرسل شيء.', 'Preview — the server is not connected. Nothing was sent.'],
     tsFail:['تعذّر تحميل التحقق. حدّث الصفحة وحاول مرة أخرى.', "The verification couldn't load. Reload the page and try again."],
-    noReason:['لم يُذكر سبب.', 'No reason was given.']
+    noReason:['لم يُذكر سبب.', 'No reason was given.'],
+    tx:['رقم التحويل 64 خانة من 0 إلى 9 ومن a إلى f.', 'The transfer id is 64 characters, 0 to 9 and a to f.'],
+    txUsed:['هذا التحويل مسجّل لحساب آخر.', 'This transfer is already registered to another account.'],
+    txSent:['استلمنا رقم التحويل. نتحقق منه ونفعّل حسابك.', "We received the transfer id. We'll check it and activate your account."],
+    copied:['نُسخ العنوان.', 'Address copied.']
   };
   function bi(k){ var m = MSG[k]; return '<span class="ar">' + m[0] + '</span><span class="en">' + m[1] + '</span>'; }
   var EMAIL_RE = /^[^\s@<>()[\]\\,;:"]{1,64}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
@@ -2546,10 +2562,38 @@ html[dir="rtl"] .wtag{padding:4px 9px 4px 11px}
       $('#acctSetupHint').hidden = !a.setup_link; $('#acctSignInHint').hidden = !!a.setup_link;
       $$('[data-reason]').forEach(function(el){ if(a.reason){ el.textContent = a.reason; } else { el.innerHTML = bi('noReason'); } });
       acctState(STATES.indexOf(a.status) >= 0 ? a.status : 'error');
+      showPay(r.data.payment);
       if(a.status === 'provisioning') acctPoll = setTimeout(function(){ loadAccount(true); }, 20000);
     });
   }
   var retry = $('[data-acct-retry]'); if(retry) retry.addEventListener('click', function(){ loadAccount(); });
+  /* ---------- paying in USDT (TRC-20) while the account waits: the wallet and price are set by staff ---------- */
+  function showPay(p){
+    var box = $('#acctPay'); if(!box) return;
+    box.hidden = !p;
+    if(!p) return;
+    $('#payWallet').textContent = p.wallet; $('#payPrice').textContent = p.price ? '· ' + p.price : '';
+    var sent = $('#paySent'); sent.hidden = !p.tx; if(p.tx){ sent.innerHTML = bi('txSent'); $('#payTx').value = p.tx; }
+  }
+  var payCopy = $('#payCopy');
+  if(payCopy) payCopy.addEventListener('click', function(){
+    var w = $('#payWallet').textContent;
+    if(navigator.clipboard) navigator.clipboard.writeText(w).then(function(){ toast(MSG.copied[L() === 'en' ? 1 : 0]); }, function(){});
+  });
+  var payForm = $('#payForm');
+  if(payForm) payForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    var input = $('#payTx'), tx = input.value.trim().toLowerCase().replace(/^0x/, ''), btn = $('#payBtn');
+    if(!/^[0-9a-f]{64}$/.test(tx)){ setErr(input, 'tx'); focusEl(input); return; }
+    setErr(input, ''); busy(btn, true);
+    api('POST', '/api/payment', {tx:tx}).then(function(r){
+      busy(btn, false);
+      if(r.net){ showPreview(true); return; }
+      if(r.status === 200){ showPay(r.data.payment); return; }
+      var err = r.data && r.data.error;
+      setErr(input, err === 'tx' ? 'tx' : err === 'tx_used' ? 'txUsed' : err === 'rate_limited' ? 'rate' : err === 'origin' ? 'origin' : 'server');
+    });
+  });
   var logout = $('#logoutBtn');
   if(logout) logout.addEventListener('click', function(){
     formErr('acctErr', '');

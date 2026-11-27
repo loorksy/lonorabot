@@ -56,3 +56,17 @@ CREATE TABLE IF NOT EXISTS provision_jobs (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS provision_jobs_account ON provision_jobs (account_id, created_at);
+-- Paying in USDT on TRON (owner, 2026-11-27): staff set the wallet address and the price in the admin
+-- panel (settings); a customer waiting for activation sends the id of the transfer (payments); staff
+-- check it on tronscan.org and activate the account as before. A transfer pays for one account only.
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS payments (
+  account_id TEXT PRIMARY KEY REFERENCES accounts (id) ON DELETE CASCADE,
+  tx TEXT NOT NULL UNIQUE,
+  submitted_at TEXT NOT NULL
+);

@@ -57,6 +57,7 @@ The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`;
 
 ### Daily use
 
+- **Payment (USDT on TRON, TRC-20):** set the wallet address and the price text under «الدفع بـ USDT» at the top of the admin panel. A customer waiting for activation sees them on their account page and sends the transfer id (TXID); the account then shows it with a tronscan.org link. Check the amount and the address there, then activate. One transfer id can belong to one account only. An empty wallet hides payment.
 - **Activate:** the admin panel. If the panel cannot, `sudo customer.sh create <handle>` (nothing on stdin) prints a one-time setup link for a manual activation.
 - **Ship a release:** `sudo customer.sh release <git ref>` builds the image once (`infra/compose/build-from-source.sh`, capped at 2 CPUs and 3 GB) and switches every customer with `update`. Each Lonora runs its migrations as it starts.
 - **Workspace and browser:** on demand, 1 GB each: `customer.sh workspace <handle> start|stop`.
@@ -73,4 +74,4 @@ The Arabic steps above, in short: A records for `lonora.app` and `*.lonora.app`;
 
 ### Tests
 
-`npm test` runs 47 tests with Node's built-in runner: the site through `server.mjs` with an in-memory SQLite, and activation with the real `customer.sh` in dry-run mode (`--dry-run` prints every Docker and system command instead of running it; files go to `LONORA_HOST_HOME`). Turnstile is stubbed. The legal texts are drafts until counsel reviews them (D20).
+`npm test` runs 50 tests with Node's built-in runner: the site through `server.mjs` with an in-memory SQLite, and activation with the real `customer.sh` in dry-run mode (`--dry-run` prints every Docker and system command instead of running it; files go to `LONORA_HOST_HOME`). Turnstile is stubbed. The legal texts are drafts until counsel reviews them (D20).
