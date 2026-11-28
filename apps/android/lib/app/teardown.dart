@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import '../features/conversation/conversation_composer.dart';
 import '../features/rich/artifact_image.dart';
 import '../features/voice/voice_api.dart';
 import '../state/actions/session_actions.dart';
 
-/// Owner-scoped memory that must not survive a sign-out or a server change: unsent drafts and
+/// Owner-scoped data that must not survive a sign-out or a server change: unsent drafts and
 /// the artifact bytes (with the voice notes' audio files). Platform teardown (notifications, voice,
 /// background sync) registers its own hooks. A voice call closes on the server while the
 /// session is still valid, alongside `POST /auth/logout`.
@@ -15,6 +17,7 @@ void registerSignOutHooks() {
 Future<void> _endVoiceCall() => VoiceCalls.end();
 
 Future<void> _clearOwnerMemory() async {
-  ConversationComposerState.clearDrafts();
+  // Not awaited: the wipe finishes in the background; writes started before it are dropped.
+  unawaited(ConversationComposerState.clearDrafts());
   ArtifactBytesCache.clear();
 }

@@ -282,6 +282,7 @@ class _ConversationScreenState extends State<ConversationScreen>
     if (!_signedIn) return;
     _dispatch(LoadThreadAction(_threadId, around: widget.around));
     _dispatch(LoadThreadSideAction(_threadId));
+    _dispatch(LoadCollaborationAction(_threadId));
     _dispatch(LoadThreadArtifactsAction(_threadId));
   }
 
@@ -322,7 +323,10 @@ class _ConversationScreenState extends State<ConversationScreen>
     // Cards follow their records: owner actions, approvals, receipts, peer exchanges…
     _sideTimer?.cancel();
     _sideTimer = Timer(const Duration(milliseconds: 400), () {
-      if (mounted && _signedIn) _dispatch(LoadThreadSideAction(_threadId));
+      if (mounted && _signedIn) {
+        _dispatch(LoadThreadSideAction(_threadId));
+        _dispatch(LoadCollaborationAction(_threadId));
+      }
     });
     final files =
         kind == 'artifacts.updated' ||
@@ -879,6 +883,13 @@ class _ConversationScreenState extends State<ConversationScreen>
                         : null,
                     onSent: () => _toBottom(animate: false),
                     onStop: _stop,
+                    agent: agent,
+                    group: group,
+                    members: members,
+                    agents: _store?.state.shell.orderedAgents ?? const [],
+                    collaborationSessionId: collaborationSessionOf(t),
+                    assist: view.chatPrefs.assist,
+                    callable: agent != null && !agent.paused && !unavailable,
                   ),
                 ],
               ),

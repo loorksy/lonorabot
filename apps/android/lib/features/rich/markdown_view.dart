@@ -26,6 +26,9 @@ import 'rich_strings.dart';
 ///
 /// [streaming] (additive): the text is a live reply that grows; its finished blocks are parsed
 /// once and the growing tail again, and an open code fence draws as code without re-flowing.
+///
+/// [mentions] (additive): «@name» matches are marked in plain text runs (not in code or links),
+/// at span-build time, so the parse cache stays independent of the names.
 class MarkdownView extends StatefulWidget {
   const MarkdownView(
     this.text, {
@@ -34,6 +37,7 @@ class MarkdownView extends StatefulWidget {
     this.selectable = true,
     this.onUserBubble = false,
     this.streaming = false,
+    this.mentions,
   });
 
   final String text;
@@ -43,6 +47,7 @@ class MarkdownView extends StatefulWidget {
   /// True when drawn on the owner's blue bubble (inverted link/code colours).
   final bool onUserBubble;
   final bool streaming;
+  final RegExp? mentions;
 
   @override
   State<MarkdownView> createState() => _MarkdownViewState();
@@ -78,6 +83,7 @@ class _MarkdownViewState extends State<MarkdownView> {
       direction: direction,
       recognizers: _recognizers,
       onUserBubble: widget.onUserBubble,
+      mentions: widget.mentions,
     );
     final children = <Widget>[
       for (var i = 0; i < blocks.length; i++)
@@ -171,6 +177,7 @@ class _BlockBuilder {
     required this.direction,
     required this.recognizers,
     required this.onUserBubble,
+    this.mentions,
   });
 
   final BuildContext context;
@@ -178,6 +185,38 @@ class _BlockBuilder {
   final TextDirection direction;
   final List<TapGestureRecognizer> recognizers;
   final bool onUserBubble;
+  final RegExp? mentions;
+
+  /// A signed number keeps its sign on its left in Arabic (isolated left to right).
+  static String _isolateSigns(String text) =>
+      text.replaceAllMapped(signedNumber, (m) => '${m[1]}\u2066${m[2]}\u2069');
+
+  /// Plain [text] with its mentions marked (Web `.mention`: semibold on an accent tint).
+  List<InlineSpan>? _mentionSpans(String text) {
+    final pattern = mentions;
+    if (pattern == null || !text.contains('@')) return null;
+    final matches = pattern.allMatches(text).toList();
+    if (matches.isEmpty) return null;
+    final mark = TextStyle(
+      fontWeight: FontWeight.w600,
+      backgroundColor: onUserBubble
+          ? ink.fg.withValues(alpha: 0.2)
+          : ink.ln.colors.brand.withValues(alpha: 0.17),
+    );
+    final spans = <InlineSpan>[];
+    var last = 0;
+    for (final m in matches) {
+      if (m.start > last) {
+        spans.add(TextSpan(text: _isolateSigns(text.substring(last, m.start))));
+      }
+      spans.add(TextSpan(text: m[0], style: mark));
+      last = m.end;
+    }
+    if (last < text.length) {
+      spans.add(TextSpan(text: _isolateSigns(text.substring(last))));
+    }
+    return spans;
+  }
 
   TextDirection _dirOf(String text) => readingDirection(text) ?? direction;
 
@@ -481,11 +520,9 @@ class _BlockBuilder {
               );
           shown = ltr(text);
         } else {
-          // A signed number keeps its sign on its left in Arabic (isolated left to right).
-          shown = text.replaceAllMapped(
-            signedNumber,
-            (m) => '${m[1]}\u2066${m[2]}\u2069',
-          );
+          final marked = href == null ? _mentionSpans(text) : null;
+          if (marked != null) return TextSpan(style: s, children: marked);
+          shown = _isolateSigns(text);
         }
         return TextSpan(
           text: shown,
