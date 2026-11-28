@@ -17,6 +17,7 @@ import '../../l10n/l10n.dart';
 import '../../state/app_state.dart';
 import '../rich/artifact_image.dart' show ArtifactBytesCache;
 import '../rich/rich_content_view.dart';
+import 'composer_assist.dart' show pendingCommandRich;
 import 'conversation_timeline.dart';
 
 /// Lonora's text for a message that only carries files (apps/mobile sends `t("attach")`).
@@ -271,6 +272,9 @@ class OutgoingTile extends StatelessWidget {
         outgoing.attachmentIds.isNotEmpty &&
         isAttachPlaceholder(context, content);
     final showText = content.trim().isNotEmpty && !filesOnly;
+    // Drawn as the server's copy will be: a «/» command's chip and the words after it, the
+    // mentions marked.
+    final command = pendingCommandRich(outgoing.body);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
@@ -286,7 +290,12 @@ class OutgoingTile extends StatelessWidget {
                     text: plainLine(quoted!.content),
                   ),
             onLongPress: onLongPress,
-            text: content,
+            child: RichContentView(
+              threadId: outgoing.threadId,
+              text: content,
+              richContent: command,
+              onUserBubble: true,
+            ),
           ),
         for (final (i, id) in outgoing.attachmentIds.indexed)
           Padding(

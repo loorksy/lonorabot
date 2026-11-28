@@ -39,7 +39,8 @@ typedef Call = ({
 typedef Handler = Object? Function(Object? body, Map<String, Object?>? query);
 
 /// Answers requests from [handlers] (`'GET /agents'` → body; a handler may throw an
-/// `ApiError`) and records every call. Unknown reads answer `{}`; unknown writes `{}`.
+/// `ApiError`) and records every call. Unknown reads answer `{}`; unknown writes `{}`, except
+/// an order (`POST /trading/execute`), which fails loudly.
 class FakeApi extends ApiClient {
   FakeApi() : super(userAgent: 'test') {
     configure(server: 'http://test', token: 'token');
@@ -58,7 +59,13 @@ class FakeApi extends ApiClient {
   }) async {
     calls.add((method: method, path: path, body: body, query: query));
     final handler = handlers['$method $path'];
-    if (handler == null) return <String, Object?>{};
+    if (handler == null) {
+      // An order is never answered by default: only a test's own handler may.
+      if (path == '/trading/execute') {
+        throw StateError('unexpected $method $path');
+      }
+      return <String, Object?>{};
+    }
     return handler(body, query);
   }
 
@@ -76,6 +83,10 @@ class FakeApi extends ApiClient {
 
   @override
   Future<dynamic> post(String path, [Object? body]) =>
+      _answer('POST', path, body: body);
+
+  @override
+  Future<dynamic> postWithin(String path, Object body, Duration timeout) =>
       _answer('POST', path, body: body);
 
   @override
@@ -239,6 +250,7 @@ GoRouter wpeRouter(Widget home, {Map<String, Widget> pages = const {}}) {
     '/agent/:id/memory',
     '/agent/:id/instructions',
     '/agent/:id/skills',
+    '/agent/:id/trades',
     '/routines',
     '/chats/thread/:id',
     '/files',

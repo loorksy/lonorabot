@@ -33,6 +33,22 @@ void main() {
       expect(call?.location, isNull);
     });
 
+    test(
+      'a broker health payload opens «التعطل والاستعادة» on its account',
+      () {
+        const p = NotificationPayload.recovery(account: 'acct-1');
+        final back = NotificationPayload.decode(p.encode());
+        expect(back, p);
+        expect(back!.location, '/settings/recovery?account=acct-1');
+        expect(
+          NotificationPayload.decode(
+            const NotificationPayload.recovery().encode(),
+          )!.location,
+          '/settings/recovery',
+        );
+      },
+    );
+
     test('rejects foreign or unsafe payloads', () {
       for (final raw in [
         null,

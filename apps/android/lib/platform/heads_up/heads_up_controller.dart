@@ -181,17 +181,7 @@ class HeadsUpController {
 
   /// «معاينة النص» off: «رسالة جديدة» instead of the words, without a speaker.
   HeadsUpBanner _withPreview(HeadsUpBanner banner, NotifyPrefs notify) =>
-      notify.preview
-      ? banner
-      : HeadsUpBanner(
-          threadId: banner.threadId,
-          agentId: banner.agentId,
-          groupId: banner.groupId,
-          text: L10n.instance.t('newMessage'),
-          kind: banner.kind,
-          key: banner.key,
-          around: banner.around,
-        );
+      notify.preview ? banner : banner.withText(L10n.instance.t('newMessage'));
 
   void show(HeadsUpBanner banner) {
     _serial++;

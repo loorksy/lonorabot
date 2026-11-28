@@ -1,16 +1,24 @@
 // The chats tab: order and marks of the rows, the hidden filters, the archived row, the row
-// menu, the selection toolbar, the states, and goldens (light/dark × ar/en).
+// menu, the selection toolbar, «+» (create entries and «تحديد الكل كمقروء»), the states, and
+// goldens (light/dark × ar/en).
 //
 // Regenerate the goldens with: flutter test --update-goldens test/features/chats
+import 'dart:async';
+
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:forui/forui.dart' show FIcons, FItem, FToast;
 import 'package:lonora/app/routes.dart';
+import 'package:lonora/core/api/api_error.dart';
+import 'package:lonora/core/json.dart';
 import 'package:lonora/design/design.dart';
 import 'package:lonora/features/agents/create_agent_sheet.dart';
 import 'package:lonora/features/chats/chat_rows.dart';
+import 'package:lonora/features/chats/chats_actions.dart';
 import 'package:lonora/features/chats/chat_widgets.dart';
 import 'package:lonora/features/groups/create_group_sheet.dart';
+import 'package:lonora/l10n/l10n.dart';
 import 'package:lonora/state/app_state.dart';
 
 import '../../design/harness.dart' show withRealShadows;
@@ -241,6 +249,7 @@ void main() {
     expect(find.text('New agent'), findsOneWidget);
     expect(find.text('New group'), findsOneWidget);
     expect(find.text('Manage agents'), findsOneWidget);
+    expect(find.text('Mark all as read'), findsOneWidget);
     await tester.tap(find.text('New agent'));
     await tester.pumpAndSettle();
     expect(find.byType(CreateAgentForm), findsOneWidget);
@@ -258,6 +267,188 @@ void main() {
     expect(shownRoute(tester), isNull);
     Navigator.of(tester.element(find.byType(NewGroupForm))).pop();
     await tester.pumpAndSettle();
+  });
+
+  group('mark all as read', () {
+    /// `POST /threads/read-all`'s answer: the rows that changed (archived and muted included).
+    List<Json> readAllAnswer() => [
+      for (final id in ['t-gold', 't-news', 't-desk', 't-old'])
+        {
+          'thread_id': id,
+          'last_read_seq': 5,
+          'marked_unread': false,
+          'muted': id == 't-desk',
+          'archived': id == 't-old',
+          'favourite': false,
+          'pinned_order': null,
+          'hidden_before_seq': 0,
+          'updated_at': '2026-11-27T12:00:00Z',
+        },
+    ];
+
+    Finder item(String label) => find.widgetWithText(FItem, label);
+
+    Future<void> openMenu(WidgetTester tester, {String locale = 'ar'}) async {
+      await tester.tap(
+        find.bySemanticsLabel(locale == 'ar' ? 'محادثة جديدة' : 'New chat'),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('every chat is read at once: badges, dots and the archived '
+        'count go, with no confirmation', (tester) async {
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => readAllAnswer();
+      final store = await pumpChats(tester);
+      expect(store.state.shell.unreadTotal, 4);
+      await openMenu(tester);
+      await tester.tap(item('تحديد الكل كمقروء'));
+      await tester.pumpAndSettle();
+      final post = fakeApi.callsTo('POST', '/threads/read-all');
+      expect(post, hasLength(1));
+      // No body: the client sends `{}`, as the web does.
+      expect(post.single.body, isNull);
+      for (final row in tester.widgetList<ChatListRow>(
+        find.byType(ChatListRow),
+      )) {
+        expect(row.unreadCount, 0, reason: row.title);
+        expect(row.unreadDot, isFalse, reason: row.title);
+      }
+      expect(store.state.shell.unreadTotal, 0);
+      expect(archivedSummary(chatRowsOf(store.state)).unread, 0);
+      expect(tester.widget<ArchivedRow>(find.byType(ArchivedRow)).unread, 0);
+      expect(
+        store.state.shell.inbox.where(
+          (e) => e.markedUnread || e.unreadCount > 0,
+        ),
+        isEmpty,
+      );
+      // The shell is read again for rows this device had stale.
+      expect(fakeApi.callsTo('GET', '/threads/inbox'), hasLength(1));
+      // The menu closed; no dialog, no toast (web parity).
+      expect(item('تحديد الكل كمقروء'), findsNothing);
+      expect(
+        tester.state<NavigatorState>(find.byType(Navigator).first).canPop(),
+        isFalse,
+      );
+      expect(find.byType(FToast), findsNothing);
+    });
+
+    testWidgets('nothing unread: the server answers [] and nothing changes', (
+      tester,
+    ) async {
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => <Object>[];
+      final store = await pumpChats(tester);
+      final before = store.state.shell.inbox;
+      await openMenu(tester);
+      await tester.tap(item('تحديد الكل كمقروء'));
+      await tester.pumpAndSettle();
+      expect(fakeApi.callsTo('POST', '/threads/read-all'), hasLength(1));
+      expect(store.state.shell.inbox, same(before));
+      expect(find.byType(FToast), findsNothing);
+    });
+
+    testWidgets('a failure says why in a toast and keeps the counts', (
+      tester,
+    ) async {
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) =>
+          ApiError(status: 500, code: 'internal_error');
+      final store = await pumpChats(tester, locale: 'en');
+      await openMenu(tester, locale: 'en');
+      await tester.tap(item('Mark all as read'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FToast), findsOneWidget);
+      expect(
+        find.text(L10n.instance.errorText('internal_error')),
+        findsOneWidget,
+      );
+      expect(store.state.shell.unreadTotal, 4);
+      expect(tester.widget<ArchivedRow>(find.byType(ArchivedRow)).unread, 1);
+      await settleToasts(tester);
+    });
+
+    testWidgets('offline: the request fails as a network error, the toast '
+        'says so and nothing is queued', (tester) async {
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => ApiError.network();
+      final store = await pumpChats(tester, state: fixtureState(offline: true));
+      await openMenu(tester);
+      await tester.tap(item('تحديد الكل كمقروء'));
+      await tester.pumpAndSettle();
+      expect(fakeApi.callsTo('POST', '/threads/read-all'), hasLength(1));
+      expect(find.text(L10n.instance.errorText('network')), findsOneWidget);
+      expect(store.state.shell.unreadTotal, 4);
+      expect(store.state.outbox, isEmpty);
+      await settleToasts(tester);
+      // Never retried on its own.
+      expect(fakeApi.callsTo('POST', '/threads/read-all'), hasLength(1));
+    });
+
+    testWidgets('a second tap while the first is on its way sends nothing', (
+      tester,
+    ) async {
+      final answer = Completer<Object?>();
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => answer.future;
+      final store = await pumpChats(tester, locale: 'en');
+      for (var i = 0; i < 2; i++) {
+        await openMenu(tester, locale: 'en');
+        await tester.tap(item('Mark all as read'));
+        await tester.pumpAndSettle();
+      }
+      expect(fakeApi.callsTo('POST', '/threads/read-all'), hasLength(1));
+      answer.complete(readAllAnswer());
+      await tester.pumpAndSettle();
+      expect(store.state.shell.unreadTotal, 0);
+      expect(find.byType(FToast), findsNothing);
+    });
+
+    testWidgets('the action keeps the ids the server read (for their tray '
+        'notifications); none when nothing changed or it failed', (
+      tester,
+    ) async {
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => readAllAnswer();
+      final store = await pumpChats(tester);
+      var action = ReadAllAction();
+      await store.dispatchAndWait(action);
+      expect(action.failure, isNull);
+      expect(action.changed, ['t-gold', 't-news', 't-desk', 't-old']);
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => <Object>[];
+      await store.dispatchAndWait(action = ReadAllAction());
+      expect(action.changed, isEmpty);
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => ApiError.network();
+      await store.dispatchAndWait(action = ReadAllAction());
+      expect(action.failure, isA<ApiError>());
+      expect(action.changed, isEmpty);
+    });
+
+    for (final locale in ['ar', 'en']) {
+      testWidgets('the entry ($locale): last, a 48 dp row read by its label, '
+          'the icon at the reading start', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpChats(tester, locale: locale);
+        await openMenu(tester, locale: locale);
+        final label = locale == 'ar' ? 'تحديد الكل كمقروء' : 'Mark all as read';
+        final entry = item(label);
+        expect(entry, findsOneWidget);
+        expect(tester.getSize(entry).height, greaterThanOrEqualTo(48));
+        final node = tester.getSemantics(find.bySemanticsLabel(label));
+        expect(node, isSemantics(label: label, hasTapAction: true));
+        expect(node.rect.height, greaterThanOrEqualTo(48));
+        // Below the create entries.
+        final manage = item(locale == 'ar' ? 'إدارة الوكلاء' : 'Manage agents');
+        expect(
+          tester.getTopLeft(entry).dy,
+          greaterThanOrEqualTo(tester.getBottomLeft(manage).dy),
+        );
+        // The icon leads the label in the reading direction (start side).
+        final icon = tester.getCenter(
+          find.descendant(of: entry, matching: find.byIcon(FIcons.checkCheck)),
+        );
+        final text = tester.getCenter(
+          find.descendant(of: entry, matching: find.text(label)),
+        );
+        expect(locale == 'ar' ? icon.dx > text.dx : icon.dx < text.dx, isTrue);
+        semantics.dispose();
+      });
+    }
   });
 
   testWidgets(

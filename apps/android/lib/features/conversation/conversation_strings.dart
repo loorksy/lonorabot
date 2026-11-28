@@ -44,5 +44,18 @@ void registerConversationStrings([L10n? l10n]) {
     // The header capsule's hint and menu name in a group conversation (`actions` names an
     // agent's).
     'conv_groupActions': ['إجراءات المجموعة', 'Group actions'],
+    // The composer's @ list (Lonora Web's wording, apps/web/src/i18n/locales/ar/messages.po).
+    'conv_mentionList': ['الإشارة إلى وكيل', 'Mention an agent'],
+    'conv_groupMembers': ['أعضاء المجموعة', 'Group members'],
+    'conv_bringAgent': [
+      'إشراك وكيل في المحادثة',
+      'Bring an agent into the conversation',
+    ],
+    'conv_lead': ['القائد', 'Lead'],
+    // The «@الكل» token and row.
+    'conv_all': ['الكل', 'all'],
+    // The «/» list (Web's wording).
+    'conv_noCommand': ['لا يوجد أمر بهذا الاسم', 'No command by that name'],
+    'conv_skillsOf': ['مهارات {0}', "{0}'s skills"],
   });
 }

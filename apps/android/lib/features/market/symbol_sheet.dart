@@ -1,7 +1,8 @@
 // Sheets of the Market tab: the broker account picker, the symbol search over the account's
 // exact broker symbols (`GET /market/symbols`), and one market's sheet: its quote, the last two
 // days of hourly closes, the instrument facts (Web MarketQuote/MarketOverview), the owner's open
-// positions on it (read-only) and links into its chart and the agents that trade it.
+// positions on it, «فتح أمر» (the order ticket, lib/features/trading) and links into its chart
+// and the agents that trade it.
 import 'dart:async';
 
 import 'package:flutter/services.dart' show TextInputAction;
@@ -180,6 +181,12 @@ class CreateChartResult extends SymbolSheetResult {
 
 class CreateWatchResult extends SymbolSheetResult {
   const CreateWatchResult();
+}
+
+/// «فتح أمر»: the order ticket on this market (its review and send live in
+/// lib/features/trading).
+class OpenTicketResult extends SymbolSheetResult {
+  const OpenTicketResult();
 }
 
 class OpenAgentResult extends SymbolSheetResult {
@@ -474,9 +481,14 @@ class _SymbolSheetState extends State<SymbolSheet> {
                   ),
               ],
             ),
-            Footnote(context.t('mk_viewOnly'), icon: FIcons.eye),
           ],
           const SizedBox(height: 16),
+          BlockButton(
+            label: context.t('tr_openOrder'),
+            icon: FIcons.arrowLeftRight,
+            onPressed: () => pop(const OpenTicketResult()),
+          ),
+          const SizedBox(height: 8),
           if (widget.chartId != null)
             BlockButton(
               label: context.t('mk_openChart'),

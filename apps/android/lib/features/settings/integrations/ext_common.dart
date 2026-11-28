@@ -11,6 +11,7 @@ import '../models/models_strings.dart';
 import '../running/running_strings.dart';
 import '../settings_common.dart';
 import '../usage/usage_strings.dart';
+import '../../trading/trading_strings.dart';
 import 'integrations_strings.dart';
 
 /// Registers the labels of these pages (and the core settings ones) once per catalog.
@@ -21,6 +22,7 @@ void ensureExtStrings(BuildContext context) {
   registerModelsStrings(l10n);
   registerUsageStrings(l10n);
   registerRunningStrings(l10n);
+  registerTradingStrings(l10n);
 }
 
 /// Opens a sub-page that has no path of its own (a provider's key, a trading account, a

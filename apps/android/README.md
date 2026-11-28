@@ -87,6 +87,45 @@ device) both build, and `apksigner verify` reports schemes v2 and v3.
 `tool/release_manifest.py <apk>` prints the package, version, SDK levels, signing-certificate
 SHA-256 and file SHA-256 of a built APK as JSON (public metadata only).
 
+### Release build on a build server
+
+`tool/build_release.sh` builds the signed release APK on a plain Linux server with Flutter
+3.47.9, JDK 17 or 21, Python 3 and the Android SDK (`ANDROID_HOME`). It writes the two files of
+a sideloaded release into the folder it is given:
+
+```sh
+# On the build server only (or the properties file described above):
+export LONORA_ANDROID_KEYSTORE=/srv/lonora-signing/upload.p12
+export LONORA_ANDROID_KEYSTORE_PASSWORD=… LONORA_ANDROID_KEY_ALIAS=… LONORA_ANDROID_KEY_PASSWORD=…
+
+tool/build_release.sh --build-number 1013 /srv/lonora-release
+```
+
+- `lonora-android-<version>.apk`, where `<version>` is the `version:` of `pubspec.yaml`
+  (`--build-number` sets `versionCode`; without it, the number after `+` is used);
+- `lonora-android.json`, its update manifest pointing at
+  `https://lonora.io/download/lonora-android-<version>.apk`.
+
+The APK looks for updates at `https://lonora.io/download/lonora-android.json`, so publish both
+files under `https://lonora.io/download/`: the APK first, then the manifest (served as
+`application/json`, see below). The script runs `flutter pub get --enforce-lockfile` and
+`flutter build apk --release --dart-define=LONORA_UPDATE_MANIFEST=…`, then
+`tool/release_manifest.py`, and ends by printing the APK's public metadata (file and signer
+SHA-256). Before building, it stops with a clear error when the Flutter version is not 3.47.9,
+the signing identity is incomplete, or the keystore, the properties file or the properties
+file's `storeFile` lies inside this repository, by its real path (through `..` or a symlink
+too). The APK and the manifest are only moved into the folder once the APK's version matches
+`pubspec.yaml`, so a mismatched build leaves an APK published there untouched. It never prints
+a password.
+
+The signing key lives on the build server only, never in this repository or a build log. Back
+it up separately: an APK signed with another key cannot update an installed Lonora.
+Checked without a build by `flutter test test/tool/build_release_script_test.dart`. Run for
+real with a throwaway key outside the repository, on 2026-11-27 from the variables and on
+2026-11-28 from a properties file (a relative `storeFile`): each wrote
+`lonora-android-1.0.0.apk` (118 MB, `versionCode` 1234 and 1235, signed with schemes v2 and v3)
+and its manifest, and printed no password.
+
 ### In-app updates (sideloaded builds)
 
 Installs from Google Play update through Play. An APK installed directly looks for updates

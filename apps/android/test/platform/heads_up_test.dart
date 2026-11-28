@@ -264,6 +264,40 @@ void main() {
     c.dismiss();
   });
 
+  testWidgets(
+    'a broker health banner reads «Outage and recovery» and opens it',
+    (tester) async {
+      setPlatformViewport(tester);
+      final opened = <String>[];
+      PlatformNavigation.override = opened.add;
+      addTearDown(() => PlatformNavigation.override = null);
+      final c = HeadsUpController();
+      await tester.pumpWidget(
+        platformApp(
+          store: shellStore(),
+          locale: 'en',
+          home: BackdropPage(children: [HeadsUpLayer(controller: c)]),
+        ),
+      );
+      c.show(
+        const HeadsUpBanner(
+          threadId: 't-omar',
+          agentId: 'a-omar',
+          text: 'The broker connection was lost.',
+          kind: HeadsUpKind.attention,
+          key: 'h1',
+          location: '/settings/recovery?account=acct-1',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Reply'), findsNothing);
+      await tester.tap(find.text('Outage and recovery'));
+      await tester.pumpAndSettle();
+      expect(opened, ['/settings/recovery?account=acct-1']);
+      c.dismiss();
+    },
+  );
+
   for (final locale in ['ar', 'en']) {
     testWidgets('text at 1.3×: the banner fits ($locale)', (tester) async {
       setPlatformViewport(tester);

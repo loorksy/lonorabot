@@ -3,8 +3,8 @@
 // start-side drawer behind the ☰ button and its unread count of the other chats; a chat opened
 // from the drawer replaces the conversation and closes it; back closes it first; links to a
 // conversation land at the root; «All chats» opens the full list. The list home keeps the list at
-// the root and pushes conversations over it. Goldens of the open drawer (light/dark × ar/en) and
-// of its «+» menu.
+// the root and pushes conversations over it. «+» in the drawer also marks every chat read. Goldens
+// of the open drawer (light/dark × ar/en) and of its «+» menu.
 //
 // Regenerate the goldens with: flutter test --update-goldens test/features/chats/drawer_home_test.dart
 import 'dart:async';
@@ -17,6 +17,7 @@ import 'package:lonora/app/app_strings.dart';
 import 'package:lonora/app/router.dart';
 import 'package:lonora/app/routes.dart';
 import 'package:lonora/app/services.dart';
+import 'package:lonora/core/api/api_error.dart';
 import 'package:lonora/core/json.dart';
 import 'package:lonora/design/design.dart';
 import 'package:lonora/features/chats/chat_drawer.dart';
@@ -435,24 +436,94 @@ void main() {
       },
     );
 
-    testWidgets('«+» offers new agent, new group and the agents', (
-      tester,
-    ) async {
-      await _pump(tester);
-      await _openDrawer(tester);
+    Future<void> openPlus(
+      WidgetTester tester, {
+      String label = 'New chat',
+    }) async {
       await tester.tap(
         find.descendant(
           of: find.byType(ChatDrawer),
           matching: find.byWidgetPredicate(
-            (w) => w is CircleIconButton && w.semanticLabel == 'New chat',
+            (w) => w is CircleIconButton && w.semanticLabel == label,
           ),
         ),
       );
       await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('«+» offers new agent, new group, the agents and mark all as '
+        'read', (tester) async {
+      await _pump(tester);
+      await _openDrawer(tester);
+      await openPlus(tester);
       expect(find.byType(LnMenuCard), findsOneWidget);
       expect(find.text('New agent'), findsOneWidget);
       expect(find.text('New group'), findsOneWidget);
       expect(find.text('Manage agents'), findsOneWidget);
+      // Last, a 48 dp row.
+      final entry = find.widgetWithText(LnMenuRow, 'Mark all as read');
+      expect(entry, findsOneWidget);
+      expect(tester.getSize(entry).height, greaterThanOrEqualTo(48));
+      expect(
+        tester.getTopLeft(entry).dy,
+        greaterThan(tester.getTopLeft(find.text('Manage agents')).dy),
+      );
+    });
+
+    testWidgets('«Mark all as read» reads every chat: the drawer\'s counts and '
+        '☰ go, the drawer stays', (tester) async {
+      final handle = tester.ensureSemantics();
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => [
+        for (final id in ['t-gold', 't-news', 't-desk', 't-old'])
+          {'thread_id': id, 'last_read_seq': 5, 'marked_unread': false},
+      ];
+      // Animations on: the kit's ☰ AnimatedSize asserts when its count goes to 0 with a zero
+      // duration (reduced motion), a design-kit issue outside this test.
+      final (store, _) = await _pump(tester, locale: 'ar', animations: true);
+      expect(
+        tester.widget<MenuPillButton>(find.byType(MenuPillButton)).unreadCount,
+        4,
+      );
+      await _openDrawer(tester);
+      await openPlus(tester, label: 'محادثة جديدة');
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('تحديد الكل كمقروء')),
+        isSemantics(label: 'تحديد الكل كمقروء', hasTapAction: true),
+      );
+      await tester.tap(find.text('تحديد الكل كمقروء'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(fakeApi.callsTo('POST', '/threads/read-all'), hasLength(1));
+      expect(find.byType(LnMenuCard), findsNothing);
+      expect(store.state.shell.unreadTotal, 0);
+      for (final row in tester.widgetList<ChatListRow>(
+        find.descendant(
+          of: find.byType(ChatDrawer),
+          matching: find.byType(ChatListRow),
+        ),
+      )) {
+        expect(row.unreadCount, 0, reason: row.title);
+        expect(row.unreadDot, isFalse, reason: row.title);
+      }
+      expect(find.byType(ChatDrawer), findsOneWidget);
+      expect(unreadElsewhere(store.state.shell, 't-lonora'), 0);
+      handle.dispose();
+    });
+
+    testWidgets('a failed «Mark all as read» says so and keeps the counts', (
+      tester,
+    ) async {
+      fakeApi.handlers['POST /threads/read-all'] = (_, _) => ApiError.network();
+      final (store, _) = await _pump(tester);
+      await _openDrawer(tester);
+      await openPlus(tester);
+      await tester.tap(find.text('Mark all as read'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text(L10n.instance.errorText('network')), findsOneWidget);
+      expect(unreadElsewhere(store.state.shell, 't-lonora'), 4);
+      await settleToasts(tester);
     });
 
     testWidgets('a long press on a row opens the list\'s row menu; «Select» '

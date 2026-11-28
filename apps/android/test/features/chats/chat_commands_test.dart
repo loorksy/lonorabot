@@ -1,13 +1,15 @@
 // The row menu's and the selection's commands against the fake API: archive with «تراجع»,
-// clearing the messages after a confirmation, mute, mark unread, «حذف» keeping the clear
-// cursors, a group without a conversation (nothing created), a failed undo, and the custom
-// lists (create, the chats page, delete with confirmation and «تراجع»).
+// clearing the messages after a confirmation (this device's copy of the conversation loses them
+// too), mute, mark unread, «حذف» keeping the clear cursors, a group without a conversation
+// (nothing created), a failed undo, and the custom lists (create, the chats page, delete with
+// confirmation and «تراجع»).
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lonora/app/routes.dart';
 import 'package:lonora/core/api/api_error.dart';
 import 'package:lonora/core/json.dart';
+import 'package:lonora/core/models/models.dart';
 import 'package:lonora/design/design.dart';
 import 'package:lonora/l10n/l10n.dart' show dotSeparator;
 import 'package:lonora/state/app_state.dart';
@@ -53,6 +55,36 @@ Future<void> revealFilters(WidgetTester tester) async {
   await tester.drag(find.text('All'), const Offset(-600, 0));
   await tester.pumpAndSettle();
 }
+
+/// The fixture with this device's copy of [threadId]: messages at seq [seqs].
+AppState withCachedThread(String threadId, List<int> seqs) =>
+    fixtureState(working: false).withThread(
+      ThreadState(
+        threadId: threadId,
+        loaded: true,
+        messages: [
+          for (final seq in seqs)
+            Message.fromJson({
+              'id': '$threadId-$seq',
+              'thread_id': threadId,
+              'seq': seq,
+              'role': 'assistant',
+              'content': 'message $seq',
+              'created_at': DateTime(
+                2026,
+                11,
+                27,
+                10,
+                seq,
+              ).toUtc().toIso8601String(),
+            }),
+        ],
+      ),
+    );
+
+List<int> cachedSeqs(Store<AppState> store, String threadId) => [
+  for (final m in store.state.thread(threadId).messages) m.seq,
+];
 
 List<Object?> prefsBodies() =>
     fakeApi.callsTo('POST', '/threads/prefs').map((c) => c.body).toList();
@@ -144,7 +176,11 @@ void main() {
       'last_read_seq': 5,
       'marked_unread': false,
     };
-    final store = await pumpChats(tester);
+    // A message the agent wrote after the clear stays (seq 6).
+    final store = await pumpChats(
+      tester,
+      state: withCachedThread('t-news', [1, 2, 3, 4, 5, 6]),
+    );
     await openMenu(tester, 'Morning news');
     await tester.tap(find.text('Select'));
     await tester.pumpAndSettle();
@@ -168,6 +204,7 @@ void main() {
     final entry = store.state.shell.entryFor('t-news')!;
     expect(entry.hiddenBeforeSeq, 5);
     expect(entry.markedUnread, isFalse);
+    expect(cachedSeqs(store, 't-news'), [6]);
     expect(find.text('Messages cleared'), findsOneWidget);
     await settleToasts(tester);
   });
@@ -184,7 +221,10 @@ void main() {
     fakeApi.handlers['POST /threads/prefs'] = (_, _) => [
       {'thread_id': 't-gold', 'pinned_order': null, 'favourite': false},
     ];
-    final store = await pumpChats(tester);
+    final store = await pumpChats(
+      tester,
+      state: withCachedThread('t-gold', [3, 4, 5]),
+    );
     await openMenu(tester, 'Gold desk');
     await tester.tap(find.text('Select'));
     await tester.pumpAndSettle();
@@ -196,6 +236,7 @@ void main() {
     expect(entry.hiddenBeforeSeq, 5);
     expect(entry.lastReadSeq, 5);
     expect(entry.unreadCount, 0);
+    expect(cachedSeqs(store, 't-gold'), isEmpty);
     await settleToasts(tester);
   });
 

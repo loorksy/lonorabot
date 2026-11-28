@@ -1,6 +1,7 @@
 // The Settings page (Routes.settings), pushed from the Me tab's «الإعدادات» card: how Lonora
 // reaches the owner on a card of its own, then this phone's preferences (home screen, language,
-// appearance, chat experience, voice, clear cache), then About and the app version. The home
+// appearance, chat experience, voice, clear cache), «التعطل والاستعادة», then About and the app
+// version. The home
 // screen and the appearance are chosen in place, from a popover at the row.
 import 'dart:async';
 
@@ -19,6 +20,7 @@ import '../../state/app_state.dart';
 import '../conversation/conversation_header.dart' show showChatPrefsSheet;
 import '../me/me_actions.dart';
 import '../me/me_data.dart';
+import '../trading/trading_strings.dart';
 import 'appearance_screen.dart' show themeModeIcon, themeModeLabel;
 import 'language.dart';
 import 'settings_common.dart';
@@ -127,6 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     ensureCoreSettingsStrings(context);
+    ensureTradingStrings(context);
     final lang = context.l10n.lang;
     final theme = context.select((AppState s) => s.prefs.themeMode);
     final locale = context.select((AppState s) => s.prefs.locale);
@@ -205,6 +208,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: FIcons.eraser,
               title: context.t('me_clearCache'),
               onTap: _clearCache,
+            ),
+          ],
+        ),
+        const SectionGap(),
+        // «التعطل والاستعادة»: each broker connection's recovery state.
+        LnSection(
+          children: [
+            LnListTile(
+              icon: FIcons.unplug,
+              title: context.t('rc_title'),
+              onTap: () => open(Routes.recovery),
             ),
           ],
         ),

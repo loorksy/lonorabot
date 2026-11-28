@@ -286,6 +286,32 @@ void main() {
     expect(shownRoute(tester), '/files?agent=a-gold');
   });
 
+  testWidgets(
+    '«Trades» opens the agent\'s trades; an agent that does not trade has none',
+    (tester) async {
+      scriptGold();
+      await pumpScreen(
+        tester,
+        const AgentProfileScreen(agentId: 'a-gold'),
+        locale: 'en',
+      );
+      final trades = find.text('Trades');
+      await tester.scrollUntilVisible(
+        trades,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tapAndSettle(tester, trades);
+      expect(shownRoute(tester), '/agent/a-gold/trades');
+      await pumpScreen(
+        tester,
+        const AgentProfileScreen(agentId: 'a-research'),
+        locale: 'en',
+      );
+      expect(find.text('Trades'), findsNothing);
+    },
+  );
+
   testWidgets('without its conversation the Files row is still there', (
     tester,
   ) async {

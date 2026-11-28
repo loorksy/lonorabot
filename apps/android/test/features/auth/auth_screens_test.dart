@@ -1,11 +1,18 @@
-// Sign-in, owner setup, server step and connect links, plus sign-in goldens (with an error).
+// Sign-in, owner setup, server step and connect links (a Lonora Cloud link without a setup
+// token lands on sign-in for its server), the sign-up link to lonora.io, plus sign-in goldens
+// (with an error).
 //
 // Regenerate goldens with: flutter test --update-goldens test/features/auth
+import 'dart:async';
+
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/material.dart' show TextField;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart' show FIcons;
+import 'package:go_router/go_router.dart' show GoRouterState;
+import 'package:lonora/app/deep_links.dart';
 import 'package:lonora/app/routes.dart';
 import 'package:lonora/core/api/api_error.dart';
 import 'package:lonora/design/design.dart' show LnPalette;
@@ -226,6 +233,149 @@ void main() {
       expect(token2, findsNothing);
     },
   );
+
+  group('sign-up link (Lonora Cloud)', () {
+    const url = 'https://lonora.io/#start';
+    const launcher = MethodChannel('plugins.flutter.io/url_launcher');
+    late List<MethodCall> launches;
+
+    /// Records every launch; [answer] is what the platform says (opened or not).
+    void mockLauncher([FutureOr<bool> Function()? answer]) {
+      launches = [];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(launcher, (call) async {
+        launches.add(call);
+        return answer == null ? true : await answer();
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(launcher, null));
+    }
+
+    for (final (locale, line) in [
+      ('ar', 'ما عندك حساب؟ سجّل من lonora.io'),
+      ('en', 'No account? Sign up at lonora.io'),
+    ]) {
+      testWidgets('under sign-in, one link opens $url in the browser '
+          '($locale)', (tester) async {
+        mockLauncher();
+        final semantics = tester.ensureSemantics();
+        final (api, _) = await pumpSignIn(tester, locale: locale);
+        expect(
+          find.textContaining('lonora.io', findRichText: true),
+          findsOneWidget,
+        );
+        final link = find.bySemanticsLabel(line);
+        final node = tester.getSemantics(link);
+        // A link with its address, not a button; a 48 dp target.
+        expect(
+          node,
+          isSemantics(
+            label: line,
+            isLink: true,
+            isButton: false,
+            hasTapAction: true,
+          ),
+        );
+        expect(node.getSemanticsData().linkUrl, Uri.parse(url));
+        expect(node.rect.height, greaterThanOrEqualTo(48));
+        // Below «Sign in».
+        final signIn = find.text(locale == 'ar' ? 'تسجيل الدخول' : 'Sign in');
+        expect(
+          tester.getTopLeft(link).dy,
+          greaterThan(tester.getBottomLeft(signIn.last).dy),
+        );
+        await tester.tap(link);
+        await tester.pumpAndSettle();
+        expect(launches, hasLength(1));
+        final args = launches.single.arguments as Map;
+        expect(launches.single.method, 'launch');
+        expect(args['url'], url);
+        // Outside the app: no in-app web view.
+        expect(args['useWebView'], isFalse);
+        // The screen reader's tap does the same.
+        tester.semantics.tap(find.semantics.byLabel(line));
+        await tester.pumpAndSettle();
+        expect(launches, hasLength(2));
+        // Nothing reaches the server (only the sign-in screen's own probe).
+        expect(api.calls.where((c) => !c.path.startsWith('probe:')), isEmpty);
+        semantics.dispose();
+      });
+    }
+
+    testWidgets('a second tap while the browser opens launches nothing', (
+      tester,
+    ) async {
+      final opened = Completer<bool>();
+      mockLauncher(() => opened.future);
+      await pumpSignIn(tester, locale: 'en');
+      final link = find.bySemanticsLabel('No account? Sign up at lonora.io');
+      await tester.tap(link);
+      await tester.pump();
+      await tester.tap(link);
+      await tester.pump();
+      expect(launches, hasLength(1));
+      opened.complete(true);
+      await tester.pumpAndSettle();
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      expect(launches, hasLength(2));
+    });
+
+    testWidgets('no browser to open it says so', (tester) async {
+      mockLauncher(() => false);
+      await pumpSignIn(tester, locale: 'en');
+      await tester.tap(
+        find.bySemanticsLabel('No account? Sign up at lonora.io'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('The link could not be opened.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    });
+
+    for (final initialized in [true, false]) {
+      testWidgets('the line waits for the server\'s answer (owner '
+          '${initialized ? 'set' : 'not set yet'})', (tester) async {
+        final answer = Completer<Object?>();
+        final api = await setUpServices();
+        api.onProbe = (_, _, _) => answer.future;
+        final store = testStore(signedIn: false, locale: 'en');
+        setFeatureViewport(tester);
+        await tester.pumpWidget(
+          featureApp(store, testRouter(const SignInScreen())),
+        );
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pump();
+        // Still asking the server: no line, so none flashes before the setup form.
+        expect(api.calls.map((c) => c.path), [
+          'probe:https://lonora.example.com/onboarding',
+        ]);
+        expect(
+          find.textContaining('lonora.io', findRichText: true),
+          findsNothing,
+        );
+        answer.complete({'owner_initialized': initialized});
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Set up Lonora'),
+          initialized ? findsNothing : findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel('No account? Sign up at lonora.io'),
+          initialized ? findsOneWidget : findsNothing,
+        );
+      });
+    }
+
+    testWidgets('the owner setup form has no sign-up link', (tester) async {
+      await pumpSignIn(tester, locale: 'en', ownerInitialized: false);
+      expect(find.text('Set up Lonora'), findsOneWidget);
+      expect(
+        find.textContaining('lonora.io', findRichText: true),
+        findsNothing,
+      );
+    });
+  });
 
   group('owner setup', () {
     /// Signing in starts the realtime feed, which nothing here answers: stop it and let its
@@ -564,6 +714,150 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Changing servers signs out'), findsNothing);
     });
+
+    group(
+      'Lonora Cloud: lonora://connect?server=https://<handle>.lonora.io',
+      () {
+        const cloud = 'https://handle.lonora.io';
+
+        /// The link opened from the app's own mapping, with the real connect and sign-in screens.
+        late List<String> probed;
+
+        Future<(ScriptedApi, Store<AppState>)> openLink(
+          WidgetTester tester,
+          String link, {
+          bool ownerInitialized = true,
+        }) async {
+          probed = [];
+          final api = await setUpServices();
+          api.onProbe = (server, path, body) {
+            probed.add('$server $path');
+            return {'owner_initialized': ownerInitialized};
+          };
+          final store = testStore(
+            signedIn: false,
+            locale: 'en',
+            session: const SessionState(status: SessionStatus.signedOut),
+          );
+          setFeatureViewport(tester);
+          final location = DeepLinks.locationFor(Uri.parse(link))!;
+          await tester.pumpWidget(
+            featureApp(
+              store,
+              testRouter(
+                const SizedBox(),
+                initialLocation: location,
+                pages: {
+                  Routes.connect: (context) {
+                    final query = GoRouterState.of(context).uri.queryParameters;
+                    return ConnectScreen(
+                      server: query['server'] ?? '',
+                      token: query['token'],
+                    );
+                  },
+                  Routes.signIn: (_) => const SignInScreen(),
+                },
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          return (api, store);
+        }
+
+        testWidgets('a server without a token: confirm, then sign-in for that '
+            'server with the website account', (tester) async {
+          expect(
+            DeepLinks.locationFor(Uri.parse('lonora://connect?server=$cloud')),
+            '/connect?server=https%3A%2F%2Fhandle.lonora.io',
+          );
+          final (api, store) = await openLink(
+            tester,
+            'lonora://connect?server=$cloud',
+          );
+          expect(find.textContaining('handle.lonora.io'), findsOneWidget);
+          // Nothing happens before the owner confirms.
+          expect(api.calls, isEmpty);
+          await tapAndSettle(tester, find.text('Connect'));
+          await tester.pump(const Duration(milliseconds: 450));
+          await tester.pumpAndSettle();
+          expect(store.state.session.lastServer, cloud);
+          expect(store.state.session.pendingSetupToken, isNull);
+          // Sign-in for that server: its host in the server row, e-mail and password only.
+          expect(find.byType(SignInScreen), findsOneWidget);
+          expect(find.textContaining('handle.lonora.io'), findsOneWidget);
+          expect(find.text('Sign in'), findsWidgets);
+          expect(find.text('Setup token'), findsNothing);
+          expect(find.byType(EditableText), findsNWidgets(2));
+          expect(probed.toSet(), {'$cloud /onboarding'});
+          // Signing in goes to that server.
+          String? signedInAt;
+          api.on('POST /auth/mobile/login', (_) {
+            signedInAt = api.server;
+            throw ApiError(status: 401, code: 'unauthorized');
+          });
+          await fillAndSubmit(tester, 'the-website-password');
+          await tapAndSettle(tester, find.text('Sign in').last);
+          expect(api.callsTo('POST', '/auth/mobile/login'), hasLength(1));
+          expect(signedInAt, cloud);
+        });
+
+        testWidgets('a server and a setup token keep the first-run setup', (
+          tester,
+        ) async {
+          const token = 'abcdefghijklmnopqrstuvwxyz0123';
+          final (_, store) = await openLink(
+            tester,
+            'lonora://connect?server=$cloud&token=$token',
+            ownerInitialized: false,
+          );
+          await tapAndSettle(tester, find.text('Connect'));
+          await tester.pump(const Duration(milliseconds: 450));
+          await tester.pumpAndSettle();
+          expect(store.state.session.pendingSetupToken, (
+            server: cloud,
+            token: token,
+          ));
+          expect(find.text('Set up Lonora'), findsOneWidget);
+          final fields = tester.widgetList<EditableText>(
+            find.byType(EditableText),
+          );
+          expect(fields.last.controller.text, token);
+        });
+
+        testWidgets('a remote http server is refused before anything is sent', (
+          tester,
+        ) async {
+          expect(
+            DeepLinks.locationFor(
+              Uri.parse('lonora://connect?server=http://handle.lonora.io'),
+            ),
+            Routes.connect,
+          );
+          final (api, store) = await openLink(
+            tester,
+            'lonora://connect?server=http://handle.lonora.io',
+          );
+          expect(
+            find.textContaining('This connect link is not valid'),
+            findsOneWidget,
+          );
+          expect(find.text('Connect'), findsNothing);
+          expect(api.calls, isEmpty);
+          expect(store.state.session.lastServer, isNull);
+          // The screen itself refuses it too, should the address reach it another way.
+          await tester.pumpWidget(
+            featureApp(
+              store,
+              testRouter(
+                const ConnectScreen(server: 'http://handle.lonora.io'),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Connect'), findsNothing);
+        });
+      },
+    );
 
     testWidgets('confirming holds the token for that server only', (
       tester,

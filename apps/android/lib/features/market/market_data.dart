@@ -4,8 +4,10 @@
 // `POST /watches/{id}/control`), the economic calendar (`GET /market/calendar`), opportunities
 // (`GET /trading/opportunities`) and the order log (`GET /trading/journal`).
 //
-// SAFETY (docs/android/analysis/lonora-api-contract.md §11, §19): nothing here places, changes or
-// closes an order; there is no call to `/trading/execute` and none may be added.
+// SAFETY (docs/android/analysis/lonora-api-contract.md §11, §19; ARCHITECTURE.md «Safety»):
+// nothing here places, changes or closes an order. `POST /trading/execute` is called only from
+// lib/features/trading/trades_data.dart, from the owner's own tap on a confirmation sheet; never
+// from agents, background work, deep links or tests (tests use the fake API).
 import 'package:flutter/foundation.dart';
 
 import '../../app/services.dart';
@@ -39,6 +41,42 @@ class MarketConnection {
 
   /// A simulation trades against an imported snapshot (paper): never a broker account.
   bool get isSimulation => provider == 'simulation';
+
+  /// The broker session's recovery state (`state.broker_recovery`), null before any.
+  BrokerRecovery? get recovery {
+    final r = asJson(asJson(raw['state'])['broker_recovery']);
+    return r.isEmpty ? null : BrokerRecovery(r);
+  }
+}
+
+/// A broker session's recovery snapshot (lonora_contracts.broker_activity
+/// `BrokerRecoverySnapshot`), written by the Gateway's reconciliation.
+@immutable
+class BrokerRecovery {
+  const BrokerRecovery(this.raw);
+
+  final Json raw;
+
+  /// connected · degraded · disconnected · recovering · reconciling.
+  String get status => asStr(raw['status']);
+  String? get reasonCode => asString(raw['reason_code']);
+  DateTime? get since => asDate(raw['since']);
+  DateTime? get lastSuccessAt => asDate(raw['last_success_at']);
+  List<String> get unresolvedOperations =>
+      asStringList(raw['unresolved_operations']);
+
+  /// Shown on «التعطل والاستعادة» (apps/web shell/agent/RecoveryPage.tsx `DOWN`).
+  bool get down => const {
+    'degraded',
+    'disconnected',
+    'recovering',
+    'reconciling',
+  }.contains(status);
+
+  /// New risk is refused on the whole account (lonora_trading.admission
+  /// `ADMISSIBLE_RECOVERY`); exits stay admissible.
+  bool get blocksNewRisk =>
+      status.isNotEmpty && !const {'connected', 'degraded'}.contains(status);
 }
 
 @immutable
@@ -160,6 +198,7 @@ class MarketPosition {
 
   String get id => asStr(raw['id']);
   String get symbol => asStr(raw['symbol']);
+  String get side => asStr(raw['side']);
   bool get isSell => asStr(raw['side']).startsWith('sell');
   String get volume => marketField(raw['volume']);
   String get openPrice => marketField(raw['open_price']);
@@ -180,6 +219,8 @@ class MarketOrder {
   bool get isSell => side.startsWith('sell');
   String get volume => marketField(raw['volume']);
   String get price => marketField(raw['price']);
+  String? get stopLoss => asString(raw['stop_loss']);
+  String? get takeProfit => asString(raw['take_profit']);
 }
 
 /// `GET /trading/accounts/{id}`: the account part, its positions and pending orders.
@@ -207,6 +248,11 @@ class AccountSnapshot {
   double? get margin => asDouble(account['margin']);
   double? get freeMargin => asDouble(account['free_margin']);
   DateTime? get observedAt => asDate(account['observed_at']);
+
+  /// The broker refuses every order on this account (`trade_allowed` false or
+  /// `investor_mode` true: lonora_trading.preflight `broker_trading_not_allowed`).
+  bool get tradingNotAllowed =>
+      account['trade_allowed'] == false || account['investor_mode'] == true;
 
   /// Open profit across positions (null without positions or numbers).
   double? get openProfit {
@@ -310,7 +356,8 @@ class Opportunity {
   bool get live => const {'forming', 'confirmed', 'degraded'}.contains(status);
 }
 
-/// One order-log row (`GET /trading/journal`), read-only.
+/// One order-log row (`GET /trading/journal`): the executor's journal (lonora_trading.journal
+/// `journal_data` with its lifecycle fields), read-only.
 @immutable
 class JournalEntry {
   const JournalEntry(this.raw);
@@ -324,16 +371,43 @@ class JournalEntry {
   String get action => asStr(request['action']);
   String get symbol => asStr(request['symbol']);
   String get volume => marketField(request['volume']);
+  String? get positionId => asString(request['position_id']);
+  String? get orderId => asString(request['order_id']);
   DateTime? get updatedAt => asDate(raw['updated_at']);
+
+  /// When the owner acted: set at reservation and again at the send, never by a recheck.
+  DateTime? get submittedAt => asDate(raw['submitted_at']);
   String? get agentId => asString(raw['agent_id']);
   String? get threadId => asString(raw['thread_id']);
   int? get timelineSeq => asInt(raw['timeline_seq']);
 
-  /// The details `operationStatusText` reads (verification, send state, resolution).
+  /// The executor's result (`{status, broker_id, code, details}`).
+  Json get result => asJson(raw['result']);
+  String? get code => asString(result['code']);
+  String? get brokerId => asString(result['broker_id']);
+  Json get resultDetails => asJson(result['details']);
+
+  String? get verificationStatus =>
+      asString(raw['verification_status']) ??
+      asString(asJson(resultDetails['verification'])['status']);
+
+  bool get verified => verificationStatus == 'verified';
+
+  /// A confirmed partial fill (the adapter's `partial_execution`).
+  bool get partialFill =>
+      status == 'confirmed' && resultDetails['partial_execution'] == true;
+
+  Json get resolution =>
+      asJson(raw['resolution'] ?? resultDetails['resolution']);
+  String? get resolutionOutcome => asString(resolution['outcome']);
+
+  /// The details `operationStatusText` reads: the result's own, with the journal's lifecycle
+  /// fields (verification, send state, resolution) over them.
   Json get details => {
-    'verification': {'status': raw['verification_status']},
-    'send_state': raw['send_state'],
-    'resolution': raw['resolution'],
+    ...resultDetails,
+    'verification': {'status': verificationStatus},
+    'send_state': raw['send_state'] ?? resultDetails['send_state'],
+    'resolution': raw['resolution'] ?? resultDetails['resolution'],
   };
 }
 

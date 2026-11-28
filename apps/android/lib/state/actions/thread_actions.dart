@@ -17,6 +17,20 @@ String newNonce() => _uuid.v4().replaceAll('-', '');
 
 const historyPage = 100;
 
+/// [t] without what the owner cleared: messages at or below the inbox entry's
+/// `hidden_before_seq` (`POST /threads/{id}/clear`) stay hidden for the owner, also in the
+/// cached window a newer empty page would otherwise keep.
+ThreadState withoutCleared(AppState state, ThreadState t) {
+  final floor = state.shell.entryFor(t.threadId)?.hiddenBeforeSeq ?? 0;
+  if (floor <= 0 || t.messages.every((m) => m.seq > floor)) return t;
+  return t.copyWith(
+    messages: [
+      for (final m in t.messages)
+        if (m.seq > floor) m,
+    ],
+  );
+}
+
 /// Loads a conversation snapshot: thread, newest page (or a page `around` a seq), and runs
 /// (seeding live previews from the durable `run.stream`).
 class LoadThreadAction extends AppAction {
@@ -55,7 +69,7 @@ class LoadThreadAction extends AppAction {
           t.messages.first.seq >= page.first.seq) {
         t = t.copyWith(messages: const []);
       }
-      t = t.mergeMessages(page);
+      t = withoutCleared(state, t.mergeMessages(page));
       final runMap = {...t.runs};
       final streams = {...t.streams};
       for (final r in runs) {
@@ -109,11 +123,18 @@ class RestoreThreadCacheAction extends AppAction {
     final t = state.thread(threadId);
     final threadJson = asJson(cached['thread']);
     return state.withThread(
-      t
-          .copyWith(
-            thread: threadJson.isEmpty ? t.thread : Thread.fromJson(threadJson),
-          )
-          .mergeMessages(asJsonList(cached['messages']).map(Message.fromJson)),
+      withoutCleared(
+        state,
+        t
+            .copyWith(
+              thread: threadJson.isEmpty
+                  ? t.thread
+                  : Thread.fromJson(threadJson),
+            )
+            .mergeMessages(
+              asJsonList(cached['messages']).map(Message.fromJson),
+            ),
+      ),
     );
   }
 }

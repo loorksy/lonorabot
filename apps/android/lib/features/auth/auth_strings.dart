@@ -30,6 +30,10 @@ const Map<String, List<String>> _authStrings = {
   'auth_showPassword': ['إظهار كلمة المرور', 'Show password'],
   'auth_hidePassword': ['إخفاء كلمة المرور', 'Hide password'],
   'auth_switchLanguage': ['تغيير اللغة', 'Change language'],
+  // Under «تسجيل الدخول»: a Lonora Cloud account is made on the website (the second part opens
+  // https://lonora.io/#start in the browser).
+  'auth_noAccount': ['ما عندك حساب؟', 'No account?'],
+  'auth_signUpAt': ['سجّل من lonora.io', 'Sign up at lonora.io'],
   'invalid_email': [
     'أدخل بريدًا إلكترونيًا صحيحًا.',
     'Enter a valid email address.',

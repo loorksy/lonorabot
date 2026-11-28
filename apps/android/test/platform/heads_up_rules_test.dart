@@ -301,5 +301,29 @@ void main() {
         );
       },
     );
+
+    test('broker health opens «التعطل والاستعادة» on its account; others their chat', () {
+      final health = banner(
+        attentionJson(
+          'h1',
+          code: 'broker_connection_lost',
+          importance: 'critical',
+          parameters: {'account_id': 'acct-1'},
+        ),
+      )!;
+      expect(health.location, '/settings/recovery?account=acct-1');
+      expect(health.withText('x').location, health.location);
+      expect(
+        banner(
+          attentionJson(
+            'h2',
+            code: 'broker_token_rejected',
+            importance: 'critical',
+          ),
+        )!.location,
+        '/settings/recovery',
+      );
+      expect(banner(attentionJson('h3', agentId: 'a-sara'))!.location, isNull);
+    });
   });
 }

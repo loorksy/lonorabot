@@ -46,6 +46,47 @@ class LoadThreadArtifactsAction extends AppAction {
   }
 }
 
+/// Side-read key of the direct chat's open collaboration session (a `Resource` map, or null
+/// when there is none).
+const collaborationSideKey = 'collaboration';
+
+/// The collaboration session id [t] holds, else null (JSON null or no string id: none).
+String? collaborationSessionOf(ThreadState t) {
+  final value = t.side[collaborationSideKey];
+  return value is Map ? asString(value['id']) : null;
+}
+
+/// `GET /threads/{id}/collaboration`: the direct chat's open session, which decides whether
+/// «@الكل» is offered and which session it addresses. Groups never have one (the server answers
+/// null), so they are not asked. A failed read keeps what was there.
+class LoadCollaborationAction extends AppAction {
+  LoadCollaborationAction(this.threadId);
+  final String threadId;
+
+  @override
+  Future<AppState?> reduce() async {
+    if (!signedIn) return null;
+    final t = state.thread(threadId);
+    final groupId =
+        t.thread?.groupId ?? state.shell.entryFor(threadId)?.groupId;
+    if (groupId != null) return null;
+    try {
+      final value = await apiClient.get('/threads/$threadId/collaboration');
+      final session = value is Map && asString(value['id']) != null
+          ? asJson(value)
+          : null;
+      final latest = state.thread(threadId);
+      return state.withThread(
+        latest.copyWith(side: {...latest.side, collaborationSideKey: session}),
+      );
+    } on ApiError {
+      return null;
+    } on SessionRequestCancelled {
+      return null;
+    }
+  }
+}
+
 /// A file this device just uploaded joins the conversation's files at once.
 class AddThreadArtifactAction extends AppAction {
   AddThreadArtifactAction(this.threadId, this.artifact);

@@ -66,11 +66,10 @@ void main() {
   }
 
   testWidgets('notifications on a card of its own, then the phone\'s '
-      'preferences, then About and the version; groups 32 dp apart', (
-    tester,
-  ) async {
+      'preferences, «Outage and recovery», then About and the version; groups '
+      '32 dp apart', (tester) async {
     await pumpSettings(tester);
-    expect(find.byType(FTileGroup), findsNWidgets(3));
+    expect(find.byType(FTileGroup), findsNWidgets(4));
     expect(groupRows(tester, 0), ['Notifications and contact']);
     expect(groupRows(tester, 1), [
       'Home screen',
@@ -80,12 +79,21 @@ void main() {
       'Voice',
       'Clear cache',
     ]);
-    expect(groupRows(tester, 2), ['About Lonora', 'App version']);
+    expect(groupRows(tester, 2), ['Outage and recovery']);
+    expect(groupRows(tester, 3), ['About Lonora', 'App version']);
     final cards = [
-      for (var i = 0; i < 3; i++) tester.getRect(find.byType(FTileGroup).at(i)),
+      for (var i = 0; i < 4; i++) tester.getRect(find.byType(FTileGroup).at(i)),
     ];
-    expect(cards[1].top - cards[0].bottom, LnSpace.xxl);
-    expect(cards[2].top - cards[1].bottom, LnSpace.xxl);
+    for (var i = 1; i < 4; i++) {
+      expect(cards[i].top - cards[i - 1].bottom, LnSpace.xxl);
+    }
+  });
+
+  testWidgets('«Outage and recovery» opens its page', (tester) async {
+    await pumpSettings(tester);
+    await scrollTo(tester, find.text('Outage and recovery'));
+    await tapAndSettle(tester, find.text('Outage and recovery'));
+    expect(find.text('stub:/settings/recovery'), findsOneWidget);
   });
 
   testWidgets('the page title is 16/24 in the ink, centred', (tester) async {
@@ -161,7 +169,7 @@ void main() {
       of: find.text('Follow system'),
       matching: find.byType(FTileGroup),
     );
-    expect(groupRows(tester, 3), ['Follow system', 'العربية', 'English']);
+    expect(groupRows(tester, 4), ['Follow system', 'العربية', 'English']);
     expect(
       find.descendant(
         of: sheet,
@@ -177,7 +185,7 @@ void main() {
     );
     expect(store.state.prefs.locale, 'ar');
     expect(devicePrefs.getString('lonora.locale'), 'ar');
-    expect(find.byType(FTileGroup), findsNWidgets(3));
+    expect(find.byType(FTileGroup), findsNWidgets(4));
     expect(find.text('اللغة'), findsOneWidget);
     expect(find.text('العربية'), findsOneWidget);
 
@@ -186,7 +194,7 @@ void main() {
     await tapAndSettle(tester, find.text('حسب النظام'));
     expect(devicePrefs.getString('lonora.locale'), isNull);
     expect(store.state.prefs.locale, 'en');
-    expect(find.byType(FTileGroup), findsNWidgets(3));
+    expect(find.byType(FTileGroup), findsNWidgets(4));
     expect(find.text('Language'), findsOneWidget);
     expect(find.text('Follow system'), findsOneWidget);
   });

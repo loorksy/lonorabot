@@ -1,15 +1,18 @@
 // The chat list's server actions, shared with Web and the Expo app (apps/mobile/lib/lists-api.ts,
 // lists-state.tsx, selection.tsx, list-sheets.tsx, groups.ts): conversation state
-// (`POST /threads/prefs`, `/read`, `/clear`, `PUT /threads/settings`), custom lists
+// (`POST /threads/prefs`, `/read`, `/read-all`, `/clear`, `PUT /threads/settings`), custom lists
 // (`/chat-lists`) and opening a row's canonical conversation. Each action keeps its failure in
 // [ChatsAction.failure] for the screen's toast; the inbox is patched with the server's answer.
 import 'dart:async';
+
+import 'package:async_redux/async_redux.dart' show NonReentrant;
 
 import '../../core/api/api_error.dart';
 import '../../core/json.dart';
 import '../../core/models/models.dart';
 import '../../state/actions/base.dart';
 import '../../state/actions/shell_actions.dart';
+import '../../state/actions/thread_actions.dart' show withoutCleared;
 import '../../state/app_state.dart';
 import 'chat_rows.dart';
 
@@ -175,6 +178,24 @@ class ReadRowsAction extends ChatsAction {
   }
 }
 
+/// «تحديد الكل كمقروء» (`POST /threads/read-all`, Web DesktopList.tsx:67-71): every conversation,
+/// archived and muted included, read up to its newest message and its marked dot cleared. The
+/// answer holds only the rows that changed; a second call answers `[]`. No confirmation and no
+/// undo, as on the web: the read cursor only moves forward. One at a time.
+class ReadAllAction extends ChatsAction with NonReentrant<AppState> {
+  /// The conversations the server read now (for their tray notifications).
+  List<String> changed = const [];
+
+  @override
+  Future<AppState?> run() async {
+    final prefs = asJsonList(await apiClient.post('/threads/read-all'));
+    changed = [for (final p in prefs) asStr(p['thread_id'])];
+    // Rows this device still shows unread that the server had already read.
+    dispatch(RefreshShellAction());
+    return mergePrefs(prefs);
+  }
+}
+
 /// «مسح الرسائل» / «حذف»: the history is hidden for the owner; the agent, the group and the
 /// conversation stay (Q1, Q44). «حذف» also drops the marks (selection.tsx:92-100).
 class ClearRowsAction extends ChatsAction {
@@ -204,6 +225,12 @@ class ClearRowsAction extends ChatsAction {
       );
       // One merge, in order: the store's state does not hold the first one yet.
       next = mergePrefs([...prefs, ...reset]);
+    }
+    // The conversations this device holds lose the hidden history at once: messages at or
+    // below the merged entry's new floor (`hidden_before_seq`).
+    for (final p in prefs) {
+      final t = next.threads[asStr(p['thread_id'])];
+      if (t != null) next = next.withThread(withoutCleared(next, t));
     }
     dispatch(RefreshShellAction());
     return next;

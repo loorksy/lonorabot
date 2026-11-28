@@ -134,6 +134,7 @@ GoRouter extRouter(Widget home) => GoRouter(
       Routes.me,
       '/agent/:id/settings',
       '/chats/thread/:id',
+      Routes.recovery,
     ])
       GoRoute(
         path: p,

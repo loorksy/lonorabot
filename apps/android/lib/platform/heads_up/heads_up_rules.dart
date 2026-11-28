@@ -6,6 +6,7 @@ import '../../core/json.dart';
 import '../../core/models/models.dart';
 import '../../core/realtime/lonora_event.dart';
 import '../../features/chats/chat_text.dart' show plainLine;
+import '../../features/trading/recovery_link.dart';
 import '../../state/app_state.dart';
 
 /// One plain line, as Web and Expo cut it.
@@ -137,6 +138,7 @@ class HeadsUpBanner {
     this.groupId,
     this.who,
     this.around,
+    this.location,
   });
 
   final String threadId;
@@ -153,6 +155,23 @@ class HeadsUpBanner {
 
   /// Identity of what is announced (message id or attention id).
   final String key;
+
+  /// Where a tap goes instead of the conversation: «التعطل والاستعادة» for a broker health
+  /// problem (apps/web shell/lists/HeadsUp.tsx), its button reading that page's name.
+  final String? location;
+
+  /// The same banner with other words (the preview switched off).
+  HeadsUpBanner withText(String text, {String? who}) => HeadsUpBanner(
+    threadId: threadId,
+    agentId: agentId,
+    groupId: groupId,
+    text: text,
+    who: who,
+    kind: kind,
+    key: key,
+    around: around,
+    location: location,
+  );
 }
 
 /// An agent's answer in another chat: none for the open chat, a muted or archived chat, the
@@ -199,7 +218,8 @@ HeadsUpBanner? messageBanner(
 
 /// An urgent attention item (critical or action required) always shows, quiet hours
 /// included, on its group's or agent's conversation; a broker health problem with no row of
-/// its own on the personal agent's (`attentionBanner`, heads-up.ts:60-83).
+/// its own on the personal agent's (`attentionBanner`, heads-up.ts:60-83). A broker health
+/// problem's tap opens «التعطل والاستعادة» on its account (apps/web HeadsUp.tsx:190-207).
 /// [title] is the item's catalog line (`attentionTitle`).
 HeadsUpBanner? attentionBanner(
   Json item, {
@@ -231,8 +251,16 @@ HeadsUpBanner? attentionBanner(
     text: text,
     kind: HeadsUpKind.attention,
     key: asStr(item['id']),
+    location: brokerHealthCodes.contains(asString(item['code']))
+        ? recoveryLocation(account: attentionAccount(item))
+        : null,
   );
 }
+
+/// The broker connection an attention item names (`parameters.account_id`), if any.
+String? attentionAccount(Json item) =>
+    asString(asJson(item['parameters'])['account_id']) ??
+    asString(item['account_id']);
 
 /// The conversation an attention item belongs to: its group's, its own thread, its agent's,
 /// or — for a broker health problem without one — the personal agent's.

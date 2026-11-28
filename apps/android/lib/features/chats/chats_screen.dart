@@ -21,6 +21,7 @@ import '../groups/create_group_sheet.dart';
 import 'chat_commands.dart';
 import 'chat_rows.dart';
 import 'chat_widgets.dart';
+import 'chats_actions.dart';
 import 'chats_strings.dart';
 import 'list_sheets.dart';
 import 'pull_to_refresh.dart';
@@ -331,6 +332,18 @@ class _ChatsScreenState extends State<ChatsScreen>
               onPress: () {
                 _create.hide();
                 context.push(Routes.agents);
+              },
+            ),
+          ],
+        ),
+        FItemGroup(
+          children: [
+            FItem(
+              prefix: const Icon(FIcons.checkCheck),
+              title: Text(l10n.t('chats_markAllRead')),
+              onPress: () {
+                _create.hide();
+                runChatsAction(context, ReadAllAction());
               },
             ),
           ],

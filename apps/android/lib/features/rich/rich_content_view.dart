@@ -11,6 +11,8 @@ import '../../state/actions/base.dart';
 import '../../state/app_state.dart';
 import '../cards/cards_actions.dart' show SideKeys;
 import '../cards/peer_card.dart';
+import '../conversation/composer_assist.dart'
+    show mentionNamesKey, mentionPattern;
 import 'genui/ui_card.dart';
 import 'markdown_view.dart';
 import 'markdown_parse.dart' show sanitizeLink;
@@ -31,6 +33,8 @@ import 'voice_note.dart';
 ///   conversation: its text parts are drawn here in agent bubbles and its cards as cards.
 /// * A message that belongs to a peer exchange (`ThreadState.side['peer_messages']`) is
 ///   drawn as that exchange (who asked whom, the text, the status).
+/// * «@name» of the conversation's agents (the group's members, or every agent in a direct chat)
+///   and «@الكل» are marked in the text (apps/web/src/conversation/Markdown.tsx `.mention`).
 /// * While [streaming], each rich partial tree replaces the previous one, the growing text
 ///   keeps its finished blocks, and the typing dots follow the text.
 ///
@@ -93,9 +97,15 @@ class RichContentView extends StatelessWidget {
     }
     final bare = !onUserBubble && drawsOwnBubbles(richContent);
     final parts = validateRichContent(richContent);
+    final names = context.select((AppState s) => _mentionNames(s, threadId));
+    final mentions = mentionPattern(
+      names.isEmpty ? const [] : names.split('\n'),
+    );
+    Widget prose(String value, {required bool last, Key? key}) =>
+        _text(context, value, last: last, key: key, mentions: mentions);
     final children = <Widget>[];
     if (parts == null) {
-      children.add(_text(context, _plainBody(text), last: true));
+      children.add(prose(_plainBody(text), last: true));
     } else {
       var drewText = false;
       for (var i = 0; i < parts.length; i++) {
@@ -105,9 +115,7 @@ class RichContentView extends StatelessWidget {
           case TextPart(:final text):
             if (text.trim().isEmpty) continue;
             drewText = true;
-            children.add(
-              _text(context, text, last: last, key: ValueKey('t$i')),
-            );
+            children.add(prose(text, last: last, key: ValueKey('t$i')));
           case CardPart(:final card):
             children.add(
               _CardWidth(
@@ -144,7 +152,7 @@ class RichContentView extends StatelessWidget {
             );
             // The transcript is the message's text.
             if (text.trim().isNotEmpty && part.transcriptStatus == 'done') {
-              children.add(_text(context, text, last: last));
+              children.add(prose(text, last: last));
               drewText = true;
             }
           case CallPart():
@@ -159,7 +167,7 @@ class RichContentView extends StatelessWidget {
                 ? context.t('cmdSummaryOf')
                 : '';
             if (argument.isNotEmpty) {
-              children.add(_text(context, argument, last: last));
+              children.add(prose(argument, last: last));
             }
             drewText = true;
         }
@@ -169,7 +177,7 @@ class RichContentView extends StatelessWidget {
           text.trim().isNotEmpty) {
         // A card-only reply keeps its lead text (content holds the lead and the fallback).
         if (!parts.any((p) => p is CardPart || p is VisualPart)) {
-          children.insert(0, _text(context, text, last: false));
+          children.insert(0, prose(text, last: false));
         }
       }
     }
@@ -197,18 +205,44 @@ class RichContentView extends StatelessWidget {
   /// the owner sees only the result.
   String _plainBody(String value) => peerOutcome(value).body;
 
+  /// The names [threadId]'s messages mark as mentions (a string: selectors compare it). Every
+  /// bubble asks on every store change (each streaming delta): the string is built again only
+  /// when the agents or the group change.
+  static String _mentionNames(AppState s, String threadId) {
+    final groupId =
+        s.threads[threadId]?.thread?.groupId ??
+        (s.threads[threadId]?.thread == null
+            ? s.shell.entryFor(threadId)?.groupId
+            : null);
+    final agents = s.shell.agents;
+    final group = groupId == null ? null : s.shell.groups[groupId];
+    final last = _lastNames;
+    if (last != null &&
+        identical(last.agents, agents) &&
+        identical(last.group, group)) {
+      return last.names;
+    }
+    final names = mentionNamesKey(agents, group);
+    _lastNames = (agents: agents, group: group, names: names);
+    return names;
+  }
+
+  static ({Map<String, Agent> agents, Group? group, String names})? _lastNames;
+
   Widget _text(
     BuildContext context,
     String value, {
     required bool last,
     Key? key,
+    RegExp? mentions,
   }) {
     final Widget body = onUserBubble
-        ? OwnerText(value, selectable: selectable)
+        ? OwnerText(value, selectable: selectable, mentions: mentions)
         : MarkdownView(
             value,
             selectable: selectable,
             streaming: streaming && last,
+            mentions: mentions,
           );
     final bare = !onUserBubble && drawsOwnBubbles(richContent);
     return KeyedSubtree(
@@ -239,11 +273,20 @@ class _CardWidth extends StatelessWidget {
   }
 }
 
-/// The owner's own words: plain text, with http(s) links tappable (no Markdown).
+/// The owner's own words: plain text, with http(s) links tappable (no Markdown) and the
+/// [mentions] marked.
 class OwnerText extends StatefulWidget {
-  const OwnerText(this.text, {super.key, this.selectable = false});
+  const OwnerText(
+    this.text, {
+    super.key,
+    this.selectable = false,
+    this.mentions,
+  });
   final String text;
   final bool selectable;
+
+  /// «@name» of the conversation's agents ([mentionPattern]; group 1 is the name).
+  final RegExp? mentions;
 
   @override
   State<OwnerText> createState() => _OwnerTextState();
@@ -260,7 +303,14 @@ class _OwnerTextState extends State<OwnerText> {
     super.dispose();
   }
 
-  static final RegExp _url = RegExp(r'https?://[^\s<]+[^\s<.,،)]');
+  static const String _url = r'https?://[^\s<]+[^\s<.,،)]';
+  static final RegExp _links = RegExp('($_url)');
+  static final Expando<RegExp> _withMentions = Expando('owner-mentions');
+
+  /// Links (group 1) and, when given, mentions.
+  static RegExp _pattern(RegExp? mentions) => mentions == null
+      ? _links
+      : _withMentions[mentions] ??= RegExp('($_url)|${mentions.pattern}');
 
   @override
   Widget build(BuildContext context) {
@@ -270,9 +320,25 @@ class _OwnerTextState extends State<OwnerText> {
     _taps.clear();
     final spans = <InlineSpan>[];
     var last = 0;
-    for (final m in _url.allMatches(widget.text)) {
+    // The mark takes the surrounding text colour (white in the owner's bubble).
+    final ink =
+        DefaultTextStyle.of(context).style.color ?? context.ln.colors.fg;
+    for (final m in _pattern(widget.mentions).allMatches(widget.text)) {
       if (m.start > last) {
         spans.add(TextSpan(text: widget.text.substring(last, m.start)));
+      }
+      if (m[1] == null) {
+        spans.add(
+          TextSpan(
+            text: m[0],
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              backgroundColor: ink.withValues(alpha: 0.2),
+            ),
+          ),
+        );
+        last = m.end;
+        continue;
       }
       final href = sanitizeLink(m[0]!);
       final tap = TapGestureRecognizer()

@@ -23,7 +23,10 @@ import '../../../l10n/l10n.dart';
 import '../../../state/actions/base.dart';
 import '../../../state/actions/shell_actions.dart';
 import '../../../state/app_state.dart';
+import '../../market/market_data.dart' show BrokerRecovery;
 import '../../market/market_kit.dart' show metaApiName, money;
+import '../../trading/recovery_link.dart';
+import '../../trading/trade_text.dart' show recoveryStatusName;
 import '../settings_common.dart';
 import 'ext_common.dart';
 import 'integrations_data.dart';
@@ -597,6 +600,18 @@ class _BrokerAccountPageState extends State<BrokerAccountPage> {
           ),
         ],
         const SectionGap(),
+        // «التعطل والاستعادة» of this connection, with its execution state while it is down.
+        LnSection(
+          children: [
+            LnListTile(
+              icon: FIcons.activity,
+              title: context.t('rc_title'),
+              value: _recoveryValue(context, row),
+              onTap: () => context.push(recoveryLocation(account: row.id)),
+            ),
+          ],
+        ),
+        const SectionGap(),
         if (agents.isEmpty)
           SettingsNote(
             context.t('ix_noAgentOnAccount'),
@@ -643,6 +658,14 @@ class _BrokerAccountPageState extends State<BrokerAccountPage> {
       ],
     );
   }
+}
+
+/// The execution state of a connection that is down, else none.
+String? _recoveryValue(BuildContext context, BrokerConnection row) {
+  final recovery = BrokerRecovery(asJson(row.state['broker_recovery']));
+  return recovery.down
+      ? recoveryStatusName(context.l10n, recovery.status)
+      : null;
 }
 
 class _SymbolsBlock extends StatelessWidget {

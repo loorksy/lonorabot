@@ -115,7 +115,13 @@ class ApplyEventAction extends AppAction {
           : (e.threadId ?? '');
       if (threadId.isEmpty) return null;
       final t = next.threads[threadId];
-      if (t != null) next = next.withThread(t.mergeMessages([message]));
+      // An update of a message the owner cleared (a transcript, an edit's original) stays
+      // hidden.
+      if (t != null) {
+        next = next.withThread(
+          withoutCleared(next, t.mergeMessages([message])),
+        );
+      }
       if (message.clientNonce != null &&
           next.outbox.any((o) => o.nonce == message.clientNonce)) {
         next = next.copyWith(
@@ -167,8 +173,22 @@ class ApplyEventAction extends AppAction {
         return null;
       }
       final inbox = [...next.shell.inbox];
-      inbox[index] = inbox[index].withPrefs(e.payload);
-      return next.copyWith(shell: next.shell.copyWith(inbox: inbox));
+      // Both writers of thread.read also clear the marked dot (thread_prefs.py), but its
+      // payload carries only {thread_id, last_read_seq}: another device would keep the dot.
+      inbox[index] = inbox[index].withPrefs(
+        kind == 'thread.read'
+            ? {...e.payload, 'marked_unread': false}
+            : e.payload,
+      );
+      next = next.copyWith(shell: next.shell.copyWith(inbox: inbox));
+      // A clear on another device raises the floor: an open conversation hides that history
+      // at once.
+      final t = next.threads[threadId];
+      if (t != null) {
+        final trimmed = withoutCleared(next, t);
+        if (!identical(trimmed, t)) next = next.withThread(trimmed);
+      }
+      return next;
     }
 
     if (kind.startsWith('run.')) {
