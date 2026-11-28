@@ -12,8 +12,8 @@ Status: **done** (works against the real server API), **partial** (what is missi
 
 | Inventory | Rows | Done | Partial | Missing | n/a |
 |---|---|---|---|---|---|
-| Expo app (lonora-mobile-inventory.md) | 264 | 208 | 31 | 10 | 15 |
-| Web app (lonora-web-inventory.md) | 251 | 161 | 33 | 19 | 38 |
+| Expo app (lonora-mobile-inventory.md) | 264 | 215 | 26 | 8 | 15 |
+| Web app (lonora-web-inventory.md) | 251 | 174 | 28 | 10 | 39 |
 
 ## Expo app (lonora-mobile-inventory.md)
 
@@ -44,7 +44,7 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 4.16 Owner knowledge | 1 | 0 | 0 | 0 |
 | 4.17 Files | 3 | 0 | 0 | 0 |
 | 4.18 Charts | 3 | 1 | 0 | 0 |
-| 4.19 Conversation | 14 | 8 | 2 | 0 |
+| 4.19 Conversation | 20 | 4 | 0 | 0 |
 | 4.20 Chat preferences | 0 | 1 | 0 | 0 |
 | 5 Sheets and overlays | 16 | 2 | 2 | 0 |
 | 6 Gestures | 9 | 1 | 0 | 1 |
@@ -66,7 +66,7 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 15 OTA | 0 | 0 | 0 | 1 |
 | 16 Deep links | 3 | 1 | 0 | 1 |
 | 17 Theme | 1 | 0 | 0 | 0 |
-| 18 Endpoint map | 18 | 3 | 1 | 1 |
+| 18 Endpoint map | 19 | 2 | 1 | 1 |
 | 19 Observations | 0 | 0 | 0 | 1 |
 
 ### Missing and partial
@@ -76,7 +76,7 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 1 Build and release | Orientation portrait / UI style light+dark | partial | lib/app/app.dart themeMode (system/light/dark); features/settings/appearance_screen.dart — Missing: portrait lock. There is no setPreferredOrientations and no screenOrientation in the manifest, so the app rotates. |
 | 1 Build and release | Push plugin, default channel 'attention' | partial | lib/platform/notifications/local_notifications.dart (high-importance channels incl. attention); lib/platform/background/background_sync.dart — Missing: remote push. The server only accepts the old app's push tokens. Notifications are local, raised from a background check every 15 minutes at the earliest. |
 | 1 Build and release | ABIs / min SDK (Android 7, API 24+) | partial | build.gradle.kts minSdk = 26 — Missing: Android 7.x support (API 24/25). Those phones cannot install the Android client. |
-| 2.2 Session and authentication | Device-local storage (server, session, locale, theme, chat prefs, outbox, drafts, visual state) | partial | secure_store.dart, devicePrefs (prefs_actions.dart), localStore per server+owner (shell, thread cache, outbox) — Missing: drafts are memory-only (ConversationComposerState._drafts), and v1 visual-document state is not saved. |
+| 2.2 Session and authentication | Device-local storage (server, session, locale, theme, chat prefs, outbox, drafts, visual state) | partial | secure_store.dart, devicePrefs, localStore per server+owner (shell, thread cache, outbox), conversation/draft_store.dart (drafts) — Missing: v1 visual-document state is not saved. |
 | 2.3 Live data | Shell poll every 5 s (agents, groups, inbox, chat-lists, settings, runs, attention, attention/view) | partial | lib/state/actions/shell_actions.dart RefreshShellAction — Same endpoints, but refreshed only on socket ready, debounced events, foreground and pull-to-refresh. Missing: a periodic poll, so if the WebSocket is blocked lists go stale. |
 | 2.3 Live data | POST /app-opens on each foreground (morning-brief learning) | missing | Never called; owner_knowledge_screen.dart only does GET/DELETE /app-opens — The server no longer learns wake habits from this client. |
 | 2.3 Live data | Thread snapshot on focus + 15 s fallback + 150 ms debounced refetch | partial | thread_actions.dart LoadThreadAction (open, foreground, socket ready); realtime.dart _scheduleThread 150 ms — Missing: the 15 s fallback poll. |
@@ -88,14 +88,8 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 4.18 Charts | Chart sheet rest/expanded/minimized (from /chart command, menu, chart links, open_chart) | partial | Menu 'charts', Markdown /charts? links (rich/markdown_view.dart) and open_chart (visual_view.dart) open the /charts page — Missing: the overlay sheet with rest/expanded/minimized modes over the conversation, and the /chart command. |
 | 4.19 Conversation | Header: back, live avatar, title, group typing subtitle, tap -> settings, call button, actions, safety pill | partial | conversation/conversation_header.dart — Missing: the group '{name} is typing' subtitle and the safety pill. Call moved into the actions menu; tapping the title opens the agent profile or group settings. |
 | 4.19 Conversation | Agent live status strip: watches cancel, device authorization, grant review, tasks controls, broker/market health | partial | Not in the conversation. Status line and watches (pause/resume/cancel) in agent_profile_screen.dart; task controls on /tasks (tasks_data.dart POST /tasks/control) — Missing in the thread: the strip itself and the device-authorization, grant-review-failed and broker/market health lines. |
-| 4.19 Conversation | @mentions (agents, '@all' in collaboration) -> mention_agent_ids, mention_all, collaboration_session_id | missing | Not in conversation_composer.dart — There is no mention picker, none of these fields is sent, and GET /threads/{id}/collaboration is never read. |
-| 4.19 Conversation | '/' command list (task, search, summary, chart, call, clear + enabled skills via GET /skills?agent_id=) | missing | No command picker; send body never carries 'command' — GET /skills?agent_id= is used only by the skills screen. |
-| 4.19 Conversation | Send body POST /threads/{id}/messages; question answer with input_answer | partial | thread_actions.dart SendMessageAction (content, attachment_ids, reply_to, edited_from, client_nonce); conversation_screen.dart _answer (input_answer) — Missing fields: mention_agent_ids, mention_all, collaboration_session_id, command. |
 | 4.19 Conversation | Attachments <=10, <=20 MB, each uploaded alone with progress/cancel; a message sent mid-upload is posted after; failure returns text+files | partial | conversation_composer.dart _add/_upload (POST /artifacts/upload) — Missing: Send is disabled while uploads run, so the owner presses it again instead of the message being queued until uploads finish. |
-| 4.19 Conversation | Drafts (text, finished files, reply) per server/owner/thread across restarts | partial | conversation_composer.dart static _drafts — Missing: drafts survive leaving the conversation but not an app restart (memory only). |
 | 4.19 Conversation | Offline queue: queued plain text, auto-flush, stable nonce, retry/delete, 'sent n waiting' toast | partial | SendMessageAction (queued when the API never answered), persisted outbox, FlushOutboxAction on socket ready / network change — Missing: the 'sent n waiting messages' toast after a flush (waitingSentText is unused). |
-| 4.19 Conversation | Clear chat (command or list) with confirm -> POST /threads/{id}/clear | partial | chat_commands.dart clear() + ClearRowsAction from the list/selection — Missing: clearing from inside the conversation (no command, no menu item). |
-| 4.19 Conversation | Side reads: thread, messages, runs, peer-messages, artifacts, approvals, collaboration, agents, owner-actions, receipts, groups | partial | thread_actions.dart LoadThreadAction; cards/thread_cards.dart LoadThreadSideAction; conversation_actions.dart LoadThreadArtifactsAction; shell for agents/groups — Missing: GET /threads/{id}/collaboration. |
 | 4.20 Chat preferences | Per-device steps, steps open, detailed agent status, assist | partial | conversation_header.dart showChatPrefsSheet; prefs_actions.dart SetChatPrefsAction — All four are saved, but 'detailed agent status' has no effect because there is no status strip. |
 | 5 Sheets and overlays | Emoji panel (recents, 8 sections, ar/en search) | missing | - — List names are typed text only. |
 | 5 Sheets and overlays | Mandate modal (composer permission chip / settings row) | partial | agents/settings/mandate_section.dart (settings row) — Missing: the composer permission chip. |
@@ -111,7 +105,6 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 11 Rich responses | Images with bearer bytes; duplicate hidden when a v1 document shows it | partial | rich/artifact_image.dart; message_widgets.dart AttachmentView — Missing: hiding the attachment when a v1 document already draws the same image. |
 | 16 Deep links | Any route linkable via lonora://<route>?… (e.g. lonora://thread?id=…&around=…) | partial | deep_links.dart locationFor maps connect, thread/<id>, agent/<id>, chats — Missing: the query form lonora://thread?id=…&around=… (lands on chats) and the other routes. |
 | 18 Endpoint map | Shell data / inbox endpoints + POST /app-opens | partial | shell_actions.dart — Missing: POST /app-opens. |
-| 18 Endpoint map | Conversation endpoints (incl. collaboration, options, skills, tasks) | partial | thread_actions.dart, conversation_actions.dart — Missing: GET /threads/{id}/collaboration and the GET /skills?agent_id= command read. |
 | 18 Endpoint map | Notify / reach-me endpoints incl. POST /auth/devices/enrollment[/verify] | partial | me/me_data.dart, settings_core_data.dart, heads_up_controller.dart — Missing: device enrollment and verify. |
 | 18 Endpoint map | PUT/DELETE /push/devices/{device} | missing | - — Waits for an Android push contract on the server. |
 
@@ -122,7 +115,7 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | Section | Done | Partial | Missing | n/a |
 |---|---|---|---|---|
 | 1. Web architecture facts | 3 | 2 | 0 | 1 |
-| 2. Page map | 23 | 7 | 2 | 1 |
+| 2. Page map | 26 | 6 | 0 | 1 |
 | 3.1 Market | 7 | 2 | 0 | 0 |
 | 3.2 Voice | 6 | 1 | 2 | 0 |
 | 3.3 Tasks | 3 | 1 | 0 | 1 |
@@ -131,24 +124,24 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 3.6 Knowledge editing | 4 | 0 | 0 | 0 |
 | 3.7 Connections and integrations | 8 | 0 | 0 | 0 |
 | 3.8 Provider and model routing | 5 | 0 | 0 | 1 |
-| 3.9 Financial execution controls | 11 | 1 | 2 | 0 |
+| 3.9 Financial execution controls | 14 | 0 | 0 | 0 |
 | 3.10 Usage dashboard | 3 | 0 | 0 | 0 |
 | 3.11 Trusted sources | 4 | 0 | 0 | 1 |
 | 3.12 Account authority | 0 | 0 | 0 | 1 |
 | 3.13 Device authority | 1 | 0 | 1 | 1 |
-| 3.14 Collaboration | 2 | 0 | 2 | 0 |
+| 3.14 Collaboration | 4 | 0 | 0 | 0 |
 | 3.15 Opportunities | 2 | 0 | 0 | 1 |
 | 3.16 Performance | 0 | 0 | 0 | 1 |
 | 3.17 Watches | 2 | 1 | 0 | 0 |
 | 3.18 MCP | 2 | 0 | 0 | 0 |
 | 3.19 Workspace | 2 | 0 | 0 | 1 |
 | 3.20 Onboarding and auth | 3 | 0 | 1 | 0 |
-| 3.21 Other web-only owner capabilities | 6 | 8 | 2 | 1 |
+| 3.21 Other web-only owner capabilities | 8 | 7 | 1 | 1 |
 | 4. Security gating | 10 | 0 | 2 | 0 |
 | 5. Web i18n catalog | 4 | 1 | 0 | 0 |
 | 6. Design tokens | 2 | 4 | 1 | 2 |
-| 7. Endpoint coverage | 43 | 5 | 3 | 25 |
-| Billing (not in inventory) | 0 | 0 | 1 | 0 |
+| 7. Endpoint coverage | 46 | 3 | 2 | 25 |
+| Billing (not in inventory) | 0 | 0 | 0 | 1 |
 
 ### Missing and partial
 
@@ -158,10 +151,7 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 1. Web architecture facts | Shell reads (/agents, /groups, /threads/inbox, /chat-lists, /threads/settings, /runs) + POST /app-opens | partial | lib/state/actions/shell_actions.dart — All reads done (plus /attention, /attention/view). POST /app-opens is never sent, so Android opens do not feed the waking-habit learning. |
 | 2. Page map | Settings root | partial | /me lib/features/me/me_screen.dart — Has account/profile, What I know, running, chat experience, notifications, integrations, models, voice, language, appearance, usage, files, about, sign-out. No Accessibility, no Privacy/app lock; Storage is only «Clear cache». |
 | 2. Page map | Agent info page | partial | /agent/:id lib/features/agents/agent_profile_screen.dart — Message, Call, settings, memory/knowledge, skills, routines, files, charts, Mandate (read-only), watches, pause, delete. No Trades link (page absent). |
-| 2. Page map | Trades (positions, order log) | partial | /market lib/features/market/market_screen.dart (positions, pending orders, 5 newest journal rows, read-only) — No per-agent Trades page; edit SL/TP, close trade and check close result are absent (see 3.9 owner orders). |
-| 2. Page map | Outage & recovery | missing | — — Nothing reads broker_recovery from GET /trading/accounts/{id} (state, since, last success, reason, unresolved ops, execution state, try again). |
 | 2. Page map | Market (legacy surface) | partial | /market market_screen.dart, symbol_sheet.dart, watch_sheet.dart; /charts lib/features/charts/charts_screen.dart — Quotes, symbols, calendar, watches, positions done; chart workspace has no owner drawing/studies (3.1). |
-| 2. Page map | Trading (legacy surface: owner order ticket) | missing | — — No ticket. ARCHITECTURE.md Safety and market_data.dart forbid POST /trading/execute; owner must decide before web removal. |
 | 2. Page map | Accessibility / Storage / Privacy (app lock) | partial | Me › Clear cache (lib/features/me/me_actions.dart); system text scale and disable-animations honoured via MediaQuery — No in-app text size/contrast/reduced-motion, no space-used view, no app lock. |
 | 2. Page map | Chat experience | partial | showChatPrefsSheet in lib/features/conversation/conversation_header.dart (from Me and the chat menu); prefs in lib/state/actions/prefs_actions.dart — Steps/steps-open switches work. 'Detailed status' is stored but unused; '@ suggestions' drives a suggested-reply chip, not an @ list. Send with Enter is desktop-only; no wallpaper. |
 | 2. Page map | Call page / incoming call page | partial | lib/features/voice/call_overlay.dart, incoming_call.dart, voice_api.dart, voice_transport.dart — No live transcript, no interrupt; minimized pill only returns to the call. |
@@ -171,22 +161,15 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 3.2 Voice | Live transcript (voice.transcript, GET /voice/sessions/{id}) | missing | — — No transcript event handling or session snapshot read. |
 | 3.2 Voice | Interrupt (POST /voice/sessions/{id}/interrupt) | missing | — |
 | 3.3 Tasks | Entry: Tasks root, chat menu «مهمة جديدة», tools sheet «مهمة جديدة», /tasks/:id, /new-task | partial | /tasks from Me; message menu «تحويل إلى مهمة» (conversation_actions.dart CreateTaskFromMessageAction) — No «مهمة جديدة» in the conversation menu or attach sheet; no deep link to a single task. |
-| 3.9 Financial execution controls | Owner's own orders: ticket, edit SL/TP, close trade, check close result (POST /trading/execute) | missing | — — Forbidden by Android's safety rule (ARCHITECTURE.md; market_data.dart header). Owner decision needed. |
-| 3.9 Financial execution controls | Order log (GET /trading/journal) | partial | market_screen.dart order-log section (market_data.dart fetchJournal) — Only the 5 newest rows, each opening its conversation; no full log, no order sheet. |
-| 3.9 Financial execution controls | Recovery page «التعطل والاستعادة» | missing | — — broker_recovery state not shown anywhere. |
 | 3.13 Device authority | Register this device (password + passkey) | missing | account_screen.dart shows 'not available in this app yet' (set_passkeyElsewhere) — Needs Credential Manager and Android asset-links. |
-| 3.14 Collaboration | Collaboration marker (GET /threads/{id}/collaboration) | missing | — |
-| 3.14 Collaboration | «@الكل» / @-mention addressing in the composer | missing | conversation_composer.dart has no mention picker; no 'mentions' sent |
 | 3.17 Watches | Entry: agent page, chat menu Watches sheet, schedules, Market | partial | agent_profile_screen.dart, routine_board.dart, market_screen.dart — No Watches sheet in the conversation menu. |
 | 3.20 Onboarding and auth | Intro slides once per device | missing | — |
 | 3.21 Other web-only owner capabilities | Accessibility (text size, higher contrast, reduced motion) | partial | System text scale + disable-animations honoured via MediaQuery — No in-app controls; no high-contrast palette. |
 | 3.21 Other web-only owner capabilities | Storage & data (space used, clear) | partial | Me › Clear cache (me_actions.dart) — No space-used breakdown. |
 | 3.21 Other web-only owner capabilities | Privacy: app lock + hide message text in notifications | partial | notifications_screen.dart set_preview switch — Text hiding done; app lock (code, biometric, auto-lock, cooldown) missing. |
 | 3.21 Other web-only owner capabilities | Agent status & safety sheet (status line, task controls, per-account safety) | partial | agent_profile_screen.dart status line (GET /agents/{id}/state) — No chat-header sheet; 'detailed status' pref unused; controls live in /tasks and cards. |
-| 3.21 Other web-only owner capabilities | Composer extras: camera, drag & drop, paste, voice notes, / commands, Send with Enter, schedule from tools sheet | partial | conversation_composer.dart (camera, photos, files, web search), voice_note_button.dart — Missing: slash commands (task/search/summary/chart/call/clear/skills), tools-sheet entries (new task, schedule, trading mode), image paste. Drag & drop and Send with Enter are desktop-only. |
-| 3.21 Other web-only owner capabilities | Mark all read (POST /threads/read-all) | missing | — |
+| 3.21 Other web-only owner capabilities | Composer extras: camera, drag & drop, paste, voice notes, / commands, Send with Enter, schedule from tools sheet | partial | conversation_composer.dart (camera, photos, files, web search, voice notes, @mentions, / commands) — Missing: tools-sheet entries (new task, schedule, trading). |
 | 3.21 Other web-only owner capabilities | Agent error card (failure family), order sheet, agent steps | partial | conversation_timeline.dart runFailure, run_rows.dart (retry, steps) — Error card and steps done; order sheet (timeline, evidence, broker ticket) missing. |
-| 3.21 Other web-only owner capabilities | Markdown tables, quotes, lists, mentions, bare links | partial | lib/features/rich/markdown_parse.dart, markdown_view.dart — @mention highlighting missing. |
 | 3.21 Other web-only owner capabilities | New version bar / maintenance page | partial | lib/platform/updates/* (in-app update/manifest); about_screen.dart GET /version; api_error.dart 'maintenance' code — No maintenance overlay polling /health. |
 | 3.21 Other web-only owner capabilities | Chat wallpaper | missing | — — Cosmetic. |
 | 4. Security gating | Password step-up + passkey for device enrollment | missing | — — Enrollment not built (3.13). |
@@ -198,12 +181,8 @@ Status: **done** (works against the real server API), **partial** (what is missi
 | 6. Design tokens | High-contrast and opaque-glass fallbacks | missing | — |
 | 6. Design tokens | visual.ts rich-response metrics | partial | lib/features/rich/visual/visual_view.dart — Chart height 200 matches; other metrics come from lib/design. |
 | 7. Endpoint coverage | POST /auth/devices/enrollment[/verify] | missing | — |
-| 7. Endpoint coverage | POST /threads/read-all | missing | — |
-| 7. Endpoint coverage | GET /peer-messages, GET /threads/{id}/collaboration | partial | thread_cards.dart — Collaboration read missing. |
 | 7. Endpoint coverage | GET /market/instruments\|instrument\|quote\|candles\|calendar | partial | market_data.dart — /market/instruments list not called. |
-| 7. Endpoint coverage | Connections create/delete/test/simulation, accounts, execute, journal, approval renew | partial | integrations_data.dart, market_data.dart, cards_actions.dart — All except POST /trading/execute (forbidden by Android safety rule). |
 | 7. Endpoint coverage | GET /voice/sessions/{id}, POST …/interrupt | missing | — |
 | 7. Endpoint coverage | POST /app-opens, GET/DELETE /app-opens | partial | owner_knowledge_screen.dart (GET/DELETE) — POST never sent. |
 | 7. Endpoint coverage | GET /version, GET /health | partial | settings_core_data.dart (GET /version, About) — /health (maintenance overlay) not used. |
-| Billing (not in inventory) | Billing / subscription screens | missing | — — Intentionally not built yet; waits for a server contract. |
 
