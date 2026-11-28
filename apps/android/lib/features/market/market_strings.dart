@@ -1,11 +1,15 @@
 import '../../l10n/l10n.dart';
+import '../trading/trading_strings.dart';
 
 /// Android-only labels of the Market tab. Where the Web already words the same thing (apps/web
 /// pages/Market.tsx, components/market/*, shell/agent/TradesPage.tsx and its ar catalog), its
 /// wording is reused; Lonora's existing keys (bid, ask, quote, symbol, timeframe, simulation,
 /// brokerAccount, chooseBrokerAccount, searchBrokerSymbols…) are used directly.
+/// The owner's order labels (lib/features/trading) come with them: the Market tab offers its
+/// orders.
 void registerMarketStrings([L10n? l10n]) {
   final target = l10n ?? L10n.instance;
+  registerTradingStrings(target);
   if (target.has('mk_positions')) return;
   target.register(_marketStrings);
 }
@@ -42,10 +46,6 @@ const Map<String, List<String>> _marketStrings = {
   'mk_linkAccount': [
     'اربط حساب تداول أولًا من الإعدادات.',
     'Link a trading account from Settings first.',
-  ],
-  'mk_viewOnly': [
-    'للاطلاع فقط: لا يُرسَل أي أمر من هنا.',
-    'View only: no order is sent from here.',
   ],
   'mk_noPositions': ['لا توجد صفقات مفتوحة.', 'No open positions.'],
   'mk_noSymbols': [

@@ -1,6 +1,7 @@
 // Android-only labels of the platform package (notification channels, the update prompt).
 // Lonora's own keys are reused where they exist (`sh_updates`, `newMessage`, `reply`,
 // `download`); the Arabic of the update texts follows apps/web/src/i18n/locales/ar.
+import '../features/trading/trading_strings.dart';
 import '../l10n/l10n.dart';
 
 L10n? _registeredFor;
@@ -11,6 +12,8 @@ void registerPlatformStrings([L10n? l10n]) {
   if (identical(_registeredFor, target)) return;
   _registeredFor = target;
   target.register(_strings);
+  // «التعطل والاستعادة» names the button of a broker health heads-up.
+  registerTradingStrings(target);
 }
 
 const _strings = <String, List<String>>{

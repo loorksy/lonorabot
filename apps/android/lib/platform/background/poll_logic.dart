@@ -376,7 +376,10 @@ PollResult computePoll(
           fallbackTitle,
         ),
         lines: [NoteLine(text)],
-        payload: NotificationPayload.attention(threadId: threadId),
+        // A broker health problem opens «التعطل والاستعادة» (the heads-up's own target).
+        payload: brokerHealthCodes.contains(code)
+            ? NotificationPayload.recovery(account: attentionAccount(item))
+            : NotificationPayload.attention(threadId: threadId),
         threadId: threadId,
         when: created,
       ),

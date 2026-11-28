@@ -1,13 +1,16 @@
 // What a Lonora notification carries and where its tap goes. Pure: unit-tested, and shared by
 // the app isolate and the background (WorkManager) isolate.
 //
-// A payload names only a conversation, the card's position in it, or the call, never money
-// facts and never an action: a tap opens the conversation, where the live record decides
-// (apps/mobile/lib/push.native.ts:66-80, VISION 11.4). No notification approves anything.
+// A payload names only a conversation, the card's position in it, the call, or the broker
+// connection whose health failed, never money facts and never an action: a tap opens the
+// conversation, where the live record decides (apps/mobile/lib/push.native.ts:66-80, VISION
+// 11.4), or «التعطل والاستعادة» for a broker health problem (apps/web HeadsUp.tsx). No
+// notification approves or sends anything.
 import 'dart:convert';
 
 import '../../app/routes.dart';
 import '../../core/json.dart';
+import '../../features/trading/recovery_link.dart';
 
 /// Android notification channels (created at start-up, names in the app's language).
 abstract final class LnChannels {
@@ -39,7 +42,7 @@ abstract final class LnNotificationGroups {
   static const attention = 'ai.lonora.android.ATTENTION';
 }
 
-enum NotificationTarget { thread, attention, agent, call, update }
+enum NotificationTarget { thread, attention, agent, call, update, recovery }
 
 /// The data a notification tap brings back.
 class NotificationPayload {
@@ -59,6 +62,10 @@ class NotificationPayload {
 
   /// An available update: the tap opens the update sheet (nothing installs from a tap).
   const NotificationPayload.update() : this._(NotificationTarget.update);
+
+  /// A broker health problem: the tap opens «التعطل والاستعادة» on [account] when known.
+  const NotificationPayload.recovery({String? account})
+    : this._(NotificationTarget.recovery, id: account);
 
   final NotificationTarget target;
   final String? id;
@@ -95,6 +102,7 @@ class NotificationPayload {
         id == null ? null : NotificationPayload.agent(id),
       NotificationTarget.call => const NotificationPayload.call(),
       NotificationTarget.update => const NotificationPayload.update(),
+      NotificationTarget.recovery => NotificationPayload.recovery(account: id),
     };
   }
 
@@ -105,6 +113,7 @@ class NotificationPayload {
     NotificationTarget.attention =>
       id == null ? Routes.attention : Routes.thread(id!, around: around),
     NotificationTarget.agent => Routes.agent(id!),
+    NotificationTarget.recovery => recoveryLocation(account: id),
     NotificationTarget.call || NotificationTarget.update => null,
   };
 

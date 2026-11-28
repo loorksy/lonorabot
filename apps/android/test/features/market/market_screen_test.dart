@@ -1,5 +1,6 @@
-// Market tab: data helpers, the account strip, followed markets, read-only positions, watches
-// with the owner's brake, the symbol search and sheet, empty / error states; goldens.
+// Market tab: data helpers, the account strip, followed markets, positions and pending orders
+// with the owner's own orders (each behind its review), watches with the owner's brake, the
+// symbol search and sheet, the outage notice, empty / error states; goldens.
 //
 // Regenerate goldens with: flutter test --update-goldens test/features/market
 import 'dart:async';
@@ -220,7 +221,7 @@ void main() {
     });
   });
 
-  testWidgets('shows the account, followed markets and read-only positions', (
+  testWidgets('shows the account, followed markets and positions', (
     tester,
   ) async {
     scriptMarket();
@@ -239,8 +240,13 @@ void main() {
     expect(find.text('Simulation · imported snapshot'), findsOneWidget);
     await scrollTo(tester, find.text('Positions'));
     expect(find.textContaining('Open price'), findsWidgets);
-    expect(find.text('View only: no order is sent from here.'), findsOneWidget);
-    // Nothing on this screen may reach the order executor.
+    expect(
+      find.text(
+        'Every order from here is your own and is sent only after you review and confirm it.',
+      ),
+      findsOneWidget,
+    );
+    // Nothing on this screen reaches the order executor by itself.
     expect(fakeApi.calls.where((c) => c.path.contains('execute')), isEmpty);
     expect(fakeApi.calls.where((c) => c.method != 'GET'), isEmpty);
     await unmount(tester);

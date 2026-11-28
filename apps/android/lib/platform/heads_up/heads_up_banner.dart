@@ -1,7 +1,8 @@
 // The heads-up banner: the kit's top toast (an inverse-surface stadium, with a warning-colour disc
 // for items that need the owner) carrying Lonora's heads-up content
 // (apps/mobile/components/heads-up.tsx): the conversation's avatar and name, «{speaker}:» and the
-// words, and «رد». Tap opens the conversation, swipe up dismisses, press holds.
+// words, and «رد». Tap opens the conversation (a broker health problem: «التعطل والاستعادة», its
+// button reading that name), swipe up dismisses, press holds.
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
@@ -32,6 +33,7 @@ class HeadsUpBannerView extends StatelessWidget {
     this.kind = HeadsUpKind.message,
     this.onOpen,
     this.onHold,
+    this.actionLabel,
   });
 
   final String title;
@@ -39,6 +41,9 @@ class HeadsUpBannerView extends StatelessWidget {
   final String? who;
   final Widget avatar;
   final HeadsUpKind kind;
+
+  /// The button's word; «رد» by default.
+  final String? actionLabel;
   final VoidCallback? onOpen;
   final ValueChanged<bool>? onHold;
 
@@ -47,7 +52,7 @@ class HeadsUpBannerView extends StatelessWidget {
     final ln = context.ln;
     final c = ln.colors;
     final line = ln.text.footnote.copyWith(color: c.onInverseMuted);
-    final reply = context.t('reply');
+    final reply = actionLabel ?? context.t('reply');
     final label = headsUpLabel(title, who, text);
     // Not a live region: the layer announces each banner once (TalkBack would read it twice).
     return Semantics(
@@ -313,7 +318,7 @@ class _HeadsUpLayerState extends State<HeadsUpLayer> {
   void _open(HeadsUpBanner banner) {
     widget.controller.dismiss();
     PlatformNavigation.open(
-      Routes.thread(banner.threadId, around: banner.around),
+      banner.location ?? Routes.thread(banner.threadId, around: banner.around),
     );
   }
 
@@ -365,6 +370,9 @@ class _HeadsUpLayerState extends State<HeadsUpLayer> {
                 ),
                 onOpen: () => _open(banner),
                 onHold: widget.controller.hold,
+                actionLabel: banner.location == null
+                    ? null
+                    : context.t('rc_title'),
               ),
             ),
           ),

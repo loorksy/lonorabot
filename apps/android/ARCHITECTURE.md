@@ -17,7 +17,7 @@ phone is closed.
 | HTTP | `dio` (`lib/core/api/api_client.dart`): bearer token, session generation fencing |
 | Realtime | `dart:io` WebSocket on `/api/ws/events` (`lib/core/realtime/event_stream.dart`) |
 | Secure storage | `flutter_secure_storage` (Android Keystore) for the session token |
-| Local cache | JSON documents per server+owner (`lib/core/storage/local_store.dart`) |
+| Local cache | JSON documents per server+owner (`lib/core/storage/local_store.dart`); held order identities in one of them (`held_operations.dart`), kept across «مسح ذاكرة التخزين المؤقت» |
 | Notifications | `flutter_local_notifications` + `workmanager` (attention polling fallback) |
 
 ## Layout
@@ -54,11 +54,18 @@ lib/
   `start/end`; mirror directional icons; isolate numbers/tickers/URLs with the l10n helpers.
 - **Design**: only `lib/design` tokens and components (`context.ln`). No raw colours, no
   default Material look (AppBar/ListTile/FAB). Light and dark must both be correct.
-- **Safety** (docs/android/analysis/lonora-api-contract.md §19): never call
-  `POST /api/trading/execute`, `POST /api/runs`, `/api/webhook`, broker connection create/delete
-  or global model routing writes from routine UI; never display or log secret values; cards,
-  notifications and calls never approve, settle or switch a trading mode — only an explicit
-  owner tap on the corresponding card does.
+- **Safety** (docs/android/analysis/lonora-api-contract.md §19): `POST /api/trading/execute` is
+  called from one place only, `lib/features/trading/trades_data.dart`, and only from the owner's
+  confirmed review sheet of their own order (open an order, edit stop and target, close a trade,
+  cancel a pending order, or check a held one's result); never from agents, agent-written
+  content (cards, generated UI, chat commands, voice), notifications, calls, deep links,
+  background work, automatic retries or tests (tests use the fake API). Each ticket action keeps
+  one `operation_id` with its exact body until its outcome settles (or a refusal proves nothing
+  was journaled under it); a retry resends that id with the same body, and a check never sends
+  under a new one. Never call `POST /api/runs`, `/api/webhook`, broker connection
+  create/delete or global model routing writes from routine UI; never display or log secret
+  values; cards, notifications and calls never approve, settle or switch a trading mode — only
+  an explicit owner tap on the corresponding card does.
 
 ## Realtime and offline model
 

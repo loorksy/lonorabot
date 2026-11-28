@@ -452,6 +452,40 @@ void main() {
       expect(find.text('stub:/agent/a-gold/settings'), findsOneWidget);
     });
 
+    testWidgets('«Outage and recovery» of the account: its state while down', (
+      tester,
+    ) async {
+      final api = await pumpPage(
+        tester,
+        const BrokerAccountPage(connectionId: 'c-exness'),
+        routes: (api) {
+          accountRoutes(api);
+          api.on(
+            'GET /trading/connections',
+            (_) => [
+              {
+                ...connectionsJson.first,
+                'state': {
+                  ...(connectionsJson.first['state']! as Map<String, Object?>),
+                  'broker_recovery': {'status': 'recovering'},
+                },
+              },
+              ...connectionsJson.skip(1),
+            ],
+          );
+        },
+      );
+      final row = find.text('Outage and recovery');
+      await scrollTo(tester, row);
+      expect(find.text('Reconnecting'), findsOneWidget);
+      await tapAndSettle(tester, row);
+      expect(
+        find.text('stub:/settings/recovery?account=c-exness'),
+        findsOneWidget,
+      );
+      expect(api.calls.where((c) => c.method != 'GET'), isEmpty);
+    });
+
     testWidgets('unlinking says what happens and asks first', (tester) async {
       final api = await pumpPage(
         tester,

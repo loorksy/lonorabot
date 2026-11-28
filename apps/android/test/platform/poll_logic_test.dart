@@ -243,6 +243,20 @@ void main() {
           poll(state(), attention: [pushCode]).notes.single.channel,
           LnChannels.attention,
         );
+        // A broker health problem opens «التعطل والاستعادة», as its heads-up does.
+        expect(
+          poll(state(), attention: [pushCode]).notes.single.payload,
+          const NotificationPayload.recovery(),
+        );
+        final withAccount = attentionJson(
+          'a3',
+          code: 'broker_token_rejected',
+          parameters: {'account_id': 'acct-9'},
+        );
+        expect(
+          poll(state(), attention: [withAccount]).notes.single.payload.location,
+          '/settings/recovery?account=acct-9',
+        );
         final info = attentionJson(
           'a2',
           code: 'agent_notification',

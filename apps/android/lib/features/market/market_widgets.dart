@@ -260,7 +260,8 @@ class CardIcon extends StatelessWidget {
   }
 }
 
-/// One label · value line of a facts list (quote, instrument), the value left to right.
+/// One label · value line of a facts list (quote, instrument, an order's review), the value left
+/// to right; one semantics node per line.
 class FactRow extends StatelessWidget {
   const FactRow({super.key, required this.label, required this.value});
 
@@ -272,6 +273,7 @@ class FactRow extends StatelessWidget {
     final ln = context.ln;
     final c = ln.colors;
     return Semantics(
+      container: true,
       label: '$label: $value',
       excludeSemantics: true,
       child: Padding(

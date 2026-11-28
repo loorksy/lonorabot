@@ -1286,7 +1286,7 @@ workspace running (+stop, stop-all), `/ws/events`.
 
 | Route | Why | Evidence |
 |---|---|---|
-| POST `/api/trading/execute` | direct broker order outside the agent/approval path; Expo app never calls it | `R/trading.py:97-106` |
+| POST `/api/trading/execute` | direct broker order outside the agent/approval path; the Expo app never calls it. The Android client calls it only from the owner's confirmed review sheet of their own order, never from agents, background work, deep links or tests (apps/android/ARCHITECTURE.md, Safety) | `R/trading.py:97-106` |
 | POST/DELETE `/api/trading/connections`, POST `/simulation` | broker credentials / account removal | `R/trading.py:47-94` |
 | POST `/api/runs` | low-level run creation with arbitrary `trigger`/`metadata` | `R/runs.py:46-51` |
 | POST `/api/webhook` | server-to-server HMAC | `R/webhook.py` |

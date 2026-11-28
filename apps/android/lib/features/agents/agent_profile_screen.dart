@@ -29,6 +29,7 @@ import '../../state/app_state.dart';
 import '../../state/realtime.dart';
 import '../routines/routines_data.dart';
 import '../routines/routines_strings.dart';
+import '../trading/trading_strings.dart';
 import '../settings/settings_common.dart'
     show
         LnRefresh,
@@ -349,6 +350,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     final l10n = context.l10n;
     registerAgentStrings(l10n);
     registerRoutinesStrings(l10n);
+    registerTradingStrings(l10n);
     final ln = context.ln;
     final agent = context.select((AppState s) => s.shell.agents[_id]);
     final running = context.select(
@@ -495,6 +497,14 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
             trailing: const TileChevron(),
             onTap: () => context.push(Routes.charts(agentId: agent.id)),
           ),
+          // «الصفقات» (apps/web AgentPage.tsx: `trader || agent.trading_symbol`).
+          if (trader || (agent.tradingSymbol ?? '').isNotEmpty)
+            WrapTile(
+              icon: FIcons.chartLine,
+              title: l10n.t('tr_title'),
+              trailing: const TileChevron(),
+              onTap: () => context.push(Routes.agentTrades(agent.id)),
+            ),
         ],
       ),
       const SizedBox(height: LnSpace.lg),

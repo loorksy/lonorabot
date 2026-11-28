@@ -135,6 +135,12 @@ class ApiClient {
   }) => _send('GET', path, query: query, timeout: timeout);
   Future<dynamic> post(String path, [Object? body]) =>
       _send('POST', path, body: body ?? const <String, Object?>{});
+
+  /// A POST whose answer may take longer than the default 30 s receive timeout: the owner's
+  /// order (`POST /trading/execute`), which the broker relay holds up to 60 s. A separate
+  /// method, so the test fakes' `post` overrides stay valid.
+  Future<dynamic> postWithin(String path, Object body, Duration timeout) =>
+      _send('POST', path, body: body, timeout: timeout);
   Future<dynamic> put(String path, [Object? body]) =>
       _send('PUT', path, body: body ?? const <String, Object?>{});
   Future<dynamic> patch(String path, [Object? body]) =>

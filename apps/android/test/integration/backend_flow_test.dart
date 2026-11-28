@@ -25,6 +25,25 @@ import 'package:lonora/state/app_state.dart';
 import 'package:lonora/state/realtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// The real client, refusing any order: this flow must never reach the broker.
+class NoOrderApiClient extends ApiClient {
+  NoOrderApiClient() : super(userAgent: 'Lonora-Android/test');
+
+  static const _order = '/trading/execute';
+
+  @override
+  Future<dynamic> post(String path, [Object? body]) {
+    if (path.contains(_order)) throw StateError('order attempted: $path');
+    return super.post(path, body);
+  }
+
+  @override
+  Future<dynamic> postWithin(String path, Object body, Duration timeout) {
+    if (path.contains(_order)) throw StateError('order attempted: $path');
+    return super.postWithin(path, body, timeout);
+  }
+}
+
 class MemorySecureStore extends SecureStore {
   MemorySecureStore() : super(const FlutterSecureStorage());
   StoredSession? session;
@@ -84,7 +103,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final dir = await Directory.systemTemp.createTemp('lonora_it');
     await registerServices(
-      apiClient: ApiClient(userAgent: 'Lonora-Android/test'),
+      apiClient: NoOrderApiClient(),
       secure: MemorySecureStore(),
       local: LocalStore.at(dir),
       prefs: await SharedPreferences.getInstance(),

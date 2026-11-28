@@ -35,7 +35,8 @@ const testOwner = Owner(id: 'owner-1', email: 'owner@example.com');
 typedef ApiCall = ({String method, String path, Object? body});
 
 /// Answers requests from [routes] (`'GET /owner/profile'` → handler). A handler may throw an
-/// `ApiError`. Unknown GETs answer an empty object; unknown writes answer `{}` too.
+/// `ApiError`. Unknown GETs answer an empty object; unknown writes answer `{}` too, except an
+/// order (`POST /trading/execute`), which fails loudly.
 class ScriptedApi extends ApiClient {
   ScriptedApi() : super(userAgent: 'Lonora-Android/test');
 
@@ -51,7 +52,13 @@ class ScriptedApi extends ApiClient {
   Future<dynamic> _answer(String method, String path, Object? body) async {
     calls.add((method: method, path: path, body: body));
     final handler = routes['$method $path'];
-    if (handler == null) return <String, Object?>{};
+    if (handler == null) {
+      // An order is never answered by default: only a test's own handler may.
+      if (path == '/trading/execute') {
+        throw StateError('unexpected $method $path');
+      }
+      return <String, Object?>{};
+    }
     return handler(body);
   }
 
@@ -69,6 +76,10 @@ class ScriptedApi extends ApiClient {
 
   @override
   Future<dynamic> post(String path, [Object? body]) =>
+      _answer('POST', path, body);
+
+  @override
+  Future<dynamic> postWithin(String path, Object body, Duration timeout) =>
       _answer('POST', path, body);
 
   @override
@@ -234,6 +245,7 @@ GoRouter testRouter(
     '/charts',
     Routes.ownerKnowledge,
     Routes.settings,
+    Routes.recovery,
     Routes.account,
     Routes.integrations,
     Routes.models,

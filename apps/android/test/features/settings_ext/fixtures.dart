@@ -457,15 +457,15 @@ final summaryJson = {
   'cached_tokens': 7100000,
 };
 
-/// An instant on today's local date ([daysAgo] days back) at a fixed local time. The running
-/// page reads its times against the real clock («today 11:02 AM», «yesterday 6:15 PM»), so its
+/// An instant on today's local date at a fixed local time. The running page reads its times
+/// against the real clock (the time alone today, the date with it on another day), so its
 /// fixtures follow the date and its goldens hold on any day.
-String todayAt(int hour, int minute, {int second = 0, int daysAgo = 0}) {
+String todayAt(int hour, int minute, {int second = 0}) {
   final now = DateTime.now();
   return DateTime(
     now.year,
     now.month,
-    now.day - daysAgo,
+    now.day,
     hour,
     minute,
     second,
@@ -498,7 +498,9 @@ final runningJson = {
       'agent_id': 'a-research',
       'agent_name': 'Research Desk',
       'command': 'node scrape.js https://example.com/report',
-      'started_at': todayAt(18, 15, daysAgo: 1),
+      // Another day, of a past year: its label («May 2, 2025 6:15 PM») is the same
+      // whatever day the goldens run.
+      'started_at': DateTime(2025, 5, 2, 18, 15).toUtc().toIso8601String(),
       'stopping': false,
     },
   ],

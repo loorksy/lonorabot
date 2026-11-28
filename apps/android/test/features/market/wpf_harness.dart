@@ -45,7 +45,8 @@ typedef Handler = Object? Function(Object? body, Map<String, Object?>? query);
 
 /// Answers requests from [handlers] (`'GET /charts'` → body; a handler may throw an
 /// [ApiError]) and records every call. Unknown reads answer `[]` for list routes is not
-/// guessed: they answer `{}`. [files] answers `bytes`/`downloadTo` by path.
+/// guessed: they answer `{}`. An unscripted order (`POST /trading/execute`) fails loudly.
+/// [files] answers `bytes`/`downloadTo` by path.
 class FakeApi extends ApiClient {
   FakeApi() : super(userAgent: 'test') {
     configure(server: 'http://test', token: 'token');
@@ -65,7 +66,13 @@ class FakeApi extends ApiClient {
   }) async {
     calls.add((method: method, path: path, body: body, query: query));
     final handler = handlers['$method $path'];
-    if (handler == null) return <String, Object?>{};
+    if (handler == null) {
+      // An order is never answered by default: only a test's own handler may.
+      if (path == '/trading/execute') {
+        throw StateError('unexpected $method $path');
+      }
+      return <String, Object?>{};
+    }
     return handler(body, query);
   }
 
@@ -83,6 +90,10 @@ class FakeApi extends ApiClient {
 
   @override
   Future<dynamic> post(String path, [Object? body]) =>
+      _answer('POST', path, body: body);
+
+  @override
+  Future<dynamic> postWithin(String path, Object body, Duration timeout) =>
       _answer('POST', path, body: body);
 
   @override
@@ -194,9 +205,10 @@ Future<void> setUpWpf() async {
   registerAppStrings();
 }
 
-Future<void> resetWpf() async {
+/// [api] replaces the lenient [FakeApi] (the order tests answer unknown routes with an error).
+Future<void> resetWpf({FakeApi? api}) async {
   SharedPreferences.setMockInitialValues({});
-  fakeApi = FakeApi();
+  fakeApi = api ?? FakeApi();
   await registerServices(
     apiClient: fakeApi,
     secure: _MemorySecureStore(),
@@ -298,6 +310,8 @@ GoRouter wpfRouter(
       GoRoute(path: '/files/:id/image', builder: stub),
       GoRoute(path: '/charts', builder: stub),
       GoRoute(path: '/settings/integrations', builder: stub),
+      GoRoute(path: '/settings/recovery', builder: stub),
+      GoRoute(path: '/agent/:id', builder: stub),
       GoRoute(path: '/market', builder: stub),
       GoRoute(path: '/me', builder: stub),
       GoRoute(path: '/chats', builder: stub),

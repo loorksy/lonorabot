@@ -3,12 +3,13 @@
 // full-width recommendation cards. Content is Lonora's (apps/web pages/Market.tsx,
 // components/market/*, shell/agent/TradesPage.tsx; apps/mobile app/charts.tsx): the account
 // snapshot, the markets the owner follows with quotes and the day's change, symbol search, open
-// positions and pending orders (read-only), opportunities, watches (with the owner's Pause / Resume
-// / Cancel brake), the economic calendar and the order log, with links into charts and agent
-// conversations.
+// positions and pending orders with the owner's own edit, close and cancel, opportunities, watches
+// (with the owner's Pause / Resume / Cancel brake), the economic calendar and the order log, with
+// links into charts, agent conversations and «التعطل والاستعادة» when the account is down.
 //
-// SAFETY: view only. No order is placed, changed or closed from here; nothing calls
-// `/trading/execute`. Paper (simulation) and broker accounts are labelled.
+// SAFETY: an order is placed, changed, closed or cancelled only from the owner's tap on a review
+// sheet (lib/features/trading/trade_flows.dart, trade_sheets.dart); nothing on this screen calls
+// `/trading/execute` by itself. Paper (simulation) and broker accounts are labelled.
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -32,6 +33,13 @@ import '../../state/realtime.dart';
 import '../charts/charts_data.dart' show createChart;
 import '../settings/settings_common.dart'
     show LnRefresh, LoadFailure, errorMessage, showErrorToast;
+import '../trading/recovery_link.dart';
+import '../trading/trade_flows.dart';
+import '../trading/trade_rules.dart' show heldKey;
+import '../trading/trade_sheets.dart' show showOrderTicket;
+import '../trading/trade_text.dart';
+import '../trading/trade_widgets.dart';
+import '../trading/trades_data.dart';
 import 'market_data.dart';
 import 'market_kit.dart';
 import 'market_widgets.dart';
@@ -105,6 +113,7 @@ class _MarketScreenState extends State<MarketScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_load());
+    OrderDesk.instance.addListener(_onDesk);
     _timer = Timer.periodic(MarketScreen.quoteEvery, (_) {
       if (_visible) unawaited(_pollQuotes());
     });
@@ -129,11 +138,17 @@ class _MarketScreenState extends State<MarketScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    OrderDesk.instance.removeListener(_onDesk);
     _ticker?.removeListener(_scheduleFlush);
     _timer?.cancel();
     _debounce?.cancel();
     unawaited(_events?.cancel());
     super.dispose();
+  }
+
+  /// An order's state changed (sent, answered, released): its card says so.
+  void _onDesk() {
+    if (mounted) setState(() {});
   }
 
   /// In front: the app in the foreground and this tab shown.
@@ -325,7 +340,137 @@ class _MarketScreenState extends State<MarketScreen>
       }
       _symbols = _followed();
     });
+    await _settleOrders(account, results[0], results[1]);
     await _loadMarkets(gen, all: all);
+  }
+
+  /// Releases the held order identities the fresh journal settled, and those of tickets the
+  /// fresh account no longer lists.
+  Future<void> _settleOrders(
+    String account,
+    Object? snapshot,
+    Object? journal,
+  ) async {
+    final scope = _scope;
+    if (scope == null || journal is! List<JournalEntry>) return;
+    final desk = OrderDesk.instance;
+    await desk.settle(scope, account, journal);
+    if (snapshot is AccountSnapshot) {
+      await desk.dropGone(scope, account, snapshot, journal);
+    }
+  }
+
+  String? get _scope =>
+      orderScope(StoreProvider.state<AppState>(context, notify: false).session);
+
+  /// The current account as the order flows see it.
+  TradeAccount? get _tradeAccount {
+    final scope = _scope;
+    final connection = _connection;
+    if (scope == null || connection == null) return null;
+    return TradeAccount(
+      scope: scope,
+      id: connection.id,
+      label: _accountLabel(connection),
+      simulation: connection.isSimulation,
+      snapshot: _snapshot,
+      recovery: connection.recovery,
+      journal: _journal,
+    );
+  }
+
+  /// After an order: the account and its order log again.
+  void _ordersChanged() {
+    if (mounted) unawaited(_loadAccount(_generation, all: false));
+  }
+
+  void _openRecovery() {
+    final account = _account;
+    unawaited(context.push(recoveryLocation(account: account)));
+  }
+
+  /// A position's actions: «تعديل الوقف والهدف», «إغلاق الصفقة» (or «تحقق من نتيجة الإغلاق»
+  /// while a close is held), and its market. Each order passes its review.
+  Future<void> _positionMenu(MarketPosition p) async {
+    final a = _tradeAccount;
+    if (a == null) return _openSymbol(p.symbol);
+    await OrderDesk.instance.load(a.scope);
+    if (!mounted) return;
+    final l10n = context.l10n;
+    final state = positionState(a, p);
+    // While the broker refuses trading, only a held close or edit can still be checked.
+    final edit = !state.busy && (!a.notAllowed || state.editHeld);
+    final close = !state.busy && (!a.notAllowed || state.closeHeld);
+    final action = await showLnActionMenu<String>(
+      context,
+      title: '${ltr(p.symbol)} · ${sideWord(l10n, p.side)} ${ltr(p.volume)}',
+      actions: [
+        LnMenuAction(
+          label: l10n.t('tr_editStopTarget'),
+          icon: FIcons.shieldCheck,
+          value: 'edit',
+          enabled: edit,
+        ),
+        LnMenuAction(
+          label: l10n.t(
+            state.closeHeld ? 'tr_checkCloseResult' : 'tr_closeTrade',
+          ),
+          icon: FIcons.circleX,
+          value: 'close',
+          destructive: true,
+          enabled: close,
+        ),
+        LnMenuAction(
+          label: l10n.t('tr_viewMarket'),
+          icon: FIcons.chartLine,
+          value: 'market',
+        ),
+      ],
+    );
+    if (action == null || !mounted) return;
+    switch (action) {
+      case 'edit':
+        await editStopTarget(context, a, p, onDone: _ordersChanged);
+      case 'close':
+        await confirmClose(context, a, p, onDone: _ordersChanged);
+      default:
+        await _openSymbol(p.symbol);
+    }
+  }
+
+  /// A pending order's actions: «إلغاء الأمر» (or «تحقق من نتيجة الإلغاء»), and its market.
+  Future<void> _orderMenu(MarketOrder o) async {
+    final a = _tradeAccount;
+    if (a == null) return _openSymbol(o.symbol);
+    await OrderDesk.instance.load(a.scope);
+    if (!mounted) return;
+    final l10n = context.l10n;
+    final state = orderCardState(a, o);
+    final action = await showLnActionMenu<String>(
+      context,
+      title:
+          '${ltr(o.symbol)} · ${orderKindWord(l10n, o.side)} ${ltr(o.volume)}',
+      actions: [
+        LnMenuAction(
+          label: l10n.t(state.held ? 'tr_checkCancelResult' : 'tr_cancelOrder'),
+          icon: FIcons.circleX,
+          value: 'cancel',
+          destructive: true,
+          enabled: !state.blocked,
+        ),
+        LnMenuAction(
+          label: l10n.t('tr_viewMarket'),
+          icon: FIcons.chartLine,
+          value: 'market',
+        ),
+      ],
+    );
+    if (action == null || !mounted) return;
+    if (action == 'cancel') {
+      await confirmCancel(context, a, o, onDone: _ordersChanged);
+    } else {
+      await _openSymbol(o.symbol);
+    }
   }
 
   List<String> _followed() {
@@ -507,6 +652,15 @@ class _MarketScreenState extends State<MarketScreen>
             kind: LnToastKind.positive,
           );
         }
+      case OpenTicketResult():
+        await showOrderTicket(
+          context,
+          connections: _connections ?? const [],
+          accountId: account,
+          symbol: symbol,
+          label: _accountLabel,
+          onChanged: _ordersChanged,
+        );
       case OpenAgentResult(:final agent):
         await _openAgent(agent.id);
     }
@@ -922,6 +1076,7 @@ class _MarketScreenState extends State<MarketScreen>
       ),
     );
 
+    final recovery = connection?.recovery;
     final children = <Widget>[
       header,
       const SizedBox(height: LnSpace.xs),
@@ -929,6 +1084,24 @@ class _MarketScreenState extends State<MarketScreen>
       strip,
       if (connection?.isSimulation ?? false)
         Footnote(context.t('mk_simulationNote'), icon: FIcons.flaskConical),
+      // The account is not connected: «التعطل والاستعادة» says why and offers a retry.
+      if (recovery != null && recovery.down)
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            LnSpace.pageGutter,
+            LnSpace.sm,
+            LnSpace.pageGutter,
+            0,
+          ),
+          child: TradeNotice(
+            title: context.t('rc_dropped'),
+            text:
+                '${context.t('rc_state')}: ${recoveryStatusName(l10n, recovery.status)}',
+            icon: FIcons.unplug,
+            onTap: _openRecovery,
+            linkLabel: context.t('rc_title'),
+          ),
+        ),
     ];
 
     Widget cards(List<Widget> items) => Padding(
@@ -951,10 +1124,35 @@ class _MarketScreenState extends State<MarketScreen>
       child: SectionHeader(title: title, onTap: onTap),
     );
 
-    // Positions and pending orders (read-only).
+    // Positions and pending orders, with the owner's own orders (each one reviewed first).
+    final trade = _tradeAccount;
+    String? outcomeLine(String? key) {
+      if (trade == null || key == null) return null;
+      final o = OrderDesk.instance.outcome(trade.scope, key, _journal);
+      return o == null
+          ? null
+          : operationStatusText(o.status, o.details, l10n.lang);
+    }
+
     if (snapshot != null) {
       final positions = snapshot.positions;
       children.add(section(context.t('mk_positions')));
+      final paused = trade == null
+          ? null
+          : pausedNotice(context, trade, onRecovery: _openRecovery);
+      if (paused != null) {
+        children.add(
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              LnSpace.pageGutter,
+              0,
+              LnSpace.pageGutter,
+              LnSpace.xs,
+            ),
+            child: paused,
+          ),
+        );
+      }
       if (positions.isEmpty) {
         children.add(Footnote(context.t('mk_noPositions'), underHeader: true));
       } else {
@@ -972,8 +1170,16 @@ class _MarketScreenState extends State<MarketScreen>
                   '${context.t('mk_openPrice')} ${ltr(marketNumber(p.openPrice))}',
                   if (p.profit != null)
                     '${context.t('mk_profit')} ${ltr('${signedMoney(p.profit!)} ${snapshot.currency}')}',
+                  ?outcomeLine(
+                    trade == null
+                        ? null
+                        : OrderDesk.instance.lastOn(
+                            trade.scope,
+                            positionCard(trade.id, p.id),
+                          ),
+                  ),
                 ].join(dotSeparator),
-                onTap: () => _openSymbol(p.symbol),
+                onTap: () => _positionMenu(p),
               ),
           ]),
         );
@@ -991,14 +1197,22 @@ class _MarketScreenState extends State<MarketScreen>
                   ),
                   title:
                       '${ltr(o.symbol)} · ${tradeActionText(l10n.lang)[o.side] ?? context.t(o.isSell ? 'mk_sell' : 'mk_buy')} ${ltr(o.volume)}',
-                  subtitle:
-                      '${context.t('orderPrice')} ${ltr(marketNumber(o.price))}',
-                  onTap: () => _openSymbol(o.symbol),
+                  subtitle: [
+                    '${context.t('orderPrice')} ${ltr(marketNumber(o.price))}',
+                    ?outcomeLine(
+                      trade == null
+                          ? null
+                          : heldKey('cancel_order', trade.id, o.id),
+                    ),
+                  ].join(dotSeparator),
+                  onTap: () => _orderMenu(o),
                 ),
             ]),
           );
       }
-      children.add(Footnote(context.t('mk_viewOnly'), icon: FIcons.eye));
+      children.add(
+        Footnote(context.t('tr_confirmNote'), icon: FIcons.shieldCheck),
+      );
     }
 
     // Opportunities that still stand.

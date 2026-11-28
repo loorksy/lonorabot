@@ -247,15 +247,28 @@ abstract final class PlatformServices {
     if (!force && last != null && now.difference(last).inSeconds < 60) return;
     _beatAt = now;
     final previous = await store.read();
-    await store.write(
-      foregroundSnapshot(
-        state,
-        now: now,
-        foreground: foreground,
-        previous: previous,
-        rules: HeadsUpController.instance.rules,
-      ),
+    final next = foregroundSnapshot(
+      state,
+      now: now,
+      foreground: foreground,
+      previous: previous,
+      rules: HeadsUpController.instance.rules,
     );
+    await store.write(next);
+    // A conversation read since the last beat (here, «mark all as read», or on another device)
+    // drops out of [PollState.notified]: its tray notification goes too.
+    if (previous != null &&
+        previous.ownerId == next.ownerId &&
+        previous.server == next.server) {
+      for (final id in previous.notified.keys) {
+        if (!next.notified.containsKey(id)) {
+          await LnNotifications.cancelThread(
+            id,
+            remaining: next.notified.length,
+          );
+        }
+      }
+    }
   }
 
   static void _resumed() {
