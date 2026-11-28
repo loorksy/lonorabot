@@ -69,12 +69,8 @@ class MenuPillButton extends StatelessWidget {
             ),
             shadows: ln.chromeShadow,
           ),
-          child: AnimatedSize(
-            duration: MediaQuery.disableAnimationsOf(context)
-                ? Duration.zero
-                : LnMotion.medium,
-            curve: LnMotion.emphasized,
-            alignment: AlignmentDirectional.centerStart,
+          child: _maybeAnimatedSize(
+            animate: !MediaQuery.disableAnimationsOf(context),
             child: SizedBox(
               height: LnSize.headerCircle,
               child: counted
@@ -108,3 +104,15 @@ class MenuPillButton extends StatelessWidget {
     );
   }
 }
+
+/// The pill grows with [LnMotion.medium]; with animations off it just takes its new width
+/// (AnimatedSize asserts on a zero duration in some layouts).
+Widget _maybeAnimatedSize({required bool animate, required Widget child}) =>
+    animate
+    ? AnimatedSize(
+        duration: LnMotion.medium,
+        curve: LnMotion.emphasized,
+        alignment: AlignmentDirectional.centerStart,
+        child: child,
+      )
+    : child;

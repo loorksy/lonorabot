@@ -77,6 +77,8 @@ class DeepLinks {
   final _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSub;
   StreamSubscription<dynamic>? _shareSub;
+  StreamSubscription<AppState>? _sessionSub;
+  String? _held;
 
   void start() {
     _linkSub = _appLinks.uriLinkStream.listen(open, onError: (Object _) {});
@@ -99,7 +101,21 @@ class DeepLinks {
 
   void open(Uri uri) {
     final location = locationFor(uri);
-    if (location != null) router.go(location);
+    if (location == null) return;
+    if (store.state.session.status != SessionStatus.unknown) {
+      router.go(location);
+      return;
+    }
+    // A cold start (the website's "Open in the app" launches Lonora): the link arrives while the
+    // stored session is still being read, and until then the router shows the splash for every
+    // location. The newest link is held and opened once the session is known.
+    _held = location;
+    _sessionSub ??= store.onChange.listen((state) {
+      if (state.session.status == SessionStatus.unknown) return;
+      _sessionSub?.cancel();
+      _sessionSub = null;
+      router.go(_held!);
+    });
   }
 
   /// Pure mapping, unit-tested.
@@ -142,5 +158,6 @@ class DeepLinks {
   void dispose() {
     _linkSub?.cancel();
     _shareSub?.cancel();
+    _sessionSub?.cancel();
   }
 }

@@ -1,7 +1,8 @@
 // Sign-in and first-run owner setup: kit fields and buttons only, no illustration. Behaviour and
 // wording follow apps/mobile/app/sign-in.tsx: the server is asked `GET /onboarding` first; a server
 // without an owner shows the setup form (setup token from the server configuration or a connect
-// link).
+// link). Under the sign-in form, «ما عندك حساب؟ سجّل من lonora.io» opens Lonora Cloud's sign-up
+// in the browser (a Lonora Cloud server's owner is the website account).
 import 'dart:async';
 
 import 'package:async_redux/async_redux.dart';
@@ -308,11 +309,79 @@ class _SignInScreenState extends State<SignInScreen> {
                     loading: _busy,
                     onPressed: blocked ? null : () => _submit(server),
                   ),
+                  // Once the server has answered: one still without its owner creates it here
+                  // instead, and the line would flash before the setup form.
+                  if (!pending && !setup) ...[
+                    const SizedBox(height: LnSpace.sm),
+                    const _SignUpLink(),
+                  ],
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// «ما عندك حساب؟ سجّل من lonora.io»: Lonora Cloud's sign-up page, outside the app. Read as one
+/// link (not a button) with its address, in a 48 dp row; one tap opens one browser.
+class _SignUpLink extends StatefulWidget {
+  const _SignUpLink();
+
+  static final url = Uri.parse('https://lonora.io/#start');
+
+  @override
+  State<_SignUpLink> createState() => _SignUpLinkState();
+}
+
+class _SignUpLinkState extends State<_SignUpLink> {
+  bool _opening = false;
+
+  Future<void> _open() async {
+    if (_opening) return;
+    _opening = true;
+    try {
+      await openExternalUrl(context, _SignUpLink.url);
+    } finally {
+      _opening = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ln = context.ln;
+    final c = ln.colors;
+    final question = context.t('auth_noAccount');
+    final action = context.t('auth_signUpAt');
+    return Semantics(
+      link: true,
+      linkUrl: _SignUpLink.url,
+      label: '$question $action',
+      onTap: _open,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _open,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: LnSize.minTouch),
+          child: Center(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '$question '),
+                  TextSpan(
+                    text: action,
+                    style: ln.text.captionStrong.copyWith(color: c.link),
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.center,
+              style: ln.text.caption.copyWith(color: c.fgMuted),
+            ),
+          ),
+        ),
       ),
     );
   }

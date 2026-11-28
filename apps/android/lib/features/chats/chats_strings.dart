@@ -15,6 +15,9 @@ void registerChatsStrings() {
     'chats_drawer': ['قائمة المحادثات', 'Chat list'],
     'chats_closeDrawer': ['إغلاق قائمة المحادثات', 'Close the chat list'],
     'chats_allChats': ['كل المحادثات', 'All chats'],
+    // «+» on the list and in the drawer: every conversation read at once (Lonora Web's list
+    // options, apps/web/src/shell/DesktopList.tsx; not the row's «تمييز كمقروءة»).
+    'chats_markAllRead': ['تحديد الكل كمقروء', 'Mark all as read'],
     // Share target picker.
     'share_title': ['إرسال إلى…', 'Send to…'],
     // Groups (wording of Lonora Web's group page, apps/web/src/shell/agent/GroupPage.tsx).

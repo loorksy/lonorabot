@@ -23,6 +23,7 @@ import '../groups/create_group_sheet.dart';
 import 'chat_commands.dart';
 import 'chat_rows.dart';
 import 'chat_widgets.dart';
+import 'chats_actions.dart';
 import 'chats_strings.dart';
 
 /// Hands the home shell's drawer controller to the conversation header (its ☰ button) and to the
@@ -125,6 +126,11 @@ class _ChatDrawerState extends State<ChatDrawer> {
           icon: FIcons.bot,
           label: l10n.t('sh_manageAgents'),
           onSelected: () => context.push(Routes.agents),
+        ),
+        LnMenuAction(
+          icon: FIcons.checkCheck,
+          label: l10n.t('chats_markAllRead'),
+          onSelected: () => runChatsAction(context, ReadAllAction()),
         ),
       ],
     );
